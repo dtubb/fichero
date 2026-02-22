@@ -181,7 +181,9 @@ struct ProviderDetailView: View {
                                     }
                                 }
 
-                                Button(action: { deleteModel(model) }) {
+                                Button {
+                                    deleteModel(model)
+                                } label: {
                                     Image(systemName: "minus.circle")
                                         .foregroundColor(.red)
                                 }
@@ -194,7 +196,9 @@ struct ProviderDetailView: View {
                     HStack {
                         Text("Models")
                         Spacer()
-                        Button(action: { showModelBrowser = true }) {
+                        Button {
+                            showModelBrowser = true
+                        } label: {
                             Image(systemName: "plus")
                         }
                         .buttonStyle(.plain)

@@ -251,11 +251,11 @@ struct ContentView: View {
             // Only show for content modes that use inspector
             if showInspectorToggle {
                 ToolbarItem(placement: .primaryAction) {
-                    Button(action: {
+                    Button {
                         withAnimation {
                             showInspectorSidebar.toggle()
                         }
-                    }) {
+                    } label: {
                         Image(systemName: "sidebar.right")
                     }
                     .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")

@@ -64,10 +64,16 @@ extension WorkflowInspector {
                             icon: agentType.icon,
                             color: "purple",
                             inputPorts: [
-                                PortInfo(id: "input", name: "Input", portType: "input", dataType: "any", required: true, description: "Agent input")
+                                PortInfo(
+                                    id: "input", name: "Input", portType: "input",
+                                    dataType: "any", required: true, description: "Agent input"
+                                )
                             ],
                             outputPorts: [
-                                PortInfo(id: "output", name: "Output", portType: "output", dataType: "any", required: false, description: "Agent output")
+                                PortInfo(
+                                    id: "output", name: "Output", portType: "output",
+                                    dataType: "any", required: false, description: "Agent output"
+                                )
                             ],
                             configSchema: [:],
                             usesLLM: true,
@@ -93,7 +99,10 @@ extension WorkflowInspector {
                     .font(.subheadline)
                     .fontWeight(.semibold)
 
-                Text("Agent nodes use AI to reason and select tools dynamically. They can handle complex multi-step tasks by breaking them down and executing appropriate actions.")
+                Text(
+                    "Agent nodes use AI to reason and select tools dynamically. " +
+                    "They can handle complex multi-step tasks by breaking them down and executing appropriate actions."
+                )
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

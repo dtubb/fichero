@@ -5,7 +5,7 @@ struct ChatInputView: View {
     @Binding var inputText: String
     let isLoading: Bool
     let onSend: () -> Void
-    
+
     var body: some View {
         HStack(spacing: 12) {
             TextField("Ask a question about your documents...", text: $inputText, axis: .vertical)
@@ -14,7 +14,7 @@ struct ChatInputView: View {
                 .onSubmit {
                     onSend()
                 }
-            
+
             Button(action: onSend) {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.title2)

@@ -42,7 +42,8 @@ extension BatchDetailView {
                 statCard("Total", "\(displayBatch.totalItems)", .blue)
                 statCard("Completed", "\(displayBatch.completedItems)", .green)
                 statCard("Failed", "\(displayBatch.failedItems)", .red)
-                statCard("Pending", "\(displayBatch.totalItems - displayBatch.completedItems - displayBatch.failedItems)", .gray)
+                let pendingCount = displayBatch.totalItems - displayBatch.completedItems - displayBatch.failedItems
+                statCard("Pending", "\(pendingCount)", .gray)
             }
         }
     }

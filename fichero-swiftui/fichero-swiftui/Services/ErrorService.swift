@@ -145,7 +145,9 @@ class ErrorService: ObservableObject {
     /// Log an error using the system logger
     /// - Parameter errorModel: The error to log
     private func logError(_ errorModel: ErrorModel) {
-        let logMessage = "[ERROR] [\(errorModel.type.rawValue.uppercased())] [\(errorModel.severity.rawValue.uppercased())] \(errorModel.title): \(errorModel.message)"
+        let typeStr = errorModel.type.rawValue.uppercased()
+        let severityStr = errorModel.severity.rawValue.uppercased()
+        let logMessage = "[ERROR] [\(typeStr)] [\(severityStr)] \(errorModel.title): \(errorModel.message)"
 
         switch errorModel.severity {
         case .critical, .high:

@@ -7,7 +7,7 @@ struct SearchMapGrid: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let spacing: CGFloat = 40
-        
+
         // Vertical lines
         var xPos = spacing
         while xPos < rect.width {
@@ -15,7 +15,7 @@ struct SearchMapGrid: Shape {
             path.addLine(to: CGPoint(x: xPos, y: rect.height))
             xPos += spacing
         }
-        
+
         // Horizontal lines
         var yPos = spacing
         while yPos < rect.height {
@@ -23,7 +23,7 @@ struct SearchMapGrid: Shape {
             path.addLine(to: CGPoint(x: rect.width, y: yPos))
             yPos += spacing
         }
-        
+
         return path
     }
 }
@@ -34,7 +34,7 @@ struct SearchMapGrid: Shape {
 struct SearchResultCard: View {
     let result: SearchResult
     let isSelected: Bool
-    
+
     var body: some View {
         VStack(spacing: 8) {
             // Icon
@@ -44,7 +44,7 @@ struct SearchResultCard: View {
                 .frame(width: 44, height: 44)
                 .background(Color.accentColor.opacity(0.1))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
-            
+
             // Name
             if let name = result.metadata["name"]?.value as? String {
                 Text(name)
@@ -57,7 +57,7 @@ struct SearchResultCard: View {
                     .font(.caption)
                     .lineLimit(1)
             }
-            
+
             // Score badge
             Text(String(format: "%.0f%%", result.score * 100))
                 .font(.caption2)
@@ -77,7 +77,7 @@ struct SearchResultCard: View {
         )
         .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
     }
-    
+
     private func scoreColor(for score: Double) -> Color {
         if score >= 0.8 { return .green }
         if score >= 0.5 { return .orange }

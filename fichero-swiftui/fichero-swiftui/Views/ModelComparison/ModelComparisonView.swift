@@ -7,7 +7,7 @@ struct ModelComparisonView: View {
     @State var systemPrompt = ""
     @State var selectedModels: [ModelSpec] = [
         ModelSpec(provider: "openai", model: "gpt-4o"),
-        ModelSpec(provider: "anthropic", model: "claude-3-5-sonnet-20241022"),
+        ModelSpec(provider: "anthropic", model: "claude-3-5-sonnet-20241022")
     ]
     @State var showingModelPicker = false
     @State var showingPresets = false

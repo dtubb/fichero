@@ -239,7 +239,8 @@ struct MainContentModifiers: ViewModifier {
                 logger.info("Loading children for folder: \(document.name) (id: \(document.id))")
                 Task {
                     await documentStore.selectCollection(document)
-                    logger.info("selectCollection completed. currentDocuments count: \(documentStore.currentDocuments.count)")
+                    let docCount = documentStore.currentDocuments.count
+                    logger.info("selectCollection completed. currentDocuments count: \(docCount)")
                 }
             } else {
                 logger.info("Showing single file in gallery: \(document.name)")

@@ -100,19 +100,30 @@ extension LibraryManager {
             doc.name == "Inbox" && doc.docType == .folder && doc.parentId == nil
         }
 
-        libraryManagerLogger.info("\(library.displayName) library has \(library.documentStore.collections.count) documents, hasInbox: \(hasInbox)")
+        let collectionCount = library.documentStore.collections.count
+        libraryManagerLogger.info(
+            "\(library.displayName) library has \(collectionCount) documents, hasInbox: \(hasInbox)"
+        )
 
         if !hasInbox {
             // Create Inbox folder
             do {
-                let inbox = try await library.documentServiceGenerated.createCollection(name: "Inbox", parentId: nil)
-                libraryManagerLogger.info("✅ Created default Inbox folder in \(library.displayName) library: \(inbox.id)")
+                let inbox = try await library.documentServiceGenerated.createCollection(
+                    name: "Inbox",
+                    parentId: nil
+                )
+                libraryManagerLogger.info(
+                    "✅ Created default Inbox folder in \(library.displayName) library: \(inbox.id)"
+                )
 
                 // Reload documents to include the new Inbox
                 await library.documentStore.loadCollections()
-                libraryManagerLogger.info("Reloaded collections, now have \(library.documentStore.collections.count) documents")
+                let reloadedCount = library.documentStore.collections.count
+                libraryManagerLogger.info("Reloaded collections, now have \(reloadedCount) documents")
             } catch {
-                libraryManagerLogger.error("❌ Failed to create Inbox folder in \(library.displayName): \(error.localizedDescription)")
+                libraryManagerLogger.error(
+                    "❌ Failed to create Inbox folder in \(library.displayName): \(error.localizedDescription)"
+                )
             }
         } else {
             libraryManagerLogger.info("Inbox folder already exists in \(library.displayName) library")

@@ -242,7 +242,8 @@ struct QuickLookDownloadView: View {
 
                     // Check if this is a linked file
                     if let path = document.path, path.starts(with: "/Volumes/") {
-                        errorMessage += "\n\nThis file is linked to an external drive:\n\(path)\n\nMount the drive to view the full resolution file."
+                        errorMessage += "\n\nThis file is linked to an external drive:\n\(path)"
+                        errorMessage += "\n\nMount the drive to view the full resolution file."
                     }
 
                     await MainActor.run {

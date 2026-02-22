@@ -143,7 +143,10 @@ struct AgentTypeConfig: Codable {
         switch type {
         case .react:
             return AgentTypeConfig(
-                systemPrompt: "You are a helpful assistant that thinks step-by-step. Consider the problem carefully and use the available tools to help solve it.",
+                systemPrompt: """
+                    You are a helpful assistant that thinks step-by-step. \
+                    Consider the problem carefully and use the available tools to help solve it.
+                    """,
                 maxIterations: 10,
                 timeoutSeconds: 60,
                 enableFileTools: true,
@@ -155,7 +158,7 @@ struct AgentTypeConfig: Codable {
             )
         case .toolCalling:
             return AgentTypeConfig(
-                systemPrompt: "You are a helpful assistant. Use the available tools to complete the user's request efficiently.",
+                systemPrompt: "You are a helpful assistant. Use the available tools to complete the user's request.",
                 maxIterations: 5,
                 timeoutSeconds: 30,
                 enableFileTools: true,
@@ -167,7 +170,10 @@ struct AgentTypeConfig: Codable {
             )
         case .planAndExecute:
             return AgentTypeConfig(
-                systemPrompt: "You are a helpful assistant that plans carefully before acting. First create a step-by-step plan, then execute each step using the available tools.",
+                systemPrompt: """
+                    You are a helpful assistant that plans carefully before acting. \
+                    First create a step-by-step plan, then execute each step using the available tools.
+                    """,
                 maxIterations: 20,
                 timeoutSeconds: 120,
                 enableFileTools: true,

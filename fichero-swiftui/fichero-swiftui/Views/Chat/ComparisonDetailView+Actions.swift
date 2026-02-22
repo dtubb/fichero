@@ -28,7 +28,8 @@ extension ComparisonDetailView {
         error = nil
 
         do {
-            let url = URL(string: "http://localhost:8765/api/model-comparison/comparison/\(comparisonSummary.comparisonId)")!
+            let urlString = "http://localhost:8765/api/model-comparison/comparison/\(comparisonSummary.comparisonId)"
+            let url = URL(string: urlString)!
             let (data, response) = try await URLSession.shared.data(from: url)
 
             guard let httpResponse = response as? HTTPURLResponse else {

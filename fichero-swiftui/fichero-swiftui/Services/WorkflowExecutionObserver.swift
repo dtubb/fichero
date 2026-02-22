@@ -51,7 +51,9 @@ class WorkflowExecutionObserver {
     ///   - threadId: Backend thread ID
     ///   - onCancel: Optional closure to call when user cancels
     func startExecution(workflowId: String, name: String, threadId: String, onCancel: (() -> Void)? = nil) {
-        workflowExecutionLogger.info("Starting execution tracking: \(name) (workflow: \(workflowId), thread: \(threadId))")
+        workflowExecutionLogger.info(
+            "Starting execution tracking: \(name) (workflow: \(workflowId), thread: \(threadId))"
+        )
 
         let execution = WorkflowExecution(
             id: workflowId,
@@ -105,7 +107,8 @@ class WorkflowExecutionObserver {
 
     /// End tracking for a workflow (call when complete or failed)
     func endExecution(workflowId: String, status: WorkflowStatus = .completed) {
-        workflowExecutionLogger.info("Ending execution tracking: \(workflowId) with status \(String(describing: status))")
+        let statusDesc = String(describing: status)
+        workflowExecutionLogger.info("Ending execution tracking: \(workflowId) with status \(statusDesc)")
 
         if var execution = activeExecutions[workflowId] {
             execution.status = status

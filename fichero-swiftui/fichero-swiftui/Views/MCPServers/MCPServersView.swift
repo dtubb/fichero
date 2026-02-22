@@ -27,7 +27,9 @@ struct MCPServersView: View {
 
                 // Add/Remove buttons
                 HStack(spacing: 4) {
-                    Button(action: { showAddServer = true }) {
+                    Button {
+                        showAddServer = true
+                    } label: {
                         Image(systemName: "plus")
                     }
                     .buttonStyle(.borderless)
@@ -43,9 +45,9 @@ struct MCPServersView: View {
                     Spacer()
 
                     // Refresh button
-                    Button(action: {
+                    Button {
                         Task { await loadServers() }
-                    }) {
+                    } label: {
                         Image(systemName: "arrow.clockwise")
                     }
                     .buttonStyle(.borderless)

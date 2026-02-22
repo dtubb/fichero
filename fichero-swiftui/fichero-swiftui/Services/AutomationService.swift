@@ -19,11 +19,9 @@ class AutomationService {
     private func validateId(_ id: String) throws {
         // Reject IDs containing path traversal sequences or special characters
         let invalidPatterns = ["..", "/", "\\", "%2e", "%2f", "%5c"]
-        for pattern in invalidPatterns {
-            if id.lowercased().contains(pattern) {
-                logger.error("Invalid ID detected: contains forbidden pattern '\(pattern)'")
-                throw AutomationServiceError.invalidInput("Invalid ID format")
-            }
+        for pattern in invalidPatterns where id.lowercased().contains(pattern) {
+            logger.error("Invalid ID detected: contains forbidden pattern '\(pattern)'")
+            throw AutomationServiceError.invalidInput("Invalid ID format")
         }
         // IDs should only contain alphanumeric, hyphen, and underscore
         let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
@@ -42,7 +40,11 @@ class AutomationService {
     }
 
     /// List all schedules
-    func listSchedules(status: String? = nil, workflowId: String? = nil, limit: Int = 100) async throws -> [ScheduleInfo] {
+    func listSchedules(
+        status: String? = nil,
+        workflowId: String? = nil,
+        limit: Int = 100
+    ) async throws -> [ScheduleInfo] {
         var queryParams: [String] = ["limit=\(limit)"]
         if let status = status {
             queryParams.append("status=\(status)")
@@ -107,7 +109,11 @@ class AutomationService {
     }
 
     /// List all triggers
-    func listTriggers(status: String? = nil, workflowId: String? = nil, limit: Int = 100) async throws -> [TriggerInfo] {
+    func listTriggers(
+        status: String? = nil,
+        workflowId: String? = nil,
+        limit: Int = 100
+    ) async throws -> [TriggerInfo] {
         var queryParams: [String] = ["limit=\(limit)"]
         if let status = status {
             queryParams.append("status=\(status)")

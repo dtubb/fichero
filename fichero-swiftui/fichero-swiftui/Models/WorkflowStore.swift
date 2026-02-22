@@ -173,14 +173,22 @@ class WorkflowStore: ObservableObject {
         return true
     }
 
-    func importWorkflow(name: String = "", description: String = "", workflowData: [String: Any]) async throws -> WorkflowSidebarItem {
+    func importWorkflow(
+        name: String = "",
+        description: String = "",
+        workflowData: [String: Any]
+    ) async throws -> WorkflowSidebarItem {
         isSaving = true
         defer { isSaving = false }
 
         do {
             // Convert dictionary to AnyCodable format for API
             let anyCodableData = workflowData.mapValues { AnyCodable($0) }
-            let response = try await workflowService.importWorkflow(name: name, description: description, workflowData: anyCodableData)
+            let response = try await workflowService.importWorkflow(
+                name: name,
+                description: description,
+                workflowData: anyCodableData
+            )
 
             let item = WorkflowSidebarItem(
                 id: response.id,

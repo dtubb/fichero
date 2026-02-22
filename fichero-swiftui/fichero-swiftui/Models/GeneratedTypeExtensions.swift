@@ -135,7 +135,6 @@ extension Components.Schemas.ProviderCatalogResponse: @retroactive Identifiable 
     }
 }
 
-
 // MARK: - OpenAPIObjectContainer Helpers
 
 extension OpenAPIRuntime.OpenAPIObjectContainer {

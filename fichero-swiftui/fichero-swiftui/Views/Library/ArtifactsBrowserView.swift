@@ -326,7 +326,10 @@ struct ArtifactsBrowserView: View {
         ContentUnavailableView {
             Label("No Artifacts", systemImage: "sparkles")
         } description: {
-            Text("Run workflows on documents to generate artifacts like transcriptions, summaries, and entity extractions.")
+            Text(
+                "Run workflows on documents to generate artifacts like " +
+                "transcriptions, summaries, and entity extractions."
+            )
         }
     }
 

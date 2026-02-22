@@ -31,7 +31,9 @@ struct ProvidersView: View {
                 Divider()
 
                 HStack(spacing: 4) {
-                    Button(action: { showAddProvider = true }) {
+                    Button {
+                        showAddProvider = true
+                    } label: {
                         Image(systemName: "plus")
                     }
                     .buttonStyle(.borderless)

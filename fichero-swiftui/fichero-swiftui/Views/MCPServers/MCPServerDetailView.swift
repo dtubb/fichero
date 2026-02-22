@@ -162,7 +162,9 @@ struct MCPServerDetailView: View {
                         Spacer()
 
                         if !isLoadingTools && loadError == nil {
-                            Button(action: { Task { await loadTools(forceReload: true) } }) {
+                            Button {
+                                Task { await loadTools(forceReload: true) }
+                            } label: {
                                 Image(systemName: "arrow.clockwise")
                             }
                             .buttonStyle(.plain)
@@ -199,4 +201,3 @@ struct MCPServerDetailView: View {
         }
     }
 }
-

@@ -26,7 +26,12 @@ extension LibraryManager {
 
         // Create new library reference
         // Note: apiClient.currentLibraryPath is set in LibraryReference.init()
-        let library = LibraryReference(url: url, document: document, displayName: displayName, startAccessing: needsSecurityAccess)
+        let library = LibraryReference(
+            url: url,
+            document: document,
+            displayName: displayName,
+            startAccessing: needsSecurityAccess
+        )
 
         // Insert after Global library (which is always first)
         if openLibraries.first?.id == Self.globalLibraryId {
@@ -37,7 +42,12 @@ extension LibraryManager {
 
         currentLibraryId = library.id  // Set as current library
         let clientId = ObjectIdentifier(library.apiClient)
-        libraryManagerLogger.info("Opened library: \(url.lastPathComponent, privacy: .public) with APIClient-\(String(describing: clientId), privacy: .public) (security-scoped: \(needsSecurityAccess))")
+        let securityScoped = needsSecurityAccess
+        libraryManagerLogger.info("""
+            Opened library: \(url.lastPathComponent, privacy: .public) \
+            with APIClient-\(String(describing: clientId), privacy: .public) \
+            (security-scoped: \(securityScoped))
+            """)
 
         // Save open libraries for restoration on next launch
         saveOpenLibraryPaths()
@@ -86,7 +96,8 @@ extension LibraryManager {
         untitledCounter += 1
 
         let clientId = ObjectIdentifier(library.apiClient)
-        libraryManagerLogger.info("Created new unsaved library '\(displayName)' with APIClient-\(String(describing: clientId))")
+        let clientIdStr = String(describing: clientId)
+        libraryManagerLogger.info("Created new unsaved library '\(displayName)' with APIClient-\(clientIdStr)")
 
         // Initialize the backend database, load data, and ensure Inbox
         Task { @MainActor in
@@ -169,7 +180,9 @@ extension LibraryManager {
 
                 // Move the entire package directory
                 try fileManager.moveItem(at: oldURL, to: url)
-                libraryManagerLogger.info("Successfully moved package from \(oldURL.lastPathComponent) to \(url.lastPathComponent)")
+                libraryManagerLogger.info(
+                    "Successfully moved package from \(oldURL.lastPathComponent) to \(url.lastPathComponent)"
+                )
 
             } else {
                 // Not a temp library, create new package (for Save As on already-saved libraries)

@@ -141,7 +141,8 @@ class DocumentStore: ObservableObject {
     func loadChildren(of document: Document) async {
         isLoadingChildren = true
 
-        logger.info("loadChildren called for document: \(document.id), library path: \(self.api.currentLibraryPath ?? "nil")")
+        let libraryPath = self.api.currentLibraryPath ?? "nil"
+        logger.info("loadChildren called for document: \(document.id), library path: \(libraryPath)")
 
         do {
             let children: [Document] = try await self.api.get("/documents/\(document.id)/children")

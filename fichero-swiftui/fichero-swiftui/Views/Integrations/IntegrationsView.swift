@@ -217,7 +217,11 @@ struct IntegrationsView: View {
                 ContentUnavailableView(
                     "No Items Found",
                     systemImage: "doc.text.magnifyingglass",
-                    description: Text(searchText.isEmpty ? "No items in \(integration.name)" : "No results for \"\(searchText)\"")
+                    description: Text(
+                        searchText.isEmpty
+                            ? "No items in \(integration.name)"
+                            : "No results for \"\(searchText)\""
+                    )
                 )
             } else {
                 List(items) { item in

@@ -15,7 +15,7 @@ extension WorkflowCanvasView {
             "array": ["json", "text"],
             "file": ["files"],
             "files": ["file"],
-            "image": ["file", "files"],
+            "image": ["file", "files"]
         ]
         return conversions[outputType]?.contains(inputType) ?? false
     }
@@ -139,7 +139,11 @@ extension WorkflowCanvasView {
         }
 
         // Check type compatibility
-        let sourceType = getPortDataType(nodeId: dragged.sourceNodeId, portId: dragged.sourcePortId, isOutput: true) ?? "any"
+        let sourceType = getPortDataType(
+            nodeId: dragged.sourceNodeId,
+            portId: dragged.sourcePortId,
+            isOutput: true
+        ) ?? "any"
         guard canConnect(outputType: sourceType, inputType: port.dataType) else {
             endEdgeDrag()
             return

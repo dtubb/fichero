@@ -57,7 +57,9 @@ extension AddProviderSheet {
             // Footer with buttons
             HStack {
                 // Help button
-                Button(action: {}) {
+                Button {
+                    // help action
+                } label: {
                     Image(systemName: "questionmark.circle")
                         .font(.title2)
                 }

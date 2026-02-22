@@ -6,7 +6,7 @@ struct SearchResultsDisplay: View {
     let displayMode: ViewDisplayMode
     @Binding var selection: Set<String>
     let onLoadDocument: (String) -> Void
-    
+
     var body: some View {
         if searchResults.isEmpty {
             emptyState
@@ -23,18 +23,18 @@ struct SearchResultsDisplay: View {
             }
         }
     }
-    
+
     // MARK: - Empty State
-    
+
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 48))
                 .foregroundColor(.secondary)
-            
+
             Text("No Results")
                 .font(.headline)
-            
+
             Text("Enter a query or adjust filters to search")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
@@ -42,9 +42,9 @@ struct SearchResultsDisplay: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    
+
     // MARK: - List View
-    
+
     private var listView: some View {
         List(selection: $selection) {
             ForEach(searchResults) { result in
@@ -58,9 +58,9 @@ struct SearchResultsDisplay: View {
         }
         .listStyle(.inset)
     }
-    
+
     // MARK: - Icon View
-    
+
     private var iconView: some View {
         ScrollView {
             LazyVGrid(
@@ -72,7 +72,7 @@ struct SearchResultsDisplay: View {
                         Image(systemName: "doc.text.magnifyingglass")
                             .font(.system(size: 48))
                             .foregroundColor(.accentColor)
-                        
+
                         if let name = result.metadata["name"]?.value as? String {
                             Text(name)
                                 .font(.caption)
@@ -83,7 +83,7 @@ struct SearchResultsDisplay: View {
                                 .font(.caption)
                                 .lineLimit(1)
                         }
-                        
+
                         Text(String(format: "%.1f%%", result.score * 100))
                             .font(.caption2)
                             .foregroundColor(.secondary)
@@ -102,9 +102,9 @@ struct SearchResultsDisplay: View {
             .padding()
         }
     }
-    
+
     // MARK: - Table View
-    
+
     private var tableView: some View {
         Table(searchResults, selection: $selection) {
             TableColumn("Name") { result in
@@ -115,12 +115,12 @@ struct SearchResultsDisplay: View {
                         .foregroundColor(.secondary)
                 }
             }
-            
+
             TableColumn("Score") { result in
                 Text(String(format: "%.1f%%", result.score * 100))
             }
             .width(min: 60, ideal: 80)
-            
+
             TableColumn("Preview") { result in
                 if let preview = result.contentPreview {
                     Text(preview)
@@ -133,9 +133,9 @@ struct SearchResultsDisplay: View {
             }
         }
     }
-    
+
     // MARK: - Map View
-    
+
     private var mapView: some View {
         GeometryReader { geometry in
             ScrollView([.horizontal, .vertical]) {
@@ -144,7 +144,7 @@ struct SearchResultsDisplay: View {
                     SearchMapGrid()
                         .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
                         .allowsHitTesting(false)
-                    
+
                     // Search result cards positioned by relevance
                     ForEach(Array(searchResults.enumerated()), id: \.element.id) { index, result in
                         SearchResultCard(
@@ -165,7 +165,7 @@ struct SearchResultsDisplay: View {
         }
         .background(Color(.textBackgroundColor))
     }
-    
+
     /// Calculate card position based on relevance score and index
     private func cardPosition(for index: Int, score: Double, in size: CGSize) -> CGPoint {
         let columns = max(4, Int(size.width / 180))

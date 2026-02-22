@@ -161,7 +161,10 @@ class DragDropService: ObservableObject {
         for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
             let operationId = dragDropModel.startOperation()
 
-            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { [weak self] (urlData, error) in
+            provider.loadItem(
+                forTypeIdentifier: UTType.fileURL.identifier,
+                options: nil
+            ) { [weak self] (urlData, error) in
                 guard let self = self else { return }
 
                 defer {

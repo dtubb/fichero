@@ -139,7 +139,4 @@ struct BatchInputItem: Codable {
     /// Dictionary of input values keyed by input port name
     let inputs: [String: String]
 
-    init(inputs: [String: String]) {
-        self.inputs = inputs
-    }
 }

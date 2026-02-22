@@ -147,7 +147,7 @@ struct DroppableWorkflowPortView: View {
     let isConnected: Bool
     let canAcceptDrop: Bool
     let onDropReceived: (PortInfo, String) -> Void
-    var onDetachDrag: ((PortInfo, String) -> Void)? = nil  // Called when dragging from connected input
+    var onDetachDrag: ((PortInfo, String) -> Void)?  // Called when dragging from connected input
 
     @State private var isHovered: Bool = false
     @State private var isDragging: Bool = false
@@ -189,7 +189,7 @@ struct InputPortsView: View {
     let connectedPortIds: Set<String>
     let canAcceptDrop: Bool
     let onDropReceived: (PortInfo, String) -> Void
-    var onDetachDrag: ((PortInfo, String) -> Void)? = nil
+    var onDetachDrag: ((PortInfo, String) -> Void)?
 
     var body: some View {
         VStack(spacing: 8) {
@@ -256,17 +256,26 @@ struct OutputPortsView: View {
         VStack(spacing: 8) {
             Text("Input Ports").font(.caption).foregroundColor(.secondary)
             WorkflowPortView(
-                port: PortInfo(id: "files", name: "Files", portType: "input", dataType: "files", required: true, description: "Input files"),
+                port: PortInfo(
+                    id: "files", name: "Files", portType: "input",
+                    dataType: "files", required: true, description: "Input files"
+                ),
                 isConnected: false,
                 nodeColor: .blue
             )
             WorkflowPortView(
-                port: PortInfo(id: "text", name: "Text", portType: "input", dataType: "text", required: true, description: ""),
+                port: PortInfo(
+                    id: "text", name: "Text", portType: "input",
+                    dataType: "text", required: true, description: ""
+                ),
                 isConnected: true,
                 nodeColor: .blue
             )
             WorkflowPortView(
-                port: PortInfo(id: "json", name: "Data", portType: "input", dataType: "json", required: false, description: ""),
+                port: PortInfo(
+                    id: "json", name: "Data", portType: "input",
+                    dataType: "json", required: false, description: ""
+                ),
                 isConnected: false,
                 nodeColor: .purple
             )
@@ -275,12 +284,18 @@ struct OutputPortsView: View {
         VStack(spacing: 8) {
             Text("Output Ports").font(.caption).foregroundColor(.secondary)
             WorkflowPortView(
-                port: PortInfo(id: "output", name: "Output", portType: "output", dataType: "text", required: true, description: ""),
+                port: PortInfo(
+                    id: "output", name: "Output", portType: "output",
+                    dataType: "text", required: true, description: ""
+                ),
                 isConnected: true,
                 nodeColor: .green
             )
             WorkflowPortView(
-                port: PortInfo(id: "any", name: "Any", portType: "output", dataType: "any", required: true, description: ""),
+                port: PortInfo(
+                    id: "any", name: "Any", portType: "output",
+                    dataType: "any", required: true, description: ""
+                ),
                 isConnected: false,
                 nodeColor: .orange
             )

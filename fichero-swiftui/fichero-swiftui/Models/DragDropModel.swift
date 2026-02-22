@@ -7,7 +7,7 @@ class DragDropModel: ObservableObject {
     // MARK: - State Properties
     @Published var isProcessingDrop: Bool = false
     @Published var dropProgress: Double = 0.0
-    @Published var dropError: ErrorModel? = nil
+    @Published var dropError: ErrorModel?
     @Published var dropSuccessCount: Int = 0
     @Published var dropFailureCount: Int = 0
 

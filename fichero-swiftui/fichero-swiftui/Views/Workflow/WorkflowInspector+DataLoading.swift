@@ -13,7 +13,8 @@ extension WorkflowInspector {
             let response = try await workflowServiceGenerated.listToolsGrouped()
             toolCategories = response.categories
             let totalTools = response.categories.reduce(0) { $0 + $1.tools.count }
-            workflowInspectorLogger.info("Loaded \(totalTools) built-in tools in \(response.categories.count) categories")
+            let categoryCount = response.categories.count
+            workflowInspectorLogger.info("Loaded \(totalTools) built-in tools in \(categoryCount) categories")
         } catch {
             workflowInspectorLogger.error("Failed to load built-in tools: \(String(describing: error))")
             // Fall back to empty - UI will show placeholder
@@ -31,7 +32,9 @@ extension WorkflowInspector {
             // Group by server
             mcpToolsGrouped = Dictionary(grouping: response.tools) { $0.serverName }
 
-            workflowInspectorLogger.info("Loaded \(response.tools.count) MCP tools from \(mcpToolsGrouped.keys.count) servers")
+            let toolCount = response.tools.count
+            let serverCount = mcpToolsGrouped.keys.count
+            workflowInspectorLogger.info("Loaded \(toolCount) MCP tools from \(serverCount) servers")
         } catch {
             workflowInspectorLogger.error("Failed to load MCP tools: \(String(describing: error))")
         }

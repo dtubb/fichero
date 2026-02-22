@@ -158,7 +158,9 @@ struct ActivityDetailView: View {
         case .errors:
             ActivityErrorsView(
                 selectedRun: selectedRun,
-                activityItems: activityItems.filter { $0.level == "error" || $0.level == "critical" || $0.error != nil },
+                activityItems: activityItems.filter {
+                    $0.level == "error" || $0.level == "critical" || $0.error != nil
+                },
                 liveExecution: liveExecution
             )
         case .graph:

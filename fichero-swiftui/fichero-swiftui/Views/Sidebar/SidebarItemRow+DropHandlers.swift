@@ -56,7 +56,8 @@ extension SidebarItemRow {
             return false
         }
 
-        sidebarRowLogger.debug("Target \(targetFolder.name) is valid folder (docType: \(String(describing: targetDoc.docType)))")
+        let docTypeDesc = String(describing: targetDoc.docType)
+        sidebarRowLogger.debug("Target \(targetFolder.name) is valid folder (docType: \(docTypeDesc))")
         sidebarRowLogger.debug("Target document ID from doc: \(targetDoc.id)")
 
         for itemID in itemIDs {

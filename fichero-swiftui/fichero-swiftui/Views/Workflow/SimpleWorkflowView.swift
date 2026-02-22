@@ -13,7 +13,7 @@ struct SimpleWorkflowView: View {
             Text("Workflow: \(editingWorkflow.name)")
                 .font(.title)
 
-            Button(action: {
+            Button {
                 logger.info("Saving workflow: \(editingWorkflow.name)")
                 isSaving = true
                 Task {
@@ -21,7 +21,7 @@ struct SimpleWorkflowView: View {
                     guard !Task.isCancelled else { return }
                     isSaving = false
                 }
-            }) {
+            } label: {
                 HStack {
                     if isSaving {
                         ProgressView()

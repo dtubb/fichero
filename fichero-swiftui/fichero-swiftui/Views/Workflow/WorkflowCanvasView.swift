@@ -24,15 +24,15 @@ struct WorkflowCanvasView: View {
 
     // Selection state
     @State var selectedNodeIds: Set<String> = []
-    @State var selectedEdgeId: String? = nil
-    @State var editingNodeId: String? = nil
+    @State var selectedEdgeId: String?
+    @State var editingNodeId: String?
 
     // Edge dragging state
-    @State var draggedEdge: DraggedEdge? = nil
+    @State var draggedEdge: DraggedEdge?
 
     // Node dragging state
-    @State var nodeDragStartPosition: CGPoint? = nil
-    @State var draggingNodeIndex: Int? = nil
+    @State var nodeDragStartPosition: CGPoint?
+    @State var draggingNodeIndex: Int?
 
     // Node dimensions for port positioning
     let nodeWidth: CGFloat = 140
@@ -343,17 +343,33 @@ extension WorkflowCanvasView {
                             positionX: 150,
                             positionY: 200,
                             inputPorts: [],
-                            outputPorts: [PortInfo(id: "files", name: "Files", portType: "output", dataType: "files", required: true, description: "")]
+                            outputPorts: [
+                                PortInfo(
+                                    id: "files", name: "Files", portType: "output",
+                                    dataType: "files", required: true, description: ""
+                                )
+                            ]
                         ),
                         WorkflowNode(
                             tool: "transcribe",
                             label: "Transcribe",
                             positionX: 350,
                             positionY: 200,
-                            inputPorts: [PortInfo(id: "files", name: "Files", portType: "input", dataType: "files", required: true, description: "")],
+                            inputPorts: [
+                                PortInfo(
+                                    id: "files", name: "Files", portType: "input",
+                                    dataType: "files", required: true, description: ""
+                                )
+                            ],
                             outputPorts: [
-                                PortInfo(id: "text", name: "Text", portType: "output", dataType: "text", required: true, description: ""),
-                                PortInfo(id: "structured", name: "JSON", portType: "output", dataType: "json", required: true, description: "")
+                                PortInfo(
+                                    id: "text", name: "Text", portType: "output",
+                                    dataType: "text", required: true, description: ""
+                                ),
+                                PortInfo(
+                                    id: "structured", name: "JSON", portType: "output",
+                                    dataType: "json", required: true, description: ""
+                                )
                             ]
                         ),
                         WorkflowNode(
@@ -361,8 +377,18 @@ extension WorkflowCanvasView {
                             label: "To Word",
                             positionX: 550,
                             positionY: 200,
-                            inputPorts: [PortInfo(id: "content", name: "Content", portType: "input", dataType: "any", required: true, description: "")],
-                            outputPorts: [PortInfo(id: "file", name: "File", portType: "output", dataType: "file", required: true, description: "")]
+                            inputPorts: [
+                                PortInfo(
+                                    id: "content", name: "Content", portType: "input",
+                                    dataType: "any", required: true, description: ""
+                                )
+                            ],
+                            outputPorts: [
+                                PortInfo(
+                                    id: "file", name: "File", portType: "output",
+                                    dataType: "file", required: true, description: ""
+                                )
+                            ]
                         )
                     ],
                     edges: []

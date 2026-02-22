@@ -7,15 +7,17 @@ extension WorkflowExecutionObserver {
 
     // TODO: Refactor handleEvent - extract case handlers into separate methods
     // Function is 145 lines, target <100
-    /// Handle SSE event and update all relevant state
     // swiftlint:disable:next function_body_length
     func handleEvent(_ event: WorkflowStreamEvent, for workflowId: String) {
         // Log every event for debugging
-        workflowExecutionLogger.info("[EVENT] Received: \(String(describing: event).prefix(80)) for workflow: \(workflowId)")
+        let eventDesc = String(describing: event).prefix(80)
+        workflowExecutionLogger.info("[EVENT] Received: \(eventDesc) for workflow: \(workflowId)")
 
         guard var execution = activeExecutions[workflowId] else {
             let activeKeys = self.activeExecutions.keys.joined(separator: ", ")
-            workflowExecutionLogger.warning("[EVENT] No execution found for workflow: \(workflowId). Active: \(activeKeys)")
+            workflowExecutionLogger.warning(
+                "[EVENT] No execution found for workflow: \(workflowId). Active: \(activeKeys)"
+            )
             return
         }
 
@@ -126,7 +128,9 @@ extension WorkflowExecutionObserver {
             execution.currentFilePath = nil
 
         case .parallelComplete(_, let nodeId, let successCount, let errorCount, let total):
-            workflowExecutionLogger.info("Parallel complete: \(nodeId) - \(successCount)/\(total) succeeded, \(errorCount) errors")
+            workflowExecutionLogger.info(
+                "Parallel complete: \(nodeId) - \(successCount)/\(total) succeeded, \(errorCount) errors"
+            )
             var state = execution.nodeStates[nodeId] ?? NodeExecutionState(nodeId: nodeId)
             state.status = errorCount > 0 ? .failed : .completed
             state.progress = 1.0

@@ -85,8 +85,6 @@ struct ChatView: View {
     }
 }
 
-
-
 // MARK: - Preview
 
 #Preview {

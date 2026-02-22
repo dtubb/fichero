@@ -72,7 +72,9 @@ class ImportService: ObservableObject {
                         autoEmbed: autoEmbed
                     )
                     imported.append(contentsOf: folderDocs)
-                    logger.info("Successfully imported folder with \(folderDocs.count) documents: \(url.lastPathComponent)")
+                    logger.info(
+                        "Successfully imported folder with \(folderDocs.count) documents: \(url.lastPathComponent)"
+                    )
                 } else {
                     // Call Python backend: POST /api/ingest/file
                     let doc = try await importFile(

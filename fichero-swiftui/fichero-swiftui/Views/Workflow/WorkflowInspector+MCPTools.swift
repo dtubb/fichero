@@ -11,7 +11,9 @@ extension WorkflowInspector {
                 Label("MCP Tools", systemImage: "server.rack")
                     .font(.headline)
                 Spacer()
-                Button(action: { Task { await loadIntoRegistry() } }) {
+                Button {
+                    Task { await loadIntoRegistry() }
+                } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "square.and.arrow.down")
                         Text("Load into Registry")

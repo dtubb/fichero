@@ -103,7 +103,11 @@ struct SidebarItem: Identifiable, Hashable {
         )
     }
 
-    static func fromWorkflow(_ workflow: WorkflowSidebarItem, libraryId: UUID, children: [SidebarItem]? = nil) -> SidebarItem {
+    static func fromWorkflow(
+        _ workflow: WorkflowSidebarItem,
+        libraryId: UUID,
+        children: [SidebarItem]? = nil
+    ) -> SidebarItem {
         SidebarItem(
             id: "workflow:\(workflow.id)",
             name: workflow.name,
@@ -120,7 +124,11 @@ struct SidebarItem: Identifiable, Hashable {
         )
     }
 
-    static func fromConversation(_ conversation: Conversation, libraryId: UUID, children: [SidebarItem]? = nil) -> SidebarItem {
+    static func fromConversation(
+        _ conversation: Conversation,
+        libraryId: UUID,
+        children: [SidebarItem]? = nil
+    ) -> SidebarItem {
         SidebarItem(
             id: "chat:\(conversation.id)",
             name: conversation.title,

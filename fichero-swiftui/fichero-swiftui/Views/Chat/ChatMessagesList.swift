@@ -7,7 +7,7 @@ struct ChatMessagesList: View {
     let isLoading: Bool
     let errorMessage: String?
     @Binding var inputText: String
-    
+
     var body: some View {
         Group {
             if conversation.messages.isEmpty {
@@ -26,9 +26,9 @@ struct ChatMessagesList: View {
             }
         }
     }
-    
+
     // MARK: - Icon View
-    
+
     private var iconView: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -42,11 +42,11 @@ struct ChatMessagesList: View {
                     }
                 }
                 .padding()
-                
+
                 if isLoading {
                     ChatLoadingIndicator()
                 }
-                
+
                 if let error = errorMessage {
                     ChatErrorView(message: error)
                 }
@@ -61,9 +61,9 @@ struct ChatMessagesList: View {
         }
         .background(Color(.textBackgroundColor))
     }
-    
+
     // MARK: - Bubble View
-    
+
     private var bubbleView: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -72,11 +72,11 @@ struct ChatMessagesList: View {
                         MessageBubble(message: message)
                             .id(message.id)
                     }
-                    
+
                     if isLoading {
                         ChatLoadingIndicator()
                     }
-                    
+
                     if let error = errorMessage {
                         ChatErrorView(message: error)
                     }
@@ -93,9 +93,9 @@ struct ChatMessagesList: View {
         }
         .background(Color(.textBackgroundColor))
     }
-    
+
     // MARK: - Table View
-    
+
     private var tableView: some View {
         VStack(spacing: 0) {
             Table(conversation.messages) {
@@ -105,12 +105,12 @@ struct ChatMessagesList: View {
                         .foregroundColor(.secondary)
                 }
                 .width(min: 60, ideal: 80)
-                
+
                 TableColumn("Content") { message in
                     Text(message.content)
                         .lineLimit(3)
                 }
-                
+
                 TableColumn("Sources") { message in
                     if let sources = message.sources, !sources.isEmpty {
                         Text("\(sources.count) source(s)")
@@ -123,13 +123,13 @@ struct ChatMessagesList: View {
                 }
                 .width(min: 80, ideal: 100)
             }
-            
+
             if isLoading {
                 Divider()
                 ChatLoadingIndicator()
                     .padding()
             }
-            
+
             if let error = errorMessage {
                 Divider()
                 ChatErrorView(message: error)
@@ -138,9 +138,9 @@ struct ChatMessagesList: View {
         }
         .background(Color(.textBackgroundColor))
     }
-    
+
     // MARK: - Map View
-    
+
     private var mapView: some View {
         GeometryReader { geometry in
             ScrollView([.horizontal, .vertical]) {
@@ -149,13 +149,13 @@ struct ChatMessagesList: View {
                     ChatMapGrid()
                         .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
                         .allowsHitTesting(false)
-                    
+
                     // Message cards positioned on canvas
                     ForEach(Array(conversation.messages.enumerated()), id: \.element.id) { index, message in
                         MessageMapCard(message: message)
                             .position(messagePosition(for: index, role: message.role, in: geometry.size))
                     }
-                    
+
                     if isLoading {
                         ChatLoadingIndicator()
                             .position(x: geometry.size.width / 2, y: geometry.size.height - 50)
@@ -166,7 +166,7 @@ struct ChatMessagesList: View {
         }
         .background(Color(.textBackgroundColor))
     }
-    
+
     /// Position messages in a flowing conversation layout
     private func messagePosition(for index: Int, role: ChatRole, in size: CGSize) -> CGPoint {
         let ySpacing: CGFloat = 120

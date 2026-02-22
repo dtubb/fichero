@@ -22,13 +22,13 @@ extension ChatView {
             logger.error("Failed to load conversation \(id): \(error.localizedDescription)")
         }
     }
-    
+
     func loadProviders() async {
         do {
             let fetchedProviders = try await chatService.listProviders()
             await MainActor.run {
                 providers = fetchedProviders
-                
+
                 // Select first available provider/model if none selected or current is unavailable
                 let currentAvailable = fetchedProviders.first(where: { $0.id == selectedProvider && $0.available })
                 if currentAvailable == nil, let firstAvailable = fetchedProviders.first(where: { $0.available }) {
@@ -83,21 +83,21 @@ extension ChatView {
         errorMessage = nil
         logger.info("Started new chat")
     }
-    
+
     func sendMessage() {
         guard !inputText.isEmpty else { return }
-        
+
         let userMessage = ChatMessage(role: .user, content: inputText)
         currentConversation.messages.append(userMessage)
         let query = inputText
         inputText = ""
         errorMessage = nil
         isLoading = true
-        
+
         Task { @MainActor in
             do {
                 logger.info("Sending message: \(query)")
-                
+
                 // Call the RAG API
                 let response = try await chatService.chat(
                     message: query,
@@ -108,19 +108,19 @@ extension ChatView {
                     provider: selectedProvider,
                     model: selectedModel
                 )
-                
+
                 logger.info("Got response with \(response.sources.count) sources")
-                
+
                 // Convert API sources to local model
                 let sources = response.sources.map { $0.toDocumentSource() }
-                
+
                 // Create assistant message
                 let assistantMessage = ChatMessage(
                     role: .assistant,
                     content: response.message,
                     sources: sources
                 )
-                
+
                 await MainActor.run {
                     currentConversation.messages.append(assistantMessage)
                     isLoading = false

@@ -34,7 +34,9 @@ struct AddMCPServerSheet: View {
                     .font(.title2)
                     .fontWeight(.semibold)
                 Spacer()
-                Button(action: { dismiss() }) {
+                Button {
+                    dismiss()
+                } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.secondary)
                         .imageScale(.large)
@@ -187,7 +189,8 @@ struct AddMCPServerSheet: View {
 
             if let separatorIndex = trimmed.firstIndex(of: "=") {
                 let key = String(trimmed[..<separatorIndex]).trimmingCharacters(in: .whitespaces)
-                let value = String(trimmed[trimmed.index(after: separatorIndex)...]).trimmingCharacters(in: .whitespaces)
+                let remainder = trimmed[trimmed.index(after: separatorIndex)...]
+                let value = String(remainder).trimmingCharacters(in: .whitespaces)
                 if !key.isEmpty {
                     result[key] = value
                 }
@@ -204,7 +207,8 @@ struct AddMCPServerSheet: View {
 
             if let separatorIndex = trimmed.firstIndex(of: ":") {
                 let key = String(trimmed[..<separatorIndex]).trimmingCharacters(in: .whitespaces)
-                let value = String(trimmed[trimmed.index(after: separatorIndex)...]).trimmingCharacters(in: .whitespaces)
+                let remainder = trimmed[trimmed.index(after: separatorIndex)...]
+                let value = String(remainder).trimmingCharacters(in: .whitespaces)
                 if !key.isEmpty {
                     result[key] = value
                 }

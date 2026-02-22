@@ -48,7 +48,8 @@ struct LibraryImageView: View {
         isLoading = true
         loadError = nil
 
-        Self.logger.info("Loading \(self.imageType == .thumbnail ? "thumbnail" : "display") for document: \(self.documentId)")
+        let imageTypeLabel = self.imageType == .thumbnail ? "thumbnail" : "display"
+        Self.logger.info("Loading \(imageTypeLabel) for document: \(self.documentId)")
 
         do {
             switch imageType {

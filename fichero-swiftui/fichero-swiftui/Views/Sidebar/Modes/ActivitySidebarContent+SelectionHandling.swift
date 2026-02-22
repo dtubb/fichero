@@ -33,7 +33,9 @@ extension ActivitySidebarContent {
 
         if let run = findRun(byId: runId) {
             if let childType = childType {
-                activitySidebarLogger.debug("🔵 Setting viewMode to activity run \(runId) with child: \(childType.rawValue)")
+                activitySidebarLogger.debug(
+                    "🔵 Setting viewMode to activity run \(runId) with child: \(childType.rawValue)"
+                )
                 viewMode = .activity(run.toSelectedRun().with(childType: childType))
             } else {
                 activitySidebarLogger.debug("🔵 Setting viewMode to activity run \(runId) (overview)")

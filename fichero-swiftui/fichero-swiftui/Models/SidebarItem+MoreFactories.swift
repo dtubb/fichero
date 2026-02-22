@@ -21,7 +21,11 @@ extension SidebarItem {
         )
     }
 
-    static func fromComparison(_ comparison: ComparisonSummary, libraryId: UUID, children: [SidebarItem]? = nil) -> SidebarItem {
+    static func fromComparison(
+        _ comparison: ComparisonSummary,
+        libraryId: UUID,
+        children: [SidebarItem]? = nil
+    ) -> SidebarItem {
         // Truncate prompt for display
         let displayName = comparison.prompt.prefix(40) + (comparison.prompt.count > 40 ? "..." : "")
         return SidebarItem(
@@ -92,7 +96,11 @@ extension SidebarItem {
         )
     }
 
-    static func fromActivityRun(_ activity: ActivityItem, libraryId: UUID, children: [SidebarItem]? = nil) -> SidebarItem {
+    static func fromActivityRun(
+        _ activity: ActivityItem,
+        libraryId: UUID,
+        children: [SidebarItem]? = nil
+    ) -> SidebarItem {
         SidebarItem(
             id: "activity:\(activity.id)",
             name: activity.name,

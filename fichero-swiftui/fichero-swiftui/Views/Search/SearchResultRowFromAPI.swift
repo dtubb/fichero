@@ -3,7 +3,7 @@ import SwiftUI
 /// Reusable search result row component for API results
 struct SearchResultRowFromAPI: View {
     let result: SearchResult
-    
+
     var body: some View {
         HStack(spacing: 12) {
             // Icon
@@ -11,11 +11,11 @@ struct SearchResultRowFromAPI: View {
                 RoundedRectangle(cornerRadius: 4)
                     .fill(Color(.windowBackgroundColor))
                     .frame(width: 40, height: 40)
-                
+
                 Image(systemName: "doc.text.magnifyingglass")
                     .foregroundColor(.accentColor)
             }
-            
+
             // Info
             VStack(alignment: .leading, spacing: 4) {
                 // Document ID (would ideally show name from metadata)
@@ -28,7 +28,7 @@ struct SearchResultRowFromAPI: View {
                         .font(.body)
                         .lineLimit(1)
                 }
-                
+
                 // Score badge
                 HStack(spacing: 8) {
                     Text(String(format: "Score: %.1f%%", result.score * 100))
@@ -39,7 +39,7 @@ struct SearchResultRowFromAPI: View {
                         .background(Color.accentColor.opacity(0.15))
                         .cornerRadius(4)
                 }
-                
+
                 // Content preview or highlights
                 if let highlights = result.highlights, !highlights.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
@@ -57,7 +57,7 @@ struct SearchResultRowFromAPI: View {
                         .lineLimit(2)
                 }
             }
-            
+
             Spacer()
         }
         .padding(.vertical, 4)

@@ -134,7 +134,9 @@ struct AIModelSelectionView: View {
                 // Sort picker
                 Menu {
                     ForEach(ModelSortOrder.allCases, id: \.self) { order in
-                        Button(action: { sortOrder = order }) {
+                        Button {
+                            sortOrder = order
+                        } label: {
                             HStack {
                                 Text(order.rawValue)
                                 if sortOrder == order {

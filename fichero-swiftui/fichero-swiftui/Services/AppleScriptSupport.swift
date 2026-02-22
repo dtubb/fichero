@@ -87,7 +87,7 @@ class AppleScriptBridge {
 
         let body: [String: any Sendable] = [
             "workflow_id": workflowId,
-            "inputs": inputs,
+            "inputs": inputs
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
@@ -114,7 +114,7 @@ class AppleScriptBridge {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = "{}".data(using: .utf8)
+        request.httpBody = Data("{}".utf8)
 
         let (data, _) = try await session.data(for: request)
         let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -139,7 +139,7 @@ class AppleScriptBridge {
 
         let body: [String: any Sendable] = [
             "inputs": inputs,
-            "input_files": [] as [String],
+            "input_files": [] as [String]
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
@@ -151,9 +151,12 @@ class AppleScriptBridge {
     // MARK: - Document Operations
 
     func listDocuments(folderPath: String?, limit: Int) async throws -> [String] {
-        var urlComponents = URLComponents(url: baseURL.appendingPathComponent("documents"), resolvingAgainstBaseURL: false)!
+        var urlComponents = URLComponents(
+            url: baseURL.appendingPathComponent("documents"),
+            resolvingAgainstBaseURL: false
+        )!
         urlComponents.queryItems = [
-            URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "limit", value: String(limit))
         ]
         if let folder = folderPath {
             urlComponents.queryItems?.append(URLQueryItem(name: "folder_path", value: folder))
@@ -166,10 +169,13 @@ class AppleScriptBridge {
     }
 
     func searchDocuments(query: String, limit: Int) async throws -> [String] {
-        var urlComponents = URLComponents(url: baseURL.appendingPathComponent("search"), resolvingAgainstBaseURL: false)!
+        var urlComponents = URLComponents(
+            url: baseURL.appendingPathComponent("search"),
+            resolvingAgainstBaseURL: false
+        )!
         urlComponents.queryItems = [
             URLQueryItem(name: "q", value: query),
-            URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "limit", value: String(limit))
         ]
 
         let (data, _) = try await session.data(from: urlComponents.url!)
@@ -186,7 +192,7 @@ class AppleScriptBridge {
 
         var body: [String: Any] = [
             "source_path": filePath,
-            "mode": mode.uppercased(),
+            "mode": mode.uppercased()
         ]
         if let folder = folderPath {
             body["parent_id"] = folder

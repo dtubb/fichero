@@ -63,10 +63,10 @@ struct AIModelCatalog: View {
                         Task { await searchModels(reset: true) }
                     }
                 if !searchQuery.isEmpty {
-                    Button(action: {
+                    Button {
                         searchQuery = ""
                         Task { await searchModels(reset: true) }
-                    }) {
+                    } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.secondary)
                     }
@@ -113,10 +113,10 @@ struct AIModelCatalog: View {
     private func taskTab(_ task: HFTaskCategory?, label: String) -> some View {
         let isSelected = (task == nil && selectedTask == nil) || (task?.id == selectedTask?.id)
 
-        return Button(action: {
+        return Button {
             selectedTask = task
             Task { await searchModels(reset: true) }
-        }) {
+        } label: {
             Text(label)
                 .font(.subheadline)
                 .padding(.horizontal, 12)
@@ -146,9 +146,9 @@ struct AIModelCatalog: View {
 
                 // Load more button
                 if hasMore {
-                    Button(action: {
+                    Button {
                         Task { await loadMore() }
-                    }) {
+                    } label: {
                         if isLoading {
                             ProgressView()
                                 .scaleEffect(0.8)

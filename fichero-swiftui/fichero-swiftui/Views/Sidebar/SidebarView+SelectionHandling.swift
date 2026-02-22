@@ -10,7 +10,10 @@ extension SidebarView {
             return
         }
 
-        sidebarViewLogger.info("handleSelection: \(item.name) (category: \(item.category.rawValue), type: \(String(describing: item.itemType)))")
+        let itemTypeDesc = String(describing: item.itemType)
+        sidebarViewLogger.info(
+            "handleSelection: \(item.name) (category: \(item.category.rawValue), type: \(itemTypeDesc))"
+        )
 
         // Switch window's library if the selected item belongs to a different library
         if let itemLibraryId = item.libraryId, itemLibraryId != windowState.libraryId {

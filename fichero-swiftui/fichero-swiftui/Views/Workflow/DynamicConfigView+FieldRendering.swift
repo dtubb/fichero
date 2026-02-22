@@ -114,10 +114,10 @@ extension DynamicConfigView {
             )
 
             if !(stringValues[key]?.isEmpty ?? true) {
-                Button(action: {
+                Button {
                     stringValues[key] = ""
                     removeConfig(key: key)
-                }) {
+                } label: {
                     Label("Reset to default", systemImage: "arrow.counterclockwise")
                         .font(.caption2)
                 }

@@ -11,14 +11,14 @@ extension SearchView {
         filters.statuses != nil ||
         filters.hasContent != nil
     }
-    
+
     func clearFilters() {
         queryText = ""
         filters = SearchFilters()
         searchResults = []
         searchError = nil
     }
-    
+
     func loadDocument(_ id: String) {
         Task {
             do {
@@ -31,7 +31,7 @@ extension SearchView {
             }
         }
     }
-    
+
     func performSearch() {
         guard !queryText.trimmingCharacters(in: .whitespaces).isEmpty else {
             searchResults = []
@@ -39,16 +39,16 @@ extension SearchView {
             searchError = nil
             return
         }
-        
+
         logger.info("Starting enhanced search for: \(queryText)")
         isSearching = true
         searchError = nil
-        
+
         Task {
             do {
                 logger.info("Calling searchService.search with enhanced parameters...")
                 let filterDict = buildFilterDictionary()
-                
+
                 let response = try await searchService.searchCompatible(
                     query: queryText,
                     limit: 50,
@@ -61,7 +61,7 @@ extension SearchView {
                     useFuzzyMatch: false,
                     highlightResults: true
                 )
-                
+
                 logger.info("Got \(response.count) results (total: \(response.totalResults))")
                 await MainActor.run {
                     searchResults = response.results
@@ -79,7 +79,7 @@ extension SearchView {
             }
         }
     }
-    
+
     func buildFilterDictionary() -> [String: String] {
         var filterDict: [String: String] = [:]
         if let docTypes = filters.docTypes, !docTypes.isEmpty {
@@ -96,11 +96,11 @@ extension SearchView {
         }
         return filterDict
     }
-    
+
     func saveSearch() {
         guard !queryText.isEmpty else { return }
         isSaving = true
-        
+
         Task {
             do {
                 _ = try await savedSearchService.saveSearch(

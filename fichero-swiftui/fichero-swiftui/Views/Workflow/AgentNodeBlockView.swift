@@ -6,7 +6,7 @@ import SwiftUI
 /// Block view for an agent node type in the inspector
 struct AgentNodeBlockView: View {
     let agentType: AgentType
-    var onTap: (() -> Void)? = nil
+    var onTap: (() -> Void)?
 
     @State private var isHovering: Bool = false
 

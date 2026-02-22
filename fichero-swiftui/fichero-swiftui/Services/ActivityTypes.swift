@@ -205,26 +205,4 @@ struct ActivityStats: Codable {
         case periodEnd = "period_end"
     }
 
-    init(
-        totalActivities: Int,
-        activitiesByType: [String: Int],
-        activitiesByLevel: [String: Int],
-        errorCount: Int,
-        warningCount: Int,
-        avgWorkflowDurationMs: Double?,
-        successRate: Double,
-        periodStart: String,
-        periodEnd: String
-    ) {
-        self.totalActivities = totalActivities
-        self.activitiesByType = activitiesByType
-        self.activitiesByLevel = activitiesByLevel
-        self.errorCount = errorCount
-        self.warningCount = warningCount
-        self.avgWorkflowDurationMs = avgWorkflowDurationMs
-        self.successRate = successRate
-        self.periodStart = periodStart
-        self.periodEnd = periodEnd
-    }
 }
- 

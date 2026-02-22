@@ -179,22 +179,22 @@ extension DocumentStore {
             guard parentId.count <= 100, !parentId.contains("\r"), !parentId.contains("\n") else {
                 throw DocumentStoreError.invalidParentId
             }
-            body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"parent_id\"\r\n\r\n".data(using: .utf8)!)
-            body.append("\(parentId)\r\n".data(using: .utf8)!)
+            body.append(Data("--\(boundary)\r\n".utf8))
+            body.append(Data("Content-Disposition: form-data; name=\"parent_id\"\r\n\r\n".utf8))
+            body.append(Data("\(parentId)\r\n".utf8))
         }
 
         // Add file - backend determines MIME type from file content
         let fileData = try Data(contentsOf: url)
 
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: application/octet-stream\r\n\r\n".data(using: .utf8)!)
+        body.append(Data("--\(boundary)\r\n".utf8))
+        body.append(Data("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".utf8))
+        body.append(Data("Content-Type: application/octet-stream\r\n\r\n".utf8))
         body.append(fileData)
-        body.append("\r\n".data(using: .utf8)!)
+        body.append(Data("\r\n".utf8))
 
         // End boundary
-        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        body.append(Data("--\(boundary)--\r\n".utf8))
 
         request.httpBody = body
 

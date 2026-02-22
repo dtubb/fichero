@@ -5,7 +5,7 @@ import SwiftUI
 /// Card representation of a chat message for Icon/Grid view
 struct MessageCard: View {
     let message: ChatMessage
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Role badge
@@ -17,13 +17,13 @@ struct MessageCard: View {
                     .fontWeight(.medium)
                 Spacer()
             }
-            
+
             // Content preview
             Text(message.content)
                 .font(.subheadline)
                 .foregroundColor(.primary)
                 .lineLimit(4)
-            
+
             // Sources indicator
             if let sources = message.sources, !sources.isEmpty {
                 HStack(spacing: 4) {
@@ -51,54 +51,54 @@ struct MessageCard: View {
 /// Displays a single chat message in a bubble format
 struct MessageBubble: View {
     let message: ChatMessage
-    
+
     var body: some View {
         VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 8) {
             HStack {
                 if message.role == .user { Spacer() }
-                
+
                 VStack(alignment: .leading, spacing: 8) {
                     Text(message.content)
                         .padding(12)
                         .background(bubbleBackground)
                         .foregroundColor(message.role == .user ? .white : .primary)
                         .cornerRadius(16)
-                    
+
                     // Sources (for assistant messages)
                     if let sources = message.sources, !sources.isEmpty {
                         sourcesView(sources)
                     }
                 }
                 .frame(maxWidth: 500, alignment: message.role == .user ? .trailing : .leading)
-                
+
                 if message.role == .assistant { Spacer() }
             }
         }
     }
-    
+
     private var bubbleBackground: Color {
         message.role == .user ? Color.accentColor : Color(.controlBackgroundColor)
     }
-    
+
     @ViewBuilder
     private func sourcesView(_ sources: [DocumentSource]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Sources")
                 .font(.caption2)
                 .foregroundColor(.secondary)
-            
+
             ForEach(sources) { source in
                 HStack(spacing: 6) {
                     Image(systemName: "doc.text")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    
+
                     Text(source.documentName)
                         .font(.caption)
                         .foregroundColor(.accentColor)
-                    
+
                     Spacer()
-                    
+
                     Text("\(Int(source.relevanceScore * 100))%")
                         .font(.caption2)
                         .foregroundColor(.secondary)
@@ -118,7 +118,7 @@ struct MessageBubble: View {
 /// Card representation for spatial map view
 struct MessageMapCard: View {
     let message: ChatMessage
-    
+
     var body: some View {
         VStack(spacing: 6) {
             // Role icon
@@ -128,14 +128,14 @@ struct MessageMapCard: View {
                 .frame(width: 40, height: 40)
                 .background((message.role == .user ? Color.accentColor : Color.purple).opacity(0.15))
                 .clipShape(Circle())
-            
+
             // Content preview
             Text(message.content)
                 .font(.caption)
                 .lineLimit(3)
                 .multilineTextAlignment(.center)
                 .frame(width: 140)
-            
+
             // Sources badge
             if let sources = message.sources, !sources.isEmpty {
                 Text("\(sources.count) sources")

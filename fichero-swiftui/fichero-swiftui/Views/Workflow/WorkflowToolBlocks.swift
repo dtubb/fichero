@@ -4,7 +4,7 @@ import SwiftUI
 
 struct ToolBlockView: View {
     let tool: ToolInfo
-    var onTap: (() -> Void)? = nil
+    var onTap: (() -> Void)?
 
     @State private var isHovering: Bool = false
 

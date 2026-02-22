@@ -20,11 +20,9 @@ class ProviderService: ObservableObject {
     private func validateIdentifier(_ identifier: String, type: String) throws {
         // Reject identifiers containing path traversal sequences
         let invalidPatterns = ["..", "/", "\\", "%2e", "%2f", "%5c"]
-        for pattern in invalidPatterns {
-            if identifier.lowercased().contains(pattern) {
-                logger.error("Invalid \(type) detected: contains forbidden pattern")
-                throw ProviderServiceError.invalidInput("Invalid \(type) format")
-            }
+        for pattern in invalidPatterns where identifier.lowercased().contains(pattern) {
+            logger.error("Invalid \(type) detected: contains forbidden pattern")
+            throw ProviderServiceError.invalidInput("Invalid \(type) format")
         }
         // Allow alphanumeric, hyphen, underscore, and dot (for provider types like "openai")
         let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))

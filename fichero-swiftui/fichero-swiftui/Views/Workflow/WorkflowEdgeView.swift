@@ -164,8 +164,12 @@ struct EdgesView: View {
 
     var body: some View {
         ForEach(edges) { edge in
-            if let sourcePoint = getPortPosition(nodeId: edge.sourceNodeId, portId: edge.sourcePortId, isOutput: true),
-               let targetPoint = getPortPosition(nodeId: edge.targetNodeId, portId: edge.targetPortId, isOutput: false) {
+            if let sourcePoint = getPortPosition(
+                nodeId: edge.sourceNodeId, portId: edge.sourcePortId, isOutput: true
+            ),
+               let targetPoint = getPortPosition(
+                nodeId: edge.targetNodeId, portId: edge.targetPortId, isOutput: false
+               ) {
                 WorkflowEdgeView(
                     edge: edge,
                     sourcePoint: sourcePoint,

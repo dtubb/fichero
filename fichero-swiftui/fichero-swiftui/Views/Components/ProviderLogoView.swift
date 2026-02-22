@@ -23,4 +23,3 @@ struct ProviderLogoView: View {
         .frame(width: size, height: size)
     }
 }
-

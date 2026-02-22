@@ -23,7 +23,9 @@ struct MCPToolsCatalogView: View {
                 Spacer()
 
                 // Load to Workflow Registry button
-                Button(action: { Task { await loadIntoWorkflowRegistry() } }) {
+                Button {
+                    Task { await loadIntoWorkflowRegistry() }
+                } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "square.and.arrow.down")
                         Text("Load to Workflow Registry")
@@ -33,7 +35,9 @@ struct MCPToolsCatalogView: View {
                 .disabled(tools.isEmpty)
                 .help("Make these tools available in the workflow editor")
 
-                Button(action: { Task { await loadAllTools() } }) {
+                Button {
+                    Task { await loadAllTools() }
+                } label: {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
@@ -51,7 +55,9 @@ struct MCPToolsCatalogView: View {
                     .textFieldStyle(.plain)
 
                 if !searchText.isEmpty {
-                    Button(action: { searchText = "" }) {
+                    Button {
+                        searchText = ""
+                    } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.secondary)
                     }

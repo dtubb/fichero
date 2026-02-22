@@ -10,8 +10,10 @@ enum WorkflowStreamEvent: Equatable {
     case nodeEnd(threadId: String, nodeId: String, durationMs: Double, output: [String: Any]?)
     // Parallel execution events
     case parallelStart(threadId: String, nodeId: String, fileTotal: Int)
-    case fileStart(threadId: String, nodeId: String, filePath: String, fileIndex: Int, fileTotal: Int, progress: Double)
-    case fileComplete(threadId: String, nodeId: String, filePath: String, fileIndex: Int, fileTotal: Int, progress: Double)
+    case fileStart(threadId: String, nodeId: String, filePath: String, fileIndex: Int, fileTotal: Int,
+                   progress: Double)
+    case fileComplete(threadId: String, nodeId: String, filePath: String, fileIndex: Int, fileTotal: Int,
+                      progress: Double)
     case fileError(threadId: String, nodeId: String, filePath: String, error: String, progress: Double)
     case parallelComplete(threadId: String, nodeId: String, successCount: Int, errorCount: Int, total: Int)
     case complete(threadId: String, checkpointId: String?, finalState: [String: Any]?)
@@ -31,13 +33,17 @@ enum WorkflowStreamEvent: Equatable {
             return lhsThread == rhsThread && lhsNode == rhsNode
         case (.parallelStart(let lhsThread, let lhsNode, _), .parallelStart(let rhsThread, let rhsNode, _)):
             return lhsThread == rhsThread && lhsNode == rhsNode
-        case (.fileStart(let lhsThread, let lhsNode, _, _, _, _), .fileStart(let rhsThread, let rhsNode, _, _, _, _)):
+        case (.fileStart(let lhsThread, let lhsNode, _, _, _, _),
+              .fileStart(let rhsThread, let rhsNode, _, _, _, _)):
             return lhsThread == rhsThread && lhsNode == rhsNode
-        case (.fileComplete(let lhsThread, let lhsNode, _, _, _, _), .fileComplete(let rhsThread, let rhsNode, _, _, _, _)):
+        case (.fileComplete(let lhsThread, let lhsNode, _, _, _, _),
+              .fileComplete(let rhsThread, let rhsNode, _, _, _, _)):
             return lhsThread == rhsThread && lhsNode == rhsNode
-        case (.fileError(let lhsThread, let lhsNode, _, _, _), .fileError(let rhsThread, let rhsNode, _, _, _)):
+        case (.fileError(let lhsThread, let lhsNode, _, _, _),
+              .fileError(let rhsThread, let rhsNode, _, _, _)):
             return lhsThread == rhsThread && lhsNode == rhsNode
-        case (.parallelComplete(let lhsThread, let lhsNode, _, _, _), .parallelComplete(let rhsThread, let rhsNode, _, _, _)):
+        case (.parallelComplete(let lhsThread, let lhsNode, _, _, _),
+              .parallelComplete(let rhsThread, let rhsNode, _, _, _)):
             return lhsThread == rhsThread && lhsNode == rhsNode
         case (.complete(let lhsThread, _, _), .complete(let rhsThread, _, _)):
             return lhsThread == rhsThread

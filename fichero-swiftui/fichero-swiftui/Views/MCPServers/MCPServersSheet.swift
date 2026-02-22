@@ -12,7 +12,9 @@ struct MCPServersSheet: View {
                     .font(.title)
                     .fontWeight(.semibold)
                 Spacer()
-                Button(action: { dismiss() }) {
+                Button {
+                    dismiss()
+                } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.secondary)
                         .imageScale(.large)

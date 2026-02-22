@@ -67,8 +67,12 @@ struct ActivitySidebarContent: View {
     }
 
     func totalRunCount(for library: LibraryManager.LibraryReference) -> Int {
-        runsByWorkflow(for: library, activeExecutions: activeExecutionsSnapshot, historicalRuns: historicalRunsByLibrary)
-            .values.reduce(0) { $0 + $1.count }
+        runsByWorkflow(
+            for: library,
+            activeExecutions: activeExecutionsSnapshot,
+            historicalRuns: historicalRunsByLibrary
+        )
+        .values.reduce(0) { $0 + $1.count }
     }
 
     var body: some View {

@@ -409,7 +409,8 @@ struct CreateActionSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") {
                         Task {
-                            let tagList = tags.split(separator: ",").map { String($0.trimmingCharacters(in: .whitespaces)) }
+                            let tagList = tags.split(separator: ",")
+                                .map { String($0.trimmingCharacters(in: .whitespaces)) }
                             var request = CreateActionRequest(name: name)
                             request.description = description
                             request.category = category

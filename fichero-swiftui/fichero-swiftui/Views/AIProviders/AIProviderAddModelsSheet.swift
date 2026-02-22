@@ -97,8 +97,6 @@ struct AIProviderAddModelsSheet: View {
     }
 }
 
-
-
 /// Card-style row displaying model info with costs and capabilities
 struct ModelInfoRow: View {
     let model: ModelInfo

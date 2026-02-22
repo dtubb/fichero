@@ -91,8 +91,6 @@ extension SearchView {
     }
 }
 
-
-
 // MARK: - Preview
 
 #Preview {

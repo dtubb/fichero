@@ -176,7 +176,9 @@ class PerformanceService: ObservableObject {
         guard let avgMemory = averageMemoryUsage(for: name) else { return false }
 
         if avgMemory > thresholdBytes {
-            logger.warning("Memory alert: {\(name)} average memory {\(avgMemory)} bytes exceeds threshold {\(thresholdBytes)}")
+            logger.warning(
+                "Memory alert: {\(name)} average memory {\(avgMemory)} bytes exceeds threshold {\(thresholdBytes)}"
+            )
             return true
         }
 
@@ -193,7 +195,8 @@ class PerformanceService: ObservableObject {
         report += "Benchmark Results:\n"
         for (name, _) in benchmarks {
             if let stats = benchmarkStatistics(for: name) {
-                report += "  {\(name)}: {\(stats.count)} runs, avg {\(stats.average)}s, min {\(stats.min)}s, max {\(stats.max)}s\n"
+                report += "  {\(name)}: {\(stats.count)} runs, "
+                report += "avg {\(stats.average)}s, min {\(stats.min)}s, max {\(stats.max)}s\n"
             }
         }
 
@@ -208,11 +211,9 @@ class PerformanceService: ObservableObject {
 
         // Frame rate results
         report += "\nFrame Rate Monitoring:\n"
-        for (name, data) in frameRateData {
-            if data.totalTime > 0 {
-                let avgFPS = Double(data.frameCount) / data.totalTime
-                report += "  {\(name)}: {\(avgFPS)} FPS\n"
-            }
+        for (name, data) in frameRateData where data.totalTime > 0 {
+            let avgFPS = Double(data.frameCount) / data.totalTime
+            report += "  {\(name)}: {\(avgFPS)} FPS\n"
         }
 
         return report

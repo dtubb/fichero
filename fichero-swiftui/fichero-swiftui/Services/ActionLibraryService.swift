@@ -336,7 +336,13 @@ final class ActionLibraryService: ObservableObject {
     // MARK: - Action Creation Helpers
 
     /// Create action from workflow node
-    func createFromNode(name: String, node: [String: Any], description: String = "", category: String = "custom", tags: [String] = []) async throws -> ActionItem {
+    func createFromNode(
+        name: String,
+        node: [String: Any],
+        description: String = "",
+        category: String = "custom",
+        tags: [String] = []
+    ) async throws -> ActionItem {
         guard let url = URL(string: "\(baseURL)/from-node") else {
             throw ActionLibraryError.invalidURL
         }
@@ -365,7 +371,14 @@ final class ActionLibraryService: ObservableObject {
     }
 
     /// Create composite action from multiple nodes
-    func createComposite(name: String, nodes: [[String: Any]], edges: [[String: Any]], description: String = "", category: String = "custom", tags: [String] = []) async throws -> ActionItem {
+    func createComposite(
+        name: String,
+        nodes: [[String: Any]],
+        edges: [[String: Any]],
+        description: String = "",
+        category: String = "custom",
+        tags: [String] = []
+    ) async throws -> ActionItem {
         guard let url = URL(string: "\(baseURL)/composite") else {
             throw ActionLibraryError.invalidURL
         }
@@ -515,7 +528,11 @@ struct AnyCodable: Codable, Hashable {
         case let dictionary as [String: Any]:
             try container.encode(dictionary.mapValues { AnyCodable($0) })
         default:
-            throw EncodingError.invalidValue(value, EncodingError.Context(codingPath: encoder.codingPath, debugDescription: "Cannot encode value"))
+            let context = EncodingError.Context(
+                codingPath: encoder.codingPath,
+                debugDescription: "Cannot encode value"
+            )
+            throw EncodingError.invalidValue(value, context)
         }
     }
 
