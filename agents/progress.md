@@ -1,7 +1,7 @@
 # Fichero Refactoring Progress
 
 > **Last Updated:** 2026-02-22
-> **Status:** Batch 12 complete — 32/37 files refactored
+> **Status:** Batch 13 complete — 35/37 files refactored (ALL BATCHES DONE)
 
 ---
 
@@ -10,11 +10,11 @@
 | Metric | Count |
 |--------|-------|
 | Total target files | 37 |
-| Completed | 32 |
+| Completed | 35 |
 | In Progress | 0 |
 | Blocked | 1 |
 | Skipped | 2 |
-| Remaining | 3 |
+| Remaining | 0 |
 
 ---
 
@@ -113,13 +113,13 @@
 | 34 | `Services/ProviderService.swift` | 485→172 | <300 | done | [#175](https://github.com/dtubb/fichero/issues/175) |
 | 35 | `Services/AutomationService.swift` | 482→158 | <300 | done | [#176](https://github.com/dtubb/fichero/issues/176) |
 
-## Batch 13 — Services (Final) (NEXT)
+## Batch 13 — Services (Final) (DONE)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
-| 36 | `Services/IntegrationsService.swift` | 473 | <300 | pending | — |
-| 37 | `Services/WorkflowExecutionObserver.swift` | 406 | <300 | pending | — |
-| 38 | `Services/DragDropService.swift` | 401 | <300 | pending | — |
+| 36 | `Services/IntegrationsService.swift` | 474→235 | <300 | done | [#177](https://github.com/dtubb/fichero/issues/177) |
+| 37 | `Services/WorkflowExecutionObserver.swift` | 407→158 | <300 | done | [#178](https://github.com/dtubb/fichero/issues/178) |
+| 38 | `Services/DragDropService.swift` | 402→265 | <300 | done | [#179](https://github.com/dtubb/fichero/issues/179) |
 
 ---
 
