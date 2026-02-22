@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-**Last Updated:** 2026-02-18
+**Last Updated:** 2026-02-22
 **Status:** Canonical Agent Guidance
 
 This file provides guidance to coding agents when working with code in this repository.
@@ -107,21 +107,21 @@ The Swift app is a **pure UI layer** - all business logic, data persistence, and
 ### Key Swift Modules
 
 **Entry Point:**
-- **`FicheroApp.swift`** (570 lines): App lifecycle, backend startup, library manager, command menu structure, window management
+- **`FicheroApp.swift`** (223 lines): App lifecycle, backend startup, library manager, command menu structure, window management
 
 **Models Layer (`Models/`, 29 files):**
 - **`Document.swift`**: Core data model with DocType, FileType, Status enums
-- **`DocumentStore.swift`** (610 lines): Document hierarchy, CRUD operations, file import, folder ingestion
-- **`LibraryManager.swift`** (577 lines): Multi-library management, per-library service instances
-- **`WorkflowTypes.swift`** (695 lines): Workflow definitions, nodes, edges, ports, input/output mapping
-- **`SidebarItem.swift`** (598 lines): Navigation structure, hierarchical sidebar items
+- **`DocumentStore.swift`** (185 lines): Document hierarchy, CRUD operations, file import, folder ingestion
+- **`LibraryManager.swift`** (198 lines): Multi-library management, per-library service instances
+- **`WorkflowTypes.swift`** (272 lines): Workflow definitions, nodes, edges, ports, input/output mapping
+- **`SidebarItem.swift`** (184 lines): Navigation structure, hierarchical sidebar items
 - **`FicheroDocument.swift`**: Per-window document state
 - **`WorkflowStore.swift`**: Workflow list, create, update, duplicate, export operations
 
 **Service Layer (`Services/`, 44 files):**
 - **`APIClient.swift`** (396 lines): HTTP client with library path injection, per-window instances
 - **16 Generated Services** (`*Generated.swift`): Auto-generated from OpenAPI (Workflow, Provider, Search, Chat, Document, etc.)
-- **`WorkflowStreamService.swift`** (594 lines): Server-Sent Events for real-time workflow execution
+- **`WorkflowStreamService.swift`** (294 lines): Server-Sent Events for real-time workflow execution
 - **`EmbeddedBackendService.swift`**: Backend process management
 - **`ProviderService.swift`**: Provider validation wrapper around generated service
 
@@ -239,9 +239,10 @@ DispatchQueue.main.async {  // ❌ Use @MainActor instead
 - **Type Body:** < 250 lines per struct/class
 - **Functions:** < 50 lines each
 
-**Current Production Blockers (Need Refactoring):**
-- `EditorView.swift` - 1,981 lines (5x limit) ⚠️
-- `WorkflowNodeView.swift` - Complexity 27 (3x limit) ⚠️
+**Refactoring Status (Feb 2026):**
+- 35/37 oversized files refactored to target sizes
+- SwiftLint violations: 330 → 69
+- See `agents/progress.md` for full tracker
 
 **Other Requirements:**
 - **SwiftLint is MANDATORY** - run before every commit
@@ -792,12 +793,12 @@ class APIClient: ObservableObject {
 - **`README.md`** - User-facing setup and run instructions
 
 ### Critical Swift Files (Frequently Modified)
-- **`FicheroApp.swift`** (570 lines) - App lifecycle, menu structure
-- **`DocumentStore.swift`** (610 lines) - Document CRUD, state management
-- **`LibraryManager.swift`** (577 lines) - Multi-library orchestration
+- **`FicheroApp.swift`** (223 lines) - App lifecycle, menu structure
+- **`DocumentStore.swift`** (185 lines) - Document CRUD, state management
+- **`LibraryManager.swift`** (198 lines) - Multi-library orchestration
 - **`APIClient.swift`** (396 lines) - HTTP client with library path injection
 - **`ContentView.swift`** - Three-column layout (split into 5 extensions)
-- **`WorkflowTypes.swift`** (695 lines) - Workflow data models
+- **`WorkflowTypes.swift`** (272 lines) - Workflow data models
 
 ### Critical Python Files (Backend)
 - **`fichero-api/src/fichero/api/main.py`** - FastAPI app, route registration
@@ -812,13 +813,8 @@ class APIClient: ObservableObject {
 - **`fichero-swiftui/Services/*Generated.swift`** - 16 generated service wrappers
 - **`fichero-api/tests/contracts/openapi.json`** - OpenAPI schema (regenerated from Python)
 
-### File Size Warnings (Need Refactoring)
-- ⚠️ **`EditorView.swift`** - 1,981 lines (5x limit) - PRODUCTION BLOCKER
-- ⚠️ **`WorkflowNodeView.swift`** - Complexity 27 (3x limit) - PRODUCTION BLOCKER
-- **`WorkflowCanvasView.swift`** - 764 lines (needs split)
-- **`SidebarView.swift`** - 691 lines (refactored into modes/)
-- **`LibraryView.swift`** - 664 lines (needs split)
-- **`NodePopover.swift`** - 873 lines (needs refactoring)
+### Refactoring Complete (Feb 2026)
+All 35 oversized files refactored to target sizes. See `agents/progress.md` for details.
 
 ## Additional Resources
 

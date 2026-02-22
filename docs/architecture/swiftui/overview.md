@@ -1,6 +1,6 @@
 # Frontend Overview
 
-**Last Updated**: December 31, 2025
+**Last Updated**: February 22, 2026
 **Status**: ✅ Swift 6 Compatible | ✅ 100% Pure SwiftUI
 
 ## What Fichero Frontend Does
@@ -289,19 +289,15 @@ struct MyView: View {
 - AppKit audit complete (6 files justified)
 - Pure SwiftUI compliance maintained
 
-### ⚠️ Requires Refactoring
-**CRITICAL (Production Blockers)**:
-1. **EditorView.swift** - 1,981 lines (split into 5 files)
-2. **WorkflowNodeView.swift** - Complexity 27 (refactor to < 10)
+### ✅ Refactoring Complete (Feb 2026)
+35 of 37 oversized files refactored across 13 batches:
+- All view files reduced to <200 lines
+- All model/service files reduced to <300 lines
+- 2 files skipped (not in Xcode project): ActionLibraryService.swift, ArtifactsBrowserView.swift
+- 1 file blocked: ActionLibraryView.swift (dependency issue)
+- SwiftLint violations reduced from 330 to 69
 
-**HIGH PRIORITY**:
-3. WorkflowCanvasView.swift - 764 lines
-4. SidebarView.swift - 691 lines
-5. LibraryView.swift - 664 lines
-6. DocumentStore.swift - 516 lines
-7. ChatInspector.swift - 497 lines
-8. ProvidersView.swift - 489 lines
-9. SidebarItemRow.swift - 482 lines
+See `agents/progress.md` for full tracker with before/after line counts.
 
 ### 🚧 Missing Features
 - **Hierarchical searches/chats/workflows** - Sidebar only supports hierarchical documents
