@@ -1,7 +1,7 @@
 # Fichero Refactoring Progress
 
 > **Last Updated:** 2026-02-22
-> **Status:** Batch 11 complete — 29/37 files refactored
+> **Status:** Batch 12 complete — 32/37 files refactored
 
 ---
 
@@ -10,11 +10,11 @@
 | Metric | Count |
 |--------|-------|
 | Total target files | 37 |
-| Completed | 29 |
+| Completed | 32 |
 | In Progress | 0 |
 | Blocked | 1 |
 | Skipped | 2 |
-| Remaining | 6 |
+| Remaining | 3 |
 
 ---
 
@@ -105,15 +105,15 @@
 | 31 | `Services/ActionLibraryService.swift` | 569 | <300 | skipped | — (not in Xcode project) |
 | 32 | `Services/ModelComparisonService.swift` | 567→226 | <300 | done | [#173](https://github.com/dtubb/fichero/issues/173) |
 
-## Batch 12 — Services (Non-Generated, continued) (NEXT)
+## Batch 12 — Services (Non-Generated, continued) (DONE)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
-| 33 | `Services/AppleScriptSupport.swift` | 532 | <300 | pending | — |
-| 34 | `Services/ProviderService.swift` | 484 | <300 | pending | — |
-| 35 | `Services/AutomationService.swift` | 481 | <300 | pending | — |
+| 33 | `Services/AppleScriptSupport.swift` | 533→206 | <300 | done | [#174](https://github.com/dtubb/fichero/issues/174) |
+| 34 | `Services/ProviderService.swift` | 485→172 | <300 | done | [#175](https://github.com/dtubb/fichero/issues/175) |
+| 35 | `Services/AutomationService.swift` | 482→158 | <300 | done | [#176](https://github.com/dtubb/fichero/issues/176) |
 
-## Batch 13 — Services (Final)
+## Batch 13 — Services (Final) (NEXT)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
