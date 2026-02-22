@@ -1,7 +1,7 @@
 # Fichero Refactoring Progress
 
 > **Last Updated:** 2026-02-22
-> **Status:** Batch 13 complete — 35/37 files refactored (ALL BATCHES DONE)
+> **Status:** All refactoring done + SwiftLint 330→69 violations
 
 ---
 
@@ -120,6 +120,15 @@
 | 36 | `Services/IntegrationsService.swift` | 474→235 | <300 | done | [#177](https://github.com/dtubb/fichero/issues/177) |
 | 37 | `Services/WorkflowExecutionObserver.swift` | 407→158 | <300 | done | [#178](https://github.com/dtubb/fichero/issues/178) |
 | 38 | `Services/DragDropService.swift` | 402→265 | <300 | done | [#179](https://github.com/dtubb/fichero/issues/179) |
+
+## Post-Refactoring Tasks
+
+| # | Task | Status | Issue |
+|---|------|--------|-------|
+| A | SwiftLint violations 330→69 (261 fixed) | done | [#181](https://github.com/dtubb/fichero/issues/181) |
+| B | Library View 18-week UX transformation | pending | [#180](https://github.com/dtubb/fichero/issues/180) |
+| C | Add XCTest coverage | pending | [#182](https://github.com/dtubb/fichero/issues/182) |
+| D | Resolve TODOs and stale docs | pending | [#183](https://github.com/dtubb/fichero/issues/183) |
 
 ---
 
