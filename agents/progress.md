@@ -1,7 +1,7 @@
 # Fichero Refactoring Progress
 
-> **Last Updated:** 2026-02-20
-> **Status:** Batch 10 complete — 27/37 files refactored
+> **Last Updated:** 2026-02-22
+> **Status:** Batch 11 complete — 29/37 files refactored
 
 ---
 
@@ -10,11 +10,11 @@
 | Metric | Count |
 |--------|-------|
 | Total target files | 37 |
-| Completed | 27 |
+| Completed | 29 |
 | In Progress | 0 |
 | Blocked | 1 |
-| Skipped | 1 |
-| Remaining | 8 |
+| Skipped | 2 |
+| Remaining | 6 |
 
 ---
 
@@ -97,15 +97,15 @@
 | 28 | `FicheroApp.swift` | 571→223 | <300 | done | [#170](https://github.com/dtubb/fichero/issues/170) |
 | 29 | `Services/ActivityTypes.swift` | 617→230 | <300 | done | [#171](https://github.com/dtubb/fichero/issues/171) |
 
-## Batch 11 — Services (Non-Generated) (NEXT)
+## Batch 11 — Services (Non-Generated) (DONE)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
-| 30 | `Services/WorkflowStreamService.swift` | 594 | <300 | pending | — |
-| 31 | `Services/ActionLibraryService.swift` | 569 | <300 | pending | — |
-| 32 | `Services/ModelComparisonService.swift` | 567 | <300 | pending | — |
+| 30 | `Services/WorkflowStreamService.swift` | 595→294 | <300 | done | [#172](https://github.com/dtubb/fichero/issues/172) |
+| 31 | `Services/ActionLibraryService.swift` | 569 | <300 | skipped | — (not in Xcode project) |
+| 32 | `Services/ModelComparisonService.swift` | 567→226 | <300 | done | [#173](https://github.com/dtubb/fichero/issues/173) |
 
-## Batch 12 — Services (Non-Generated, continued)
+## Batch 12 — Services (Non-Generated, continued) (NEXT)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
