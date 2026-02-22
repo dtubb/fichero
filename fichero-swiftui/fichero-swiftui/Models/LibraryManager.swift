@@ -14,7 +14,7 @@ class LibraryManager: ObservableObject {
     static let globalLibraryId = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
 
     /// All currently open libraries (Global is always last)
-    @Published internal(set) var openLibraries: [LibraryReference] = []
+    @Published var openLibraries: [LibraryReference] = []
 
     /// The currently active library (used for new tabs/windows)
     @Published var currentLibraryId: UUID?
