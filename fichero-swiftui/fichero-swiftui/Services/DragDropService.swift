@@ -2,40 +2,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 import Combine
 
-/// Thread-safe array wrapper for concurrent operations
-actor ThreadSafeArray<T> {
-    private var array: [T] = []
-
-    func append(_ element: T) {
-        array.append(element)
-    }
-
-    func getAll() -> [T] {
-        return array
-    }
-
-    var isEmpty: Bool {
-        array.isEmpty
-    }
-}
-
-/// Thread-safe value wrapper for concurrent operations
-actor ThreadSafeValue<T> {
-    private var value: T
-
-    init(_ initialValue: T) {
-        self.value = initialValue
-    }
-
-    func set(_ newValue: T) {
-        self.value = newValue
-    }
-
-    func get() -> T {
-        return value
-    }
-}
-
 /// Service for handling drag and drop operations with proper synchronization and error handling
 @MainActor
 class DragDropService: ObservableObject {
@@ -45,7 +11,7 @@ class DragDropService: ObservableObject {
     weak var performanceService: PerformanceService?
 
     // MARK: - State
-    private let dragDropModel: DragDropModel
+    let dragDropModel: DragDropModel
     private var benchmark: PerformanceBenchmark?
 
     // MARK: - Initialization
@@ -296,106 +262,4 @@ class DragDropService: ObservableObject {
         }
     }
 
-    // MARK: - Error Handling
-    @MainActor
-    private func handleProviderError(_ error: Error, providerType: String) {
-        let errorModel = ErrorModel.fileSystemError(
-            message: "Failed to load provider data: \((error.localizedDescription))",
-            context: [
-                "operation": "drag_drop",
-                "provider_type": providerType,
-                "error_type": "provider_error"
-            ],
-            isRecoverable: false
-        )
-        errorService?.reportError(errorModel)
-        dragDropModel.incrementFailureCount()
-    }
-
-    @MainActor
-    private func handleInvalidDataError(providerType: String) {
-        let errorModel = ErrorModel.validationError(
-            message: "Invalid data received from provider",
-            context: [
-                "operation": "drag_drop",
-                "provider_type": providerType,
-                "error_type": "invalid_data"
-            ]
-        )
-        errorService?.reportError(errorModel)
-        dragDropModel.incrementFailureCount()
-    }
-
-    @MainActor
-    private func handleDecodingError(providerType: String) {
-        let errorModel = ErrorModel.validationError(
-            message: "Failed to decode provider data",
-            context: [
-                "operation": "drag_drop",
-                "provider_type": providerType,
-                "error_type": "decoding_error"
-            ]
-        )
-        errorService?.reportError(errorModel)
-        dragDropModel.incrementFailureCount()
-    }
-
-    @MainActor
-    private func handleInvalidURLError() {
-        let errorModel = ErrorModel.validationError(
-            message: "Invalid URL received from provider",
-            context: [
-                "operation": "drag_drop",
-                "error_type": "invalid_url"
-            ]
-        )
-        errorService?.reportError(errorModel)
-        dragDropModel.incrementFailureCount()
-    }
-
-    // MARK: - User Feedback
-    private func showImportSuccessAlert(documentName: String) {
-        // Class is @MainActor so we're already on main thread
-        if let window = NSApp.keyWindow {
-            let alert = NSAlert()
-            alert.messageText = "File Imported"
-            alert.informativeText = "\"\(documentName)\" was successfully imported to your library."
-            alert.addButton(withTitle: "OK")
-            alert.beginSheetModal(for: window, completionHandler: nil)
-        }
-    }
-
-    private func showImportErrorAlert(error: String) {
-        // Class is @MainActor so we're already on main thread
-        if let window = NSApp.keyWindow {
-            let alert = NSAlert()
-            alert.messageText = "Import Failed"
-            alert.informativeText = "Failed to import file: \(error)"
-            alert.addButton(withTitle: "OK")
-            alert.beginSheetModal(for: window, completionHandler: nil)
-        }
-    }
-}
-
-// MARK: - Atomic Counter for Thread Safety
-final class AtomicInt: @unchecked Sendable {
-    private var value: Int
-    private let lock = NSLock()
-
-    init(value: Int) {
-        self.value = value
-    }
-
-    func incrementAndGet() -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        value += 1
-        return value
-    }
-
-    func get() -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return value
-    }
 }

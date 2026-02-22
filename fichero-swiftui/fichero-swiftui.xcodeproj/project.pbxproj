@@ -118,6 +118,12 @@
 		20D8EE202F4BBFAF006950A3 /* AppleScriptCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE1F2F4BBFAF006950A3 /* AppleScriptCommands.swift */; };
 		20D8EE222F4BBFB8006950A3 /* AutomationServiceTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE212F4BBFB8006950A3 /* AutomationServiceTypes.swift */; };
 		20D8EE242F4BBFBA006950A3 /* ProviderServiceTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE232F4BBFBA006950A3 /* ProviderServiceTypes.swift */; };
+		20D8EE262F4BC0E2006950A3 /* IntegrationsServiceTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE252F4BC0E2006950A3 /* IntegrationsServiceTypes.swift */; };
+		20D8EE282F4BC0ED006950A3 /* IntegrationsService+AppSpecific.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE272F4BC0ED006950A3 /* IntegrationsService+AppSpecific.swift */; };
+		20D8EE2A2F4BC0F3006950A3 /* WorkflowExecutionTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE292F4BC0F3006950A3 /* WorkflowExecutionTypes.swift */; };
+		20D8EE2C2F4BC0FC006950A3 /* DragDropHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE2B2F4BC0FC006950A3 /* DragDropHelpers.swift */; };
+		20D8EE2E2F4BC103006950A3 /* DragDropService+ErrorHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE2D2F4BC103006950A3 /* DragDropService+ErrorHandling.swift */; };
+		20D8EE302F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE2F2F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift */; };
 		2ED84CCBA91252EA2D0C5D34 /* TriggerEditorPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */; };
 		3D3445F0B90D093149C9A7D6 /* DocumentInspectorContentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */; };
 		4458475E8C2BF728591E504F /* AIDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */; };
@@ -482,6 +488,12 @@
 		20D8EE1F2F4BBFAF006950A3 /* AppleScriptCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleScriptCommands.swift; sourceTree = "<group>"; };
 		20D8EE212F4BBFB8006950A3 /* AutomationServiceTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationServiceTypes.swift; sourceTree = "<group>"; };
 		20D8EE232F4BBFBA006950A3 /* ProviderServiceTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderServiceTypes.swift; sourceTree = "<group>"; };
+		20D8EE252F4BC0E2006950A3 /* IntegrationsServiceTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsServiceTypes.swift; sourceTree = "<group>"; };
+		20D8EE272F4BC0ED006950A3 /* IntegrationsService+AppSpecific.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "IntegrationsService+AppSpecific.swift"; sourceTree = "<group>"; };
+		20D8EE292F4BC0F3006950A3 /* WorkflowExecutionTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExecutionTypes.swift; sourceTree = "<group>"; };
+		20D8EE2B2F4BC0FC006950A3 /* DragDropHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropHelpers.swift; sourceTree = "<group>"; };
+		20D8EE2D2F4BC103006950A3 /* DragDropService+ErrorHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DragDropService+ErrorHandling.swift"; sourceTree = "<group>"; };
+		20D8EE2F2F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowExecutionObserver+Events.swift"; sourceTree = "<group>"; };
 		312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorArtifactsTab.swift; path = "fichero-swiftui/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab.swift"; sourceTree = SOURCE_ROOT; };
 		36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorContentTab.swift; path = "fichero-swiftui/Views/Library/DocumentInspector/DocumentInspectorContentTab.swift"; sourceTree = SOURCE_ROOT; };
 		371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BackendSettingsView.swift; path = "fichero-swiftui/Views/Settings/BackendSettingsView.swift"; sourceTree = SOURCE_ROOT; };
@@ -1072,6 +1084,12 @@
 				20D8EE1F2F4BBFAF006950A3 /* AppleScriptCommands.swift */,
 				20D8EE212F4BBFB8006950A3 /* AutomationServiceTypes.swift */,
 				20D8EE232F4BBFBA006950A3 /* ProviderServiceTypes.swift */,
+				20D8EE252F4BC0E2006950A3 /* IntegrationsServiceTypes.swift */,
+				20D8EE272F4BC0ED006950A3 /* IntegrationsService+AppSpecific.swift */,
+				20D8EE292F4BC0F3006950A3 /* WorkflowExecutionTypes.swift */,
+				20D8EE2B2F4BC0FC006950A3 /* DragDropHelpers.swift */,
+				20D8EE2D2F4BC103006950A3 /* DragDropService+ErrorHandling.swift */,
+				20D8EE2F2F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -1483,6 +1501,7 @@
 				A13E7C1D2F27E01E00EC9EE1 /* LibrarySidebarContent.swift in Sources */,
 				202674D02F4789BF008EAB5D /* LibraryViewComponents.swift in Sources */,
 				20D8EE202F4BBFAF006950A3 /* AppleScriptCommands.swift in Sources */,
+				20D8EE2E2F4BC103006950A3 /* DragDropService+ErrorHandling.swift in Sources */,
 				A13E7C1E2F27E01E00EC9EE1 /* ActivitySidebarContent.swift in Sources */,
 				B3A002080000000000BATCH3 /* ActivitySidebarContent+DataProcessing.swift in Sources */,
 				B3A002090000000000BATCH3 /* ActivitySidebarContent+RunDisclosure.swift in Sources */,
@@ -1588,6 +1607,7 @@
 				20D8ED6B2F48E62B006950A3 /* WorkflowResponseTypes.swift in Sources */,
 				A13E7C642F27F36000EC9EE1 /* ArtifactServiceGenerated.swift in Sources */,
 				20D8ED4D2F48E2BE006950A3 /* WorkflowInspector+MCPTools.swift in Sources */,
+				20D8EE262F4BC0E2006950A3 /* IntegrationsServiceTypes.swift in Sources */,
 				202674E02F489737008EAB5D /* ChatStatusViews.swift in Sources */,
 				A13E7C652F27F36000EC9EE1 /* StorageServiceGenerated.swift in Sources */,
 				MOD00012F27F36000EC9EE1 /* ModelServiceGenerated.swift in Sources */,
@@ -1672,6 +1692,7 @@
 				019 /* DocumentStore.swift in Sources */,
 				20D8EDF82F4BBC04006950A3 /* WorkflowStreamTypes.swift in Sources */,
 				020 /* APIClient.swift in Sources */,
+				20D8EE282F4BC0ED006950A3 /* IntegrationsService+AppSpecific.swift in Sources */,
 				A13E80A22F2AD75100EC9EE1 /* ModelComparisonService.swift in Sources */,
 				20D8EE222F4BBFB8006950A3 /* AutomationServiceTypes.swift in Sources */,
 				845 /* ArtifactService.swift in Sources */,
@@ -1721,6 +1742,7 @@
 				041 /* WorkflowStreamService.swift in Sources */,
 				20D8ED692F48E626006950A3 /* SidebarChatTypes.swift in Sources */,
 				048 /* WorkflowExecutionObserver.swift in Sources */,
+				20D8EE2A2F4BC0F3006950A3 /* WorkflowExecutionTypes.swift in Sources */,
 				A13E7C272F27E03300EC9EE1 /* SidebarModeIcon.swift in Sources */,
 				A13E7C282F27E03300EC9EE1 /* SidebarModeBar.swift in Sources */,
 				A13E80A52F2AD78100EC9EE1 /* ModelComparisonView.swift in Sources */,
@@ -1754,10 +1776,12 @@
 				B4A002060000000000BATCH4 /* BatchDetailView+Header.swift in Sources */,
 				B4A002070000000000BATCH4 /* BatchDetailView+Progress.swift in Sources */,
 				B4A002080000000000BATCH4 /* BatchDetailView+Configuration.swift in Sources */,
+				20D8EE2C2F4BC0FC006950A3 /* DragDropHelpers.swift in Sources */,
 				B4A002090000000000BATCH4 /* BatchDetailView+Items.swift in Sources */,
 				B4A0020A0000000000BATCH4 /* BatchDetailView+Actions.swift in Sources */,
 				DDE8A1E95DE61B0723A40BC9 /* DynamicConfigView.swift in Sources */,
 				B4A0020B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift in Sources */,
+				20D8EE302F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift in Sources */,
 				20D8ED672F48E626006950A3 /* DocumentStore+CRUD.swift in Sources */,
 				B4A0020C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift in Sources */,
 				B4A0020D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift in Sources */,
