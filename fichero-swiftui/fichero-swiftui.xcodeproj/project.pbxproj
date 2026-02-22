@@ -112,6 +112,9 @@
 		20D8EDD02F48F4AE006950A3 /* CheckpointTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDCF2F48F4AE006950A3 /* CheckpointTypes.swift */; };
 		20D8EDD22F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDD12F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift */; };
 		20D8EDD42F48F4BE006950A3 /* WorkflowRunResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDD32F48F4BE006950A3 /* WorkflowRunResponse.swift */; };
+		20D8EDF82F4BBC04006950A3 /* WorkflowStreamTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDF72F4BBC04006950A3 /* WorkflowStreamTypes.swift */; };
+		20D8EDFA2F4BBC12006950A3 /* ModelComparisonTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDF92F4BBC12006950A3 /* ModelComparisonTypes.swift */; };
+		20D8EDFC2F4BBC1A006950A3 /* WorkflowStreamService+Parsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDFB2F4BBC1A006950A3 /* WorkflowStreamService+Parsing.swift */; };
 		2ED84CCBA91252EA2D0C5D34 /* TriggerEditorPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */; };
 		3D3445F0B90D093149C9A7D6 /* DocumentInspectorContentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */; };
 		4458475E8C2BF728591E504F /* AIDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */; };
@@ -470,6 +473,9 @@
 		20D8EDCF2F48F4AE006950A3 /* CheckpointTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckpointTypes.swift; sourceTree = "<group>"; };
 		20D8EDD12F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsPlaceholderSheet.swift; sourceTree = "<group>"; };
 		20D8EDD32F48F4BE006950A3 /* WorkflowRunResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowRunResponse.swift; sourceTree = "<group>"; };
+		20D8EDF72F4BBC04006950A3 /* WorkflowStreamTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowStreamTypes.swift; sourceTree = "<group>"; };
+		20D8EDF92F4BBC12006950A3 /* ModelComparisonTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelComparisonTypes.swift; sourceTree = "<group>"; };
+		20D8EDFB2F4BBC1A006950A3 /* WorkflowStreamService+Parsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowStreamService+Parsing.swift"; sourceTree = "<group>"; };
 		312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorArtifactsTab.swift; path = "fichero-swiftui/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab.swift"; sourceTree = SOURCE_ROOT; };
 		36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorContentTab.swift; path = "fichero-swiftui/Views/Library/DocumentInspector/DocumentInspectorContentTab.swift"; sourceTree = SOURCE_ROOT; };
 		371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BackendSettingsView.swift; path = "fichero-swiftui/Views/Settings/BackendSettingsView.swift"; sourceTree = SOURCE_ROOT; };
@@ -1054,6 +1060,9 @@
 				20D8EDC92F48F49C006950A3 /* BatchTypes.swift */,
 				20D8EDCF2F48F4AE006950A3 /* CheckpointTypes.swift */,
 				20D8EDD32F48F4BE006950A3 /* WorkflowRunResponse.swift */,
+				20D8EDF72F4BBC04006950A3 /* WorkflowStreamTypes.swift */,
+				20D8EDF92F4BBC12006950A3 /* ModelComparisonTypes.swift */,
+				20D8EDFB2F4BBC1A006950A3 /* WorkflowStreamService+Parsing.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -1539,6 +1548,7 @@
 				B2A0020100000000BATCH2S1 /* SidebarItemRow+Label.swift in Sources */,
 				B2A0020200000000BATCH2S2 /* SidebarItemRow+DropHandlers.swift in Sources */,
 				B2A0020300000000BATCH2S3 /* SidebarItemRow+Helpers.swift in Sources */,
+				20D8EDFA2F4BBC12006950A3 /* ModelComparisonTypes.swift in Sources */,
 				B2A0020400000000BATCH2S4 /* SidebarItemRow+Rename.swift in Sources */,
 				B2A0020500000000BATCH2W1 /* WorkflowEditor+Actions.swift in Sources */,
 				B2A0020600000000BATCH2W2 /* WorkflowEditor+NodeViews.swift in Sources */,
@@ -1643,12 +1653,14 @@
 				20D8ED512F48E2C4006950A3 /* WorkflowPreviewSheet.swift in Sources */,
 				A1BFB2C82F042C0500EAA55A /* ViewSettings.swift in Sources */,
 				A1BFB2C92F042C0500EAA55A /* AppState.swift in Sources */,
+				20D8EDFC2F4BBC1A006950A3 /* WorkflowStreamService+Parsing.swift in Sources */,
 				018 /* ChatView.swift in Sources */,
 				202674A22F4762E6008EAB5D /* ImageZoomToolbar.swift in Sources */,
 				202674992F475B33008EAB5D /* SearchNodeConfig.swift in Sources */,
 				200BCF2C2F3D501800D7851A /* ContentView+State.swift in Sources */,
 				20D8EDCE2F48F4AE006950A3 /* WelcomeView.swift in Sources */,
 				019 /* DocumentStore.swift in Sources */,
+				20D8EDF82F4BBC04006950A3 /* WorkflowStreamTypes.swift in Sources */,
 				020 /* APIClient.swift in Sources */,
 				A13E80A22F2AD75100EC9EE1 /* ModelComparisonService.swift in Sources */,
 				845 /* ArtifactService.swift in Sources */,
