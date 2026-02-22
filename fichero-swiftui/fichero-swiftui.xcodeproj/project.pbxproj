@@ -115,6 +115,9 @@
 		20D8EDF82F4BBC04006950A3 /* WorkflowStreamTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDF72F4BBC04006950A3 /* WorkflowStreamTypes.swift */; };
 		20D8EDFA2F4BBC12006950A3 /* ModelComparisonTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDF92F4BBC12006950A3 /* ModelComparisonTypes.swift */; };
 		20D8EDFC2F4BBC1A006950A3 /* WorkflowStreamService+Parsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDFB2F4BBC1A006950A3 /* WorkflowStreamService+Parsing.swift */; };
+		20D8EE202F4BBFAF006950A3 /* AppleScriptCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE1F2F4BBFAF006950A3 /* AppleScriptCommands.swift */; };
+		20D8EE222F4BBFB8006950A3 /* AutomationServiceTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE212F4BBFB8006950A3 /* AutomationServiceTypes.swift */; };
+		20D8EE242F4BBFBA006950A3 /* ProviderServiceTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE232F4BBFBA006950A3 /* ProviderServiceTypes.swift */; };
 		2ED84CCBA91252EA2D0C5D34 /* TriggerEditorPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */; };
 		3D3445F0B90D093149C9A7D6 /* DocumentInspectorContentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */; };
 		4458475E8C2BF728591E504F /* AIDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */; };
@@ -476,6 +479,9 @@
 		20D8EDF72F4BBC04006950A3 /* WorkflowStreamTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowStreamTypes.swift; sourceTree = "<group>"; };
 		20D8EDF92F4BBC12006950A3 /* ModelComparisonTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelComparisonTypes.swift; sourceTree = "<group>"; };
 		20D8EDFB2F4BBC1A006950A3 /* WorkflowStreamService+Parsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowStreamService+Parsing.swift"; sourceTree = "<group>"; };
+		20D8EE1F2F4BBFAF006950A3 /* AppleScriptCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleScriptCommands.swift; sourceTree = "<group>"; };
+		20D8EE212F4BBFB8006950A3 /* AutomationServiceTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationServiceTypes.swift; sourceTree = "<group>"; };
+		20D8EE232F4BBFBA006950A3 /* ProviderServiceTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderServiceTypes.swift; sourceTree = "<group>"; };
 		312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorArtifactsTab.swift; path = "fichero-swiftui/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab.swift"; sourceTree = SOURCE_ROOT; };
 		36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorContentTab.swift; path = "fichero-swiftui/Views/Library/DocumentInspector/DocumentInspectorContentTab.swift"; sourceTree = SOURCE_ROOT; };
 		371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BackendSettingsView.swift; path = "fichero-swiftui/Views/Settings/BackendSettingsView.swift"; sourceTree = SOURCE_ROOT; };
@@ -1063,6 +1069,9 @@
 				20D8EDF72F4BBC04006950A3 /* WorkflowStreamTypes.swift */,
 				20D8EDF92F4BBC12006950A3 /* ModelComparisonTypes.swift */,
 				20D8EDFB2F4BBC1A006950A3 /* WorkflowStreamService+Parsing.swift */,
+				20D8EE1F2F4BBFAF006950A3 /* AppleScriptCommands.swift */,
+				20D8EE212F4BBFB8006950A3 /* AutomationServiceTypes.swift */,
+				20D8EE232F4BBFBA006950A3 /* ProviderServiceTypes.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -1473,6 +1482,7 @@
 				202674E62F489757008EAB5D /* ChatMessagesList.swift in Sources */,
 				A13E7C1D2F27E01E00EC9EE1 /* LibrarySidebarContent.swift in Sources */,
 				202674D02F4789BF008EAB5D /* LibraryViewComponents.swift in Sources */,
+				20D8EE202F4BBFAF006950A3 /* AppleScriptCommands.swift in Sources */,
 				A13E7C1E2F27E01E00EC9EE1 /* ActivitySidebarContent.swift in Sources */,
 				B3A002080000000000BATCH3 /* ActivitySidebarContent+DataProcessing.swift in Sources */,
 				B3A002090000000000BATCH3 /* ActivitySidebarContent+RunDisclosure.swift in Sources */,
@@ -1663,6 +1673,7 @@
 				20D8EDF82F4BBC04006950A3 /* WorkflowStreamTypes.swift in Sources */,
 				020 /* APIClient.swift in Sources */,
 				A13E80A22F2AD75100EC9EE1 /* ModelComparisonService.swift in Sources */,
+				20D8EE222F4BBFB8006950A3 /* AutomationServiceTypes.swift in Sources */,
 				845 /* ArtifactService.swift in Sources */,
 				A1BFB2E42F0439FE00EAA55A /* ImportService.swift in Sources */,
 				A1A3A9FE2F110D260021909D /* AgentSettingsView.swift in Sources */,
@@ -1690,6 +1701,7 @@
 				A1BFB2EE2F043F5800EAA55A /* DocumentTabView.swift in Sources */,
 				202674972F475B23008EAB5D /* CollectionNodeConfig.swift in Sources */,
 				028 /* ModelService.swift in Sources */,
+				20D8EE242F4BBFBA006950A3 /* ProviderServiceTypes.swift in Sources */,
 				A1FB1D9B2F0420D50023093C /* SidebarItemContextMenu.swift in Sources */,
 				20D8ED732F48E644006950A3 /* SidebarViewTypes.swift in Sources */,
 				A1BFB2E72F043D2300EAA55A /* StorageService.swift in Sources */,
