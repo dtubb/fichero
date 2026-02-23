@@ -186,6 +186,7 @@ class ImportService: ObservableObject {
 
     /// Core folder import logic - doesn't manage isImporting flag
     /// Used internally when called from importFiles which already manages the flag
+    // swiftlint:disable:next function_parameter_count
     private func importFolderCore(
         _ url: URL,
         mode: IngestMode,

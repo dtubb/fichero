@@ -6,21 +6,27 @@ struct ActivityErrorsView: View {
     let activityItems: [ActivityItem]
     let liveExecution: WorkflowExecution?
 
+    private struct ExecutionError {
+        let nodeId: String
+        let file: String?
+        let error: String
+    }
+
     /// Errors from live execution
-    private var liveErrors: [(nodeId: String, file: String?, error: String)] {
+    private var liveErrors: [ExecutionError] {
         guard let execution = liveExecution else { return [] }
-        var errors: [(nodeId: String, file: String?, error: String)] = []
+        var errors: [ExecutionError] = []
 
         for (nodeId, state) in execution.nodeStates {
             if let error = state.errorMessage {
-                errors.append((nodeId: nodeId, file: state.currentFile, error: error))
+                errors.append(.init(nodeId: nodeId, file: state.currentFile, error: error))
             }
         }
 
         for (file, progress) in execution.documentProgress {
             for (nodeId, status) in progress.stepStatuses {
                 if case .failed(let error) = status, let errorMsg = error {
-                    errors.append((nodeId: nodeId, file: file, error: errorMsg))
+                    errors.append(.init(nodeId: nodeId, file: file, error: errorMsg))
                 }
             }
         }

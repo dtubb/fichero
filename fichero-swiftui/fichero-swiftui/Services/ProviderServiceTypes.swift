@@ -151,6 +151,13 @@ struct APIKeyStatus: Codable {
     }
 }
 
+/// A capability badge displayed alongside a model (icon, label, color)
+struct CapabilityBadge {
+    let icon: String
+    let label: String
+    let color: Color
+}
+
 struct ModelInfo: Codable, Identifiable, Hashable {
     let modelId: String
     let fullName: String
@@ -241,17 +248,19 @@ struct ModelInfo: Codable, Identifiable, Hashable {
     }
 
     /// List of capability badges to show
-    var capabilityBadges: [(icon: String, label: String, color: Color)] {
-        var badges: [(String, String, Color)] = []
-        if supportsVision { badges.append(("eye", "Vision", .purple)) }
-        if supportsReasoning { badges.append(("brain", "Reasoning", .pink)) }
-        if supportsFunctionCalling { badges.append(("wrench.and.screwdriver", "Tools", .orange)) }
-        if supportsAudioInput { badges.append(("mic", "Audio In", .blue)) }
-        if supportsAudioOutput { badges.append(("speaker.wave.2", "Audio Out", .blue)) }
-        if supportsPdfInput { badges.append(("doc.text", "PDF", .red)) }
-        if supportsPromptCaching { badges.append(("memories", "Caching", .green)) }
-        if supportsWebSearch { badges.append(("globe", "Web", .teal)) }
-        if supportsBatchApi { badges.append(("square.stack.3d.up", "Batch", .indigo)) }
+    var capabilityBadges: [CapabilityBadge] {
+        var badges: [CapabilityBadge] = []
+        if supportsVision { badges.append(.init(icon: "eye", label: "Vision", color: .purple)) }
+        if supportsReasoning { badges.append(.init(icon: "brain", label: "Reasoning", color: .pink)) }
+        if supportsFunctionCalling {
+            badges.append(.init(icon: "wrench.and.screwdriver", label: "Tools", color: .orange))
+        }
+        if supportsAudioInput { badges.append(.init(icon: "mic", label: "Audio In", color: .blue)) }
+        if supportsAudioOutput { badges.append(.init(icon: "speaker.wave.2", label: "Audio Out", color: .blue)) }
+        if supportsPdfInput { badges.append(.init(icon: "doc.text", label: "PDF", color: .red)) }
+        if supportsPromptCaching { badges.append(.init(icon: "memories", label: "Caching", color: .green)) }
+        if supportsWebSearch { badges.append(.init(icon: "globe", label: "Web", color: .teal)) }
+        if supportsBatchApi { badges.append(.init(icon: "square.stack.3d.up", label: "Batch", color: .indigo)) }
         return badges
     }
 }
