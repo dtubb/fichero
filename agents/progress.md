@@ -177,12 +177,12 @@ Feedback from running the app. Work in priority order: bugs → polish → featu
 | # | Task | Status | Issue |
 |---|------|--------|-------|
 | E.3.1 | Right inspector pane resizable (draggable divider) | done | [#211](https://github.com/dtubb/fichero/issues/211) |
-| E.3.2 | Zoom in/out for icon view and map view | pending | — |
-| E.3.3 | Click column headers to sort in list/table view | pending | — |
-| E.3.4 | Filter/search bar within content area (NetNewsWire-style) | pending | — |
-| E.3.5 | Column configuration: show/hide columns in table/artifacts view | pending | — |
-| E.3.6 | NetNewsWire-style keyboard column nav (left/right = change pane, up/down = within pane) | pending | — |
-| E.3.7 | Click name/tag in list to jump to search for that value | pending | — |
+| E.3.2 | Zoom in/out for icon view and map view | done | [#212](https://github.com/dtubb/fichero/issues/212) |
+| E.3.3 | Click column headers to sort in list/table view | done | [#213](https://github.com/dtubb/fichero/issues/213) |
+| E.3.4 | Filter/search bar within content area (NetNewsWire-style) | done | [#214](https://github.com/dtubb/fichero/issues/214) |
+| E.3.5 | Column configuration: show/hide columns in table/artifacts view | done | [#215](https://github.com/dtubb/fichero/issues/215) |
+| E.3.6 | NetNewsWire-style keyboard column nav (left/right = change pane, up/down = within pane) | done | [#216](https://github.com/dtubb/fichero/issues/216) |
+| E.3.7 | Click name/tag in list to jump to search for that value | done | [#217](https://github.com/dtubb/fichero/issues/217) |
 
 ---
 
