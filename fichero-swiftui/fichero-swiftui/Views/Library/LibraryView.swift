@@ -64,6 +64,8 @@ struct LibraryView: View {
 
     let folderId: String?  // Current folder ID for per-folder sort persistence
     var onRequestFocus: () -> Void = {}  // Called on tap to pull keyboard focus into content area
+    var onRequestPreviousPaneFocus: () -> Void = {}  // Left arrow in list/table — move to sidebar
+    var onRequestNextPaneFocus: () -> Void = {}  // Right arrow in list/table — move to inspector
 
     @State private var searchText: String = ""
     @State private var showFilterBar = false

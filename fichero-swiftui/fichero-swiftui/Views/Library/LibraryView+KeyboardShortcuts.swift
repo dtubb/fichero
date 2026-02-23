@@ -125,9 +125,18 @@ extension LibraryView {
         let docs = filteredDocuments
         guard !docs.isEmpty else { return .ignored }
 
-        // List/table modes get native AppKit arrow key handling — don't interfere
+        // List/table modes: Left/Right change panes; Up/Down handled natively by AppKit
         if displayMode == .list || displayMode == .table {
-            return .ignored
+            switch direction {
+            case .left:
+                onRequestPreviousPaneFocus()
+                return .handled
+            case .right:
+                onRequestNextPaneFocus()
+                return .handled
+            case .upDir, .down:
+                return .ignored
+            }
         }
 
         // Find the current selection index

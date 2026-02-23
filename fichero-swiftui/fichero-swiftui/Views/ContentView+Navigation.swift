@@ -19,7 +19,9 @@ extension ContentView {
                 viewMode: $viewSettings.libraryLayout,
                 displayMode: viewDisplayMode,
                 folderId: selectedSidebarItemId,
-                onRequestFocus: { focusedPane = .content }
+                onRequestFocus: { focusedPane = .content },
+                onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
+                onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) }
             )
 
         case .search(let savedSearch):
