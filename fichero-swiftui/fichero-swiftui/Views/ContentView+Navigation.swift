@@ -17,7 +17,8 @@ extension ContentView {
                 selection: $browserSelection,
                 detailDocument: $detailDocument,
                 viewMode: $viewSettings.libraryLayout,
-                displayMode: viewDisplayMode
+                displayMode: viewDisplayMode,
+                folderId: selectedSidebarItemId
             )
 
         case .search(let savedSearch):

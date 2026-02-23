@@ -62,9 +62,11 @@ struct LibraryView: View {
     @Binding var viewMode: LibraryLayout
     let displayMode: ViewDisplayMode  // Universal view mode from toolbar
 
+    let folderId: String?  // Current folder ID for per-folder sort persistence
+
     @State private var searchText: String = ""
-    @AppStorage("librarySortField") var sortFieldRaw: String = LibrarySortField.name.rawValue
-    @AppStorage("librarySortAscending") var sortAscending: Bool = true
+    @State var sortFieldRaw: String = LibrarySortField.name.rawValue
+    @State var sortAscending: Bool = true
     @State var sortOrder: [KeyPathComparator<Document>] = [.init(\.name, order: .forward)]
 
     var sortField: LibrarySortField {
@@ -195,10 +197,21 @@ struct LibraryView: View {
                 showWorkflowPicker = true
             } : nil)
             .onAppear {
+                loadSortSettings(for: folderId)
                 syncSortOrder()
             }
-            .onChange(of: sortFieldRaw) { _, _ in syncSortOrder() }
-            .onChange(of: sortAscending) { _, _ in syncSortOrder() }
+            .onChange(of: folderId) { _, newId in
+                loadSortSettings(for: newId)
+                syncSortOrder()
+            }
+            .onChange(of: sortFieldRaw) { _, _ in
+                syncSortOrder()
+                saveSortSettings(for: folderId)
+            }
+            .onChange(of: sortAscending) { _, _ in
+                syncSortOrder()
+                saveSortSettings(for: folderId)
+            }
         )
     }
 }
@@ -208,10 +221,36 @@ struct LibraryView: View {
 extension LibraryView {
     // MARK: - Sort Order Sync
 
-    /// Sync the @State sortOrder from the persisted @AppStorage values
+    /// Sync the @State sortOrder from persisted values
     func syncSortOrder() {
         let field = LibrarySortField(rawValue: sortFieldRaw) ?? .name
         sortOrder = field.comparator(ascending: sortAscending)
+    }
+
+    // MARK: - Per-Folder Sort Persistence
+
+    private func sortFieldKey(for id: String?) -> String {
+        id.map { "librarySortField_\($0)" } ?? "librarySortField"
+    }
+
+    private func sortAscendingKey(for id: String?) -> String {
+        id.map { "librarySortAscending_\($0)" } ?? "librarySortAscending"
+    }
+
+    func loadSortSettings(for id: String?) {
+        let defaults = UserDefaults.standard
+        sortFieldRaw = defaults.string(forKey: sortFieldKey(for: id)) ?? LibrarySortField.name.rawValue
+        if let saved = defaults.object(forKey: sortAscendingKey(for: id)) as? Bool {
+            sortAscending = saved
+        } else {
+            sortAscending = true
+        }
+    }
+
+    func saveSortSettings(for id: String?) {
+        let defaults = UserDefaults.standard
+        defaults.set(sortFieldRaw, forKey: sortFieldKey(for: id))
+        defaults.set(sortAscending, forKey: sortAscendingKey(for: id))
     }
 
     // MARK: - Column Management
@@ -480,7 +519,8 @@ extension LibraryView {
         selection: .constant(Set<String>()),
         detailDocument: .constant(nil),
         viewMode: .constant(.icons),
-        displayMode: .icon
+        displayMode: .icon,
+        folderId: nil
     )
     .frame(width: 600, height: 500)
 }
