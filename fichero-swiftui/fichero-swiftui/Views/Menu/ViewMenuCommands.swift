@@ -14,6 +14,10 @@ struct ViewMenuCommands: View {
 
         Divider()
 
+        SortSection()
+
+        Divider()
+
         PreviewModeSection(viewSettings: viewSettings)
 
         Divider()
@@ -202,6 +206,58 @@ struct LibraryLayoutButton: View {
             KeyEquivalent(Character(shortcut)),
             modifiers: [.command]
         )
+    }
+}
+
+// MARK: - Sort Section
+
+/// Sort By and direction commands for the library/search content area
+/// Only shown for Library and Search modes; reads/writes LibraryView sort state via FocusedValues
+struct SortSection: View {
+    @FocusedValue(\.sidebarMode) var sidebarMode
+    @FocusedValue(\.librarySortField) var sortField
+    @FocusedValue(\.librarySortAscending) var sortAscending
+
+    private var shouldShow: Bool {
+        guard let mode = sidebarMode?.wrappedValue else { return false }
+        return mode == .library || mode == .search
+    }
+
+    var body: some View {
+        if shouldShow {
+            Section("Sort By") {
+                ForEach(LibrarySortField.allCases) { field in
+                    Button {
+                        sortField?.wrappedValue = field.rawValue
+                    } label: {
+                        Label(field.rawValue, systemImage: field.icon)
+                        if sortField?.wrappedValue == field.rawValue {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+
+                Divider()
+
+                Button {
+                    sortAscending?.wrappedValue = true
+                } label: {
+                    Text("Ascending")
+                    if sortAscending?.wrappedValue == true {
+                        Image(systemName: "checkmark")
+                    }
+                }
+
+                Button {
+                    sortAscending?.wrappedValue = false
+                } label: {
+                    Text("Descending")
+                    if sortAscending?.wrappedValue == false {
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+        }
     }
 }
 

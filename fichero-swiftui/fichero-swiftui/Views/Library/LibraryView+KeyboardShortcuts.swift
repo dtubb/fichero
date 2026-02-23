@@ -40,6 +40,8 @@ extension LibraryView {
             .focusedSceneValue(\.libraryDeleteSelection, !selection.isEmpty ? {
                 promptDeleteSelected()
             } : nil)
+            .focusedSceneValue(\.librarySortField, $sortFieldRaw)
+            .focusedSceneValue(\.librarySortAscending, $sortAscending)
             .confirmationDialog(
                 "Delete \(documentsToDelete.count) document\(documentsToDelete.count == 1 ? "" : "s")?",
                 isPresented: $showDeleteConfirmation,
@@ -229,6 +231,16 @@ struct LibraryDeleteSelectionKey: FocusedValueKey {
     typealias Value = () -> Void
 }
 
+/// FocusedValue key for the library sort field binding
+struct LibrarySortFieldKey: FocusedValueKey {
+    typealias Value = Binding<String>
+}
+
+/// FocusedValue key for the library sort direction binding
+struct LibrarySortAscendingKey: FocusedValueKey {
+    typealias Value = Binding<Bool>
+}
+
 extension FocusedValues {
     var librarySelectAll: LibrarySelectAllKey.Value? {
         get { self[LibrarySelectAllKey.self] }
@@ -238,5 +250,15 @@ extension FocusedValues {
     var libraryDeleteSelection: LibraryDeleteSelectionKey.Value? {
         get { self[LibraryDeleteSelectionKey.self] }
         set { self[LibraryDeleteSelectionKey.self] = newValue }
+    }
+
+    var librarySortField: LibrarySortFieldKey.Value? {
+        get { self[LibrarySortFieldKey.self] }
+        set { self[LibrarySortFieldKey.self] = newValue }
+    }
+
+    var librarySortAscending: LibrarySortAscendingKey.Value? {
+        get { self[LibrarySortAscendingKey.self] }
+        set { self[LibrarySortAscendingKey.self] = newValue }
     }
 }
