@@ -203,6 +203,14 @@ struct ContentView: View {
             // Initialize column visibility based on persisted inspector state
             updateColumnVisibility()
         }
+        .onChange(of: documentStore.collections) { oldCollections, newCollections in
+            // Re-restore view mode once data loads (collections arrive after API responds)
+            guard oldCollections.isEmpty, !newCollections.isEmpty else { return }
+            viewMode = restoreViewMode(type: storedViewModeType, itemId: storedViewModeItemId)
+            if let id = storedViewModeItemId {
+                selectedSidebarItemId = id
+            }
+        }
         .onChange(of: showInspectorSidebar) { _, _ in
             // Update column visibility when inspector toggle changes
             updateColumnVisibility()
