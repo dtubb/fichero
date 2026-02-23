@@ -59,6 +59,10 @@ struct LibraryView: View {
     @State var showDeleteConfirmation = false
     @State var documentsToDelete: [Document] = []
 
+    // Inline rename state
+    @State var renamingDocumentId: String?
+    @State var editingName: String = ""
+
     var visibleColumns: [ColumnDefinition] {
         ColumnDefinition.allColumns.filter { col in
             switch col.id {
@@ -182,8 +186,13 @@ extension LibraryView {
                         .foregroundColor(.secondary)
                         .frame(width: 16)
                 }
-                Text(doc.name)
-                    .lineLimit(1)
+                EditableDocumentName(
+                    document: doc,
+                    isRenaming: renamingDocumentId == doc.id,
+                    editingName: $editingName,
+                    onCommit: commitRename,
+                    onCancel: cancelRename
+                )
             }
         case "status":
             StatusBadge(status: doc.status)
@@ -283,6 +292,12 @@ extension LibraryView {
 
     @ViewBuilder
     func documentContextMenu(for document: Document) -> some View {
+        Button {
+            startRename(for: document)
+        } label: {
+            Label("Rename", systemImage: "pencil")
+        }
+
         // Only show "Run Workflow..." if 2+ documents are selected
         if selection.count >= 2 {
             Button {
