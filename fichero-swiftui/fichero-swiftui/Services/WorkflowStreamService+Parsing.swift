@@ -4,6 +4,7 @@ import OSLog
 let workflowStreamLogger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowStreamService")
 
 extension WorkflowStreamService {
+    // swiftlint:disable:next todo
     // TODO: Refactor parseEvent - extract case handlers into separate methods
     // Function is 115 lines, target <100
     // swiftlint:disable:next function_body_length

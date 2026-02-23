@@ -5,6 +5,7 @@ extension WorkflowExecutionObserver {
 
     // MARK: - Event Handling
 
+    // swiftlint:disable:next todo
     // TODO: Refactor handleEvent - extract case handlers into separate methods
     // Function is 145 lines, target <100
     // swiftlint:disable:next function_body_length

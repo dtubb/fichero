@@ -224,6 +224,7 @@ struct WorkflowsSidebarContent: View {
         do {
             let response = try await chainService.executeChain(chainId: chain.id)
             logger.info("Started chain execution: \(response.executionId)")
+            // swiftlint:disable:next todo
             // TODO: Navigate to activity view to show execution progress
         } catch {
             logger.error("Failed to execute chain: \(error.localizedDescription)")

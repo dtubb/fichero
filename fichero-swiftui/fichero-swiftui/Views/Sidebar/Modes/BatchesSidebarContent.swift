@@ -83,6 +83,7 @@ struct BatchesSidebarContent: View {
     // MARK: - Computed Properties
 
     private func batchesForLibrary(_ library: LibraryManager.LibraryReference) -> [BatchInfo] {
+        // swiftlint:disable:next todo
         // TODO: Filter batches by library when library scoping is implemented
         // For now, show all batches under Global
         if library.id == LibraryManager.globalLibraryId {

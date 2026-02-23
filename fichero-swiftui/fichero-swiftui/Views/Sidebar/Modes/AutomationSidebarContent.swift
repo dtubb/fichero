@@ -30,12 +30,14 @@ struct AutomationSidebarContent: View {
 
     /// Schedules grouped by library (currently all under Global)
     private var schedulesByLibrary: [UUID: [ScheduleInfo]] {
+        // swiftlint:disable:next todo
         // TODO: When backend supports library filtering, group appropriately
         [LibraryManager.globalLibraryId: schedules]
     }
 
     /// Triggers grouped by library (currently all under Global)
     private var triggersByLibrary: [UUID: [TriggerInfo]] {
+        // swiftlint:disable:next todo
         // TODO: When backend supports library filtering, group appropriately
         [LibraryManager.globalLibraryId: triggers]
     }

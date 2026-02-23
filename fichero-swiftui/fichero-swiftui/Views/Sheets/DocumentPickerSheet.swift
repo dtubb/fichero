@@ -180,6 +180,7 @@ struct DocumentPickerSheet: View {
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let batchId = json["batch_id"] as? String {
                     print("Created batch: \(batchId) with \(documentIds.count) items")
+                    // swiftlint:disable:next todo
                     // TODO: Navigate to batches sidebar and execute batch with SSE streaming
                 } else {
                     print("Created batch with \(documentIds.count) items")

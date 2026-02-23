@@ -16,6 +16,7 @@ extension ActivityProgressView {
 
             // Convert progress timeline from dictionary to typed model
             // Note: progressTimeline may not be available in current backend schema
+            // swiftlint:disable:next todo
             // TODO: Re-enable when backend schema is updated
             /*
             if let timelineDict = run.progressTimeline {

@@ -491,6 +491,7 @@ extension LibraryView {
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let batchId = json["batch_id"] as? String {
                     print("Created batch: \(batchId) with \(selectedDocumentIdsForBatch.count) items")
+                    // swiftlint:disable:next todo
                     // TODO: Navigate to batches sidebar and execute batch with SSE streaming
                     // This would be done via a BatchService similar to ChainService
                 } else {
