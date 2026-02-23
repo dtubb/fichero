@@ -70,6 +70,9 @@ struct LibraryView: View {
     // Selection anchor for Shift+click range select
     @State var selectionAnchor: String?
 
+    // Grid column count for arrow key navigation (updated by GeometryReader in iconsView)
+    @State var gridColumnCount: Int = 4
+
     var visibleColumns: [ColumnDefinition] {
         ColumnDefinition.allColumns.filter { col in
             switch col.id {

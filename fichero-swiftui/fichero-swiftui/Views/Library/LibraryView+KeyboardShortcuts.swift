@@ -21,6 +21,18 @@ extension LibraryView {
                 handleTypeToSelect(keyPress.characters)
                 return .handled
             }
+            .onKeyPress(.upArrow) {
+                handleArrowKey(direction: .up)
+            }
+            .onKeyPress(.downArrow) {
+                handleArrowKey(direction: .down)
+            }
+            .onKeyPress(.leftArrow) {
+                handleArrowKey(direction: .left)
+            }
+            .onKeyPress(.rightArrow) {
+                handleArrowKey(direction: .right)
+            }
             .focusedSceneValue(\.librarySelectAll, !filteredDocuments.isEmpty ? {
                 selectAll()
             } : nil)
@@ -98,6 +110,76 @@ extension LibraryView {
     /// Select all visible documents
     func selectAll() {
         selection = Set(filteredDocuments.map(\.id))
+    }
+
+    // MARK: - Arrow Key Navigation
+
+    enum ArrowDirection {
+        case up, down, left, right
+    }
+
+    /// Handle arrow key press for navigating documents in icon/grid view.
+    /// List and Table views get native arrow key support from AppKit.
+    func handleArrowKey(direction: ArrowDirection) -> KeyPress.Result {
+        let docs = filteredDocuments
+        guard !docs.isEmpty else { return .ignored }
+
+        // List/table modes get native AppKit arrow key handling — don't interfere
+        if displayMode == .list || displayMode == .table {
+            return .ignored
+        }
+
+        // Find the current selection index
+        let currentIndex: Int
+        if let firstSelected = selection.first,
+           let index = docs.firstIndex(where: { $0.id == firstSelected }) {
+            currentIndex = index
+        } else {
+            // Nothing selected — select first document
+            selection = [docs[0].id]
+            selectionAnchor = docs[0].id
+            return .handled
+        }
+
+        // Calculate the target index based on direction and display mode
+        let step: Int
+        switch direction {
+        case .left:
+            step = -1
+        case .right:
+            step = 1
+        case .up:
+            // In icon/grid mode, move up by column count; in map mode, move by 1
+            step = displayMode == .icon ? -gridColumnCount : -1
+        case .down:
+            step = displayMode == .icon ? gridColumnCount : 1
+        }
+
+        let targetIndex = currentIndex + step
+
+        // Bounds check
+        guard targetIndex >= 0, targetIndex < docs.count else { return .handled }
+
+        let targetDoc = docs[targetIndex]
+        let modifiers = NSEvent.modifierFlags
+
+        if modifiers.contains(.shift) {
+            // Shift+Arrow: extend selection from anchor to target
+            if let anchor = selectionAnchor,
+               let anchorIndex = docs.firstIndex(where: { $0.id == anchor }) {
+                let range = min(anchorIndex, targetIndex)...max(anchorIndex, targetIndex)
+                selection = Set(docs[range].map(\.id))
+            } else {
+                selection.insert(targetDoc.id)
+                selectionAnchor = targetDoc.id
+            }
+        } else {
+            // Plain arrow: move selection
+            selection = [targetDoc.id]
+            selectionAnchor = targetDoc.id
+        }
+
+        return .handled
     }
 
     // MARK: - Type-to-Select

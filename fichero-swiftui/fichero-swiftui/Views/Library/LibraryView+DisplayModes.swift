@@ -6,33 +6,44 @@ extension LibraryView {
     // MARK: - Icons View (Grid)
 
     var iconsView: some View {
-        ScrollView {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 120, maximum: 150))],
-                alignment: .center,
-                spacing: 20
-            ) {
-                ForEach(filteredDocuments) { doc in
-                    DocumentThumbnailView(
-                        document: doc,
-                        isSelected: selection.contains(doc.id)
-                    )
-                    .draggable(doc.id)
-                    .onTapGesture {
-                        handleTap(doc)
-                    }
-                    .onTapGesture(count: 2) {
-                        detailDocument = doc
-                    }
-                    .contextMenu {
-                        documentContextMenu(for: doc)
+        GeometryReader { geometry in
+            ScrollView {
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 120, maximum: 150))],
+                    alignment: .center,
+                    spacing: 20
+                ) {
+                    ForEach(filteredDocuments) { doc in
+                        DocumentThumbnailView(
+                            document: doc,
+                            isSelected: selection.contains(doc.id)
+                        )
+                        .draggable(doc.id)
+                        .onTapGesture {
+                            handleTap(doc)
+                        }
+                        .onTapGesture(count: 2) {
+                            detailDocument = doc
+                        }
+                        .contextMenu {
+                            documentContextMenu(for: doc)
+                        }
                     }
                 }
+                .padding()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
-            .padding()
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onChange(of: geometry.size.width) { _, newWidth in
+                // 120 min + 20 spacing = ~140 per column, minus padding
+                let availableWidth = newWidth - 32  // account for .padding()
+                gridColumnCount = max(1, Int(availableWidth / 140))
+            }
+            .onAppear {
+                let availableWidth = geometry.size.width - 32
+                gridColumnCount = max(1, Int(availableWidth / 140))
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - List View (Mail-style compact rows)
