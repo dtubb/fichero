@@ -136,6 +136,7 @@
 | B.7 | Persist inspector tab selection across sessions | done | [#190](https://github.com/dtubb/fichero/issues/190) |
 | B.8 | Sort menu with persisted sort order in library view | done | [#191](https://github.com/dtubb/fichero/issues/191) |
 | B.9 | Per-folder view mode persistence | done | [#193](https://github.com/dtubb/fichero/issues/193) |
+| B.10 | Per-folder sort order persistence | done | [#194](https://github.com/dtubb/fichero/issues/194) |
 | C | Add XCTest coverage — SSE + ActivityTypes + SidebarItem (89 tests) | done | [#182](https://github.com/dtubb/fichero/issues/182) |
 | D | Resolve TODOs and stale docs | done | [#183](https://github.com/dtubb/fichero/issues/183) |
 
