@@ -26,7 +26,8 @@ struct MailStyleRow: View {
 
                     Text(document.name)
                         .font(.headline)
-                        .lineLimit(1)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     Spacer()
 
