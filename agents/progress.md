@@ -127,7 +127,7 @@
 |---|------|--------|-------|
 | A | SwiftLint violations 330→69 (261 fixed) | done | [#181](https://github.com/dtubb/fichero/issues/181) |
 | B | Library View 18-week UX transformation | pending | [#180](https://github.com/dtubb/fichero/issues/180) |
-| C | Add XCTest coverage — SSE parsing (29 tests added) | in-progress | [#182](https://github.com/dtubb/fichero/issues/182) |
+| C | Add XCTest coverage — SSE parsing (30 tests added) | done | [#182](https://github.com/dtubb/fichero/issues/182) |
 | D | Resolve TODOs and stale docs | done | [#183](https://github.com/dtubb/fichero/issues/183) |
 
 ---
