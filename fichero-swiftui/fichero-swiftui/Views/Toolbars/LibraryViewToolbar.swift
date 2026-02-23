@@ -1,10 +1,14 @@
 import SwiftUI
 
-/// Toolbar for Library view with column configuration
+/// Toolbar for Library view with column configuration and sort menu
 /// View mode picker moved to MainToolbar for universal access
 struct LibraryViewToolbar: View {
     @Binding var viewMode: LibraryLayout  // Still needed to show column config only for table view
     let showColumnConfig: Bool
+
+    // Sort controls
+    @Binding var sortFieldRaw: String
+    @Binding var sortAscending: Bool
 
     // Column visibility toggles
     @Binding var showName: Bool
@@ -19,8 +23,51 @@ struct LibraryViewToolbar: View {
 
     let onResetColumns: () -> Void
 
+    private var sortField: LibrarySortField {
+        LibrarySortField(rawValue: sortFieldRaw) ?? .name
+    }
+
     var body: some View {
         HStack(spacing: 8) {
+            // Sort menu (always visible)
+            Menu {
+                ForEach(LibrarySortField.allCases) { field in
+                    Button {
+                        if sortField == field {
+                            sortAscending.toggle()
+                        } else {
+                            sortFieldRaw = field.rawValue
+                            sortAscending = true
+                        }
+                    } label: {
+                        HStack {
+                            Label(field.rawValue, systemImage: field.icon)
+                            if sortField == field {
+                                Image(systemName: sortAscending ? "chevron.up" : "chevron.down")
+                            }
+                        }
+                    }
+                }
+
+                Divider()
+
+                Button {
+                    sortAscending.toggle()
+                } label: {
+                    Label(
+                        sortAscending ? "Descending" : "Ascending",
+                        systemImage: sortAscending ? "chevron.down" : "chevron.up"
+                    )
+                }
+            } label: {
+                HStack(spacing: 2) {
+                    Image(systemName: "arrow.up.arrow.down")
+                    Text(sortField.rawValue)
+                        .font(.caption)
+                }
+            }
+            .help("Sort by \(sortField.rawValue) (\(sortAscending ? "ascending" : "descending"))")
+
             // Column configuration (only for table view)
             if showColumnConfig && viewMode == .table {
                 Menu {

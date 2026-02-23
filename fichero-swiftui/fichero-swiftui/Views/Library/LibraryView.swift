@@ -22,6 +22,38 @@ struct ColumnDefinition: Identifiable, Hashable {
     ]
 }
 
+/// Sortable fields for library documents
+enum LibrarySortField: String, CaseIterable, Identifiable {
+    case name = "Name"
+    case createdAt = "Date Created"
+    case updatedAt = "Date Modified"
+    case fileType = "Type"
+    case status = "Status"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .name: return "textformat"
+        case .createdAt: return "calendar.badge.plus"
+        case .updatedAt: return "calendar.badge.clock"
+        case .fileType: return "doc"
+        case .status: return "circle.dotted"
+        }
+    }
+
+    func comparator(ascending: Bool) -> [KeyPathComparator<Document>] {
+        let order: SortOrder = ascending ? .forward : .reverse
+        switch self {
+        case .name: return [.init(\.name, order: order)]
+        case .createdAt: return [.init(\.createdAt, order: order)]
+        case .updatedAt: return [.init(\.updatedAt, order: order)]
+        case .fileType: return [.init(\.sortableFileType, order: order)]
+        case .status: return [.init(\.status.rawValue, order: order)]
+        }
+    }
+}
+
 /// Grid/List/Table/Map view of documents
 struct LibraryView: View {
     let documents: [Document]
@@ -31,9 +63,13 @@ struct LibraryView: View {
     let displayMode: ViewDisplayMode  // Universal view mode from toolbar
 
     @State private var searchText: String = ""
-    @State var sortOrder: [KeyPathComparator<Document>] = [
-        .init(\.name, order: .forward)
-    ]
+    @AppStorage("librarySortField") var sortFieldRaw: String = LibrarySortField.name.rawValue
+    @AppStorage("librarySortAscending") var sortAscending: Bool = true
+    @State var sortOrder: [KeyPathComparator<Document>] = [.init(\.name, order: .forward)]
+
+    var sortField: LibrarySortField {
+        LibrarySortField(rawValue: sortFieldRaw) ?? .name
+    }
 
     // Workflow picker state
     @State private var showWorkflowPicker = false
@@ -112,6 +148,8 @@ struct LibraryView: View {
                 LibraryViewToolbar(
                     viewMode: $viewMode,
                     showColumnConfig: true,
+                    sortFieldRaw: $sortFieldRaw,
+                    sortAscending: $sortAscending,
                     showName: $showName,
                     showStatus: $showStatus,
                     showProgress: $showProgress,
@@ -156,6 +194,11 @@ struct LibraryView: View {
                 selectedDocumentIdsForBatch = Array(selection)
                 showWorkflowPicker = true
             } : nil)
+            .onAppear {
+                syncSortOrder()
+            }
+            .onChange(of: sortFieldRaw) { _, _ in syncSortOrder() }
+            .onChange(of: sortAscending) { _, _ in syncSortOrder() }
         )
     }
 }
@@ -163,6 +206,14 @@ struct LibraryView: View {
 // MARK: - View Components & Helpers
 
 extension LibraryView {
+    // MARK: - Sort Order Sync
+
+    /// Sync the @State sortOrder from the persisted @AppStorage values
+    func syncSortOrder() {
+        let field = LibrarySortField(rawValue: sortFieldRaw) ?? .name
+        sortOrder = field.comparator(ascending: sortAscending)
+    }
+
     // MARK: - Column Management
 
     func resetColumns() {

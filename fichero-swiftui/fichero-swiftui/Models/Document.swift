@@ -135,6 +135,11 @@ struct Document: Identifiable, Codable, Hashable {
         self.expectedThumbnailPath = expectedThumbnailPath
         self.expectedDisplayPath = expectedDisplayPath
     }
+
+    /// Non-optional file type string for sorting (empty string for nil)
+    var sortableFileType: String {
+        fileType?.rawValue ?? ""
+    }
 }
 
 // MARK: - AnyCodable for flexible metadata
