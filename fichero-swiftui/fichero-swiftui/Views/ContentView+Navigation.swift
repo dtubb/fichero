@@ -18,7 +18,8 @@ extension ContentView {
                 detailDocument: $detailDocument,
                 viewMode: $viewSettings.libraryLayout,
                 displayMode: viewDisplayMode,
-                folderId: selectedSidebarItemId
+                folderId: selectedSidebarItemId,
+                onRequestFocus: { focusedPane = .content }
             )
 
         case .search(let savedSearch):

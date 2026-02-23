@@ -63,6 +63,7 @@ struct LibraryView: View {
     let displayMode: ViewDisplayMode  // Universal view mode from toolbar
 
     let folderId: String?  // Current folder ID for per-folder sort persistence
+    var onRequestFocus: () -> Void = {}  // Called on tap to pull keyboard focus into content area
 
     @State private var searchText: String = ""
     @State var sortFieldRaw: String = LibrarySortField.name.rawValue
@@ -366,6 +367,7 @@ extension LibraryView {
     // MARK: - Helpers
 
     func handleTap(_ doc: Document) {
+        onRequestFocus()
         let modifiers = NSEvent.modifierFlags
         if modifiers.contains(.shift), let anchor = selectionAnchor {
             // Shift+click: range select from anchor to clicked item
