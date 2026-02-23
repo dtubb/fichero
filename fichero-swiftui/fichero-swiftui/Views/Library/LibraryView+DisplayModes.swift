@@ -49,14 +49,18 @@ extension LibraryView {
     // MARK: - List View (Mail-style compact rows)
 
     var listView: some View {
-        List(selection: $selection) {
+        List {
             ForEach(filteredDocuments) { doc in
                 MailStyleRow(document: doc, isSelected: selection.contains(doc.id))
-                    .tag(doc.id)
                     .draggable(doc.id)
                     .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
                     .onTapGesture(count: 2) {
+                        handleTap(doc)
                         detailDocument = doc
+                    }
+                    .onTapGesture {
+                        handleTap(doc)
+                        onRequestFocus()
                     }
                     .contextMenu {
                         documentContextMenu(for: doc)
