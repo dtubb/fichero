@@ -158,7 +158,7 @@ Feedback from running the app. Work in priority order: bugs → polish → featu
 |---|------|--------|-------|
 | E.1.1 | Arrow keys go to sidebar instead of content area when icon selected | done | [#201](https://github.com/dtubb/fichero/issues/201) |
 | E.1.2 | List view: can't click on any items (click interaction broken) | done | [#202](https://github.com/dtubb/fichero/issues/202) |
-| E.1.3 | App doesn't restore last open view/document on launch | pending | — |
+| E.1.3 | App doesn't restore last open view/document on launch | done | [#203](https://github.com/dtubb/fichero/issues/203) |
 | E.1.4 | Map view: doesn't show all items, no horizontal scrolling | pending | — |
 
 ### E.2 — UI Polish (wrong but not broken)
