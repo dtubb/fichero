@@ -1,7 +1,7 @@
 # Fichero Refactoring Progress
 
 > **Last Updated:** 2026-02-23
-> **Status:** Phase E in progress — 17 tasks from Daniel QA review (4 bugs, 6 polish, 7 features). PR #200 open. Work E.1 bugs first.
+> **Status:** Phase E complete — all 17 tasks done. Code review fixes applied (tap gesture order, SceneStorage key). PR #200 open, Copilot review requested. Remaining open GitHub issues (#113-#117) need Daniel review.
 
 ---
 
@@ -183,6 +183,18 @@ Feedback from running the app. Work in priority order: bugs → polish → featu
 | E.3.5 | Column configuration: show/hide columns in table/artifacts view | done | [#215](https://github.com/dtubb/fichero/issues/215) |
 | E.3.6 | NetNewsWire-style keyboard column nav (left/right = change pane, up/down = within pane) | done | [#216](https://github.com/dtubb/fichero/issues/216) |
 | E.3.7 | Click name/tag in list to jump to search for that value | done | [#217](https://github.com/dtubb/fichero/issues/217) |
+
+---
+
+## Phase F — Code Review Fixes (2026-02-23)
+
+Agent team (3 reviewers) reviewed LibraryView, keyboard nav, inspector, components, and toolbar.
+
+| # | Fix | Status | Commit |
+|---|-----|--------|--------|
+| F.1 | Icon/map/list view: double-tap handler before single-tap (correct SwiftUI gesture order) | done | `543412c8` |
+| F.2 | List view: remove duplicate `handleTap` call from double-tap handler | done | `543412c8` |
+| F.3 | DocumentInspector: namespace `SceneStorage` key to `"DocumentInspector.selectedTab"` | done | `543412c8` |
 
 ---
 
