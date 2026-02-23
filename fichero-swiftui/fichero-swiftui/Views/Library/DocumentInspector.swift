@@ -33,7 +33,7 @@ struct DocumentInspector: View {
                 emptyState
             }
         }
-        .frame(minWidth: 250, maxWidth: 300)
+        .frame(minWidth: 220, maxWidth: .infinity)
     }
 
     // MARK: - Document Detail
