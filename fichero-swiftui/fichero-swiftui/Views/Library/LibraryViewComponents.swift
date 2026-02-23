@@ -5,6 +5,7 @@ import SwiftUI
 struct MailStyleRow: View {
     let document: Document
     let isSelected: Bool
+    var onTagTap: (String) -> Void = { _ in }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -36,18 +37,23 @@ struct MailStyleRow: View {
                         .foregroundColor(.secondary)
                 }
 
-                // Status + Type row
+                // Status + Type row — tappable tags filter the list
                 HStack(spacing: 8) {
                     StatusBadge(status: document.status)
+                        .onTapGesture {
+                            onTagTap(document.status.rawValue)
+                        }
 
                     if document.docType == .folder {
                         Text("Folder")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                            .onTapGesture { onTagTap("Folder") }
                     } else if let fileType = document.fileType {
                         Text(fileType.rawValue.capitalized)
                             .font(.caption)
                             .foregroundColor(.secondary)
+                            .onTapGesture { onTagTap(fileType.rawValue.capitalized) }
                     }
                 }
 

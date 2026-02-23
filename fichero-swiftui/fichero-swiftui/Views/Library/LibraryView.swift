@@ -67,8 +67,8 @@ struct LibraryView: View {
     var onRequestPreviousPaneFocus: () -> Void = {}  // Left arrow in list/table — move to sidebar
     var onRequestNextPaneFocus: () -> Void = {}  // Right arrow in list/table — move to inspector
 
-    @State private var searchText: String = ""
-    @State private var showFilterBar = false
+    @State var searchText: String = ""
+    @State var showFilterBar = false
     @FocusState private var filterFieldFocused: Bool
     @State var sortFieldRaw: String = LibrarySortField.name.rawValue
     @State var sortAscending: Bool = true

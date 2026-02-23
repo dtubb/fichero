@@ -54,8 +54,11 @@ extension LibraryView {
     var listView: some View {
         List {
             ForEach(filteredDocuments) { doc in
-                MailStyleRow(document: doc, isSelected: selection.contains(doc.id))
-                    .draggable(doc.id)
+                MailStyleRow(document: doc, isSelected: selection.contains(doc.id)) { tag in
+                    searchText = tag
+                    showFilterBar = true
+                }
+                .draggable(doc.id)
                     .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
                     .onTapGesture(count: 2) {
                         handleTap(doc)
