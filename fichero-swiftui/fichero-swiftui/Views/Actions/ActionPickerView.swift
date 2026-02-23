@@ -162,18 +162,6 @@ struct DraggableActionCard: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(isDragging ? Color.accentColor : Color.clear, lineWidth: 2)
         )
-        .draggable(ActionDragData(action: action)) {
-            // Drag preview
-            HStack(spacing: 8) {
-                Image(systemName: action.icon)
-                    .foregroundStyle(.blue)
-                Text(action.name)
-                    .fontWeight(.medium)
-            }
-            .padding(8)
-            .background(.regularMaterial)
-            .cornerRadius(8)
-        }
         .onDrag {
             isDragging = true
             // Record usage when dragged
@@ -194,18 +182,12 @@ struct DraggableActionCard: View {
 
 // MARK: - Action Drag Data
 
-class ActionDragData: NSObject, NSItemProviderWriting, NSItemProviderReading, Transferable {
+final class ActionDragData: NSObject, NSItemProviderWriting, NSItemProviderReading, @unchecked Sendable {
     let action: ActionItem
 
-    init(action: ActionItem) {
+    required init(action: ActionItem) {
         self.action = action
         super.init()
-    }
-
-    // MARK: - Transferable
-
-    static var transferRepresentation: some TransferRepresentation {
-        CodableRepresentation(contentType: .actionDragData)
     }
 
     // MARK: - NSItemProviderWriting
@@ -234,10 +216,10 @@ class ActionDragData: NSObject, NSItemProviderWriting, NSItemProviderReading, Tr
         [UTType.actionDragData.identifier]
     }
 
-    static func object(withItemProviderData data: Data, typeIdentifier: String) throws -> Self {
+    static func object(withItemProviderData data: Data, typeIdentifier: String) throws -> ActionDragData {
         let decoder = JSONDecoder()
         let action = try decoder.decode(ActionItem.self, from: data)
-        return Self(action: action)
+        return ActionDragData(action: action)
     }
 }
 
@@ -349,16 +331,8 @@ struct CompactActionRow: View {
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
-        .draggable(ActionDragData(action: action)) {
-            HStack(spacing: 6) {
-                Image(systemName: action.icon)
-                    .foregroundStyle(.blue)
-                Text(action.name)
-                    .font(.caption)
-            }
-            .padding(6)
-            .background(.regularMaterial)
-            .cornerRadius(4)
+        .onDrag {
+            NSItemProvider(object: ActionDragData(action: action))
         }
     }
 }

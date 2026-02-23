@@ -126,6 +126,10 @@
 		20D8EE302F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE2F2F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift */; };
 		20D8EE382F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE372F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift */; };
 		20D8EE3A2F4BD9F6006950A3 /* LibraryView+InlineEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE392F4BD9F6006950A3 /* LibraryView+InlineEditing.swift */; };
+		20D8EE3C2F4BE0D8006950A3 /* ActionsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE3B2F4BE0D8006950A3 /* ActionsService.swift */; };
+		20D8EE3E2F4BE1AB006950A3 /* ActionLibraryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE3D2F4BE1AB006950A3 /* ActionLibraryService.swift */; };
+		20D8EE452F4BE260006950A3 /* ActionLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE442F4BE260006950A3 /* ActionLibraryView.swift */; };
+		20D8EE472F4BE285006950A3 /* ActionPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE462F4BE285006950A3 /* ActionPickerView.swift */; };
 		2ED84CCBA91252EA2D0C5D34 /* TriggerEditorPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */; };
 		3D3445F0B90D093149C9A7D6 /* DocumentInspectorContentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */; };
 		4458475E8C2BF728591E504F /* AIDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */; };
@@ -498,6 +502,10 @@
 		20D8EE2F2F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowExecutionObserver+Events.swift"; sourceTree = "<group>"; };
 		20D8EE372F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+KeyboardShortcuts.swift"; sourceTree = "<group>"; };
 		20D8EE392F4BD9F6006950A3 /* LibraryView+InlineEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+InlineEditing.swift"; sourceTree = "<group>"; };
+		20D8EE3B2F4BE0D8006950A3 /* ActionsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionsService.swift; sourceTree = "<group>"; };
+		20D8EE3D2F4BE1AB006950A3 /* ActionLibraryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionLibraryService.swift; sourceTree = "<group>"; };
+		20D8EE442F4BE260006950A3 /* ActionLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionLibraryView.swift; sourceTree = "<group>"; };
+		20D8EE462F4BE285006950A3 /* ActionPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionPickerView.swift; sourceTree = "<group>"; };
 		312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorArtifactsTab.swift; path = "fichero-swiftui/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab.swift"; sourceTree = SOURCE_ROOT; };
 		36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorContentTab.swift; path = "fichero-swiftui/Views/Library/DocumentInspector/DocumentInspectorContentTab.swift"; sourceTree = SOURCE_ROOT; };
 		371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BackendSettingsView.swift; path = "fichero-swiftui/Views/Settings/BackendSettingsView.swift"; sourceTree = SOURCE_ROOT; };
@@ -797,6 +805,15 @@
 			path = WorkflowLibraryView;
 			sourceTree = "<group>";
 		};
+		20D8EE432F4BE22F006950A3 /* Actions */ = {
+			isa = PBXGroup;
+			children = (
+				20D8EE442F4BE260006950A3 /* ActionLibraryView.swift */,
+				20D8EE462F4BE285006950A3 /* ActionPickerView.swift */,
+			);
+			path = Actions;
+			sourceTree = "<group>";
+		};
 		400 = {
 			isa = PBXGroup;
 			children = (
@@ -871,6 +888,7 @@
 				4111 /* Sidebar */,
 				A1BFB4102F057C4000EAA55A /* Toolbars */,
 				4116 /* Workflow */,
+				20D8EE432F4BE22F006950A3 /* Actions */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1094,6 +1112,8 @@
 				20D8EE2B2F4BC0FC006950A3 /* DragDropHelpers.swift */,
 				20D8EE2D2F4BC103006950A3 /* DragDropService+ErrorHandling.swift */,
 				20D8EE2F2F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift */,
+				20D8EE3B2F4BE0D8006950A3 /* ActionsService.swift */,
+				20D8EE3D2F4BE1AB006950A3 /* ActionLibraryService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -1558,6 +1578,7 @@
 				A1BFB2D02F042C4100EAA55A /* AIProviderAddModelsSheet.swift in Sources */,
 				A1A3AA282F113E6F0021909D /* AutomationService.swift in Sources */,
 				20D8ED6D2F48E62F006950A3 /* DocumentStore+Helpers.swift in Sources */,
+				20D8EE3E2F4BE1AB006950A3 /* ActionLibraryService.swift in Sources */,
 				2026749D2F475B64008EAB5D /* TranscribeNodeConfig.swift in Sources */,
 				20D8ED632F48E61C006950A3 /* SidebarItem+MoreFactories.swift in Sources */,
 				202674DC2F489677008EAB5D /* SearchView+Helpers.swift in Sources */,
@@ -1702,6 +1723,7 @@
 				020 /* APIClient.swift in Sources */,
 				20D8EE282F4BC0ED006950A3 /* IntegrationsService+AppSpecific.swift in Sources */,
 				A13E80A22F2AD75100EC9EE1 /* ModelComparisonService.swift in Sources */,
+				20D8EE452F4BE260006950A3 /* ActionLibraryView.swift in Sources */,
 				20D8EE222F4BBFB8006950A3 /* AutomationServiceTypes.swift in Sources */,
 				845 /* ArtifactService.swift in Sources */,
 				A1BFB2E42F0439FE00EAA55A /* ImportService.swift in Sources */,
@@ -1733,6 +1755,7 @@
 				20D8EE242F4BBFBA006950A3 /* ProviderServiceTypes.swift in Sources */,
 				A1FB1D9B2F0420D50023093C /* SidebarItemContextMenu.swift in Sources */,
 				20D8ED732F48E644006950A3 /* SidebarViewTypes.swift in Sources */,
+				20D8EE472F4BE285006950A3 /* ActionPickerView.swift in Sources */,
 				A1BFB2E72F043D2300EAA55A /* StorageService.swift in Sources */,
 				202674CC2F4788F2008EAB5D /* WorkflowLibraryRow.swift in Sources */,
 				A1BFB2EB2F043F4500EAA55A /* ViewContexts.swift in Sources */,
@@ -1778,6 +1801,7 @@
 				202674C52F4788CB008EAB5D /* WorkflowDetailView.swift in Sources */,
 				E6E64CE83B1FF1235DCFDF80 /* ScheduleDetailView.swift in Sources */,
 				71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */,
+				20D8EE3C2F4BE0D8006950A3 /* ActionsService.swift in Sources */,
 				898AABCC531843909C0C6AA8 /* TriggerEditorView.swift in Sources */,
 				8C35E319E4B9A46AB0383C10 /* TriggerDetailView.swift in Sources */,
 				F53928FD9498E8D531260FFC /* BatchDetailView.swift in Sources */,

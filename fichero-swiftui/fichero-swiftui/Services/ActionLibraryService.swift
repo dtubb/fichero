@@ -408,65 +408,9 @@ final class ActionLibraryService: ObservableObject {
     }
 }
 
+// ActionItem and CreateActionRequest are defined in ActionsService.swift — do not duplicate
+
 // MARK: - Models
-
-struct ActionItem: Codable, Identifiable, Hashable {
-    let id: String
-    let name: String
-    let description: String
-    let category: String
-    let tags: [String]
-    let icon: String
-    let nodeTemplate: [String: AnyCodable]
-    let nodes: [[String: AnyCodable]]
-    let edges: [[String: AnyCodable]]
-    let isBuiltin: Bool
-    let isComposite: Bool
-    let author: String
-    let useCount: Int
-    let lastUsedAt: String?
-    let createdAt: String
-    let updatedAt: String
-
-    enum CodingKeys: String, CodingKey {
-        case id, name, description, category, tags, icon
-        case nodeTemplate = "node_template"
-        case nodes, edges
-        case isBuiltin = "is_builtin"
-        case isComposite = "is_composite"
-        case author
-        case useCount = "use_count"
-        case lastUsedAt = "last_used_at"
-        case createdAt = "created_at"
-        case updatedAt = "updated_at"
-    }
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-    }
-
-    static func == (lhs: ActionItem, rhs: ActionItem) -> Bool {
-        lhs.id == rhs.id
-    }
-}
-
-struct CreateActionRequest: Codable {
-    let name: String
-    var description: String = ""
-    var category: String = "custom"
-    var tags: [String] = []
-    var icon: String = "square.stack.3d.up"
-    var nodeTemplate: [String: AnyCodable] = [:]
-    var nodes: [[String: AnyCodable]] = []
-    var edges: [[String: AnyCodable]] = []
-    var author: String = ""
-
-    enum CodingKeys: String, CodingKey {
-        case name, description, category, tags, icon
-        case nodeTemplate = "node_template"
-        case nodes, edges, author
-    }
-}
 
 struct ImportActionRequest: Codable {
     let jsonData: String
@@ -478,93 +422,7 @@ struct ImportActionRequest: Codable {
     }
 }
 
-// MARK: - AnyCodable Helper
-
-struct AnyCodable: Codable, Hashable {
-    let value: Any
-
-    init(_ value: Any) {
-        self.value = value
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-
-        if container.decodeNil() {
-            self.value = NSNull()
-        } else if let bool = try? container.decode(Bool.self) {
-            self.value = bool
-        } else if let int = try? container.decode(Int.self) {
-            self.value = int
-        } else if let double = try? container.decode(Double.self) {
-            self.value = double
-        } else if let string = try? container.decode(String.self) {
-            self.value = string
-        } else if let array = try? container.decode([AnyCodable].self) {
-            self.value = array.map { $0.value }
-        } else if let dictionary = try? container.decode([String: AnyCodable].self) {
-            self.value = dictionary.mapValues { $0.value }
-        } else {
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode value")
-        }
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-
-        switch value {
-        case is NSNull:
-            try container.encodeNil()
-        case let bool as Bool:
-            try container.encode(bool)
-        case let int as Int:
-            try container.encode(int)
-        case let double as Double:
-            try container.encode(double)
-        case let string as String:
-            try container.encode(string)
-        case let array as [Any]:
-            try container.encode(array.map { AnyCodable($0) })
-        case let dictionary as [String: Any]:
-            try container.encode(dictionary.mapValues { AnyCodable($0) })
-        default:
-            let context = EncodingError.Context(
-                codingPath: encoder.codingPath,
-                debugDescription: "Cannot encode value"
-            )
-            throw EncodingError.invalidValue(value, context)
-        }
-    }
-
-    func hash(into hasher: inout Hasher) {
-        if let string = value as? String {
-            hasher.combine(string)
-        } else if let int = value as? Int {
-            hasher.combine(int)
-        } else if let double = value as? Double {
-            hasher.combine(double)
-        } else if let bool = value as? Bool {
-            hasher.combine(bool)
-        }
-    }
-
-    static func == (lhs: AnyCodable, rhs: AnyCodable) -> Bool {
-        switch (lhs.value, rhs.value) {
-        case (let left as String, let right as String):
-            return left == right
-        case (let left as Int, let right as Int):
-            return left == right
-        case (let left as Double, let right as Double):
-            return left == right
-        case (let left as Bool, let right as Bool):
-            return left == right
-        case (is NSNull, is NSNull):
-            return true
-        default:
-            return false
-        }
-    }
-}
+// AnyCodable is defined in Models/Document.swift — do not duplicate
 
 // MARK: - Errors
 

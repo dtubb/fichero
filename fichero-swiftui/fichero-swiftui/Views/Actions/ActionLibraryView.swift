@@ -427,52 +427,7 @@ struct CreateActionSheet: View {
     }
 }
 
-// MARK: - Flow Layout
-
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = FlowResult(in: proposal.width ?? 0, subviews: subviews, spacing: spacing)
-        return result.size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = FlowResult(in: bounds.width, subviews: subviews, spacing: spacing)
-        for (index, subview) in subviews.enumerated() {
-            subview.place(at: CGPoint(x: bounds.minX + result.positions[index].x,
-                                      y: bounds.minY + result.positions[index].y),
-                         proposal: .unspecified)
-        }
-    }
-
-    struct FlowResult {
-        var size: CGSize = .zero
-        var positions: [CGPoint] = []
-
-        init(in width: CGFloat, subviews: Subviews, spacing: CGFloat) {
-            var xPos: CGFloat = 0
-            var yPos: CGFloat = 0
-            var lineHeight: CGFloat = 0
-
-            for subview in subviews {
-                let size = subview.sizeThatFits(.unspecified)
-
-                if xPos + size.width > width && xPos > 0 {
-                    xPos = 0
-                    yPos += lineHeight + spacing
-                    lineHeight = 0
-                }
-
-                positions.append(CGPoint(x: xPos, y: yPos))
-                lineHeight = max(lineHeight, size.height)
-                xPos += size.width + spacing
-            }
-
-            self.size = CGSize(width: width, height: yPos + lineHeight)
-        }
-    }
-}
+// FlowLayout is defined in Views/Components/FlowLayout.swift — do not duplicate
 
 #Preview {
     ActionLibraryView()

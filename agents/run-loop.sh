@@ -1,63 +1,42 @@
 #!/bin/bash
-# Fichero Refactoring Loop — Fresh Context Per Iteration
+# Ralph Loop — Visible iTerm2 Windows with Streaming Output
 #
 # Usage:
 #   ./agents/run-loop.sh                  # default: 10 iterations
 #   ./agents/run-loop.sh 5                # custom max iterations
-#   ./agents/run-loop.sh 20 --dry-run     # preview without running
+#   ./agents/run-loop.sh 10 --force       # skip completion check
 #
-# How it stops:
-#   1. All tasks in agents/progress.md show "Remaining | 0"
-#   2. Max iterations reached
-#   3. Claude outputs ALL_COMPLETE
-#
-# State between iterations flows through:
-#   - agents/progress.md (task tracker)
-#   - GitHub issues (locking + status)
-#   - git commits (code changes)
-#
-# Works with: regular terminal, tmux, tmux -CC (iTerm2)
+# Each iteration opens an iTerm2 window with real-time streaming output.
+# Auto-exits when Claude finishes, then opens the next iteration.
 
 set -euo pipefail
 
 MAX_ITERATIONS="${1:-10}"
-DRY_RUN="${2:-}"
+FORCE="${2:-}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 LOG_DIR="$PROJECT_DIR/agents/logs"
 PROMPT_FILE="$SCRIPT_DIR/loop-prompt.txt"
+SIGNAL_DIR="$PROJECT_DIR/agents/.signals"
 
-# Create logs directory
-mkdir -p "$LOG_DIR"
+mkdir -p "$LOG_DIR" "$SIGNAL_DIR"
 
-# Detect if colors are supported (disable in tmux -CC or pipes)
-if [ -t 1 ] && [ "${TERM:-}" != "dumb" ] && [ -z "${TMUX_CC:-}" ]; then
-    GREEN='\033[0;32m'
-    YELLOW='\033[1;33m'
-    RED='\033[0;31m'
-    BLUE='\033[0;34m'
-    NC='\033[0m'
-else
-    GREEN=''
-    YELLOW=''
-    RED=''
-    BLUE=''
-    NC=''
-fi
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
+log() { echo -e "$1"; }
 
-log() {
-    echo -e "$1"
-}
+log ""
+log "${BOLD}${BLUE}══════════════════════════════════════════════════${NC}"
+log "${BOLD}${BLUE}  Ralph Loop — Streaming iTerm2 Windows${NC}"
+log "${BOLD}${BLUE}  Max iterations: ${MAX_ITERATIONS}${NC}"
+log "${BOLD}${BLUE}══════════════════════════════════════════════════${NC}"
 
-log "${BLUE}========================================================${NC}"
-log "${BLUE}  Fichero Refactoring Loop — Fresh Context Per Iteration${NC}"
-log "${BLUE}  Max iterations: ${MAX_ITERATIONS}${NC}"
-log "${BLUE}========================================================${NC}"
-
-# Check if prompt file exists
+# Check/create prompt file
 if [ ! -f "$PROMPT_FILE" ]; then
-    log "${RED}Error: $PROMPT_FILE not found${NC}"
-    log "Creating default prompt file..."
     cat > "$PROMPT_FILE" << 'PROMPT'
 Read agents/plan.md for the overall project plan.
 
@@ -85,72 +64,168 @@ fi
 
 check_all_done() {
     if [ -f "$PROJECT_DIR/agents/progress.md" ]; then
-        # macOS-compatible grep (no -P flag)
-        remaining=$(grep 'Remaining' "$PROJECT_DIR/agents/progress.md" 2>/dev/null | grep -o '[0-9]*' | tail -1 || echo "?")
-        if [ "$remaining" = "0" ]; then
-            return 0  # all done
-        fi
+        remaining=$(grep -E '^\| *Remaining *\|' "$PROJECT_DIR/agents/progress.md" 2>/dev/null | grep -o '[0-9]*' | head -1 || echo "?")
+        [ "$remaining" = "0" ] && return 0
     fi
-    return 1  # not done
+    return 1
 }
 
+show_progress() {
+    if [ -f "$PROJECT_DIR/agents/progress.md" ]; then
+        log "  ${CYAN}Progress:${NC}"
+        grep -E '^\| *(Completed|Remaining|Blocked|In Progress) *\|' "$PROJECT_DIR/agents/progress.md" 2>/dev/null | while read -r line; do
+            log "    $line"
+        done
+    fi
+}
+
+# ── Main loop ───────────────────────────────────────────
 LAST_ITERATION=0
 
 for i in $(seq 1 "$MAX_ITERATIONS"); do
     LAST_ITERATION=$i
-    echo ""
-    log "${YELLOW}--- Iteration $i / $MAX_ITERATIONS ---${NC}"
+    log ""
+    log "${BOLD}${YELLOW}── Iteration $i / $MAX_ITERATIONS ──${NC}"
+
     TIMESTAMP=$(date +%Y%m%d_%H%M%S)
     LOG_FILE="$LOG_DIR/iteration_${i}_${TIMESTAMP}.log"
+    SIGNAL_FILE="$SIGNAL_DIR/iter_${i}_done"
+    rm -f "$SIGNAL_FILE"
 
-    # Check if all tasks are already done
-    if check_all_done; then
-        log "${GREEN}All tasks complete! (Remaining | 0 in progress.md)${NC}"
+    if [ "$FORCE" != "--force" ] && check_all_done; then
+        log "${GREEN}  All tasks complete! (Remaining | 0)${NC}"
         break
     fi
 
-    # Show current progress
-    if [ -f "$PROJECT_DIR/agents/progress.md" ]; then
-        log "${BLUE}Current status:${NC}"
-        grep -E '(Completed|Remaining|Blocked|In Progress)' "$PROJECT_DIR/agents/progress.md" 2>/dev/null | head -5
-    fi
+    show_progress
 
-    if [ "$DRY_RUN" = "--dry-run" ]; then
-        log "${YELLOW}[DRY RUN] Would run: claude -p <prompt>${NC}"
-        continue
-    fi
+    # Copy prompt to temp file (avoids quoting issues in heredoc)
+    PROMPT_TMP=$(mktemp /tmp/ralph_prompt_XXXXXX)
+    cp "$PROMPT_FILE" "$PROMPT_TMP"
 
-    # Run Claude with fresh context
-    log "${BLUE}Starting Claude (fresh context)...${NC}"
-    PROMPT=$(cat "$PROMPT_FILE")
+    # Create runner script for the iTerm2 window
+    RUNNER=$(mktemp /tmp/ralph_iter_XXXXXX)
+    chmod +x "$RUNNER"
 
-    # Write output to log file, capture for completion check
-    # Use script(1) to handle pseudo-tty issues in tmux -CC
-    OUTPUT=$(claude -p "$PROMPT" --allowedTools '*' --verbose 2>&1 | tee "$LOG_FILE") || true
+    # Write runner — variables from THIS shell expand, inner $ are escaped
+    cat > "$RUNNER" << RUNNER_EOF
+#!/bin/bash
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  Ralph Loop — Iteration $i / $MAX_ITERATIONS"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
 
-    # Check if Claude signaled all complete
-    if echo "$OUTPUT" | grep -q "ALL_COMPLETE"; then
-        log "${GREEN}Claude reports ALL_COMPLETE — stopping loop${NC}"
+cd "$PROJECT_DIR"
+PROMPT=\$(cat "$PROMPT_TMP")
+
+# Stream Claude output in real-time using stream-json
+# -p auto-exits when done, stream-json streams as tokens arrive
+# jq extracts readable text and tool names for display
+claude -p "\$PROMPT" \\
+    --dangerously-skip-permissions \\
+    --verbose \\
+    --output-format stream-json \\
+    --include-partial-messages \\
+    2>"$LOG_FILE.stderr" \\
+    | tee "$LOG_FILE" \\
+    | while IFS= read -r line; do
+        type=\$(echo "\$line" | jq -r '.type // empty' 2>/dev/null)
+        case "\$type" in
+            stream_event)
+                evt=\$(echo "\$line" | jq -r '.event.type // empty' 2>/dev/null)
+                case "\$evt" in
+                    content_block_delta)
+                        dt=\$(echo "\$line" | jq -r '.event.delta.type // empty' 2>/dev/null)
+                        if [ "\$dt" = "text_delta" ]; then
+                            printf '%s' "\$(echo "\$line" | jq -r '.event.delta.text')"
+                        fi
+                        ;;
+                    content_block_start)
+                        bt=\$(echo "\$line" | jq -r '.event.content_block.type // empty' 2>/dev/null)
+                        if [ "\$bt" = "tool_use" ]; then
+                            tn=\$(echo "\$line" | jq -r '.event.content_block.name // empty' 2>/dev/null)
+                            printf '\n\033[0;36m[%s]\033[0m ' "\$tn"
+                        fi
+                        ;;
+                esac
+                ;;
+            result)
+                echo ""
+                err=\$(echo "\$line" | jq -r '.is_error // false' 2>/dev/null)
+                if [ "\$err" = "true" ]; then
+                    echo "  [ERROR]"
+                else
+                    echo "  [DONE]"
+                fi
+                ;;
+        esac
+    done
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  Iteration $i complete — closing in 3s"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+touch "$SIGNAL_FILE"
+sleep 3
+RUNNER_EOF
+
+    # Open in iTerm2 window
+    osascript << APPLE_EOF &
+tell application "iTerm2"
+    set newWindow to (create window with default profile)
+    tell current session of newWindow
+        set name to "Ralph #$i"
+        write text "bash '$RUNNER'"
+    end tell
+    repeat
+        delay 5
+        try
+            do shell script "test -f '$SIGNAL_FILE' && echo done"
+            exit repeat
+        end try
+    end repeat
+    delay 4
+    close newWindow
+end tell
+APPLE_EOF
+
+    log "  ${GREEN}Opened iTerm2 window: Ralph #${i}${NC}"
+
+    # Wait for signal
+    wait_count=0
+    while [ ! -f "$SIGNAL_FILE" ]; do
+        sleep 2
+        wait_count=$((wait_count + 1))
+        if [ $((wait_count % 15)) -eq 0 ]; then
+            log "  ${CYAN}⏳ Running... ($((wait_count * 2))s)${NC}"
+        fi
+    done
+    wait 2>/dev/null || true
+
+    rm -f "$RUNNER" "$SIGNAL_FILE" "$PROMPT_TMP"
+
+    # Check log for ALL_COMPLETE
+    if grep -q "ALL_COMPLETE" "$LOG_FILE" 2>/dev/null; then
+        log "  ${GREEN}Claude reports ALL_COMPLETE — stopping${NC}"
         break
     fi
 
-    # Check progress file again after iteration
-    if check_all_done; then
-        log "${GREEN}All tasks complete after iteration $i!${NC}"
+    if [ "$FORCE" != "--force" ] && check_all_done; then
+        log "  ${GREEN}All tasks complete after iteration $i!${NC}"
         break
     fi
 
-    log "${GREEN}Iteration $i complete. Log: $LOG_FILE${NC}"
-
-    # Brief pause between iterations
+    log "  ${GREEN}Iteration $i done. Log: $LOG_FILE${NC}"
     sleep 2
 done
 
-echo ""
-log "${BLUE}========================================================${NC}"
-log "${BLUE}  Loop finished after $LAST_ITERATION iteration(s)${NC}"
-if [ -f "$PROJECT_DIR/agents/progress.md" ]; then
-    grep -E '(Completed|Remaining)' "$PROJECT_DIR/agents/progress.md" 2>/dev/null | head -2
-fi
-log "${BLUE}  Logs: $LOG_DIR/${NC}"
-log "${BLUE}========================================================${NC}"
+log ""
+log "${BOLD}${BLUE}══════════════════════════════════════════════════${NC}"
+log "${BOLD}${BLUE}  Finished after $LAST_ITERATION iteration(s)${NC}"
+show_progress
+log "${BOLD}${BLUE}  Logs: agents/logs/${NC}"
+log "${BOLD}${BLUE}══════════════════════════════════════════════════${NC}"
+
+rm -rf "$SIGNAL_DIR"
