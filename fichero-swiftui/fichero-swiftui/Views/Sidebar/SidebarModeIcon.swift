@@ -12,9 +12,13 @@ struct SidebarModeIcon: View {
         Button(action: action) {
             ZStack(alignment: .topTrailing) {
                 Image(systemName: isSelected ? selectedIcon : mode.icon)
-                    .font(.system(size: 11))
+                    .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-                    .frame(width: 24, height: 22)
+                    .frame(width: 26, height: 24)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+                    )
                     .contentShape(Rectangle())
 
                 // Badge for counts > 0

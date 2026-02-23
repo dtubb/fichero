@@ -165,8 +165,8 @@ Feedback from running the app. Work in priority order: bugs → polish → featu
 
 | # | Task | Status | Issue |
 |---|------|--------|-------|
-| E.2.1 | Spurious focus ring on inspector panel top-right | pending | — |
-| E.2.2 | Inspector tabs → Xcode-style large icon-only pill tabs (Info/Metadata/Artifacts/Content) | pending | — |
+| E.2.1 | Spurious focus ring on inspector panel top-right | done | [#205](https://github.com/dtubb/fichero/issues/205) |
+| E.2.2 | Inspector tabs → Xcode-style large icon-only pill tabs (Info/Metadata/Artifacts/Content) | done | [#206](https://github.com/dtubb/fichero/issues/206) |
 | E.2.3 | Sidebar mode tabs → Xcode-style small icon-only tabs (like Xcode navigator) | pending | — |
 | E.2.4 | Info tab content → two-column form layout (label left, value right, section headers) | pending | — |
 | E.2.5 | Sort/filter button styling → standard macOS (not custom buttons) | pending | — |
