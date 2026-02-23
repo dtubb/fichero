@@ -132,6 +132,7 @@
 | B.3 | Type-to-select: jump to matching document by typing | done | [#186](https://github.com/dtubb/fichero/issues/186) |
 | B.4 | Selection modifiers: Shift+click range, Cmd+click toggle | done | [#187](https://github.com/dtubb/fichero/issues/187) |
 | B.5 | Arrow key navigation in icon/grid views | done | [#188](https://github.com/dtubb/fichero/issues/188) |
+| B.6 | Tab key to cycle focus between sidebar, content, inspector | done | [#189](https://github.com/dtubb/fichero/issues/189) |
 | C | Add XCTest coverage — SSE + ActivityTypes + SidebarItem (89 tests) | done | [#182](https://github.com/dtubb/fichero/issues/182) |
 | D | Resolve TODOs and stale docs | done | [#183](https://github.com/dtubb/fichero/issues/183) |
 
