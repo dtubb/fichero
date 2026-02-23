@@ -25,6 +25,8 @@ extension ContentView {
         .environmentObject(conversationService)
         .environmentObject(ErrorService.shared)
         .environmentObject(performanceService)
+        .focusable()
+        .focused($focusedPane, equals: .sidebar)
         .navigationSplitViewColumnWidth(min: 250, ideal: sidebarWidth, max: 350)
         .focusedSceneValue(\.sidebarMode, $sidebarMode)
     }
@@ -37,6 +39,8 @@ extension ContentView {
         case .none:
             // None: Just content, no preview
             contentView
+                .focusable()
+                .focused($focusedPane, equals: .content)
                 .navigationSplitViewColumnWidth(min: 350, ideal: 600, max: .infinity)
 
         case .standard:
@@ -48,6 +52,8 @@ extension ContentView {
                 previewView
                     .frame(minHeight: 400, idealHeight: 720)
             }
+            .focusable()
+            .focused($focusedPane, equals: .content)
             .navigationSplitViewColumnWidth(min: 350, ideal: 700, max: .infinity)
 
         case .widescreen:
@@ -59,6 +65,8 @@ extension ContentView {
                 previewView
                     .frame(minWidth: 400, idealWidth: 800)
             }
+            .focusable()
+            .focused($focusedPane, equals: .content)
             .navigationSplitViewColumnWidth(min: 600, ideal: 1000, max: .infinity)
         }
     }
@@ -130,6 +138,8 @@ extension ContentView {
     @ViewBuilder
     var detailView: some View {
         inspectorView
+            .focusable()
+            .focused($focusedPane, equals: .inspector)
     }
 
     // MARK: - Breadcrumb

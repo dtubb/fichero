@@ -4,6 +4,11 @@ import OSLog
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ContentView")
 
+/// Identifies which main pane has keyboard focus for Tab cycling
+enum PaneFocus: Hashable {
+    case sidebar, content, inspector
+}
+
 /// Main content view with three-column navigation
 /// Switches between Library, Search, and Workflow views based on sidebar selection
 ///
@@ -69,6 +74,9 @@ struct ContentView: View {
 
     // Error service (using singleton pattern)
     @ObservedObject var errorService = ErrorService.shared
+
+    // Pane focus state for Tab cycling
+    @FocusState var focusedPane: PaneFocus?
 
     // Drag and drop state
     @State var isDropTargeted = false
@@ -143,6 +151,10 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 mainContentView
+                    .onKeyPress(.tab, phases: .down) { keyPress in
+                        cyclePaneFocus(reverse: keyPress.modifiers.contains(.shift))
+                        return .handled
+                    }
             }
         }
         .alert(item: $errorService.currentAlert) { errorModel in

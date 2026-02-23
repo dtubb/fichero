@@ -9,6 +9,28 @@ private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ContentView
 
 extension ContentView {
 
+    // MARK: - Pane Focus Cycling
+
+    /// Cycle keyboard focus between sidebar, content, and inspector panes
+    func cyclePaneFocus(reverse: Bool) {
+        var panes: [PaneFocus] = [.sidebar, .content]
+        if showInspectorSidebar {
+            panes.append(.inspector)
+        }
+
+        guard let current = focusedPane, let idx = panes.firstIndex(of: current) else {
+            // No pane focused — default to content
+            focusedPane = .content
+            return
+        }
+
+        if reverse {
+            focusedPane = panes[(idx - 1 + panes.count) % panes.count]
+        } else {
+            focusedPane = panes[(idx + 1) % panes.count]
+        }
+    }
+
     // MARK: - Document Change Handler
 
     @MainActor
