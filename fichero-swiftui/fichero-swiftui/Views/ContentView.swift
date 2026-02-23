@@ -69,6 +69,9 @@ struct ContentView: View {
     @SceneStorage("mapLongitude") var mapLongitude: Double = 0.0
     @SceneStorage("mapZoom") var mapZoom: Double = 1.0
 
+    // Per-folder view mode persistence (JSON-encoded [folderId: displayMode.rawValue])
+    @AppStorage("folderViewDisplayModes") var folderViewDisplayModesJSON: String = "{}"
+
     @StateObject var itemRegistry = ItemTypeRegistry()
     @StateObject var performanceService = PerformanceService()
 
@@ -250,6 +253,8 @@ struct ContentView: View {
                             case .table: .table
                             case .map: .map
                             }
+                            // Save per-folder display mode
+                            saveDisplayMode(newMode, for: selectedSidebarItemId)
                         }
                     }
 
@@ -315,6 +320,12 @@ struct ContentView: View {
             let (type, id) = serializeViewMode(newMode)
             storedViewModeType = type
             storedViewModeItemId = id
+        }
+        .onChange(of: selectedSidebarItemId) { _, newFolderId in
+            // Restore per-folder view mode when switching folders
+            if let saved = displayMode(for: newFolderId) {
+                viewDisplayMode = saved
+            }
         }
         .onChange(of: columnVisibility) { _, newVisibility in
             // Persist column visibility to @SceneStorage

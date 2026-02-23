@@ -116,6 +116,27 @@ extension ContentView {
             """)
     }
 
+    // MARK: - Per-Folder Display Mode
+
+    func displayMode(for folderId: String?) -> ViewDisplayMode? {
+        guard let folderId else { return nil }
+        guard let data = folderViewDisplayModesJSON.data(using: .utf8),
+              let dict = try? JSONDecoder().decode([String: String].self, from: data),
+              let rawValue = dict[folderId] else { return nil }
+        return ViewDisplayMode(rawValue: rawValue)
+    }
+
+    func saveDisplayMode(_ mode: ViewDisplayMode, for folderId: String?) {
+        guard let folderId else { return }
+        guard let data = folderViewDisplayModesJSON.data(using: .utf8),
+              var dict = try? JSONDecoder().decode([String: String].self, from: data) else { return }
+        dict[folderId] = mode.rawValue
+        if let encoded = try? JSONEncoder().encode(dict),
+           let json = String(data: encoded, encoding: .utf8) {
+            folderViewDisplayModesJSON = json
+        }
+    }
+
     func savePersistedState() {
         // Map NavigationSplitViewVisibility to raw integer for @SceneStorage
         if columnVisibility == .automatic {
