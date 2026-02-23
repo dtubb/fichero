@@ -114,7 +114,7 @@ struct LibraryViewToolbar: View {
             }
 
             // Column configuration (only for table view)
-            if showColumnConfig && viewMode == .table {
+            if showColumnConfig && displayMode == .table {
                 Menu {
                     Text("Show Columns")
                         .font(.caption)
