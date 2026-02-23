@@ -55,6 +55,10 @@ struct LibraryView: View {
     // Map view positions
     @State var mapPositions: [String: CGPoint] = [:]
 
+    // Delete confirmation state
+    @State var showDeleteConfirmation = false
+    @State var documentsToDelete: [Document] = []
+
     var visibleColumns: [ColumnDefinition] {
         ColumnDefinition.allColumns.filter { col in
             switch col.id {
@@ -88,55 +92,57 @@ struct LibraryView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // View-specific toolbar at top
-            LibraryViewToolbar(
-                viewMode: $viewMode,
-                showColumnConfig: true,
-                showName: $showName,
-                showStatus: $showStatus,
-                showProgress: $showProgress,
-                showOutput: $showOutput,
-                showFileType: $showFileType,
-                showPath: $showPath,
-                showCreatedDate: $showCreatedDate,
-                showModifiedDate: $showModifiedDate,
-                showSize: $showSize,
-                onResetColumns: resetColumns
-            )
+        withKeyboardShortcuts(
+            VStack(spacing: 0) {
+                // View-specific toolbar at top
+                LibraryViewToolbar(
+                    viewMode: $viewMode,
+                    showColumnConfig: true,
+                    showName: $showName,
+                    showStatus: $showStatus,
+                    showProgress: $showProgress,
+                    showOutput: $showOutput,
+                    showFileType: $showFileType,
+                    showPath: $showPath,
+                    showCreatedDate: $showCreatedDate,
+                    showModifiedDate: $showModifiedDate,
+                    showSize: $showSize,
+                    onResetColumns: resetColumns
+                )
 
-            // Main content
-            if filteredDocuments.isEmpty {
-                emptyState
-            } else {
-                switch displayMode {
-                case .icon:
-                    iconsView
-                case .list:
-                    listView
-                case .table:
-                    tableView
-                case .map:
-                    mapView
-                }
-            }
-        }
-        .searchable(text: $searchText, prompt: "Search documents")
-        .sheet(isPresented: $showWorkflowPicker) {
-            WorkflowPickerSheet(
-                selectedDocumentIds: selectedDocumentIdsForBatch,
-                onSelect: { workflowId in
-                    Task { @MainActor in
-                        await runBatchWorkflow(workflowId: workflowId)
+                // Main content
+                if filteredDocuments.isEmpty {
+                    emptyState
+                } else {
+                    switch displayMode {
+                    case .icon:
+                        iconsView
+                    case .list:
+                        listView
+                    case .table:
+                        tableView
+                    case .map:
+                        mapView
                     }
                 }
-            )
-            .environmentObject(libraryManager)
-        }
-        .focusedSceneValue(\.runWorkflowOnSelection, selection.count >= 2 ? {
-            selectedDocumentIdsForBatch = Array(selection)
-            showWorkflowPicker = true
-        } : nil)
+            }
+            .searchable(text: $searchText, prompt: "Search documents")
+            .sheet(isPresented: $showWorkflowPicker) {
+                WorkflowPickerSheet(
+                    selectedDocumentIds: selectedDocumentIdsForBatch,
+                    onSelect: { workflowId in
+                        Task { @MainActor in
+                            await runBatchWorkflow(workflowId: workflowId)
+                        }
+                    }
+                )
+                .environmentObject(libraryManager)
+            }
+            .focusedSceneValue(\.runWorkflowOnSelection, selection.count >= 2 ? {
+                selectedDocumentIdsForBatch = Array(selection)
+                showWorkflowPicker = true
+            } : nil)
+        )
     }
 }
 
