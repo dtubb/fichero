@@ -39,8 +39,8 @@ struct NewChainSheet: View {
                                 .buttonStyle(.borderless)
                             }
                         }
-                        .onMove { from, to in
-                            steps.move(fromOffsets: from, toOffset: to)
+                        .onMove { from, destination in
+                            steps.move(fromOffsets: from, toOffset: destination)
                         }
                     }
 

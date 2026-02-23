@@ -84,6 +84,7 @@ class AppState: ObservableObject {
                 let backendVersion: String
                 let activeLibraries: Int
 
+                // swiftlint:disable:next nesting
                 enum CodingKeys: String, CodingKey {
                     case status
                     case backendVersion = "backend_version"

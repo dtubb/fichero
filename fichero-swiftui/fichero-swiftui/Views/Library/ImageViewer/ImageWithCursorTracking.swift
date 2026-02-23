@@ -2,9 +2,7 @@ import SwiftUI
 import AppKit
 import OSLog
 
-// swiftlint:disable type_body_length function_body_length
 // This file requires large bodies due to complex AppKit integration
-
 /// NSViewRepresentable wrapper for an image view with cursor tracking and loupe functionality
 struct ImageWithCursorTracking: NSViewRepresentable {
     private static let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ImageWithCursorTracking")

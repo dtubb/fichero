@@ -22,7 +22,7 @@ extension LibraryView {
                 return .handled
             }
             .onKeyPress(.upArrow) {
-                handleArrowKey(direction: .up)
+                handleArrowKey(direction: .upDir)
             }
             .onKeyPress(.downArrow) {
                 handleArrowKey(direction: .down)
@@ -115,7 +115,7 @@ extension LibraryView {
     // MARK: - Arrow Key Navigation
 
     enum ArrowDirection {
-        case up, down, left, right
+        case upDir, down, left, right
     }
 
     /// Handle arrow key press for navigating documents in icon/grid view.
@@ -148,7 +148,7 @@ extension LibraryView {
             step = -1
         case .right:
             step = 1
-        case .up:
+        case .upDir:
             // In icon/grid mode, move up by column count; in map mode, move by 1
             step = displayMode == .icon ? -gridColumnCount : -1
         case .down:

@@ -44,7 +44,7 @@ struct AddItemMenu: View {
         }
 
         // AI category
-        if let items = grouped[.ai], !items.isEmpty {
+        if let items = grouped[.aiTools], !items.isEmpty {
             Section("AI") {
                 ForEach(items) { item in
                     buttonWithShortcut(for: item)

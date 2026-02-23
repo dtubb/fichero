@@ -1,8 +1,6 @@
 import AppKit
 
-// swiftlint:disable type_body_length
 // This class requires a large body due to complex AppKit integration
-
 /// Custom NSImageView with cursor tracking and loupe functionality
 class TrackingImageView: NSImageView {
     var onCursorMoved: ((CGPoint) -> Void)?

@@ -3,7 +3,7 @@ import Foundation
 /// Category for grouping item types in menus
 enum ItemMenuCategory: String, CaseIterable {
     case documents = "Documents"
-    case ai = "AI"
+    case aiTools = "AI"
     case automation = "Automation"
     case places = "Places"
     case tools = "Tools"
@@ -90,7 +90,7 @@ class ItemTypeRegistry: ObservableObject {
                 id: "search",
                 name: "Smart Search",
                 icon: "magnifyingglass.circle",
-                category: .ai,
+                category: .aiTools,
                 keyboardShortcut: "f",
                 handler: handler
             ))
@@ -101,7 +101,7 @@ class ItemTypeRegistry: ObservableObject {
                 id: "chat",
                 name: "Chat",
                 icon: "message.circle",
-                category: .ai,
+                category: .aiTools,
                 keyboardShortcut: "t",
                 handler: handler
             ))
@@ -112,7 +112,7 @@ class ItemTypeRegistry: ObservableObject {
                 id: "comparison",
                 name: "Comparison",
                 icon: "arrow.left.arrow.right",
-                category: .ai,
+                category: .aiTools,
                 handler: handler
             ))
         }
@@ -122,7 +122,7 @@ class ItemTypeRegistry: ObservableObject {
                 id: "workflow",
                 name: "Workflow",
                 icon: "flowchart",
-                category: .ai,
+                category: .aiTools,
                 keyboardShortcut: "w",
                 handler: handler
             ))
@@ -133,7 +133,7 @@ class ItemTypeRegistry: ObservableObject {
                 id: "chain",
                 name: "Chain",
                 icon: "link",
-                category: .ai,
+                category: .aiTools,
                 handler: handler
             ))
         }

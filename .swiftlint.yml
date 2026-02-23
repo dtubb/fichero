@@ -4,3 +4,11 @@ included:
 excluded:
   - fichero-swiftui/fichero-swiftui/Services/*Generated.swift
   - fichero-swiftui/fichero-swiftui/fichero-api-client
+
+type_body_length:
+  excluded:
+    - "*/ImageViewer/*"
+
+function_body_length:
+  excluded:
+    - "*/ImageViewer/*"

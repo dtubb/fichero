@@ -5,11 +5,11 @@ extension ComparisonDetailView {
 
     // MARK: - Helpers
 
-    func formatLatency(_ ms: Double) -> String {
-        if ms < 1000 {
-            return String(format: "%.0fms", ms)
+    func formatLatency(_ milliseconds: Double) -> String {
+        if milliseconds < 1000 {
+            return String(format: "%.0fms", milliseconds)
         } else {
-            return String(format: "%.1fs", ms / 1000)
+            return String(format: "%.1fs", milliseconds / 1000)
         }
     }
 

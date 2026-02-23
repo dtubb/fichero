@@ -100,6 +100,7 @@ extension DocumentStore {
             let extractText: Bool
             let autoEmbed: Bool
 
+            // swiftlint:disable:next nesting
             enum CodingKeys: String, CodingKey {
                 case path
                 case parentId = "parent_id"
