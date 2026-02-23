@@ -130,6 +130,7 @@
 | B.1 | Keyboard shortcuts (Delete/Return/Space) | done | [#184](https://github.com/dtubb/fichero/issues/184) |
 | B.2 | Inline document title editing (table view + context menu) | done | [#185](https://github.com/dtubb/fichero/issues/185) |
 | B.3 | Type-to-select: jump to matching document by typing | done | [#186](https://github.com/dtubb/fichero/issues/186) |
+| B.4 | Selection modifiers: Shift+click range, Cmd+click toggle | done | [#187](https://github.com/dtubb/fichero/issues/187) |
 | C | Add XCTest coverage — SSE + ActivityTypes + SidebarItem (89 tests) | done | [#182](https://github.com/dtubb/fichero/issues/182) |
 | D | Resolve TODOs and stale docs | done | [#183](https://github.com/dtubb/fichero/issues/183) |
 
