@@ -63,6 +63,10 @@ struct LibraryView: View {
     @State var renamingDocumentId: String?
     @State var editingName: String = ""
 
+    // Type-to-select state
+    @State var typeSelectBuffer: String = ""
+    @State var typeSelectTask: Task<Void, Never>?
+
     var visibleColumns: [ColumnDefinition] {
         ColumnDefinition.allColumns.filter { col in
             switch col.id {

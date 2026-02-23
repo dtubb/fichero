@@ -15,6 +15,12 @@ extension LibraryView {
                 toggleQuickLook()
                 return .handled
             }
+            .onKeyPress(characters: .alphanumerics.union(.punctuationCharacters)) { keyPress in
+                // Skip if a rename is in progress
+                guard renamingDocumentId == nil else { return .ignored }
+                handleTypeToSelect(keyPress.characters)
+                return .handled
+            }
             .focusedSceneValue(\.librarySelectAll, !filteredDocuments.isEmpty ? {
                 selectAll()
             } : nil)
@@ -92,6 +98,31 @@ extension LibraryView {
     /// Select all visible documents
     func selectAll() {
         selection = Set(filteredDocuments.map(\.id))
+    }
+
+    // MARK: - Type-to-Select
+
+    /// Handle a typed character for type-to-select navigation
+    func handleTypeToSelect(_ characters: String) {
+        // Cancel any pending reset timer
+        typeSelectTask?.cancel()
+
+        // Append to the buffer
+        typeSelectBuffer += characters.lowercased()
+
+        // Find the first document whose name starts with the buffer
+        if let match = filteredDocuments.first(where: {
+            $0.name.lowercased().hasPrefix(typeSelectBuffer)
+        }) {
+            selection = [match.id]
+        }
+
+        // Reset buffer after 0.5s of inactivity
+        typeSelectTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            typeSelectBuffer = ""
+        }
     }
 }
 
