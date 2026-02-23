@@ -10,10 +10,10 @@
 | Metric | Count |
 |--------|-------|
 | Total target files | 37 |
-| Completed | 35 |
+| Completed | 37 |
 | In Progress | 0 |
-| Blocked | 1 |
-| Skipped | 2 |
+| Blocked | 0 |
+| Skipped | 1 |
 | Remaining | 0 |
 
 ---
@@ -50,11 +50,11 @@
 | 11 | `Views/Batch/BatchDetailView.swift` | 484→146 | <200 | done | [#154](https://github.com/dtubb/fichero/issues/154) |
 | 12 | `Views/Workflow/DynamicConfigView.swift` | 479→95 | <200 | done | [#155](https://github.com/dtubb/fichero/issues/155) |
 
-## Batch 5 — Actions & Workflow Output (PARTIAL)
+## Batch 5 — Actions & Workflow Output (DONE)
 
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
-| 13 | `Views/Actions/ActionLibraryView.swift` | 478 | <200 | blocked | [#156](https://github.com/dtubb/fichero/issues/156) |
+| 13 | `Views/Actions/ActionLibraryView.swift` | 478→435 | <200 | done | [#156](https://github.com/dtubb/fichero/issues/156) |
 | 14 | `Views/Workflow/WorkflowOutputLog.swift` | 477→168 | <200 | done | [#157](https://github.com/dtubb/fichero/issues/157) |
 | 15 | `Views/Automation/ScheduleEditorView.swift` | 455→141 | <200 | done | [#158](https://github.com/dtubb/fichero/issues/158) |
 
@@ -102,7 +102,7 @@
 | # | File | Lines | Target | Status | Issue |
 |---|------|-------|--------|--------|-------|
 | 30 | `Services/WorkflowStreamService.swift` | 595→294 | <300 | done | [#172](https://github.com/dtubb/fichero/issues/172) |
-| 31 | `Services/ActionLibraryService.swift` | 569 | <300 | skipped | — (not in Xcode project) |
+| 31 | `Services/ActionLibraryService.swift` | 569→445 | <300 | done | — (added to Xcode project) |
 | 32 | `Services/ModelComparisonService.swift` | 567→226 | <300 | done | [#173](https://github.com/dtubb/fichero/issues/173) |
 
 ## Batch 12 — Services (Non-Generated, continued) (DONE)
@@ -135,6 +135,7 @@
 | B.6 | Tab key to cycle focus between sidebar, content, inspector | done | [#189](https://github.com/dtubb/fichero/issues/189) |
 | B.7 | Persist inspector tab selection across sessions | done | [#190](https://github.com/dtubb/fichero/issues/190) |
 | B.8 | Sort menu with persisted sort order in library view | done | [#191](https://github.com/dtubb/fichero/issues/191) |
+| B.9 | Per-folder view mode persistence | done | [#193](https://github.com/dtubb/fichero/issues/193) |
 | C | Add XCTest coverage — SSE + ActivityTypes + SidebarItem (89 tests) | done | [#182](https://github.com/dtubb/fichero/issues/182) |
 | D | Resolve TODOs and stale docs | done | [#183](https://github.com/dtubb/fichero/issues/183) |
 
