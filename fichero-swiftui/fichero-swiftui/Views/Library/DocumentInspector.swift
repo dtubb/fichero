@@ -2,19 +2,15 @@ import SwiftUI
 
 /// Tab selection for document inspector
 enum InspectorTab: String, CaseIterable, Identifiable {
-    case info = "Info"
-    case metadata = "Metadata"
-    case artifacts = "Artifacts"
     case content = "Content"
+    case info = "Info"
 
     var id: String { rawValue }
 
     var icon: String {
         switch self {
-        case .info: return "info.circle"
-        case .metadata: return "tag"
-        case .artifacts: return "sparkles"
         case .content: return "doc.text"
+        case .info: return "info.circle"
         }
     }
 }
@@ -23,7 +19,7 @@ enum InspectorTab: String, CaseIterable, Identifiable {
 struct DocumentInspector: View {
     let document: Document?
 
-    @SceneStorage("inspectorSelectedTab") private var selectedTab: InspectorTab = .info
+    @SceneStorage("inspectorSelectedTab") private var selectedTab: InspectorTab = .content
 
     var body: some View {
         Group {
@@ -72,14 +68,14 @@ struct DocumentInspector: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     switch selectedTab {
-                    case .info:
-                        DocumentInspectorInfoTab(document: doc)
-                    case .metadata:
-                        DocumentInspectorMetadataTab(document: doc)
-                    case .artifacts:
-                        DocumentInspectorArtifactsTab(documentId: doc.id)
                     case .content:
                         DocumentInspectorContentTab(document: doc)
+                    case .info:
+                        DocumentInspectorInfoTab(document: doc)
+                        if !doc.metadata.isEmpty || doc.path != nil {
+                            DocumentInspectorMetadataTab(document: doc)
+                        }
+                        DocumentInspectorArtifactsTab(documentId: doc.id)
                     }
 
                     Spacer()

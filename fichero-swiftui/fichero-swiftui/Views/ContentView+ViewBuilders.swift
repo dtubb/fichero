@@ -27,6 +27,7 @@ extension ContentView {
         .environmentObject(performanceService)
         .focusable()
         .focused($focusedPane, equals: .sidebar)
+        .focusEffectDisabled()
         .navigationSplitViewColumnWidth(min: 250, ideal: sidebarWidth, max: 350)
         .focusedSceneValue(\.sidebarMode, $sidebarMode)
     }
@@ -41,6 +42,7 @@ extension ContentView {
             contentView
                 .focusable()
                 .focused($focusedPane, equals: .content)
+                .focusEffectDisabled()
                 .navigationSplitViewColumnWidth(min: 350, ideal: 600, max: .infinity)
 
         case .standard:
@@ -54,6 +56,7 @@ extension ContentView {
             }
             .focusable()
             .focused($focusedPane, equals: .content)
+            .focusEffectDisabled()
             .navigationSplitViewColumnWidth(min: 350, ideal: 700, max: .infinity)
 
         case .widescreen:
@@ -67,6 +70,7 @@ extension ContentView {
             }
             .focusable()
             .focused($focusedPane, equals: .content)
+            .focusEffectDisabled()
             .navigationSplitViewColumnWidth(min: 600, ideal: 1000, max: .infinity)
         }
     }
@@ -99,11 +103,11 @@ extension ContentView {
         switch viewMode {
         case .library, .search:
             DocumentInspector(document: inspectorDocument)
-                .navigationSplitViewColumnWidth(min: 220, ideal: inspectorWidth, max: 500)
+                .navigationSplitViewColumnWidth(min: 220, ideal: inspectorWidth, max: .infinity)
 
         case .chat, .comparison:
             ChatInspector(selectedDocuments: $chatSelectedDocuments)
-                .navigationSplitViewColumnWidth(min: 220, ideal: inspectorWidth, max: 500)
+                .navigationSplitViewColumnWidth(min: 220, ideal: inspectorWidth, max: .infinity)
 
         case .workflow:
             WorkflowInspector(
@@ -112,7 +116,7 @@ extension ContentView {
                     addNodeFromTool(tool, at: position)
                 }
             )
-            .navigationSplitViewColumnWidth(min: 220, ideal: inspectorWidth, max: 500)
+            .navigationSplitViewColumnWidth(min: 220, ideal: inspectorWidth, max: .infinity)
 
         case .chain:
             WorkflowInspector(
@@ -121,7 +125,7 @@ extension ContentView {
                     addNodeFromTool(tool, at: position)
                 }
             )
-            .navigationSplitViewColumnWidth(min: 220, ideal: inspectorWidth, max: 500)
+            .navigationSplitViewColumnWidth(min: 220, ideal: inspectorWidth, max: .infinity)
 
         case .batches, .batch, .automation, .schedule, .trigger, .activity:
             EmptyView()

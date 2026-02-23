@@ -125,7 +125,7 @@ extension LibraryView {
         let docs = filteredDocuments
         guard !docs.isEmpty else { return .ignored }
 
-        // List/table modes: Left/Right change panes; Up/Down handled natively by AppKit
+        // List/table modes: Left/Right change panes; Up/Down navigate within list
         if displayMode == .list || displayMode == .table {
             switch direction {
             case .left:
@@ -135,7 +135,7 @@ extension LibraryView {
                 onRequestNextPaneFocus()
                 return .handled
             case .upDir, .down:
-                return .ignored
+                break  // handled below — manual navigation for list/table
             }
         }
 
