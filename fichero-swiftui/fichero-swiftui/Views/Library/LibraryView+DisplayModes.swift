@@ -21,11 +21,11 @@ extension LibraryView {
                             isSelected: selection.contains(doc.id)
                         )
                         .draggable(doc.id)
-                        .onTapGesture {
-                            handleTap(doc)
-                        }
                         .onTapGesture(count: 2) {
                             detailDocument = doc
+                        }
+                        .onTapGesture {
+                            handleTap(doc)
                         }
                         .contextMenu {
                             documentContextMenu(for: doc)
@@ -61,7 +61,6 @@ extension LibraryView {
                 .draggable(doc.id)
                     .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
                     .onTapGesture(count: 2) {
-                        handleTap(doc)
                         detailDocument = doc
                     }
                     .onTapGesture {
@@ -167,11 +166,11 @@ extension LibraryView {
                         isSelected: selection.contains(doc.id),
                         position: pos
                     )
-                    .onTapGesture {
-                        handleTap(doc)
-                    }
                     .onTapGesture(count: 2) {
                         detailDocument = doc
+                    }
+                    .onTapGesture {
+                        handleTap(doc)
                     }
                     .gesture(
                         DragGesture()

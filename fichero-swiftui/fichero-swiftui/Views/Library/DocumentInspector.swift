@@ -19,7 +19,7 @@ enum InspectorTab: String, CaseIterable, Identifiable {
 struct DocumentInspector: View {
     let document: Document?
 
-    @SceneStorage("inspectorSelectedTab") private var selectedTab: InspectorTab = .content
+    @SceneStorage("DocumentInspector.selectedTab") private var selectedTab: InspectorTab = .content
 
     var body: some View {
         Group {
