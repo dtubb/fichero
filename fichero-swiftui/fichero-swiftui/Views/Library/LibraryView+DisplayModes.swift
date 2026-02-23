@@ -77,11 +77,59 @@ extension LibraryView {
 
     var tableView: some View {
         Table(filteredDocuments, selection: $selection, sortOrder: $sortOrder) {
-            TableColumnForEach(visibleColumns) { col in
-                TableColumn(col.title) { doc in
-                    tableCellView(for: col.id, document: doc)
+            if showName {
+                TableColumn("Name", value: \Document.name) { doc in
+                    tableCellView(for: "name", document: doc)
                 }
-                .width(min: col.minWidth, ideal: col.idealWidth)
+                .width(min: 150, ideal: 200)
+            }
+            if showStatus {
+                TableColumn("Status", value: \Document.status.rawValue) { doc in
+                    tableCellView(for: "status", document: doc)
+                }
+                .width(min: 80, ideal: 100)
+            }
+            if showProgress {
+                TableColumn("Progress") { doc in
+                    tableCellView(for: "progress", document: doc)
+                }
+                .width(min: 80, ideal: 100)
+            }
+            if showOutput {
+                TableColumn("Output") { doc in
+                    tableCellView(for: "output", document: doc)
+                }
+                .width(min: 150, ideal: 250)
+            }
+            if showFileType {
+                TableColumn("Type", value: \Document.sortableFileType) { doc in
+                    tableCellView(for: "fileType", document: doc)
+                }
+                .width(min: 60, ideal: 80)
+            }
+            if showPath {
+                TableColumn("Path") { doc in
+                    tableCellView(for: "path", document: doc)
+                }
+                .width(min: 100, ideal: 150)
+            }
+            if showCreatedDate {
+                TableColumn("Created", value: \Document.createdAt) { doc in
+                    tableCellView(for: "createdDate", document: doc)
+                }
+                .width(min: 80, ideal: 100)
+            }
+            if showModifiedDate {
+                TableColumn("Modified", value: \Document.updatedAt) { doc in
+                    tableCellView(for: "modifiedDate", document: doc)
+                }
+                .width(min: 80, ideal: 100)
+            }
+            if showSize {
+                TableColumn("Size") { doc in
+                    tableCellView(for: "size", document: doc)
+                }
+                .width(min: 60, ideal: 80)
             }
         }
         .tableStyle(.inset)

@@ -81,15 +81,15 @@ struct LibraryView: View {
     @EnvironmentObject var libraryManager: LibraryManager
 
     // Column visibility for Table view
-    @AppStorage("column_name") private var showName = true
-    @AppStorage("column_status") private var showStatus = true
-    @AppStorage("column_progress") private var showProgress = true
-    @AppStorage("column_output") private var showOutput = true
-    @AppStorage("column_fileType") private var showFileType = true
-    @AppStorage("column_path") private var showPath = false
-    @AppStorage("column_createdDate") private var showCreatedDate = true
-    @AppStorage("column_modifiedDate") private var showModifiedDate = false
-    @AppStorage("column_size") private var showSize = false
+    @AppStorage("column_name") var showName = true
+    @AppStorage("column_status") var showStatus = true
+    @AppStorage("column_progress") var showProgress = true
+    @AppStorage("column_output") var showOutput = true
+    @AppStorage("column_fileType") var showFileType = true
+    @AppStorage("column_path") var showPath = false
+    @AppStorage("column_createdDate") var showCreatedDate = true
+    @AppStorage("column_modifiedDate") var showModifiedDate = false
+    @AppStorage("column_size") var showSize = false
 
     // Map view positions
     @State var mapPositions: [String: CGPoint] = [:]
@@ -218,6 +218,28 @@ struct LibraryView: View {
             }
             .onChange(of: sortAscending) { _, _ in
                 syncSortOrder()
+                saveSortSettings(for: folderId)
+            }
+            .onChange(of: sortOrder) { _, newOrder in
+                // Sync sort menu when column headers are clicked
+                guard let first = newOrder.first else { return }
+                let ascending = first.order == .forward
+                if first.keyPath == \Document.name {
+                    sortFieldRaw = LibrarySortField.name.rawValue
+                    sortAscending = ascending
+                } else if first.keyPath == \Document.createdAt {
+                    sortFieldRaw = LibrarySortField.createdAt.rawValue
+                    sortAscending = ascending
+                } else if first.keyPath == \Document.updatedAt {
+                    sortFieldRaw = LibrarySortField.updatedAt.rawValue
+                    sortAscending = ascending
+                } else if first.keyPath == \Document.sortableFileType {
+                    sortFieldRaw = LibrarySortField.fileType.rawValue
+                    sortAscending = ascending
+                } else if first.keyPath == \Document.status.rawValue {
+                    sortFieldRaw = LibrarySortField.status.rawValue
+                    sortAscending = ascending
+                }
                 saveSortSettings(for: folderId)
             }
         )
