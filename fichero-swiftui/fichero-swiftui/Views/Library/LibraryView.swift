@@ -67,6 +67,9 @@ struct LibraryView: View {
     @State var typeSelectBuffer: String = ""
     @State var typeSelectTask: Task<Void, Never>?
 
+    // Selection anchor for Shift+click range select
+    @State var selectionAnchor: String?
+
     var visibleColumns: [ColumnDefinition] {
         ColumnDefinition.allColumns.filter { col in
             switch col.id {
@@ -269,14 +272,35 @@ extension LibraryView {
     // MARK: - Helpers
 
     func handleTap(_ doc: Document) {
-        if NSEvent.modifierFlags.contains(.command) {
+        let modifiers = NSEvent.modifierFlags
+        if modifiers.contains(.shift), let anchor = selectionAnchor {
+            // Shift+click: range select from anchor to clicked item
+            let docs = filteredDocuments
+            if let anchorIndex = docs.firstIndex(where: { $0.id == anchor }),
+               let clickIndex = docs.firstIndex(where: { $0.id == doc.id }) {
+                let range = min(anchorIndex, clickIndex)...max(anchorIndex, clickIndex)
+                let rangeIds = Set(docs[range].map(\.id))
+                if modifiers.contains(.command) {
+                    // Shift+Cmd+click: add range to existing selection
+                    selection.formUnion(rangeIds)
+                } else {
+                    // Shift+click: replace selection with range
+                    selection = rangeIds
+                }
+            }
+            // Don't update anchor on Shift+click
+        } else if modifiers.contains(.command) {
+            // Cmd+click: toggle individual item
             if selection.contains(doc.id) {
                 selection.remove(doc.id)
             } else {
                 selection.insert(doc.id)
             }
+            selectionAnchor = doc.id
         } else {
+            // Plain click: replace selection
             selection = [doc.id]
+            selectionAnchor = doc.id
         }
     }
 
