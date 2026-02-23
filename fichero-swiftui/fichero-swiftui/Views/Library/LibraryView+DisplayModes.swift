@@ -99,8 +99,8 @@ extension LibraryView {
     // MARK: - Map View (Tinderbox-style canvas)
 
     var mapView: some View {
-        GeometryReader { geometry in
-            ZStack {
+        ScrollView([.horizontal, .vertical]) {
+            ZStack(alignment: .topLeading) {
                 // Grid background
                 MapGridBackground()
 
@@ -109,7 +109,7 @@ extension LibraryView {
                     MapCard(
                         document: doc,
                         isSelected: selection.contains(doc.id),
-                        position: mapPositions[doc.id] ?? randomPosition(for: doc, in: geometry.size)
+                        position: mapPositions[doc.id] ?? defaultMapPosition(for: doc)
                     )
                     .onTapGesture {
                         handleTap(doc)
@@ -128,6 +128,7 @@ extension LibraryView {
                     }
                 }
             }
+            .frame(width: mapCanvasWidth, height: mapCanvasHeight)
         }
         .background(Color(.textBackgroundColor))
         .onAppear {
@@ -149,11 +150,26 @@ extension LibraryView {
         }
     }
 
-    func randomPosition(for doc: Document, in size: CGSize) -> CGPoint {
-        // Generate consistent position based on document id hash
-        let hash = doc.id.hashValue
-        let xPos = CGFloat(abs(hash % 1000)) / 1000 * (size.width - 200) + 100
-        let yPos = CGFloat(abs((hash / 1000) % 1000)) / 1000 * (size.height - 150) + 75
-        return CGPoint(x: xPos, y: yPos)
+    func defaultMapPosition(for doc: Document) -> CGPoint {
+        guard let index = filteredDocuments.firstIndex(where: { $0.id == doc.id }) else {
+            return CGPoint(x: 100, y: 100)
+        }
+        let row = index / 4
+        let col = index % 4
+        return CGPoint(x: 100 + CGFloat(col) * 200, y: 100 + CGFloat(row) * 150)
+    }
+
+    private var mapCanvasWidth: CGFloat {
+        let maxX = mapPositions.values.map(\.x).max() ?? 0
+        let cols = min(3, max(0, filteredDocuments.count - 1))
+        let countWidth = 100 + CGFloat(cols) * 200 + 200
+        return max(1200, max(maxX + 200, countWidth))
+    }
+
+    private var mapCanvasHeight: CGFloat {
+        let maxY = mapPositions.values.map(\.y).max() ?? 0
+        let rows = filteredDocuments.isEmpty ? 0 : (filteredDocuments.count - 1) / 4
+        let countHeight = 100 + CGFloat(rows) * 150 + 200
+        return max(800, max(maxY + 200, countHeight))
     }
 }
