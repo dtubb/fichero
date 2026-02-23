@@ -66,6 +66,8 @@ struct LibraryView: View {
     var onRequestFocus: () -> Void = {}  // Called on tap to pull keyboard focus into content area
 
     @State private var searchText: String = ""
+    @State private var showFilterBar = false
+    @FocusState private var filterFieldFocused: Bool
     @State var sortFieldRaw: String = LibrarySortField.name.rawValue
     @State var sortAscending: Bool = true
     @State var sortOrder: [KeyPathComparator<Document>] = [.init(\.name, order: .forward)]
@@ -151,6 +153,11 @@ struct LibraryView: View {
     var body: some View {
         withKeyboardShortcuts(
             VStack(spacing: 0) {
+                // Inline filter bar (Cmd+F)
+                if showFilterBar {
+                    filterBarView
+                }
+
                 // View-specific toolbar at top
                 LibraryViewToolbar(
                     viewMode: $viewMode,
@@ -188,7 +195,14 @@ struct LibraryView: View {
                     }
                 }
             }
-            .searchable(text: $searchText, prompt: "Search documents")
+            .background(
+                Button("") {
+                    showFilterBar = true
+                    filterFieldFocused = true
+                }
+                .keyboardShortcut("f", modifiers: .command)
+                .hidden()
+            )
             .sheet(isPresented: $showWorkflowPicker) {
                 WorkflowPickerSheet(
                     selectedDocumentIds: selectedDocumentIdsForBatch,
@@ -249,6 +263,46 @@ struct LibraryView: View {
 // MARK: - View Components & Helpers
 
 extension LibraryView {
+    // MARK: - Filter Bar
+
+    var filterBarView: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12))
+
+                TextField("Filter", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+                    .focused($filterFieldFocused)
+
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Button("Done") {
+                    searchText = ""
+                    showFilterBar = false
+                }
+                .buttonStyle(.borderless)
+                .font(.system(size: 12))
+                .keyboardShortcut(.escape, modifiers: [])
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(.bar)
+
+            Divider()
+        }
+    }
+
     // MARK: - Sort Order Sync
 
     /// Sync the @State sortOrder from persisted values
