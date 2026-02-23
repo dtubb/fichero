@@ -40,16 +40,31 @@ struct DocumentInspector: View {
 
     private func documentDetail(_ doc: Document) -> some View {
         VStack(spacing: 0) {
-            // Tab Picker
-            Picker("Inspector Tab", selection: $selectedTab) {
+            // Xcode-style icon-only tab bar
+            HStack(spacing: 2) {
                 ForEach(InspectorTab.allCases) { tab in
-                    Label(tab.rawValue, systemImage: tab.icon)
-                        .tag(tab)
+                    Button {
+                        selectedTab = tab
+                    } label: {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 16, weight: .regular))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 7)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(selectedTab == tab
+                                  ? Color.accentColor.opacity(0.15)
+                                  : Color.clear)
+                    )
+                    .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
+                    .help(tab.rawValue)
                 }
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
 
             Divider()
 
