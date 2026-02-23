@@ -140,6 +140,7 @@ extension ContentView {
         inspectorView
             .focusable()
             .focused($focusedPane, equals: .inspector)
+            .focusEffectDisabled()
     }
 
     // MARK: - Breadcrumb
