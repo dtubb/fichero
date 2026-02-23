@@ -126,7 +126,8 @@
 | # | Task | Status | Issue |
 |---|------|--------|-------|
 | A | SwiftLint violations 330→69 (261 fixed) | done | [#181](https://github.com/dtubb/fichero/issues/181) |
-| B | Library View 18-week UX transformation | pending | [#180](https://github.com/dtubb/fichero/issues/180) |
+| B | Library View 18-week UX transformation | in-progress | [#180](https://github.com/dtubb/fichero/issues/180) |
+| B.1 | Keyboard shortcuts (Delete/Return/Space) | done | [#184](https://github.com/dtubb/fichero/issues/184) |
 | C | Add XCTest coverage — SSE + ActivityTypes + SidebarItem (89 tests) | done | [#182](https://github.com/dtubb/fichero/issues/182) |
 | D | Resolve TODOs and stale docs | done | [#183](https://github.com/dtubb/fichero/issues/183) |
 
