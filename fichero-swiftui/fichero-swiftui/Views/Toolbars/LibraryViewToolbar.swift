@@ -6,9 +6,16 @@ struct LibraryViewToolbar: View {
     @Binding var viewMode: LibraryLayout  // Still needed to show column config only for table view
     let showColumnConfig: Bool
 
+    // Display mode for conditional controls
+    let displayMode: ViewDisplayMode
+
     // Sort controls
     @Binding var sortFieldRaw: String
     @Binding var sortAscending: Bool
+
+    // Zoom controls (icon + map views)
+    @Binding var iconViewScale: Double
+    @Binding var mapCanvasScale: CGFloat
 
     // Column visibility toggles
     @Binding var showName: Bool
@@ -63,6 +70,48 @@ struct LibraryViewToolbar: View {
                 Image(systemName: "arrow.up.arrow.down")
             }
             .help("Sort: \(sortField.rawValue) (\(sortAscending ? "ascending" : "descending"))")
+
+            // Zoom controls (icon + map views only)
+            if displayMode == .icon || displayMode == .map {
+                Spacer()
+                Button {
+                    if displayMode == .icon {
+                        iconViewScale = max(0.5, iconViewScale - 0.25)
+                    } else {
+                        mapCanvasScale = max(0.25, mapCanvasScale - 0.25)
+                    }
+                } label: {
+                    Image(systemName: "minus.magnifyingglass")
+                }
+                .buttonStyle(.borderless)
+                .keyboardShortcut("-", modifiers: .command)
+                .help("Zoom Out")
+
+                Button {
+                    if displayMode == .icon {
+                        iconViewScale = 1.0
+                    } else {
+                        mapCanvasScale = 1.0
+                    }
+                } label: {
+                    Image(systemName: "1.magnifyingglass")
+                }
+                .buttonStyle(.borderless)
+                .help("Reset Zoom")
+
+                Button {
+                    if displayMode == .icon {
+                        iconViewScale = min(3.0, iconViewScale + 0.25)
+                    } else {
+                        mapCanvasScale = min(3.0, mapCanvasScale + 0.25)
+                    }
+                } label: {
+                    Image(systemName: "plus.magnifyingglass")
+                }
+                .buttonStyle(.borderless)
+                .keyboardShortcut("=", modifiers: .command)
+                .help("Zoom In")
+            }
 
             // Column configuration (only for table view)
             if showColumnConfig && viewMode == .table {

@@ -112,6 +112,10 @@ struct LibraryView: View {
     // Grid column count for arrow key navigation (updated by GeometryReader in iconsView)
     @State var gridColumnCount: Int = 4
 
+    // Zoom scale for icon and map views (persisted per-app)
+    @AppStorage("library.iconViewScale") var iconViewScale: Double = 1.0
+    @State var mapCanvasScale: CGFloat = 1.0
+
     var visibleColumns: [ColumnDefinition] {
         ColumnDefinition.allColumns.filter { col in
             switch col.id {
@@ -151,8 +155,11 @@ struct LibraryView: View {
                 LibraryViewToolbar(
                     viewMode: $viewMode,
                     showColumnConfig: true,
+                    displayMode: displayMode,
                     sortFieldRaw: $sortFieldRaw,
                     sortAscending: $sortAscending,
+                    iconViewScale: $iconViewScale,
+                    mapCanvasScale: $mapCanvasScale,
                     showName: $showName,
                     showStatus: $showStatus,
                     showProgress: $showProgress,

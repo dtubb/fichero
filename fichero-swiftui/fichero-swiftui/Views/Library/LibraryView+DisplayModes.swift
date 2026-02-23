@@ -6,10 +6,12 @@ extension LibraryView {
     // MARK: - Icons View (Grid)
 
     var iconsView: some View {
-        GeometryReader { geometry in
+        let itemMin = CGFloat(max(60, 120 * iconViewScale))
+        let itemMax = CGFloat(max(80, 150 * iconViewScale))
+        return GeometryReader { geometry in
             ScrollView {
                 LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 120, maximum: 150))],
+                    columns: [GridItem(.adaptive(minimum: itemMin, maximum: itemMax))],
                     alignment: .center,
                     spacing: 20
                 ) {
@@ -35,13 +37,14 @@ extension LibraryView {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onChange(of: geometry.size.width) { _, newWidth in
-                // 120 min + 20 spacing = ~140 per column, minus padding
-                let availableWidth = newWidth - 32  // account for .padding()
-                gridColumnCount = max(1, Int(availableWidth / 140))
+                let cellWidth = CGFloat(120 * iconViewScale) + 20
+                let availableWidth = newWidth - 32
+                gridColumnCount = max(1, Int(availableWidth / cellWidth))
             }
             .onAppear {
+                let cellWidth = CGFloat(120 * iconViewScale) + 20
                 let availableWidth = geometry.size.width - 32
-                gridColumnCount = max(1, Int(availableWidth / 140))
+                gridColumnCount = max(1, Int(availableWidth / cellWidth))
             }
         }
     }
@@ -101,15 +104,17 @@ extension LibraryView {
     var mapView: some View {
         ScrollView([.horizontal, .vertical]) {
             ZStack(alignment: .topLeading) {
-                // Grid background
+                // Grid background (fills the scaled canvas frame)
                 MapGridBackground()
 
-                // Document cards
+                // Document cards at scaled positions
                 ForEach(filteredDocuments) { doc in
+                    let base = mapPositions[doc.id] ?? defaultMapPosition(for: doc)
+                    let pos = CGPoint(x: base.x * mapCanvasScale, y: base.y * mapCanvasScale)
                     MapCard(
                         document: doc,
                         isSelected: selection.contains(doc.id),
-                        position: mapPositions[doc.id] ?? defaultMapPosition(for: doc)
+                        position: pos
                     )
                     .onTapGesture {
                         handleTap(doc)
@@ -120,7 +125,11 @@ extension LibraryView {
                     .gesture(
                         DragGesture()
                             .onChanged { value in
-                                mapPositions[doc.id] = value.location
+                                // Store in unscaled document coordinates
+                                mapPositions[doc.id] = CGPoint(
+                                    x: value.location.x / mapCanvasScale,
+                                    y: value.location.y / mapCanvasScale
+                                )
                             }
                     )
                     .contextMenu {
@@ -128,7 +137,7 @@ extension LibraryView {
                     }
                 }
             }
-            .frame(width: mapCanvasWidth, height: mapCanvasHeight)
+            .frame(width: mapCanvasWidth * mapCanvasScale, height: mapCanvasHeight * mapCanvasScale)
         }
         .background(Color(.textBackgroundColor))
         .onAppear {

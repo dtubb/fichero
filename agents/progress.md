@@ -176,7 +176,7 @@ Feedback from running the app. Work in priority order: bugs → polish → featu
 
 | # | Task | Status | Issue |
 |---|------|--------|-------|
-| E.3.1 | Right inspector pane resizable (draggable divider) | pending | — |
+| E.3.1 | Right inspector pane resizable (draggable divider) | done | [#211](https://github.com/dtubb/fichero/issues/211) |
 | E.3.2 | Zoom in/out for icon view and map view | pending | — |
 | E.3.3 | Click column headers to sort in list/table view | pending | — |
 | E.3.4 | Filter/search bar within content area (NetNewsWire-style) | pending | — |
