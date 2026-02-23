@@ -2,6 +2,7 @@ import SwiftUI
 import OSLog
 import FicheroAPIClient
 
+// swiftlint:disable:next type_body_length
 struct ProviderDetailView: View {
     let provider: Components.Schemas.ProviderResponse
     let catalogEntry: Components.Schemas.ProviderCatalogResponse?

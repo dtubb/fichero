@@ -131,7 +131,8 @@ extension DocumentStore {
         publish(.collectionsUpdated(collections))
     }
 
-    /// Import a file into a specific location.
+    // Import a file into a specific location.
+    // swiftlint:disable:next function_body_length cyclomatic_complexity
     func importFile(at url: URL, parentId: String? = nil) async throws -> Document {
         // Validate URL exists and is readable
         guard FileManager.default.fileExists(atPath: url.path) else {

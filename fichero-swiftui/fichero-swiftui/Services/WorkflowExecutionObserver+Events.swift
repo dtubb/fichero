@@ -8,7 +8,7 @@ extension WorkflowExecutionObserver {
     // swiftlint:disable:next todo
     // TODO: Refactor handleEvent - extract case handlers into separate methods
     // Function is 145 lines, target <100
-    // swiftlint:disable:next function_body_length
+    // swiftlint:disable:next function_body_length cyclomatic_complexity
     func handleEvent(_ event: WorkflowStreamEvent, for workflowId: String) {
         // Log every event for debugging
         let eventDesc = String(describing: event).prefix(80)

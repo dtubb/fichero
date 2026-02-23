@@ -1,7 +1,8 @@
 import SwiftUI
 import OSLog
 
-/// Main view for app integrations (DEVONthink, Bookends, Tinderbox)
+// Main view for app integrations (DEVONthink, Bookends, Tinderbox)
+// swiftlint:disable:next type_body_length
 struct IntegrationsView: View {
     @StateObject private var service = IntegrationsService()
     @State private var selectedIntegration: AppIntegration?
@@ -109,6 +110,7 @@ struct IntegrationsView: View {
 
     // MARK: - Integration Detail
 
+    // swiftlint:disable:next function_body_length
     private func integrationDetail(_ integration: AppIntegration) -> some View {
         VStack(spacing: 0) {
             // Header

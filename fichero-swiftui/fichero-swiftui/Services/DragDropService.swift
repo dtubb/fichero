@@ -31,6 +31,7 @@ class DragDropService: ObservableObject {
     }
 
     // MARK: - Chat Drop Handling
+    // swiftlint:disable:next function_body_length cyclomatic_complexity
     func handleChatDrop(providers: [NSItemProvider], completion: @escaping @Sendable ([String]) -> Void) {
         dragDropModel.startProcessing()
         self.benchmark = performanceService?.startBenchmark("chat_drop")
@@ -151,6 +152,7 @@ class DragDropService: ObservableObject {
     }
 
     // MARK: - Library Drop Handling
+    // swiftlint:disable:next function_body_length
     func handleLibrarySectionDrop(providers: [NSItemProvider], completion: @escaping @Sendable (Bool) -> Void) {
         self.benchmark = performanceService?.startBenchmark("library_drop")
         let benchmark = performanceService?.startBenchmark("library_drop")

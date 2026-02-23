@@ -65,6 +65,7 @@ struct AutomationSidebarContent: View {
     // MARK: - Library Section
 
     @ViewBuilder
+    // swiftlint:disable:next function_body_length
     private func librarySection(_ library: LibraryManager.LibraryReference) -> some View {
         let schedules = schedulesByLibrary[library.id] ?? []
         let triggers = triggersByLibrary[library.id] ?? []

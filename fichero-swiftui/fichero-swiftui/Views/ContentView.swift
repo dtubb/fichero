@@ -9,15 +9,16 @@ enum PaneFocus: Hashable {
     case sidebar, content, inspector
 }
 
-/// Main content view with three-column navigation
-/// Switches between Library, Search, and Workflow views based on sidebar selection
-///
-/// Architecture: This view has been refactored into multiple extensions for maintainability:
-/// - ContentView+State: Computed properties and state helpers
-/// - ContentView+ViewBuilders: View builders for sidebar, content, preview, inspector
-/// - ContentView+Navigation: Content routing based on AppViewMode
-/// - ContentView+Actions: Action handlers and business logic
-/// - ContentView+Persistence: State serialization for @SceneStorage
+// Main content view with three-column navigation
+// Switches between Library, Search, and Workflow views based on sidebar selection
+//
+// Architecture: This view has been refactored into multiple extensions for maintainability:
+// - ContentView+State: Computed properties and state helpers
+// - ContentView+ViewBuilders: View builders for sidebar, content, preview, inspector
+// - ContentView+Navigation: Content routing based on AppViewMode
+// - ContentView+Actions: Action handlers and business logic
+// - ContentView+Persistence: State serialization for @SceneStorage
+// swiftlint:disable:next type_body_length
 struct ContentView: View {
     // MARK: - Environment
 

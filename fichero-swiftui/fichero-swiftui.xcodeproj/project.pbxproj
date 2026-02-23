@@ -130,6 +130,8 @@
 		20D8EE3E2F4BE1AB006950A3 /* ActionLibraryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE3D2F4BE1AB006950A3 /* ActionLibraryService.swift */; };
 		20D8EE452F4BE260006950A3 /* ActionLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE442F4BE260006950A3 /* ActionLibraryView.swift */; };
 		20D8EE472F4BE285006950A3 /* ActionPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE462F4BE285006950A3 /* ActionPickerView.swift */; };
+		20D8EE492F4BED4B006950A3 /* ActionRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE482F4BED4B006950A3 /* ActionRowView.swift */; };
+		20D8EE4B2F4BED57006950A3 /* ActionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE4A2F4BED57006950A3 /* ActionDetailView.swift */; };
 		2ED84CCBA91252EA2D0C5D34 /* TriggerEditorPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */; };
 		3D3445F0B90D093149C9A7D6 /* DocumentInspectorContentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */; };
 		4458475E8C2BF728591E504F /* AIDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */; };
@@ -506,6 +508,8 @@
 		20D8EE3D2F4BE1AB006950A3 /* ActionLibraryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionLibraryService.swift; sourceTree = "<group>"; };
 		20D8EE442F4BE260006950A3 /* ActionLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionLibraryView.swift; sourceTree = "<group>"; };
 		20D8EE462F4BE285006950A3 /* ActionPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionPickerView.swift; sourceTree = "<group>"; };
+		20D8EE482F4BED4B006950A3 /* ActionRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionRowView.swift; sourceTree = "<group>"; };
+		20D8EE4A2F4BED57006950A3 /* ActionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionDetailView.swift; sourceTree = "<group>"; };
 		312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorArtifactsTab.swift; path = "fichero-swiftui/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab.swift"; sourceTree = SOURCE_ROOT; };
 		36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorContentTab.swift; path = "fichero-swiftui/Views/Library/DocumentInspector/DocumentInspectorContentTab.swift"; sourceTree = SOURCE_ROOT; };
 		371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BackendSettingsView.swift; path = "fichero-swiftui/Views/Settings/BackendSettingsView.swift"; sourceTree = SOURCE_ROOT; };
@@ -810,6 +814,8 @@
 			children = (
 				20D8EE442F4BE260006950A3 /* ActionLibraryView.swift */,
 				20D8EE462F4BE285006950A3 /* ActionPickerView.swift */,
+				20D8EE482F4BED4B006950A3 /* ActionRowView.swift */,
+				20D8EE4A2F4BED57006950A3 /* ActionDetailView.swift */,
 			);
 			path = Actions;
 			sourceTree = "<group>";
@@ -1619,6 +1625,7 @@
 				A1A3AA172F110D520021909D /* WorkflowExecutionView.swift in Sources */,
 				A1A3AA182F110D520021909D /* WorkflowNodeView.swift in Sources */,
 				A1A3AA192F110D520021909D /* WorkflowLibraryView.swift in Sources */,
+				20D8EE492F4BED4B006950A3 /* ActionRowView.swift in Sources */,
 				20D8EE382F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift in Sources */,
 				2026749B2F475B4A008EAB5D /* FilesNodeConfig.swift in Sources */,
 				202674A62F476439008EAB5D /* SummarizeFolderNodeConfig.swift in Sources */,
@@ -1729,6 +1736,7 @@
 				A1BFB2E42F0439FE00EAA55A /* ImportService.swift in Sources */,
 				A1A3A9FE2F110D260021909D /* AgentSettingsView.swift in Sources */,
 				A1A3A9FF2F110D260021909D /* AgentConfigurationView.swift in Sources */,
+				20D8EE4B2F4BED57006950A3 /* ActionDetailView.swift in Sources */,
 				023 /* ChatService.swift in Sources */,
 				025 /* SavedSearchService.swift in Sources */,
 				A1BFB4532F0AABBC00EAA55A /* AddItemMenu.swift in Sources */,

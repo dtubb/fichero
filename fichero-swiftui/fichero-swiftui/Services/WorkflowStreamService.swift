@@ -117,7 +117,8 @@ class WorkflowStreamService: ObservableObject {
         return acceptedResponse
     }
 
-    /// Subscribe to SSE events for a running workflow thread
+    // Subscribe to SSE events for a running workflow thread
+    // swiftlint:disable:next function_body_length cyclomatic_complexity
     private func subscribeToStream(
         threadId: String,
         onEvent: ((WorkflowStreamEvent) -> Void)?

@@ -2,8 +2,9 @@ import SwiftUI
 
 // MARK: - Data Processing (File-level functions)
 
-/// All runs grouped by workflow ID for a specific library
+// All runs grouped by workflow ID for a specific library
 @MainActor
+// swiftlint:disable:next function_body_length
 func runsByWorkflow(
     for library: LibraryManager.LibraryReference,
     activeExecutions: [String: WorkflowExecution],

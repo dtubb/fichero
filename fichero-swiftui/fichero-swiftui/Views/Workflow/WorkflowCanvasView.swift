@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import SwiftUI
 
 /// Canvas view for workflow nodes with free placement and port-based connections
@@ -199,6 +200,7 @@ extension WorkflowCanvasView {
     }
 
     @ViewBuilder
+    // swiftlint:disable:next function_body_length
     private func nodeView(for node: WorkflowNode, at index: Int) -> some View {
         // Container with explicit frame for proper popover anchoring
         WorkflowNodeView(

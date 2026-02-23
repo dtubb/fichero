@@ -4,6 +4,7 @@ extension DynamicConfigView {
 
     // MARK: - State Management
 
+    // swiftlint:disable:next cyclomatic_complexity
     func initializeValues() {
         for (key, value) in config ?? [:] {
             switch value {

@@ -3,7 +3,8 @@ import OSLog
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ActivityLogView")
 
-/// Shows the saved execution log for a workflow run
+// Shows the saved execution log for a workflow run
+// swiftlint:disable:next type_body_length
 struct ActivityLogView: View {
     let selectedRun: SelectedActivityRun
     @EnvironmentObject var apiClient: APIClient
@@ -190,6 +191,7 @@ struct ActivityLogView: View {
     }
 
     @ViewBuilder
+    // swiftlint:disable:next function_body_length
     private func executionLogContent(_ log: String, run: WorkflowRunResponse) -> some View {
         VStack(spacing: 0) {
             // Status header

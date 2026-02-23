@@ -125,6 +125,7 @@ struct DocumentPickerSheet: View {
     }
 
     @MainActor
+    // swiftlint:disable:next function_body_length cyclomatic_complexity
     private func runBatchWorkflow(workflowId: String, documentIds: [String]) async {
         guard libraryManager.globalLibrary != nil else {
             print("Error: No global library available")

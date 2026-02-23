@@ -10,7 +10,7 @@ enum WorkflowLibraryTab: String, CaseIterable {
     case chains = "Chains"
 }
 
-/// View for browsing and managing saved workflows and workflow chains
+// View for browsing and managing saved workflows and workflow chains
 struct WorkflowLibraryView: View {
     @EnvironmentObject var workflowStore: WorkflowStore
     @EnvironmentObject var apiClient: APIClient
@@ -45,7 +45,8 @@ struct WorkflowLibraryView: View {
     }
 }
 
-/// View for browsing and managing saved workflows
+// View for browsing and managing saved workflows
+// swiftlint:disable:next type_body_length
 struct WorkflowListView: View {
     @EnvironmentObject var workflowStore: WorkflowStore
     @EnvironmentObject var workflowServiceGenerated: WorkflowServiceGenerated

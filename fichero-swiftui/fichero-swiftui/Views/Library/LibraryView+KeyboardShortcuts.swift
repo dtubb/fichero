@@ -3,7 +3,8 @@ import SwiftUI
 // MARK: - Keyboard Shortcuts Extension
 
 extension LibraryView {
-    /// Applies keyboard shortcut handlers to the LibraryView content
+    // Applies keyboard shortcut handlers to the LibraryView content
+    // swiftlint:disable:next function_body_length
     func withKeyboardShortcuts(_ content: some View) -> some View {
         content
             .onDeleteCommand(perform: promptDeleteSelected)

@@ -68,8 +68,8 @@ def show_progress():
             log(f"    {line}")
 
 # ── Stream Claude output ───────────────────────────────
-def run_claude(prompt: str, log_file: Path, session_id: str | None = None) -> tuple[bool, str, str | None]:
-    """Run Claude with streaming output. Returns (success, output_text, session_id)."""
+def run_claude(prompt: str, log_file: Path) -> tuple[bool, str]:
+    """Run Claude with streaming output. Returns (success, output_text)."""
 
     cmd = [
         "claude", "-p", prompt,
@@ -77,15 +77,11 @@ def run_claude(prompt: str, log_file: Path, session_id: str | None = None) -> tu
         "--verbose",
         "--output-format", "stream-json",
         "--include-partial-messages",
+        "--model", "sonnet",
     ]
-
-    # Resume existing session to reuse MCP connections (Xcode etc)
-    if session_id:
-        cmd.extend(["--resume", session_id])
 
     full_output = []
     text_output = []
-    found_session_id = session_id
 
     try:
         proc = subprocess.Popen(
@@ -107,10 +103,6 @@ def run_claude(prompt: str, log_file: Path, session_id: str | None = None) -> tu
                 continue
 
             msg_type = msg.get("type", "")
-
-            # Capture session ID for reuse (keeps MCP connections alive)
-            if "session_id" in msg and not found_session_id:
-                found_session_id = msg["session_id"]
 
             if msg_type == "stream_event":
                 event = msg.get("event", {})
@@ -144,11 +136,11 @@ def run_claude(prompt: str, log_file: Path, session_id: str | None = None) -> tu
         log_file.write_text("\n".join(full_output))
 
         output_str = "".join(text_output)
-        return proc.returncode == 0, output_str, found_session_id
+        return proc.returncode == 0, output_str
 
     except FileNotFoundError:
         log(f"  {C.RED}Error: 'claude' not found in PATH{C.RESET}")
-        return False, "", None
+        return False, ""
     except KeyboardInterrupt:
         proc.kill()
         raise
@@ -203,7 +195,6 @@ def main():
     log(f"  {C.DIM}Force: {force}  Dry run: {dry_run}{C.RESET}")
 
     last_iteration = 0
-    session_id = None  # Reused across iterations to keep MCP connections alive
 
     try:
         for i in range(1, max_iterations + 1):
@@ -230,12 +221,9 @@ def main():
                 output = ""
                 continue
 
-            if session_id:
-                log(f"  {C.DIM}Resuming session (MCP reuse)...{C.RESET}\n")
-            else:
-                log(f"  {C.DIM}Starting Claude...{C.RESET}\n")
+            log(f"  {C.DIM}Starting Claude (fresh context)...{C.RESET}\n")
 
-            success, output, session_id = run_claude(prompt, log_file, session_id)
+            success, output = run_claude(prompt, log_file)
 
             # Check for ALL_COMPLETE
             if "ALL_COMPLETE" in output:

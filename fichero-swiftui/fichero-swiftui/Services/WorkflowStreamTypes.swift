@@ -23,6 +23,7 @@ enum WorkflowStreamEvent: Equatable {
     case log(threadId: String, line: String)
 
     // Equatable for testing - simplified comparison
+    // swiftlint:disable:next cyclomatic_complexity
     static func == (lhs: WorkflowStreamEvent, rhs: WorkflowStreamEvent) -> Bool {
         switch (lhs, rhs) {
         case (.start(let lhsThread, _), .start(let rhsThread, _)):

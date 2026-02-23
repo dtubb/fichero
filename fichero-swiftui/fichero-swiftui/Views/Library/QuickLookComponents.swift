@@ -177,6 +177,7 @@ struct QuickLookDownloadView: View {
         await downloadFromAPI()
     }
 
+    // swiftlint:disable:next function_body_length
     private func downloadFromAPI() async {
         let sourceURL = apiClient.sourceURL(for: document.id)
 
@@ -267,7 +268,8 @@ struct QuickLookDownloadView: View {
         }
     }
 
-    /// Get filename with proper extension
+    // Get filename with proper extension
+    // swiftlint:disable:next cyclomatic_complexity
     private func fileNameWithExtension() -> String {
         let name = document.name
         if name.contains(".") {

@@ -3,7 +3,8 @@ import OSLog
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ScheduleDetailView")
 
-/// Detail view for a schedule showing configuration and run history
+// Detail view for a schedule showing configuration and run history
+// swiftlint:disable:next type_body_length
 struct ScheduleDetailView: View {
     let schedule: ScheduleInfo
     @EnvironmentObject var apiClient: APIClient

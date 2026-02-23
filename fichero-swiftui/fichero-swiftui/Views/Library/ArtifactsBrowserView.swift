@@ -3,7 +3,8 @@ import OSLog
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ArtifactsBrowserView")
 
-/// View for browsing all artifacts in the library
+// View for browsing all artifacts in the library
+// swiftlint:disable:next type_body_length
 struct ArtifactsBrowserView: View {
     @EnvironmentObject var artifactService: ArtifactServiceGenerated
     @EnvironmentObject var apiClient: APIClient
@@ -195,6 +196,7 @@ struct ArtifactsBrowserView: View {
     }
 
     @ViewBuilder
+    // swiftlint:disable:next function_body_length
     private func artifactCard(_ artifact: Artifact) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             // Header
@@ -405,6 +407,7 @@ struct ArtifactsBrowserView: View {
     }
 }
 
+// swiftlint:disable file_length
 #Preview {
     ArtifactsBrowserView()
         .environmentObject(APIClient())

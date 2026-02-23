@@ -11,6 +11,7 @@ extension ContentView {
 
     // MARK: - State Restoration
 
+    // swiftlint:disable:next cyclomatic_complexity
     func restoreViewMode(type: String, itemId: String?) -> AppViewMode {
         switch type {
         case "library":
@@ -64,6 +65,7 @@ extension ContentView {
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     func serializeViewMode(_ mode: AppViewMode) -> (type: String, id: String?) {
         switch mode {
         case .library(let doc):

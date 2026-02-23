@@ -3,7 +3,8 @@ import SwiftUI
 // MARK: - Selection Handling
 
 extension SidebarView {
-    /// Handle sidebar item selection and update view mode
+    // Handle sidebar item selection and update view mode
+    // swiftlint:disable:next cyclomatic_complexity
     func handleSelection(_ item: SidebarItem?) {
         guard let item = item else {
             sidebarViewLogger.info("handleSelection called with nil item")

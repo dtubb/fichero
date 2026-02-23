@@ -21,15 +21,16 @@ class ImportService: ObservableObject {
 
     // MARK: - Import Files
 
-    /// Import multiple files from URLs
-    /// - Parameters:
-    ///   - urls: File URLs to import
-    ///   - mode: LINK or COPY mode
-    ///   - parentId: Optional parent collection ID
-    ///   - extractText: Extract searchable text
-    ///   - autoEmbed: Create vector embeddings
-    ///   - onProgress: Progress callback (current, total)
-    /// - Returns: Array of imported documents
+    // Import multiple files from URLs
+    // - Parameters:
+    //   - urls: File URLs to import
+    //   - mode: LINK or COPY mode
+    //   - parentId: Optional parent collection ID
+    //   - extractText: Extract searchable text
+    //   - autoEmbed: Create vector embeddings
+    //   - onProgress: Progress callback (current, total)
+    // - Returns: Array of imported documents
+    // swiftlint:disable:next function_body_length
     func importFiles(
         _ urls: [URL],
         mode: IngestMode = .link,
@@ -184,8 +185,8 @@ class ImportService: ObservableObject {
         )
     }
 
-    /// Core folder import logic - doesn't manage isImporting flag
-    /// Used internally when called from importFiles which already manages the flag
+    // Core folder import logic - doesn't manage isImporting flag
+    // Used internally when called from importFiles which already manages the flag
     // swiftlint:disable:next function_parameter_count
     private func importFolderCore(
         _ url: URL,

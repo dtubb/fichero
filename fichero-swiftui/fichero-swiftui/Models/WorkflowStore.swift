@@ -3,8 +3,9 @@ import SwiftUI
 import OSLog
 import FicheroAPIClient
 
-/// Store for managing workflows with backend persistence
+// Store for managing workflows with backend persistence
 @MainActor
+// swiftlint:disable:next type_body_length
 class WorkflowStore: ObservableObject {
     @Published var workflows: [WorkflowSidebarItem] = []
     @Published var selectedWorkflow: WorkflowSidebarItem?

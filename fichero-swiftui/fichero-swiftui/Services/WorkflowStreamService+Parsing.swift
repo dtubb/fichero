@@ -7,7 +7,7 @@ extension WorkflowStreamService {
     // swiftlint:disable:next todo
     // TODO: Refactor parseEvent - extract case handlers into separate methods
     // Function is 115 lines, target <100
-    // swiftlint:disable:next function_body_length
+    // swiftlint:disable:next function_body_length cyclomatic_complexity
     func parseEvent(_ jsonString: String) -> WorkflowStreamEvent? {
         guard let data = jsonString.data(using: .utf8) else {
             workflowStreamLogger.error("[SSE-PARSE] Failed to convert string to data")

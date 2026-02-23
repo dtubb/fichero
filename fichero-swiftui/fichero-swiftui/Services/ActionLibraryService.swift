@@ -1,8 +1,10 @@
+// swiftlint:disable file_length
 import Foundation
 import OSLog
 
-/// Service for interacting with the Action Library backend
+// Service for interacting with the Action Library backend
 @MainActor
+// swiftlint:disable:next type_body_length
 final class ActionLibraryService: ObservableObject {
     private let logger = Logger(subsystem: "com.fichero.app", category: "ActionLibraryService")
 

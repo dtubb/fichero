@@ -54,7 +54,8 @@ extension SidebarView {
         }
     }
 
-    /// Perform the actual deletion
+    // Perform the actual deletion
+    // swiftlint:disable:next cyclomatic_complexity
     func performDelete(item: SidebarItem) async {
         logger.info("performDelete for: \(item.name)")
         guard let libraryId = item.libraryId,

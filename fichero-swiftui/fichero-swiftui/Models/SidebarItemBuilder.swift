@@ -95,7 +95,7 @@ enum SidebarItemBuilder {
         return result
     }
 
-    /// Build hierarchical items from folderPath (for searches, chats, workflows)
+    // Build hierarchical items from folderPath (for searches, chats, workflows)
     // swiftlint:disable:next function_parameter_count
     static func buildHierarchyFromPath<T>(
         items: [T],

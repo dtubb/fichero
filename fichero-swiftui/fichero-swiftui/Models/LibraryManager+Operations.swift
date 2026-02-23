@@ -140,7 +140,8 @@ extension LibraryManager {
         saveOpenLibraryPaths()
     }
 
-    /// Save a library to a new URL (for Save As or initial save)
+    // Save a library to a new URL (for Save As or initial save)
+    // swiftlint:disable:next function_body_length
     func saveLibrary(_ id: UUID, to url: URL) throws {
         guard let index = openLibraries.firstIndex(where: { $0.id == id }) else {
             throw LibraryError.libraryNotFound

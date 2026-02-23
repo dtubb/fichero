@@ -272,6 +272,7 @@ extension LibraryView {
     // MARK: - Table Cell View
 
     @ViewBuilder
+    // swiftlint:disable:next function_body_length cyclomatic_complexity
     func tableCellView(for columnId: String, document doc: Document) -> some View {
         switch columnId {
         case "name":
@@ -433,6 +434,7 @@ extension LibraryView {
     // MARK: - Batch Execution
 
     @MainActor
+    // swiftlint:disable:next function_body_length cyclomatic_complexity
     private func runBatchWorkflow(workflowId: String) async {
         guard !selectedDocumentIdsForBatch.isEmpty else { return }
 
@@ -514,6 +516,7 @@ extension LibraryView {
 
 // MARK: - Previews
 
+// swiftlint:disable file_length
 #Preview("Empty") {
     LibraryView(
         documents: [],

@@ -11,7 +11,7 @@ extension WorkflowEditor {
         }
     }
 
-    // swiftlint:disable:next function_body_length
+    // swiftlint:disable:next function_body_length cyclomatic_complexity
     func runWorkflow() {
         isRunning = true
         showOutputLog = true

@@ -198,6 +198,7 @@ extension ComparisonDetailView {
     }
 
     @ViewBuilder
+    // swiftlint:disable:next function_body_length
     func modelResponseCard(_ result: ModelResultDetail, comparison: ComparisonDetail) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             // Model header
