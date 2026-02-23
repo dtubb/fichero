@@ -60,13 +60,9 @@ struct LibraryViewToolbar: View {
                     )
                 }
             } label: {
-                HStack(spacing: 2) {
-                    Image(systemName: "arrow.up.arrow.down")
-                    Text(sortField.rawValue)
-                        .font(.caption)
-                }
+                Image(systemName: "arrow.up.arrow.down")
             }
-            .help("Sort by \(sortField.rawValue) (\(sortAscending ? "ascending" : "descending"))")
+            .help("Sort: \(sortField.rawValue) (\(sortAscending ? "ascending" : "descending"))")
 
             // Column configuration (only for table view)
             if showColumnConfig && viewMode == .table {
