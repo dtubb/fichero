@@ -50,29 +50,50 @@ extension LibraryView {
     }
 
     // MARK: - List View (Mail-style compact rows)
+    // Uses ScrollView+LazyVStack instead of List to avoid AppKit NSTableView
+    // intercepting arrow key events before our .onKeyPress handlers fire.
 
     var listView: some View {
-        List {
-            ForEach(filteredDocuments) { doc in
-                MailStyleRow(document: doc, isSelected: selection.contains(doc.id)) { tag in
-                    searchText = tag
-                    showFilterBar = true
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(filteredDocuments) { doc in
+                        MailStyleRow(document: doc, isSelected: selection.contains(doc.id)) { tag in
+                            searchText = tag
+                            showFilterBar = true
+                        }
+                        .id(doc.id)
+                        .draggable(doc.id)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            selection.contains(doc.id)
+                                ? Color.accentColor.opacity(0.12)
+                                : Color.clear
+                        )
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 2) {
+                            detailDocument = doc
+                        }
+                        .onTapGesture {
+                            handleTap(doc)
+                            onRequestFocus()
+                        }
+                        .contextMenu {
+                            documentContextMenu(for: doc)
+                        }
+
+                        Divider()
+                            .padding(.leading, 12)
+                    }
                 }
-                .draggable(doc.id)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
-                    .onTapGesture(count: 2) {
-                        detailDocument = doc
-                    }
-                    .onTapGesture {
-                        handleTap(doc)
-                        onRequestFocus()
-                    }
-                    .contextMenu {
-                        documentContextMenu(for: doc)
-                    }
+            }
+            .onChange(of: listScrollTarget) { _, id in
+                guard let id else { return }
+                proxy.scrollTo(id, anchor: nil)
+                listScrollTarget = nil
             }
         }
-        .listStyle(.plain)
     }
 
     // MARK: - Table View (Sortable columns)

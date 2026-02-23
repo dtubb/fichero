@@ -119,27 +119,26 @@ extension LibraryView {
         case upDir, down, left, right
     }
 
-    /// Handle arrow key press for navigating documents in icon/grid view.
-    /// List and Table views get native arrow key support from AppKit.
+    /// Handle arrow key press for navigating documents.
+    /// Left/Right always moves focus between panes (sidebar ↔ content ↔ inspector).
+    /// Up/Down navigates items within the current view.
     func handleArrowKey(direction: ArrowDirection) -> KeyPress.Result {
         let docs = filteredDocuments
         guard !docs.isEmpty else { return .ignored }
 
-        // List/table modes: Left/Right change panes; Up/Down navigate within list
-        if displayMode == .list || displayMode == .table {
-            switch direction {
-            case .left:
-                onRequestPreviousPaneFocus()
-                return .handled
-            case .right:
-                onRequestNextPaneFocus()
-                return .handled
-            case .upDir, .down:
-                break  // handled below — manual navigation for list/table
-            }
+        // Left/Right always navigates between panes in all view modes
+        switch direction {
+        case .left:
+            onRequestPreviousPaneFocus()
+            return .handled
+        case .right:
+            onRequestNextPaneFocus()
+            return .handled
+        case .upDir, .down:
+            break
         }
 
-        // Find the current selection index
+        // Up/Down: navigate items within the current view
         let currentIndex: Int
         if let firstSelected = selection.first,
            let index = docs.firstIndex(where: { $0.id == firstSelected }) {
@@ -151,23 +150,18 @@ extension LibraryView {
             return .handled
         }
 
-        // Calculate the target index based on direction and display mode
+        // Step size: icon view moves by grid row; all others move by 1
         let step: Int
         switch direction {
-        case .left:
-            step = -1
-        case .right:
-            step = 1
         case .upDir:
-            // In icon/grid mode, move up by column count; in map mode, move by 1
             step = displayMode == .icon ? -gridColumnCount : -1
         case .down:
             step = displayMode == .icon ? gridColumnCount : 1
+        default:
+            return .handled
         }
 
         let targetIndex = currentIndex + step
-
-        // Bounds check
         guard targetIndex >= 0, targetIndex < docs.count else { return .handled }
 
         let targetDoc = docs[targetIndex]
@@ -187,6 +181,11 @@ extension LibraryView {
             // Plain arrow: move selection
             selection = [targetDoc.id]
             selectionAnchor = targetDoc.id
+        }
+
+        // Scroll list view to keep selected item visible
+        if displayMode == .list {
+            listScrollTarget = targetDoc.id
         }
 
         return .handled

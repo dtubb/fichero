@@ -110,6 +110,9 @@ struct LibraryView: View {
     @State var typeSelectBuffer: String = ""
     @State var typeSelectTask: Task<Void, Never>?
 
+    // Keyboard scroll target for list view (set by arrow key nav, consumed by ScrollViewReader)
+    @State var listScrollTarget: String?
+
     // Selection anchor for Shift+click range select
     @State var selectionAnchor: String?
 
@@ -159,27 +162,6 @@ struct LibraryView: View {
                 if showFilterBar {
                     filterBarView
                 }
-
-                // View-specific toolbar at top
-                LibraryViewToolbar(
-                    viewMode: $viewMode,
-                    showColumnConfig: true,
-                    displayMode: displayMode,
-                    sortFieldRaw: $sortFieldRaw,
-                    sortAscending: $sortAscending,
-                    iconViewScale: $iconViewScale,
-                    mapCanvasScale: $mapCanvasScale,
-                    showName: $showName,
-                    showStatus: $showStatus,
-                    showProgress: $showProgress,
-                    showOutput: $showOutput,
-                    showFileType: $showFileType,
-                    showPath: $showPath,
-                    showCreatedDate: $showCreatedDate,
-                    showModifiedDate: $showModifiedDate,
-                    showSize: $showSize,
-                    onResetColumns: resetColumns
-                )
 
                 // Main content
                 if filteredDocuments.isEmpty {
@@ -259,6 +241,53 @@ struct LibraryView: View {
                 saveSortSettings(for: folderId)
             }
         )
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                // Filter button — opens inline filter bar (like Finder's filter strip)
+                Button {
+                    showFilterBar = true
+                    filterFieldFocused = true
+                } label: {
+                    Image(systemName: showFilterBar ? "line.3.horizontal.decrease.circle.fill"
+                                                    : "line.3.horizontal.decrease.circle")
+                }
+                .help("Filter (⌘F)")
+
+                // Zoom controls — icon and map views only
+                if displayMode == .icon || displayMode == .map {
+                    Button {
+                        if displayMode == .icon {
+                            iconViewScale = max(0.5, iconViewScale - 0.25)
+                        } else {
+                            mapCanvasScale = max(0.25, mapCanvasScale - 0.25)
+                        }
+                    } label: {
+                        Image(systemName: "minus.magnifyingglass")
+                    }
+                    .help("Zoom Out (⌘-)")
+                    .keyboardShortcut("-", modifiers: .command)
+
+                    Button {
+                        if displayMode == .icon { iconViewScale = 1.0 } else { mapCanvasScale = 1.0 }
+                    } label: {
+                        Image(systemName: "1.magnifyingglass")
+                    }
+                    .help("Reset Zoom")
+
+                    Button {
+                        if displayMode == .icon {
+                            iconViewScale = min(3.0, iconViewScale + 0.25)
+                        } else {
+                            mapCanvasScale = min(3.0, mapCanvasScale + 0.25)
+                        }
+                    } label: {
+                        Image(systemName: "plus.magnifyingglass")
+                    }
+                    .help("Zoom In (⌘=)")
+                    .keyboardShortcut("=", modifiers: .command)
+                }
+            }
+        }
     }
 }
 
