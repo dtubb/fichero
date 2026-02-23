@@ -6,8 +6,13 @@ import OSLog
 
 struct ZoomableImagePreview: View {
     let url: URL
+    var documentId: String?
 
     private static let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ZoomableImagePreview")
+
+    private var scaleKey: String? {
+        documentId.map { "imageZoom_\($0)" }
+    }
 
     // These settings persist across image changes using AppStorage
     @AppStorage("imagePreview.magnifierEnabled") private var magnifierEnabled = false
@@ -201,6 +206,10 @@ struct ZoomableImagePreview: View {
             } else {
                 Self.logger.error("Failed to load NSImage from: \(url.path)")
             }
+            if let key = scaleKey {
+                let saved = UserDefaults.standard.double(forKey: key)
+                if saved > 0 { scale = CGFloat(saved) }
+            }
         }
         .onChange(of: url) { _, newURL in
             Self.logger.info("ZoomableImagePreview URL changed: loading \(newURL.lastPathComponent)")
@@ -210,6 +219,17 @@ struct ZoomableImagePreview: View {
                 Self.logger.info("Successfully loaded new image: size=\(img.size.width)x\(img.size.height)")
             } else {
                 Self.logger.error("Failed to load NSImage from: \(newURL.path)")
+            }
+            if let key = scaleKey {
+                let saved = UserDefaults.standard.double(forKey: key)
+                scale = saved > 0 ? CGFloat(saved) : 1.0
+            } else {
+                scale = 1.0
+            }
+        }
+        .onChange(of: scale) { _, newScale in
+            if let key = scaleKey {
+                UserDefaults.standard.set(Double(newScale), forKey: key)
             }
         }
         .onKeyPress(.init("+"), phases: .down) { _ in

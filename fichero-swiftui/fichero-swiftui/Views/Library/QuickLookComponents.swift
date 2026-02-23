@@ -21,7 +21,7 @@ struct QuickLookDownloadView: View {
     var body: some View {
         Group {
             if let url = fileURL {
-                SmartPreviewView(url: url)
+                SmartPreviewView(url: url, documentId: document.id)
             } else if needsAccess {
                 // Prompt user to grant folder access
                 accessRequiredView
@@ -304,6 +304,7 @@ struct QuickLookDownloadView: View {
 
 struct SmartPreviewView: View {
     let url: URL
+    var documentId: String?
 
     private var isImage: Bool {
         let imageExtensions = ["jpg", "jpeg", "png", "gif", "tiff", "tif", "bmp", "heic", "webp"]
@@ -315,7 +316,7 @@ struct SmartPreviewView: View {
 
     var body: some View {
         if isImage {
-            ZoomableImagePreview(url: url)
+            ZoomableImagePreview(url: url, documentId: documentId)
         } else {
             QuickLookPreviewView(url: url)
         }
