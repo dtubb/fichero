@@ -1,7 +1,7 @@
 # Fichero Refactoring Progress
 
 > **Last Updated:** 2026-02-23
-> **Status:** ALL TASKS COMPLETE ✓ — Refactoring + SwiftLint 0 violations + Library UX B.1-B.12 done. PR #200 open for review. Remaining open issues (#113-117) are Daniel-owned QA audits.
+> **Status:** Phase E in progress — 17 tasks from Daniel QA review (4 bugs, 6 polish, 7 features). PR #200 open. Work E.1 bugs first.
 
 ---
 
@@ -145,6 +145,44 @@
 | B.12 | Window state restoration on relaunch | done | — (@SceneStorage already implemented in ContentView) |
 | C | Add XCTest coverage — SSE + ActivityTypes + SidebarItem (89 tests) | done | [#182](https://github.com/dtubb/fichero/issues/182) |
 | D | Resolve TODOs and stale docs | done | [#183](https://github.com/dtubb/fichero/issues/183) |
+
+---
+
+## Phase E — Library UX QA Fixes (from Daniel review 2026-02-23)
+
+Feedback from running the app. Work in priority order: bugs → polish → features.
+
+### E.1 — Bugs (broken, fix first)
+
+| # | Task | Status | Issue |
+|---|------|--------|-------|
+| E.1.1 | Arrow keys go to sidebar instead of content area when icon selected | pending | — |
+| E.1.2 | List view: can't click on any items (click interaction broken) | pending | — |
+| E.1.3 | App doesn't restore last open view/document on launch | pending | — |
+| E.1.4 | Map view: doesn't show all items, no horizontal scrolling | pending | — |
+
+### E.2 — UI Polish (wrong but not broken)
+
+| # | Task | Status | Issue |
+|---|------|--------|-------|
+| E.2.1 | Spurious focus ring on inspector panel top-right | pending | — |
+| E.2.2 | Inspector tabs → Xcode-style large icon-only pill tabs (Info/Metadata/Artifacts/Content) | pending | — |
+| E.2.3 | Sidebar mode tabs → Xcode-style small icon-only tabs (like Xcode navigator) | pending | — |
+| E.2.4 | Info tab content → two-column form layout (label left, value right, section headers) | pending | — |
+| E.2.5 | Sort/filter button styling → standard macOS (not custom buttons) | pending | — |
+| E.2.6 | List view: document title should wrap to multiple lines | pending | — |
+
+### E.3 — New Features
+
+| # | Task | Status | Issue |
+|---|------|--------|-------|
+| E.3.1 | Right inspector pane resizable (draggable divider) | pending | — |
+| E.3.2 | Zoom in/out for icon view and map view | pending | — |
+| E.3.3 | Click column headers to sort in list/table view | pending | — |
+| E.3.4 | Filter/search bar within content area (NetNewsWire-style) | pending | — |
+| E.3.5 | Column configuration: show/hide columns in table/artifacts view | pending | — |
+| E.3.6 | NetNewsWire-style keyboard column nav (left/right = change pane, up/down = within pane) | pending | — |
+| E.3.7 | Click name/tag in list to jump to search for that value | pending | — |
 
 ---
 
