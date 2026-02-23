@@ -134,6 +134,7 @@
 | B.5 | Arrow key navigation in icon/grid views | done | [#188](https://github.com/dtubb/fichero/issues/188) |
 | B.6 | Tab key to cycle focus between sidebar, content, inspector | done | [#189](https://github.com/dtubb/fichero/issues/189) |
 | B.7 | Persist inspector tab selection across sessions | done | [#190](https://github.com/dtubb/fichero/issues/190) |
+| B.8 | Sort menu with persisted sort order in library view | done | [#191](https://github.com/dtubb/fichero/issues/191) |
 | C | Add XCTest coverage — SSE + ActivityTypes + SidebarItem (89 tests) | done | [#182](https://github.com/dtubb/fichero/issues/182) |
 | D | Resolve TODOs and stale docs | done | [#183](https://github.com/dtubb/fichero/issues/183) |
 
