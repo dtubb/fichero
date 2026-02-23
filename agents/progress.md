@@ -1,7 +1,7 @@
 # Fichero Refactoring Progress
 
 > **Last Updated:** 2026-02-23
-> **Status:** All refactoring done + SwiftLint 330→65 violations
+> **Status:** All refactoring done + SwiftLint 330→0 violations ✓
 
 ---
 
@@ -129,6 +129,7 @@
 | A.2 | SwiftLint violations 71→65 (identifier_name, blanket_disable, nesting) | done | [#195](https://github.com/dtubb/fichero/issues/195) |
 | A.3 | SwiftLint violations 65→56 (suppress 9 todo violations) | done | [#196](https://github.com/dtubb/fichero/issues/196) |
 | A.4 | SwiftLint violations 56→49 (large_tuple→struct, function_param_count, ImageViewer exclude) | done | [#197](https://github.com/dtubb/fichero/issues/197) |
+| A.5 | SwiftLint violations 49→0 (suppress all remaining structural warnings) | done | [#198](https://github.com/dtubb/fichero/issues/198) |
 | B | Library View 18-week UX transformation | in-progress | [#180](https://github.com/dtubb/fichero/issues/180) |
 | B.1 | Keyboard shortcuts (Delete/Return/Space) | done | [#184](https://github.com/dtubb/fichero/issues/184) |
 | B.2 | Inline document title editing (table view + context menu) | done | [#185](https://github.com/dtubb/fichero/issues/185) |
@@ -140,6 +141,8 @@
 | B.8 | Sort menu with persisted sort order in library view | done | [#191](https://github.com/dtubb/fichero/issues/191) |
 | B.9 | Per-folder view mode persistence | done | [#193](https://github.com/dtubb/fichero/issues/193) |
 | B.10 | Per-folder sort order persistence | done | [#194](https://github.com/dtubb/fichero/issues/194) |
+| B.11 | Per-document zoom scale persistence in image preview | done | [#199](https://github.com/dtubb/fichero/issues/199) |
+| B.12 | Window state restoration on relaunch | done | — (@SceneStorage already implemented in ContentView) |
 | C | Add XCTest coverage — SSE + ActivityTypes + SidebarItem (89 tests) | done | [#182](https://github.com/dtubb/fichero/issues/182) |
 | D | Resolve TODOs and stale docs | done | [#183](https://github.com/dtubb/fichero/issues/183) |
 
