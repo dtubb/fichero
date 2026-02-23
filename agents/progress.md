@@ -129,6 +129,7 @@
 | B | Library View 18-week UX transformation | in-progress | [#180](https://github.com/dtubb/fichero/issues/180) |
 | B.1 | Keyboard shortcuts (Delete/Return/Space) | done | [#184](https://github.com/dtubb/fichero/issues/184) |
 | B.2 | Inline document title editing (table view + context menu) | done | [#185](https://github.com/dtubb/fichero/issues/185) |
+| B.3 | Type-to-select: jump to matching document by typing | done | [#186](https://github.com/dtubb/fichero/issues/186) |
 | C | Add XCTest coverage — SSE + ActivityTypes + SidebarItem (89 tests) | done | [#182](https://github.com/dtubb/fichero/issues/182) |
 | D | Resolve TODOs and stale docs | done | [#183](https://github.com/dtubb/fichero/issues/183) |
 
