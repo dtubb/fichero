@@ -196,6 +196,20 @@ Agent team (3 reviewers) reviewed LibraryView, keyboard nav, inspector, componen
 | F.2 | List view: remove duplicate `handleTap` call from double-tap handler | done | `543412c8` |
 | F.3 | DocumentInspector: namespace `SceneStorage` key to `"DocumentInspector.selectedTab"` | done | `543412c8` |
 
+## Phase G — QA Follow-up Fixes (2026-02-23)
+
+User QA session revealed additional issues. All fixes pushed to `codex/restructure-api-swiftui`.
+
+| # | Fix | Status | Commit |
+|---|-----|--------|--------|
+| G.1 | Sort By section in View menu (Finder pattern — no toolbar button) | done | `b9f1994d` |
+| G.2 | Arrow key nav: replace List with ScrollView+LazyVStack (NSTableView absorbed arrow keys) | done | `05fed086` |
+| G.3 | Toolbar unification: remove embedded LibraryViewToolbar, use .toolbar modifier | done | `05fed086` |
+| G.4 | Tab/Shift+Tab pane cycling: move handler to outer Group (fires from all panes) | done | `bf1fa00b` |
+| G.5 | Arrow keys: Left/Right navigate prev/next item (like Finder); Tab handles pane switch | done | `bf1fa00b` |
+| G.6 | Pane focus indicator: accent-colored border on focused list/table pane | done | `c3da5790` |
+| G.7 | SwiftLint 0 violations; delete dead LibraryViewToolbar.swift | done | `bf1fa00b` |
+
 ---
 
 ## Status Legend
