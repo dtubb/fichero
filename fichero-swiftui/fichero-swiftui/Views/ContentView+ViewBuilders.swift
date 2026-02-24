@@ -8,14 +8,14 @@ extension ContentView {
 
     // MARK: - Pane Focus Indicator
 
-    /// Returns a view that shows an accent-colored top bar when the given pane has keyboard focus
+    /// Returns a view that shows an accent-colored border when the given pane has keyboard focus
     func paneFocusIndicator(for pane: PaneFocus) -> some View {
-        VStack(spacing: 0) {
-            Rectangle()
-                .fill(focusedPane == pane ? Color.accentColor : Color.clear)
-                .frame(height: 2)
-            Spacer()
-        }
+        RoundedRectangle(cornerRadius: 0)
+            .strokeBorder(
+                focusedPane == pane ? Color.accentColor : Color.clear,
+                lineWidth: 2
+            )
+            .allowsHitTesting(false)
     }
 
     // MARK: - Sidebar
