@@ -126,6 +126,9 @@
 		20D8EE302F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE2F2F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift */; };
 		20D8EE382F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE372F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift */; };
 		20D8EE3A2F4BD9F6006950A3 /* LibraryView+InlineEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE392F4BD9F6006950A3 /* LibraryView+InlineEditing.swift */; };
+		AA112233001122AA /* LibraryView+Sorting.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122BB /* LibraryView+Sorting.swift */; };
+		AA112233001122CC /* LibraryView+ColumnConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122DD /* LibraryView+ColumnConfig.swift */; };
+		AA112233001122EE /* LibraryView+FilterAndBatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122FF /* LibraryView+FilterAndBatch.swift */; };
 		20D8EE3C2F4BE0D8006950A3 /* ActionsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE3B2F4BE0D8006950A3 /* ActionsService.swift */; };
 		20D8EE3E2F4BE1AB006950A3 /* ActionLibraryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE3D2F4BE1AB006950A3 /* ActionLibraryService.swift */; };
 		20D8EE452F4BE260006950A3 /* ActionLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE442F4BE260006950A3 /* ActionLibraryView.swift */; };
@@ -503,6 +506,9 @@
 		20D8EE2F2F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowExecutionObserver+Events.swift"; sourceTree = "<group>"; };
 		20D8EE372F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+KeyboardShortcuts.swift"; sourceTree = "<group>"; };
 		20D8EE392F4BD9F6006950A3 /* LibraryView+InlineEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+InlineEditing.swift"; sourceTree = "<group>"; };
+		AA112233001122BB /* LibraryView+Sorting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+Sorting.swift"; sourceTree = "<group>"; };
+		AA112233001122DD /* LibraryView+ColumnConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+ColumnConfig.swift"; sourceTree = "<group>"; };
+		AA112233001122FF /* LibraryView+FilterAndBatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+FilterAndBatch.swift"; sourceTree = "<group>"; };
 		20D8EE3B2F4BE0D8006950A3 /* ActionsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionsService.swift; sourceTree = "<group>"; };
 		20D8EE3D2F4BE1AB006950A3 /* ActionLibraryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionLibraryService.swift; sourceTree = "<group>"; };
 		20D8EE442F4BE260006950A3 /* ActionLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionLibraryView.swift; sourceTree = "<group>"; };
@@ -1366,6 +1372,9 @@
 				202674D12F478A13008EAB5D /* LibraryView+DisplayModes.swift */,
 				20D8EE372F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift */,
 				20D8EE392F4BD9F6006950A3 /* LibraryView+InlineEditing.swift */,
+				AA112233001122BB /* LibraryView+Sorting.swift */,
+				AA112233001122DD /* LibraryView+ColumnConfig.swift */,
+				AA112233001122FF /* LibraryView+FilterAndBatch.swift */,
 			);
 			path = Library;
 			sourceTree = "<group>";
@@ -1694,6 +1703,9 @@
 				A1BFB2F32F045C8A00EAA55A /* LibraryImageView.swift in Sources */,
 				202674952F475B1D008EAB5D /* NodeConfigView.swift in Sources */,
 				202674D22F478A13008EAB5D /* LibraryView+DisplayModes.swift in Sources */,
+				AA112233001122AA /* LibraryView+Sorting.swift in Sources */,
+				AA112233001122CC /* LibraryView+ColumnConfig.swift in Sources */,
+				AA112233001122EE /* LibraryView+FilterAndBatch.swift in Sources */,
 				842 /* SidebarState.swift in Sources */,
 				843 /* DragDropModel.swift in Sources */,
 				202674BF2F478647008EAB5D /* SidebarActions.swift in Sources */,
