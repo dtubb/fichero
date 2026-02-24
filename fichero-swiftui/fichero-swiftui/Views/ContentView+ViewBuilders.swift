@@ -53,16 +53,17 @@ extension ContentView {
         case .none:
             // None: Just content, no preview
             contentView
+                .overlay { paneFocusIndicator(for: .content) }
                 .focusable()
                 .focused($focusedPane, equals: .content)
                 .focusEffectDisabled()
-                .overlay { paneFocusIndicator(for: .content) }
                 .navigationSplitViewColumnWidth(min: 350, ideal: 600, max: .infinity)
 
         case .standard:
             // Standard: Content stacked above preview (vertical split)
             VSplitView {
                 contentView
+                    .overlay { paneFocusIndicator(for: .content) }
                     .frame(minHeight: 150, idealHeight: 180)
 
                 previewView
@@ -71,13 +72,13 @@ extension ContentView {
             .focusable()
             .focused($focusedPane, equals: .content)
             .focusEffectDisabled()
-            .overlay { paneFocusIndicator(for: .content) }
             .navigationSplitViewColumnWidth(min: 350, ideal: 700, max: .infinity)
 
         case .widescreen:
             // Widescreen: Content and preview side-by-side (horizontal split)
             HSplitView {
                 contentView
+                    .overlay { paneFocusIndicator(for: .content) }
                     .frame(minWidth: 200, idealWidth: 200)
 
                 previewView
@@ -86,7 +87,6 @@ extension ContentView {
             .focusable()
             .focused($focusedPane, equals: .content)
             .focusEffectDisabled()
-            .overlay { paneFocusIndicator(for: .content) }
             .navigationSplitViewColumnWidth(min: 600, ideal: 1000, max: .infinity)
         }
     }
