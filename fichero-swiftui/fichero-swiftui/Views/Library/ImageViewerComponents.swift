@@ -4,6 +4,7 @@ import OSLog
 
 // MARK: - Zoomable Image Preview (with controls and magnifier)
 
+// swiftlint:disable:next type_body_length
 struct ZoomableImagePreview: View {
     let url: URL
     var documentId: String?

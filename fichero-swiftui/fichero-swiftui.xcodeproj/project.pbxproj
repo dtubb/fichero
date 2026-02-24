@@ -258,7 +258,6 @@
 		A1BFB4552F0AABE200EAA55A /* MainToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4542F0AABE200EAA55A /* MainToolbar.swift */; };
 		A1BFB4572F0AAC1E00EAA55A /* MiniToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4562F0AAC1E00EAA55A /* MiniToolbar.swift */; };
 		A1BFB45C2F0AAC3700EAA55A /* WorkflowToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB45B2F0AAC3700EAA55A /* WorkflowToolbar.swift */; };
-		A1BFB45D2F0AAC3700EAA55A /* LibraryViewToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4592F0AAC3700EAA55A /* LibraryViewToolbar.swift */; };
 		A1BFB45E2F0AAC3700EAA55A /* ChatViewToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4582F0AAC3700EAA55A /* ChatViewToolbar.swift */; };
 		A1BFB45F2F0AAC3700EAA55A /* SearchViewToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB45A2F0AAC3700EAA55A /* SearchViewToolbar.swift */; };
 		A1BFB4612F0AADC000EAA55A /* LayoutMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4602F0AADC000EAA55A /* LayoutMode.swift */; };
@@ -639,7 +638,6 @@
 		A1BFB4542F0AABE200EAA55A /* MainToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainToolbar.swift; sourceTree = "<group>"; };
 		A1BFB4562F0AAC1E00EAA55A /* MiniToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniToolbar.swift; sourceTree = "<group>"; };
 		A1BFB4582F0AAC3700EAA55A /* ChatViewToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewToolbar.swift; sourceTree = "<group>"; };
-		A1BFB4592F0AAC3700EAA55A /* LibraryViewToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewToolbar.swift; sourceTree = "<group>"; };
 		A1BFB45A2F0AAC3700EAA55A /* SearchViewToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchViewToolbar.swift; sourceTree = "<group>"; };
 		A1BFB45B2F0AAC3700EAA55A /* WorkflowToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowToolbar.swift; sourceTree = "<group>"; };
 		A1BFB4602F0AADC000EAA55A /* LayoutMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutMode.swift; sourceTree = "<group>"; };
@@ -1308,7 +1306,6 @@
 				A1BFB4542F0AABE200EAA55A /* MainToolbar.swift */,
 				A1BFB4562F0AAC1E00EAA55A /* MiniToolbar.swift */,
 				A1BFB4582F0AAC3700EAA55A /* ChatViewToolbar.swift */,
-				A1BFB4592F0AAC3700EAA55A /* LibraryViewToolbar.swift */,
 				A1BFB45A2F0AAC3700EAA55A /* SearchViewToolbar.swift */,
 				A1BFB45B2F0AAC3700EAA55A /* WorkflowToolbar.swift */,
 			);
@@ -1556,7 +1553,6 @@
 				A13E7C2E2F27E17F00EC9EE1 /* ProviderServiceGenerated.swift in Sources */,
 				A13E7C2F2F27E17F00EC9EE1 /* SearchServiceGenerated.swift in Sources */,
 				A13E7C302F27E17F00EC9EE1 /* BatchServiceGenerated.swift in Sources */,
-				A1BFB45D2F0AAC3700EAA55A /* LibraryViewToolbar.swift in Sources */,
 				A13E7C5D2F280C1C00EC9EE1 /* BatchRow.swift in Sources */,
 				A1BFB45E2F0AAC3700EAA55A /* ChatViewToolbar.swift in Sources */,
 				A1BFB45F2F0AAC3700EAA55A /* SearchViewToolbar.swift in Sources */,

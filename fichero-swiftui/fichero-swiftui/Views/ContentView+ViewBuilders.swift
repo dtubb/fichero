@@ -6,6 +6,18 @@ import SwiftUI
 
 extension ContentView {
 
+    // MARK: - Pane Focus Indicator
+
+    /// Returns a view that shows an accent-colored top bar when the given pane has keyboard focus
+    func paneFocusIndicator(for pane: PaneFocus) -> some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(focusedPane == pane ? Color.accentColor : Color.clear)
+                .frame(height: 2)
+            Spacer()
+        }
+    }
+
     // MARK: - Sidebar
 
     @ViewBuilder
@@ -28,6 +40,7 @@ extension ContentView {
         .focusable()
         .focused($focusedPane, equals: .sidebar)
         .focusEffectDisabled()
+        .overlay { paneFocusIndicator(for: .sidebar) }
         .navigationSplitViewColumnWidth(min: 250, ideal: sidebarWidth, max: 350)
         .focusedSceneValue(\.sidebarMode, $sidebarMode)
     }
@@ -43,6 +56,7 @@ extension ContentView {
                 .focusable()
                 .focused($focusedPane, equals: .content)
                 .focusEffectDisabled()
+                .overlay { paneFocusIndicator(for: .content) }
                 .navigationSplitViewColumnWidth(min: 350, ideal: 600, max: .infinity)
 
         case .standard:
@@ -57,6 +71,7 @@ extension ContentView {
             .focusable()
             .focused($focusedPane, equals: .content)
             .focusEffectDisabled()
+            .overlay { paneFocusIndicator(for: .content) }
             .navigationSplitViewColumnWidth(min: 350, ideal: 700, max: .infinity)
 
         case .widescreen:
@@ -71,6 +86,7 @@ extension ContentView {
             .focusable()
             .focused($focusedPane, equals: .content)
             .focusEffectDisabled()
+            .overlay { paneFocusIndicator(for: .content) }
             .navigationSplitViewColumnWidth(min: 600, ideal: 1000, max: .infinity)
         }
     }
@@ -141,6 +157,7 @@ extension ContentView {
             .focusable()
             .focused($focusedPane, equals: .inspector)
             .focusEffectDisabled()
+            .overlay { paneFocusIndicator(for: .inspector) }
     }
 
     // MARK: - Breadcrumb

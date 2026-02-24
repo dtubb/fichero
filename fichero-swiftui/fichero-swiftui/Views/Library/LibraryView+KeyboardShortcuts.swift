@@ -122,75 +122,57 @@ extension LibraryView {
     }
 
     /// Handle arrow key press for navigating documents.
-    /// Left/Right always moves focus between panes (sidebar ↔ content ↔ inspector).
-    /// Up/Down navigates items within the current view.
+    /// All four arrows navigate within the content area (like Finder).
+    /// Tab/Shift+Tab cycle focus between panes.
     func handleArrowKey(direction: ArrowDirection) -> KeyPress.Result {
         let docs = filteredDocuments
         guard !docs.isEmpty else { return .ignored }
 
-        // Left/Right always navigates between panes in all view modes
-        switch direction {
-        case .left:
-            onRequestPreviousPaneFocus()
-            return .handled
-        case .right:
-            onRequestNextPaneFocus()
-            return .handled
-        case .upDir, .down:
-            break
+        // Select first item if nothing is selected yet
+        guard let currentIndex = currentSelectionIndex(in: docs) else {
+            selection = [docs[0].id]; selectionAnchor = docs[0].id; return .handled
         }
 
-        // Up/Down: navigate items within the current view
-        let currentIndex: Int
-        if let firstSelected = selection.first,
-           let index = docs.firstIndex(where: { $0.id == firstSelected }) {
-            currentIndex = index
-        } else {
-            // Nothing selected — select first document
-            selection = [docs[0].id]
-            selectionAnchor = docs[0].id
-            return .handled
-        }
-
-        // Step size: icon view moves by grid row; all others move by 1
-        let step: Int
-        switch direction {
-        case .upDir:
-            step = displayMode == .icon ? -gridColumnCount : -1
-        case .down:
-            step = displayMode == .icon ? gridColumnCount : 1
-        default:
-            return .handled
-        }
-
+        let step = stepSize(for: direction)
+        guard step != 0 else { return .ignored }
         let targetIndex = currentIndex + step
         guard targetIndex >= 0, targetIndex < docs.count else { return .handled }
 
-        let targetDoc = docs[targetIndex]
-        let modifiers = NSEvent.modifierFlags
+        applySelection(targetIndex: targetIndex, docs: docs)
+        if displayMode == .list || displayMode == .table {
+            listScrollTarget = docs[targetIndex].id
+        }
+        return .handled
+    }
 
-        if modifiers.contains(.shift) {
-            // Shift+Arrow: extend selection from anchor to target
-            if let anchor = selectionAnchor,
-               let anchorIndex = docs.firstIndex(where: { $0.id == anchor }) {
-                let range = min(anchorIndex, targetIndex)...max(anchorIndex, targetIndex)
-                selection = Set(docs[range].map(\.id))
-            } else {
-                selection.insert(targetDoc.id)
-                selectionAnchor = targetDoc.id
-            }
+    private func currentSelectionIndex(in docs: [Document]) -> Int? {
+        guard let firstSelected = selection.first else { return nil }
+        return docs.firstIndex(where: { $0.id == firstSelected })
+    }
+
+    private func stepSize(for direction: ArrowDirection) -> Int {
+        switch direction {
+        case .upDir:  return displayMode == .icon ? -gridColumnCount : -1
+        case .down:   return displayMode == .icon ?  gridColumnCount :  1
+        case .left:   return -1
+        case .right:  return  1
+        }
+    }
+
+    private func applySelection(targetIndex: Int, docs: [Document]) {
+        let targetDoc = docs[targetIndex]
+        if NSEvent.modifierFlags.contains(.shift),
+           let anchor = selectionAnchor,
+           let anchorIndex = docs.firstIndex(where: { $0.id == anchor }) {
+            let range = min(anchorIndex, targetIndex)...max(anchorIndex, targetIndex)
+            selection = Set(docs[range].map(\.id))
+        } else if NSEvent.modifierFlags.contains(.shift) {
+            selection.insert(targetDoc.id)
+            selectionAnchor = targetDoc.id
         } else {
-            // Plain arrow: move selection
             selection = [targetDoc.id]
             selectionAnchor = targetDoc.id
         }
-
-        // Scroll list view to keep selected item visible
-        if displayMode == .list {
-            listScrollTarget = targetDoc.id
-        }
-
-        return .handled
     }
 
     // MARK: - Type-to-Select

@@ -155,11 +155,11 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 mainContentView
-                    .onKeyPress(.tab, phases: .down) { keyPress in
-                        cyclePaneFocus(reverse: keyPress.modifiers.contains(.shift))
-                        return .handled
-                    }
             }
+        }
+        .onKeyPress(.tab, phases: .down) { keyPress in
+            cyclePaneFocus(reverse: keyPress.modifiers.contains(.shift))
+            return .handled
         }
         .alert(item: $errorService.currentAlert) { errorModel in
             let message = errorModel.recoverySuggestion != nil ?
@@ -392,7 +392,6 @@ struct ContentView: View {
 }
 
 // MARK: - Preview
-
 #Preview("Library Mode") {
     ContentView()
         .environmentObject(ViewSettings())
