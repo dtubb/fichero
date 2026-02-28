@@ -5,6 +5,9 @@ import SwiftUI
 struct AddItemMenu: View {
     @ObservedObject var registry: ItemTypeRegistry
     let style: MenuStyle
+    
+    // Feature manager to filter menu items
+    @ObservedObject var featureManager = FeatureManager.shared
 
     enum MenuStyle {
         case button      // Toolbar button with menu
@@ -44,19 +47,30 @@ struct AddItemMenu: View {
         }
 
         // AI category
-        if let items = grouped[.aiTools], !items.isEmpty {
-            Section("AI") {
-                ForEach(items) { item in
-                    buttonWithShortcut(for: item)
+        if featureManager.isChatEnabled || featureManager.isWorkflowsEnabled {
+            if let items = grouped[.aiTools], !items.isEmpty {
+                Section("AI") {
+                    ForEach(items) { item in
+                        // Filter items based on specific flags if needed
+                        if item.name.contains("Workflow") && !featureManager.isWorkflowsEnabled {
+                            EmptyView()
+                        } else if item.name.contains("Chat") && !featureManager.isChatEnabled {
+                            EmptyView()
+                        } else {
+                            buttonWithShortcut(for: item)
+                        }
+                    }
                 }
             }
         }
 
         // Automation category
-        if let items = grouped[.automation], !items.isEmpty {
-            Section("Automation") {
-                ForEach(items) { item in
-                    buttonWithShortcut(for: item)
+        if featureManager.isAutomationEnabled {
+            if let items = grouped[.automation], !items.isEmpty {
+                Section("Automation") {
+                    ForEach(items) { item in
+                        buttonWithShortcut(for: item)
+                    }
                 }
             }
         }

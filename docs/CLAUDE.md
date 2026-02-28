@@ -69,8 +69,12 @@ PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_api_cont
 ### Code Quality
 
 ```bash
-# SwiftLint (MANDATORY before commit)
+# SwiftLint (MANDATORY before commit) — installed via Homebrew
 swiftlint lint fichero-swiftui/fichero-swiftui/
+
+# Ruff — Python linting (MANDATORY before commit)
+ruff check fichero-api/src/
+ruff check fichero-api/tests/
 
 # Sync OpenAPI schema after Python API changes
 ./fichero-api/scripts/sync_openapi_schema.sh
@@ -378,11 +382,12 @@ refactor: made it better
    - Summary of changes (bullet points)
    - Test plan checklist
    - Related TODO items
-5. Zero SwiftLint warnings required for merge
+5. Zero SwiftLint warnings and zero Ruff errors required for merge
 
 ### Pre-Commit Checklist
 
 - [ ] SwiftLint passes with zero warnings
+- [ ] Ruff passes with zero errors (`ruff check fichero-api/src/ fichero-api/tests/`)
 - [ ] All tests pass (Python unit/integration + Swift tests)
 - [ ] OpenAPI schema synced if backend API changed
 - [ ] TODO.md updated with task status

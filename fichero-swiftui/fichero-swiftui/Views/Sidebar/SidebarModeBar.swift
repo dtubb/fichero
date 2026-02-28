@@ -7,6 +7,9 @@ private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "SidebarMode
 /// Shows 7 mode icons: Library, Search, Chat, Workflows | Batches, Automation | Activity
 struct SidebarModeBar: View {
     @Binding var selectedMode: SidebarMode
+    
+    // Feature manager to hide disabled modes
+    @ObservedObject var featureManager = FeatureManager.shared
 
     // Badge counts from environment
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
@@ -17,38 +20,82 @@ struct SidebarModeBar: View {
     var body: some View {
         HStack(spacing: 2) {
             // Content modes (1-4)
-            ForEach([SidebarMode.library, .search, .chat, .workflows], id: \.self) { mode in
+            Group {
                 SidebarModeIcon(
-                    mode: mode,
-                    isSelected: selectedMode == mode,
-                    badgeCount: badgeCount(for: mode)
+                    mode: .library,
+                    isSelected: selectedMode == .library,
+                    badgeCount: badgeCount(for: .library)
                 ) {
-                    selectMode(mode)
+                    selectMode(.library)
+                }
+                
+                SidebarModeIcon(
+                    mode: .search,
+                    isSelected: selectedMode == .search,
+                    badgeCount: badgeCount(for: .search)
+                ) {
+                    selectMode(.search)
+                }
+                
+                if featureManager.isChatEnabled {
+                    SidebarModeIcon(
+                        mode: .chat,
+                        isSelected: selectedMode == .chat,
+                        badgeCount: badgeCount(for: .chat)
+                    ) {
+                        selectMode(.chat)
+                    }
+                }
+                
+                if featureManager.isWorkflowsEnabled {
+                    SidebarModeIcon(
+                        mode: .workflows,
+                        isSelected: selectedMode == .workflows,
+                        badgeCount: badgeCount(for: .workflows)
+                    ) {
+                        selectMode(.workflows)
+                    }
                 }
             }
 
-            modeSeparator
+            if featureManager.isWorkflowsEnabled || featureManager.isAutomationEnabled {
+                modeSeparator
+            }
 
             // Automation modes (5-6)
-            ForEach([SidebarMode.batches, .automation], id: \.self) { mode in
-                SidebarModeIcon(
-                    mode: mode,
-                    isSelected: selectedMode == mode,
-                    badgeCount: badgeCount(for: mode)
-                ) {
-                    selectMode(mode)
+            Group {
+                if featureManager.isWorkflowsEnabled { // Batches are part of workflows
+                    SidebarModeIcon(
+                        mode: .batches,
+                        isSelected: selectedMode == .batches,
+                        badgeCount: badgeCount(for: .batches)
+                    ) {
+                        selectMode(.batches)
+                    }
+                }
+                
+                if featureManager.isAutomationEnabled {
+                    SidebarModeIcon(
+                        mode: .automation,
+                        isSelected: selectedMode == .automation,
+                        badgeCount: badgeCount(for: .automation)
+                    ) {
+                        selectMode(.automation)
+                    }
                 }
             }
 
-            modeSeparator
+            if featureManager.isActivityEnabled {
+                modeSeparator
 
-            // Monitoring mode (7)
-            SidebarModeIcon(
-                mode: .activity,
-                isSelected: selectedMode == .activity,
-                badgeCount: badgeCount(for: .activity)
-            ) {
-                selectMode(.activity)
+                // Monitoring mode (7)
+                SidebarModeIcon(
+                    mode: .activity,
+                    isSelected: selectedMode == .activity,
+                    badgeCount: badgeCount(for: .activity)
+                ) {
+                    selectMode(.activity)
+                }
             }
         }
         .padding(.horizontal, 8)

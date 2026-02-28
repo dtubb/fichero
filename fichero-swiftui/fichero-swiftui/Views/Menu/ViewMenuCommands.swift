@@ -40,6 +40,9 @@ struct ViewMenuCommands: View {
 /// Uses @FocusedValue to update the current window's sidebar mode (reads from focusedSceneValue)
 struct SidebarModeSection: View {
     @FocusedValue(\.sidebarMode) var sidebarMode
+    
+    // Feature manager to hide modes
+    @ObservedObject var featureManager = FeatureManager.shared
 
     /// Current mode, defaulting to .library if no window is focused
     private var currentMode: SidebarMode {
@@ -48,45 +51,93 @@ struct SidebarModeSection: View {
 
     var body: some View {
         Section("Sidebar") {
-            // Content modes (1-4)
-            ForEach([SidebarMode.library, .search, .chat, .workflows], id: \.self) { mode in
-                SidebarModeButton(
-                    mode: mode,
-                    label: mode.label,
-                    icon: mode.icon,
-                    shortcut: mode.shortcutNumber,
-                    current: currentMode
-                ) {
-                    sidebarMode?.wrappedValue = mode
-                }
-            }
-
-            Divider()
-
-            // Automation modes (5-6)
-            ForEach([SidebarMode.batches, .automation], id: \.self) { mode in
-                SidebarModeButton(
-                    mode: mode,
-                    label: mode.label,
-                    icon: mode.icon,
-                    shortcut: mode.shortcutNumber,
-                    current: currentMode
-                ) {
-                    sidebarMode?.wrappedValue = mode
-                }
-            }
-
-            Divider()
-
-            // Activity mode (7) - unified view of all workflow runs
+            // Content modes (1-2 always, 3-4 conditional)
             SidebarModeButton(
-                mode: .activity,
-                label: SidebarMode.activity.label,
-                icon: SidebarMode.activity.icon,
-                shortcut: SidebarMode.activity.shortcutNumber,
+                mode: .library,
+                label: SidebarMode.library.label,
+                icon: SidebarMode.library.icon,
+                shortcut: SidebarMode.library.shortcutNumber,
                 current: currentMode
             ) {
-                sidebarMode?.wrappedValue = .activity
+                sidebarMode?.wrappedValue = .library
+            }
+            
+            SidebarModeButton(
+                mode: .search,
+                label: SidebarMode.search.label,
+                icon: SidebarMode.search.icon,
+                shortcut: SidebarMode.search.shortcutNumber,
+                current: currentMode
+            ) {
+                sidebarMode?.wrappedValue = .search
+            }
+            
+            if featureManager.isChatEnabled {
+                SidebarModeButton(
+                    mode: .chat,
+                    label: SidebarMode.chat.label,
+                    icon: SidebarMode.chat.icon,
+                    shortcut: SidebarMode.chat.shortcutNumber,
+                    current: currentMode
+                ) {
+                    sidebarMode?.wrappedValue = .chat
+                }
+            }
+            
+            if featureManager.isWorkflowsEnabled {
+                SidebarModeButton(
+                    mode: .workflows,
+                    label: SidebarMode.workflows.label,
+                    icon: SidebarMode.workflows.icon,
+                    shortcut: SidebarMode.workflows.shortcutNumber,
+                    current: currentMode
+                ) {
+                    sidebarMode?.wrappedValue = .workflows
+                }
+            }
+
+            if featureManager.isWorkflowsEnabled || featureManager.isAutomationEnabled {
+                Divider()
+            }
+
+            // Automation modes (5-6)
+            if featureManager.isWorkflowsEnabled {
+                SidebarModeButton(
+                    mode: .batches,
+                    label: SidebarMode.batches.label,
+                    icon: SidebarMode.batches.icon,
+                    shortcut: SidebarMode.batches.shortcutNumber,
+                    current: currentMode
+                ) {
+                    sidebarMode?.wrappedValue = .batches
+                }
+            }
+            
+            if featureManager.isAutomationEnabled {
+                SidebarModeButton(
+                    mode: .automation,
+                    label: SidebarMode.automation.label,
+                    icon: SidebarMode.automation.icon,
+                    shortcut: SidebarMode.automation.shortcutNumber,
+                    current: currentMode
+                ) {
+                    sidebarMode?.wrappedValue = .automation
+                }
+            }
+
+            if featureManager.isActivityEnabled {
+                Divider()
+
+                // Activity mode (7) - unified view of all workflow runs
+                SidebarModeButton(
+                    mode: .activity,
+                    label: SidebarMode.activity.label,
+                    icon: SidebarMode.activity.icon,
+                    shortcut: SidebarMode.activity.shortcutNumber,
+                    current: currentMode
+                ) {
+                    sidebarMode?.wrappedValue = .activity
+                }
             }
         }
     }

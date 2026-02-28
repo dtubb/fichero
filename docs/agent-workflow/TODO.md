@@ -831,15 +831,29 @@
   - Files: ContentView.swift (restorePersistedState, restoreViewMode)
   - Status: Basic implementation complete, needs edge case testing
 
-- [ ] TODO-140: Document State Persistence Strategy (P2, Low)
+- [>] TODO-147: Finalize and Audit Fichero Plan (P0, High)
   - Category: Documentation
-  - Depends on: TODO-138
-  - Description: Document @SceneStorage implementation for future developers
-  - Content to document:
-    - Which state uses @SceneStorage vs @State vs @AppStorage
-    - How viewMode serialization works (type + ID pattern)
-    - How complex types are encoded (JSON to Data)
-    - Per-window vs app-wide state distinction
-    - How to add new persisted state
-  - Location: docs/architecture/swiftui/ or docs/
-  - Status: Not started
+  - Depends on: None
+  - Description: Review PLAN.md and CONSTITUTION.md with Daniel to ensure they meet the "Chief of Staff" standard.
+- [>] TODO-149: Implement v0.0.1 Feature Flagging (P0, High)
+  - Task Plan: `docs/agent-workflow/tasks/TODO-149/task.md`
+
+  - Category: Frontend
+  - Depends on: None
+  - Description: Create a `FeatureFlags` service to enable/disable app modules. Update `SidebarView` and `AppMenu` to respect these flags, enabling a clean v0.0.1 experience.
+- [ ] TODO-148: Release Readiness Audit (P1, High)
+
+  - Category: Documentation, Infrastructure
+  - Depends on: TODO-147
+  - Description: Audit all open tasks against the Release Milestones in PLAN.md and label them accordingly.
+- [ ] TODO-145: Refactor DocumentInspector (P2, Medium)
+
+
+  - Category: Frontend
+  - Depends on: None
+  - Description: Refactor DocumentInspector to reduce complexity and improve maintainability based on inbox notes.
+- [ ] TODO-146: Refactor NodePopover (P2, Medium)
+  - Category: Frontend
+  - Depends on: None
+  - Description: Refactor NodePopover to improve reliability and SwiftUI compliance based on inbox notes.
+

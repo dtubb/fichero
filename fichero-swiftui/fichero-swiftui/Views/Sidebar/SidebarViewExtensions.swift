@@ -6,6 +6,9 @@ import SwiftUI
 ///
 /// Modeled after macOS Preview/Finder bottom toolbars with small, icon-only buttons.
 struct SidebarBottomToolbar: View {
+    // Feature manager to hide buttons
+    @ObservedObject var featureManager = FeatureManager.shared
+
     let createSearch: () -> Void
     let createChat: () -> Void
     let createWorkflow: () -> Void
@@ -23,33 +26,43 @@ struct SidebarBottomToolbar: View {
                 Button(action: createSearch) {
                     Label("New Search", systemImage: "magnifyingglass")
                 }
-                Button(action: createChat) {
-                    Label("New Chat", systemImage: "bubble.left.and.bubble.right")
-                }
-                if let createComparison = createComparison {
-                    Button(action: createComparison) {
-                        Label("New Comparison", systemImage: "arrow.left.arrow.right")
+                
+                if featureManager.isChatEnabled {
+                    Button(action: createChat) {
+                        Label("New Chat", systemImage: "bubble.left.and.bubble.right")
                     }
                 }
-                Button(action: createWorkflow) {
-                    Label("New Workflow", systemImage: "arrow.triangle.branch")
-                }
-
-                Divider()
-
-                if let createSchedule = createSchedule {
-                    Button(action: createSchedule) {
-                        Label("New Schedule", systemImage: "clock")
+                
+                if featureManager.isWorkflowsEnabled {
+                    if let createComparison = createComparison {
+                        Button(action: createComparison) {
+                            Label("New Comparison", systemImage: "arrow.left.arrow.right")
+                        }
                     }
-                }
-                if let createTrigger = createTrigger {
-                    Button(action: createTrigger) {
-                        Label("New Trigger", systemImage: "bolt")
+                    Button(action: createWorkflow) {
+                        Label("New Workflow", systemImage: "arrow.triangle.branch")
                     }
                 }
 
-                if createSchedule != nil || createTrigger != nil {
+                if featureManager.isAutomationEnabled || featureManager.isWorkflowsEnabled {
                     Divider()
+                }
+
+                if featureManager.isAutomationEnabled {
+                    if let createSchedule = createSchedule {
+                        Button(action: createSchedule) {
+                            Label("New Schedule", systemImage: "clock")
+                        }
+                    }
+                    if let createTrigger = createTrigger {
+                        Button(action: createTrigger) {
+                            Label("New Trigger", systemImage: "bolt")
+                        }
+                    }
+
+                    if createSchedule != nil || createTrigger != nil {
+                        Divider()
+                    }
                 }
 
                 Button(action: createFolder) {
