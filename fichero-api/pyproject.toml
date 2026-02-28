@@ -1,0 +1,197 @@
+# =============================================================================
+# Fichero Backend - Briefcase Configuration
+# =============================================================================
+# This configuration builds a Python backend app that gets embedded inside the
+# Swift Fichero.app as a nested .app bundle.
+#
+# Development workflow:
+#   - Use `briefcase dev -a fichero-backend` for testing bundled backend
+#   - Use `uvicorn fichero.api.main:app --reload` for hot-reload development
+#
+# Production build:
+#   - Run: ./scripts/build_backend_bundle.sh
+#   - Output: build/fichero-backend/macos/app/FicheroBackend.app
+#   - This .app is copied into Fichero.app/Contents/Resources/ by Xcode
+# =============================================================================
+
+[tool.briefcase]
+project_name = "Fichero"
+bundle = "ca.tubb.fichero"
+version = "0.1.0.dev1"
+url = "https://www.tubb.ca/fichero/"
+license.file = "LICENSE"
+author = "Daniel Tubb"
+author_email = "dtubb@me.com"
+
+# =============================================================================
+# Briefcase App Definition - Embedded Backend
+# =============================================================================
+# This section defines the backend app that Briefcase will bundle.
+# The app is a headless FastAPI server (console_app=true, no GUI).
+#
+# Sources:
+#   - src/fichero: Main backend code (API, workflows, database, etc.)
+#   - src/fichero_backend: Briefcase entry point wrapper
+# =============================================================================
+
+[tool.briefcase.app.fichero-backend]
+formal_name = "FicheroBackend"
+description = "Backend API server for Fichero macOS app"
+long_description = "FastAPI backend service embedded inside the Fichero Swift app. Provides document processing, AI workflows, and data storage."
+console_app = true  # Headless app (no window, runs in background)
+sources = [
+    "src/fichero",          # Main backend code
+    "src/fichero_backend",  # Briefcase entry point
+]
+requires = [
+    # FastAPI & Server
+    "fastapi",
+    "uvicorn[standard]",
+    "python-multipart",
+    "httpx",
+    # Data Layer
+    "pydantic",
+    "pydantic-settings",
+    "duckdb",
+    "lancedb",
+    # AI/LLM
+    "langchain",
+    "langchain-core",
+    "langchain-community",
+    "langgraph",
+    "langchain-ollama",
+    "langchain-openai",
+    "langchain-anthropic",
+    "langchain-google-genai",
+    "langchain-aws",
+    "langchain-cohere",
+    "langchain-mistralai",
+    "langchain-mcp-adapters",
+    "mcp",
+    "nest-asyncio",
+    "litellm",
+    "openai",
+    "dashscope",
+    # Document Processing
+    "Pillow",
+    "numpy",
+    "PyMuPDF",
+    "kreuzberg",
+    "fastembed",
+    "pyobjc-framework-Vision",
+    "pyobjc-framework-Quartz",
+    "pyobjc-framework-Cocoa",
+    # Utilities
+    "python-dotenv",
+    "pathvalidate",
+    "aiofiles",
+    "aiohttp",
+    "typer",
+    "rich",
+    "requests",
+    "cryptography",
+    "ruamel.yaml",
+    "apscheduler",
+    "watchdog",
+]
+
+[tool.briefcase.app.fichero-backend.macOS]
+universal_build = false  # arm64-only (Apple Silicon)
+min_os_version = "15.0"
+
+# Entitlements for network server (listens on port 8765)
+entitlement."com.apple.security.network.server" = true
+entitlement."com.apple.security.network.client" = true
+
+# Hide backend from Dock (background-only app)
+info."LSUIElement" = true
+
+# Build system requirements
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+fichero = ["resources/**/*"]
+
+# =============================================================================
+# Standard Python Package Configuration
+# =============================================================================
+# This section defines the package for pip installation and uvicorn development.
+# Used when running: uvicorn fichero.api.main:app --reload
+#
+# IMPORTANT: Keep dependencies in sync with [tool.briefcase.app.fichero-backend]
+# TOML doesn't support variable inheritance, so both sections must be maintained.
+# =============================================================================
+
+[project]
+name = "fichero"
+version = "0.1.0.dev1"
+description = "Backend API server for Fichero macOS app"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    # Core utilities
+    "python-dotenv",
+    "pathvalidate",
+    "aiofiles",
+    "aiohttp",
+    # FastAPI backend for Swift frontend
+    "fastapi",
+    "uvicorn[standard]",
+    "python-multipart",
+    "httpx",
+    # Data layer
+    "pydantic",
+    "pydantic-settings",
+    "duckdb",
+    "lancedb",
+    # AI/LLM
+    "langchain",
+    "langchain-core",
+    "langchain-community",
+    "langgraph",
+    "langchain-ollama",
+    "langchain-openai",
+    "langchain-anthropic",
+    "langchain-google-genai",
+    "langchain-aws",
+    "langchain-cohere",
+    "langchain-mistralai",
+    "langchain-mcp-adapters",
+    "mcp",
+    "nest-asyncio",
+    "litellm",
+    "openai",
+    "dashscope",
+    # Document processing
+    "Pillow",
+    "numpy",
+    "PyMuPDF",
+    "kreuzberg",
+    "fastembed",
+    "pyobjc-framework-Vision",
+    "pyobjc-framework-Quartz",
+    "pyobjc-framework-Cocoa",
+    # Utilities
+    "typer",
+    "rich",
+    "requests",
+    "cryptography",
+    "ruamel.yaml",
+    "apscheduler",
+    "watchdog",
+]
+
+[project.scripts]
+fichero = "fichero.__main__:main"
+fichero-mcp = "fichero.mcp_server:main"
+
+[tool.pytest.ini_options]
+markers = [
+    "asyncio: mark async tests that run with the asyncio event loop",
+    "anyio: mark async tests compatible with anyio backends",
+]

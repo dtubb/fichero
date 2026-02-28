@@ -1,0 +1,39 @@
+import SwiftUI
+import OSLog
+
+struct ModelComparisonView: View {
+    @StateObject var service = ModelComparisonService()
+    @State var prompt = ""
+    @State var systemPrompt = ""
+    @State var selectedModels: [ModelSpec] = [
+        ModelSpec(provider: "openai", model: "gpt-4o"),
+        ModelSpec(provider: "anthropic", model: "claude-3-5-sonnet-20241022")
+    ]
+    @State var showingModelPicker = false
+    @State var showingPresets = false
+
+    var body: some View {
+        NavigationSplitView {
+            sidebar
+                .navigationSplitViewColumnWidth(min: 250, ideal: 300)
+        } detail: {
+            if let result = service.lastResult {
+                ComparisonResultView(result: result)
+            } else {
+                ContentUnavailableView(
+                    "No Comparison",
+                    systemImage: "square.split.2x2",
+                    description: Text("Enter a prompt and select models to compare")
+                )
+            }
+        }
+        .task {
+            await service.loadModels()
+            await service.loadPresets()
+        }
+    }
+}
+
+#Preview {
+    ModelComparisonView()
+}

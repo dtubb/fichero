@@ -82,31 +82,30 @@ security find-identity -v -p codesigning
 ### Step 1: Build Backend Bundle
 
 ```bash
-cd /Users/dtubb/code/fichero_main/fichero
 
 # Build backend with Briefcase
-./scripts/build_backend_bundle.sh
+./fichero-api/scripts/build_backend_bundle.sh
 ```
 
 **What this does:**
 1. Runs `briefcase create macOS --app fichero-backend`
 2. Runs `briefcase build macOS --app fichero-backend`
 3. Runs `briefcase package macOS --app fichero-backend`
-4. Output: `macOS/Fichero Backend.app` (complete, ready to embed)
+4. Output: `macOS/FicheroBackend.app` (complete, ready to embed)
 
 ### Step 2: Build Swift App
 
 ```bash
 # Open Xcode
-open Fichero/Fichero.xcodeproj
+open fichero-swiftui/fichero-swiftui.xcodeproj
 
 # Build (⌘B) or Run (⌘R)
 ```
 
 **What happens during Xcode build:**
 1. Compiles Swift code
-2. Runs build script: `scripts/xcode_copy_backend.sh`
-3. Copies `macOS/Fichero Backend.app` → `Fichero.app/Contents/Resources/`
+2. Runs build script: `fichero-api/scripts/xcode_copy_backend.sh`
+3. Copies `macOS/FicheroBackend.app` → `Fichero.app/Contents/Resources/`
 4. Results in single `Fichero.app` with backend embedded
 
 ### Step 3: Run
@@ -128,11 +127,10 @@ open Fichero/Fichero.xcodeproj
 
 ```bash
 # Terminal 1: Start backend with hot-reload
-cd /Users/dtubb/code/fichero_main/fichero
-PYTHONPATH=src .venv/bin/uvicorn fichero.api.main:app --reload --port 8765
+PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --reload --port 8765
 
 # Terminal 2: Run Swift app from Xcode
-open Fichero/Fichero.xcodeproj
+open fichero-swiftui/fichero-swiftui.xcodeproj
 # Press ⌘R
 ```
 
@@ -151,7 +149,7 @@ open Fichero/Fichero.xcodeproj
 
 ```bash
 # 1. Build backend
-./scripts/build_backend_bundle.sh
+./fichero-api/scripts/build_backend_bundle.sh
 
 # 2. Archive Swift app in Xcode
 # Product → Archive
@@ -233,7 +231,7 @@ requires = [
 ]
 ```
 
-### src/fichero_backend/__main__.py
+### fichero-api/src/fichero_backend/__main__.py
 
 ```python
 def main():
@@ -249,7 +247,7 @@ def main():
 
 ```bash
 # Add to: Target → Build Phases → Run Script
-${PROJECT_DIR}/scripts/xcode_copy_backend.sh
+${PROJECT_DIR}/../fichero-api/scripts/xcode_copy_backend.sh
 ```
 
 ---
@@ -264,7 +262,7 @@ ${PROJECT_DIR}/scripts/xcode_copy_backend.sh
 
 **Fix:** Build backend first
 ```bash
-./scripts/build_backend_bundle.sh
+./fichero-api/scripts/build_backend_bundle.sh
 ```
 
 ### "Backend failed to start"
@@ -279,7 +277,7 @@ Category: EmbeddedBackend
 
 Check if backend app is signed:
 ```bash
-codesign -dv --verbose=4 "macOS/Fichero Backend.app"
+codesign -dv --verbose=4 "macOS/FicheroBackend.app"
 ```
 
 ### Port 8765 already in use
@@ -297,7 +295,7 @@ When you modify Python backend code:
 
 ```bash
 # 1. Rebuild backend bundle
-./scripts/build_backend_bundle.sh
+./fichero-api/scripts/build_backend_bundle.sh
 
 # 2. Rebuild Swift app in Xcode (⌘B)
 # Build script will copy new backend bundle automatically
@@ -319,11 +317,11 @@ Created files for nested app bundling:
 
 ```
 ✅ pyproject.toml                              (backend app config)
-✅ src/fichero_backend/__init__.py             (backend module)
-✅ src/fichero_backend/__main__.py             (backend entry point)
+✅ fichero-api/src/fichero_backend/__init__.py             (backend module)
+✅ fichero-api/src/fichero_backend/__main__.py             (backend entry point)
 ✅ scripts/build_backend_bundle.sh             (Briefcase build script)
-✅ scripts/xcode_copy_backend.sh               (Xcode build script)
-✅ Fichero/Services/EmbeddedBackendService.swift  (Swift launcher)
+✅ fichero-api/scripts/xcode_copy_backend.sh   (Xcode build script)
+✅ fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift  (Swift launcher)
 ✅ docs/BUNDLING_BACKEND.md                    (this file)
 ```
 
@@ -333,13 +331,13 @@ Created files for nested app bundling:
 
 1. **Test backend build:**
    ```bash
-   ./scripts/build_backend_bundle.sh
+   ./fichero-api/scripts/build_backend_bundle.sh
    ```
 
 2. **Add Xcode build script:**
-   - Open Fichero.xcodeproj
+   - Open fichero-swiftui/fichero-swiftui.xcodeproj
    - Target → Build Phases → + → New Run Script Phase
-   - Add: `${PROJECT_DIR}/scripts/xcode_copy_backend.sh`
+   - Add: `${PROJECT_DIR}/../fichero-api/scripts/xcode_copy_backend.sh`
 
 3. **Update FicheroApp.swift:**
    - Add `@StateObject var backendService = EmbeddedBackendService()`

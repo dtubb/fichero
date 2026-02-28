@@ -1,0 +1,358 @@
+import SwiftUI
+import OSLog
+
+private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "NodePopover")
+
+/// Popover for configuring a workflow node
+struct NodePopover: View {
+    @Binding var node: WorkflowNode
+    let onDelete: () -> Void
+    let onDuplicate: () -> Void
+
+    @State private var showAdvanced: Bool = false
+
+    // Provider/model loading
+    @State private var providers: [LLMProvider] = []
+    @State private var isLoadingProviders: Bool = false
+    @State private var selectedProviderId: String = ""
+    @State private var selectedModelId: String = ""
+
+    // Vision mode for transcribe/describe (used by shouldShowProviderSection)
+    @State private var visionMode: String = "apple"  // "apple" or "llm"
+
+    @EnvironmentObject var chatService: ChatServiceGenerated
+    @EnvironmentObject var documentStore: DocumentStore
+    @EnvironmentObject var savedSearchServiceGenerated: SavedSearchServiceGenerated
+    @EnvironmentObject var workflowService: WorkflowServiceGenerated
+
+    // Dynamic prompt from backend (fetched based on current config)
+    @State private var backendPrompt: String?
+    @State private var isLoadingPrompt: Bool = false
+
+    /// Get the tool info from the cached registry
+    private var toolInfo: ToolInfo? {
+        workflowService.getToolInfo(named: node.tool)
+    }
+
+    /// Get the current default prompt - from backend if available, otherwise nil
+    private var currentDefaultPrompt: String? {
+        // Use dynamically fetched prompt if available
+        if let prompt = backendPrompt {
+            return prompt
+        }
+        // Fall back to static default from tool info
+        return toolInfo?.defaultPrompt
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            headerBar
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    labelField
+
+                    // Tool-specific configuration
+                    toolConfigSection
+
+                    if shouldShowProviderSection {
+                        providerModelSection
+                    }
+
+                    advancedSection
+                    Divider()
+                    actionsRow
+                }
+                .padding()
+            }
+        }
+        .frame(width: 320)
+        .frame(minHeight: 400, maxHeight: 600)
+        .background(Color(.windowBackgroundColor))
+        .task {
+            guard !Task.isCancelled else { return }
+            // Initialize config states from node.config
+            initConfigFromNode()
+            // Load providers if section should be shown
+            if shouldShowProviderSection {
+                await loadProviders()
+            }
+        }
+        .onChange(of: visionMode) { _, newValue in
+            // Load providers when switching to LLM mode
+            if newValue == "llm" && providers.isEmpty {
+                Task { @MainActor in
+                    await loadProviders()
+                }
+            }
+        }
+    }
+
+    // MARK: - Tool Config Section
+
+    @ViewBuilder
+    private var toolConfigSection: some View {
+        // Special cases that need custom UI (access to environment objects)
+        switch node.tool {
+        case "collection":
+            CollectionNodeConfig(node: $node)
+                .environmentObject(documentStore)
+        case "search":
+            SearchNodeConfig(node: $node)
+                .environmentObject(savedSearchServiceGenerated)
+        case "files":
+            FilesNodeConfig(node: $node)
+                .environmentObject(documentStore)
+        case "transcribe":
+            TranscribeNodeConfig(
+                node: $node,
+                toolInfo: toolInfo,
+                backendPrompt: backendPrompt
+            )
+        case "describe":
+            DescribeNodeConfig(
+                node: $node,
+                toolInfo: toolInfo,
+                backendPrompt: backendPrompt
+            )
+        case "summarize_file":
+            SummarizeFileNodeConfig(node: $node)
+        case "summarize_folder":
+            SummarizeFolderNodeConfig(node: $node)
+        case "summarize_collection":
+            SummarizeCollectionNodeConfig(node: $node)
+        case "extract_entities":
+            ExtractEntitiesNodeConfig(node: $node)
+        default:
+            // Use dynamic config view for everything else
+            if let info = toolInfo, !info.configSchema.isEmpty {
+                DynamicConfigView(toolInfo: info, config: $node.config)
+            } else {
+                EmptyView()
+            }
+        }
+    }
+
+    // MARK: - Config Helpers
+
+    private func initConfigFromNode() {
+        // Vision mode only applies to tools that support Apple Vision (transcribe)
+        // Default to "apple" for transcribe, "llm" for all other vision tools
+        if Self.appleVisionTools.contains(node.tool) {
+            if let configValue = node.config?["vision_mode"],
+               case .string(let mode) = configValue {
+                visionMode = mode
+            } else {
+                visionMode = "apple"
+            }
+        } else {
+            visionMode = "llm"  // All other vision tools only support LLM
+        }
+    }
+
+    // MARK: - Header
+
+    private var headerBar: some View {
+        HStack(spacing: 12) {
+            Button(
+                action: { Task { await loadProviders() } },
+                label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption)
+                }
+            )
+            .buttonStyle(.plain)
+            .foregroundColor(.secondary)
+
+            HStack(spacing: 4) {
+                Text(node.label ?? node.tool)
+                    .font(.headline)
+                Image(systemName: "pencil")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            Toggle("", isOn: $node.enabled)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color(.controlBackgroundColor))
+    }
+
+    // MARK: - Label Field
+
+    private var labelField: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Label")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            TextField("Node label", text: Binding(
+                get: { node.label ?? node.tool },
+                set: { node.label = $0 }
+            ))
+            .textFieldStyle(.roundedBorder)
+        }
+    }
+
+    // MARK: - Provider/Model Section
+
+    private var providerModelSection: some View {
+        NodeProviderModelSelector(
+            node: $node,
+            selectedProviderId: $selectedProviderId,
+            selectedModelId: $selectedModelId,
+            isLoadingProviders: $isLoadingProviders,
+            providers: providers,
+            toolRequiresVision: toolRequiresVision,
+            onLoadProviders: loadProviders
+        )
+    }
+
+    // MARK: - Advanced Section
+
+    private var advancedSection: some View {
+        DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
+            VStack(alignment: .leading, spacing: 12) {
+                // Tool info
+                HStack {
+                    Text("Tool:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(node.tool)
+                        .font(.caption)
+                }
+
+                // Input mappings section
+                if !node.inputPorts.isEmpty {
+                    inputMappingsSection
+                }
+            }
+            .padding(.top, 8)
+        }
+    }
+
+    private var inputMappingsSection: some View {
+        NodeInputMappings(node: $node)
+    }
+
+    // MARK: - Actions Row
+
+    private var actionsRow: some View {
+        HStack {
+            Button(role: .destructive, action: onDelete) {
+                Label("Delete", systemImage: "trash")
+                    .font(.caption)
+            }
+
+            Spacer()
+
+            Button(action: onDuplicate) {
+                Label("Duplicate", systemImage: "doc.on.doc")
+                    .font(.caption)
+            }
+        }
+    }
+
+    // MARK: - Helpers
+
+    private var toolUsesLLM: Bool {
+        node.usesLLM
+    }
+
+    /// All vision category tools that require vision-capable models
+    private static let visionTools: Set<String> = [
+        "transcribe", "describe", "analyze", "caption", "classify",
+        "objects", "handwriting", "table_extract", "colors", "faces",
+        "scene", "tags", "layout", "safety", "quality", "style",
+        "extract", "diagram", "compare", "similarity"
+    ]
+
+    /// Tools that require vision-capable models
+    private var toolRequiresVision: Bool {
+        Self.visionTools.contains(node.tool)
+    }
+
+    /// Tools that support Apple Vision (on-device OCR) - only transcribe currently
+    private static let appleVisionTools: Set<String> = ["transcribe"]
+
+    /// Whether this tool supports switching between Apple Vision and LLM
+    private var toolSupportsAppleVision: Bool {
+        Self.appleVisionTools.contains(node.tool)
+    }
+
+    /// Whether to show the provider/model section
+    private var shouldShowProviderSection: Bool {
+        // For tools that support Apple Vision switching, only show when using LLM mode
+        if toolSupportsAppleVision {
+            return visionMode == "llm"
+        }
+        // For other vision tools (LLM-only), always show if it's a vision tool
+        if toolRequiresVision {
+            return true
+        }
+        // For non-vision tools, show if tool uses LLM
+        return toolUsesLLM
+    }
+
+    private func loadProviders() async {
+        guard !isLoadingProviders else { return }
+        isLoadingProviders = true
+        defer { isLoadingProviders = false }
+
+        do {
+            providers = try await chatService.listProviders()
+            logger.info("Loaded \(providers.count) providers, \(providers.filter { $0.available }.count) available")
+
+            // Restore selection from node if set
+            // providerName now stores the provider ID (e.g. "openrouter")
+            if let providerId = node.providerName,
+               let provider = providers.first(where: { $0.id == providerId }) {
+                selectedProviderId = provider.id
+                selectedModelId = node.modelName ?? provider.models.first ?? ""
+            }
+            // Don't auto-select a provider - let user choose
+        } catch {
+            logger.error("Failed to load providers: \(String(describing: error))")
+        }
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    let libraryManager = LibraryManager.shared
+    let library = libraryManager.globalLibrary!
+
+    NodePopover(
+        node: .constant(WorkflowNode(
+            tool: "transcribe",
+            label: "Transcribe Text",
+            positionX: 0,
+            positionY: 0,
+            inputPorts: [
+                PortInfo(
+                    id: "files", name: "Files", portType: "input",
+                    dataType: "files", required: true, description: ""
+                )
+            ],
+            outputPorts: [
+                PortInfo(
+                    id: "text", name: "Text", portType: "output",
+                    dataType: "text", required: true, description: ""
+                )
+            ]
+        )),
+        onDelete: {},
+        onDuplicate: {}
+    )
+    .environmentObject(library.chatServiceGenerated)
+    .environmentObject(library.documentStore)
+    .environmentObject(library.savedSearchServiceGenerated)
+    .environmentObject(library.workflowServiceGenerated)
+}

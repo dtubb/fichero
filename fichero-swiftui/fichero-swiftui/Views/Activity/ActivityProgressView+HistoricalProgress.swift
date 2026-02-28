@@ -1,0 +1,178 @@
+import SwiftUI
+
+// MARK: - Historical Progress Views
+
+extension ActivityProgressView {
+
+    @ViewBuilder
+    var historicalProgressView: some View {
+        if isLoadingTimeline {
+            ProgressView("Loading progress data...")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let timeline = progressTimeline {
+            historicalTimelineView(timeline)
+        } else {
+            VStack(spacing: 12) {
+                // Status badge
+                HStack {
+                    Image(systemName: ActivityViewHelpers.statusIcon(for: selectedRun.status))
+                        .foregroundStyle(ActivityViewHelpers.statusColor(for: selectedRun.status))
+                    Text(selectedRun.status.rawValue.capitalized)
+                        .font(.headline)
+                }
+
+                Text("Completed \(selectedRun.timestamp, style: .relative)")
+                    .foregroundStyle(.secondary)
+
+                Text("Progress data not available")
+                    .foregroundStyle(.tertiary)
+                    .font(.caption)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    @ViewBuilder
+    func historicalTimelineView(_ timeline: ProgressTimeline) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            // Node-level summary
+            if !timeline.nodes.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Node Summary")
+                        .font(.headline)
+
+                    ForEach(Array(timeline.nodes.keys.sorted()), id: \.self) { nodeId in
+                        if let stats = timeline.nodes[nodeId] {
+                            nodeStatsRow(nodeId: nodeId, stats: stats)
+                        }
+                    }
+                }
+                .padding()
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+            }
+
+            // Execution timeline (nodes + files)
+            if !timeline.steps.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Execution Timeline")
+                        .font(.headline)
+
+                    ForEach(Array(timeline.steps.enumerated()), id: \.offset) { _, step in
+                        if step.isNodeStep {
+                            nodeExecutionRow(step)
+                        } else if step.isFileStep {
+                            fileProgressRow(step)
+                                .padding(.leading, 20)  // Indent file steps
+                        }
+                    }
+                }
+                .padding()
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+            }
+        }
+    }
+
+    @ViewBuilder
+    func nodeStatsRow(nodeId: String, stats: NodeProgressStats) -> some View {
+        HStack {
+            Image(systemName: "square.stack.3d.up")
+                .foregroundStyle(.blue)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(nodeId.prefix(8) + "...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 16) {
+                    Label("\(stats.successCount) success", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Label("\(stats.errorCount) errors", systemImage: "xmark.circle.fill")
+                        .foregroundStyle(.red)
+                    Text("of \(stats.totalFiles) total")
+                        .foregroundStyle(.secondary)
+                }
+                .font(.caption)
+            }
+
+            Spacer()
+        }
+    }
+
+    @ViewBuilder
+    func nodeExecutionRow(_ step: ExecutionStep) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: step.status == "success" ? "checkmark.circle.fill" :
+                              step.status == "error" ? "xmark.circle.fill" : "circle")
+                .foregroundStyle(step.status == "success" ? .green :
+                                step.status == "error" ? .red : .secondary)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Node: \(step.nodeId.prefix(8))...")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+
+                HStack(spacing: 12) {
+                    if let duration = step.durationMs {
+                        Text(String(format: "%.1fs", duration / 1000))
+                            .font(.caption2)
+                    }
+                    if let filesProcessed = step.filesProcessed {
+                        Text("\(filesProcessed) files")
+                            .font(.caption2)
+                    }
+                    if let artifactsCreated = step.artifactsCreated {
+                        Text("\(artifactsCreated) artifacts")
+                            .font(.caption2)
+                    }
+                }
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    func fileProgressRow(_ step: ExecutionStep) -> some View {
+        HStack(spacing: 12) {
+            // Status icon
+            Image(systemName: step.status == "success" ? "checkmark.circle.fill" :
+                              step.status == "error" ? "xmark.circle.fill" : "circle")
+                .foregroundStyle(step.status == "success" ? .green :
+                                step.status == "error" ? .red : .secondary)
+                .font(.caption)
+
+            VStack(alignment: .leading, spacing: 4) {
+                if let filePath = step.filePath {
+                    HStack(spacing: 4) {
+                        if let fileIndex = step.fileIndex, let fileTotal = step.fileTotal {
+                            Text("[\(fileIndex)/\(fileTotal)]")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                        Text(URL(fileURLWithPath: filePath).lastPathComponent)
+                            .font(.caption)
+                            .lineLimit(1)
+                    }
+                }
+
+                if let duration = step.durationMs {
+                    Text(String(format: "%.2fs", duration / 1000))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let error = step.error {
+                    Text(error)
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                        .lineLimit(2)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 2)
+    }
+}

@@ -1,0 +1,3 @@
+[MESSAGES CONTROL]
+# Keep global checks strict; prefer targeted inline suppressions only when
+# dynamic runtime frameworks (e.g., PyObjC Vision APIs) cannot be statically inferred.

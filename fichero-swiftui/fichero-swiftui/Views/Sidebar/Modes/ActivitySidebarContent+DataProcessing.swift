@@ -1,0 +1,136 @@
+import SwiftUI
+
+// MARK: - Data Processing (File-level functions)
+
+// All runs grouped by workflow ID for a specific library
+@MainActor
+// swiftlint:disable:next function_body_length
+func runsByWorkflow(
+    for library: LibraryManager.LibraryReference,
+    activeExecutions: [String: WorkflowExecution],
+    historicalRuns: [UUID: [ActivityItem]]
+) -> [ActivityWorkflowGroup: [ActivityRun]] {
+    var groups: [ActivityWorkflowGroup: [ActivityRun]] = [:]
+    var seenThreadIds = Set<String>()
+
+    if library.id == LibraryManager.globalLibraryId {
+        for execution in activeExecutions.values {
+            let workflowName = activityCleanWorkflowName(execution.name)
+            let groupKey = ActivityWorkflowGroup(
+                id: ActivityWorkflowGroup.key(workflowId: execution.id, workflowName: workflowName),
+                displayName: workflowName
+            )
+            let status = activityMapExecutionStatus(execution.status)
+            let run = ActivityRun(
+                id: execution.threadId,
+                workflowId: execution.id,
+                threadId: execution.threadId,
+                workflowName: workflowName,
+                timestamp: execution.startTime,
+                status: status,
+                progress: execution.overallProgress,
+                currentStep: execution.currentNodeName,
+                errorCount: execution.nodeStates.values.reduce(0) { $0 + $1.errorCount },
+                fileCount: execution.totalFiles,
+                isLive: execution.isRunning
+            )
+            groups[groupKey, default: []].append(run)
+            seenThreadIds.insert(execution.threadId)
+        }
+    }
+
+    let libraryRuns = historicalRuns[library.id] ?? []
+    for item in libraryRuns where item.type != "workflow_started" {
+        guard let threadId = item.threadId else { continue }
+
+        if seenThreadIds.contains(threadId) {
+            continue
+        }
+
+        let status = activityMapActivityType(item.type)
+        let workflowName = activityExtractWorkflowName(from: item)
+        let groupKey = ActivityWorkflowGroup(
+            id: ActivityWorkflowGroup.key(workflowId: item.workflowId, workflowName: workflowName),
+            displayName: workflowName
+        )
+        let run = ActivityRun(
+            id: threadId,
+            workflowId: item.workflowId,
+            threadId: threadId,
+            workflowName: workflowName,
+            timestamp: item.parsedTimestamp ?? Date(),
+            status: status,
+            progress: nil,
+            currentStep: nil,
+            errorCount: activityHasError(item) ? 1 : 0,
+            fileCount: activityExtractFileCount(from: item),
+            isLive: false
+        )
+        groups[groupKey, default: []].append(run)
+        seenThreadIds.insert(threadId)
+    }
+
+    for key in groups.keys {
+        groups[key]?.sort { $0.timestamp > $1.timestamp }
+    }
+
+    return groups
+}
+
+func activityMapExecutionStatus(_ status: WorkflowStatus) -> ActivityRunStatus {
+    switch status {
+    case .running, .paused, .idle: return .running
+    case .completed: return .completed
+    case .failed: return .failed
+    }
+}
+
+func activityMapActivityType(_ type: String) -> ActivityRunStatus {
+    switch type {
+    case "workflow_completed": return .completed
+    case "workflow_failed": return .failed
+    case "workflow_cancelled": return .cancelled
+    default: return .completed
+    }
+}
+
+func activityHasError(_ item: ActivityItem) -> Bool {
+    if let error = item.error, !error.isEmpty { return true }
+    return item.type == "workflow_failed"
+}
+
+func activityExtractFileCount(from item: ActivityItem) -> Int {
+    if let count = item.metadata?["input_count"].flatMap(Int.init) { return count }
+    if let count = item.metadata?["total_results"].flatMap(Int.init) { return count }
+    if let count = item.metadata?["nodes_completed"].flatMap(Int.init) { return count }
+    return 0
+}
+
+func activityExtractWorkflowName(from item: ActivityItem) -> String {
+    if let name = item.metadata?["workflow_name"] { return activityCleanWorkflowName(name) }
+    if item.message.hasPrefix("Workflow '") {
+        let afterPrefix = String(item.message.dropFirst(10))
+        if let endQuote = afterPrefix.firstIndex(of: "'") {
+            return activityCleanWorkflowName(String(afterPrefix[..<endQuote]))
+        }
+    }
+    return "Unknown Workflow"
+}
+
+func activityCleanWorkflowName(_ name: String) -> String {
+    name.hasPrefix("Workflow ") ? String(name.dropFirst(9)) : name
+}
+
+func activityRunDisplayName(for run: ActivityRun) -> String {
+    let formatter = DateFormatter()
+    let daysSince = Calendar.current.dateComponents([.day], from: run.timestamp, to: Date()).day ?? 0
+    switch daysSince {
+    case 0: formatter.dateFormat = "'Today' h:mm a"
+    case 1: formatter.dateFormat = "'Yesterday' h:mm a"
+    case 2..<7: formatter.dateFormat = "EEE MMM d, h:mm a"
+    default: formatter.dateFormat = "MMM d, h:mm a"
+    }
+    var name = formatter.string(from: run.timestamp)
+    if run.fileCount > 0 { name += " (\(run.fileCount) files)" }
+    return name
+}

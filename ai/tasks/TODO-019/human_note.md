@@ -1,1 +1,0 @@
-I think we need to udpate `\ai\context\` properly, for cotnext for the app,. we have api in teh backend and the frontent, we ahve the ai folder. we are also in feature planning mode. not. how to do this.
