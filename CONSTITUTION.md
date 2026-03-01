@@ -4,17 +4,17 @@
 
 Fichero is a native macOS document management system with AI processing. It gives a researcher's document corpus — PDFs, fieldwork notes, audio recordings, images, transcripts, references — a single home with semantic understanding. You can ask a question and find the relevant passage, not just the filename.
 
-Built for Daniel Tubb, a Canadian anthropologist. Designed for one researcher first; distribution is a later milestone.
+Designed for a single researcher first; distribution is a later milestone.
 
 ## The Problem
 
-Daniel works with a large, heterogeneous document corpus accumulated over years of fieldwork. These files are scattered across tools and folders. Finding something means remembering where you put it. Connecting a document to a manuscript note means manual work. There is no single place that understands what the documents contain.
+A researcher accumulates a large, heterogeneous document corpus over years of fieldwork — PDFs, fieldwork notes, audio, transcripts, references. These files are scattered across tools and folders. Finding something means remembering where you put it. Connecting a document to a manuscript note means manual work. There is no single place that understands what the documents contain.
 
-Fichero solves this: import everything, extract text and meaning, make it searchable by content, and connect it to the rest of Daniel's research stack.
+Fichero solves this: import everything, extract text and meaning, make it searchable by content, and connect it to the rest of the research stack.
 
 ## Where Fichero Fits
 
-Daniel's research infrastructure has several specialized tools. Each does one thing well:
+The target research infrastructure has several specialized tools. Each does one thing well:
 
 | Tool | Role |
 |---|---|
@@ -30,17 +30,17 @@ The Tinderbox Router is an MCP multiplexer that will connect Fichero to the manu
 
 ## What Fichero Is Not
 
-- **Not a writing tool.** Daniel's prose lives in Tinderbox. Fichero never writes manuscript content.
+- **Not a writing tool.** The researcher's prose lives in Tinderbox. Fichero never writes manuscript content.
 - **Not a reference manager.** That's Bookends.
 - **Not a note-taking app.** That's Tinderbox and the Slip Box.
 - **Not a DevonThink replacement.** It complements DevonThink — importing from it is a workflow.
-- **Not a cloud service.** It runs locally on macOS. No server, no subscription, no data leaves the machine unless Daniel chooses a cloud LLM provider.
+- **Not a cloud service.** It runs locally on macOS. No server, no subscription, no data leaves the machine unless the user opts into a cloud LLM provider.
 
 ## What v1.0 Looks Like
 
-A macOS app that Daniel actually uses daily:
+A macOS app a researcher actually uses daily:
 
-1. **Imports any document type** he works with (37+ formats: PDF, DOCX, audio, video, images, archives)
+1. **Imports any document type** in a research corpus (37+ formats: PDF, DOCX, audio, video, images, archives)
 2. **Semantic search** across the full corpus — find documents by meaning, not just filename
 3. **RAG-based Q&A** — ask questions about documents, get answers with source citations
 4. **AI workflows** — visual node editor for document processing pipelines (LangGraph)
@@ -72,7 +72,7 @@ These don't change:
 
 1. **Native macOS only.** SwiftUI. Not Electron, not a web app.
 2. **Offline-first.** Must work without internet via local models (Ollama). Cloud providers are optional.
-3. **Daniel writes; Fichero processes.** The app never generates manuscript prose.
+3. **The researcher writes; Fichero processes.** The app never generates manuscript prose.
 4. **No data leaves the machine by default.** Cloud LLM providers are opt-in, clearly labeled.
 5. **Stability before features.** What works must keep working. New features don't break existing ones.
 6. **Data must be portable across Macs via Dropbox — no hardcoded paths.**
@@ -87,7 +87,7 @@ These don't change:
 
 ## What Success Looks Like
 
-- Daniel uses Fichero to find documents he half-remembers from fieldwork years ago
+- A researcher can find documents half-remembered from fieldwork years ago
 - Semantic search returns relevant passages, not just filenames
 - Local Ollama models work without internet — useful during fieldwork travel
 - The app doesn't crash, doesn't lose data, doesn't surprise
