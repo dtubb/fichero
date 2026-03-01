@@ -1,41 +1,95 @@
-# Fichero Constitution
+# Constitution — Fichero
 
-## 1. Professional Tone
-- Use professional English. No emojis (except in the designated 🍄 identity).
-- No sycophancy. Be direct and concise.
+## What This Is
 
-## 2. Coding Standards
-- **Frontend (SwiftUI):**
-    - 100% pure SwiftUI. No AppKit.
-    - Strictly follow Swift 6 concurrency patterns (@MainActor).
-    - File size limit: < 400 lines (hard limit: 1000 lines).
-    - SwiftLint compliance is mandatory (zero warnings).
-- **Backend (Python):**
-    - FastAPI for API routes.
-    - Pydantic v2 for all data models.
-    - DuckDB for metadata, LanceDB for vectors.
-    - Business logic in core modules, not in routes.
+Fichero is a native macOS document management system with AI processing. It gives a researcher's document corpus — PDFs, fieldwork notes, audio recordings, images, transcripts, references — a single home with semantic understanding. You can ask a question and find the relevant passage, not just the filename.
 
-## 3. Workflow & Memory
-- Follow the Agent Workflow in `docs/agent-workflow/`.
-- Always check `TODO.md` before starting work.
-- Use `inbox/` for new planning items.
-- **GitHub Workflow:**
-    - Use separate feature branches for all new development (e.g., `feature/XXX-description`).
-    - Create/update GitHub Issues to track progress.
-    - Push incremental commits with descriptive messages.
-    - Merge back to the active development branch only after verification.
-- Update `memory/` files daily with progress and decisions.
-- Maintain `MEMORY.md` as the long-term source of truth.
+Built for Daniel Tubb, a Canadian anthropologist. Designed for one researcher first; distribution is a later milestone.
 
-## 4. Security & Safety
-- Never send email as Daniel. Draft only or send as "AI assistant".
-- Never impersonate Daniel to students or colleagues.
-- No external actions without explicit permission.
-- Use `trash` instead of `rm` for file deletions.
+## The Problem
 
-## 5. Interaction Model
-- Act as Chief of Staff, not just a chatbot.
-- Be proactive but respect boundaries.
-- Provide morning briefings and manage sub-agents.
-- Conserve the context window.
+Daniel works with a large, heterogeneous document corpus accumulated over years of fieldwork. These files are scattered across tools and folders. Finding something means remembering where you put it. Connecting a document to a manuscript note means manual work. There is no single place that understands what the documents contain.
+
+Fichero solves this: import everything, extract text and meaning, make it searchable by content, and connect it to the rest of Daniel's research stack.
+
+## Where Fichero Fits
+
+Daniel's research infrastructure has several specialized tools. Each does one thing well:
+
+| Tool | Role |
+|---|---|
+| **Tinderbox** | Manuscript structure, note linking, writing |
+| **Slip Box** | ~28K coded field notes (read-only archive) |
+| **Bookends** | Reference management, citations |
+| **DevonThink** | Existing document archive |
+| **Fichero** | Document management + AI processing (this project) |
+
+Fichero is the **document layer**. It imports from Bookends and DevonThink, provides semantic search and AI workflows over the full corpus, and will eventually link documents to Tinderbox notes — completing the research stack.
+
+The Tinderbox Router is an MCP multiplexer that will connect Fichero to the manuscript system and a research-assistant agent (Escribano). The long-term integration: a document in Fichero gets linked to a Tinderbox note, giving the manuscript system access to source material alongside structure. Right now: get the documents organized and searchable.
+
+## What Fichero Is Not
+
+- **Not a writing tool.** Daniel's prose lives in Tinderbox. Fichero never writes manuscript content.
+- **Not a reference manager.** That's Bookends.
+- **Not a note-taking app.** That's Tinderbox and the Slip Box.
+- **Not a DevonThink replacement.** It complements DevonThink — importing from it is a workflow.
+- **Not a cloud service.** It runs locally on macOS. No server, no subscription, no data leaves the machine unless Daniel chooses a cloud LLM provider.
+
+## What v1.0 Looks Like
+
+A macOS app that Daniel actually uses daily:
+
+1. **Imports any document type** he works with (37+ formats: PDF, DOCX, audio, video, images, archives)
+2. **Semantic search** across the full corpus — find documents by meaning, not just filename
+3. **RAG-based Q&A** — ask questions about documents, get answers with source citations
+4. **AI workflows** — visual node editor for document processing pipelines (LangGraph)
+5. **Offline-first** — works with local models (Ollama) without internet; cloud providers optional
+6. **Integrations** — Bookends (import references), DevonThink (archive bridge), Tinderbox Router (link to manuscript)
+7. **Native Mac quality** — SwiftUI, fast launch, light resources, feels like it belongs on macOS
+
+## How It Works
+
+```
+SwiftUI macOS App (native UI)
+    ↕ HTTP on localhost:8765
+Python FastAPI Backend
+    ├── DuckDB (structured metadata)
+    ├── LanceDB (vector embeddings for semantic search)
+    ├── LangGraph (visual workflow execution)
+    └── LiteLLM (100+ LLM providers: Ollama, Anthropic, OpenAI, Groq...)
+```
+
+Two codebases, one contract:
+
+- **`fichero-swiftui/`** — Pure SwiftUI frontend. Three-column layout (sidebar, content, inspector). The UI layer — all business logic lives in the backend.
+- **`fichero-api/`** — Python FastAPI backend. Document storage, AI processing, search, workflow execution, LLM orchestration.
+- **OpenAPI schema** — The contract between frontend and backend. Swift client is auto-generated from the Python API's schema. When the backend changes, regenerate — never edit generated code by hand.
+
+## Hard Constraints
+
+These don't change:
+
+1. **Native macOS only.** SwiftUI. Not Electron, not a web app.
+2. **Offline-first.** Must work without internet via local models (Ollama). Cloud providers are optional.
+3. **Daniel writes; Fichero processes.** The app never generates manuscript prose.
+4. **No data leaves the machine by default.** Cloud LLM providers are opt-in, clearly labeled.
+5. **Stability before features.** What works must keep working. New features don't break existing ones.
+6. **Data must be portable across Macs via Dropbox — no hardcoded paths.**
+
+## Versioning
+
+- **M0 (v0.0.1)** — Core stable: document management works reliably, advanced features safely disabled behind feature flags
+- **M1 (v0.1.0)** — Data integrity, test coverage of core paths
+- **M2** — Feature completeness: all planned features working and tested
+- **M3** — Distribution: packaged, signed, ready to share
+- **M4 / v1.0** — Full vision: Tinderbox integration, polished, documented
+
+## What Success Looks Like
+
+- Daniel uses Fichero to find documents he half-remembers from fieldwork years ago
+- Semantic search returns relevant passages, not just filenames
+- Local Ollama models work without internet — useful during fieldwork travel
+- The app doesn't crash, doesn't lose data, doesn't surprise
+- A document in Fichero links to a Tinderbox note — the research stack is complete
+
