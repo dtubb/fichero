@@ -39,7 +39,7 @@ logs/
 fichero-swiftui/derived_data/
 fichero-swiftui/fichero-swiftui/Resources/FicheroBackend.app/
 # Local tooling
-.claude/
+
 .aider*
 opencode.json
 
@@ -60,3 +60,4 @@ io_worker.log
 dump.rdb
 .empty/
 .mcp.json
+.claude/settings.local.json
