@@ -139,25 +139,31 @@ struct FicheroApp: App {
 
                 FocusedNewSearchButton()
 
-                FocusedNewChatButton()
+                if FeatureManager.shared.isChatEnabled {
+                    FocusedNewChatButton()
+                }
 
                 FocusedNewComparisonButton()
 
-                Divider()
+                if FeatureManager.shared.isWorkflowsEnabled {
+                    Divider()
 
-                FocusedNewWorkflowButton()
+                    FocusedNewWorkflowButton()
 
-                FocusedNewChainButton()
+                    FocusedNewChainButton()
 
-                Divider()
+                    Divider()
 
-                FocusedNewScheduleButton()
+                    FocusedRunWorkflowOnSelectionButton()
+                }
 
-                FocusedNewTriggerButton()
+                if FeatureManager.shared.isAutomationEnabled {
+                    Divider()
 
-                Divider()
+                    FocusedNewScheduleButton()
 
-                FocusedRunWorkflowOnSelectionButton()
+                    FocusedNewTriggerButton()
+                }
             }
 
             // Edit menu
@@ -183,32 +189,38 @@ struct FicheroApp: App {
             // Update checking will be added via Sparkle framework when ready for distribution
 
             CommandGroup(after: .appSettings) {
-                Divider()
-
-                Button("AI Providers & Models...") {
-                    appState.showProvidersSettings = true
-                }
-
-                Button("MCP Servers...") {
-                    appState.showMCPServers = true
-                }
-
-                Divider()
-
-                // Integrations submenu (Hazel-like folder/app observers)
-                Menu("Integrations") {
-                    Button("Folder Watchers...") {
-                        appState.showFolderWatchers = true
-                    }
-
-                    Button("App Observers...") {
-                        appState.showAppObservers = true
-                    }
-
+                if FeatureManager.shared.isProvidersEnabled {
                     Divider()
 
-                    Button("Automation Rules...") {
-                        appState.showAutomationRules = true
+                    Button("AI Providers & Models...") {
+                        appState.showProvidersSettings = true
+                    }
+                }
+
+                if FeatureManager.shared.isMCPEnabled {
+                    Button("MCP Servers...") {
+                        appState.showMCPServers = true
+                    }
+                }
+
+                if FeatureManager.shared.isAutomationEnabled {
+                    Divider()
+
+                    // Integrations submenu (Hazel-like folder/app observers)
+                    Menu("Integrations") {
+                        Button("Folder Watchers...") {
+                            appState.showFolderWatchers = true
+                        }
+
+                        Button("App Observers...") {
+                            appState.showAppObservers = true
+                        }
+
+                        Divider()
+
+                        Button("Automation Rules...") {
+                            appState.showAutomationRules = true
+                        }
                     }
                 }
             }

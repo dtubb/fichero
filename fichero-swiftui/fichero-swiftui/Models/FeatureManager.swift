@@ -19,11 +19,13 @@ class FeatureManager: ObservableObject {
     // MARK: - Advanced Features (Target: v0.1.0+)
     
     @AppStorage("fichero.features.workflows") private var workflowsEnabledInternal: Bool = false
-    @AppStorage("fichero.features.chat") private var chatEnabledInternal: Bool = true
+    @AppStorage("fichero.features.chat") private var chatEnabledInternal: Bool = false
     @AppStorage("fichero.features.agents") private var agentsEnabledInternal: Bool = false
     @AppStorage("fichero.features.automation") private var automationEnabledInternal: Bool = false
     @AppStorage("fichero.features.mcp") private var mcpEnabledInternal: Bool = false
     @AppStorage("fichero.features.activity") private var activityEnabledInternal: Bool = false
+    @AppStorage("fichero.features.providers") private var providersEnabledInternal: Bool =
+        ProcessInfo.processInfo.environment["FICHERO_FEATURE_TIER"] == "dev"
 
     var isWorkflowsEnabled: Bool { allFeaturesEnabled || workflowsEnabledInternal }
     var isChatEnabled: Bool { allFeaturesEnabled || chatEnabledInternal }
@@ -31,6 +33,7 @@ class FeatureManager: ObservableObject {
     var isAutomationEnabled: Bool { allFeaturesEnabled || automationEnabledInternal }
     var isMCPEnabled: Bool { allFeaturesEnabled || mcpEnabledInternal }
     var isActivityEnabled: Bool { allFeaturesEnabled || activityEnabledInternal }
+    var isProvidersEnabled: Bool { allFeaturesEnabled || providersEnabledInternal }
 
     private init() {}
     
@@ -38,7 +41,7 @@ class FeatureManager: ObservableObject {
     func resetToV001() {
         allFeaturesEnabled = false
         workflowsEnabledInternal = false
-        chatEnabledInternal = true
+        chatEnabledInternal = false
         agentsEnabledInternal = false
         automationEnabledInternal = false
         mcpEnabledInternal = false
