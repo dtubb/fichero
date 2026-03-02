@@ -205,45 +205,32 @@ from fichero.api.routes import (
     search,
     ingest,
     storage,
-    chat,
     providers,
-    workflows,
-    workflow_execution,
     models,
     folders,
-    mcp_servers,
-    batch,
-    activity,
-    schedules,
-    triggers,
-    integrations,
-    actions,
-    model_comparison,
-    chains,
     artifacts,
     settings,
-    local_models,
 )
 
+# Feature tier gating — controls which route groups are active
+_feature_tier = os.environ.get("FICHERO_FEATURE_TIER", "release")
+_dev_features_enabled = _feature_tier in ("dev",)
+
+# --- release tier routes (always active) ---
 app.include_router(documents.router, prefix="/api/documents", tags=["documents"])
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(ingest.router, prefix="/api/ingest", tags=["ingest"])
 app.include_router(storage.router, prefix="/api/storage", tags=["storage"])
-app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
-app.include_router(providers.router, prefix="/api/providers", tags=["providers"])
-app.include_router(workflows.router, prefix="/api/workflows", tags=["workflows"])
-app.include_router(workflow_execution.router, prefix="/api/workflow-execution", tags=["workflow-execution"])
-app.include_router(models.router, prefix="/api/models", tags=["models"])
 app.include_router(folders.router, prefix="/api/folders", tags=["folders"])
-app.include_router(mcp_servers.router, prefix="/api", tags=["mcp-servers"])
-app.include_router(batch.router, prefix="/api", tags=["batches"])
-app.include_router(activity.router, prefix="/api", tags=["activity"])
-app.include_router(schedules.router, prefix="/api", tags=["schedules"])
-app.include_router(triggers.router, prefix="/api", tags=["triggers"])
-app.include_router(integrations.router, prefix="/api", tags=["integrations"])
-app.include_router(actions.router, prefix="/api", tags=["actions"])
-app.include_router(model_comparison.router, prefix="/api", tags=["model-comparison"])
-app.include_router(chains.router, prefix="/api", tags=["chains"])
 app.include_router(artifacts.router, prefix="/api/artifacts", tags=["artifacts"])
 app.include_router(settings.router, tags=["settings"])
-app.include_router(local_models.router, prefix="/api", tags=["local-models"])
+
+# --- dev tier routes (active when FICHERO_FEATURE_TIER=dev) ---
+if _dev_features_enabled:
+    app.include_router(providers.router, prefix="/api/providers", tags=["providers"])
+    app.include_router(models.router, prefix="/api/models", tags=["models"])
+
+# --- off tier routes (0.0.1: not registered) ---
+# chat, workflows, workflow_execution, batch, activity, schedules, triggers,
+# integrations, actions, mcp_servers, model_comparison, chains, local_models
+# Uncomment when promoting to appropriate tier.
