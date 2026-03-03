@@ -80,10 +80,17 @@
 
 - [ ] `GET /chat/...` returns 404
 - [ ] `GET /workflows/...` returns 404
+- [ ] `GET /workflow-execution/...` returns 404
 - [ ] `GET /batch/...` returns 404
 - [ ] `GET /activity/...` returns 404
 - [ ] `GET /schedules/...` returns 404
 - [ ] `GET /triggers/...` returns 404
+- [ ] `GET /integrations/...` returns 404
+- [ ] `GET /actions/...` returns 404
+- [ ] `GET /mcp-servers/...` returns 404
+- [ ] `GET /model-comparison/...` returns 404
+- [ ] `GET /chains/...` returns 404
+- [ ] `GET /local-models/...` returns 404
 
 **Dev-tier routes must also be hidden at default tier:**
 
@@ -92,11 +99,15 @@
 
 ## 10. Dev Tier — Provider Surface (env var override)
 
+`FICHERO_FEATURE_TIER` only changes backend route availability. It does not expose hidden frontend UI by itself.
+
 **Restart backend with `FICHERO_FEATURE_TIER=dev`:**
 
 - [ ] `GET /providers/...` now returns 200
 - [ ] `GET /models/...` now returns 200
 - [ ] Off-tier routes (chat, workflows, etc.) still return 404
+
+`FICHERO_ALL_FEATURES=1` only changes frontend feature visibility. It does not make backend-only routes available unless the backend is also running with `FICHERO_FEATURE_TIER=dev`.
 
 **Restart frontend with `FICHERO_ALL_FEATURES=1`:**
 
