@@ -31,7 +31,6 @@ Usage:
 from pydantic import BaseModel, Field, ConfigDict, computed_field
 from datetime import datetime
 from enum import Enum
-from pathlib import Path
 from typing import Any
 from uuid import uuid4
 import base64

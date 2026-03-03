@@ -16,7 +16,7 @@ from typing import Any, TYPE_CHECKING
 from pydantic import BaseModel, Field, ConfigDict
 
 if TYPE_CHECKING:
-    from PIL import Image
+    pass
 
 
 class MediaContent(BaseModel):
@@ -105,7 +105,6 @@ class MediaLoader(ABC):
 
         For use in non-async contexts.
         """
-        import asyncio
 
         try:
             loop = asyncio.get_running_loop()

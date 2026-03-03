@@ -16,7 +16,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, AsyncIterator, Callable, Optional
+from typing import Any, AsyncIterator, Optional
 
 import duckdb
 
@@ -315,7 +315,7 @@ class ActivityStore:
                 if filter.levels:
                     placeholders = ", ".join("?" * len(filter.levels))
                     conditions.append(f"level IN ({placeholders})")
-                    params.extend([l.value for l in filter.levels])
+                    params.extend([lvl.value for lvl in filter.levels])
 
                 if filter.workflow_id:
                     conditions.append("workflow_id = ?")
@@ -440,9 +440,9 @@ class ActivityStore:
                 return ActivityStats(
                     total_activities=total,
                     activities_by_type={t[0]: t[1] for t in type_counts},
-                    activities_by_level={l[0]: l[1] for l in level_counts},
-                    error_count=sum(l[1] for l in level_counts if l[0] == 'error'),
-                    warning_count=sum(l[1] for l in level_counts if l[0] == 'warning'),
+                    activities_by_level={lc[0]: lc[1] for lc in level_counts},
+                    error_count=sum(lc[1] for lc in level_counts if lc[0] == 'error'),
+                    warning_count=sum(lc[1] for lc in level_counts if lc[0] == 'warning'),
                     avg_workflow_duration_ms=avg_duration,
                     success_rate=success_rate,
                     period_start=since,

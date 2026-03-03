@@ -18,7 +18,6 @@ from fichero.workflows.tools.llm_base import (
     BASE_OUTPUT_PORTS,
     merge_config_schema,
     build_context_section,
-    build_output_constraint,
     parse_output,
 )
 from fichero.workflows.tools.vision_base import (

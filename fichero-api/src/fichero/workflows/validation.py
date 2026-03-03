@@ -7,12 +7,10 @@ Functions for validating tool connections, node configurations, and workflow str
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from fichero.workflows.types import (
     PortDef,
     NodeDef,
-    EdgeDef,
     WorkflowDef,
     DataType,
     ToolDef,

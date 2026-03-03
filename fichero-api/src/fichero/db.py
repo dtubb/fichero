@@ -44,11 +44,8 @@ import re
 import duckdb
 from pydantic import BaseModel
 from fichero.errors import (
-    DatabaseError, 
-    FileSystemError, 
     ErrorCategory,
     handle_error,
-    log_and_recover,
     retry_on_failure
 )
 
@@ -493,7 +490,6 @@ class Database:
             Tuple of (results, total_count, search_stats)
         """
         import time
-        from typing import Any
         
         if not query or not query.strip():
             return [], 0, {"search_type": "none"}
@@ -633,7 +629,7 @@ class Database:
                                     to_date = datetime.fromisoformat(filters["date_to"])
                                     if created_date > to_date:
                                         match = False
-                            except:
+                            except (ValueError, TypeError):
                                 pass
                     
                     if match:

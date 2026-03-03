@@ -6,12 +6,11 @@ Provides endpoints for managing and executing workflow chains.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import uuid
 from typing import Any, Callable
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Header
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Header
 from pydantic import BaseModel, Field
 
 from fichero.workflows.chaining import (
@@ -27,7 +26,7 @@ from fichero.workflows.chaining import (
 )
 from fichero.workflows.types import WorkflowDef
 from fichero.workflows.workflow_store import WorkflowStore
-from fichero.db import Database, db_manager
+from fichero.db import db_manager
 
 logger = logging.getLogger(__name__)
 
@@ -365,7 +364,7 @@ async def execute_chain(
         execution_id=execution_id,
         chain_id=chain_id,
         status="running",
-        message=f"Chain execution started",
+        message="Chain execution started",
     )
 
 

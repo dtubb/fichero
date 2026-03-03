@@ -16,7 +16,6 @@ from __future__ import annotations
 import logging
 import uuid
 from typing import Callable, Any
-from functools import wraps
 
 from fichero.workflows.types import (
     ToolDef,

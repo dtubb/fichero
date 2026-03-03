@@ -14,7 +14,7 @@ from typing import Any, AsyncGenerator
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request, Response
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from fichero.db import Database
@@ -276,11 +276,11 @@ async def _run_workflow_in_background(
                 logger.warning(f"Could not load default provider: {e}")
 
         # Generate and save Python code
-        await log_execution(f"Generating Python code for workflow")
+        await log_execution("Generating Python code for workflow")
         python_code = _generate_workflow_python_code(workflow)
 
         # Create workflow snapshot for historical visualization (even if workflow is deleted)
-        await log_execution(f"Creating workflow snapshot")
+        await log_execution("Creating workflow snapshot")
         workflow_snapshot = {
             "nodes": [
                 {"id": n["id"], "tool": n["tool"], "label": n.get("label", "")}
@@ -294,7 +294,7 @@ async def _run_workflow_in_background(
         }
 
         # Build node name mapping (UUID → readable name)
-        await log_execution(f"Building node name mapping")
+        await log_execution("Building node name mapping")
         node_name_map = {}
         name_counts = {}
         for node in workflow.nodes:
@@ -312,7 +312,7 @@ async def _run_workflow_in_background(
             node_name_map[node_id] = unique_name
 
         # Generate Mermaid diagram for historical viewing
-        await log_execution(f"Generating workflow diagram")
+        await log_execution("Generating workflow diagram")
         try:
             app_preview = build_graph(workflow_def, enable_parallel=True, checkpointer=None)
             diagram_mermaid = app_preview.get_graph().draw_mermaid()
@@ -331,7 +331,7 @@ async def _run_workflow_in_background(
             diagram_mermaid=diagram_mermaid,
             started_at=start_time,
         )
-        await log_execution(f"Saved workflow run record with snapshot")
+        await log_execution("Saved workflow run record with snapshot")
 
         # Create event callback for parallel processing events
         async def emit_parallel_event(event_type: str, data: dict) -> None:
@@ -1433,7 +1433,6 @@ def _build_workflow_with_checkpointer(
         Compiled LangGraph application with checkpointing
     """
     from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
-    from fichero.workflows.builder import build_graph, PARALLEL_TOOLS, SOURCE_TOOLS
 
     # Convert Workflow model to WorkflowDef
     workflow_def = WorkflowDef(
@@ -1483,7 +1482,7 @@ def _build_workflow_with_checkpointer(
     logger.debug(f"Building workflow '{workflow_def.name}': {len(workflow_def.nodes)} nodes, {len(workflow_def.edges)} edges")
 
     # Log edges and detect parallel edges
-    print(f"[BUILD] Edges:")
+    print("[BUILD] Edges:")
     for edge in workflow_def.edges:
         target_node = workflow_def.get_node(edge.target)
         source_node = workflow_def.get_node(edge.source)
@@ -1876,7 +1875,7 @@ def _generate_workflow_python_code(workflow: Workflow) -> str:
     using LangGraph primitives.
     """
     # Collect tool imports
-    tools_used = set(n.get("tool", "") for n in workflow.nodes if n.get("tool"))
+    set(n.get("tool", "") for n in workflow.nodes if n.get("tool"))
 
     # Build code
     lines = [
@@ -1925,18 +1924,18 @@ def _generate_workflow_python_code(workflow: Workflow) -> str:
 
         lines.extend([
             f'def {func_name}(state: State) -> dict[str, Any]:',
-            f'    """',
+            '    """',
             f'    Node: {label}',
             f'    Tool: {tool_name}',
-            f'    """',
+            '    """',
             f'    tool_fn = get_tool("{tool_name}")',
-            f'    if tool_fn is None:',
+            '    if tool_fn is None:',
             f'        return {{"errors": state.get("errors", []) + ["Tool not found: {tool_name}"]}}',
-            f'    ',
-            f'    # Get inputs from state',
-            f'    inputs = {{',
-            f'        "files": state.get("files", []),',
-            f'        "results": state.get("results", []),',
+            '    ',
+            '    # Get inputs from state',
+            '    inputs = {',
+            '        "files": state.get("files", []),',
+            '        "results": state.get("results", []),',
         ])
 
         # Add config values
@@ -1947,16 +1946,16 @@ def _generate_workflow_python_code(workflow: Workflow) -> str:
                 lines.append(f'        "{key}": {value!r},')
 
         lines.extend([
-            f'    }}',
-            f'    ',
-            f'    # Execute tool',
-            f'    try:',
-            f'        result = tool_fn(inputs)',
-            f'        return result',
-            f'    except Exception as e:',
-            f'        return {{"errors": state.get("errors", []) + [str(e)]}}',
-            f'',
-            f'',
+            '    }',
+            '    ',
+            '    # Execute tool',
+            '    try:',
+            '        result = tool_fn(inputs)',
+            '        return result',
+            '    except Exception as e:',
+            '        return {"errors": state.get("errors", []) + [str(e)]}',
+            '',
+            '',
         ])
 
     # Build graph

@@ -26,7 +26,6 @@ from fichero.workflows.activity import (
     ActivityFilter,
     ActivityLevel,
     ActivityStats,
-    ActivityTracker,
     ActivityType,
     get_activity_tracker,
 )
@@ -137,7 +136,7 @@ async def list_activities(
     level_list = None
     if levels:
         try:
-            level_list = [ActivityLevel(l.strip()) for l in levels.split(",")]
+            level_list = [ActivityLevel(lvl.strip()) for lvl in levels.split(",")]
         except ValueError as e:
             raise HTTPException(status_code=400, detail=f"Invalid activity level: {e}")
 
@@ -236,7 +235,7 @@ async def stream_activities(
     level_list = None
     if levels:
         try:
-            level_list = [ActivityLevel(l.strip()) for l in levels.split(",")]
+            level_list = [ActivityLevel(lvl.strip()) for lvl in levels.split(",")]
         except ValueError:
             pass
 

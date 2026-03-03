@@ -40,10 +40,13 @@ import mimetypes
 import shutil
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Iterator
+from typing import TYPE_CHECKING, Callable, Iterator
 from uuid import uuid4
 
 from fichero.models import Document, DocType, FileType, Status
+
+if TYPE_CHECKING:
+    from fichero.db import Database
 
 logger = logging.getLogger(__name__)
 

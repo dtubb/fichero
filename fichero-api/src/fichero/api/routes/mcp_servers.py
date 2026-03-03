@@ -5,7 +5,6 @@ API endpoints for managing MCP (Model Context Protocol) servers.
 """
 
 import logging
-from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel

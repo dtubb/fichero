@@ -32,7 +32,6 @@ from fichero.workflows.types import PortDef, DataType
 from fichero.workflows.tools.llm_base import (
     # Port and config definitions
     BASE_INPUT_PORTS,
-    BASE_OUTPUT_PORTS,
     BASE_CONFIG_SCHEMA,
     merge_config_schema,
     merge_ports,

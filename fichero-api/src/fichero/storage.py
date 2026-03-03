@@ -456,7 +456,6 @@ def clear_all() -> int:
     Returns:
         Number of files removed
     """
-    import shutil
 
     thumb_dir = settings.thumb_dir
     if not thumb_dir.exists():
@@ -543,7 +542,7 @@ async def save_uploaded_file(file) -> Path:
         # Clean up on error
         try:
             temp_path.unlink()
-        except:
+        except OSError:
             pass
         raise e
 

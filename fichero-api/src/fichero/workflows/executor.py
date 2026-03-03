@@ -24,17 +24,12 @@ from dataclasses import dataclass, field
 from enum import Enum
 from collections import defaultdict
 
-from langgraph.graph import StateGraph, START, END
 from langgraph.graph.state import CompiledStateGraph
 
 from fichero.workflows.types import (
     State as BaseState,
     WorkflowDef,
-    NodeDef,
-    EdgeDef,
 )
-from fichero.workflows.registry import TOOLS, get_tool, get_tool_def
-from fichero.workflows.resolver import resolve_inputs, evaluate_condition
 from fichero.workflows.builder import build_graph
 from fichero.llm import LLMConfig
 
@@ -182,7 +177,7 @@ class WorkflowExecutor:
     async def _process_event_queue(self) -> None:
         """Process events from the queue."""
         while not self._event_queue.empty():
-            event = await self._event_queue.get()
+            await self._event_queue.get()
             # Events are already processed by listeners in _emit_event
             self._event_queue.task_done()
     
@@ -251,7 +246,7 @@ class WorkflowExecutor:
                     event_type=ProgressEventType.WORKFLOW_COMPLETED,
                     task_id=task_id,
                     workflow_id=self.workflow.id,
-                    message=f"Workflow completed successfully",
+                    message="Workflow completed successfully",
                     progress=1.0,
                 ))
             
@@ -708,8 +703,7 @@ async def validate_workflow_executor() -> bool:
     """Validate that the workflow executor is properly configured."""
     try:
         # Test basic functionality
-        from fichero.workflows.types import WorkflowDef, NodeDef
-        from fichero.workflows.registry import TOOL_DEFS
+        from fichero.workflows.types import WorkflowDef
         
         # Create a simple test workflow
         test_workflow = WorkflowDef(

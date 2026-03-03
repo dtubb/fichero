@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import logging
 from typing import Any
-from pathlib import Path
 
 from fichero.workflows.types import State, PortDef, DataType
 from fichero.workflows.registry import register_tool

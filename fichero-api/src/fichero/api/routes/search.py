@@ -8,7 +8,7 @@ import logging
 from typing import Optional
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
 
 from fichero.db import Database, SearchResult
@@ -23,7 +23,7 @@ def _safe_isoformat(value) -> str:
 
 
 # Import the get_library_database dependency
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database  # noqa: E402
 
 
 # Request/Response models
@@ -167,10 +167,9 @@ async def embed_document(doc_id: str, db: Database = Depends(get_library_databas
 # Saved Searches
 # =============================================================================
 
-from datetime import datetime
-from typing import List
+from typing import List  # noqa: E402
 
-from fichero.models import SavedSearch
+from fichero.models import SavedSearch  # noqa: E402
 
 
 class SavedSearchCreate(BaseModel):

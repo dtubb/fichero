@@ -16,8 +16,7 @@ from __future__ import annotations
 
 import time
 import uuid
-from typing import Any, TypedDict, NotRequired
-from dataclasses import dataclass, field
+from typing import Any, TypedDict
 from enum import Enum
 
 from fichero.workflows.types import State as BaseState
@@ -454,10 +453,10 @@ async def test_state_management() -> bool:
         
         # Test serialization
         serialized = serialize_state(state)
-        deserialized = deserialize_state(serialized)
+        deserialize_state(serialized)
         
         # Test summary
-        summary = state.get_summary()
+        state.get_summary()
         
         return True
         

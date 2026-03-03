@@ -10,14 +10,13 @@ Implements advanced agent patterns for coordinating multiple agents:
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal
+from typing import Any
 
 from langgraph.prebuilt import create_react_agent
-from langgraph.graph import StateGraph, START, END
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from fichero.workflows.types import State, PortDef, DataType
-from fichero.workflows.registry import register_tool, get_tool, TOOL_DEFS
+from fichero.workflows.registry import register_tool, get_tool
 from fichero.llm import get_langchain_model, LLMConfig
 from fichero.workflows.tools.agent import _wrap_workflow_tool
 
@@ -827,7 +826,7 @@ async def agent_coordinator(
             # Simple length-based similarity as proxy
             lengths = [len(r["result"]) for r in successful_results]
             avg_length = sum(lengths) / len(lengths)
-            variance = sum((l - avg_length) ** 2 for l in lengths) / len(lengths)
+            variance = sum((ln - avg_length) ** 2 for ln in lengths) / len(lengths)
             agreement_score = max(0, 1 - (variance / (avg_length ** 2 + 1)))
 
         # Combine results based on method

@@ -110,8 +110,8 @@ app.add_middleware(
 
 
 # FastAPI dependency: Get database for current library
-from fastapi import Header, HTTPException, Depends
-from fichero.db import Database, db_manager
+from fastapi import Header, HTTPException, Depends  # noqa: E402
+from fichero.db import Database, db_manager  # noqa: E402
 
 
 async def get_library_database(
@@ -200,7 +200,7 @@ async def get_stats(db: Database = Depends(get_library_database)):
 
 
 # Include route modules
-from fichero.api.routes import (
+from fichero.api.routes import (  # noqa: E402
     documents,
     search,
     ingest,

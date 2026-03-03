@@ -123,7 +123,7 @@ def _dict_to_node_def(node_dict: dict, enrich_ports: bool = True) -> NodeDef:
     Returns:
         NodeDef with ports populated from registry (if enrich_ports=True)
     """
-    from fichero.workflows.types import PortDef, InputMapping, OutputSchema
+    from fichero.workflows.types import InputMapping, OutputSchema
 
     # Convert input_mappings to InputMapping objects
     input_mappings = [InputMapping(**m) for m in node_dict.get("input_mappings", [])]
@@ -370,7 +370,6 @@ async def import_workflow(
     """Import a workflow from JSON data."""
     try:
         from fichero.models import Workflow
-        from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef, PortDef
 
         # Validate that workflow_data contains required structure
         if "nodes" not in workflow_data or "edges" not in workflow_data:

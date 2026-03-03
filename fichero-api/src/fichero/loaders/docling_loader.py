@@ -123,7 +123,7 @@ class DoclingLoader(MediaLoader):
     def is_available() -> bool:
         """Check if Docling is installed and available."""
         try:
-            from docling.document_converter import DocumentConverter
+            from docling.document_converter import DocumentConverter  # noqa: F401
             return True
         except ImportError:
             return False
