@@ -13,6 +13,7 @@
 		008 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 108 /* EditorView.swift */; };
 		009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 201 /* Assets.xcassets */; };
 		010 /* SidebarItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 109 /* SidebarItem.swift */; };
+		FC3F95AC0E1F4A7DB6B9993E /* FeatureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */; };
 		011 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110 /* SearchView.swift */; };
 		013 /* Provider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 112 /* Provider.swift */; };
 		018 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 117 /* ChatView.swift */; };
@@ -408,6 +409,7 @@
 		103 /* Document.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Document.swift; sourceTree = "<group>"; };
 		108 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 		109 /* SidebarItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItem.swift; sourceTree = "<group>"; };
+		A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureManager.swift; sourceTree = "<group>"; };
 		110 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		112 /* Provider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Provider.swift; sourceTree = "<group>"; };
 		117 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
@@ -1059,6 +1061,7 @@
 				EBFA9C3247C03BDCE9BE6092 /* LibraryManager+Operations.swift */,
 				1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */,
 				BF91C082286A2B7BB74E438D /* LibraryManager+Persistence.swift */,
+				A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */,
 				A1A3AB192F11CCC70021909D /* MCPServer.swift */,
 				A1A3AB1A2F11CCC70021909D /* Note.swift */,
 				112 /* Provider.swift */,
@@ -1596,6 +1599,7 @@
 				20D8EDD22F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift in Sources */,
 				202674DE2F48972A008EAB5D /* MessageCard.swift in Sources */,
 				010 /* SidebarItem.swift in Sources */,
+				FC3F95AC0E1F4A7DB6B9993E /* FeatureManager.swift in Sources */,
 				A13E7C2A2F27E04300EC9EE1 /* ActivityDetailView.swift in Sources */,
 				5E8 /* SidebarItemBuilder.swift in Sources */,
 				200BCF362F3D547F00D7851A /* ContentView+ViewBuilders.swift in Sources */,
