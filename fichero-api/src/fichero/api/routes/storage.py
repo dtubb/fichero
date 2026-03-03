@@ -99,7 +99,6 @@ async def get_source_file(
 
     Returns 404 if source is not accessible (e.g., external file moved).
     """
-    Path(x_fichero_library_path)
     doc = db.get(Document, doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")

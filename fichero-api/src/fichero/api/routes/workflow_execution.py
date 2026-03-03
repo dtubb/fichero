@@ -1874,9 +1874,6 @@ def _generate_workflow_python_code(workflow: Workflow) -> str:
     Creates runnable Python code that builds and executes the workflow
     using LangGraph primitives.
     """
-    # Collect tool imports
-    set(n.get("tool", "") for n in workflow.nodes if n.get("tool"))
-
     # Build code
     lines = [
         '"""',
