@@ -22,8 +22,8 @@ If a feature is not listed as `release` here, it must be gated off in the 0.0.1 
 |------|------|-------|
 | **Library** | `release` | Document browser — grid, list, table views |
 | **Search** | `release` | Full-text search interface |
+| **Workflows** | `release` | Visual workflow editor (Added per Daniel) |
 | Chat | `off` | AI conversation — requires providers |
-| Workflows | `off` | Visual workflow editor |
 | Batches | `off` | Batch processing UI |
 | Automation | `off` | Schedules and triggers |
 | Activity | `off` | Execution history |
@@ -39,11 +39,11 @@ If a feature is not listed as `release` here, it must be gated off in the 0.0.1 
 | Folders | `release` | Folder hierarchy |
 | Sidebar nav | `release` | Navigation chrome |
 | Toolbars / Menu / Components / Sheets | `release` | UI infrastructure |
-| Providers | `dev` | Not in sidebar; accessible via Settings only |
-| AI Providers UI | `dev` | Provider configuration sheets |
+| **Providers** | `release` | Enabled in 0.0.1 (Added per Daniel) |
+| **AI Providers UI** | `release` | Enabled in 0.0.1 (Added per Daniel) |
+| **Workflows** | `release` | Enabled in 0.0.1 (Added per Daniel) |
+| **Workflow Execution** | `release` | Enabled in 0.0.1 (Added per Daniel) |
 | Chat | `off` | — |
-| Workflows | `off` | — |
-| Workflow Execution | `off` | — |
 | Activity | `off` | — |
 | Batch | `off` | — |
 | Actions | `off` | — |
@@ -75,21 +75,22 @@ If a feature is not listed as `release` here, it must be gated off in the 0.0.1 
 | `stats` | Library statistics |
 | `settings` | App configuration |
 | `artifacts` | Document artifacts |
+| **`providers`** | LLM provider management (Added per Daniel) |
+| **`models`** | Model listing per provider (Added per Daniel) |
+| **`workflows`** | Workflow CRUD (Added per Daniel) |
+| **`workflow-execution`** | Workflow run + SSE streaming (Added per Daniel) |
 
 ### `dev` — Accessible when `FICHERO_FEATURE_TIER=dev`
 
 | Route Group | Description |
 |-------------|-------------|
-| `providers` | LLM provider management |
-| `models` | Model listing per provider |
+| — | — |
 
 ### `off` — Disabled in 0.0.1
 
 | Route Group | Description |
 |-------------|-------------|
 | `chat` | AI conversation endpoints |
-| `workflows` | Workflow CRUD |
-| `workflow-execution` | Workflow run + SSE streaming |
 | `batch` | Batch processing |
 | `activity` | Execution history |
 | `schedules` | Cron-based automation |
@@ -133,7 +134,7 @@ The 0.0.1 release is accepted when all of the following pass:
 2. `PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived` passes with 0 failures
 3. `swiftlint lint fichero-swiftui/fichero-swiftui/` produces 0 errors
 4. `PYTHONPATH=fichero-api/src .venv/bin/ruff check fichero-api/src/` produces 0 errors
-5. Hidden features (Chat, Workflows, Batches, Automation, Activity) do not appear in the sidebar
+5. Hidden features (Chat, Batches, Automation, Activity) do not appear in the sidebar
 6. Off-tier backend routes return 404 when `FICHERO_FEATURE_TIER=release`
 7. Dev-tier routes (providers, models) are accessible when `FICHERO_FEATURE_TIER=dev`
 
