@@ -1,6 +1,6 @@
 # MEMORY.md — Fichero
 
-Last updated: 2026-03-02
+Last updated: 2026-03-04
 
 ## Current Phase
 
@@ -103,6 +103,8 @@ Seeded on 2026-03-02:
 - Existing issue `#220` was folded into `0.0.1 - Core Library`
 - Existing QA issues `#114`, `#116`, and `#117` were aligned to `0.0.1`; `#115` was aligned to `0.0.4`
 - `#113` remains the explicit cross-release QA umbrella and is intentionally left unmilestoned
+- Added on 2026-03-04: `0.2.0 - Spatial Knowledge Layer` for native notes, the user-visible AI workspace, durable note links/provenance, and the shared map/spatial/3D knowledge layer
+- Added on 2026-03-04: roadmap issues `#265` through `#274` for the spatial knowledge layer epic and its implementation breakdown
 
 ## Memory Files
 

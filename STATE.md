@@ -1,10 +1,10 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-02
+Last updated: 2026-03-04
 
 ## Current Branch
 
-`main`
+`origin/main`
 
 ## This Week's Focus
 
@@ -32,6 +32,7 @@ Post-approval roadmap handoff:
 ## Operating Notes
 
 - `Providers` decision resolved: stays `dev` tier for 0.0.1, promoted in 0.0.2
+- Future roadmap now includes `0.2.0 - Spatial Knowledge Layer` (issues `#265`-`#274`); this is explicitly post-`0.1.0` work and not part of the `0.0.1` release surface
 - Pytest not installed in `.venv` — needs `pip install pytest` before validation gates can run
 - After #260 merges: run `./fichero-api/scripts/sync_openapi_schema.sh` to regenerate Swift OpenAPI client
 
