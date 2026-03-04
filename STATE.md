@@ -1,39 +1,55 @@
 # STATE.md — Fichero
 
-Last updated: 2026-02-28
+Last updated: 2026-03-02
 
 ## Current Branch
 
-`codex/restructure-api-swiftui` (173 commits ahead of main)
+`main`
 
 ## This Week's Focus
 
-Phase 0: Planning — no coding yet. Audit features, design flag system, build milestone plan.
+Post-approval roadmap handoff:
+
+- keep the local plan and GitHub roadmap aligned
+- start M0 from the `0.0.1 - Core Library` milestone queue
+- maintain the feature-gated release model as implementation begins
+
+## Completed This Session
+
+| Issue | Task | Result |
+|---|---|---|
+| `#231` | Define exact `0.0.1` release surface | Merged to main — `docs/agent-workflow/RELEASE_SURFACE_0.0.1.md` |
+| `#232` | Implement frontend feature gating for `0.0.1` | PR #259 — ready for review |
+| `#233` | Implement backend feature gating for `0.0.1` | PR #260 — ready for review |
 
 ## In Progress
 
 | Issue | Task | Status |
 |---|---|---|
-| — | — | — |
+| `#234` | Gate hidden sidebar surfaces cleanly | Queued (after #232 merges) |
+| `#235` | Gate hidden menu and action surfaces cleanly | Queued (after #232 merges) |
 
-## Blocked
+## Operating Notes
 
-- Feature flag system: needs design decision (compile-time vs. runtime)
-- v1.0 scope: needs Daniel input on what's in vs. out
+- `Providers` decision resolved: stays `dev` tier for 0.0.1, promoted in 0.0.2
+- Pytest not installed in `.venv` — needs `pip install pytest` before validation gates can run
+- After #260 merges: run `./fichero-api/scripts/sync_openapi_schema.sh` to regenerate Swift OpenAPI client
 
 ## Next Session — Start Here
 
-1. Read `docs/agent-workflow/TODO.md` for current task list
-2. Check git log: `git log --oneline -20`
-3. Pick up Phase 0 work: feature audit or milestone plan
+1. Review and merge PRs #259 and #260
+2. After merges: run OpenAPI sync (`./fichero-api/scripts/sync_openapi_schema.sh`)
+3. Pick up `#234` (sidebar gating) and `#235` (menu/action gating)
+4. Fix pytest environment: `pip install pytest` in `.venv`
 
 ## Dev Environment
 
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765   # start backend
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived   # run tests
-swiftlint lint fichero-swiftui/fichero-swiftui/   # swift lint
-ruff check fichero-api/src/   # python lint
+PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived
+PYTHONPATH=fichero-api/src .venv/bin/ruff check fichero-api/src/
+swiftlint lint fichero-swiftui/fichero-swiftui/
+xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme fichero-swiftui -configuration Debug -sdk macosx build
 ```
 
-Status: READY (verified 2026-02-26)
+Status: ready to use as the M0 validation gate
