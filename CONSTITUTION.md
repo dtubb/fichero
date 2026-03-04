@@ -24,7 +24,9 @@ The target research infrastructure has several specialized tools. Each does one 
 | **DevonThink** | Existing document archive |
 | **Fichero** | Document management + AI processing (this project) |
 
-Fichero is the **document layer**. It imports from Bookends and DevonThink, provides semantic search and AI workflows over the full corpus, and will eventually link documents to Tinderbox notes — completing the research stack.
+Fichero begins as the **document layer**. It imports from Bookends and DevonThink, provides semantic search and AI workflows over the full corpus, and will eventually link documents to Tinderbox notes.
+
+As the product matures, it also grows a native note and spatial knowledge layer: first-class notes created by the user or AI, plus map/spatial views that help surface relationships across the library. That turns Fichero from a pure archive into a research workspace without making it the manuscript-writing tool.
 
 The Tinderbox Router is an MCP multiplexer that will connect Fichero to the manuscript system and a research-assistant agent (Escribano). The long-term integration: a document in Fichero gets linked to a Tinderbox note, giving the manuscript system access to source material alongside structure. Right now: get the documents organized and searchable.
 
@@ -32,7 +34,7 @@ The Tinderbox Router is an MCP multiplexer that will connect Fichero to the manu
 
 - **Not a writing tool.** The researcher's prose lives in Tinderbox. Fichero never writes manuscript content.
 - **Not a reference manager.** That's Bookends.
-- **Not a note-taking app.** That's Tinderbox and the Slip Box.
+- **Not the primary long-form writing app.** Tinderbox remains the main synthesis and manuscript environment. Fichero may still host working notes, AI-authored notes, and research-facing spatial organization.
 - **Not a DevonThink replacement.** It complements DevonThink — importing from it is a workflow.
 - **Not a cloud service.** It runs locally on macOS. No server, no subscription, no data leaves the machine unless the user opts into a cloud LLM provider.
 
@@ -43,10 +45,12 @@ A macOS app a researcher actually uses daily:
 1. **Imports any document type** in a research corpus (37+ formats: PDF, DOCX, audio, video, images, archives)
 2. **Semantic search** across the full corpus — find documents by meaning, not just filename
 3. **RAG-based Q&A** — ask questions about documents, get answers with source citations
-4. **AI workflows** — visual node editor for document processing pipelines (LangGraph)
-5. **Offline-first** — works with local models (Ollama) without internet; cloud providers optional
-6. **Integrations** — Bookends (import references), DevonThink (archive bridge), Tinderbox Router (link to manuscript)
-7. **Native Mac quality** — SwiftUI, fast launch, light resources, feels like it belongs on macOS
+4. **Native notes + AI workspace** — first-class notes created by the user or AI, with explicit links and provenance
+5. **Spatial knowledge layer** — list, icon, table, map, and future spatial/3D views over the same research model
+6. **AI workflows** — visual node editor for document processing pipelines (LangGraph)
+7. **Offline-first** — works with local models (Ollama) without internet; cloud providers optional
+8. **Integrations** — Bookends (import references), DevonThink (archive bridge), Tinderbox Router (link to manuscript)
+9. **Native Mac quality** — SwiftUI, fast launch, light resources, feels like it belongs on macOS
 
 ## How It Works
 
@@ -90,6 +94,6 @@ These don't change:
 - A researcher can find documents half-remembered from fieldwork years ago
 - Semantic search returns relevant passages, not just filenames
 - Local Ollama models work without internet — useful during fieldwork travel
+- The user can inspect user notes and AI-authored notes in the same workspace, with clear provenance and visible relationships
 - The app doesn't crash, doesn't lose data, doesn't surprise
 - A document in Fichero links to a Tinderbox note — the research stack is complete
-
