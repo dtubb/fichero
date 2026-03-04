@@ -8,7 +8,6 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from fichero.workflows.model_comparison import (
-    ModelComparisonEngine,
     ComparisonRequest,
     ModelSpec,
     get_comparison_engine,

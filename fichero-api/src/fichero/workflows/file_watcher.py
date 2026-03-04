@@ -28,10 +28,6 @@ from watchdog.events import (
     FileModifiedEvent,
     FileDeletedEvent,
     FileMovedEvent,
-    DirCreatedEvent,
-    DirDeletedEvent,
-    DirModifiedEvent,
-    DirMovedEvent,
 )
 
 from fichero.workflows.batch import BatchManager
@@ -866,7 +862,6 @@ class FileWatcherManager:
     ) -> list[TriggerExecution]:
         """Get execution history for a trigger."""
         def _get_executions():
-            import json
             conn = duckdb.connect(self.db_path)
             try:
                 results = conn.execute("""

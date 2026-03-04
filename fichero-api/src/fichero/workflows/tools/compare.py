@@ -11,7 +11,7 @@ import dataclasses
 import logging
 from typing import Any
 
-from fichero.workflows.types import State, PortDef, DataType
+from fichero.workflows.types import State
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools.llm_base import (
     BASE_OUTPUT_PORTS,

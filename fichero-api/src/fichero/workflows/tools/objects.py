@@ -62,20 +62,20 @@ def _build_prompt(detail_level: str, include_positions: bool) -> str:
         position_text = ', "position": "<top-left/top-center/top-right/center-left/center/center-right/bottom-left/bottom-center/bottom-right>"'
 
     detail_instructions = {
-        "count": f"""Count all distinct objects in this image.
+        "count": """Count all distinct objects in this image.
 
 Return as JSON:
-{{
+{
     "total_objects": <number>,
     "categories": [
-        {{"type": "<object type>", "count": <number>}}
+        {"type": "<object type>", "count": <number>}
     ]
-}}""",
+}""",
         "basic": f"""Identify all objects in this image.
 
 For each object, provide:
 - type (what it is)
-- count (how many){f'''
+- count (how many){'''
 - position (where in the image)''' if include_positions else ''}
 
 Return as JSON:
@@ -91,7 +91,7 @@ For each object, provide:
 - type (what it is)
 - description (appearance, condition, notable features)
 - size (relative: small/medium/large)
-- count (how many){f'''
+- count (how many){'''
 - position (where in the image)''' if include_positions else ''}
 
 Return as JSON:

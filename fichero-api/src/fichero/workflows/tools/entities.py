@@ -7,7 +7,6 @@ Inherits from llm_base.py for shared config and processing.
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 

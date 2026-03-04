@@ -36,12 +36,10 @@ from fichero.workflows.types import PortDef, DataType
 # Import from llm_base - the parent layer
 from fichero.workflows.tools.llm_base import (
     BASE_INPUT_PORTS,
-    BASE_OUTPUT_PORTS,
     BASE_CONFIG_SCHEMA,
     merge_config_schema,
     merge_ports,
     LLMToolConfig,
-    build_output_constraint,
     parse_output,
     build_context_section,
     build_reference_section,

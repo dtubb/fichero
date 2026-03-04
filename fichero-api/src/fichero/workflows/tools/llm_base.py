@@ -868,7 +868,7 @@ async def process_text(
     Returns:
         Dict with text, value, results, artifacts, error, output_files
     """
-    from fichero.llm import chat, LLMConfig
+    from fichero.llm import chat
 
     if not text:
         return {

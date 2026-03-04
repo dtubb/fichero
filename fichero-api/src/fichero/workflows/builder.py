@@ -13,17 +13,15 @@ The builder:
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import operator
 import uuid
-from typing import Any, Annotated
+from typing import Any
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Send
 
 from fichero.workflows.types import State, WorkflowDef, NodeDef
-from fichero.workflows.registry import TOOLS, get_tool, get_tool_def
+from fichero.workflows.registry import get_tool, get_tool_def
 from fichero.workflows.resolver import resolve_inputs, evaluate_condition
 from fichero.workflows.cache import get_node_cache, compute_cache_key, CACHEABLE_TOOLS
 from fichero.llm import LLMConfig
@@ -533,7 +531,6 @@ def _make_parallel_node_function(
     async def parallel_node_function(state: State) -> dict:
         """Process a single file in parallel."""
         node_id = node_def.id
-        node_label = node_def.label or node_def.tool
 
         # Get single file info from state (set by Send)
         file_path = state.get("parallel_file", "")

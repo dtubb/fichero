@@ -8,7 +8,7 @@ Supports stdio, HTTP, SSE, and WebSocket transports.
 from __future__ import annotations
 
 import logging
-from typing import Any, AsyncIterator
+from typing import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 

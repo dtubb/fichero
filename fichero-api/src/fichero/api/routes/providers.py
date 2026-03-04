@@ -17,7 +17,7 @@ from fichero.db import Database
 from fichero.app_db import get_app_db, AppDatabase
 from fichero.api.main import get_library_database
 from fichero.models import Provider, Model, ProviderType
-from fichero.providers import PROVIDERS, get_provider_info, list_providers as list_catalog_providers
+from fichero.providers import get_provider_info, list_providers as list_catalog_providers
 from fichero.keychain import get_api_key, set_api_key, delete_api_key, has_api_key, is_available as keychain_available
 
 logger = logging.getLogger(__name__)
@@ -941,7 +941,6 @@ async def test_provider_connection(provider_type: str) -> ConnectionTestResponse
     - API key validity (for cloud providers)
     - Server availability (for local providers)
     """
-    import time
     import httpx
 
     info = get_provider_info(provider_type)

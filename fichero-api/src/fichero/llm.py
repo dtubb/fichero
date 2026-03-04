@@ -150,7 +150,7 @@ async def chat(
     Returns:
         Response string, or async generator if streaming
     """
-    from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+    from langchain_core.messages import HumanMessage, SystemMessage
 
     # Get LangChain model
     model = get_langchain_model(config)
@@ -385,14 +385,6 @@ async def vision_inference_api(
 
     # Hugging Face Inference API format for vision models
     # Uses multimodal inputs with text and image
-    payload = {
-        "inputs": prompt,
-        "parameters": {
-            "temperature": temperature,
-            "max_new_tokens": max_tokens,
-            "return_full_text": False,
-        },
-    }
 
     logger.info(f"HF Inference API call: {model} ({len(image_bytes)} bytes)")
 
@@ -686,7 +678,6 @@ def list_models_for_provider(provider: str) -> list[dict[str, Any]]:
     litellm = _get_litellm()
 
     models = []
-    prefix = f"{provider}/"
 
     def safe_int(val) -> int | None:
         """Safely convert value to int, return None if not possible."""

@@ -11,7 +11,7 @@ import json
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -20,7 +20,6 @@ from fichero.workflows.batch import (
     BatchEvent,
     BatchExecution,
     BatchItem,
-    BatchItemStatus,
     BatchManager,
     BatchProgress,
     BatchStatus,

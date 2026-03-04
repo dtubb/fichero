@@ -24,7 +24,7 @@ from typing import Any, Callable
 from pydantic import BaseModel, Field
 
 from fichero.workflows.types import WorkflowDef
-from fichero.workflows.executor import WorkflowExecutor, ProgressEvent, ProgressEventType
+from fichero.workflows.executor import WorkflowExecutor
 
 logger = logging.getLogger(__name__)
 

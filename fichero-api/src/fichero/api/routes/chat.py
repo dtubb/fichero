@@ -5,7 +5,6 @@ RAG-style chat using LangChain for semantic search and LLM generation.
 """
 
 import logging
-import os
 from typing import Optional, List
 from datetime import datetime
 
@@ -17,7 +16,7 @@ from fichero.api.main import get_library_database
 from fichero.app_db import get_app_db, AppDatabase
 from fichero.models import Document, Provider as ProviderModel, Model as ModelModel, Conversation
 from fichero.keychain import has_api_key
-from fichero.providers import PROVIDERS as PROVIDER_CATALOG, get_provider_info
+from fichero.providers import get_provider_info
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +121,7 @@ def _get_langchain_llm(db: Database, provider: str = None, model: str = None):
 
     Uses the unified llm.py interface which supports all providers via LiteLLM.
     """
-    from fichero.llm import LLMConfig, get_api_key
+    from fichero.llm import get_api_key
 
     # Get first configured provider/model if not specified
     if not provider or not model:

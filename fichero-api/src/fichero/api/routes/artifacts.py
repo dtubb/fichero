@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Import the get_library_database dependency
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database  # noqa: E402
 
 
 # Response models

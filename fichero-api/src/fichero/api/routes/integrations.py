@@ -14,7 +14,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from fichero.integrations.base import get_integration_registry, IntegrationStatus
+from fichero.integrations.base import get_integration_registry
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 

@@ -8,12 +8,15 @@ Downloads images from IIIF Image API endpoints.
 import logging
 from io import BytesIO
 from pathlib import Path
-from typing import Any
-from urllib.parse import urlparse
 
 from PIL import Image
 
+from typing import TYPE_CHECKING
+
 from fichero.loaders.base import MediaContent, MediaLoader
+
+if TYPE_CHECKING:
+    import aiohttp
 
 logger = logging.getLogger(__name__)
 
