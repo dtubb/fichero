@@ -1,6 +1,6 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-04
+Last updated: 2026-03-08
 
 ## Current Branch
 
@@ -18,30 +18,28 @@ Post-approval roadmap handoff:
 
 | Issue | Task | Result |
 |---|---|---|
-| `#231` | Define exact `0.0.1` release surface | Merged to main — `docs/agent-workflow/RELEASE_SURFACE_0.0.1.md` |
-| `#232` | Implement frontend feature gating for `0.0.1` | PR #259 — ready for review |
-| `#233` | Implement backend feature gating for `0.0.1` | PR #260 — ready for review |
+| `#234` | Gate hidden sidebar surfaces cleanly | Closed. Branch `feature/issue-234` pushed with persisted-mode sanitization and hidden-mode fallback guards. |
 
 ## In Progress
 
 | Issue | Task | Status |
 |---|---|---|
-| `#234` | Gate hidden sidebar surfaces cleanly | Queued (after #232 merges) |
-| `#235` | Gate hidden menu and action surfaces cleanly | Queued (after #232 merges) |
+| `#235` | Gate hidden menu and action surfaces cleanly | Next up |
 
 ## Operating Notes
 
 - `Providers` decision resolved: stays `dev` tier for 0.0.1, promoted in 0.0.2
 - Future roadmap now includes `0.2.0 - Spatial Knowledge Layer` (issues `#265`-`#274`); this is explicitly post-`0.1.0` work and not part of the `0.0.1` release surface
-- Pytest not installed in `.venv` — needs `pip install pytest` before validation gates can run
+- Python tooling path drift: `.venv/bin/python`, `.venv/bin/ruff`, and `.venv/bin/pytest` were not present in this session environment
 - After #260 merges: run `./fichero-api/scripts/sync_openapi_schema.sh` to regenerate Swift OpenAPI client
+- `xcodebuild` currently fails via the `SwiftLint` run script in Xcode phase (could not open `.swiftlint.yml`, then "No lintable files found")
 
 ## Next Session — Start Here
 
-1. Review and merge PRs #259 and #260
-2. After merges: run OpenAPI sync (`./fichero-api/scripts/sync_openapi_schema.sh`)
-3. Pick up `#234` (sidebar gating) and `#235` (menu/action gating)
-4. Fix pytest environment: `pip install pytest` in `.venv`
+1. Open PR from `feature/issue-234` and merge after review
+2. Pick up `#235` (menu/action gating)
+3. Fix local Python environment so `.venv/bin/python` exists in sessions; then rerun `ruff` and `pytest`
+4. Fix Xcode SwiftLint run-script path/config behavior, then rerun `xcodebuild`
 
 ## Dev Environment
 

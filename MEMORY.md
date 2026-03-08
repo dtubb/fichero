@@ -1,6 +1,6 @@
 # MEMORY.md — Fichero
 
-Last updated: 2026-03-04
+Last updated: 2026-03-08
 
 ## Current Phase
 
@@ -83,6 +83,7 @@ For the approved implementation surface, the required checks are:
 
 ## Lessons Learned
 
+- Sidebar gating must sanitize both persisted `sidebarMode` and persisted/restored `viewMode`; hiding icons alone does not prevent off-tier surfaces from reappearing
 - Do not trust stale state docs; reconcile them before acting on them
 - Feature gating is the release mechanism, not a side concern
 - The first question is not "can this be built?" but "what tier should this feature live in right now?"
