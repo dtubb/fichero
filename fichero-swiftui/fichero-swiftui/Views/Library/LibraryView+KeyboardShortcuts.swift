@@ -139,7 +139,7 @@ extension LibraryView {
         guard targetIndex >= 0, targetIndex < docs.count else { return .handled }
 
         applySelection(targetIndex: targetIndex, docs: docs)
-        if displayMode == .list || displayMode == .table {
+        if displayMode == .icon || displayMode == .list || displayMode == .table {
             listScrollTarget = docs[targetIndex].id
         }
         return .handled
