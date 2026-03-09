@@ -166,9 +166,10 @@ extension LibraryView {
                 items: batchItems,
                 maxConcurrent: 5
             )
+            try await library.batchService.executeBatch(batchId: batch.batchId)
             logger.info(
                 """
-                Created batch \(batch.batchId) for workflow \(workflowId) \
+                Started batch \(batch.batchId) for workflow \(workflowId) \
                 with \(self.selectedDocumentIdsForBatch.count) items
                 """
             )

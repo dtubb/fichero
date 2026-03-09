@@ -131,7 +131,9 @@ extension ContentView {
 
     @MainActor
     func runWorkflowOnSelection(workflowId: String) {
-        let selectedIds = Array(browserSelection)
+        let selectedIds = !browserSelection.isEmpty
+            ? Array(browserSelection)
+            : (detailDocument.map { [$0.id] } ?? [])
         guard !selectedIds.isEmpty else { return }
 
         let libraryManager = LibraryManager.shared
@@ -152,11 +154,16 @@ extension ContentView {
                     items: items,
                     maxConcurrent: 5
                 )
+                try await library.batchService.executeBatch(batchId: batch.batchId)
                 logger.info(
-                    "Created batch \(batch.batchId) for workflow \(workflowId) with \(selectedIds.count) documents"
+                    """
+                    Started batch \(batch.batchId) for workflow \(workflowId) \
+                    with \(selectedIds.count) documents
+                    """
                 )
             } catch {
                 logger.error("Run Workflow on Selection failed: \(error.localizedDescription)")
+                ErrorService.shared.reportError(error)
             }
         }
     }
