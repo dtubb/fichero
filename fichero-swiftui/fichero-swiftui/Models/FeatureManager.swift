@@ -6,8 +6,8 @@ import SwiftUI
 @MainActor
 class FeatureManager: ObservableObject {
     static let shared = FeatureManager()
-    private static let releaseProfileVersion = 16
-    private static let workflowV001EnabledTools = "files,collection,search,transcribe"
+    private static let releaseProfileVersion = 17
+    private static let workflowV001EnabledTools = "files,collection,transcribe"
 
     /// Global toggle to override all flags for internal development.
     /// In a production release, this would be hardcoded to false.

@@ -36,51 +36,117 @@ struct AddItemMenu: View {
 
     @ViewBuilder
     private var menuContent: some View {
-        if let sidebarActions {
+        if let createFolderAction {
             Button("New Folder") {
-                sidebarActions.createFolder()
+                createFolderAction()
             }
 
             Menu("Import") {
                 Button("Link Files...") {
-                    sidebarActions.importFiles(.link)
+                    importLinkAction?()
                 }
+                .disabled(importLinkAction == nil)
 
                 Button("Copy Files...") {
-                    sidebarActions.importFiles(.copy)
+                    importCopyAction?()
                 }
+                .disabled(importCopyAction == nil)
 
                 Button("Add Files...") {
-                    sidebarActions.importFiles(.move)
+                    importMoveAction?()
                 }
+                .disabled(importMoveAction == nil)
             }
+            .disabled(importLinkAction == nil && importCopyAction == nil && importMoveAction == nil)
 
             Divider()
 
             if featureManager.isSearchEnabled {
                 Button("New Search") {
-                    sidebarActions.createSearch()
+                    createSearchAction?()
                 }
+                .disabled(createSearchAction == nil)
             }
 
             if featureManager.isChatEnabled {
                 Button("New Chat") {
-                    sidebarActions.createChat()
+                    createChatAction?()
                 }
+                .disabled(createChatAction == nil)
             }
 
             if featureManager.isWorkflowsEnabled {
                 Button("New Workflow") {
-                    sidebarActions.createWorkflow()
+                    createWorkflowAction?()
                 }
+                .disabled(createWorkflowAction == nil)
             }
 
             if featureManager.isAutomationEnabled {
                 Button("New Schedule") {
-                    sidebarActions.createSchedule()
+                    createScheduleAction?()
                 }
+                .disabled(createScheduleAction == nil)
             }
+        } else {
+            Text("No create actions available")
         }
+    }
+
+    private var createFolderAction: (() -> Void)? {
+        if let sidebarActions {
+            return sidebarActions.createFolder
+        }
+        return registry.createFolder
+    }
+
+    private var importLinkAction: (() -> Void)? {
+        if let sidebarActions {
+            return { sidebarActions.importFiles(.link) }
+        }
+        return registry.importFiles
+    }
+
+    private var importCopyAction: (() -> Void)? {
+        if let sidebarActions {
+            return { sidebarActions.importFiles(.copy) }
+        }
+        return registry.importFiles
+    }
+
+    private var importMoveAction: (() -> Void)? {
+        if let sidebarActions {
+            return { sidebarActions.importFiles(.move) }
+        }
+        return registry.importFiles
+    }
+
+    private var createSearchAction: (() -> Void)? {
+        if let sidebarActions {
+            return sidebarActions.createSearch
+        }
+        return registry.createSearch
+    }
+
+    private var createChatAction: (() -> Void)? {
+        if let sidebarActions {
+            return sidebarActions.createChat
+        }
+        return registry.createChat
+    }
+
+    private var createWorkflowAction: (() -> Void)? {
+        if let sidebarActions {
+            return sidebarActions.createWorkflow
+        }
+        return registry.createWorkflow
+    }
+
+    private var createScheduleAction: (() -> Void)? {
+        if let sidebarActions {
+            return sidebarActions.createSchedule
+        }
+        return registry.createSchedule
     }
 }
 

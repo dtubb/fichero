@@ -1,6 +1,6 @@
-import SwiftUI
 import AppKit
 import OSLog
+import SwiftUI
 
 // MARK: - Zoomable Image Preview (with controls and magnifier)
 
@@ -262,6 +262,22 @@ struct ZoomableImagePreview: View {
             fitToWindow()
             return .handled
         }
+        .onKeyPress(.leftArrow, phases: .down) { _ in
+            panLeft()
+            return .handled
+        }
+        .onKeyPress(.rightArrow, phases: .down) { _ in
+            panRight()
+            return .handled
+        }
+        .onKeyPress(.upArrow, phases: .down) { _ in
+            panUp()
+            return .handled
+        }
+        .onKeyPress(.downArrow, phases: .down) { _ in
+            panDown()
+            return .handled
+        }
         .focusedSceneValue(\.imageZoomActions, ImageZoomActions(
             zoomIn: zoomIn,
             zoomOut: zoomOut,
@@ -305,5 +321,28 @@ struct ZoomableImagePreview: View {
         withAnimation(.easeInOut(duration: 0.2)) {
             scale = 1.0
         }
+    }
+
+    private func panLeft() {
+        panBy(deltaX: -80, deltaY: 0)
+    }
+
+    private func panRight() {
+        panBy(deltaX: 80, deltaY: 0)
+    }
+
+    private func panUp() {
+        panBy(deltaX: 0, deltaY: 80)
+    }
+
+    private func panDown() {
+        panBy(deltaX: 0, deltaY: -80)
+    }
+
+    private func panBy(deltaX: CGFloat, deltaY: CGFloat) {
+        imageCoordinator?.panBy(
+            x: deltaX / max(scale, 0.01),
+            y: deltaY / max(scale, 0.01)
+        )
     }
 }

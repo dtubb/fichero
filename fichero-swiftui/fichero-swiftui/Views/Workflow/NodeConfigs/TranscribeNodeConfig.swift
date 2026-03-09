@@ -9,7 +9,7 @@ struct TranscribeNodeConfig: View {
 
     @State private var visionMode: String = "apple"
     @State private var language: String = "en"
-    @State private var maxImageDimension: Double = 2048
+    @State private var maxImageDimension: Double = 11024
     @State private var promptText: String = ""
 
     /// Get the current default prompt - from backend if available, otherwise nil
@@ -79,7 +79,8 @@ struct TranscribeNodeConfig: View {
                         Text("768px (Fast)").tag(768.0)
                         Text("1024px (Balanced)").tag(1024.0)
                         Text("1536px (Detailed)").tag(1536.0)
-                        Text("2048px (Default)").tag(2048.0)
+                        Text("2048px").tag(2048.0)
+                        Text("11024px (Default)").tag(11024.0)
                         Text("Original Size (Maximum)").tag(0.0)
                     }
                     .pickerStyle(.menu)

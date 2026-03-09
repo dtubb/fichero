@@ -207,26 +207,41 @@ extension WorkflowCanvasView {
 extension WorkflowCanvasView {
     func calculatePortPositions() -> [String: CGPoint] {
         var positions: [String: CGPoint] = [:]
+        let showAdvancedPorts = FeatureManager.shared.isWorkflowEditorAdvancedViewsEnabled
 
         for node in workflow.nodes {
             let nodePosition = CGPoint(x: node.positionX, y: node.positionY)
 
             // Input ports on left side
-            let inputCount = max(node.inputPorts.count, 1)
-            let inputSpacing = nodeHeight / CGFloat(inputCount + 1)
-            for (index, port) in node.inputPorts.enumerated() {
-                let portY = nodePosition.y - nodeHeight / 2 + inputSpacing * CGFloat(index + 1)
-                let portX = nodePosition.x - nodeWidth / 2
-                positions["\(node.id):\(port.id)"] = CGPoint(x: portX, y: portY)
+            if showAdvancedPorts {
+                let inputCount = max(node.inputPorts.count, 1)
+                let inputSpacing = nodeHeight / CGFloat(inputCount + 1)
+                for (index, port) in node.inputPorts.enumerated() {
+                    let portY = nodePosition.y - nodeHeight / 2 + inputSpacing * CGFloat(index + 1)
+                    let portX = nodePosition.x - nodeWidth / 2
+                    positions["\(node.id):\(port.id)"] = CGPoint(x: portX, y: portY)
+                }
+            } else {
+                let unifiedInputPoint = CGPoint(x: nodePosition.x - nodeWidth / 2, y: nodePosition.y)
+                for port in node.inputPorts {
+                    positions["\(node.id):\(port.id)"] = unifiedInputPoint
+                }
             }
 
             // Output ports on right side
-            let outputCount = max(node.outputPorts.count, 1)
-            let outputSpacing = nodeHeight / CGFloat(outputCount + 1)
-            for (index, port) in node.outputPorts.enumerated() {
-                let portY = nodePosition.y - nodeHeight / 2 + outputSpacing * CGFloat(index + 1)
-                let portX = nodePosition.x + nodeWidth / 2
-                positions["\(node.id):\(port.id)"] = CGPoint(x: portX, y: portY)
+            if showAdvancedPorts {
+                let outputCount = max(node.outputPorts.count, 1)
+                let outputSpacing = nodeHeight / CGFloat(outputCount + 1)
+                for (index, port) in node.outputPorts.enumerated() {
+                    let portY = nodePosition.y - nodeHeight / 2 + outputSpacing * CGFloat(index + 1)
+                    let portX = nodePosition.x + nodeWidth / 2
+                    positions["\(node.id):\(port.id)"] = CGPoint(x: portX, y: portY)
+                }
+            } else {
+                let unifiedOutputPoint = CGPoint(x: nodePosition.x + nodeWidth / 2, y: nodePosition.y)
+                for port in node.outputPorts {
+                    positions["\(node.id):\(port.id)"] = unifiedOutputPoint
+                }
             }
         }
 

@@ -261,8 +261,6 @@ struct MainContentModifiers: ViewModifier {
             logger.info("Library mode with no document selected - showing all documents")
         }
 
-        // Always show all 3 columns
-        columnVisibility = .all
     }
 
     private func handleSidebarModeChange(_ newMode: SidebarMode) {

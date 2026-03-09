@@ -409,5 +409,23 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             scrollView.contentView.scroll(to: CGPoint(x: centerX, y: centerY))
             scrollView.reflectScrolledClipView(scrollView.contentView)
         }
+
+        /// Pan the visible area by a relative number of points in document coordinates.
+        @MainActor
+        func panBy(x deltaX: CGFloat, y deltaY: CGFloat) {
+            guard let scrollView = scrollView,
+                  let imageView = imageView as? NSImageView,
+                  let image = imageView.image else { return }
+
+            let visibleRect = scrollView.contentView.documentVisibleRect
+            let maxX = max(0, image.size.width - visibleRect.width)
+            let maxY = max(0, image.size.height - visibleRect.height)
+
+            let targetX = min(max(0, visibleRect.origin.x + deltaX), maxX)
+            let targetY = min(max(0, visibleRect.origin.y + deltaY), maxY)
+
+            scrollView.contentView.scroll(to: CGPoint(x: targetX, y: targetY))
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+        }
     }
 }

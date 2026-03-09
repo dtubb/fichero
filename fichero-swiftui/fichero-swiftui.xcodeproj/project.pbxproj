@@ -854,32 +854,20 @@
 			path = Actions;
 			sourceTree = "<group>";
 		};
-		400 = {
-			isa = PBXGroup;
-			children = (
-				A1624FF72F2EE5880019C019 /* FicheroBackend.app */,
-				A18B76672EFDCD6E001C9EC2 /* fichero-tests.xctestplan */,
-				A151C6DE2EFDCD4300E46CE0 /* fichero-tests.xctestplan */,
-				A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */,
-				410 /* fichero-swiftui */,
-				A10521AA2EFDC92400B28C3E /* fichero-swiftui-tests */,
-				A10521C22EFDC94100B28C3E /* fichero-swiftui-ui-tests */,
-				420 /* Products */,
-				DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */,
-				E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */,
-				312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */,
-				36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */,
-				A0264B7B8616BA5159B2CEF1 /* TriggerEditorFormPanel.swift */,
-				5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */,
-				A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */,
-				1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */,
-				C07B489C8F89204C43BD6E46 /* AISettingsView.swift */,
-				C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */,
-				371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */,
-				1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */,
-			);
-			sourceTree = "<group>";
-		};
+			400 = {
+				isa = PBXGroup;
+				children = (
+					A1624FF72F2EE5880019C019 /* FicheroBackend.app */,
+					A18B76672EFDCD6E001C9EC2 /* fichero-tests.xctestplan */,
+					A151C6DE2EFDCD4300E46CE0 /* fichero-tests.xctestplan */,
+					A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */,
+					410 /* fichero-swiftui */,
+					A10521AA2EFDC92400B28C3E /* fichero-swiftui-tests */,
+					A10521C22EFDC94100B28C3E /* fichero-swiftui-ui-tests */,
+					420 /* Products */,
+				);
+				sourceTree = "<group>";
+			};
 		410 /* fichero-swiftui */ = {
 			isa = PBXGroup;
 			children = (
@@ -1264,23 +1252,33 @@
 			path = Activity;
 			sourceTree = "<group>";
 		};
-		A1A3AA2A2F113E850021909D /* Automation */ = {
-			isa = PBXGroup;
-			children = (
-				16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */,
-				7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */,
-				B5A0010800000000BATCH5S1 /* ScheduleEditorView+Category.swift */,
-				152 /* ScheduleCreationSheet.swift */,
-				75371C597B1E4689B6E1803F /* TriggerEditorView.swift */,
-				C69898938F25CFEA64385A16 /* TriggerDetailView.swift */,
-				153 /* TriggerCreationSheet.swift */,
-				20D8ED5A2F48E4CA006950A3 /* TriggerDetailView+Configuration.swift */,
-				20D8ED5C2F48E4D4006950A3 /* TriggerDetailView+ExecutionHistory.swift */,
-				20D8ED5E2F48E4DA006950A3 /* TriggerDetailView+Helpers.swift */,
-			);
-			path = Automation;
-			sourceTree = "<group>";
-		};
+			A1A3AA2A2F113E850021909D /* Automation */ = {
+				isa = PBXGroup;
+				children = (
+					16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */,
+					7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */,
+					B5A0010800000000BATCH5S1 /* ScheduleEditorView+Category.swift */,
+					152 /* ScheduleCreationSheet.swift */,
+					75371C597B1E4689B6E1803F /* TriggerEditorView.swift */,
+					D11000012F99900100ABC002 /* TriggerEditorView */,
+					C69898938F25CFEA64385A16 /* TriggerDetailView.swift */,
+					153 /* TriggerCreationSheet.swift */,
+					20D8ED5A2F48E4CA006950A3 /* TriggerDetailView+Configuration.swift */,
+					20D8ED5C2F48E4D4006950A3 /* TriggerDetailView+ExecutionHistory.swift */,
+					20D8ED5E2F48E4DA006950A3 /* TriggerDetailView+Helpers.swift */,
+				);
+				path = Automation;
+				sourceTree = "<group>";
+			};
+			D11000012F99900100ABC002 /* TriggerEditorView */ = {
+				isa = PBXGroup;
+				children = (
+					A0264B7B8616BA5159B2CEF1 /* TriggerEditorFormPanel.swift */,
+					5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */,
+				);
+				path = TriggerEditorView;
+				sourceTree = "<group>";
+			};
 		A1A3AA352F11665B0021909D /* Integrations */ = {
 			isa = PBXGroup;
 			children = (
@@ -1302,16 +1300,17 @@
 			path = App;
 			sourceTree = "<group>";
 		};
-		A1BFB2D62F042C6D00EAA55A /* Components */ = {
-			isa = PBXGroup;
-			children = (
-				A1BFB2EF2F043FA100EAA55A /* BackendConnectionView.swift */,
-				A13E7C512F280C1C00EC9EE1 /* BatchRow.swift */,
-				A1BFB2F22F045C8A00EAA55A /* LibraryImageView.swift */,
-				A1BFB2D42F042C6D00EAA55A /* ProviderLogoView.swift */,
-				A13E7C322F27F32E00EC9EE1 /* ScheduleRow.swift */,
-				A1BFB2D52F042C6D00EAA55A /* StatusBadge.swift */,
-				A13E7C332F27F32E00EC9EE1 /* TriggerRow.swift */,
+			A1BFB2D62F042C6D00EAA55A /* Components */ = {
+				isa = PBXGroup;
+				children = (
+					A1BFB2EF2F043FA100EAA55A /* BackendConnectionView.swift */,
+					A13E7C512F280C1C00EC9EE1 /* BatchRow.swift */,
+					A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */,
+					A1BFB2F22F045C8A00EAA55A /* LibraryImageView.swift */,
+					A1BFB2D42F042C6D00EAA55A /* ProviderLogoView.swift */,
+					A13E7C322F27F32E00EC9EE1 /* ScheduleRow.swift */,
+					A1BFB2D52F042C6D00EAA55A /* StatusBadge.swift */,
+					A13E7C332F27F32E00EC9EE1 /* TriggerRow.swift */,
 				A13E7C372F27F33C00EC9EE1 /* WorkflowExecutionRow.swift */,
 				20D8ED502F48E2C4006950A3 /* WorkflowPreviewSheet.swift */,
 				20D8ED542F48E2CC006950A3 /* WorkflowExecutionRow+Helpers.swift */,
@@ -1330,14 +1329,19 @@
 			path = Menu;
 			sourceTree = "<group>";
 		};
-		A1BFB2DB2F042E5100EAA55A /* Settings */ = {
-			isa = PBXGroup;
-			children = (
-				A1BFB2DA2F042E5100EAA55A /* SettingsView.swift */,
-			);
-			path = Settings;
-			sourceTree = "<group>";
-		};
+			A1BFB2DB2F042E5100EAA55A /* Settings */ = {
+				isa = PBXGroup;
+				children = (
+					1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */,
+					C07B489C8F89204C43BD6E46 /* AISettingsView.swift */,
+					371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */,
+					C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */,
+					1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */,
+					A1BFB2DA2F042E5100EAA55A /* SettingsView.swift */,
+				);
+				path = Settings;
+				sourceTree = "<group>";
+			};
 		A1BFB4102F057C4000EAA55A /* Toolbars */ = {
 			isa = PBXGroup;
 			children = (
@@ -1386,14 +1390,15 @@
 			path = AIProviders;
 			sourceTree = "<group>";
 		};
-		A1FB1D802F0420A90023093C /* Library */ = {
-			isa = PBXGroup;
-			children = (
-				A1FB1D7E2F0420A90023093C /* DocumentInspector.swift */,
-				108 /* EditorView.swift */,
-				A1FB1D7F2F0420A90023093C /* LibraryView.swift */,
-				A1BFB3FA2F057B9300EAA55A /* CheckerboardPattern.swift */,
-				A1BFB3FB2F057B9300EAA55A /* FolderAccessManager.swift */,
+			A1FB1D802F0420A90023093C /* Library */ = {
+				isa = PBXGroup;
+				children = (
+					A1FB1D7E2F0420A90023093C /* DocumentInspector.swift */,
+					D11000012F99900100ABC001 /* DocumentInspector */,
+					108 /* EditorView.swift */,
+					A1FB1D7F2F0420A90023093C /* LibraryView.swift */,
+					A1BFB3FA2F057B9300EAA55A /* CheckerboardPattern.swift */,
+					A1BFB3FB2F057B9300EAA55A /* FolderAccessManager.swift */,
 				A1BFB3FC2F057B9300EAA55A /* ImageViewerComponents.swift */,
 				A1BFB3FD2F057B9300EAA55A /* MagnifierPanel.swift */,
 				A1BFB3FE2F057B9300EAA55A /* NavigatorMiniMap.swift */,
@@ -1408,9 +1413,20 @@
 				AA112233001122DD /* LibraryView+ColumnConfig.swift */,
 				AA112233001122FF /* LibraryView+FilterAndBatch.swift */,
 			);
-			path = Library;
-			sourceTree = "<group>";
-		};
+				path = Library;
+				sourceTree = "<group>";
+			};
+			D11000012F99900100ABC001 /* DocumentInspector */ = {
+				isa = PBXGroup;
+				children = (
+					DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */,
+					E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */,
+					312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */,
+					36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */,
+				);
+				path = DocumentInspector;
+				sourceTree = "<group>";
+			};
 		B2A003000000000000BATCH2 /* WorkflowChainListView */ = {
 			isa = PBXGroup;
 			children = (

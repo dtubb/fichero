@@ -113,13 +113,17 @@ extension ContentView {
                 contentWithOptionalModeRail
                     .overlay { paneFocusIndicator(for: .content) }
                     .frame(minHeight: 150, idealHeight: 180)
+                    .focusable()
+                    .focused($focusedPane, equals: .content)
+                    .focusEffectDisabled()
 
                 previewView
+                    .overlay { paneFocusIndicator(for: .preview) }
                     .frame(minHeight: 400, idealHeight: 720)
+                    .focusable()
+                    .focused($focusedPane, equals: .preview)
+                    .focusEffectDisabled()
             }
-            .focusable()
-            .focused($focusedPane, equals: .content)
-            .focusEffectDisabled()
             .navigationSplitViewColumnWidth(min: 350, ideal: 700, max: .infinity)
 
         case .widescreen:
@@ -128,13 +132,17 @@ extension ContentView {
                 contentWithOptionalModeRail
                     .overlay { paneFocusIndicator(for: .content) }
                     .frame(minWidth: 200, idealWidth: 200)
+                    .focusable()
+                    .focused($focusedPane, equals: .content)
+                    .focusEffectDisabled()
 
                 previewView
+                    .overlay { paneFocusIndicator(for: .preview) }
                     .frame(minWidth: 400, idealWidth: 800)
+                    .focusable()
+                    .focused($focusedPane, equals: .preview)
+                    .focusEffectDisabled()
             }
-            .focusable()
-            .focused($focusedPane, equals: .content)
-            .focusEffectDisabled()
             .navigationSplitViewColumnWidth(min: 600, ideal: 1000, max: .infinity)
         }
     }

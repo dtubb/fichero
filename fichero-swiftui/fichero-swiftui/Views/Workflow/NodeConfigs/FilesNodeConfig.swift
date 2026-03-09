@@ -13,6 +13,7 @@ struct FilesNodeConfig: View {
     @State private var showFilePicker = false
     @State private var stagedPickerSelection: Set<String> = []
     @State private var fileSearchText = ""
+    @State private var expandedFolderIds: Set<String> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -70,14 +71,32 @@ struct FilesNodeConfig: View {
             }
     }
 
+    private var allFolders: [Document] {
+        documentStore.collections
+            .filter { $0.docType == .folder }
+            .sorted { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+    }
+
+    private var validFolderIds: Set<String> {
+        Set(allFolders.map(\.id))
+    }
+
     private var availableDocuments: [Document] {
         let candidates = documentStore.collections
-            .filter { $0.docType != .folder }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            .filter { $0.docType == .file }
+            .filter { doc in
+                guard !doc.id.isEmpty else { return false }
+                guard let parentId = doc.parentId else { return true }
+                return validFolderIds.contains(parentId)
+            }
+            .sorted { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
 
         var seen = Set<String>()
         return candidates.filter { doc in
-            guard !doc.id.isEmpty else { return false }
             if seen.contains(doc.id) {
                 return false
             }
@@ -86,10 +105,41 @@ struct FilesNodeConfig: View {
         }
     }
 
+    private var folderChildrenMap: [String: [Document]] {
+        var map: [String: [Document]] = [:]
+        for folder in allFolders {
+            guard let parentId = folder.parentId, validFolderIds.contains(parentId) else { continue }
+            map[parentId, default: []].append(folder)
+        }
+        for key in map.keys {
+            map[key]?.sort { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+        }
+        return map
+    }
+
+    private var filesByParentMap: [String?: [Document]] {
+        let files = filteredDocuments
+        return Dictionary(grouping: files, by: { $0.parentId })
+    }
+
+    private var rootFolders: [Document] {
+        let inbox = allFolders.filter { $0.parentId == nil && $0.name == "Inbox" }
+        let otherRoots = allFolders
+            .filter { folder in
+                folder.parentId == nil && folder.name != "Inbox"
+            }
+            .sorted { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+        return inbox + otherRoots
+    }
+
     private var filteredDocuments: [Document] {
         guard !fileSearchText.isEmpty else { return availableDocuments }
-        return availableDocuments.filter {
-            $0.name.localizedCaseInsensitiveContains(fileSearchText)
+        return availableDocuments.filter { doc in
+            doc.name.localizedCaseInsensitiveContains(fileSearchText)
         }
     }
 
@@ -143,6 +193,7 @@ struct FilesNodeConfig: View {
     private func showFilePickerSheet() {
         fileSearchText = ""
         stagedPickerSelection = Set(selectedFileIds)
+        expandedFolderIds = Set(rootFolders.map(\.id))
         showFilePicker = true
     }
 
@@ -164,37 +215,20 @@ struct FilesNodeConfig: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 2) {
-                        ForEach(filteredDocuments, id: \.id) { doc in
-                            Button {
-                                togglePickerSelection(doc.id)
-                            } label: {
-                                HStack {
-                                    Image(
-                                        systemName: stagedPickerSelection.contains(doc.id)
-                                            ? "checkmark.circle.fill"
-                                            : "circle"
-                                    )
-                                    .foregroundStyle(
-                                        stagedPickerSelection.contains(doc.id)
-                                            ? Color.accentColor
-                                            : Color.secondary
-                                    )
-                                    Text(doc.name)
-                                        .foregroundStyle(.primary)
-                                        .lineLimit(1)
-                                    Spacer()
-                                }
-                                .padding(.vertical, 4)
+                        ForEach(rootFolders, id: \.id) { folder in
+                            folderSection(folder, depth: 0)
+                        }
+
+                        if let rootFiles = filesByParentMap[nil], !rootFiles.isEmpty {
+                            Text("Root")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .padding(.top, 6)
                                 .padding(.horizontal, 6)
-                                .contentShape(Rectangle())
+
+                            ForEach(rootFiles, id: \.id) { doc in
+                                filePickerRow(doc: doc, depth: 1)
                             }
-                            .buttonStyle(.plain)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(stagedPickerSelection.contains(doc.id)
-                                        ? Color.accentColor.opacity(0.12)
-                                        : Color.clear)
-                            )
                         }
                     }
                     .padding(2)
@@ -231,6 +265,85 @@ struct FilesNodeConfig: View {
         } else {
             stagedPickerSelection.insert(id)
         }
+    }
+
+    private func folderSection(_ folder: Document, depth: Int) -> AnyView {
+        AnyView(
+            DisclosureGroup(
+            isExpanded: Binding(
+                get: { expandedFolderIds.contains(folder.id) },
+                set: { isExpanded in
+                    if isExpanded {
+                        expandedFolderIds.insert(folder.id)
+                    } else {
+                        expandedFolderIds.remove(folder.id)
+                    }
+                }
+            )
+        ) {
+            if let directFiles = filesByParentMap[folder.id], !directFiles.isEmpty {
+                ForEach(directFiles, id: \.id) { doc in
+                    filePickerRow(doc: doc, depth: depth + 1)
+                }
+            }
+
+            if let children = folderChildrenMap[folder.id] {
+                ForEach(children, id: \.id) { child in
+                    folderSection(child, depth: depth + 1)
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: folder.name == "Inbox" ? "tray.fill" : "folder")
+                    .foregroundStyle(.secondary)
+                Text(folder.name)
+                    .lineLimit(1)
+                    .foregroundStyle(.primary)
+                Spacer()
+            }
+            .padding(.vertical, 4)
+            .padding(.leading, CGFloat(depth) * 14 + 4)
+            .padding(.trailing, 6)
+            }
+            .disclosureGroupStyle(.automatic)
+        )
+    }
+
+    @ViewBuilder
+    private func filePickerRow(doc: Document, depth: Int) -> some View {
+        Button {
+            togglePickerSelection(doc.id)
+        } label: {
+            HStack(spacing: 6) {
+                Image(
+                    systemName: stagedPickerSelection.contains(doc.id)
+                        ? "checkmark.circle.fill"
+                        : "circle"
+                )
+                .foregroundStyle(
+                    stagedPickerSelection.contains(doc.id)
+                        ? Color.accentColor
+                        : Color.secondary
+                )
+                Image(systemName: doc.fileType?.icon ?? "doc")
+                    .foregroundStyle(.secondary)
+                Text(doc.name)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Spacer()
+            }
+            .padding(.vertical, 4)
+            .padding(.leading, CGFloat(depth) * 14 + 6)
+            .padding(.trailing, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(stagedPickerSelection.contains(doc.id)
+                    ? Color.accentColor.opacity(0.12)
+                    : Color.clear)
+        )
     }
 
     private func syncConfig() {
