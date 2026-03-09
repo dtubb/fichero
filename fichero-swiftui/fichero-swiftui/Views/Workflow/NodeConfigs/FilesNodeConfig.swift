@@ -216,7 +216,7 @@ struct FilesNodeConfig: View {
                 ScrollView {
                     LazyVStack(spacing: 2) {
                         ForEach(rootFolders, id: \.id) { folder in
-                            folderSection(folder, depth: 0)
+                            folderSection(folder, depth: 0, ancestry: [])
                         }
 
                         if let rootFiles = filesByParentMap[nil], !rootFiles.isEmpty {
@@ -267,8 +267,14 @@ struct FilesNodeConfig: View {
         }
     }
 
-    private func folderSection(_ folder: Document, depth: Int) -> AnyView {
-        AnyView(
+    private func folderSection(_ folder: Document, depth: Int, ancestry: Set<String>) -> AnyView {
+        // Guard against malformed cyclic folder graphs in persisted data.
+        guard !ancestry.contains(folder.id) else {
+            return AnyView(EmptyView())
+        }
+
+        let nextAncestry = ancestry.union([folder.id])
+        return AnyView(
             DisclosureGroup(
             isExpanded: Binding(
                 get: { expandedFolderIds.contains(folder.id) },
@@ -289,7 +295,7 @@ struct FilesNodeConfig: View {
 
             if let children = folderChildrenMap[folder.id] {
                 ForEach(children, id: \.id) { child in
-                    folderSection(child, depth: depth + 1)
+                    folderSection(child, depth: depth + 1, ancestry: nextAncestry)
                 }
             }
         } label: {
