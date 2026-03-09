@@ -25,6 +25,61 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
+# Files Tool
+# =============================================================================
+
+@register_tool(
+    name="files",
+    display_name="Files",
+    description="Pass through input files from workflow context",
+    category="source",
+    icon="doc.on.doc",
+    color="green",
+    uses_llm=False,
+    supports_batch=False,
+    input_ports=[],
+    output_ports=[
+        PortDef(id="files", name="Files", port_type="output", data_type=DataType.FILES, description="Input file paths"),
+        PortDef(id="documents", name="Documents", port_type="output", data_type=DataType.JSON, description="Input document metadata"),
+        PortDef(id="count", name="Count", port_type="output", data_type=DataType.NUMBER, description="Number of input files"),
+    ],
+    sort_order=1,
+)
+async def files_tool(
+    inputs: dict[str, Any],
+    state: State,
+    llm_config: LLMConfig,
+) -> dict[str, Any]:
+    """Return files/documents already provided to this workflow execution.
+
+    Priority:
+    1. Explicit inputs["files"] from mapped upstream data
+    2. state["input_files"] from executor initialization
+    """
+    raw_files = inputs.get("files")
+    if raw_files is None:
+        raw_files = state.get("input_files", [])
+
+    if isinstance(raw_files, str):
+        files = [raw_files]
+    else:
+        files = list(raw_files or [])
+
+    raw_documents = inputs.get("documents")
+    if raw_documents is None:
+        raw_documents = state.get("documents", [])
+    documents = list(raw_documents or [])
+
+    logger.info(f"Files source tool: received {len(files)} files")
+
+    return {
+        "files": files,
+        "documents": documents,
+        "count": len(files),
+    }
+
+
+# =============================================================================
 # Collection Tool
 # =============================================================================
 
