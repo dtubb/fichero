@@ -154,7 +154,11 @@ struct FilesNodeConfig: View {
                         togglePickerSelection(doc.id)
                     } label: {
                         HStack {
-                            Image(systemName: stagedPickerSelection.contains(doc.id) ? "checkmark.circle.fill" : "circle")
+                            Image(
+                                systemName: stagedPickerSelection.contains(doc.id)
+                                    ? "checkmark.circle.fill"
+                                    : "circle"
+                            )
                                 .foregroundStyle(
                                     stagedPickerSelection.contains(doc.id) ? Color.accentColor : Color.secondary
                                 )
