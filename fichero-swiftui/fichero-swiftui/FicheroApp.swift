@@ -13,6 +13,10 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
         logger.info("App will terminate - stopping backend...")
         backendService?.stop()
     }
+
+    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+        true
+    }
 }
 
 @main
