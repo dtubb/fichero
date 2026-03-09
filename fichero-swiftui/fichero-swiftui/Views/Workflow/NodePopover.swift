@@ -1,11 +1,12 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "NodePopover")
 
 /// Popover for configuring a workflow node
 struct NodePopover: View {
     @Binding var node: WorkflowNode
+    let allNodes: [WorkflowNode]
     let onDelete: () -> Void
     let onDuplicate: () -> Void
 
@@ -238,7 +239,7 @@ struct NodePopover: View {
     }
 
     private var inputMappingsSection: some View {
-        NodeInputMappings(node: $node)
+        NodeInputMappings(node: $node, allNodes: allNodes)
     }
 
     // MARK: - Actions Row
@@ -348,6 +349,7 @@ struct NodePopover: View {
                 )
             ]
         )),
+        allNodes: [],
         onDelete: {},
         onDuplicate: {}
     )

@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 let workflowInspectorLogger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowInspector")
 
@@ -23,25 +23,64 @@ struct WorkflowInspector: View {
     @EnvironmentObject var workflowServiceGenerated: WorkflowServiceGenerated
     @EnvironmentObject var mcpService: MCPService
     @EnvironmentObject var appState: AppState
+    @ObservedObject var featureManager = FeatureManager.shared
 
-    enum InspectorTab: String, CaseIterable {
+    enum InspectorTab: String, Hashable {
         case builtin = "Built-in"
         case mcp = "MCP"
         case agents = "Agents"
+
+        var icon: String {
+            switch self {
+            case .builtin: return "square.grid.2x2"
+            case .mcp: return "externaldrive.connected.to.line.below"
+            case .agents: return "person.2"
+            }
+        }
+    }
+
+    private var availableTabs: [InspectorTab] {
+        var tabs: [InspectorTab] = [.builtin]
+        if featureManager.isWorkflowToolsMCPEnabled {
+            tabs.append(.mcp)
+        }
+        if featureManager.isWorkflowToolsAgentsEnabled {
+            tabs.append(.agents)
+        }
+        return tabs
+    }
+
+    private var visibleBuiltinCategories: [CategoryTools] {
+        toolCategories.compactMap(filteredCategoryIfEnabled)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Tab picker
-            Picker("Tool Source", selection: $selectedTab) {
-                ForEach(InspectorTab.allCases, id: \.self) { tab in
-                    Text(tab.rawValue).tag(tab)
+            // Icon-only tab bar (matches library inspector style)
+            HStack(spacing: 2) {
+                ForEach(availableTabs, id: \.self) { tab in
+                    Button {
+                        selectedTab = tab
+                    } label: {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 16, weight: .regular))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 7)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(selectedTab == tab
+                                  ? Color.accentColor.opacity(0.15)
+                                  : Color.clear)
+                    )
+                    .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
+                    .help(tab.rawValue)
                 }
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
 
             Divider()
 
@@ -74,6 +113,11 @@ struct WorkflowInspector: View {
                 }
             }
         }
+        .onAppear {
+            if !availableTabs.contains(selectedTab) {
+                selectedTab = .builtin
+            }
+        }
     }
 
     // MARK: - Built-in Tools Section
@@ -100,9 +144,22 @@ struct WorkflowInspector: View {
                         .controlSize(.small)
                     }
                     .frame(maxWidth: .infinity, minHeight: 100)
+                } else if visibleBuiltinCategories.isEmpty {
+                    VStack(spacing: 8) {
+                        Image(systemName: "lock.shield")
+                            .font(.title2)
+                            .foregroundColor(.secondary)
+                        Text("No tools enabled")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("Enable reviewed tools via feature flags.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 100)
                 } else {
                     // Show tools from API grouped by category
-                    ForEach(toolCategories) { category in
+                    ForEach(visibleBuiltinCategories) { category in
                         toolCategoryView(category)
                     }
                 }
@@ -113,8 +170,8 @@ struct WorkflowInspector: View {
                 Label("Registry Tools", systemImage: "square.grid.2x2")
                     .font(.headline)
                 Spacer()
-                if !toolCategories.isEmpty {
-                    let totalTools = toolCategories.reduce(0) { $0 + $1.tools.count }
+                if !visibleBuiltinCategories.isEmpty {
+                    let totalTools = visibleBuiltinCategories.reduce(0) { $0 + $1.tools.count }
                     Text("\(totalTools)")
                         .font(.caption)
                         .foregroundColor(.secondary)

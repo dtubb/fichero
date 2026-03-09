@@ -194,6 +194,8 @@
 		A1624FF82F2EE5880019C019 /* FicheroBackend.app in CopyFiles */ = {isa = PBXBuildFile; fileRef = A1624FF72F2EE5880019C019 /* FicheroBackend.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
+		C10000010000000000000001 /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000110000000000000001 /* SparkleUpdater.swift */; };
+		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = C10000310000000000000001 /* Sparkle */; };
 		A1A3A9C02F1028480021909D /* MCPToolsCatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BE2F1028480021909D /* MCPToolsCatalogView.swift */; };
 		A1A3A9C12F1028480021909D /* AddMCPServerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BA2F1028480021909D /* AddMCPServerSheet.swift */; };
 		A1A3A9C22F1028480021909D /* MCPServerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BB2F1028480021909D /* MCPServerDetailView.swift */; };
@@ -389,16 +391,19 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/../.swiftlint.yml",
+				"$(SRCROOT)/fichero-swiftui",
 			);
 			name = "SwiftLint";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(DERIVED_FILE_DIR)/swiftlint.done",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if which swiftlint > /dev/null; then\n  swiftlint\nelse\n  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"\nfi\n";
-		};
+				shellScript = "SWIFTLINT_BIN=\"${SWIFTLINT_PATH:-/opt/homebrew/bin/swiftlint}\"\nif [ ! -x \"$SWIFTLINT_BIN\" ]; then\n  SWIFTLINT_BIN=\"$(command -v swiftlint || true)\"\nfi\n\nif [ -x \"$SWIFTLINT_BIN\" ]; then\n  \"$SWIFTLINT_BIN\" lint --config \"$SRCROOT/../.swiftlint.yml\" \"$SRCROOT/fichero-swiftui\"\nelse\n  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"\nfi\n\nmkdir -p \"$DERIVED_FILE_DIR\"\ntouch \"$DERIVED_FILE_DIR/swiftlint.done\"\n";
+			};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -410,6 +415,7 @@
 		108 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 		109 /* SidebarItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItem.swift; sourceTree = "<group>"; };
 		A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureManager.swift; sourceTree = "<group>"; };
+		C10000110000000000000001 /* SparkleUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdater.swift; sourceTree = "<group>"; };
 		110 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		112 /* Provider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Provider.swift; sourceTree = "<group>"; };
 		117 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
@@ -772,6 +778,7 @@
 			files = (
 				A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */,
 				A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */,
+				C10000020000000000000001 /* Sparkle in Frameworks */,
 			);
 		};
 		A10521A62EFDC92400B28C3E /* Frameworks */ = {
@@ -1290,6 +1297,7 @@
 				20D8EDCB2F48F4A8006950A3 /* LibraryWindow.swift */,
 				20D8EDCD2F48F4AE006950A3 /* WelcomeView.swift */,
 				20D8EDD12F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift */,
+				C10000110000000000000001 /* SparkleUpdater.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -1435,6 +1443,7 @@
 			packageProductDependencies = (
 				A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */,
 				A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */,
+				C10000310000000000000001 /* Sparkle */,
 			);
 			productName = Fichero;
 			productReference = 100 /* Fichero.app */;
@@ -1515,6 +1524,7 @@
 			mainGroup = 400;
 			packageReferences = (
 				A18ED3F02F141DFE007C2C6E /* XCLocalSwiftPackageReference "fichero-api-client" */,
+				C10000210000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 90;
 			productRefGroup = 420 /* Products */;
@@ -1593,6 +1603,7 @@
 				202674D62F48963F008EAB5D /* SearchResultRowFromAPI.swift in Sources */,
 				A1BFB2E02F04328300EAA55A /* FocusedCommandButtons.swift in Sources */,
 				001 /* FicheroApp.swift in Sources */,
+				C10000010000000000000001 /* SparkleUpdater.swift in Sources */,
 				002 /* ContentView.swift in Sources */,
 				003 /* Document.swift in Sources */,
 				200BCF3C2F3D548000D7851A /* ContentView+Actions.swift in Sources */,
@@ -1956,7 +1967,7 @@
 				DEVELOPMENT_TEAM = QAPB6CWYR6;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -2022,7 +2033,7 @@
 				DEVELOPMENT_TEAM = QAPB6CWYR6;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -2267,7 +2278,18 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
-/* Begin XCSwiftPackageProductDependency section */
+/* Begin XCRemoteSwiftPackageReference section */
+			C10000210000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+				isa = XCRemoteSwiftPackageReference;
+				repositoryURL = "https://github.com/sparkle-project/Sparkle";
+				requirement = {
+					kind = upToNextMajorVersion;
+					minimumVersion = 2.6.0;
+				};
+			};
+/* End XCRemoteSwiftPackageReference section */
+
+	/* Begin XCSwiftPackageProductDependency section */
 		A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = FicheroAPIClient;
@@ -2276,7 +2298,12 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = FicheroAPIClient;
 		};
-/* End XCSwiftPackageProductDependency section */
+		C10000310000000000000001 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C10000210000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+	/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 700 /* Project object */;
 }

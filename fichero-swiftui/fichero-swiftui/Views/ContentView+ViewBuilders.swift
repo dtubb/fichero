@@ -47,12 +47,60 @@ extension ContentView {
 
     // MARK: - Center Content (with Layout Modes)
 
+    var showVerticalModeRail: Bool {
+        (sidebarMode == .library || sidebarMode == .search)
+            && showViewModePicker
+            && availableViewDisplayModes.count > 1
+    }
+
+    @ViewBuilder
+    var verticalModeRail: some View {
+        if showVerticalModeRail {
+            VStack(spacing: 8) {
+                ForEach(availableViewDisplayModes) { mode in
+                    Button {
+                        updateViewDisplayMode(mode)
+                    } label: {
+                        Image(systemName: mode.icon)
+                            .frame(width: 24, height: 24)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(viewDisplayMode == mode ? Color.accentColor.opacity(0.2) : Color.clear)
+                    )
+                    .help("View as: \(mode.rawValue)")
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 8)
+            .padding(.horizontal, 8)
+            .frame(width: 44)
+            .background(Color(nsColor: .windowBackgroundColor).opacity(0.35))
+        }
+    }
+
+    @ViewBuilder
+    var contentWithOptionalModeRail: some View {
+        if showVerticalModeRail {
+            HStack(spacing: 0) {
+                verticalModeRail
+                Divider()
+                contentView
+            }
+        } else {
+            contentView
+        }
+    }
+
     @ViewBuilder
     var centerContent: some View {
         switch currentLayoutMode {
         case .none:
             // None: Just content, no preview
-            contentView
+            contentWithOptionalModeRail
                 .overlay { paneFocusIndicator(for: .content) }
                 .focusable()
                 .focused($focusedPane, equals: .content)
@@ -62,7 +110,7 @@ extension ContentView {
         case .standard:
             // Standard: Content stacked above preview (vertical split)
             VSplitView {
-                contentView
+                contentWithOptionalModeRail
                     .overlay { paneFocusIndicator(for: .content) }
                     .frame(minHeight: 150, idealHeight: 180)
 
@@ -77,7 +125,7 @@ extension ContentView {
         case .widescreen:
             // Widescreen: Content and preview side-by-side (horizontal split)
             HSplitView {
-                contentView
+                contentWithOptionalModeRail
                     .overlay { paneFocusIndicator(for: .content) }
                     .frame(minWidth: 200, idealWidth: 200)
 
@@ -119,11 +167,11 @@ extension ContentView {
         switch viewMode {
         case .library, .search:
             DocumentInspector(document: inspectorDocument)
-                .navigationSplitViewColumnWidth(min: 220, ideal: inspectorWidth, max: .infinity)
+                .navigationSplitViewColumnWidth(min: 200, ideal: inspectorWidth, max: 300)
 
         case .chat, .comparison:
             ChatInspector(selectedDocuments: $chatSelectedDocuments)
-                .navigationSplitViewColumnWidth(min: 220, ideal: inspectorWidth, max: .infinity)
+                .navigationSplitViewColumnWidth(min: 200, ideal: inspectorWidth, max: 300)
 
         case .workflow:
             WorkflowInspector(
@@ -132,7 +180,7 @@ extension ContentView {
                     addNodeFromTool(tool, at: position)
                 }
             )
-            .navigationSplitViewColumnWidth(min: 220, ideal: inspectorWidth, max: .infinity)
+            .navigationSplitViewColumnWidth(min: 200, ideal: inspectorWidth, max: 300)
 
         case .chain:
             WorkflowInspector(
@@ -141,7 +189,7 @@ extension ContentView {
                     addNodeFromTool(tool, at: position)
                 }
             )
-            .navigationSplitViewColumnWidth(min: 220, ideal: inspectorWidth, max: .infinity)
+            .navigationSplitViewColumnWidth(min: 200, ideal: inspectorWidth, max: 300)
 
         case .batches, .batch, .automation, .schedule, .trigger, .activity:
             EmptyView()

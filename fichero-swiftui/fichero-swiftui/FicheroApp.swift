@@ -1,6 +1,6 @@
-import SwiftUI
-import OSLog
 import AppKit
+import OSLog
+import SwiftUI
 
 // MARK: - App Delegate
 
@@ -28,6 +28,7 @@ struct FicheroApp: App {
     // Backend connection state
     @StateObject private var appState = AppState()
     @StateObject private var viewSettings = ViewSettings()
+    @StateObject private var featureManager = FeatureManager.shared
 
     // Library manager - singleton managing all open libraries
     @StateObject private var libraryManager = LibraryManager.shared
@@ -111,6 +112,12 @@ struct FicheroApp: App {
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified(showsTitle: true))
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates...") {
+                    SparkleUpdater.shared.checkForUpdates()
+                }
+            }
+
             // File menu - Database/Library management
             CommandGroup(replacing: .newItem) {
                 Button("New Database") {
@@ -139,21 +146,21 @@ struct FicheroApp: App {
 
                 FocusedNewSearchButton()
 
-                FocusedNewChatButton()
-
-                FocusedNewComparisonButton()
-
-                Divider()
+                if featureManager.isChatEnabled {
+                    FocusedNewChatButton()
+                }
 
                 FocusedNewWorkflowButton()
 
-                FocusedNewChainButton()
+                if featureManager.allFeaturesEnabled {
+                    FocusedNewComparisonButton()
+                    FocusedNewChainButton()
+                }
 
-                Divider()
-
-                FocusedNewScheduleButton()
-
-                FocusedNewTriggerButton()
+                if featureManager.isAutomationEnabled {
+                    Divider()
+                    FocusedNewScheduleButton()
+                }
 
                 Divider()
 
@@ -180,7 +187,6 @@ struct FicheroApp: App {
             CommandGroup(replacing: .sidebar) { }
 
             // Help menu - use default macOS help behavior
-            // Update checking will be added via Sparkle framework when ready for distribution
 
             CommandGroup(after: .appSettings) {
                 Divider()
@@ -189,26 +195,30 @@ struct FicheroApp: App {
                     appState.showProvidersSettings = true
                 }
 
-                Button("MCP Servers...") {
-                    appState.showMCPServers = true
+                if featureManager.isMCPEnabled {
+                    Button("MCP Servers...") {
+                        appState.showMCPServers = true
+                    }
                 }
 
-                Divider()
-
-                // Integrations submenu (Hazel-like folder/app observers)
-                Menu("Integrations") {
-                    Button("Folder Watchers...") {
-                        appState.showFolderWatchers = true
-                    }
-
-                    Button("App Observers...") {
-                        appState.showAppObservers = true
-                    }
-
+                if featureManager.isIntegrationsEnabled {
                     Divider()
 
-                    Button("Automation Rules...") {
-                        appState.showAutomationRules = true
+                    // Integrations submenu (Hazel-like folder/app observers)
+                    Menu("Integrations") {
+                        Button("Folder Watchers...") {
+                            appState.showFolderWatchers = true
+                        }
+
+                        Button("App Observers...") {
+                            appState.showAppObservers = true
+                        }
+
+                        Divider()
+
+                        Button("Automation Rules...") {
+                            appState.showAutomationRules = true
+                        }
                     }
                 }
             }

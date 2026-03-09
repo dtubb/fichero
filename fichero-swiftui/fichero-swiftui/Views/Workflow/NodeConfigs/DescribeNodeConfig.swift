@@ -72,21 +72,10 @@ struct DescribeNodeConfig: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                ZStack(alignment: .topLeading) {
-                    // Placeholder showing default prompt from backend
-                    if promptText.isEmpty, let defaultPrompt = currentDefaultPrompt {
-                        Text(defaultPrompt)
-                            .font(.caption)
-                            .foregroundColor(.secondary.opacity(0.7))
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 8)
-                    }
-
-                    TextEditor(text: $promptText)
-                        .font(.caption)
-                        .scrollContentBackground(.hidden)
-                        .background(Color.clear)
-                }
+                TextEditor(text: $promptText)
+                    .font(.caption)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
                 .frame(minHeight: 80)
                 .background(Color(.textBackgroundColor))
                 .overlay(
@@ -104,13 +93,22 @@ struct DescribeNodeConfig: View {
                     }
                 }
 
-                Text("Edit to customize, or clear to use default")
+                Text("Prompt is editable. Clear to restore tool default.")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
         }
         .onAppear {
             loadInitialState()
+        }
+        .onChange(of: backendPrompt) { _, newDefault in
+            // When backend prompt arrives asynchronously, populate editor only
+            // if user has not customized prompt yet.
+            guard promptText.isEmpty,
+                  node.config?["prompt"] == nil,
+                  let newDefault,
+                  !newDefault.isEmpty else { return }
+            promptText = newDefault
         }
     }
 
@@ -128,6 +126,8 @@ struct DescribeNodeConfig: View {
         if let configValue = node.config?["prompt"],
            case .string(let prompt) = configValue {
             promptText = prompt
+        } else if let defaultPrompt = currentDefaultPrompt {
+            promptText = defaultPrompt
         }
     }
 }

@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ContentViewModifiers")
 
@@ -213,6 +213,9 @@ struct MainContentModifiers: ViewModifier {
                 importError: $importError,
                 handleFileDrop: handleFileDrop
             ))
+            .onChange(of: workflowStore.workflows) { _, updatedWorkflows in
+                syncActiveWorkflowMetadata(with: updatedWorkflows)
+            }
     }
 
     private func handleViewModeChange(_ newMode: AppViewMode) {
@@ -220,6 +223,13 @@ struct MainContentModifiers: ViewModifier {
 
         // Load workflow from API when workflow mode changes
         if case .workflow(let workflowItem) = newMode, let item = workflowItem {
+            // Keep editable metadata aligned immediately to avoid rename races while
+            // the full workflow payload is loading asynchronously.
+            if editingWorkflow.id == item.id {
+                editingWorkflow.name = item.name
+                editingWorkflow.description = item.description ?? ""
+            }
+
             Task {
                 do {
                     let fullWorkflow = try await workflowStore.getWorkflow(item.id)
@@ -281,6 +291,23 @@ struct MainContentModifiers: ViewModifier {
             detailDocument = doc
         } else if newSelection.isEmpty {
             detailDocument = nil
+        }
+    }
+
+    private func syncActiveWorkflowMetadata(with updatedWorkflows: [WorkflowSidebarItem]) {
+        guard case .workflow(let selectedWorkflow) = viewMode,
+              let selectedWorkflow,
+              let canonical = updatedWorkflows.first(where: { $0.id == selectedWorkflow.id }) else {
+            return
+        }
+
+        if selectedWorkflow != canonical {
+            viewMode = .workflow(canonical)
+        }
+
+        if editingWorkflow.id == canonical.id {
+            editingWorkflow.name = canonical.name
+            editingWorkflow.description = canonical.description ?? ""
         }
     }
 }

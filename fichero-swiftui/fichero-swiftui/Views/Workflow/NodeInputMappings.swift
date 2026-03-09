@@ -3,6 +3,7 @@ import SwiftUI
 /// Input mappings configuration for workflow nodes
 struct NodeInputMappings: View {
     @Binding var node: WorkflowNode
+    let allNodes: [WorkflowNode]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -30,14 +31,18 @@ struct NodeInputMappings: View {
                     )
                     .textFieldStyle(.roundedBorder)
                     .font(.caption)
-                    .help("Path expression to data source (e.g., $.nodes.files_abc.files)")
+                }
+
+                let sourcePath = sourcePathForMapping(portId: port.id)
+                if !sourcePath.isEmpty {
+                    Text(readableSource(for: sourcePath))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .help("Path: \(sourcePath)")
                 }
             }
 
-            Text("Use path expressions like $.nodes.<nodeId>.<outputKey>")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .italic()
         }
     }
 
@@ -84,5 +89,42 @@ struct NodeInputMappings: View {
                 }
             }
         )
+    }
+
+    private func sourcePathForMapping(portId: String) -> String {
+        node.inputMappings.first(where: { $0.portId == portId })?.sourcePath ?? ""
+    }
+
+    private func readableSource(for sourcePath: String) -> String {
+        guard sourcePath.hasPrefix("$.nodes.") else {
+            return sourcePath
+        }
+
+        let prefix = "$.nodes."
+        let remainder = String(sourcePath.dropFirst(prefix.count))
+        let parts = remainder.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false)
+
+        guard parts.count == 2 else {
+            return sourcePath
+        }
+
+        let nodeId = String(parts[0])
+        let outputId = String(parts[1])
+
+        guard let sourceNode = allNodes.first(where: { $0.id == nodeId }) else {
+            return "Source: \(nodeId) -> \(outputId)"
+        }
+
+        let sourceName = displayName(for: sourceNode)
+        let outputName = sourceNode.outputPorts.first(where: { $0.id == outputId })?.name ?? outputId
+        return "Source: \(sourceName) [\(sourceNode.id)] -> \(outputName)"
+    }
+
+    private func displayName(for workflowNode: WorkflowNode) -> String {
+        let trimmedLabel = workflowNode.label?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmedLabel.isEmpty {
+            return trimmedLabel
+        }
+        return workflowNode.tool
     }
 }
