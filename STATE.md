@@ -29,9 +29,13 @@ Milestone `0.0.1` due date:
   - local stale branches cleaned
   - remote stale branches deleted (only `origin/main` remains)
 - Pushed fixes directly to `main`:
+  - `c5d59541` feat rich-text editable inspector content (NSTextView) with persisted `page_content` + rich text metadata round-trip
   - `77c67c48` fix preview-pane image centering regression
   - `978af20a` fix Apply Workflow to Selection to execute created batch
   - `048bceb5` fix backend workflow runtime by registering `files` source tool
+- Verified build/lint after rich-text inspector changes:
+  - `xcodebuild` (`Fichero`, Debug, macOS SDK) succeeds
+  - `DocumentInspectorContentTab.swift` has 0 SwiftLint violations
 - Verified backend workflow unit tests after `files` tool fix:
   - `134 passed`
 - Posted milestone progress update to `#279`:
