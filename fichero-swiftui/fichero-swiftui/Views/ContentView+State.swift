@@ -133,12 +133,13 @@ extension ContentView {
     }
 
     /// Available preview/split modes for current sidebar context.
-    /// Library/Search split layouts are gated for 0.0.1.
+    /// Library/Search split layouts are gated for 0.0.1:
+    /// keep Standard (vertical) and gate Widescreen (horizontal).
     var availablePreviewModes: [PreviewMode] {
         switch sidebarMode {
         case .library, .search:
             if !featureManager.isLibrarySearchSplitLayoutsEnabled {
-                return [.none]
+                return [.standard]
             }
             return [.none, .standard, .widescreen]
         case .chat:
@@ -151,11 +152,11 @@ extension ContentView {
     /// Normalize preview mode against current feature gates.
     func normalizedPreviewMode(_ mode: PreviewMode) -> PreviewMode {
         guard availablePreviewModes.contains(mode) else {
-            if availablePreviewModes.contains(.none) {
-                return .none
-            }
             if availablePreviewModes.contains(.standard) {
                 return .standard
+            }
+            if availablePreviewModes.contains(.none) {
+                return .none
             }
             return .none
         }

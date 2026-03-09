@@ -6,11 +6,6 @@ struct SearchViewToolbar: View {
     let isSearching: Bool
     let searchError: String?
     let resultsCount: Int
-    let hasQuery: Bool
-    let hasActiveFilters: Bool
-
-    // Actions
-    let onSaveSearch: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -39,15 +34,6 @@ struct SearchViewToolbar: View {
             }
 
             Spacer()
-
-            // Save search button (right side)
-            if hasQuery || hasActiveFilters {
-                Button("Save Search") {
-                    onSaveSearch()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
