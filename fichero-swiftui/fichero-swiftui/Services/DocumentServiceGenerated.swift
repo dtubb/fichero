@@ -234,12 +234,14 @@ class DocumentServiceGenerated: ObservableObject {
     ///   - id: Document ID
     ///   - name: Optional new name
     ///   - metadata: Optional new metadata
+    ///   - metadataPayload: Optional metadata with mixed value types
     ///   - pageContent: Optional extracted content text
     /// - Returns: Updated document
     func updateDocument(
         _ id: String,
         name: String? = nil,
         metadata: [String: String]? = nil,
+        metadataPayload: [String: any Sendable]? = nil,
         pageContent: String? = nil
     ) async throws -> Document {
         isProcessing = true
@@ -250,7 +252,11 @@ class DocumentServiceGenerated: ObservableObject {
         // Build all fields using additionalProperties
         var data: [String: any Sendable] = [:]
         if let name = name { data["name"] = name }
-        if let metadata = metadata { data["metadata"] = metadata }
+        if let metadataPayload = metadataPayload {
+            data["metadata"] = metadataPayload
+        } else if let metadata = metadata {
+            data["metadata"] = metadata
+        }
         if let pageContent = pageContent { data["page_content"] = pageContent }
 
         let container = try OpenAPIObjectContainer(unvalidatedValue: data)
