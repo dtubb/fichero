@@ -189,15 +189,10 @@ struct ImageWithCursorTracking: NSViewRepresentable {
 
         updateContentInsets(scrollView: scrollView, imageView: imageView)
 
-        // Center visible region for both oversized and undersized images.
-        // For undersized images we intentionally use a negative origin so the
-        // clip view centers content instead of anchoring at the lower-left.
-        let centerX = scaledSize.width >= viewSize.width
-            ? (scaledSize.width - viewSize.width) / 2
-            : -((viewSize.width - scaledSize.width) / 2)
-        let centerY = scaledSize.height >= viewSize.height
-            ? (scaledSize.height - viewSize.height) / 2
-            : -((viewSize.height - scaledSize.height) / 2)
+        // For undersized images, contentInsets already provide centering.
+        // Avoid negative scroll origins, which can skew horizontal/vertical framing.
+        let centerX = max(0, (scaledSize.width - viewSize.width) / 2)
+        let centerY = max(0, (scaledSize.height - viewSize.height) / 2)
         scrollView.contentView.scroll(to: CGPoint(x: centerX, y: centerY))
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }
@@ -407,13 +402,9 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             let scaledHeight = imageSize.height * magnification
             let viewSize = scrollView.bounds.size
 
-            // Center for both oversized and undersized images.
-            let centerX = scaledWidth >= viewSize.width
-                ? (scaledWidth - viewSize.width) / 2
-                : -((viewSize.width - scaledWidth) / 2)
-            let centerY = scaledHeight >= viewSize.height
-                ? (scaledHeight - viewSize.height) / 2
-                : -((viewSize.height - scaledHeight) / 2)
+            // For undersized images, contentInsets already provide centering.
+            let centerX = max(0, (scaledWidth - viewSize.width) / 2)
+            let centerY = max(0, (scaledHeight - viewSize.height) / 2)
 
             scrollView.contentView.scroll(to: CGPoint(x: centerX, y: centerY))
             scrollView.reflectScrolledClipView(scrollView.contentView)
