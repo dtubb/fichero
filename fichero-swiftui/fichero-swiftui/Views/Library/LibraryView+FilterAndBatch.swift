@@ -167,7 +167,10 @@ extension LibraryView {
                 maxConcurrent: 5
             )
             logger.info(
-                "Created batch \(batch.batchId) for workflow \(workflowId) with \(self.selectedDocumentIdsForBatch.count) items"
+                """
+                Created batch \(batch.batchId) for workflow \(workflowId) \
+                with \(self.selectedDocumentIdsForBatch.count) items
+                """
             )
         } catch {
             logger.error("Run workflow failed: \(error.localizedDescription)")
