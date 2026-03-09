@@ -56,7 +56,7 @@ struct ContentView: View {
 
     // Main toolbar state (per-window persistence)
     @SceneStorage("viewDisplayMode") var viewDisplayMode: ViewDisplayMode = .icon
-    @SceneStorage("currentLayoutMode") var currentLayoutMode: LayoutMode = .standard
+    @SceneStorage("currentLayoutMode") var currentLayoutMode: LayoutMode = .widescreen
     @SceneStorage("sidebarMode") var sidebarMode: SidebarMode = .library
 
     // Column visibility persistence

@@ -5,7 +5,7 @@ import SwiftUI
 @MainActor
 class ViewSettings: ObservableObject {
     @Published var libraryLayout: LibraryLayout = .icons
-    @Published var previewMode: PreviewMode = .standard
+    @Published var previewMode: PreviewMode = .widescreen
     @Published var showInspector: Bool = true
     @Published var showQuickLook: Bool = false
 }
