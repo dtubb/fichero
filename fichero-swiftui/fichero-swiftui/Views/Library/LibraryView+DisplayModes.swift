@@ -9,42 +9,53 @@ extension LibraryView {
         let itemMin = CGFloat(max(60, 120 * iconViewScale))
         let itemMax = CGFloat(max(80, 150 * iconViewScale))
         return GeometryReader { geometry in
-            ScrollView {
-                LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: itemMin, maximum: itemMax))],
-                    alignment: .center,
-                    spacing: 20
-                ) {
-                    ForEach(filteredDocuments) { doc in
-                        DocumentThumbnailView(
-                            document: doc,
-                            isSelected: selection.contains(doc.id)
-                        )
-                        .draggable(doc.id)
-                        .onTapGesture(count: 2) {
-                            detailDocument = doc
-                        }
-                        .onTapGesture {
-                            handleTap(doc)
-                        }
-                        .contextMenu {
-                            documentContextMenu(for: doc)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: itemMin, maximum: itemMax))],
+                        alignment: .center,
+                        spacing: 20
+                    ) {
+                        ForEach(filteredDocuments) { doc in
+                            DocumentThumbnailView(
+                                document: doc,
+                                isSelected: selection.contains(doc.id)
+                            )
+                            .id(doc.id)
+                            .draggable(doc.id)
+                            .onTapGesture(count: 2) {
+                                detailDocument = doc
+                            }
+                            .onTapGesture {
+                                handleTap(doc)
+                                onRequestFocus()
+                            }
+                            .contextMenu {
+                                documentContextMenu(for: doc)
+                            }
                         }
                     }
+                    .padding()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
-                .padding()
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .onChange(of: geometry.size.width) { _, newWidth in
-                let cellWidth = CGFloat(120 * iconViewScale) + 20
-                let availableWidth = newWidth - 32
-                gridColumnCount = max(1, Int(availableWidth / cellWidth))
-            }
-            .onAppear {
-                let cellWidth = CGFloat(120 * iconViewScale) + 20
-                let availableWidth = geometry.size.width - 32
-                gridColumnCount = max(1, Int(availableWidth / cellWidth))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .onChange(of: geometry.size.width) { _, newWidth in
+                    let cellWidth = CGFloat(120 * iconViewScale) + 20
+                    let availableWidth = newWidth - 32
+                    gridColumnCount = max(1, Int(availableWidth / cellWidth))
+                }
+                .onAppear {
+                    let cellWidth = CGFloat(120 * iconViewScale) + 20
+                    let availableWidth = geometry.size.width - 32
+                    gridColumnCount = max(1, Int(availableWidth / cellWidth))
+                }
+                .onChange(of: listScrollTarget) { _, id in
+                    guard let id else { return }
+                    withAnimation {
+                        proxy.scrollTo(id, anchor: .center)
+                    }
+                    listScrollTarget = nil
+                }
             }
         }
     }

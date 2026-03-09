@@ -24,8 +24,10 @@ struct SidebarBottomToolbar: View {
         HStack(spacing: 0) {
             // New item menu (dropdown)
             Menu {
-                Button(action: createSearch) {
-                    Label("New Search", systemImage: "magnifyingglass")
+                if featureManager.isSearchEnabled {
+                    Button(action: createSearch) {
+                        Label("New Search", systemImage: "magnifyingglass")
+                    }
                 }
 
                 if featureManager.isChatEnabled {
