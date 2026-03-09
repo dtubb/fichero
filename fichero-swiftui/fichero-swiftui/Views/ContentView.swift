@@ -208,7 +208,7 @@ struct ContentView: View {
         .onAppear {
             // Restore all persisted state from @SceneStorage
             restorePersistedState()
-            inspectorWidth = min(max(inspectorWidth, 200), 300)
+            inspectorWidth = min(max(inspectorWidth, 180), 700)
             // Sync View menu inspector command to per-window inspector state.
             if viewSettings.showInspector != showInspectorSidebar {
                 viewSettings.showInspector = showInspectorSidebar
