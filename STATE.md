@@ -43,6 +43,7 @@ Required 0.0.1 product surface:
 - Later-milestone follow-up issues created:
   - `#280` (Integrations menu re-enable)
   - `#281` (Icon zoom toolbar re-enable)
+- Workflow editor LangGraph preview is now feature-gated (`fichero.features.workflow_langgraph_preview`) and OFF by default for 0.0.1.
 
 ## Active Risks / Blockers
 

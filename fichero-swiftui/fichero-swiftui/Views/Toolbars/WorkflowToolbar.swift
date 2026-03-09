@@ -28,7 +28,7 @@ struct WorkflowToolbar: View {
                 }
 
                 // Preview LangGraph diagram
-                if let onPreview = onPreviewDiagram {
+                if featureManager.isWorkflowLangGraphPreviewEnabled, let onPreview = onPreviewDiagram {
                     Button(action: onPreview) {
                         Image(systemName: "flowchart")
                     }
