@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 // MARK: - ContentView State Management Extension
 // Agent: StateManagementAgent
@@ -9,18 +9,8 @@ extension ContentView {
 
     // MARK: - Computed Properties
 
-    /// Toolbar title showing library name and current view
+    /// Toolbar/window title showing only the current view/item name
     var toolbarTitle: String {
-        let libraryManager = LibraryManager.shared
-        let libraryName: String
-
-        if let currentId = libraryManager.currentLibraryId,
-           let library = libraryManager.openLibraries.first(where: { $0.id == currentId }) {
-            libraryName = library.displayName
-        } else {
-            libraryName = "Fichero"
-        }
-
         let viewName: String
         switch viewMode {
         case .library(let document):
@@ -58,7 +48,7 @@ extension ContentView {
             }
         }
 
-        return "\(libraryName) > \(viewName)"
+        return viewName
     }
 
     /// Documents for the browser based on current library selection
@@ -116,11 +106,71 @@ extension ContentView {
     /// Whether to show the layout mode picker (none/standard/widescreen)
     /// Only show for modes that have preview panes
     var showLayoutPicker: Bool {
+        availablePreviewModes.count > 1
+    }
+
+    /// Available display modes for the current sidebar mode.
+    /// Library is icon-only in 0.0.1 unless advanced views are explicitly enabled.
+    var availableViewDisplayModes: [ViewDisplayMode] {
+        if sidebarMode == .library && !featureManager.isLibraryAdvancedViewsEnabled {
+            return [.icon]
+        }
+        if sidebarMode == .search && !featureManager.isSearchAdvancedViewsEnabled {
+            return [.list]
+        }
+        return ViewDisplayMode.allCases
+    }
+
+    /// Normalize a requested display mode against current feature gates.
+    func normalizedViewDisplayMode(_ mode: ViewDisplayMode) -> ViewDisplayMode {
+        guard availableViewDisplayModes.contains(mode) else {
+            if availableViewDisplayModes.contains(.list) {
+                return .list
+            }
+            return .icon
+        }
+        return mode
+    }
+
+    /// Available preview/split modes for current sidebar context.
+    /// Library/Search split layouts are gated for 0.0.1:
+    /// keep Standard (vertical) and gate Widescreen (horizontal).
+    var availablePreviewModes: [PreviewMode] {
         switch sidebarMode {
-        case .library, .search, .chat:
-            return true
+        case .library, .search:
+            if !featureManager.isLibrarySearchSplitLayoutsEnabled {
+                return [.standard]
+            }
+            return [.none, .standard, .widescreen]
+        case .chat:
+            return [.none, .standard, .widescreen]
         case .workflows, .automation, .batches, .activity:
-            return false
+            return []
+        }
+    }
+
+    /// Normalize preview mode against current feature gates.
+    func normalizedPreviewMode(_ mode: PreviewMode) -> PreviewMode {
+        guard availablePreviewModes.contains(mode) else {
+            if availablePreviewModes.contains(.standard) {
+                return .standard
+            }
+            if availablePreviewModes.contains(.none) {
+                return .none
+            }
+            return .none
+        }
+        return mode
+    }
+
+    /// Available layout modes mapped from preview modes for toolbar picker.
+    var availableLayoutModes: [LayoutMode] {
+        availablePreviewModes.map { preview in
+            switch preview {
+            case .none: .none
+            case .standard: .standard
+            case .widescreen: .widescreen
+            }
         }
     }
 }

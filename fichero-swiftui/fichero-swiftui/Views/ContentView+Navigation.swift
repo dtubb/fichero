@@ -29,7 +29,6 @@ extension ContentView {
                 savedSearch: savedSearch,
                 selection: $browserSelection,
                 detailDocument: $detailDocument,
-                onSearchSaved: { refreshSavedSearches() },
                 displayMode: viewDisplayMode
             )
 

@@ -1,6 +1,6 @@
-import SwiftUI
-import OSLog
 import AppKit
+import OSLog
+import SwiftUI
 
 // MARK: - LibraryWindow
 
@@ -17,6 +17,7 @@ struct LibraryWindow: View {
 
     @State private var hasInitialized = false
     @State private var showingFileImporter = false
+    @SceneStorage("libraryWindow.libraryId") private var persistedLibraryId: String?
 
     @Environment(\.openWindow) private var openWindow
 
@@ -186,6 +187,15 @@ struct LibraryWindow: View {
             currentLibraryId=\(libraryManager.currentLibraryId?.uuidString ?? "nil")
             """)
 
+        // Priority 0: Restore the library this scene was showing last time.
+        if let persistedLibraryId,
+           let restoredId = UUID(uuidString: persistedLibraryId),
+           libraryManager.getLibrary(id: restoredId) != nil {
+            libraryWindowLogger.info("Restoring persisted libraryId: \(restoredId)")
+            assignLibrary(id: restoredId)
+            return
+        }
+
         // Priority 1: Use currentLibraryId (set by handleOpenURL or restoreSavedLibraries)
         if let currentId = libraryManager.currentLibraryId,
            libraryManager.getLibrary(id: currentId) != nil {
@@ -207,6 +217,7 @@ struct LibraryWindow: View {
 
     private func assignLibrary(id: UUID) {
         windowState.libraryId = id
+        persistedLibraryId = id.uuidString
         libraryWindowLogger.info("Assigned library: \(id)")
     }
 

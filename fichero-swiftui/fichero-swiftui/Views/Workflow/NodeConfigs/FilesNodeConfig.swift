@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "FilesNodeConfig")
 
@@ -10,6 +10,9 @@ struct FilesNodeConfig: View {
     @EnvironmentObject var documentStore: DocumentStore
 
     @State private var selectedFileIds: [String] = []
+    @State private var showFilePicker = false
+    @State private var stagedPickerSelection: Set<String> = []
+    @State private var fileSearchText = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -26,9 +29,18 @@ struct FilesNodeConfig: View {
                         fileRow(fileId: fileId)
                     }
 
-                    // Add more files drop zone
+                    // Add more files via drop or picker.
                     dropZoneView
                 }
+            }
+
+            if showFilePicker {
+                filePickerPanel
+            }
+        }
+        .task {
+            if documentStore.collections.isEmpty {
+                await documentStore.loadCollections()
             }
         }
         .onAppear {
@@ -44,7 +56,7 @@ struct FilesNodeConfig: View {
             .overlay(
                 HStack {
                     Image(systemName: "plus.circle")
-                    Text("Drop files here or select from library")
+                    Text("Drop files here or click to select")
                         .font(.caption)
                 }
                 .foregroundColor(.secondary)
@@ -58,11 +70,24 @@ struct FilesNodeConfig: View {
             }
     }
 
+    private var availableDocuments: [Document] {
+        documentStore.collections
+            .filter { $0.docType != .folder }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private var filteredDocuments: [Document] {
+        guard !fileSearchText.isEmpty else { return availableDocuments }
+        return availableDocuments.filter {
+            $0.name.localizedCaseInsensitiveContains(fileSearchText)
+        }
+    }
+
     @ViewBuilder
     private func fileRow(fileId: String) -> some View {
-        // Look up document name from current documents or collections
-        let allDocs = documentStore.currentDocuments + documentStore.collections
-        let docName = allDocs.first(where: { $0.id == fileId })?.name ?? "Document \(fileId.prefix(8))..."
+        let docName =
+            documentStore.collections.first(where: { $0.id == fileId })?.name
+            ?? "Document \(fileId.prefix(8))..."
 
         HStack {
             Image(systemName: "doc")
@@ -87,10 +112,7 @@ struct FilesNodeConfig: View {
 
     private func removeFile(_ fileId: String) {
         selectedFileIds.removeAll { $0 == fileId }
-        if node.config == nil {
-            node.config = [:]
-        }
-        node.config?["file_ids"] = .array(selectedFileIds.map { .string($0) })
+        syncConfig()
     }
 
     private func handleFileDrop(_ providers: [NSItemProvider]) -> Bool {
@@ -100,10 +122,7 @@ struct FilesNodeConfig: View {
                 Task { @MainActor in
                     if !self.selectedFileIds.contains(docId) {
                         self.selectedFileIds.append(docId)
-                        if self.node.config == nil {
-                            self.node.config = [:]
-                        }
-                        self.node.config?["file_ids"] = .array(self.selectedFileIds.map { .string($0) })
+                        self.syncConfig()
                     }
                 }
             }
@@ -112,9 +131,79 @@ struct FilesNodeConfig: View {
     }
 
     private func showFilePickerSheet() {
-        // For now, users can drag files from the library browser
-        // A picker sheet could be added in the future
-        logger.debug("File picker sheet would open here")
+        fileSearchText = ""
+        stagedPickerSelection = Set(selectedFileIds)
+        showFilePicker = true
+    }
+
+    private var filePickerPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Select Files")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            if availableDocuments.isEmpty {
+                ContentUnavailableView(
+                    "No Files Available",
+                    systemImage: "doc",
+                    description: Text("Import files in Library first.")
+                )
+            } else {
+                List(filteredDocuments, id: \.id) { doc in
+                    Button {
+                        togglePickerSelection(doc.id)
+                    } label: {
+                        HStack {
+                            Image(systemName: stagedPickerSelection.contains(doc.id) ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(
+                                    stagedPickerSelection.contains(doc.id) ? Color.accentColor : Color.secondary
+                                )
+                            Text(doc.name)
+                                .foregroundStyle(.primary)
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+                .listStyle(.inset)
+                .frame(minHeight: 160, maxHeight: 240)
+                .searchable(text: $fileSearchText, prompt: "Search files")
+            }
+
+            HStack {
+                Button("Cancel") {
+                    showFilePicker = false
+                }
+                .buttonStyle(.borderless)
+
+                Spacer()
+
+                Button("Add") {
+                    selectedFileIds = Array(stagedPickerSelection).sorted()
+                    syncConfig()
+                    showFilePicker = false
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(8)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .cornerRadius(6)
+    }
+
+    private func togglePickerSelection(_ id: String) {
+        if stagedPickerSelection.contains(id) {
+            stagedPickerSelection.remove(id)
+        } else {
+            stagedPickerSelection.insert(id)
+        }
+    }
+
+    private func syncConfig() {
+        if node.config == nil {
+            node.config = [:]
+        }
+        node.config?["file_ids"] = .array(selectedFileIds.map { .string($0) })
     }
 
     private func loadInitialState() {

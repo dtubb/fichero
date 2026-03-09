@@ -1,4 +1,5 @@
 import SwiftUI
+// swiftlint:disable file_length
 
 /// View menu commands - Sidebar modes, library layouts, preview modes, and inspector toggle
 /// Extracted from FicheroApp.swift to maintain consistency with other menu command patterns
@@ -40,7 +41,7 @@ struct ViewMenuCommands: View {
 /// Uses @FocusedValue to update the current window's sidebar mode (reads from focusedSceneValue)
 struct SidebarModeSection: View {
     @FocusedValue(\.sidebarMode) var sidebarMode
-    
+
     // Feature manager to hide modes
     @ObservedObject var featureManager = FeatureManager.shared
 
@@ -61,7 +62,7 @@ struct SidebarModeSection: View {
             ) {
                 sidebarMode?.wrappedValue = .library
             }
-            
+
             SidebarModeButton(
                 mode: .search,
                 label: SidebarMode.search.label,
@@ -71,7 +72,7 @@ struct SidebarModeSection: View {
             ) {
                 sidebarMode?.wrappedValue = .search
             }
-            
+
             if featureManager.isChatEnabled {
                 SidebarModeButton(
                     mode: .chat,
@@ -83,7 +84,7 @@ struct SidebarModeSection: View {
                     sidebarMode?.wrappedValue = .chat
                 }
             }
-            
+
             if featureManager.isWorkflowsEnabled {
                 SidebarModeButton(
                     mode: .workflows,
@@ -96,12 +97,12 @@ struct SidebarModeSection: View {
                 }
             }
 
-            if featureManager.isWorkflowsEnabled || featureManager.isAutomationEnabled {
+            if featureManager.isBatchesEnabled || featureManager.isAutomationEnabled {
                 Divider()
             }
 
             // Automation modes (5-6)
-            if featureManager.isWorkflowsEnabled {
+            if featureManager.isBatchesEnabled {
                 SidebarModeButton(
                     mode: .batches,
                     label: SidebarMode.batches.label,
@@ -112,7 +113,7 @@ struct SidebarModeSection: View {
                     sidebarMode?.wrappedValue = .batches
                 }
             }
-            
+
             if featureManager.isAutomationEnabled {
                 SidebarModeButton(
                     mode: .automation,
@@ -172,6 +173,7 @@ struct SidebarModeButton: View {
 /// Only shown for Library and Search modes
 struct LibraryLayoutSection: View {
     @ObservedObject var viewSettings: ViewSettings
+    @ObservedObject var featureManager = FeatureManager.shared
     @FocusedValue(\.sidebarMode) var sidebarMode
 
     /// Only show view options for modes that need them (Library, Search)
@@ -185,47 +187,66 @@ struct LibraryLayoutSection: View {
         }
     }
 
+    private var availableLayouts: [LibraryLayout] {
+        guard let mode = sidebarMode?.wrappedValue else { return [] }
+        if mode == .library && !featureManager.isLibraryAdvancedViewsEnabled {
+            return [.icons]
+        }
+        if mode == .search && !featureManager.isSearchAdvancedViewsEnabled {
+            return [.list]
+        }
+        return [.icons, .list, .table, .map]
+    }
+
     var body: some View {
         if shouldShowViewOptions {
             Section("View") {
-                LibraryLayoutButton(
-                    layout: .icons,
-                    label: "as Icons",
-                    icon: "square.grid.2x2",
-                    shortcut: "1",
-                    current: viewSettings.libraryLayout
-                ) {
-                    viewSettings.libraryLayout = .icons
+                if availableLayouts.contains(.icons) {
+                    LibraryLayoutButton(
+                        layout: .icons,
+                        label: "as Icons",
+                        icon: "square.grid.2x2",
+                        shortcut: "1",
+                        current: viewSettings.libraryLayout
+                    ) {
+                        viewSettings.libraryLayout = .icons
+                    }
                 }
 
-                LibraryLayoutButton(
-                    layout: .list,
-                    label: "as List",
-                    icon: "list.bullet",
-                    shortcut: "2",
-                    current: viewSettings.libraryLayout
-                ) {
-                    viewSettings.libraryLayout = .list
+                if availableLayouts.contains(.list) {
+                    LibraryLayoutButton(
+                        layout: .list,
+                        label: "as List",
+                        icon: "list.bullet",
+                        shortcut: "2",
+                        current: viewSettings.libraryLayout
+                    ) {
+                        viewSettings.libraryLayout = .list
+                    }
                 }
 
-                LibraryLayoutButton(
-                    layout: .table,
-                    label: "as Table",
-                    icon: "tablecells",
-                    shortcut: "3",
-                    current: viewSettings.libraryLayout
-                ) {
-                    viewSettings.libraryLayout = .table
+                if availableLayouts.contains(.table) {
+                    LibraryLayoutButton(
+                        layout: .table,
+                        label: "as Table",
+                        icon: "tablecells",
+                        shortcut: "3",
+                        current: viewSettings.libraryLayout
+                    ) {
+                        viewSettings.libraryLayout = .table
+                    }
                 }
 
-                LibraryLayoutButton(
-                    layout: .map,
-                    label: "as Map",
-                    icon: "rectangle.3.group",
-                    shortcut: "4",
-                    current: viewSettings.libraryLayout
-                ) {
-                    viewSettings.libraryLayout = .map
+                if availableLayouts.contains(.map) {
+                    LibraryLayoutButton(
+                        layout: .map,
+                        label: "as Map",
+                        icon: "rectangle.3.group",
+                        shortcut: "4",
+                        current: viewSettings.libraryLayout
+                    ) {
+                        viewSettings.libraryLayout = .map
+                    }
                 }
             }
         }
@@ -318,50 +339,66 @@ struct SortSection: View {
 /// Only shown for modes with preview panes (Library, Search, Chat)
 struct PreviewModeSection: View {
     @ObservedObject var viewSettings: ViewSettings
+    @ObservedObject var featureManager = FeatureManager.shared
     @FocusedValue(\.sidebarMode) var sidebarMode
 
     /// Only show preview options for modes that have preview panes
     private var shouldShowPreviewOptions: Bool {
-        guard let mode = sidebarMode?.wrappedValue else { return false }
+        availablePreviewModes.count > 1
+    }
+
+    private var availablePreviewModes: [PreviewMode] {
+        guard let mode = sidebarMode?.wrappedValue else { return [] }
         switch mode {
-        case .library, .search, .chat:
-            return true
+        case .library, .search:
+            if !featureManager.isLibrarySearchSplitLayoutsEnabled {
+                return [.standard]
+            }
+            return [.none, .standard, .widescreen]
+        case .chat:
+            return [.none, .standard, .widescreen]
         case .workflows, .automation, .batches, .activity:
-            return false
+            return []
         }
     }
 
     var body: some View {
         if shouldShowPreviewOptions {
             Section("Preview") {
-                PreviewModeButton(
-                    mode: .none,
-                    label: "None",
-                    icon: "square",
-                    shortcut: "5",
-                    current: viewSettings.previewMode
-                ) {
-                    viewSettings.previewMode = .none
+                if availablePreviewModes.contains(.none) {
+                    PreviewModeButton(
+                        mode: .none,
+                        label: "None",
+                        icon: "square",
+                        shortcut: "5",
+                        current: viewSettings.previewMode
+                    ) {
+                        viewSettings.previewMode = .none
+                    }
                 }
 
-                PreviewModeButton(
-                    mode: .standard,
-                    label: "Standard",
-                    icon: "rectangle.split.1x2",
-                    shortcut: "6",
-                    current: viewSettings.previewMode
-                ) {
-                    viewSettings.previewMode = .standard
+                if availablePreviewModes.contains(.standard) {
+                    PreviewModeButton(
+                        mode: .standard,
+                        label: "Standard",
+                        icon: "rectangle.split.1x2",
+                        shortcut: "6",
+                        current: viewSettings.previewMode
+                    ) {
+                        viewSettings.previewMode = .standard
+                    }
                 }
 
-                PreviewModeButton(
-                    mode: .widescreen,
-                    label: "Widescreen",
-                    icon: "rectangle.split.2x1",
-                    shortcut: "7",
-                    current: viewSettings.previewMode
-                ) {
-                    viewSettings.previewMode = .widescreen
+                if availablePreviewModes.contains(.widescreen) {
+                    PreviewModeButton(
+                        mode: .widescreen,
+                        label: "Widescreen",
+                        icon: "rectangle.split.2x1",
+                        shortcut: "7",
+                        current: viewSettings.previewMode
+                    ) {
+                        viewSettings.previewMode = .widescreen
+                    }
                 }
             }
         }

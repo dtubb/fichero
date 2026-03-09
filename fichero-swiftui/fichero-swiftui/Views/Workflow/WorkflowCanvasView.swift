@@ -240,6 +240,7 @@ extension WorkflowCanvasView {
                     get: { workflow.nodes[index] },
                     set: { workflow.nodes[index] = $0 }
                 ),
+                allNodes: workflow.nodes,
                 onDelete: {
                     deleteNode(at: index)
                 },
