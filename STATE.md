@@ -29,6 +29,7 @@ Milestone `0.0.1` due date:
   - local stale branches cleaned
   - remote stale branches deleted (only `origin/main` remains)
 - Pushed fixes directly to `main`:
+  - `4ef0a9df` fix workflow Files node picker crash path by replacing popover `List/searchable` with stable search + scroll picker and ID de-dup guard (`#292`)
   - `c5d59541` feat rich-text editable inspector content (NSTextView) with persisted `page_content` + rich text metadata round-trip
   - `77c67c48` fix preview-pane image centering regression
   - `978af20a` fix Apply Workflow to Selection to execute created batch
@@ -40,6 +41,9 @@ Milestone `0.0.1` due date:
   - `134 passed`
 - Posted milestone progress update to `#279`:
   - https://github.com/dtubb/fichero/issues/279#issuecomment-4020847610
+- Posted overnight updates:
+  - `#279`: https://github.com/dtubb/fichero/issues/279#issuecomment-4020886257
+  - `#292`: https://github.com/dtubb/fichero/issues/292#issuecomment-4020893120
 
 ## Current 0.0.1 Outstanding (Open)
 
