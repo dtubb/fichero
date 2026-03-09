@@ -21,6 +21,9 @@ enum PaneFocus: Hashable {
 // - ContentView+Persistence: State serialization for @SceneStorage
 // swiftlint:disable:next type_body_length
 struct ContentView: View {
+    static let inspectorMinWidth: Double = 140
+    static let inspectorMaxWidth: Double = 1000
+
     // MARK: - Environment
 
     @EnvironmentObject var viewSettings: ViewSettings
@@ -207,7 +210,10 @@ struct ContentView: View {
         .onAppear {
             // Restore all persisted state from @SceneStorage
             restorePersistedState()
-            inspectorWidth = min(max(inspectorWidth, 180), 700)
+            inspectorWidth = min(
+                max(inspectorWidth, ContentView.inspectorMinWidth),
+                ContentView.inspectorMaxWidth
+            )
             if !featureManager.isSearchEnabled && sidebarMode == .search {
                 sidebarMode = .library
                 viewMode = .library(nil)

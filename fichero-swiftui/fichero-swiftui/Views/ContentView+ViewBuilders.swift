@@ -175,11 +175,19 @@ extension ContentView {
         switch viewMode {
         case .library, .search:
             DocumentInspector(document: inspectorDocument)
-                .navigationSplitViewColumnWidth(min: 180, ideal: inspectorWidth, max: 700)
+                .navigationSplitViewColumnWidth(
+                    min: ContentView.inspectorMinWidth,
+                    ideal: inspectorWidth,
+                    max: ContentView.inspectorMaxWidth
+                )
 
         case .chat, .comparison:
             ChatInspector(selectedDocuments: $chatSelectedDocuments)
-                .navigationSplitViewColumnWidth(min: 180, ideal: inspectorWidth, max: 700)
+                .navigationSplitViewColumnWidth(
+                    min: ContentView.inspectorMinWidth,
+                    ideal: inspectorWidth,
+                    max: ContentView.inspectorMaxWidth
+                )
 
         case .workflow:
             WorkflowInspector(
@@ -188,7 +196,11 @@ extension ContentView {
                     addNodeFromTool(tool, at: position)
                 }
             )
-            .navigationSplitViewColumnWidth(min: 180, ideal: inspectorWidth, max: 700)
+            .navigationSplitViewColumnWidth(
+                min: ContentView.inspectorMinWidth,
+                ideal: inspectorWidth,
+                max: ContentView.inspectorMaxWidth
+            )
 
         case .chain:
             WorkflowInspector(
@@ -197,7 +209,11 @@ extension ContentView {
                     addNodeFromTool(tool, at: position)
                 }
             )
-            .navigationSplitViewColumnWidth(min: 180, ideal: inspectorWidth, max: 700)
+            .navigationSplitViewColumnWidth(
+                min: ContentView.inspectorMinWidth,
+                ideal: inspectorWidth,
+                max: ContentView.inspectorMaxWidth
+            )
 
         case .batches, .batch, .automation, .schedule, .trigger, .activity:
             EmptyView()
