@@ -25,6 +25,7 @@ struct NodePopover: View {
     @EnvironmentObject var documentStore: DocumentStore
     @EnvironmentObject var savedSearchServiceGenerated: SavedSearchServiceGenerated
     @EnvironmentObject var workflowService: WorkflowServiceGenerated
+    @ObservedObject var featureManager = FeatureManager.shared
 
     // Dynamic prompt from backend (fetched based on current config)
     @State private var backendPrompt: String?
@@ -230,7 +231,7 @@ struct NodePopover: View {
                 }
 
                 // Input mappings section
-                if !node.inputPorts.isEmpty {
+                if featureManager.isWorkflowEditorAdvancedViewsEnabled, !node.inputPorts.isEmpty {
                     inputMappingsSection
                 }
             }

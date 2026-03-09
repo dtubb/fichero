@@ -210,18 +210,7 @@ struct InputPortsView: View {
     private var visiblePorts: [PortInfo] {
         guard !showPortDetails else { return ports }
         guard !ports.isEmpty else { return [] }
-
-        let connectedIds = connectedPortIds
-        let connectedPorts = ports.filter { connectedIds.contains($0.id) }
-        let firstUnconnected = ports.first { !connectedIds.contains($0.id) }
-
-        if connectedPorts.isEmpty {
-            return [ports[0]]
-        }
-        if let firstUnconnected {
-            return connectedPorts + [firstUnconnected]
-        }
-        return connectedPorts
+        return [ports[0]]
     }
 
     var body: some View {
@@ -265,18 +254,7 @@ struct OutputPortsView: View {
     private var visiblePorts: [PortInfo] {
         guard !showPortDetails else { return ports }
         guard !ports.isEmpty else { return [] }
-
-        let connectedIds = connectedPortIds
-        let connectedPorts = ports.filter { connectedIds.contains($0.id) }
-        if connectedPorts.isEmpty {
-            return [ports[0]]
-        }
-
-        let primary = ports[0]
-        if connectedIds.contains(primary.id) {
-            return connectedPorts
-        }
-        return connectedPorts + [primary]
+        return [ports[0]]
     }
 
     var body: some View {

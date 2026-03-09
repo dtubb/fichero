@@ -10,6 +10,10 @@ struct DocumentInspectorContentTab: View {
     @State private var draftAttributedText = NSAttributedString(string: "")
     @State private var originalPlainContent: String = ""
     @State private var originalRTFBase64: String = ""
+    @State private var lastLoadedSignature: String = ""
+    @State private var pendingExternalSignature: String?
+    @State private var isEditingText = false
+    @State private var editorRevision = 0
     @State private var isSaving = false
     @State private var saveError: String?
 
@@ -25,6 +29,15 @@ struct DocumentInspectorContentTab: View {
 
     private var hasChanges: Bool {
         draftContent != originalPlainContent || currentRTFBase64 != originalRTFBase64
+    }
+
+    private var documentSignature: String {
+        signature(
+            id: document.id,
+            updatedAt: document.updatedAt,
+            pageContent: document.pageContent,
+            richTextBase64: document.metadata[Self.richTextMetadataKey]?.value as? String
+        )
     }
 
     var body: some View {
@@ -64,11 +77,21 @@ struct DocumentInspectorContentTab: View {
             }
 
             ZStack(alignment: .topLeading) {
-                AttributedTextEditor(text: $draftAttributedText)
+                AttributedTextEditor(
+                    text: $draftAttributedText,
+                    isEditable: !isSaving,
+                    contentRevision: editorRevision,
+                    onEditingChanged: { isEditing in
+                        isEditingText = isEditing
+                        if !isEditing, pendingExternalSignature != nil, !hasChanges {
+                            loadDraft(from: document)
+                            saveError = nil
+                        }
+                    }
+                )
                     .frame(minHeight: 220)
                     .background(Color(.textBackgroundColor))
                     .cornerRadius(6)
-                    .disabled(isSaving)
 
                 if draftContent.isEmpty {
                     Text("Add notes or edit extracted text...")
@@ -83,6 +106,10 @@ struct DocumentInspectorContentTab: View {
                 Text(saveError)
                     .font(.caption)
                     .foregroundStyle(.red)
+            } else if pendingExternalSignature != nil {
+                Text("Document changed in the background. Save or Revert to refresh.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             } else if isSaving {
                 HStack(spacing: 6) {
                     ProgressView()
@@ -96,7 +123,12 @@ struct DocumentInspectorContentTab: View {
         .onAppear {
             loadDraft(from: document)
         }
-        .onChange(of: document.id) { _, _ in
+        .onChange(of: documentSignature) { _, newSignature in
+            guard newSignature != lastLoadedSignature else { return }
+            if isEditingText && hasChanges {
+                pendingExternalSignature = newSignature
+                return
+            }
             loadDraft(from: document)
             saveError = nil
         }
@@ -129,6 +161,7 @@ struct DocumentInspectorContentTab: View {
                 documentStore.updateLocal(updated)
                 documentStore.publish(.documentsUpdated(documentStore.currentDocuments))
                 loadDraft(from: updated)
+                pendingExternalSignature = nil
             } catch {
                 saveError = "Failed to save text: \(error.localizedDescription)"
             }
@@ -139,11 +172,16 @@ struct DocumentInspectorContentTab: View {
     private func loadDraft(from doc: Document) {
         let plainText = doc.pageContent ?? ""
         let metadataValue = doc.metadata[Self.richTextMetadataKey]?.value as? String
-        let richText = decodeRTF(base64: metadataValue) ?? NSAttributedString(string: plainText)
+        let richText = normalizeForEditor(
+            decodeRTF(base64: metadataValue) ?? NSAttributedString(string: plainText)
+        )
 
         draftAttributedText = richText
         originalPlainContent = plainText
         originalRTFBase64 = metadataValue ?? ""
+        lastLoadedSignature = signature(for: doc)
+        pendingExternalSignature = nil
+        editorRevision += 1
     }
 
     private func decodeRTF(base64: String?) -> NSAttributedString? {
@@ -185,57 +223,131 @@ struct DocumentInspectorContentTab: View {
             return String(describing: value)
         }
     }
+
+    private func signature(for doc: Document) -> String {
+        signature(
+            id: doc.id,
+            updatedAt: doc.updatedAt,
+            pageContent: doc.pageContent,
+            richTextBase64: doc.metadata[Self.richTextMetadataKey]?.value as? String
+        )
+    }
+
+    private func signature(
+        id: String,
+        updatedAt: Date,
+        pageContent: String?,
+        richTextBase64: String?
+    ) -> String {
+        "\(id)|\(updatedAt.timeIntervalSince1970)|\(pageContent ?? "")|\(richTextBase64 ?? "")"
+    }
+
+    private func normalizeForEditor(_ attributed: NSAttributedString) -> NSAttributedString {
+        let mutable = NSMutableAttributedString(attributedString: attributed)
+        guard mutable.length > 0 else {
+            // Keep empty content truly empty; typing attributes are provided by NSTextView config.
+            return mutable
+        }
+        let fullRange = NSRange(location: 0, length: mutable.length)
+
+        // Ensure text remains visible in all appearances.
+        mutable.addAttribute(.foregroundColor, value: NSColor.labelColor, range: fullRange)
+        if mutable.attribute(.font, at: 0, effectiveRange: nil) == nil {
+            mutable.addAttribute(.font, value: NSFont.systemFont(ofSize: NSFont.systemFontSize), range: fullRange)
+        }
+        return mutable
+    }
 }
 
 private struct AttributedTextEditor: NSViewRepresentable {
     @Binding var text: NSAttributedString
+    let isEditable: Bool
+    let contentRevision: Int
+    let onEditingChanged: (Bool) -> Void
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.borderType = .noBorder
-        scrollView.drawsBackground = false
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = .textBackgroundColor
 
         let textView = NSTextView()
-        textView.isEditable = true
+        textView.isEditable = isEditable
+        textView.isSelectable = true
         textView.isRichText = true
         textView.importsGraphics = false
         textView.allowsUndo = true
-        textView.usesAdaptiveColorMappingForDarkAppearance = true
-        textView.drawsBackground = false
+        textView.isAutomaticTextCompletionEnabled = true
+        textView.isContinuousSpellCheckingEnabled = true
+        textView.isGrammarCheckingEnabled = true
+        textView.isAutomaticSpellingCorrectionEnabled = true
+        textView.drawsBackground = true
+        textView.backgroundColor = .textBackgroundColor
+        textView.textColor = .labelColor
         textView.font = .systemFont(ofSize: NSFont.systemFontSize)
         textView.textContainerInset = NSSize(width: 8, height: 8)
+        textView.textContainer?.widthTracksTextView = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
         textView.delegate = context.coordinator
         textView.textStorage?.setAttributedString(text)
 
         scrollView.documentView = textView
         context.coordinator.textView = textView
+        context.coordinator.lastAppliedRevision = contentRevision
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = context.coordinator.textView else { return }
-        if textView.attributedString() != text {
-            textView.textStorage?.setAttributedString(text)
-        }
-    }
+        textView.isEditable = isEditable
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text)
+        // Only push model text into AppKit view on explicit revision changes.
+        // This avoids clobbering active edits and selection.
+        if context.coordinator.lastAppliedRevision != contentRevision {
+            let selectedRanges = textView.selectedRanges
+            context.coordinator.isApplyingModelUpdate = true
+            textView.textStorage?.setAttributedString(text)
+            textView.setSelectedRanges(
+                selectedRanges,
+                affinity: textView.selectionAffinity,
+                stillSelecting: false
+            )
+            context.coordinator.lastAppliedRevision = contentRevision
+            context.coordinator.isApplyingModelUpdate = false
+        }
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         @Binding var text: NSAttributedString
         weak var textView: NSTextView?
+        var isApplyingModelUpdate = false
+        var lastAppliedRevision = 0
+        let onEditingChanged: (Bool) -> Void
 
-        init(text: Binding<NSAttributedString>) {
+        init(text: Binding<NSAttributedString>, onEditingChanged: @escaping (Bool) -> Void) {
             _text = text
+            self.onEditingChanged = onEditingChanged
         }
 
         func textDidChange(_ notification: Notification) {
             guard let textView else { return }
+            guard !isApplyingModelUpdate else { return }
             text = textView.attributedString()
         }
+
+        func textDidBeginEditing(_ notification: Notification) {
+            onEditingChanged(true)
+        }
+
+        func textDidEndEditing(_ notification: Notification) {
+            onEditingChanged(false)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text, onEditingChanged: onEditingChanged)
     }
 }

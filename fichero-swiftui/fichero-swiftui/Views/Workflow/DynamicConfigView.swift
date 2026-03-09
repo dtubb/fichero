@@ -3,6 +3,7 @@ import SwiftUI
 struct DynamicConfigView: View {
     let toolInfo: ToolInfo
     @Binding var config: [String: AnyCodableValue]?
+    @EnvironmentObject var documentStore: DocumentStore
 
     @State var stringValues: [String: String] = [:]
     @State var intValues: [String: Int] = [:]
@@ -51,6 +52,11 @@ struct DynamicConfigView: View {
         .onAppear {
             initializeValues()
         }
+        .task {
+            if isFolderTool, documentStore.collections.isEmpty {
+                await documentStore.loadCollections()
+            }
+        }
     }
 
     // MARK: - Grouped Keys
@@ -61,11 +67,21 @@ struct DynamicConfigView: View {
         toolInfo.configSchema.keys.filter { key in
             guard !dedicatedKeys.contains(key) else { return false }
             guard let schema = getFieldSchema(for: key) else { return false }
+            if isFolderTool, key == "folder_path" {
+                return false
+            }
             return !isHidden(schema: schema)
         }
     }
 
     var primaryKeys: [String] {
+        if isFolderTool {
+            let preferredOrder = ["folder_id", "file_types", "include_subfolders", "limit"]
+            let ordered = preferredOrder.filter { visibleKeys.contains($0) }
+            let rest = visibleKeys.filter { !preferredOrder.contains($0) }.sorted()
+            return ordered + rest
+        }
+
         let keys = visibleKeys.filter { key in
             guard let schema = getFieldSchema(for: key) else { return false }
             let group = getGroup(from: schema)
@@ -91,5 +107,9 @@ struct DynamicConfigView: View {
             guard let schema = getFieldSchema(for: key) else { return false }
             return getGroup(from: schema) == "advanced"
         }.sorted()
+    }
+
+    var isFolderTool: Bool {
+        toolInfo.name == "folder"
     }
 }

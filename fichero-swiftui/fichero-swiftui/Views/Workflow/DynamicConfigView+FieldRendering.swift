@@ -1,47 +1,63 @@
 import SwiftUI
 
+private struct DynamicFolderPickerOption: Identifiable {
+    let folder: Document
+    let depth: Int
+
+    var id: String { folder.id }
+
+    var indentedName: String {
+        String(repeating: "  ", count: depth) + folder.name
+    }
+}
+
 extension DynamicConfigView {
 
     // MARK: - Field Rendering
 
     @ViewBuilder
+    // swiftlint:disable:next cyclomatic_complexity
     func configField(key: String, schema: [String: AnyCodableValue]) -> some View {
         if let type = getType(from: schema) {
             let description = getDescription(from: schema)
             let label = key.replacingOccurrences(of: "_", with: " ").capitalized
 
             VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.caption)
-                .foregroundColor(.secondary)
-
-            switch type {
-            case "string":
-                if let enumValues = getEnum(from: schema) {
-                    enumPicker(key: key, label: label, options: enumValues, description: description)
-                } else if key == "prompt" {
-                    promptEditor(key: key, description: description)
-                } else {
-                    stringField(key: key, description: description)
+                if type != "boolean" {
+                    Text(label)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
 
-            case "integer":
-                integerField(key: key, schema: schema, description: description)
+                switch type {
+                case "string":
+                    if isFolderTool, key == "folder_id" {
+                        folderPickerField()
+                    } else if let enumValues = getEnum(from: schema) {
+                        enumPicker(key: key, label: label, options: enumValues, description: description)
+                    } else if key == "prompt" {
+                        promptEditor(key: key, description: description)
+                    } else {
+                        stringField(key: key, description: description)
+                    }
 
-            case "number":
-                numberSlider(key: key, schema: schema, description: description)
+                case "integer":
+                    integerField(key: key, schema: schema, description: description)
 
-            case "array":
-                arrayField(key: key, schema: schema, description: description)
+                case "number":
+                    numberSlider(key: key, schema: schema, description: description)
 
-            case "boolean":
-                booleanToggle(key: key, description: description)
+                case "array":
+                    arrayField(key: key, schema: schema, description: description)
 
-            default:
-                Text("Unsupported type: \(type)")
-                    .font(.caption2)
-                    .foregroundColor(.red)
-            }
+                case "boolean":
+                    booleanToggle(key: key, description: description, label: label)
+
+                default:
+                    Text("Unsupported type: \(type)")
+                        .font(.caption2)
+                        .foregroundColor(.red)
+                }
 
                 if type != "boolean", let desc = description {
                     Text(desc)
@@ -131,7 +147,7 @@ extension DynamicConfigView {
         Group {
             if key == "max_image_dimension" {
                 Picker("Max Image Size", selection: Binding(
-                    get: { intValues[key] ?? 2048 },
+                    get: { intValues[key] ?? 11024 },
                     set: { newValue in
                         intValues[key] = newValue
                         updateConfig(key: key, value: .int(newValue))
@@ -141,7 +157,8 @@ extension DynamicConfigView {
                     Text("768px (Fast)").tag(768)
                     Text("1024px (Balanced)").tag(1024)
                     Text("1536px (Detailed)").tag(1536)
-                    Text("2048px (Default)").tag(2048)
+                    Text("2048px").tag(2048)
+                    Text("11024px (Default)").tag(11024)
                     Text("Original Size (Maximum)").tag(0)
                 }
                 .pickerStyle(.menu)
@@ -158,8 +175,8 @@ extension DynamicConfigView {
         }
     }
 
-    func booleanToggle(key: String, description: String?) -> some View {
-        Toggle(description ?? "", isOn: Binding(
+    func booleanToggle(key: String, description: String?, label: String) -> some View {
+        Toggle(description ?? label, isOn: Binding(
             get: { boolValues[key] ?? false },
             set: { newValue in
                 boolValues[key] = newValue
@@ -228,5 +245,84 @@ extension DynamicConfigView {
             }
         }
         return []
+    }
+
+    @ViewBuilder
+    private func folderPickerField() -> some View {
+        let folderOptions = buildFolderOptions(from: documentStore.collections)
+
+        Picker("Folder", selection: Binding(
+            get: { stringValues["folder_id"] ?? "" },
+            set: { newValue in
+                stringValues["folder_id"] = newValue
+                updateConfig(key: "folder_id", value: .string(newValue))
+
+                if let folder = folderOptions.first(where: { $0.folder.id == newValue })?.folder {
+                    let resolvedPath = folder.path ?? "/"
+                    stringValues["folder_path"] = resolvedPath
+                    updateConfig(key: "folder_path", value: .string(resolvedPath))
+                }
+            }
+        )) {
+            Text("Select folder...").tag("")
+            ForEach(folderOptions) { option in
+                Text(option.indentedName).tag(option.folder.id)
+            }
+        }
+        .pickerStyle(.menu)
+
+        if folderOptions.isEmpty {
+            Text("No folders found. Create one in Library first.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .italic()
+        }
+    }
+
+    private func buildFolderOptions(from documents: [Document]) -> [DynamicFolderPickerOption] {
+        let allFolders = documents
+            .filter { $0.docType == .folder }
+            .sorted { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+
+        let validFolderIds = Set(allFolders.map(\.id))
+
+        var childrenMap: [String: [Document]] = [:]
+        for folder in allFolders {
+            guard let parentId = folder.parentId, validFolderIds.contains(parentId) else { continue }
+            childrenMap[parentId, default: []].append(folder)
+        }
+
+        for key in childrenMap.keys {
+            childrenMap[key]?.sort { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+        }
+
+        let inboxRoots = allFolders.filter { $0.parentId == nil && $0.name == "Inbox" }
+        let otherRoots = allFolders
+            .filter { folder in
+                folder.parentId == nil && folder.name != "Inbox"
+            }
+            .sorted { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+        let orderedRoots = inboxRoots + otherRoots
+
+        var options: [DynamicFolderPickerOption] = []
+
+        func traverse(_ folder: Document, depth: Int) {
+            options.append(DynamicFolderPickerOption(folder: folder, depth: depth))
+            for child in childrenMap[folder.id] ?? [] {
+                traverse(child, depth: depth + 1)
+            }
+        }
+
+        for root in orderedRoots {
+            traverse(root, depth: 0)
+        }
+
+        return options
     }
 }

@@ -7,7 +7,7 @@ private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ContentView
 
 /// Identifies which main pane has keyboard focus for Tab cycling
 enum PaneFocus: Hashable {
-    case sidebar, content, inspector
+    case sidebar, content, preview, inspector
 }
 
 // Main content view with three-column navigation
@@ -194,7 +194,7 @@ struct ContentView: View {
         } content: {
             centerContent
         } detail: {
-            if showInspectorSidebar {
+            if showInspectorSidebar && showInspectorToggle {
                 detailView
             } else {
                 EmptyView()
@@ -202,8 +202,7 @@ struct ContentView: View {
             }
         }
         .navigationSplitViewStyle(.prominentDetail)
-        .navigationTitle(toolbarTitle)
-        .navigationSubtitle("")
+        .navigationTitle("")
         .toolbar(removing: .sidebarToggle)
         .onAppear {
             // Restore all persisted state from @SceneStorage
@@ -217,6 +216,7 @@ struct ContentView: View {
             if viewSettings.showInspector != showInspectorSidebar {
                 viewSettings.showInspector = showInspectorSidebar
             }
+            updateColumnVisibility()
             viewDisplayMode = normalizedViewDisplayMode(viewDisplayMode)
             viewSettings.previewMode = normalizedPreviewMode(viewSettings.previewMode)
             let initialLayoutMode: LayoutMode = switch viewSettings.previewMode {
@@ -241,10 +241,13 @@ struct ContentView: View {
             if viewSettings.showInspector != newValue {
                 viewSettings.showInspector = newValue
             }
+            updateColumnVisibility()
         }
         .onChange(of: viewSettings.showInspector) { _, newValue in
             if showInspectorSidebar != newValue {
                 showInspectorSidebar = newValue
+            } else {
+                updateColumnVisibility()
             }
         }
         .toolbar {
@@ -333,6 +336,7 @@ struct ContentView: View {
                     Button {
                         withAnimation {
                             showInspectorSidebar.toggle()
+                            updateColumnVisibility()
                         }
                     } label: {
                         Image(systemName: "sidebar.right")
@@ -415,6 +419,7 @@ struct ContentView: View {
             let (type, id) = serializeViewMode(newMode)
             storedViewModeType = type
             storedViewModeItemId = id
+            updateColumnVisibility()
         }
         .onChange(of: selectedSidebarItemId) { _, newFolderId in
             // Restore per-folder view mode when switching folders

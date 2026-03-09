@@ -14,6 +14,9 @@ extension ContentView {
     /// Cycle keyboard focus between sidebar, content, and inspector panes
     func cyclePaneFocus(reverse: Bool) {
         var panes: [PaneFocus] = [.sidebar, .content]
+        if showsPreviewPane {
+            panes.append(.preview)
+        }
         if showInspectorSidebar {
             panes.append(.inspector)
         }
@@ -28,6 +31,16 @@ extension ContentView {
             focusedPane = panes[(idx - 1 + panes.count) % panes.count]
         } else {
             focusedPane = panes[(idx + 1) % panes.count]
+        }
+    }
+
+    private var showsPreviewPane: Bool {
+        guard currentLayoutMode != .none else { return false }
+        switch viewMode {
+        case .library, .search:
+            return true
+        default:
+            return false
         }
     }
 
@@ -69,8 +82,11 @@ extension ContentView {
     }
 
     func updateColumnVisibility() {
+        let inspectorAvailableForMode = showInspectorToggle
+        let shouldShowDetailColumn = showInspectorSidebar && inspectorAvailableForMode
+
         withAnimation {
-            if showInspectorSidebar {
+            if shouldShowDetailColumn {
                 columnVisibility = .all
             } else {
                 columnVisibility = .doubleColumn

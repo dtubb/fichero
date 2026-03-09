@@ -34,6 +34,9 @@ extension LibraryView {
             .onKeyPress(.rightArrow) {
                 handleArrowKey(direction: .right)
             }
+            .onMoveCommand { direction in
+                handleMoveCommand(direction)
+            }
             .focusedSceneValue(\.librarySelectAll, !filteredDocuments.isEmpty ? {
                 selectAll()
             } : nil)
@@ -119,6 +122,21 @@ extension LibraryView {
 
     enum ArrowDirection {
         case upDir, down, left, right
+    }
+
+    func handleMoveCommand(_ direction: MoveCommandDirection) {
+        switch direction {
+        case .up:
+            _ = handleArrowKey(direction: .upDir)
+        case .down:
+            _ = handleArrowKey(direction: .down)
+        case .left:
+            _ = handleArrowKey(direction: .left)
+        case .right:
+            _ = handleArrowKey(direction: .right)
+        default:
+            break
+        }
     }
 
     /// Handle arrow key press for navigating documents.

@@ -4,7 +4,7 @@ Last updated: 2026-03-09
 
 ## Current Branch
 
-`main` (clean, synced with `origin/main`)
+`main` (in-progress working tree; not yet committed)
 
 ## Source of Truth
 
@@ -37,6 +37,9 @@ Milestone `0.0.1` due date:
 - Verified build/lint after rich-text inspector changes:
   - `xcodebuild` (`Fichero`, Debug, macOS SDK) succeeds
   - `DocumentInspectorContentTab.swift` has 0 SwiftLint violations
+- Removed in-window toolbar title rendering to match tab-first macOS title behavior:
+  - `ContentView` now uses `.navigationTitle("")` for the main window view
+  - `xcodebuild` (`Fichero`, Debug, macOS SDK) still succeeds after this change
 - Verified backend workflow unit tests after `files` tool fix:
   - `134 passed`
 - Posted milestone progress update to `#279`:
@@ -74,3 +77,10 @@ Release/QA gate issues still open:
 4. Resolve `#263` build-phase reliability.
 5. Finalize `#278` Sparkle 0.0.1 release configuration.
 6. Drive `#238`, `#250`, and `#279` checklists to explicit pass/fail evidence.
+
+## In Progress Now
+
+- Continue 0.0.1 hardening pass on SwiftUI:
+  - verify DocumentInspector `NSTextView` edit/save/reload behavior under real UI flow
+  - confirm library/search layout defaults + inspector resizing behavior are stable
+  - keep feature-gating polish aligned with milestone `0.0.1`

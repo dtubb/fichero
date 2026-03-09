@@ -114,7 +114,7 @@ struct FicheroApp: App {
         }
         .defaultSize(width: 1400, height: 900)
         .windowStyle(.titleBar)
-        .windowToolbarStyle(.unified(showsTitle: true))
+        .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates...") {

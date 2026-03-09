@@ -9,7 +9,6 @@ struct WorkflowInspector: View {
     let onAddNode: (ToolInfo, CGPoint) -> Void
 
     @State var selectedTab: InspectorTab = .builtin
-    @State var blocksExpanded: Bool = true
 
     // Built-in tools loaded from workflow registry (grouped by category)
     @State var toolCategories: [CategoryTools] = []
@@ -123,65 +122,47 @@ struct WorkflowInspector: View {
     // MARK: - Built-in Tools Section
 
     private var builtinToolsSection: some View {
-        DisclosureGroup(isExpanded: $blocksExpanded) {
-            VStack(spacing: 12) {
-                if isLoadingTools {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, minHeight: 60)
-                } else if toolCategories.isEmpty {
-                    // API unavailable - show error message
-                    VStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.title2)
-                            .foregroundColor(.orange)
-                        Text("Could not load tools")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Button("Retry") {
-                            Task { await loadBuiltinTools() }
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 100)
-                } else if visibleBuiltinCategories.isEmpty {
-                    VStack(spacing: 8) {
-                        Image(systemName: "lock.shield")
-                            .font(.title2)
-                            .foregroundColor(.secondary)
-                        Text("No tools enabled")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("Enable reviewed tools via feature flags.")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 100)
-                } else {
-                    // Show tools from API grouped by category
-                    ForEach(visibleBuiltinCategories) { category in
-                        toolCategoryView(category)
-                    }
-                }
-            }
-            .padding(.top, 8)
-        } label: {
-            HStack {
-                Label("Registry Tools", systemImage: "square.grid.2x2")
-                    .font(.headline)
-                Spacer()
-                if !visibleBuiltinCategories.isEmpty {
-                    let totalTools = visibleBuiltinCategories.reduce(0) { $0 + $1.tools.count }
-                    Text("\(totalTools)")
+        VStack(spacing: 12) {
+            if isLoadingTools {
+                ProgressView()
+                    .frame(maxWidth: .infinity, minHeight: 60)
+            } else if toolCategories.isEmpty {
+                // API unavailable - show error message
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.title2)
+                        .foregroundColor(.orange)
+                    Text("Could not load tools")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color(.controlBackgroundColor))
-                        .cornerRadius(4)
+                    Button("Retry") {
+                        Task { await loadBuiltinTools() }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                .frame(maxWidth: .infinity, minHeight: 100)
+            } else if visibleBuiltinCategories.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "lock.shield")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                    Text("No tools enabled")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("Enable reviewed tools via feature flags.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 100)
+            } else {
+                // Show tools from API grouped by category
+                ForEach(visibleBuiltinCategories) { category in
+                    toolCategoryView(category)
                 }
             }
         }
+        .padding(.top, 8)
     }
 
     // MARK: - Tool Category View (Built-in)
