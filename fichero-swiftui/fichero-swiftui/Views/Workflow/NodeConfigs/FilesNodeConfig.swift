@@ -71,9 +71,19 @@ struct FilesNodeConfig: View {
     }
 
     private var availableDocuments: [Document] {
-        documentStore.collections
+        let candidates = documentStore.collections
             .filter { $0.docType != .folder }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+
+        var seen = Set<String>()
+        return candidates.filter { doc in
+            guard !doc.id.isEmpty else { return false }
+            if seen.contains(doc.id) {
+                return false
+            }
+            seen.insert(doc.id)
+            return true
+        }
     }
 
     private var filteredDocuments: [Document] {
@@ -142,6 +152,9 @@ struct FilesNodeConfig: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
 
+            TextField("Search files", text: $fileSearchText)
+                .textFieldStyle(.roundedBorder)
+
             if availableDocuments.isEmpty {
                 ContentUnavailableView(
                     "No Files Available",
@@ -149,29 +162,46 @@ struct FilesNodeConfig: View {
                     description: Text("Import files in Library first.")
                 )
             } else {
-                List(filteredDocuments, id: \.id) { doc in
-                    Button {
-                        togglePickerSelection(doc.id)
-                    } label: {
-                        HStack {
-                            Image(
-                                systemName: stagedPickerSelection.contains(doc.id)
-                                    ? "checkmark.circle.fill"
-                                    : "circle"
+                ScrollView {
+                    LazyVStack(spacing: 2) {
+                        ForEach(filteredDocuments, id: \.id) { doc in
+                            Button {
+                                togglePickerSelection(doc.id)
+                            } label: {
+                                HStack {
+                                    Image(
+                                        systemName: stagedPickerSelection.contains(doc.id)
+                                            ? "checkmark.circle.fill"
+                                            : "circle"
+                                    )
+                                    .foregroundStyle(
+                                        stagedPickerSelection.contains(doc.id)
+                                            ? Color.accentColor
+                                            : Color.secondary
+                                    )
+                                    Text(doc.name)
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(1)
+                                    Spacer()
+                                }
+                                .padding(.vertical, 4)
+                                .padding(.horizontal, 6)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(stagedPickerSelection.contains(doc.id)
+                                        ? Color.accentColor.opacity(0.12)
+                                        : Color.clear)
                             )
-                                .foregroundStyle(
-                                    stagedPickerSelection.contains(doc.id) ? Color.accentColor : Color.secondary
-                                )
-                            Text(doc.name)
-                                .foregroundStyle(.primary)
-                            Spacer()
                         }
                     }
-                    .buttonStyle(.plain)
+                    .padding(2)
                 }
-                .listStyle(.inset)
                 .frame(minHeight: 160, maxHeight: 240)
-                .searchable(text: $fileSearchText, prompt: "Search files")
+                .background(Color(.textBackgroundColor))
+                .cornerRadius(6)
             }
 
             HStack {
