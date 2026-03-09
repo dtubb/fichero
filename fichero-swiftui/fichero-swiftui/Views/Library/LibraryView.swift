@@ -119,10 +119,13 @@ struct LibraryView: View {
                 )
                 .environmentObject(libraryManager)
             }
-            .focusedSceneValue(\.runWorkflowOnSelection, !selection.isEmpty ? {
-                selectedDocumentIdsForBatch = Array(selection)
-                showWorkflowPicker = true
-            } : nil)
+            .focusedSceneValue(
+                \.runWorkflowOnSelection,
+                (!selection.isEmpty && featureManager.isWorkflowRunOnSelectionEnabled) ? {
+                    selectedDocumentIdsForBatch = Array(selection)
+                    showWorkflowPicker = true
+                } : nil
+            )
             .onAppear {
                 loadSortSettings(for: folderId)
                 syncSortOrder()

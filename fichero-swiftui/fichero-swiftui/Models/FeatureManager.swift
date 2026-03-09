@@ -6,7 +6,7 @@ import SwiftUI
 @MainActor
 class FeatureManager: ObservableObject {
     static let shared = FeatureManager()
-    private static let releaseProfileVersion = 15
+    private static let releaseProfileVersion = 16
     private static let workflowV001EnabledTools = "files,collection,search,transcribe"
 
     /// Global toggle to override all flags for internal development.
@@ -18,7 +18,8 @@ class FeatureManager: ObservableObject {
     // MARK: - Core Features (v0.0.1)
 
     @Published var isLibraryEnabled: Bool = true
-    @Published var isSearchEnabled: Bool = true
+    @AppStorage("fichero.features.search")
+    private var searchEnabledInternal: Bool = false
     @AppStorage("fichero.features.library_advanced_views")
     private var libraryAdvancedViewsEnabledInternal: Bool = false
     @AppStorage("fichero.features.search_advanced_views")
@@ -80,10 +81,13 @@ class FeatureManager: ObservableObject {
     private var workflowLangGraphPreviewEnabledInternal: Bool = false
     @AppStorage("fichero.features.workflow_files_toolbar_button")
     private var workflowFilesToolbarEnabledInternal: Bool = false
+    @AppStorage("fichero.features.workflow_run_on_selection")
+    private var workflowRunOnSelectionEnabledInternal: Bool = false
     @AppStorage("fichero.features.release_profile_version")
     private var releaseProfileVersionApplied: Int = 0
 
     var isWorkflowsEnabled: Bool { allFeaturesEnabled || workflowsEnabledInternal }
+    var isSearchEnabled: Bool { allFeaturesEnabled || searchEnabledInternal }
     var isWorkflowEditorAdvancedViewsEnabled: Bool {
         allFeaturesEnabled || workflowEditorAdvancedViewsEnabled
     }
@@ -133,6 +137,9 @@ class FeatureManager: ObservableObject {
         allFeaturesEnabled || workflowLangGraphPreviewEnabledInternal
     }
     var isWorkflowFilesToolbarButtonEnabled: Bool { allFeaturesEnabled || workflowFilesToolbarEnabledInternal }
+    var isWorkflowRunOnSelectionEnabled: Bool {
+        allFeaturesEnabled || workflowRunOnSelectionEnabledInternal
+    }
 
     private init() {
         applyReleaseProfileDefaultsIfNeeded()
@@ -142,6 +149,7 @@ class FeatureManager: ObservableObject {
     func resetToV001() {
         allFeaturesEnabled = false
         libraryAdvancedViewsEnabledInternal = false
+        searchEnabledInternal = false
         searchAdvancedViewsEnabledInternal = false
         librarySearchSplitLayoutsEnabledInternal = false
         libraryFilterToolbarEnabledInternal = false
@@ -174,6 +182,7 @@ class FeatureManager: ObservableObject {
         workflowImportExportEnabledInternal = false
         workflowLangGraphPreviewEnabledInternal = false
         workflowFilesToolbarEnabledInternal = false
+        workflowRunOnSelectionEnabledInternal = false
         releaseProfileVersionApplied = Self.releaseProfileVersion
     }
 

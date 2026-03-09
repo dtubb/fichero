@@ -29,12 +29,14 @@ struct SidebarModeBar: View {
                     selectMode(.library)
                 }
 
-                SidebarModeIcon(
-                    mode: .search,
-                    isSelected: selectedMode == .search,
-                    badgeCount: badgeCount(for: .search)
-                ) {
-                    selectMode(.search)
+                if featureManager.isSearchEnabled {
+                    SidebarModeIcon(
+                        mode: .search,
+                        isSelected: selectedMode == .search,
+                        badgeCount: badgeCount(for: .search)
+                    ) {
+                        selectMode(.search)
+                    }
                 }
 
                 if featureManager.isChatEnabled {

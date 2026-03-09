@@ -133,7 +133,7 @@ extension LibraryView {
         }
 
         // Show "Run Workflow..." when at least one document is selected.
-        if !selection.isEmpty {
+        if !selection.isEmpty && featureManager.isWorkflowRunOnSelectionEnabled {
             Button {
                 selectedDocumentIdsForBatch = Array(selection)
                 showWorkflowPicker = true

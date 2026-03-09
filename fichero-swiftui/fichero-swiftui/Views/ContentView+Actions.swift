@@ -193,6 +193,7 @@ extension ContentView {
     }
 
     func runToolbarSearch(_ rawQuery: String) {
+        guard featureManager.isSearchEnabled else { return }
         let query = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
 

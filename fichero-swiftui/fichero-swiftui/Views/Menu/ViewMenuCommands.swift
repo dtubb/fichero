@@ -63,14 +63,16 @@ struct SidebarModeSection: View {
                 sidebarMode?.wrappedValue = .library
             }
 
-            SidebarModeButton(
-                mode: .search,
-                label: SidebarMode.search.label,
-                icon: SidebarMode.search.icon,
-                shortcut: SidebarMode.search.shortcutNumber,
-                current: currentMode
-            ) {
-                sidebarMode?.wrappedValue = .search
+            if featureManager.isSearchEnabled {
+                SidebarModeButton(
+                    mode: .search,
+                    label: SidebarMode.search.label,
+                    icon: SidebarMode.search.icon,
+                    shortcut: SidebarMode.search.shortcutNumber,
+                    current: currentMode
+                ) {
+                    sidebarMode?.wrappedValue = .search
+                }
             }
 
             if featureManager.isChatEnabled {

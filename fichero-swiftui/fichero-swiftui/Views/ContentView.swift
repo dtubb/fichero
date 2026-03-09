@@ -209,6 +209,10 @@ struct ContentView: View {
             // Restore all persisted state from @SceneStorage
             restorePersistedState()
             inspectorWidth = min(max(inspectorWidth, 180), 700)
+            if !featureManager.isSearchEnabled && sidebarMode == .search {
+                sidebarMode = .library
+                viewMode = .library(nil)
+            }
             // Sync View menu inspector command to per-window inspector state.
             if viewSettings.showInspector != showInspectorSidebar {
                 viewSettings.showInspector = showInspectorSidebar
@@ -276,7 +280,7 @@ struct ContentView: View {
                     AddItemMenu(registry: itemRegistry, style: .button)
                         .help("Add new item (⌘N)")
 
-                    if featureManager.isWorkflowsEnabled {
+                    if featureManager.isWorkflowsEnabled && featureManager.isWorkflowRunOnSelectionEnabled {
                         Menu {
                             if workflowStore.workflows.isEmpty {
                                 Text("No workflows available")
@@ -303,23 +307,25 @@ struct ContentView: View {
 
             // Far right: Inspector toggle (after search widget, explicit trailing position)
             // Only show for content modes that use inspector
-            ToolbarItem(placement: .principal) {
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    TextField("Search", text: $toolbarSearchText)
-                        .textFieldStyle(.plain)
-                        .onSubmit {
-                            runToolbarSearch(toolbarSearchText)
-                        }
+            if featureManager.isSearchEnabled {
+                ToolbarItem(placement: .principal) {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        TextField("Search", text: $toolbarSearchText)
+                            .textFieldStyle(.plain)
+                            .onSubmit {
+                                runToolbarSearch(toolbarSearchText)
+                            }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .frame(minWidth: 260, idealWidth: 340, maxWidth: 460)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(nsColor: .controlBackgroundColor))
+                    )
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .frame(minWidth: 260, idealWidth: 340, maxWidth: 460)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                )
             }
 
             if showInspectorToggle {

@@ -350,12 +350,15 @@ struct FocusedNewTriggerButton: View {
 /// Button that runs a workflow on selected documents
 struct FocusedRunWorkflowOnSelectionButton: View {
     @FocusedValue(\.runWorkflowOnSelection) private var runWorkflowOnSelection
+    @ObservedObject var featureManager = FeatureManager.shared
 
     var body: some View {
-        Button("Run Workflow on Selection...") {
-            runWorkflowOnSelection?()
+        if featureManager.isWorkflowRunOnSelectionEnabled {
+            Button("Run Workflow on Selection...") {
+                runWorkflowOnSelection?()
+            }
+            .keyboardShortcut("r", modifiers: [.command, .shift])
+            .disabled(runWorkflowOnSelection == nil)
         }
-        .keyboardShortcut("r", modifiers: [.command, .shift])
-        .disabled(runWorkflowOnSelection == nil)
     }
 }

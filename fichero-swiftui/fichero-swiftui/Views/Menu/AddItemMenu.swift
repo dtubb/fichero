@@ -57,8 +57,10 @@ struct AddItemMenu: View {
 
             Divider()
 
-            Button("New Search") {
-                sidebarActions.createSearch()
+            if featureManager.isSearchEnabled {
+                Button("New Search") {
+                    sidebarActions.createSearch()
+                }
             }
 
             if featureManager.isChatEnabled {
