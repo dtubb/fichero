@@ -20,6 +20,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
+fichero-api/.venv/
 venv/
 .ipynb_checkpoints/
 fichero-api/.briefcase/

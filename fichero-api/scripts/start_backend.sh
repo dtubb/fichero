@@ -8,6 +8,18 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 API_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$API_ROOT/.." && pwd)"
 
+if [ -n "${FICHERO_PYTHON_BIN:-}" ] && [ -x "${FICHERO_PYTHON_BIN}" ]; then
+  PYTHON_BIN="${FICHERO_PYTHON_BIN}"
+elif [ -n "${VIRTUAL_ENV:-}" ] && [ -x "${VIRTUAL_ENV}/bin/python" ]; then
+  PYTHON_BIN="${VIRTUAL_ENV}/bin/python"
+elif [ -x "$API_ROOT/.venv/bin/python" ]; then
+  PYTHON_BIN="$API_ROOT/.venv/bin/python"
+elif [ -x "$REPO_ROOT/.venv/bin/python" ]; then
+  PYTHON_BIN="$REPO_ROOT/.venv/bin/python"
+else
+  PYTHON_BIN="python3"
+fi
+
 SYNC_OPENAPI=true
 SKIP_VALIDATION=false
 
@@ -27,8 +39,8 @@ if [ "$SYNC_OPENAPI" = true ]; then
 fi
 
 if [ "$SKIP_VALIDATION" = false ]; then
-  python3 "$API_ROOT/scripts/validate_model_sync.py"
+  "$PYTHON_BIN" "$API_ROOT/scripts/validate_model_sync.py"
 fi
 
 export FICHERO_VALIDATE_MODELS=1
-PYTHONPATH="$API_ROOT/src" "$REPO_ROOT/.venv/bin/uvicorn" fichero.api.main:app --port 8765 --reload
+PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" -m uvicorn fichero.api.main:app --port 8765 --reload

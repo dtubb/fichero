@@ -11060,7 +11060,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File"
           }
         },
@@ -12371,9 +12371,9 @@
           },
           "condition": {
             "type": "string",
+            "nullable": true,
             "title": "Condition",
-            "description": "Condition expression (e.g., '$.nodes.classify.category == \"invoice\"'), empty for unconditional",
-            "default": ""
+            "description": "Condition expression (e.g., '$.nodes.classify.category == \"invoice\"'), empty for unconditional"
           },
           "animated": {
             "type": "boolean",
@@ -12382,8 +12382,8 @@
           },
           "label": {
             "type": "string",
-            "title": "Label",
-            "default": ""
+            "nullable": true,
+            "title": "Label"
           }
         },
         "type": "object",

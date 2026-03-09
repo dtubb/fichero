@@ -81,6 +81,14 @@ These don't change:
 5. **Stability before features.** What works must keep working. New features don't break existing ones.
 6. **Data must be portable across Macs via Dropbox — no hardcoded paths.**
 
+## Execution Governance
+
+Execution tracking and planning are governed in GitHub:
+
+- **Source of truth**: GitHub Issues + Milestones + Project board
+- **Not source of truth**: local `PLAN.md`, `TASKS.md`, or `docs/agent-workflow/TODO.md`
+- **Local exception**: `STATE.md` is maintained for session continuity/handoff only
+
 ## Versioning
 
 - **M0 (v0.0.1)** — Core stable: document management works reliably, advanced features safely disabled behind feature flags

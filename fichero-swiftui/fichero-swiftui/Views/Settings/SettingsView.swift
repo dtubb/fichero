@@ -5,28 +5,35 @@ import SwiftUI
 /// Main settings view with tabs for General, AI, Backend, and Models
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
+    @ObservedObject var featureManager = FeatureManager.shared
 
     var body: some View {
         TabView {
-            GeneralSettingsView()
-                .tabItem {
-                    Label("General", systemImage: "gear")
-                }
-
             AISettingsView()
                 .tabItem {
-                    Label("AI", systemImage: "brain")
+                    Label("Defaults", systemImage: "brain")
                 }
 
-            BackendSettingsView()
-                .tabItem {
-                    Label("Backend", systemImage: "server.rack")
-                }
+            if featureManager.isSettingsGeneralTabEnabled {
+                GeneralSettingsView()
+                    .tabItem {
+                        Label("General", systemImage: "gear")
+                    }
+            }
 
-            LocalModelsSettingsView()
-                .tabItem {
-                    Label("Models", systemImage: "arrow.down.circle")
-                }
+            if featureManager.isSettingsBackendTabEnabled {
+                BackendSettingsView()
+                    .tabItem {
+                        Label("Backend", systemImage: "server.rack")
+                    }
+            }
+
+            if featureManager.isSettingsModelsTabEnabled {
+                LocalModelsSettingsView()
+                    .tabItem {
+                        Label("Models", systemImage: "arrow.down.circle")
+                    }
+            }
         }
         .frame(width: 550, height: 450)
     }

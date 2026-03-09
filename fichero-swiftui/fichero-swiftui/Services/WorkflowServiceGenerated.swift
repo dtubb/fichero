@@ -328,13 +328,11 @@ class WorkflowServiceGenerated: ObservableObject {
         description: String = "",
         workflowData: [String: AnyCodable]
     ) async throws -> WorkflowResponse {
-        // Convert AnyCodable values to Sendable
-        // Note: Force cast is necessary - compiler warns it "always succeeds" but this is
-        // expected behavior. Using 'as' gives error "type 'Any' does not conform to 'Sendable'"
-        // This is a known Swift 6 limitation with Any/Sendable type erasure
-        // swiftlint:disable:next force_cast
-        let sendableData: [String: any Sendable] = workflowData.mapValues { value -> any Sendable in
-            value.value as! any Sendable
+        // Convert AnyCodable values to Sendable for OpenAPIObjectContainer.
+        var sendableData: [String: any Sendable] = [:]
+        sendableData.reserveCapacity(workflowData.count)
+        for (key, value) in workflowData {
+            sendableData[key] = value
         }
         let dataContainer = try OpenAPIObjectContainer(
             unvalidatedValue: sendableData

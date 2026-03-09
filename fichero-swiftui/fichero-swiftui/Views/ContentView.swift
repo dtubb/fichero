@@ -1,8 +1,9 @@
+import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
-import OSLog
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ContentView")
+// swiftlint:disable file_length
 
 /// Identifies which main pane has keyboard focus for Tab cycling
 enum PaneFocus: Hashable {
@@ -75,9 +76,11 @@ struct ContentView: View {
 
     @StateObject var itemRegistry = ItemTypeRegistry()
     @StateObject var performanceService = PerformanceService()
+    @State var toolbarSearchText: String = ""
 
     // Error service (using singleton pattern)
     @ObservedObject var errorService = ErrorService.shared
+    @ObservedObject var featureManager = FeatureManager.shared
 
     // Pane focus state for Tab cycling
     @FocusState var focusedPane: PaneFocus?
@@ -191,7 +194,12 @@ struct ContentView: View {
         } content: {
             centerContent
         } detail: {
-            detailView
+            if showInspectorSidebar {
+                detailView
+            } else {
+                EmptyView()
+                    .navigationSplitViewColumnWidth(0)
+            }
         }
         .navigationSplitViewStyle(.prominentDetail)
         .navigationTitle(toolbarTitle)
@@ -200,20 +208,40 @@ struct ContentView: View {
         .onAppear {
             // Restore all persisted state from @SceneStorage
             restorePersistedState()
-            // Initialize column visibility based on persisted inspector state
-            updateColumnVisibility()
+            inspectorWidth = min(max(inspectorWidth, 200), 300)
+            // Sync View menu inspector command to per-window inspector state.
+            if viewSettings.showInspector != showInspectorSidebar {
+                viewSettings.showInspector = showInspectorSidebar
+            }
+            viewDisplayMode = normalizedViewDisplayMode(viewDisplayMode)
+            viewSettings.previewMode = normalizedPreviewMode(viewSettings.previewMode)
+            let initialLayoutMode: LayoutMode = switch viewSettings.previewMode {
+            case .none: .none
+            case .standard: .standard
+            case .widescreen: .widescreen
+            }
+            if currentLayoutMode != initialLayoutMode {
+                currentLayoutMode = initialLayoutMode
+            }
         }
         .onChange(of: documentStore.collections) { oldCollections, newCollections in
             // Re-restore view mode once data loads (collections arrive after API responds)
             guard oldCollections.isEmpty, !newCollections.isEmpty else { return }
             viewMode = restoreViewMode(type: storedViewModeType, itemId: storedViewModeItemId)
-            if let id = storedViewModeItemId {
-                selectedSidebarItemId = id
+            selectedSidebarItemId = sidebarSelectionId(
+                for: storedViewModeType,
+                itemId: storedViewModeItemId
+            )
+        }
+        .onChange(of: showInspectorSidebar) { _, newValue in
+            if viewSettings.showInspector != newValue {
+                viewSettings.showInspector = newValue
             }
         }
-        .onChange(of: showInspectorSidebar) { _, _ in
-            // Update column visibility when inspector toggle changes
-            updateColumnVisibility()
+        .onChange(of: viewSettings.showInspector) { _, newValue in
+            if showInspectorSidebar != newValue {
+                showInspectorSidebar = newValue
+            }
         }
         .toolbar {
             // Left side: Layout picker, View mode picker, Plus button
@@ -223,7 +251,7 @@ struct ContentView: View {
                     // Layout mode picker (None/Standard/Widescreen) - only for modes with preview
                     if showLayoutPicker {
                         Picker("Layout", selection: $currentLayoutMode) {
-                            ForEach(LayoutMode.allCases) { mode in
+                            ForEach(availableLayoutModes) { mode in
                                 Label(mode.rawValue, systemImage: mode.icon)
                                     .labelStyle(.iconOnly)
                                     .tag(mode)
@@ -234,47 +262,66 @@ struct ContentView: View {
                         .onChange(of: currentLayoutMode) { _, newMode in
                             withAnimation {
                                 // Sync toolbar with View menu previewMode
-                                viewSettings.previewMode = switch newMode {
+                                let requestedMode: PreviewMode = switch newMode {
                                 case .none: .none
                                 case .standard: .standard
                                 case .widescreen: .widescreen
                                 }
+                                viewSettings.previewMode = normalizedPreviewMode(requestedMode)
                             }
-                        }
-                    }
-
-                    // View mode picker (Icon/List/Table/Map) - only for Library/Search
-                    if showViewModePicker {
-                        Picker("View", selection: $viewDisplayMode) {
-                            ForEach(ViewDisplayMode.allCases) { mode in
-                                Label(mode.rawValue, systemImage: mode.icon)
-                                    .labelStyle(.iconOnly)
-                                    .tag(mode)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .help("View as: \(viewDisplayMode.rawValue)")
-                        .onChange(of: viewDisplayMode) { _, newMode in
-                            // Sync toolbar with View menu libraryLayout
-                            viewSettings.libraryLayout = switch newMode {
-                            case .icon: .icons
-                            case .list: .list
-                            case .table: .table
-                            case .map: .map
-                            }
-                            // Save per-folder display mode
-                            saveDisplayMode(newMode, for: selectedSidebarItemId)
                         }
                     }
 
                     // Add menu (Plus button)
                     AddItemMenu(registry: itemRegistry, style: .button)
                         .help("Add new item (⌘N)")
+
+                    if featureManager.isWorkflowsEnabled {
+                        Menu {
+                            if workflowStore.workflows.isEmpty {
+                                Text("No workflows available")
+                            } else {
+                                ForEach(
+                                    workflowStore.workflows.sorted(by: { lhs, rhs in
+                                        lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                                    }),
+                                    id: \.id
+                                ) { workflow in
+                                    Button(workflow.name) {
+                                        runWorkflowOnSelection(workflowId: workflow.id)
+                                    }
+                                }
+                            }
+                        } label: {
+                            Label("Run Workflow", systemImage: "play.square.stack")
+                        }
+                        .help("Run Workflow on Selection")
+                        .disabled(browserSelection.isEmpty || workflowStore.workflows.isEmpty)
+                    }
                 }
             }
 
             // Far right: Inspector toggle (after search widget, explicit trailing position)
             // Only show for content modes that use inspector
+            ToolbarItem(placement: .principal) {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search", text: $toolbarSearchText)
+                        .textFieldStyle(.plain)
+                        .onSubmit {
+                            runToolbarSearch(toolbarSearchText)
+                        }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .frame(minWidth: 260, idealWidth: 340, maxWidth: 460)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                )
+            }
+
             if showInspectorToggle {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
@@ -290,7 +337,12 @@ struct ContentView: View {
         }
         .onChange(of: viewSettings.previewMode) { _, newPreviewMode in
             // Sync View menu changes back to toolbar layout picker
-            let newLayoutMode = switch newPreviewMode {
+            let effectivePreviewMode = normalizedPreviewMode(newPreviewMode)
+            if effectivePreviewMode != newPreviewMode {
+                viewSettings.previewMode = effectivePreviewMode
+            }
+
+            let newLayoutMode = switch effectivePreviewMode {
             case .none: LayoutMode.none
             case .standard: LayoutMode.standard
             case .widescreen: LayoutMode.widescreen
@@ -310,14 +362,42 @@ struct ContentView: View {
             case .table: ViewDisplayMode.table
             case .map: ViewDisplayMode.map
             }
+            let effectiveDisplayMode = normalizedViewDisplayMode(newDisplayMode)
 
-            if viewDisplayMode != newDisplayMode {
-                viewDisplayMode = newDisplayMode
+            if effectiveDisplayMode != newDisplayMode {
+                viewSettings.libraryLayout = switch effectiveDisplayMode {
+                case .icon: .icons
+                case .list: .list
+                case .table: .table
+                case .map: .map
+                }
+            }
+
+            if viewDisplayMode != effectiveDisplayMode {
+                viewDisplayMode = effectiveDisplayMode
             }
         }
         .onChange(of: viewMode) { oldMode, newMode in
-            // Auto-save workflow when navigating away from a workflow
-            if case .workflow(let oldWorkflow) = oldMode, let workflow = oldWorkflow {
+            // Auto-save only when leaving the currently edited workflow.
+            // Skip workflow->same-workflow transitions (e.g., sidebar rename refresh),
+            // which can otherwise overwrite a fresh rename with stale editor state.
+            let shouldAutoSaveWorkflow: Bool = {
+                guard case .workflow(let oldWorkflow) = oldMode, let oldWorkflow else {
+                    return false
+                }
+
+                switch newMode {
+                case .workflow(let newWorkflow):
+                    guard let newWorkflow else {
+                        return false
+                    }
+                    return newWorkflow.id != oldWorkflow.id
+                default:
+                    return true
+                }
+            }()
+
+            if shouldAutoSaveWorkflow, case .workflow(let oldWorkflow) = oldMode, let workflow = oldWorkflow {
                 // Capture the editing workflow content before it changes
                 let workflowToSave = editingWorkflow
                 Task { @MainActor in
@@ -333,7 +413,30 @@ struct ContentView: View {
         .onChange(of: selectedSidebarItemId) { _, newFolderId in
             // Restore per-folder view mode when switching folders
             if let saved = displayMode(for: newFolderId) {
-                viewDisplayMode = saved
+                viewDisplayMode = normalizedViewDisplayMode(saved)
+            }
+        }
+        .onChange(of: sidebarMode) { _, _ in
+            viewDisplayMode = normalizedViewDisplayMode(viewDisplayMode)
+            viewSettings.libraryLayout = switch viewDisplayMode {
+            case .icon: .icons
+            case .list: .list
+            case .table: .table
+            case .map: .map
+            }
+
+            let effectivePreviewMode = normalizedPreviewMode(viewSettings.previewMode)
+            if effectivePreviewMode != viewSettings.previewMode {
+                viewSettings.previewMode = effectivePreviewMode
+            }
+
+            let effectiveLayoutMode: LayoutMode = switch effectivePreviewMode {
+            case .none: .none
+            case .standard: .standard
+            case .widescreen: .widescreen
+            }
+            if currentLayoutMode != effectiveLayoutMode {
+                currentLayoutMode = effectiveLayoutMode
             }
         }
         .onChange(of: columnVisibility) { _, newVisibility in

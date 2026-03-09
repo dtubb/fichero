@@ -1,13 +1,14 @@
 import SwiftUI
 
 /// Reusable "+ Add Item" menu component
-/// Uses ItemTypeRegistry to generate menu items grouped by category
+/// Uses focused sidebar actions so toolbar and Data menu stay aligned.
 struct AddItemMenu: View {
     @ObservedObject var registry: ItemTypeRegistry
     let style: MenuStyle
-    
+
     // Feature manager to filter menu items
     @ObservedObject var featureManager = FeatureManager.shared
+    @FocusedValue(\.sidebarActions) private var sidebarActions
 
     enum MenuStyle {
         case button      // Toolbar button with menu
@@ -35,88 +36,49 @@ struct AddItemMenu: View {
 
     @ViewBuilder
     private var menuContent: some View {
-        let grouped = registry.definitionsByCategory
+        if let sidebarActions {
+            Button("New Folder") {
+                sidebarActions.createFolder()
+            }
 
-        // Documents category
-        if let items = grouped[.documents], !items.isEmpty {
-            Section("Documents") {
-                ForEach(items) { item in
-                    buttonWithShortcut(for: item)
+            Menu("Import") {
+                Button("Link Files...") {
+                    sidebarActions.importFiles(.link)
+                }
+
+                Button("Copy Files...") {
+                    sidebarActions.importFiles(.copy)
+                }
+
+                Button("Add Files...") {
+                    sidebarActions.importFiles(.move)
+                }
+            }
+
+            Divider()
+
+            Button("New Search") {
+                sidebarActions.createSearch()
+            }
+
+            if featureManager.isChatEnabled {
+                Button("New Chat") {
+                    sidebarActions.createChat()
+                }
+            }
+
+            if featureManager.isWorkflowsEnabled {
+                Button("New Workflow") {
+                    sidebarActions.createWorkflow()
+                }
+            }
+
+            if featureManager.isAutomationEnabled {
+                Button("New Schedule") {
+                    sidebarActions.createSchedule()
                 }
             }
         }
-
-        // AI category
-        if featureManager.isChatEnabled || featureManager.isWorkflowsEnabled {
-            if let items = grouped[.aiTools], !items.isEmpty {
-                Section("AI") {
-                    ForEach(items) { item in
-                        // Filter items based on specific flags if needed
-                        if item.name.contains("Workflow") && !featureManager.isWorkflowsEnabled {
-                            EmptyView()
-                        } else if item.name.contains("Chat") && !featureManager.isChatEnabled {
-                            EmptyView()
-                        } else {
-                            buttonWithShortcut(for: item)
-                        }
-                    }
-                }
-            }
-        }
-
-        // Automation category
-        if featureManager.isAutomationEnabled {
-            if let items = grouped[.automation], !items.isEmpty {
-                Section("Automation") {
-                    ForEach(items) { item in
-                        buttonWithShortcut(for: item)
-                    }
-                }
-            }
-        }
-
-        // Places category
-        if let items = grouped[.places], !items.isEmpty {
-            Section("Places") {
-                ForEach(items) { item in
-                    buttonWithShortcut(for: item)
-                }
-            }
-        }
-
-        // Tools category
-        if let items = grouped[.tools], !items.isEmpty {
-            Section("Tools") {
-                ForEach(items) { item in
-                    buttonWithShortcut(for: item)
-                }
-            }
-        }
-    }
-
-    /// Create button with optional keyboard shortcut
-    @ViewBuilder
-    private func buttonWithShortcut(for item: ItemTypeDefinition) -> some View {
-        if let keyEquiv = keyEquivalent(for: item.keyboardShortcut) {
-            Button(action: item.handler) {
-                Label(item.name, systemImage: item.icon)
-            }
-            .keyboardShortcut(keyEquiv, modifiers: [.command])
-        } else {
-            Button(action: item.handler) {
-                Label(item.name, systemImage: item.icon)
-            }
-        }
-    }
-
-    /// Convert string keyboard shortcut to KeyEquivalent
-    private func keyEquivalent(for shortcut: String?) -> KeyEquivalent? {
-        guard let shortcut = shortcut,
-              !shortcut.isEmpty,
-              let char = shortcut.first else {
-            return nil
-        }
-        return KeyEquivalent(char)
     }
 }
 

@@ -37,6 +37,12 @@ struct SearchNodeConfig: View {
                     .font(.caption2)
                     .foregroundColor(.secondary)
                     .italic()
+                Button("Reload Saved Searches") {
+                    Task {
+                        try? await savedSearchService.loadSavedSearches()
+                    }
+                }
+                .buttonStyle(.borderless)
             }
         }
         .task {

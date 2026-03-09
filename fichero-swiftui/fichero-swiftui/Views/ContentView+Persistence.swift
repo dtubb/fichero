@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 // MARK: - ContentView Persistence Extension
 // Agent: PersistenceAgent
@@ -15,17 +15,23 @@ extension ContentView {
     func restoreViewMode(type: String, itemId: String?) -> AppViewMode {
         switch type {
         case "library":
-            guard let id = itemId else { return .library(nil) }
+            guard let id = normalizedStoredItemId(for: type, rawItemId: itemId) else {
+                return .library(nil)
+            }
             let doc = documentStore.collections.first { $0.id == id }
             return .library(doc)
 
         case "search":
-            guard let id = itemId else { return .search(nil) }
+            guard let id = normalizedStoredItemId(for: type, rawItemId: itemId) else {
+                return .search(nil)
+            }
             let search = savedSearchService.savedSearches.first { $0.id == id }
             return .search(search)
 
         case "chat":
-            guard let id = itemId else { return .chat(nil) }
+            guard let id = normalizedStoredItemId(for: type, rawItemId: itemId) else {
+                return .chat(nil)
+            }
             let conversation = conversationService.conversations.first { $0.id == id }
             return .chat(conversation)
 
@@ -33,7 +39,9 @@ extension ContentView {
             return .comparison(nil)
 
         case "workflow":
-            guard let id = itemId else { return .workflow(nil) }
+            guard let id = normalizedStoredItemId(for: type, rawItemId: itemId) else {
+                return .workflow(nil)
+            }
             let workflow = workflowStore.workflows.first { $0.id == id }
             return .workflow(workflow)
 
@@ -111,6 +119,12 @@ extension ContentView {
         }
 
         viewMode = restoreViewMode(type: storedViewModeType, itemId: storedViewModeItemId)
+        if selectedSidebarItemId == nil {
+            selectedSidebarItemId = sidebarSelectionId(
+                for: storedViewModeType,
+                itemId: storedViewModeItemId
+            )
+        }
 
         logger.info("""
             Restored persisted state: viewMode=\(storedViewModeType), \
@@ -160,5 +174,69 @@ extension ContentView {
         let (type, id) = serializeViewMode(viewMode)
         storedViewModeType = type
         storedViewModeItemId = id
+        selectedSidebarItemId = sidebarSelectionId(for: type, itemId: id)
+    }
+
+    // MARK: - Sidebar Selection ID Mapping
+
+    // swiftlint:disable:next cyclomatic_complexity
+    func sidebarSelectionId(for type: String, itemId: String?) -> String? {
+        guard let itemId, !itemId.isEmpty else { return nil }
+        switch type {
+        case "library":
+            return "doc:\(stripPrefix(itemId, prefix: "doc:"))"
+        case "search":
+            return "search:\(stripPrefix(itemId, prefix: "search:"))"
+        case "chat":
+            return "chat:\(stripPrefix(itemId, prefix: "chat:"))"
+        case "workflow":
+            return "workflow:\(stripPrefix(itemId, prefix: "workflow:"))"
+        case "chain":
+            return "chain:\(stripPrefix(itemId, prefix: "chain:"))"
+        case "schedule":
+            return "schedule:\(stripPrefix(itemId, prefix: "schedule:"))"
+        case "trigger":
+            return "trigger:\(stripPrefix(itemId, prefix: "trigger:"))"
+        case "batch":
+            return "batch:\(stripPrefix(itemId, prefix: "batch:"))"
+        case "activity":
+            return "activity:\(stripPrefix(itemId, prefix: "activity:"))"
+        default:
+            return itemId
+        }
+    }
+
+    // swiftlint:disable:next cyclomatic_complexity
+    func normalizedStoredItemId(for type: String, rawItemId: String?) -> String? {
+        guard let rawItemId, !rawItemId.isEmpty else { return nil }
+        switch type {
+        case "library":
+            return stripPrefix(rawItemId, prefix: "doc:")
+        case "search":
+            return stripPrefix(rawItemId, prefix: "search:")
+        case "chat":
+            return stripPrefix(rawItemId, prefix: "chat:")
+        case "workflow":
+            return stripPrefix(rawItemId, prefix: "workflow:")
+        case "chain":
+            return stripPrefix(rawItemId, prefix: "chain:")
+        case "schedule":
+            return stripPrefix(rawItemId, prefix: "schedule:")
+        case "trigger":
+            return stripPrefix(rawItemId, prefix: "trigger:")
+        case "batch":
+            return stripPrefix(rawItemId, prefix: "batch:")
+        case "activity":
+            return stripPrefix(rawItemId, prefix: "activity:")
+        default:
+            return rawItemId
+        }
+    }
+
+    private func stripPrefix(_ value: String, prefix: String) -> String {
+        if value.hasPrefix(prefix) {
+            return String(value.dropFirst(prefix.count))
+        }
+        return value
     }
 }

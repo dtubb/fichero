@@ -1,5 +1,5 @@
-import SwiftUI
 import FicheroAPIClient
+import SwiftUI
 
 // MARK: - Helpers
 
@@ -21,6 +21,10 @@ extension AddProviderSheet {
             catalog = try await providerService.listCatalog()
             let existingProviders = try await providerService.listProviders()
             existingProviderTypes = Set(existingProviders.map { $0.providerType })
+
+            if let selectedType, !availableCatalog.contains(where: { $0.providerType == selectedType }) {
+                self.selectedType = nil
+            }
 
             // Pre-select first available local provider for first launch
             if isFirstLaunch, let first = availableCatalog.first(where: { $0.isLocal }) {

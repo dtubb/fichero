@@ -10,6 +10,7 @@ Usage:
 """
 
 import argparse
+import os
 import subprocess
 import sys
 import time
@@ -26,6 +27,20 @@ RESET = "\033[0m"
 BASE_URL = "http://127.0.0.1:8765/api"
 API_ROOT = Path(__file__).parent.parent
 REPO_ROOT = API_ROOT.parent
+
+def resolve_python_bin() -> Path:
+    """Prefer fichero-api/.venv, then repo .venv, then current interpreter."""
+    candidates = [
+        API_ROOT / ".venv/bin/python",
+        REPO_ROOT / ".venv/bin/python",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return Path(sys.executable)
+
+
+PYTHON_BIN = resolve_python_bin()
 
 
 def print_header(title: str):
@@ -67,7 +82,7 @@ def check_backend_health() -> bool:
             return False
     except httpx.ConnectError:
         print_fail("Backend is not running on port 8765")
-        print_info(f"Start with: PYTHONPATH={API_ROOT / 'src'} {REPO_ROOT / '.venv/bin/uvicorn'} fichero.api.main:app --port 8765")
+        print_info(f"Start with: PYTHONPATH={API_ROOT / 'src'} {PYTHON_BIN} -m uvicorn fichero.api.main:app --port 8765")
         return False
     except Exception as e:
         print_fail(f"Error connecting to backend: {e}")
@@ -320,7 +335,7 @@ def run_unit_tests() -> tuple[int, int]:
 
     result = subprocess.run(
         [
-            str(REPO_ROOT / ".venv/bin/python"),
+            str(PYTHON_BIN),
             "-m",
             "pytest",
             str(API_ROOT / "tests/unit/"),
@@ -329,7 +344,7 @@ def run_unit_tests() -> tuple[int, int]:
             "--tb=no"
         ],
         cwd=REPO_ROOT,
-        env={**dict(subprocess.os.environ), "PYTHONPATH": str(API_ROOT / "src")},
+        env={**dict(os.environ), "PYTHONPATH": str(API_ROOT / "src")},
         capture_output=True,
         text=True
     )
@@ -360,7 +375,7 @@ def run_integration_tests() -> tuple[int, int]:
 
     result = subprocess.run(
         [
-            str(REPO_ROOT / ".venv/bin/python"),
+            str(PYTHON_BIN),
             "-m",
             "pytest",
             str(API_ROOT / "tests/integration/test_api_contract_changes.py"),
@@ -368,7 +383,7 @@ def run_integration_tests() -> tuple[int, int]:
             "--tb=short"
         ],
         cwd=REPO_ROOT,
-        env={**dict(subprocess.os.environ), "PYTHONPATH": str(API_ROOT / "src")},
+        env={**dict(os.environ), "PYTHONPATH": str(API_ROOT / "src")},
         capture_output=True,
         text=True
     )

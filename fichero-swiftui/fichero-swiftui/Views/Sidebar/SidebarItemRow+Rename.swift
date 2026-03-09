@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 extension SidebarItemRow {
     func commitRename() {
@@ -70,13 +70,6 @@ extension SidebarItemRow {
         itemId: String,
         newName: String
     ) async {
-        let actualId: String
-        if itemId.contains(":") {
-            actualId = String(itemId.split(separator: ":")[1])
-        } else {
-            actualId = itemId
-        }
-
         guard let itemLibraryId = itemToRename.libraryId,
               let itemLibrary = libraryManager.getLibrary(id: itemLibraryId) else {
             sidebarRowLogger.error("Cannot rename: item has no libraryId or library not found")
@@ -85,33 +78,38 @@ extension SidebarItemRow {
 
         do {
             switch itemToRename.itemType {
-            case .savedSearch:
-                _ = try await itemLibrary.savedSearchServiceGenerated.renameSavedSearch(actualId, newName: newName)
-                sidebarRowLogger.debug(" Renamed saved search \(actualId) to '\(newName)'")
-            case .conversation:
-                _ = try await itemLibrary.conversationServiceGenerated.renameConversation(actualId, newTitle: newName)
-                sidebarRowLogger.debug(" Renamed conversation \(actualId) to '\(newName)'")
-            case .workflow:
-                _ = try await itemLibrary.workflowStore.renameWorkflow(actualId, to: newName)
-                sidebarRowLogger.debug(" Renamed workflow \(actualId) to '\(newName)'")
+            case .savedSearch(let search):
+                _ = try await itemLibrary.savedSearchServiceGenerated.renameSavedSearch(search.id, newName: newName)
+                sidebarRowLogger.debug(" Renamed saved search \(search.id) to '\(newName)'")
+            case .conversation(let conversation):
+                _ = try await itemLibrary.conversationServiceGenerated.renameConversation(
+                    conversation.id,
+                    newTitle: newName
+                )
+                sidebarRowLogger.debug(" Renamed conversation \(conversation.id) to '\(newName)'")
+            case .workflow(let workflow):
+                _ = try await itemLibrary.workflowStore.renameWorkflow(workflow.id, to: newName)
+                // Force refresh from backend to guarantee persistence + sidebar consistency.
+                await itemLibrary.workflowStore.loadWorkflows()
+                sidebarRowLogger.debug(" Renamed workflow \(workflow.id) to '\(newName)'")
             case .chain(var chain):
                 chain.name = newName
                 _ = try await itemLibrary.chainService.updateChain(chain)
-                sidebarRowLogger.debug(" Renamed chain \(actualId) to '\(newName)'")
+                sidebarRowLogger.debug(" Renamed chain \(chain.id) to '\(newName)'")
             case .schedule(let schedule):
                 _ = try await itemLibrary.automationService.updateSchedule(
                     scheduleId: schedule.scheduleId,
                     newName: newName
                 )
-                sidebarRowLogger.debug(" Renamed schedule \(actualId) to '\(newName)'")
+                sidebarRowLogger.debug(" Renamed schedule \(schedule.scheduleId) to '\(newName)'")
             case .trigger(let trigger):
                 _ = try await itemLibrary.automationService.updateTrigger(
                     triggerId: trigger.triggerId,
                     newName: newName
                 )
-                sidebarRowLogger.debug(" Renamed trigger \(actualId) to '\(newName)'")
+                sidebarRowLogger.debug(" Renamed trigger \(trigger.triggerId) to '\(newName)'")
             default:
-                sidebarRowLogger.debug(" ⚠️ Unknown item type for rename")
+                sidebarRowLogger.debug(" Unknown item type for rename (itemId: \(itemId))")
             }
         } catch {
             sidebarRowLogger.error(" Failed to rename item: \(error.localizedDescription)")

@@ -15,7 +15,7 @@ struct WorkflowEditor: View {
     @State var isSaving: Bool = false
     @State var saveError: String?
     @State var showSaveSuccess: Bool = false
-    @State var showOutputLog: Bool = false
+    @State var showOutputLog: Bool = true
     @State var executionState: WorkflowExecutionState?
 
     // Canvas state (passed to WorkflowCanvasView)
@@ -36,6 +36,7 @@ struct WorkflowEditor: View {
     @EnvironmentObject var workflowStreamService: WorkflowStreamService
     @EnvironmentObject var documentStore: DocumentStore
     @EnvironmentObject var libraryManager: LibraryManager
+    @ObservedObject var featureManager = FeatureManager.shared
 
     // Uses @Observable pattern - injected via .environment() from LibraryWindow
     @Environment(WorkflowExecutionObserver.self) var executionObserver
@@ -60,15 +61,9 @@ struct WorkflowEditor: View {
             // Workflow toolbar at top
             WorkflowToolbar(
                 isRunning: $isRunning,
-                isSaving: $isSaving,
-                showOutputLog: $showOutputLog,
                 canRun: !editingWorkflow.nodes.isEmpty,
-                scale: $scale,
-                snapToGrid: $snapToGrid,
                 onRun: runWorkflow,
-                onSave: saveWorkflow,
                 onExport: exportWorkflow,
-                onResetZoom: resetZoom,
                 onPreviewDiagram: {
                     // Auto-save before showing diagram preview
                     Task { @MainActor in
@@ -85,32 +80,39 @@ struct WorkflowEditor: View {
             VSplitView {
                 // Main content area (adapts to displayMode)
                 Group {
-                    switch displayMode {
-                    case .icon:
-                        workflowNodesIconView
-                    case .list:
-                        workflowNodesListView
-                    case .table:
-                        workflowNodesTableView
-                    case .map:
+                    if !featureManager.isWorkflowEditorAdvancedViewsEnabled {
                         // Note: WorkflowCanvasView reads nodeStates from @Environment(WorkflowExecutionObserver.self)
                         WorkflowCanvasView(
                             workflow: $editingWorkflow,
                             scale: $scale,
                             snapToGrid: $snapToGrid
                         )
+                    } else {
+                        switch displayMode {
+                        case .icon:
+                            workflowNodesIconView
+                        case .list:
+                            workflowNodesListView
+                        case .table:
+                            workflowNodesTableView
+                        case .map:
+                            // WorkflowCanvasView reads nodeStates from WorkflowExecutionObserver environment.
+                            WorkflowCanvasView(
+                                workflow: $editingWorkflow,
+                                scale: $scale,
+                                snapToGrid: $snapToGrid
+                            )
+                        }
                     }
                 }
                 .frame(minHeight: 200)
 
-                // Output log (collapsible, only during/after run)
-                if showOutputLog {
-                    WorkflowOutputLog(
-                        workflow: editingWorkflow,
-                        executionStateOverride: executionState
-                    )
-                    .frame(minHeight: 100, maxHeight: 250)
-                }
+                // Output log is always visible in 0.0.1 workflow editor.
+                WorkflowOutputLog(
+                    workflow: editingWorkflow,
+                    executionStateOverride: executionState
+                )
+                .frame(minHeight: 100, maxHeight: 250)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }

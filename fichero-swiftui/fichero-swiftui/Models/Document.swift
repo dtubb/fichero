@@ -145,7 +145,7 @@ struct Document: Identifiable, Codable, Hashable {
 // MARK: - AnyCodable for flexible metadata
 
 /// Type-erased Codable wrapper for metadata dictionary
-struct AnyCodable: Codable, Hashable {
+struct AnyCodable: Codable, Hashable, @unchecked Sendable {
     let value: Any
 
     init(_ value: Any) {

@@ -13,6 +13,7 @@ struct ImagePreviewMenuCommands: View {
     // MARK: - Focused Values
 
     @FocusedValue(\.imageZoomActions) private var zoomActions
+    private var hasActiveImagePreview: Bool { zoomActions != nil }
 
     // MARK: - Storage
 
@@ -45,25 +46,25 @@ struct ImagePreviewMenuCommands: View {
             zoomActions?.actualSize()
         }
         .keyboardShortcut("0", modifiers: [.command])
-        .disabled(zoomActions == nil)
+        .disabled(!hasActiveImagePreview)
 
         Button("Zoom to Fit") {
             zoomActions?.zoomToFit()
         }
         .keyboardShortcut("9", modifiers: [.command])
-        .disabled(zoomActions == nil)
+        .disabled(!hasActiveImagePreview)
 
         Button("Zoom In") {
             zoomActions?.zoomIn()
         }
         .keyboardShortcut("+", modifiers: [.command])
-        .disabled(zoomActions?.canZoomIn != true)
+        .disabled(!hasActiveImagePreview || zoomActions?.canZoomIn != true)
 
         Button("Zoom Out") {
             zoomActions?.zoomOut()
         }
         .keyboardShortcut("-", modifiers: [.command])
-        .disabled(zoomActions?.canZoomOut != true)
+        .disabled(!hasActiveImagePreview || zoomActions?.canZoomOut != true)
     }
 
     // MARK: - Magnifier Section
@@ -82,6 +83,7 @@ struct ImagePreviewMenuCommands: View {
             }
         }
         .keyboardShortcut("m", modifiers: [.command, .option])
+        .disabled(!hasActiveImagePreview)
 
         // Lock magnifier toggle (Shift + toggle shortcut)
         Button {
@@ -95,21 +97,21 @@ struct ImagePreviewMenuCommands: View {
             }
         }
         .keyboardShortcut("m", modifiers: [.command, .option, .shift])
-        .disabled(!magnifierEnabled)
+        .disabled(!hasActiveImagePreview || !magnifierEnabled)
 
         // Magnifier zoom in
         Button("Magnifier Zoom In") {
             panelMagnification = min(panelMagnification * MagnifierLimits.zoomFactor, MagnifierLimits.maxMagnification)
         }
         .keyboardShortcut("]", modifiers: [.command, .option])
-        .disabled(!magnifierEnabled || panelMagnification >= MagnifierLimits.maxMagnification)
+        .disabled(!hasActiveImagePreview || !magnifierEnabled || panelMagnification >= MagnifierLimits.maxMagnification)
 
         // Magnifier zoom out
         Button("Magnifier Zoom Out") {
             panelMagnification = max(panelMagnification / MagnifierLimits.zoomFactor, MagnifierLimits.minMagnification)
         }
         .keyboardShortcut("[", modifiers: [.command, .option])
-        .disabled(!magnifierEnabled || panelMagnification <= MagnifierLimits.minMagnification)
+        .disabled(!hasActiveImagePreview || !magnifierEnabled || panelMagnification <= MagnifierLimits.minMagnification)
     }
 
     // MARK: - Loupe Section
@@ -128,6 +130,7 @@ struct ImagePreviewMenuCommands: View {
             }
         }
         .keyboardShortcut("l", modifiers: [.command, .option])
+        .disabled(!hasActiveImagePreview)
 
         // Lock loupe toggle (Shift + toggle shortcut)
         Button {
@@ -141,20 +144,20 @@ struct ImagePreviewMenuCommands: View {
             }
         }
         .keyboardShortcut("l", modifiers: [.command, .option, .shift])
-        .disabled(!loupeEnabled)
+        .disabled(!hasActiveImagePreview || !loupeEnabled)
 
         // Loupe zoom in
         Button("Loupe Zoom In") {
             loupeMagnification = min(loupeMagnification * MagnifierLimits.zoomFactor, MagnifierLimits.maxMagnification)
         }
         .keyboardShortcut("]", modifiers: [.command, .control])
-        .disabled(!loupeEnabled || loupeMagnification >= MagnifierLimits.maxMagnification)
+        .disabled(!hasActiveImagePreview || !loupeEnabled || loupeMagnification >= MagnifierLimits.maxMagnification)
 
         // Loupe zoom out
         Button("Loupe Zoom Out") {
             loupeMagnification = max(loupeMagnification / MagnifierLimits.zoomFactor, MagnifierLimits.minMagnification)
         }
         .keyboardShortcut("[", modifiers: [.command, .control])
-        .disabled(!loupeEnabled || loupeMagnification <= MagnifierLimits.minMagnification)
+        .disabled(!hasActiveImagePreview || !loupeEnabled || loupeMagnification <= MagnifierLimits.minMagnification)
     }
 }

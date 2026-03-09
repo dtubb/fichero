@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "Settings")
 
@@ -8,6 +8,7 @@ private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "Settings")
 /// Settings for default AI models with Defaults and Advanced sub-tabs
 struct AISettingsView: View {
     @EnvironmentObject var appState: AppState
+    @ObservedObject var featureManager = FeatureManager.shared
 
     @State private var defaults = AIDefaults()
     @State private var isLoading = true
@@ -39,15 +40,17 @@ struct AISettingsView: View {
                 }
                 .padding()
             } else {
-                Picker("", selection: $selectedTab) {
-                    Text("Defaults").tag(0)
-                    Text("Advanced").tag(1)
+                if featureManager.isSettingsAIAdvancedTabEnabled {
+                    Picker("", selection: $selectedTab) {
+                        Text("Defaults").tag(0)
+                        Text("Advanced").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
                 }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.top, 8)
 
-                if selectedTab == 0 {
+                if !featureManager.isSettingsAIAdvancedTabEnabled || selectedTab == 0 {
                     defaultsTab
                 } else {
                     advancedTab
@@ -88,14 +91,18 @@ struct AISettingsView: View {
                 modelPicker(selection: $defaults.visionModel, models: visionModels)
             }
 
-            Section("Audio (Transcription)") {
-                providerPicker(selection: $defaults.audioProvider)
-                modelPicker(selection: $defaults.audioModel, models: audioModels)
+            if featureManager.isWorkflowToolsAudioEnabled {
+                Section("Audio (Transcription)") {
+                    providerPicker(selection: $defaults.audioProvider)
+                    modelPicker(selection: $defaults.audioModel, models: audioModels)
+                }
             }
 
-            Section("Video") {
-                providerPicker(selection: $defaults.videoProvider)
-                modelPicker(selection: $defaults.videoModel, models: videoModels)
+            if featureManager.isWorkflowToolsVideoEnabled {
+                Section("Video") {
+                    providerPicker(selection: $defaults.videoProvider)
+                    modelPicker(selection: $defaults.videoModel, models: videoModels)
+                }
             }
 
             Section {
@@ -156,62 +163,105 @@ struct AISettingsView: View {
         }
         .padding()
     }
+}
 
-    // MARK: - Helpers
+// MARK: - Helpers
 
-    private var temperatureBinding: Binding<Double> {
+private extension AISettingsView {
+    var temperatureBinding: Binding<Double> {
         Binding(
             get: { Double(defaults.temperature) ?? 0.7 },
             set: { defaults.temperature = String(format: "%.1f", $0) }
         )
     }
 
-    private var temperatureDisplay: String {
+    var temperatureDisplay: String {
         defaults.temperature.isEmpty ? "0.7" : defaults.temperature
     }
 
     @ViewBuilder
-    private func providerPicker(selection: Binding<String>) -> some View {
+    func providerPicker(selection: Binding<String>) -> some View {
         Picker("Provider", selection: selection) {
             Text("None").tag("")
-            ForEach(appState.providers, id: \.providerType) { provider in
+            ForEach(
+                appState.providers.filter { featureManager.isProviderTypeEnabled($0.providerType) },
+                id: \.providerType
+            ) { provider in
                 Text(provider.name).tag(provider.providerType)
             }
         }
     }
 
     @ViewBuilder
-    private func modelPicker(selection: Binding<String>, models: [ModelInfo]) -> some View {
+    func modelPicker(selection: Binding<String>, models: [ModelInfo]) -> some View {
+        let currentSelection = selection.wrappedValue
+        let hasCurrentSelection = !currentSelection.isEmpty
+        let hasCurrentInList = models.contains { $0.modelId == currentSelection }
+
         Picker("Model", selection: selection) {
             Text("None").tag("")
+            if hasCurrentSelection && !hasCurrentInList {
+                Text("\(currentSelection) (saved)").tag(currentSelection)
+            }
             ForEach(models, id: \.modelId) { model in
                 Text(model.fullName).tag(model.modelId)
             }
         }
     }
 
-    private func loadModels(for providerType: String, into models: Binding<[ModelInfo]>) {
+    func loadModels(for providerType: String, into models: Binding<[ModelInfo]>) {
         guard !providerType.isEmpty else {
             models.wrappedValue = []
             return
         }
+
+        guard let provider = appState.providers.first(where: { $0.providerType == providerType }) else {
+            models.wrappedValue = []
+            return
+        }
+
         Task {
             do {
-                models.wrappedValue = try await appState.providerService.listAvailableModels(
-                    providerType: providerType
-                )
+                let configuredModels = try await appState.providerService.listProviderModels(providerId: provider.id)
+                models.wrappedValue = configuredModels.map { userModel in
+                    ModelInfo(
+                        modelId: userModel.modelId,
+                        fullName: userModel.name,
+                        description: nil,
+                        isRecommended: false,
+                        isLocal: false,
+                        inputCostPerMillion: 0,
+                        outputCostPerMillion: 0,
+                        batchInputCostPerMillion: nil,
+                        batchOutputCostPerMillion: nil,
+                        cacheReadCostPerMillion: nil,
+                        maxInputTokens: nil,
+                        maxOutputTokens: nil,
+                        mode: nil,
+                        supportsVision: userModel.capabilities.contains("vision"),
+                        supportsFunctionCalling: userModel.capabilities.contains("tools"),
+                        supportsAudioInput: userModel.capabilities.contains("audio"),
+                        supportsAudioOutput: false,
+                        supportsPdfInput: false,
+                        supportsPromptCaching: false,
+                        supportsReasoning: false,
+                        supportsWebSearch: false,
+                        supportsStreaming: false,
+                        supportsBatchApi: false,
+                        provider: providerType
+                    )
+                }
             } catch {
                 logger.error("Failed to load models for \(providerType): \(error.localizedDescription)")
             }
         }
     }
 
-    private func loadDefaults() async {
+    func loadDefaults() async {
         isLoading = true
         defer { isLoading = false }
         do {
             defaults = try await appState.fetchAIDefaults()
-            // Load model lists for any pre-configured providers
             if !defaults.textProvider.isEmpty {
                 loadModels(for: defaults.textProvider, into: $textModels)
             }
@@ -230,7 +280,7 @@ struct AISettingsView: View {
         }
     }
 
-    private func saveDefaults() async {
+    func saveDefaults() async {
         guard !isLoading else { return }
         isSaving = true
         defer { isSaving = false }
@@ -243,7 +293,7 @@ struct AISettingsView: View {
         }
     }
 
-    private func resetDefaults() async {
+    func resetDefaults() async {
         do {
             try await appState.resetAIDefaults()
             defaults = AIDefaults()

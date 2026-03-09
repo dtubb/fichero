@@ -1,6 +1,6 @@
-import SwiftUI
-import OSLog
 import FicheroAPIClient
+import OSLog
+import SwiftUI
 
 let providersViewLogger = Logger(subsystem: "ca.tubb.Fichero", category: "ProvidersView")
 
@@ -13,6 +13,7 @@ struct ProvidersView: View {
     @State private var selectedProvider: Components.Schemas.ProviderResponse?
 
     @EnvironmentObject var providerService: ProviderServiceGenerated
+    @ObservedObject var featureManager = FeatureManager.shared
 
     var body: some View {
         HSplitView {
@@ -78,7 +79,9 @@ struct ProvidersView: View {
     }
 
     var sortedProviders: [Components.Schemas.ProviderResponse] {
-        providers.sorted { provider1, provider2 in
+        providers
+            .filter { featureManager.isProviderTypeEnabled($0.providerType) }
+            .sorted { provider1, provider2 in
             let orderA = sortOrder(provider1.providerType)
             let orderB = sortOrder(provider2.providerType)
             if orderA < 100 && orderB < 100 {
@@ -92,11 +95,8 @@ struct ProvidersView: View {
 
     func sortOrder(_ type: String) -> Int {
         switch type {
-        case "apple_vision": return 0
-        case "apple_intelligence": return 1
-        case "ollama": return 2
-        case "lmstudio": return 3
-        case "huggingface": return 4
+        case "apple", "apple_vision", "apple_intelligence": return 0
+        case "openai": return 1
         default: return 100
         }
     }
@@ -108,6 +108,10 @@ struct ProvidersView: View {
         do {
             providers = try await providerService.listProviders()
             catalog = try await providerService.listCatalog()
+            if let selected = selectedProvider,
+               !featureManager.isProviderTypeEnabled(selected.providerType) {
+                selectedProvider = nil
+            }
         } catch {
             providersViewLogger.error("Failed to load: \(String(describing: error))")
         }

@@ -83,6 +83,7 @@ For the approved implementation surface, the required checks are:
 
 ## Lessons Learned
 
+- `/session-start-auto` must treat dirty source files on `main` as a hard blocker; only docs/state handoff work should continue until `main` is clean again
 - Sidebar gating must sanitize both persisted `sidebarMode` and persisted/restored `viewMode`; hiding icons alone does not prevent off-tier surfaces from reappearing
 - Do not trust stale state docs; reconcile them before acting on them
 - Feature gating is the release mechanism, not a side concern

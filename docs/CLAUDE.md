@@ -411,50 +411,23 @@ Based on recent commit history:
 
 ## AI Task Management System
 
-This project uses a structured task management system in `docs/agent-workflow/`.
-Canonical location: `docs/agent-workflow/`.
-
-### Directory Structure
-
-``` 
-docs/agent-workflow/
-├── README.md                # Quick start guide
-├── TODO.md                  # Master task list
-├── inbox/                   # Planning notes
-├── workflows/               # Process documentation
-│   ├── INBOX_WORKFLOW.md    # How to process inbox items
-│   └── TASK_WORKFLOW.md     # How to execute tasks
-└── templates/               # Templates for new tasks
-```
+This project uses GitHub for execution tracking.
+Canonical location: GitHub Issues + Milestones + Project board.
 
 ### Task Management Workflow
 
-1. **Check inbox first**: `ls docs/agent-workflow/inbox/` - if files exist, process them via `docs/agent-workflow/workflows/INBOX_WORKFLOW.md`
-2. **Pick a task**: Choose from `docs/agent-workflow/TODO.md` - tasks marked `[ ]` are available
-3. **Update status**: Change `[ ]` to `[>]` when starting, `[x]` when complete
-4. **Save artifacts**: Keep long-form historical artifacts outside the repo (delete staging/archive area)
+1. **Pick from milestone queue**: choose from open issues in the active milestone
+2. **Track execution in project**: set project item status (`Todo`/`In Progress`/`Done`)
+3. **Keep issue state accurate**: move through open/closed with comments and linked PRs
+4. **Use local state only for handoff**: `STATE.md` is continuity context, not roadmap authority
 
 ### Important Rules
 
-- **NEVER rewrite TODO.md from scratch** - always use search/replace or careful edits
-- **Don't reorder tasks** - preserve existing structure
+- **GitHub is source of truth** for scope, prioritization, and status
+- **Local planning files are non-authoritative** (`PLAN.md`, `TASKS.md`, `docs/agent-workflow/TODO.md`)
 - **One task at a time** - complete fully before moving to next
 - **Small, focused tasks** - break complex work into manageable pieces
 - **Keep root clean** - put summaries and docs in task folders, not root
-
-### Task Status Legend
-
-- `[ ]` = Available (ready to implement)
-- `[>]` = In Progress (currently working on)
-- `[x]` = Completed (done, kept for reference)
-- `[!]` = Blocked (dependent on other tasks)
-
-### Priority Levels
-
-- `P0` = Critical path, must be done immediately
-- `P1` = High priority, should be done soon
-- `P2` = Medium priority, can wait
-- `P3` = Low priority, nice to have
 
 ## Available MCP Tools for Claude Code
 

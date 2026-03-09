@@ -5,6 +5,7 @@ struct WorkflowPortView: View {
     let port: PortInfo
     let isConnected: Bool
     let nodeColor: Color
+    let showDataTypeIcon: Bool
 
     @State private var isHovered: Bool = false
 
@@ -23,10 +24,12 @@ struct WorkflowPortView: View {
                 .fill(isConnected ? portColor : Color(.controlBackgroundColor))
                 .frame(width: portSize, height: portSize)
 
-            // Icon inside the circle
-            Image(systemName: iconForDataType(port.dataType))
-                .font(.system(size: 7, weight: .semibold))
-                .foregroundColor(isConnected ? .white : portColor)
+            // Data type icon is hidden in simple canvas mode.
+            if showDataTypeIcon {
+                Image(systemName: iconForDataType(port.dataType))
+                    .font(.system(size: 7, weight: .semibold))
+                    .foregroundColor(isConnected ? .white : portColor)
+            }
 
             // Border
             Circle()
@@ -111,6 +114,7 @@ struct DraggableWorkflowPortView: View {
     let nodeId: String
     let nodeColor: Color
     let isConnected: Bool
+    let showDataTypeIcon: Bool
     let onDragStarted: (PortInfo, String) -> Void
     let onDragChanged: (CGSize) -> Void  // Report drag translation
     let onDragEnded: () -> Void
@@ -118,7 +122,12 @@ struct DraggableWorkflowPortView: View {
     @State private var isDragging: Bool = false
 
     var body: some View {
-        WorkflowPortView(port: port, isConnected: isConnected, nodeColor: nodeColor)
+        WorkflowPortView(
+            port: port,
+            isConnected: isConnected,
+            nodeColor: nodeColor,
+            showDataTypeIcon: showDataTypeIcon
+        )
             .frame(width: 18, height: 18)
             .contentShape(Circle())
             .highPriorityGesture(
@@ -145,6 +154,7 @@ struct DroppableWorkflowPortView: View {
     let nodeId: String
     let nodeColor: Color
     let isConnected: Bool
+    let showDataTypeIcon: Bool
     let canAcceptDrop: Bool
     let onDropReceived: (PortInfo, String) -> Void
     var onDetachDrag: ((PortInfo, String) -> Void)?  // Called when dragging from connected input
@@ -153,7 +163,12 @@ struct DroppableWorkflowPortView: View {
     @State private var isDragging: Bool = false
 
     var body: some View {
-        WorkflowPortView(port: port, isConnected: isConnected, nodeColor: nodeColor)
+        WorkflowPortView(
+            port: port,
+            isConnected: isConnected,
+            nodeColor: nodeColor,
+            showDataTypeIcon: showDataTypeIcon
+        )
             .frame(width: 18, height: 18)
             .contentShape(Circle())
             // Show hover state when edge drag is in progress
@@ -186,29 +201,50 @@ struct InputPortsView: View {
     let ports: [PortInfo]
     let nodeId: String
     let nodeColor: Color
+    let showPortDetails: Bool
     let connectedPortIds: Set<String>
     let canAcceptDrop: Bool
     let onDropReceived: (PortInfo, String) -> Void
     var onDetachDrag: ((PortInfo, String) -> Void)?
 
+    private var visiblePorts: [PortInfo] {
+        guard !showPortDetails else { return ports }
+        guard !ports.isEmpty else { return [] }
+
+        let connectedIds = connectedPortIds
+        let connectedPorts = ports.filter { connectedIds.contains($0.id) }
+        let firstUnconnected = ports.first { !connectedIds.contains($0.id) }
+
+        if connectedPorts.isEmpty {
+            return [ports[0]]
+        }
+        if let firstUnconnected {
+            return connectedPorts + [firstUnconnected]
+        }
+        return connectedPorts
+    }
+
     var body: some View {
         VStack(spacing: 8) {
-            ForEach(ports) { port in
+            ForEach(visiblePorts) { port in
                 HStack(spacing: 4) {
                     DroppableWorkflowPortView(
                         port: port,
                         nodeId: nodeId,
                         nodeColor: nodeColor,
                         isConnected: connectedPortIds.contains(port.id),
+                        showDataTypeIcon: showPortDetails,
                         canAcceptDrop: canAcceptDrop,
                         onDropReceived: onDropReceived,
                         onDetachDrag: onDetachDrag
                     )
 
-                    Text(port.name)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
+                    if showPortDetails {
+                        Text(port.name)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
                 }
             }
         }
@@ -220,25 +256,46 @@ struct OutputPortsView: View {
     let ports: [PortInfo]
     let nodeId: String
     let nodeColor: Color
+    let showPortDetails: Bool
     let connectedPortIds: Set<String>
     let onDragStarted: (PortInfo, String) -> Void
     let onDragChanged: (CGSize) -> Void  // Changed to CGSize for translation
     let onDragEnded: () -> Void
 
+    private var visiblePorts: [PortInfo] {
+        guard !showPortDetails else { return ports }
+        guard !ports.isEmpty else { return [] }
+
+        let connectedIds = connectedPortIds
+        let connectedPorts = ports.filter { connectedIds.contains($0.id) }
+        if connectedPorts.isEmpty {
+            return [ports[0]]
+        }
+
+        let primary = ports[0]
+        if connectedIds.contains(primary.id) {
+            return connectedPorts
+        }
+        return connectedPorts + [primary]
+    }
+
     var body: some View {
         VStack(spacing: 8) {
-            ForEach(ports) { port in
+            ForEach(visiblePorts) { port in
                 HStack(spacing: 4) {
-                    Text(port.name)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
+                    if showPortDetails {
+                        Text(port.name)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
 
                     DraggableWorkflowPortView(
                         port: port,
                         nodeId: nodeId,
                         nodeColor: nodeColor,
                         isConnected: connectedPortIds.contains(port.id),
+                        showDataTypeIcon: showPortDetails,
                         onDragStarted: onDragStarted,
                         onDragChanged: onDragChanged,
                         onDragEnded: onDragEnded
@@ -261,7 +318,8 @@ struct OutputPortsView: View {
                     dataType: "files", required: true, description: "Input files"
                 ),
                 isConnected: false,
-                nodeColor: .blue
+                nodeColor: .blue,
+                showDataTypeIcon: true
             )
             WorkflowPortView(
                 port: PortInfo(
@@ -269,7 +327,8 @@ struct OutputPortsView: View {
                     dataType: "text", required: true, description: ""
                 ),
                 isConnected: true,
-                nodeColor: .blue
+                nodeColor: .blue,
+                showDataTypeIcon: true
             )
             WorkflowPortView(
                 port: PortInfo(
@@ -277,7 +336,8 @@ struct OutputPortsView: View {
                     dataType: "json", required: false, description: ""
                 ),
                 isConnected: false,
-                nodeColor: .purple
+                nodeColor: .purple,
+                showDataTypeIcon: true
             )
         }
 
@@ -289,7 +349,8 @@ struct OutputPortsView: View {
                     dataType: "text", required: true, description: ""
                 ),
                 isConnected: true,
-                nodeColor: .green
+                nodeColor: .green,
+                showDataTypeIcon: true
             )
             WorkflowPortView(
                 port: PortInfo(
@@ -297,7 +358,8 @@ struct OutputPortsView: View {
                     dataType: "any", required: true, description: ""
                 ),
                 isConnected: false,
-                nodeColor: .orange
+                nodeColor: .orange,
+                showDataTypeIcon: true
             )
         }
     }

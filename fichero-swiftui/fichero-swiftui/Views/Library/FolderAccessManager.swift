@@ -103,6 +103,17 @@ class FolderAccessManager: ObservableObject {
         }
     }
 
+    /// Persist access for a directory selected via file importer.
+    /// This captures permission at add-time so later reads do not re-prompt.
+    func saveBookmarkIfDirectory(_ url: URL) {
+        var isDirectory: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+        guard exists, isDirectory.boolValue else {
+            return
+        }
+        saveBookmark(for: url)
+    }
+
     /// Restore bookmarks on app launch
     private func restoreBookmarks() {
         guard let bookmarks = UserDefaults.standard.dictionary(forKey: bookmarksKey) as? [String: Data] else {

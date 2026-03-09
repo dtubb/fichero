@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "SidebarModeBar")
 
@@ -7,7 +7,7 @@ private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "SidebarMode
 /// Shows 7 mode icons: Library, Search, Chat, Workflows | Batches, Automation | Activity
 struct SidebarModeBar: View {
     @Binding var selectedMode: SidebarMode
-    
+
     // Feature manager to hide disabled modes
     @ObservedObject var featureManager = FeatureManager.shared
 
@@ -28,7 +28,7 @@ struct SidebarModeBar: View {
                 ) {
                     selectMode(.library)
                 }
-                
+
                 SidebarModeIcon(
                     mode: .search,
                     isSelected: selectedMode == .search,
@@ -36,7 +36,7 @@ struct SidebarModeBar: View {
                 ) {
                     selectMode(.search)
                 }
-                
+
                 if featureManager.isChatEnabled {
                     SidebarModeIcon(
                         mode: .chat,
@@ -46,7 +46,7 @@ struct SidebarModeBar: View {
                         selectMode(.chat)
                     }
                 }
-                
+
                 if featureManager.isWorkflowsEnabled {
                     SidebarModeIcon(
                         mode: .workflows,
@@ -58,13 +58,13 @@ struct SidebarModeBar: View {
                 }
             }
 
-            if featureManager.isWorkflowsEnabled || featureManager.isAutomationEnabled {
+            if featureManager.isBatchesEnabled || featureManager.isAutomationEnabled {
                 modeSeparator
             }
 
             // Automation modes (5-6)
             Group {
-                if featureManager.isWorkflowsEnabled { // Batches are part of workflows
+                if featureManager.isBatchesEnabled {
                     SidebarModeIcon(
                         mode: .batches,
                         isSelected: selectedMode == .batches,
@@ -73,7 +73,7 @@ struct SidebarModeBar: View {
                         selectMode(.batches)
                     }
                 }
-                
+
                 if featureManager.isAutomationEnabled {
                     SidebarModeIcon(
                         mode: .automation,

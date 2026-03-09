@@ -1,6 +1,7 @@
-import SwiftUI
-import OSLog
 import FicheroAPIClient
+import OSLog
+import SwiftUI
+// swiftlint:disable file_length
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowLibraryView")
 
@@ -59,6 +60,7 @@ struct WorkflowListView: View {
     @State private var isLoading = false
     @State private var tableSortOrder = [KeyPathComparator(\WorkflowSidebarItem.name)]
     @State private var isImporting = false
+    @ObservedObject var featureManager = FeatureManager.shared
 
     /// View display mode from toolbar
     let displayMode: ViewDisplayMode
@@ -128,13 +130,15 @@ struct WorkflowListView: View {
                 }
                 .help("Create new workflow")
 
-                Button {
-                    importWorkflow()
-                } label: {
-                    Image(systemName: "square.and.arrow.down")
+                if featureManager.isWorkflowImportExportEnabled {
+                    Button {
+                        importWorkflow()
+                    } label: {
+                        Image(systemName: "square.and.arrow.down")
+                    }
+                    .disabled(isImporting)
+                    .help("Import workflow from JSON file")
                 }
-                .disabled(isImporting)
-                .help("Import workflow from JSON file")
             }
 
             ToolbarItem(placement: .automatic) {
@@ -274,10 +278,12 @@ struct WorkflowListView: View {
             Label("Duplicate", systemImage: "doc.on.doc")
         }
 
-        Button {
-            exportWorkflow(workflow)
-        } label: {
-            Label("Export to JSON...", systemImage: "square.and.arrow.up")
+        if featureManager.isWorkflowImportExportEnabled {
+            Button {
+                exportWorkflow(workflow)
+            } label: {
+                Label("Export to JSON...", systemImage: "square.and.arrow.up")
+            }
         }
 
         Divider()

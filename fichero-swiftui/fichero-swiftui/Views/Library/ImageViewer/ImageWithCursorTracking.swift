@@ -159,6 +159,9 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             }
         }
 
+        // Keep content centered when the viewport size changes.
+        updateContentInsets(scrollView: scrollView, imageView: context.coordinator.imageView!)
+
         // Update visible rect
         context.coordinator.updateVisibleRect()
     }
@@ -179,16 +182,24 @@ struct ImageWithCursorTracking: NSViewRepresentable {
 
         let viewSize = scrollView.bounds.size
         let imageSize = image.size
-
-        let scaleX = viewSize.width / imageSize.width
-        let scaleY = viewSize.height / imageSize.height
-        let fitScale = min(scaleX, scaleY, 1.0)
-
-        Self.logger.info(
-            "centerImage: view=\(viewSize.width)x\(viewSize.height) img=\(imageSize.width)x\(imageSize.height)"
+        let scaledSize = CGSize(
+            width: imageSize.width * scrollView.magnification,
+            height: imageSize.height * scrollView.magnification
         )
-        scrollView.magnification = fitScale
+
         updateContentInsets(scrollView: scrollView, imageView: imageView)
+
+        // Center visible region for both oversized and undersized images.
+        // For undersized images we intentionally use a negative origin so the
+        // clip view centers content instead of anchoring at the lower-left.
+        let centerX = scaledSize.width >= viewSize.width
+            ? (scaledSize.width - viewSize.width) / 2
+            : -((viewSize.width - scaledSize.width) / 2)
+        let centerY = scaledSize.height >= viewSize.height
+            ? (scaledSize.height - viewSize.height) / 2
+            : -((viewSize.height - scaledSize.height) / 2)
+        scrollView.contentView.scroll(to: CGPoint(x: centerX, y: centerY))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 
     /// Update content insets to center the image when it's smaller than the scroll view
@@ -226,7 +237,31 @@ struct ImageWithCursorTracking: NSViewRepresentable {
 
         @MainActor
         @objc func boundsDidChange(_ notification: Notification) {
+            updateContentInsetsForCurrentLayout()
             updateVisibleRect()
+        }
+
+        @MainActor
+        private func updateContentInsetsForCurrentLayout() {
+            guard let scrollView = scrollView,
+                  let imageView = imageView as? NSImageView,
+                  let image = imageView.image else { return }
+
+            let viewSize = scrollView.bounds.size
+            let scaledImageSize = CGSize(
+                width: image.size.width * scrollView.magnification,
+                height: image.size.height * scrollView.magnification
+            )
+
+            let horizontalInset = max(0, (viewSize.width - scaledImageSize.width) / 2)
+            let verticalInset = max(0, (viewSize.height - scaledImageSize.height) / 2)
+
+            scrollView.contentInsets = NSEdgeInsets(
+                top: verticalInset,
+                left: horizontalInset,
+                bottom: verticalInset,
+                right: horizontalInset
+            )
         }
 
         // Allow our gesture recognizer to work simultaneously with NSScrollView's built-in magnification
@@ -372,9 +407,13 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             let scaledHeight = imageSize.height * magnification
             let viewSize = scrollView.bounds.size
 
-            // Calculate centered position
-            let centerX = max(0, (scaledWidth - viewSize.width) / 2)
-            let centerY = max(0, (scaledHeight - viewSize.height) / 2)
+            // Center for both oversized and undersized images.
+            let centerX = scaledWidth >= viewSize.width
+                ? (scaledWidth - viewSize.width) / 2
+                : -((viewSize.width - scaledWidth) / 2)
+            let centerY = scaledHeight >= viewSize.height
+                ? (scaledHeight - viewSize.height) / 2
+                : -((viewSize.height - scaledHeight) / 2)
 
             scrollView.contentView.scroll(to: CGPoint(x: centerX, y: centerY))
             scrollView.reflectScrolledClipView(scrollView.contentView)

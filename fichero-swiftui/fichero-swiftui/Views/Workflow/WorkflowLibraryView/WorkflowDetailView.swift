@@ -10,6 +10,7 @@ struct WorkflowDetailView: View {
     let onExport: () -> Void
 
     @EnvironmentObject var workflowStore: WorkflowStore
+    @ObservedObject var featureManager = FeatureManager.shared
     @State private var isExecuting = false
     @State private var executionStatus: String?
     @State private var executionError: String?
@@ -119,12 +120,14 @@ struct WorkflowDetailView: View {
                         }
                         .buttonStyle(.bordered)
 
-                        Button {
-                            onExport()
-                        } label: {
-                            Label("Export", systemImage: "square.and.arrow.up")
+                        if featureManager.isWorkflowImportExportEnabled {
+                            Button {
+                                onExport()
+                            } label: {
+                                Label("Export", systemImage: "square.and.arrow.up")
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
 
                         Button(role: .destructive) {
                             onDelete()

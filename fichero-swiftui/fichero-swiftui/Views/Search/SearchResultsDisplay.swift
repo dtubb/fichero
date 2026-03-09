@@ -35,7 +35,7 @@ struct SearchResultsDisplay: View {
             Text("No Results")
                 .font(.headline)
 
-            Text("Enter a query or adjust filters to search")
+            Text("Enter a query in the toolbar search field")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

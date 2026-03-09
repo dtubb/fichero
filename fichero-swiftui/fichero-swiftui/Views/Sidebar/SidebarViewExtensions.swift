@@ -1,4 +1,5 @@
 import SwiftUI
+// swiftlint:disable file_length
 
 // MARK: - Sidebar Bottom Toolbar
 
@@ -26,13 +27,13 @@ struct SidebarBottomToolbar: View {
                 Button(action: createSearch) {
                     Label("New Search", systemImage: "magnifyingglass")
                 }
-                
+
                 if featureManager.isChatEnabled {
                     Button(action: createChat) {
                         Label("New Chat", systemImage: "bubble.left.and.bubble.right")
                     }
                 }
-                
+
                 if featureManager.isWorkflowsEnabled {
                     if let createComparison = createComparison {
                         Button(action: createComparison) {

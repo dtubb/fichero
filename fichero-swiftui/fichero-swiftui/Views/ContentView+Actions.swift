@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 // MARK: - ContentView Actions Extension
 // Agent: ActionsAgent
@@ -40,7 +40,7 @@ extension ContentView {
             break
 
         case .collectionSelected(let collection):
-            selectedSidebarItemId = collection.id
+            selectedSidebarItemId = "doc:\(collection.id)"
 
         case .documentsUpdated:
             break
@@ -102,7 +102,19 @@ extension ContentView {
             )
         }
         do {
-            let definition = workflow.toAPIFormat()
+            var workflowForSave = workflow
+
+            // If sidebar/workflow-store metadata has a newer name, prefer it to prevent
+            // stale editor state from clobbering a just-renamed workflow.
+            if let canonical = workflowStore.workflows.first(where: { $0.id == workflowId }),
+               workflowForSave.name != canonical.name {
+                logger.info(
+                    "Auto-save name reconciliation: '\(workflowForSave.name)' -> '\(canonical.name)' for \(workflowId)"
+                )
+                workflowForSave.name = canonical.name
+            }
+
+            let definition = workflowForSave.toAPIFormat()
             _ = try await workflowStore.updateWorkflow(definition)
             logger.info("Auto-save completed for workflow: \(workflowId)")
         } catch {
@@ -114,7 +126,39 @@ extension ContentView {
 
     func navigateToDocument(_ doc: Document) {
         viewMode = .library(doc)
-        selectedSidebarItemId = doc.id
+        selectedSidebarItemId = "doc:\(doc.id)"
+    }
+
+    @MainActor
+    func runWorkflowOnSelection(workflowId: String) {
+        let selectedIds = Array(browserSelection)
+        guard !selectedIds.isEmpty else { return }
+
+        let libraryManager = LibraryManager.shared
+        guard let library = libraryManager.getLibrary(id: windowState.libraryId)
+                ?? libraryManager.globalLibrary else {
+            logger.error("Run Workflow on Selection failed: no active library")
+            return
+        }
+
+        let items: [[String: any Sendable]] = selectedIds.map { documentId in
+            ["document_id": documentId]
+        }
+
+        Task { @MainActor in
+            do {
+                let batch = try await library.batchService.createBatch(
+                    workflowId: workflowId,
+                    items: items,
+                    maxConcurrent: 5
+                )
+                logger.info(
+                    "Created batch \(batch.batchId) for workflow \(workflowId) with \(selectedIds.count) documents"
+                )
+            } catch {
+                logger.error("Run Workflow on Selection failed: \(error.localizedDescription)")
+            }
+        }
     }
 
     // MARK: - Conversations
@@ -139,6 +183,54 @@ extension ContentView {
                 logger.error("Failed to refresh saved searches: \(error.localizedDescription)")
             }
         }
+    }
+
+    func runToolbarSearch(_ rawQuery: String) {
+        let query = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return }
+
+        Task { @MainActor in
+            do {
+                let saved = try await savedSearchService.saveSearch(
+                    query: query,
+                    isSmartSearch: true,
+                    searchType: "hybrid",
+                    sortBy: "relevance",
+                    sortDirection: "desc"
+                )
+                try await savedSearchService.loadSavedSearches()
+
+                let search = SavedSearch(
+                    id: saved.id,
+                    name: saved.query,
+                    query: saved.query,
+                    isSmartSearch: saved.isSmartSearch,
+                    folderPath: saved.folderPath,
+                    sortOrder: saved.sortOrder
+                )
+
+                selectedSidebarItemId = "search:\(saved.id)"
+                sidebarMode = .search
+                viewMode = .search(search)
+            } catch {
+                logger.error("Toolbar search failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func updateViewDisplayMode(_ requestedMode: ViewDisplayMode) {
+        let effectiveMode = normalizedViewDisplayMode(requestedMode)
+        if effectiveMode != viewDisplayMode {
+            viewDisplayMode = effectiveMode
+        }
+
+        viewSettings.libraryLayout = switch effectiveMode {
+        case .icon: .icons
+        case .list: .list
+        case .table: .table
+        case .map: .map
+        }
+        saveDisplayMode(effectiveMode, for: selectedSidebarItemId)
     }
 
     // MARK: - File Import

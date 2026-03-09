@@ -139,65 +139,65 @@ def parse_python_models(python_file: Path) -> dict[str, ModelInfo]:
     return models
 
 
-def parse_swift_models(swift_file: Path) -> dict[str, ModelInfo]:
-    """Parse struct definitions from Swift file."""
-    with open(swift_file) as f:
-        source = f.read()
-
+def parse_swift_models(swift_files: list[Path]) -> dict[str, ModelInfo]:
+    """Parse struct definitions from one or more Swift files."""
     models = {}
+    for swift_file in swift_files:
+        with open(swift_file) as f:
+            source = f.read()
 
-    # Find all struct declarations and their starting positions
-    struct_starts = []
-    for match in re.finditer(r"struct\s+(\w+)\s*:", source):
-        struct_starts.append((match.start(), match.group(1)))
+        # Find all struct declarations and their starting positions
+        struct_starts = []
+        for match in re.finditer(r"struct\s+(\w+)\s*:", source):
+            struct_starts.append((match.start(), match.group(1)))
 
-    for i, (start_pos, struct_name) in enumerate(struct_starts):
-        # Find the opening brace
-        brace_pos = source.find("{", start_pos)
-        if brace_pos == -1:
-            continue
-
-        # Find matching closing brace by counting braces
-        depth = 1
-        pos = brace_pos + 1
-        while pos < len(source) and depth > 0:
-            if source[pos] == "{":
-                depth += 1
-            elif source[pos] == "}":
-                depth -= 1
-            pos += 1
-
-        struct_body = source[brace_pos + 1 : pos - 1]
-        fields = {}
-
-        # Match property declarations (let/var name: Type)
-        # Be careful to stop at = or newline, and handle array types with []
-        prop_pattern = r"(?:let|var)\s+(\w+)\s*:\s*([^\n={}]+?)(?:\s*=|\s*$|\n)"
-
-        for prop_match in re.finditer(prop_pattern, struct_body):
-            field_name = prop_match.group(1)
-            type_hint = prop_match.group(2).strip()
-
-            # Skip computed properties (those with { get or { return)
-            if field_name.startswith("_"):
+        for i, (start_pos, struct_name) in enumerate(struct_starts):
+            # Find the opening brace
+            brace_pos = source.find("{", start_pos)
+            if brace_pos == -1:
                 continue
 
-            # Skip if this looks like a computed property
-            next_content = struct_body[prop_match.end():prop_match.end() + 50]
-            if re.match(r"\s*\{", next_content) and "return" not in type_hint:
-                continue
+            # Find matching closing brace by counting braces
+            depth = 1
+            pos = brace_pos + 1
+            while pos < len(source) and depth > 0:
+                if source[pos] == "{":
+                    depth += 1
+                elif source[pos] == "}":
+                    depth -= 1
+                pos += 1
 
-            optional = type_hint.endswith("?")
+            struct_body = source[brace_pos + 1 : pos - 1]
+            fields = {}
 
-            fields[field_name] = FieldInfo(
-                name=field_name,
-                type_hint=type_hint,
-                optional=optional,
-                has_default=False,  # We don't parse Swift defaults
-            )
+            # Match property declarations (let/var name: Type)
+            # Be careful to stop at = or newline, and handle array types with []
+            prop_pattern = r"(?:let|var)\s+(\w+)\s*:\s*([^\n={}]+?)(?:\s*=|\s*$|\n)"
 
-        if fields:
-            models[struct_name] = ModelInfo(name=struct_name, fields=fields)
+            for prop_match in re.finditer(prop_pattern, struct_body):
+                field_name = prop_match.group(1)
+                type_hint = prop_match.group(2).strip()
+
+                # Skip computed properties (those with { get or { return)
+                if field_name.startswith("_"):
+                    continue
+
+                # Skip if this looks like a computed property
+                next_content = struct_body[prop_match.end():prop_match.end() + 50]
+                if re.match(r"\s*\{", next_content) and "return" not in type_hint:
+                    continue
+
+                optional = type_hint.endswith("?")
+
+                fields[field_name] = FieldInfo(
+                    name=field_name,
+                    type_hint=type_hint,
+                    optional=optional,
+                    has_default=False,  # We don't parse Swift defaults
+                )
+
+            if fields:
+                models[struct_name] = ModelInfo(name=struct_name, fields=fields)
 
     return models
 
@@ -212,12 +212,12 @@ def convert_python_field_to_swift(field_name: str) -> str:
     return parts[0] + "".join(p.capitalize() for p in parts[1:])
 
 
-def validate_models(python_file: Path, swift_file: Path) -> list[str]:
+def validate_models(python_file: Path, swift_files: list[Path]) -> list[str]:
     """Compare Python and Swift models, return list of issues."""
     issues = []
 
     python_models = parse_python_models(python_file)
-    swift_models = parse_swift_models(swift_file)
+    swift_models = parse_swift_models(swift_files)
 
     for python_name, swift_name in MODELS_TO_CHECK.items():
         if python_name not in python_models:
@@ -225,7 +225,7 @@ def validate_models(python_file: Path, swift_file: Path) -> list[str]:
             continue
 
         if swift_name not in swift_models:
-            issues.append(f"Swift struct '{swift_name}' not found in {swift_file.name}")
+            issues.append(f"Swift struct '{swift_name}' not found in parsed Swift model files")
             continue
 
         python_model = python_models[python_name]
@@ -270,22 +270,39 @@ def main():
     project_root = script_dir.parent
 
     python_file = project_root / "src" / "fichero" / "workflows" / "types.py"
-    swift_file = project_root.parent / "fichero-swiftui" / "fichero-swiftui" / "Models" / "WorkflowTypes.swift"
+    swift_model_files = [
+        project_root.parent / "fichero-swiftui" / "fichero-swiftui" / "Models" / "WorkflowTypes.swift",
+        project_root.parent / "fichero-swiftui" / "fichero-swiftui" / "Models" / "WorkflowSupportTypes.swift",
+        project_root.parent / "fichero-swiftui" / "fichero-swiftui" / "Models" / "WorkflowToolTypes.swift",
+    ]
 
     if not python_file.exists():
         print(f"Error: Python file not found: {python_file}")
         sys.exit(1)
 
-    if not swift_file.exists():
-        print(f"Error: Swift file not found: {swift_file}")
+    missing_swift_files = [path for path in swift_model_files if not path.exists()]
+    if missing_swift_files:
+        for path in missing_swift_files:
+            print(f"Error: Swift file not found: {path}")
         sys.exit(1)
 
+    def format_path(path: Path) -> str:
+        """Prefer repo-relative display; fall back to absolute path."""
+        for base in (project_root, project_root.parent):
+            try:
+                return str(path.relative_to(base))
+            except ValueError:
+                continue
+        return str(path)
+
     print("Validating Python/Swift model sync...")
-    print(f"  Python: {python_file.relative_to(project_root)}")
-    print(f"  Swift:  {swift_file.relative_to(project_root)}")
+    print(f"  Python: {format_path(python_file)}")
+    print("  Swift files:")
+    for swift_file in swift_model_files:
+        print(f"    - {format_path(swift_file)}")
     print()
 
-    issues = validate_models(python_file, swift_file)
+    issues = validate_models(python_file, swift_model_files)
 
     if issues:
         print("❌ Model sync issues found:")

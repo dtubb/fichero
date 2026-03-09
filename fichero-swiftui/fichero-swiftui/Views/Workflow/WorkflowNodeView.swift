@@ -13,6 +13,7 @@ struct WorkflowNodeView: View {
     let onPortDropReceived: (PortInfo, String) -> Void
     var onInputPortDetach: ((PortInfo, String) -> Void)?  // Detach from connected input
     var executionState: NodeExecutionState?  // Optional execution state for progress display
+    @ObservedObject private var featureManager = FeatureManager.shared
 
     private let width: CGFloat = 140
     private let height: CGFloat = 100
@@ -26,6 +27,7 @@ struct WorkflowNodeView: View {
                         ports: node.inputPorts,
                         nodeId: node.id,
                         nodeColor: nodeColor,
+                        showPortDetails: featureManager.isWorkflowEditorAdvancedViewsEnabled,
                         connectedPortIds: connectedInputPorts,
                         canAcceptDrop: canAcceptDrop,
                         onDropReceived: onPortDropReceived,
@@ -43,6 +45,7 @@ struct WorkflowNodeView: View {
                         ports: node.outputPorts,
                         nodeId: node.id,
                         nodeColor: nodeColor,
+                        showPortDetails: featureManager.isWorkflowEditorAdvancedViewsEnabled,
                         connectedPortIds: connectedOutputPorts,
                         onDragStarted: onPortDragStarted,
                         onDragChanged: onPortDragChanged,

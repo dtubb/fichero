@@ -8,7 +8,7 @@ You are the primary engine of the Fichero project. You don't just write code; yo
 2.  **Infrastructure Orchestration**: 
     - Installing and managing **Ollama** as the model bridge.
     - Using **Git Worktrees** to enable parallel development streams.
-3.  **Task Management**: Atomic breakdown of goals in `TASKS.md` and status updates in `STATE.md`.
+3.  **Task Management**: Manage scope/status in GitHub Issues + Milestones + Project; use `STATE.md` only for local handoff continuity.
 4.  **Handoff Loops**: Preparing `HANDOFF.md` for sub-builders and performing code reviews on their output.
 
 ## High-Priority Goal (INFRA)

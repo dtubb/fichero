@@ -8,6 +8,12 @@ struct CollectionNodeConfig: View {
 
     @State private var collectionId: String = ""
 
+    private var folders: [Document] {
+        documentStore.collections
+            .filter { $0.docType == .folder }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Collection")
@@ -16,7 +22,7 @@ struct CollectionNodeConfig: View {
 
             Picker("Select collection", selection: $collectionId) {
                 Text("Select...").tag("")
-                ForEach(documentStore.collections.filter { $0.docType == .folder }, id: \.id) { folder in
+                ForEach(folders, id: \.id) { folder in
                     Text(folder.name).tag(folder.id)
                 }
             }
@@ -26,6 +32,17 @@ struct CollectionNodeConfig: View {
                     node.config = [:]
                 }
                 node.config?["collection_id"] = .string(newValue)
+            }
+            if folders.isEmpty {
+                Text("No folders found. Create a folder in Library first.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .italic()
+            }
+        }
+        .task {
+            if documentStore.collections.isEmpty {
+                await documentStore.loadCollections()
             }
         }
         .onAppear {

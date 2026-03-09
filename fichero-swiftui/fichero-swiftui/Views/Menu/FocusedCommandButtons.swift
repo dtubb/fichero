@@ -148,7 +148,7 @@ struct FocusedImportFilesButton: View {
             }
             .keyboardShortcut("i", modifiers: [.command, .option])
 
-            Button("Move Files...") {
+            Button("Add Files...") {
                 sidebarActions?.importFiles(.move)
             }
             .keyboardShortcut("i", modifiers: [.command, .shift])

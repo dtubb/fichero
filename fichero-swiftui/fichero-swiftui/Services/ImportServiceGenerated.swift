@@ -66,6 +66,9 @@ class ImportServiceGenerated: ObservableObject {
                 let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
 
                 if exists && isDirectory.boolValue {
+                    // Persist sandbox permission when folder is added.
+                    FolderAccessManager.shared.saveBookmarkIfDirectory(url)
+
                     // Import folder using async task pattern
                     logger.info("Detected folder: \(url.lastPathComponent), using async folder import")
                     let documentIds = try await importFolderAndWait(
@@ -176,6 +179,9 @@ class ImportServiceGenerated: ObservableObject {
         autoEmbed: Bool = false
     ) async throws -> IngestTask {
         logger.info("Starting async folder import: \(url.lastPathComponent)")
+
+        // Persist sandbox permission when folder import starts directly.
+        FolderAccessManager.shared.saveBookmarkIfDirectory(url)
 
         // Ensure folder is accessible
         guard url.startAccessingSecurityScopedResource() else {

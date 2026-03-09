@@ -1,6 +1,6 @@
 # AGENTS.md — Operational Manual
 
-How to work on Fichero as an AI agent. Read this at the start of every session alongside SOUL.md → MEMORY.md → STATE.md → TASKS.md.
+How to work on Fichero as an AI agent. Read this at the start of every session alongside SOUL.md → MEMORY.md → STATE.md.
 
 ---
 
@@ -20,15 +20,15 @@ When he approves, Phase 1 begins: implement M0 (stabilize core, gate everything 
 
 ## Session Startup
 
-Run `/session-start` first. It reads SOUL.md → MEMORY.md → STATE.md → TASKS.md and reports current state.
+Run `/session-start` first. It reads SOUL.md → MEMORY.md → STATE.md and reports current state.
 
 ### What to Check
 
 1. **Branch** — `git branch`. Should be on main or a feature branch (not codex/restructure-api-swiftui — that's merged).
 2. **Uncommitted changes** — `git status`. Nothing should be left hanging.
 3. **STATE.md** — Current focus, in-progress, blocked.
-4. **TASKS.md** — Active issue, what's next.
-5. **docs/agent-workflow/TODO.md** — Master backlog (GitHub Issues are source of truth for scope).
+4. **GitHub Milestones/Issues** — Active scope, status, and priority (source of truth).
+5. **GitHub Project board** — Current sprint execution status (source of truth).
 
 ---
 
@@ -46,7 +46,7 @@ Run skills with `/skill-name` in Claude Code.
 | `/feature-audit` | Audit features — what works, broken, tested, untested |
 | `/feature-flags` | List and manage feature flags (30 flags, 4 tiers) |
 | `/toggle-feature` | Toggle an individual feature flag on/off |
-| `/assign-task` | Pick up an issue from TASKS.md |
+| `/assign-task` | Pick up an issue from GitHub |
 | `/pr-workflow` | Run pre-PR checks and create GitHub PR |
 | `/milestone-check` | Check progress against current milestone |
 
@@ -169,9 +169,14 @@ If you change the backend API without regenerating the Swift client, the build b
 ### What to Update Each Session
 
 - **STATE.md** — Current focus, in-progress, blocked, next session entry point
-- **MEMORY.md** — Lessons learned, architecture decisions, non-obvious behaviors
-- **TASKS.md** — Active tasks; reference GitHub Issues (don't duplicate them)
+- **MEMORY.md** — Optional durable lessons/decisions (do not mirror project status)
 - **memory/YYYY-MM-DD.md** — Session log (detailed notes, decisions made)
+
+### Source of Truth Policy
+
+- GitHub Issues + Milestones + Project are authoritative for scope, prioritization, and status.
+- Local planning trackers (`PLAN.md`, `TASKS.md`, `docs/agent-workflow/TODO.md`) are legacy and non-authoritative.
+- Use `STATE.md` only for local session handoff continuity.
 
 ### Commit Conventions
 
