@@ -4,7 +4,7 @@ Last updated: 2026-03-09
 
 ## Current Branch
 
-`codex/workflow-ui-sparkle-title` (in progress; PR-first workflow)
+`main` (clean, synced with `origin/main`)
 
 ## Source of Truth
 
@@ -13,53 +13,56 @@ Last updated: 2026-03-09
   - Issues: https://github.com/dtubb/fichero/issues
   - Project: https://github.com/users/dtubb/projects/5
 - Local `PLAN.md`/`TASKS.md` are pointer files only.
-- Delivery process (Daniel request): ship incremental changes via GitHub PRs continuously; avoid long-lived unpushed local-only change sets.
 
-## 0.0.1 Sprint Focus
+## 0.0.1 Release Gate
 
-Use issue `#279` as the release gate checklist:
+Primary gate issue: `#279`
 - https://github.com/dtubb/fichero/issues/279
 
-Required 0.0.1 product surface:
-- ON: Library core, Search core, Workflows, Workflow Execution, Activity, required Settings/Providers path
-- OFF (later): Conversations/Chat, MCP menu/surfaces, Integrations menu/surfaces, Library advanced views, icon-view zoom toolbar controls
+Milestone `0.0.1` due date:
+- 2026-03-22
 
 ## Completed This Session
 
-- 2026-03-08 hourly automation run: startup checks completed, no issue execution due to dirty-source-files-on-main hard gate.
-- Governance consistency check completed: `AGENTS.md` still states "Phase 0 planning/no coding" while `MEMORY.md` + current issue flow indicate active M0 execution; requires Daniel-level clarification before autonomous implementation resumes.
-- Sparkle updater integrated (menu + package wiring) and follow-up release config issue created: `#278`
-- Governance updated: GitHub is authoritative; local planning files deprecated
-- Milestone alignment updated:
-  - Workflows moved into `0.0.1`
-  - Chat/conversation items moved out of `0.0.1`
-- Feature-gating updates for 0.0.1:
-  - Workflows ON by default
-  - Activity ON by default
-  - Chat OFF by default
-  - MCP OFF by default
-  - Integrations OFF by default
-  - Library icon zoom toolbar controls OFF by default
-- Later-milestone follow-up issues created:
-  - `#280` (Integrations menu re-enable)
-  - `#281` (Icon zoom toolbar re-enable)
-- Workflow editor LangGraph preview is now feature-gated (`fichero.features.workflow_langgraph_preview`) and OFF by default for 0.0.1.
+- Repo hygiene completed:
+  - all current work merged into `main`
+  - local stale branches cleaned
+  - remote stale branches deleted (only `origin/main` remains)
+- Pushed fixes directly to `main`:
+  - `77c67c48` fix preview-pane image centering regression
+  - `978af20a` fix Apply Workflow to Selection to execute created batch
+  - `048bceb5` fix backend workflow runtime by registering `files` source tool
+- Verified backend workflow unit tests after `files` tool fix:
+  - `134 passed`
+- Posted milestone progress update to `#279`:
+  - https://github.com/dtubb/fichero/issues/279#issuecomment-4020847610
 
-## Active Risks / Blockers
+## Current 0.0.1 Outstanding (Open)
 
-- `/session-start-auto` gate is blocked: `main` has dirty source files (`.swift`, `.py`, `.sh`, generated/schema files). Autonomous issue execution cannot continue until these changes are either committed by a human-owned workflow or moved off `main`.
-- Governance conflict: phase policy docs disagree (`AGENTS.md` says remain in Phase 0 planning; `MEMORY.md` + `#279` workflow imply Phase 1/M0 execution is active). Treat as blocked for autonomous coding until Daniel confirms canonical policy.
-- Xcode package artifact instability around Sparkle XCFramework in DerivedData (intermittent missing artifact)
-- Swift package plugin validation drift when package versions move unexpectedly
-- Build DB lock errors when concurrent Xcode builds run
+Highest priority implementation issues:
+- `#292` crash when using `+` in workflow Files node picker
+- `#291` built-in default workflow templates + reset
+- `#288` simplify Search UX to 0.0.1 scope
+- `#263` SwiftLint/Xcode build-phase path reliability
+- `#278` Sparkle updater release configuration
+- `#232` / `#233` / `#235` remaining feature-gate hardening and hidden-surface cleanup
+
+Release/QA gate issues still open:
+- `#238` manual QA checklist
+- `#250` workflow QA and validation gates
+- `#114` / `#115` / `#116` / `#117` QA audits (ready-for-test / Daniel validation)
+
+## Active Risks
+
+- Embedding model first-run download is large (`intfloat/multilingual-e5-large`, ~2.25GB) and causes long first execution.
+- Sparkle feed/signing/distribution path is not yet finalized for production update channel.
+- Xcode SwiftLint script-phase behavior still inconsistent on some local setups.
 
 ## Next Session — Start Here
 
-1. Read `memory/handoff-2026-03-09.md` and clear the dirty-source-files-on-main gate first.
-2. Resolve phase-policy conflict (`AGENTS.md` vs. current M0 execution docs) with Daniel before autonomous coding.
-3. After both gates are cleared, continue executing `#279` checklist top-down; keep project statuses in sync.
-4. Stabilize build reproducibility:
-   - resolve Sparkle artifact/cache behavior
-   - resolve/lock package plugin validation path
-5. Close remaining 0.0.1 gating issues (`#232`, `#233`, `#235`, `#263`, `#278`).
-6. Drive QA gate issues to sign-off (`#114`, `#115`, `#116`, `#117`, `#238`, `#250`).
+1. Execute/close `#292` first with deterministic repro + test pass.
+2. Implement `#291` default workflow templates + reset.
+3. Complete `#288` Search simplification and wire toolbar search flow QA.
+4. Resolve `#263` build-phase reliability.
+5. Finalize `#278` Sparkle 0.0.1 release configuration.
+6. Drive `#238`, `#250`, and `#279` checklists to explicit pass/fail evidence.
