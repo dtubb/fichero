@@ -234,8 +234,14 @@ class DocumentServiceGenerated: ObservableObject {
     ///   - id: Document ID
     ///   - name: Optional new name
     ///   - metadata: Optional new metadata
+    ///   - pageContent: Optional extracted content text
     /// - Returns: Updated document
-    func updateDocument(_ id: String, name: String? = nil, metadata: [String: String]? = nil) async throws -> Document {
+    func updateDocument(
+        _ id: String,
+        name: String? = nil,
+        metadata: [String: String]? = nil,
+        pageContent: String? = nil
+    ) async throws -> Document {
         isProcessing = true
         defer { isProcessing = false }
 
@@ -245,6 +251,7 @@ class DocumentServiceGenerated: ObservableObject {
         var data: [String: any Sendable] = [:]
         if let name = name { data["name"] = name }
         if let metadata = metadata { data["metadata"] = metadata }
+        if let pageContent = pageContent { data["page_content"] = pageContent }
 
         let container = try OpenAPIObjectContainer(unvalidatedValue: data)
         let request = Components.Schemas.DocumentUpdate(additionalProperties: container)
