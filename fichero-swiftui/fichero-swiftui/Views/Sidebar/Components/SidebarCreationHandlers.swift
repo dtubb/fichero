@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 /// Structured logger for sidebar creation operations
 private let logger = Logger(subsystem: "com.fichero.app", category: "SidebarCreation")
@@ -9,6 +9,11 @@ private let logger = Logger(subsystem: "com.fichero.app", category: "SidebarCrea
 extension SidebarView {
     /// Create a new search - defaults to Global library
     func createNewSearch() {
+        guard FeatureManager.shared.isSearchEnabled else {
+            logger.debug("Search feature is gated off; skipping createNewSearch()")
+            return
+        }
+
         guard let globalLibrary = libraryManager.globalLibrary else {
             logger.error("Global library not available")
             return

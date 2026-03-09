@@ -263,13 +263,16 @@ struct FocusedSaveDatabaseButton: View {
 /// Button that creates a new search
 struct FocusedNewSearchButton: View {
     @FocusedValue(\.sidebarActions) private var sidebarActions
+    @ObservedObject var featureManager = FeatureManager.shared
 
     var body: some View {
-        Button("New Search") {
-            sidebarActions?.createSearch()
+        if featureManager.isSearchEnabled {
+            Button("New Search") {
+                sidebarActions?.createSearch()
+            }
+            .keyboardShortcut("n", modifiers: [.command, .option])
+            .disabled(sidebarActions == nil)
         }
-        .keyboardShortcut("n", modifiers: [.command, .option])
-        .disabled(sidebarActions == nil)
     }
 }
 

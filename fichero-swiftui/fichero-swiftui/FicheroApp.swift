@@ -146,9 +146,15 @@ struct FicheroApp: App {
 
                 FocusedImportFilesButton()
 
-                Divider()
+                if featureManager.isSearchEnabled
+                    || featureManager.isChatEnabled
+                    || featureManager.isWorkflowsEnabled {
+                    Divider()
+                }
 
-                FocusedNewSearchButton()
+                if featureManager.isSearchEnabled {
+                    FocusedNewSearchButton()
+                }
 
                 if featureManager.isChatEnabled {
                     FocusedNewChatButton()
@@ -166,9 +172,10 @@ struct FicheroApp: App {
                     FocusedNewScheduleButton()
                 }
 
-                Divider()
-
-                FocusedRunWorkflowOnSelectionButton()
+                if featureManager.isWorkflowRunOnSelectionEnabled {
+                    Divider()
+                    FocusedRunWorkflowOnSelectionButton()
+                }
             }
 
             // Edit menu
