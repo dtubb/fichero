@@ -1,8 +1,12 @@
+import OSLog
 import SwiftUI
 
 // MARK: - Filter, Selection, and Batch Extension
 
 extension LibraryView {
+    private var logger: Logger {
+        Logger(subsystem: "ca.tubb.Fichero", category: "LibraryView")
+    }
 
     // MARK: - Filtered Documents
 
@@ -128,8 +132,8 @@ extension LibraryView {
             Label("Rename", systemImage: "pencil")
         }
 
-        // Only show "Run Workflow..." if 2+ documents are selected
-        if selection.count >= 2 {
+        // Show "Run Workflow..." when at least one document is selected.
+        if !selection.isEmpty {
             Button {
                 selectedDocumentIdsForBatch = Array(selection)
                 showWorkflowPicker = true
@@ -142,75 +146,32 @@ extension LibraryView {
     // MARK: - Batch Execution
 
     @MainActor
-    // swiftlint:disable:next function_body_length cyclomatic_complexity
     func runBatchWorkflow(workflowId: String) async {
         guard !selectedDocumentIdsForBatch.isEmpty else { return }
 
-        // Create batch items - one per document
-        let batchItems: [[String: AnyCodableValue]] = selectedDocumentIdsForBatch.map { documentId in
-            ["document_id": .string(documentId)]
+        // Create batch items - one per document.
+        let batchItems: [[String: any Sendable]] = selectedDocumentIdsForBatch.map { documentId in
+            ["document_id": documentId]
         }
 
-        guard libraryManager.globalLibrary != nil else {
-            print("Error: No global library available")
+        let library = libraryManager.getLibrary(id: windowState.libraryId) ?? libraryManager.globalLibrary
+        guard let library else {
+            logger.error("Run workflow failed: no active library for window \(self.windowState.libraryId.uuidString)")
             return
         }
 
-        let requestBody: [String: Any] = [
-            "workflow_id": workflowId,
-            "items": batchItems.map { item in
-                item.mapValues { value in
-                    switch value {
-                    case .string(let str): return str
-                    case .int(let int): return String(int)
-                    case .double(let double): return String(double)
-                    case .bool(let bool): return String(bool)
-                    case .array(let arr): return String(describing: arr)
-                    case .dictionary(let dict): return String(describing: dict)
-                    case .null: return "null"
-                    }
-                }
-            },
-            "max_concurrent": 5
-        ]
-
         do {
-            let jsonData = try JSONSerialization.data(withJSONObject: requestBody)
-
-            guard let url = URL(string: "http://localhost:8765/api/batches") else {
-                print("Error: Invalid URL")
-                return
-            }
-
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = jsonData
-
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse else {
-                print("Error: Invalid response")
-                return
-            }
-
-            if httpResponse.statusCode == 200 {
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let batchId = json["batch_id"] as? String {
-                    print("Created batch: \(batchId) with \(selectedDocumentIdsForBatch.count) items")
-                    // swiftlint:disable:next todo
-                    // TODO: Navigate to batches sidebar and execute batch with SSE streaming
-                } else {
-                    print("Created batch with \(selectedDocumentIdsForBatch.count) items")
-                }
-            } else {
-                print("Error: HTTP \(httpResponse.statusCode)")
-                if let errorText = String(data: data, encoding: .utf8) {
-                    print("Error details: \(errorText)")
-                }
-            }
+            let batch = try await library.batchService.createBatch(
+                workflowId: workflowId,
+                items: batchItems,
+                maxConcurrent: 5
+            )
+            logger.info(
+                "Created batch \(batch.batchId) for workflow \(workflowId) with \(self.selectedDocumentIdsForBatch.count) items"
+            )
         } catch {
-            print("Error creating batch: \(error.localizedDescription)")
+            logger.error("Run workflow failed: \(error.localizedDescription)")
+            ErrorService.shared.reportError(error)
         }
     }
 }

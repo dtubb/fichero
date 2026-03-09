@@ -30,6 +30,8 @@ struct LibraryView: View {
     @State var selectedDocumentIdsForBatch: [String] = []
 
     @EnvironmentObject var libraryManager: LibraryManager
+    @EnvironmentObject var windowState: WindowState
+    @ObservedObject var featureManager = FeatureManager.shared
 
     // Column visibility for Table view
     @AppStorage("column_name") var showName = true
@@ -74,7 +76,7 @@ struct LibraryView: View {
         withKeyboardShortcuts(
             VStack(spacing: 0) {
                 // Inline filter bar (Cmd+F)
-                if showFilterBar {
+                if featureManager.isLibraryFilterToolbarEnabled && showFilterBar {
                     filterBarView
                 }
 
@@ -95,12 +97,16 @@ struct LibraryView: View {
                 }
             }
             .background(
-                Button("") {
-                    showFilterBar = true
-                    filterFieldFocused = true
+                Group {
+                    if featureManager.isLibraryFilterToolbarEnabled {
+                        Button("") {
+                            showFilterBar = true
+                            filterFieldFocused = true
+                        }
+                        .keyboardShortcut("f", modifiers: .command)
+                        .hidden()
+                    }
                 }
-                .keyboardShortcut("f", modifiers: .command)
-                .hidden()
             )
             .sheet(isPresented: $showWorkflowPicker) {
                 WorkflowPickerSheet(
@@ -113,7 +119,7 @@ struct LibraryView: View {
                 )
                 .environmentObject(libraryManager)
             }
-            .focusedSceneValue(\.runWorkflowOnSelection, selection.count >= 2 ? {
+            .focusedSceneValue(\.runWorkflowOnSelection, !selection.isEmpty ? {
                 selectedDocumentIdsForBatch = Array(selection)
                 showWorkflowPicker = true
             } : nil)
@@ -140,17 +146,19 @@ struct LibraryView: View {
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 // Filter button — opens inline filter bar (like Finder's filter strip)
-                Button {
-                    showFilterBar = true
-                    filterFieldFocused = true
-                } label: {
-                    Image(systemName: showFilterBar ? "line.3.horizontal.decrease.circle.fill"
-                                                    : "line.3.horizontal.decrease.circle")
+                if featureManager.isLibraryFilterToolbarEnabled {
+                    Button {
+                        showFilterBar = true
+                        filterFieldFocused = true
+                    } label: {
+                        Image(systemName: showFilterBar ? "line.3.horizontal.decrease.circle.fill"
+                                                        : "line.3.horizontal.decrease.circle")
+                    }
+                    .help("Filter (⌘F)")
                 }
-                .help("Filter (⌘F)")
 
                 // Zoom controls — icon and map views only
-                if displayMode == .icon || displayMode == .map {
+                if featureManager.isLibraryIconZoomControlsEnabled && (displayMode == .icon || displayMode == .map) {
                     Button {
                         if displayMode == .icon {
                             iconViewScale = max(0.5, iconViewScale - 0.25)
