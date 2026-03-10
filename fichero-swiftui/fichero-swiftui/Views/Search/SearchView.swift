@@ -24,6 +24,13 @@ struct SearchView: View {
                 performSearch()
             }
         }
+        .onChange(of: savedSearch?.id) { _, _ in
+            guard let search = savedSearch else {
+                return
+            }
+            queryText = search.query
+            performSearch()
+        }
         .onChange(of: selection) { _, newSelection in
             // Load document when selection changes (single click)
             if let selectedId = newSelection.first {
