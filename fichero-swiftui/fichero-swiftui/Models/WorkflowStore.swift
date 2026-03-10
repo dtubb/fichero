@@ -17,6 +17,10 @@ class WorkflowStore: ObservableObject {
     private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowStore")
     private let workflowService: WorkflowServiceGenerated
     private let ficheroClient: FicheroClient
+    private let defaultWorkflowTemplates: [DefaultWorkflowTemplate] = [
+        .filesToTranscribe,
+        .collectionToTranscribe
+    ]
 
     init(ficheroClient: FicheroClient) {
         self.ficheroClient = ficheroClient
@@ -288,6 +292,68 @@ class WorkflowStore: ObservableObject {
         return item
     }
 
+    // MARK: - Default Templates
+
+    /// Install built-in default workflows if they are missing.
+    @discardableResult
+    func installDefaultWorkflowTemplates() async throws -> [WorkflowSidebarItem] {
+        try await syncDefaultWorkflowTemplates(resetExisting: false)
+    }
+
+    /// Remove and recreate built-in default workflows.
+    @discardableResult
+    func resetDefaultWorkflowTemplates() async throws -> [WorkflowSidebarItem] {
+        try await syncDefaultWorkflowTemplates(resetExisting: true)
+    }
+
+    @discardableResult
+    private func syncDefaultWorkflowTemplates(resetExisting: Bool) async throws -> [WorkflowSidebarItem] {
+        let toolsByName = try await loadToolRegistry()
+        let workflowResponses = try await workflowService.listWorkflows()
+        let existingByName = Dictionary(
+            uniqueKeysWithValues: workflowResponses.map { ($0.name, $0) }
+        )
+
+        if resetExisting {
+            for template in defaultWorkflowTemplates {
+                if let existing = existingByName[template.name] {
+                    try await workflowService.deleteWorkflow(existing.id)
+                }
+            }
+        }
+
+        var created: [WorkflowSidebarItem] = []
+        for template in defaultWorkflowTemplates {
+            if !resetExisting, existingByName[template.name] != nil {
+                continue
+            }
+
+            let definition = try template.makeDefinition(toolsByName: toolsByName)
+            let response = try await workflowService.createWorkflow(definition)
+            created.append(
+                WorkflowSidebarItem(
+                    id: response.id,
+                    name: response.name,
+                    description: response.description,
+                    nodeCount: response.nodes.count,
+                    isEnabled: true,
+                    folderPath: response.folderPath,
+                    sortOrder: response.sortOrder,
+                    createdAt: Date(),
+                    updatedAt: Date()
+                )
+            )
+        }
+
+        await loadWorkflows()
+        return created
+    }
+
+    private func loadToolRegistry() async throws -> [String: ToolInfo] {
+        let tools = try await workflowService.listTools()
+        return Dictionary(uniqueKeysWithValues: tools.map { ($0.name.lowercased(), $0) })
+    }
+
     // MARK: - Workflow Execution
 
     private lazy var executionService: WorkflowExecutionService = {
@@ -368,6 +434,7 @@ enum WorkflowStoreError: Error, LocalizedError {
     case notFound(String)
     case saveFailed(String)
     case executionFailed(String)
+    case templateInstallFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -377,6 +444,75 @@ enum WorkflowStoreError: Error, LocalizedError {
             return "Save failed: \(message)"
         case .executionFailed(let message):
             return "Execution failed: \(message)"
+        case .templateInstallFailed(let message):
+            return "Template install failed: \(message)"
         }
+    }
+}
+
+// MARK: - Default Workflow Templates
+
+private enum DefaultWorkflowTemplate {
+    case filesToTranscribe
+    case collectionToTranscribe
+
+    var name: String {
+        switch self {
+        case .filesToTranscribe:
+            return "Default · Transcribe Files"
+        case .collectionToTranscribe:
+            return "Default · Transcribe Collection"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .filesToTranscribe:
+            return "Run transcription over selected files."
+        case .collectionToTranscribe:
+            return "Run transcription over a collection source."
+        }
+    }
+
+    func makeDefinition(toolsByName: [String: ToolInfo]) throws -> WorkflowDefinition {
+        let sourceToolName = switch self {
+        case .filesToTranscribe: "files"
+        case .collectionToTranscribe: "collection"
+        }
+
+        guard let sourceTool = toolsByName[sourceToolName] else {
+            throw WorkflowStoreError.templateInstallFailed("Missing source tool '\(sourceToolName)'")
+        }
+        guard let transcribeTool = toolsByName["transcribe"] else {
+            throw WorkflowStoreError.templateInstallFailed("Missing tool 'transcribe'")
+        }
+
+        let sourceNode = WorkflowNode(
+            from: sourceTool,
+            positionX: 220,
+            positionY: 220
+        )
+        let transcribeNode = WorkflowNode(
+            from: transcribeTool,
+            positionX: 540,
+            positionY: 220
+        )
+
+        let sourcePort = sourceNode.outputPorts.first?.id ?? "output"
+        let targetPort = transcribeNode.inputPorts.first?.id ?? "input"
+
+        return WorkflowDefinition(
+            name: name,
+            description: description,
+            nodes: [sourceNode, transcribeNode],
+            edges: [
+                WorkflowEdge(
+                    sourceNodeId: sourceNode.id,
+                    targetNodeId: transcribeNode.id,
+                    sourcePortId: sourcePort,
+                    targetPortId: targetPort
+                )
+            ]
+        )
     }
 }

@@ -60,6 +60,9 @@ struct WorkflowListView: View {
     @State private var isLoading = false
     @State private var tableSortOrder = [KeyPathComparator(\WorkflowSidebarItem.name)]
     @State private var isImporting = false
+    @State private var isManagingDefaults = false
+    @State private var showResetDefaultsConfirmation = false
+    @State private var templateOperationMessage: String?
     @ObservedObject var featureManager = FeatureManager.shared
 
     /// View display mode from toolbar
@@ -93,6 +96,29 @@ struct WorkflowListView: View {
             if let workflow = workflowToDelete {
                 Text("Are you sure you want to delete \"\(workflow.name)\"? This action cannot be undone.")
             }
+        }
+        .alert("Reset Default Workflows?", isPresented: $showResetDefaultsConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Reset", role: .destructive) {
+                Task { await resetDefaultWorkflows() }
+            }
+        } message: {
+            Text("This removes and recreates built-in default workflows.")
+        }
+        .alert(
+            "Workflow Templates",
+            isPresented: Binding(
+                get: { templateOperationMessage != nil },
+                set: { show in
+                    if !show {
+                        templateOperationMessage = nil
+                    }
+                }
+            )
+        ) {
+            Button("OK") { templateOperationMessage = nil }
+        } message: {
+            Text(templateOperationMessage ?? "")
         }
     }
 
@@ -129,6 +155,21 @@ struct WorkflowListView: View {
                     Image(systemName: "plus")
                 }
                 .help("Create new workflow")
+
+                Menu {
+                    Button("Install Defaults") {
+                        Task { await installDefaultWorkflows() }
+                    }
+                    .disabled(isManagingDefaults)
+
+                    Button("Reset Defaults", role: .destructive) {
+                        showResetDefaultsConfirmation = true
+                    }
+                    .disabled(isManagingDefaults)
+                } label: {
+                    Image(systemName: "sparkles")
+                }
+                .help("Manage built-in default workflows")
 
                 if featureManager.isWorkflowImportExportEnabled {
                     Button {
@@ -385,6 +426,36 @@ struct WorkflowListView: View {
                 name: workflow.name,
                 using: workflowServiceGenerated
             )
+        }
+    }
+
+    private func installDefaultWorkflows() async {
+        guard !isManagingDefaults else { return }
+        isManagingDefaults = true
+        defer { isManagingDefaults = false }
+
+        do {
+            let created = try await workflowStore.installDefaultWorkflowTemplates()
+            if created.isEmpty {
+                templateOperationMessage = "Default workflows are already installed."
+            } else {
+                templateOperationMessage = "Installed \(created.count) default workflow(s)."
+            }
+        } catch {
+            templateOperationMessage = "Failed to install defaults: \(error.localizedDescription)"
+        }
+    }
+
+    private func resetDefaultWorkflows() async {
+        guard !isManagingDefaults else { return }
+        isManagingDefaults = true
+        defer { isManagingDefaults = false }
+
+        do {
+            let created = try await workflowStore.resetDefaultWorkflowTemplates()
+            templateOperationMessage = "Reset defaults complete (\(created.count) recreated)."
+        } catch {
+            templateOperationMessage = "Failed to reset defaults: \(error.localizedDescription)"
         }
     }
 }
