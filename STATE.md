@@ -1,10 +1,10 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-09
+Last updated: 2026-03-10
 
 ## Current Branch
 
-`main` (in-progress working tree; not yet committed)
+`main` (clean working tree)
 
 ## Source of Truth
 
@@ -24,34 +24,34 @@ Milestone `0.0.1` due date:
 
 ## Completed This Session
 
-- Repo hygiene completed:
-  - all current work merged into `main`
-  - local stale branches cleaned
-  - remote stale branches deleted (only `origin/main` remains)
-- Pushed fixes directly to `main`:
-  - `4ef0a9df` fix workflow Files node picker crash path by replacing popover `List/searchable` with stable search + scroll picker and ID de-dup guard (`#292`)
-  - `c5d59541` feat rich-text editable inspector content (NSTextView) with persisted `page_content` + rich text metadata round-trip
-  - `77c67c48` fix preview-pane image centering regression
-  - `978af20a` fix Apply Workflow to Selection to execute created batch
-  - `048bceb5` fix backend workflow runtime by registering `files` source tool
-- Verified build/lint after rich-text inspector changes:
-  - `xcodebuild` (`Fichero`, Debug, macOS SDK) succeeds
-  - `DocumentInspectorContentTab.swift` has 0 SwiftLint violations
-- Removed in-window toolbar title rendering to match tab-first macOS title behavior:
-  - `ContentView` now uses `.navigationTitle("")` for the main window view
-  - `xcodebuild` (`Fichero`, Debug, macOS SDK) still succeeds after this change
-- Verified backend workflow unit tests after `files` tool fix:
-  - `134 passed`
-- Posted milestone progress update to `#279`:
-  - https://github.com/dtubb/fichero/issues/279#issuecomment-4020847610
-- Posted overnight updates:
-  - `#279`: https://github.com/dtubb/fichero/issues/279#issuecomment-4020886257
-  - `#292`: https://github.com/dtubb/fichero/issues/292#issuecomment-4020893120
+- Pushed directly to `origin/main`:
+  - `64c6edc1` fix document deletion integrity and API contract sync (`#279`)
+    - Cascading document delete now removes descendants, artifacts, and embeddings.
+    - Added `POST /api/documents/cleanup-orphans` for stale unreachable document cleanup.
+    - Fixed workflow registry default-port behavior for tools with explicit empty inputs.
+    - Synced OpenAPI/endpoint contracts across backend + Swift client.
+  - `7b8dabde` fix sidebar state reset + test isolation (`#220`)
+    - `DeleteStateManager.cancelDelete()` now clears `showingDeleteError`.
+    - `LibraryManagerTests` reset singleton mutable state in setup/teardown.
+- Verification completed:
+  - Backend:
+    - `PYTHONPATH=fichero-api/src fichero-api/.venv/bin/ruff check fichero-api/src fichero-api/tests/unit/test_api.py`
+    - `PYTHONPATH=fichero-api/src fichero-api/.venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived`
+    - Result: `789 passed, 16 skipped`.
+  - Swift:
+    - Focused `xcodebuild test` suites passed:
+      - `LibraryManagerTests`
+      - `StateManagerTests`
+      - `EndpointValidationTests`
+      - `ContractTests`
+- GitHub updates posted:
+  - `#279`: status/progress + verification summary.
+  - `#220`: fix note and test stabilization summary.
+  - `#238`: proposed concrete 0.0.1 manual QA runbook checklist.
 
 ## Current 0.0.1 Outstanding (Open)
 
 Highest priority implementation issues:
-- `#292` crash when using `+` in workflow Files node picker
 - `#291` built-in default workflow templates + reset
 - `#288` simplify Search UX to 0.0.1 scope
 - `#263` SwiftLint/Xcode build-phase path reliability
@@ -71,16 +71,14 @@ Release/QA gate issues still open:
 
 ## Next Session — Start Here
 
-1. Execute/close `#292` first with deterministic repro + test pass.
-2. Implement `#291` default workflow templates + reset.
-3. Complete `#288` Search simplification and wire toolbar search flow QA.
-4. Resolve `#263` build-phase reliability.
-5. Finalize `#278` Sparkle 0.0.1 release configuration.
-6. Drive `#238`, `#250`, and `#279` checklists to explicit pass/fail evidence.
+1. Implement `#291` default workflow templates + reset.
+2. Complete `#288` Search simplification and wire toolbar search flow QA.
+3. Resolve `#263` build-phase reliability.
+4. Finalize `#278` Sparkle 0.0.1 release configuration.
+5. Drive `#238`, `#250`, and `#279` checklists to explicit pass/fail evidence.
 
 ## In Progress Now
 
-- Continue 0.0.1 hardening pass on SwiftUI:
-  - verify DocumentInspector `NSTextView` edit/save/reload behavior under real UI flow
-  - confirm library/search layout defaults + inspector resizing behavior are stable
-  - keep feature-gating polish aligned with milestone `0.0.1`
+- 0.0.1 release gate hardening on `main`:
+  - complete remaining release-gate issues and capture pass/fail evidence on GitHub
+  - prioritize template workflows and simplified search scope for 0.0.1
