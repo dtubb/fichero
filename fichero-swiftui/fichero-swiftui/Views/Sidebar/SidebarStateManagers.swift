@@ -34,6 +34,7 @@ class DeleteStateManager: ObservableObject {
 
     func cancelDelete() {
         showingDeleteConfirmation = false
+        showingDeleteError = false
         itemToDelete = nil
         deleteErrorMessage = ""
     }

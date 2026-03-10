@@ -1,5 +1,5 @@
-import XCTest
 @testable import Fichero
+import XCTest
 
 @MainActor
 final class LibraryManagerTests: XCTestCase {
@@ -11,6 +11,9 @@ final class LibraryManagerTests: XCTestCase {
 
         // Use the shared instance (singleton pattern)
         libraryManager = LibraryManager.shared
+        libraryManager.openLibraries = []
+        libraryManager.currentLibraryId = nil
+        libraryManager.untitledCounter = 1
 
         // Create a temporary test directory
         tempDirectory = FileManager.default.temporaryDirectory
@@ -21,6 +24,10 @@ final class LibraryManagerTests: XCTestCase {
     }
 
     override func tearDown() async throws {
+        libraryManager.openLibraries = []
+        libraryManager.currentLibraryId = nil
+        libraryManager.untitledCounter = 1
+
         // Clean up temporary test directory
         if FileManager.default.fileExists(atPath: tempDirectory.path) {
             try? FileManager.default.removeItem(at: tempDirectory)
