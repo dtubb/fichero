@@ -6,7 +6,7 @@ import SwiftUI
 @MainActor
 class FeatureManager: ObservableObject {
     static let shared = FeatureManager()
-    private static let releaseProfileVersion = 17
+    private static let releaseProfileVersion = 18
     private static let workflowV001EnabledTools = "files,collection,transcribe"
 
     /// Global toggle to override all flags for internal development.
@@ -19,7 +19,7 @@ class FeatureManager: ObservableObject {
 
     @Published var isLibraryEnabled: Bool = true
     @AppStorage("fichero.features.search")
-    private var searchEnabledInternal: Bool = false
+    private var searchEnabledInternal: Bool = true
     @AppStorage("fichero.features.library_advanced_views")
     private var libraryAdvancedViewsEnabledInternal: Bool = false
     @AppStorage("fichero.features.search_advanced_views")
@@ -149,7 +149,7 @@ class FeatureManager: ObservableObject {
     func resetToV001() {
         allFeaturesEnabled = false
         libraryAdvancedViewsEnabledInternal = false
-        searchEnabledInternal = false
+        searchEnabledInternal = true
         searchAdvancedViewsEnabledInternal = false
         librarySearchSplitLayoutsEnabledInternal = false
         libraryFilterToolbarEnabledInternal = false
