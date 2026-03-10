@@ -160,7 +160,9 @@ struct FicheroApp: App {
                     FocusedNewChatButton()
                 }
 
-                FocusedNewWorkflowButton()
+                if featureManager.isWorkflowsEnabled {
+                    FocusedNewWorkflowButton()
+                }
 
                 if featureManager.allFeaturesEnabled {
                     FocusedNewComparisonButton()
