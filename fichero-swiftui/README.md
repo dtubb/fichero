@@ -25,3 +25,6 @@ swiftlint lint fichero-swiftui/fichero-swiftui/
 ## Notes
 The app expects the backend at `http://localhost:8765` in local development.
 Run `fichero-api/scripts/sync_openapi_schema.sh` after backend API changes to refresh the Swift package schema consumed by the app.
+
+Sparkle updater release setup notes:
+- `fichero-swiftui/docs/sparkle-release.md`

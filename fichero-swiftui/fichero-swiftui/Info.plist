@@ -49,5 +49,7 @@
 	<integer>86400</integer>
 	<key>SUFeedURL</key>
 	<string>https://raw.githubusercontent.com/dtubb/fichero/main/fichero-swiftui/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string></string>
 </dict>
 </plist>

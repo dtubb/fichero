@@ -24,10 +24,24 @@ final class SparkleUpdater {
 
     func checkForUpdates() {
 #if canImport(Sparkle)
-        guard let feedURL = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String,
-              !feedURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard let feedURLString = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String else {
             showMissingConfigurationAlert()
             return
+        }
+        let trimmedFeedURL = feedURLString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedFeedURL.isEmpty, URL(string: trimmedFeedURL) != nil else {
+            showMissingConfigurationAlert()
+            return
+        }
+
+        if requiresSignedUpdates {
+            let publicKey = (
+                Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String ?? ""
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !publicKey.isEmpty else {
+                showMissingReleaseKeyAlert()
+                return
+            }
         }
 
         updaterController.checkForUpdates(nil)
@@ -36,10 +50,26 @@ final class SparkleUpdater {
 #endif
     }
 
+    private var requiresSignedUpdates: Bool {
+#if DEBUG
+        return false
+#else
+        return true
+#endif
+    }
+
     private func showMissingConfigurationAlert() {
         let alert = NSAlert()
         alert.messageText = "Updates Not Configured"
         alert.informativeText = "Set SUFeedURL (and SUPublicEDKey for release) in Info.plist to enable Sparkle updates."
+        alert.alertStyle = .informational
+        alert.runModal()
+    }
+
+    private func showMissingReleaseKeyAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Release Updates Not Configured"
+        alert.informativeText = "Set SUPublicEDKey in Info.plist for release Sparkle updates."
         alert.alertStyle = .informational
         alert.runModal()
     }
