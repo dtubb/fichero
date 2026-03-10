@@ -78,7 +78,8 @@ def register_tool(
         # Store the function
         TOOLS[name] = func
 
-        # Default ports if not specified
+        # Default ports only when omitted (None), not when explicitly empty.
+        # Source tools intentionally pass [] to indicate no input ports.
         default_input = [PortDef(id="input", name="Input", port_type="input", data_type=DataType.ANY)]
         default_output = [PortDef(id="output", name="Output", port_type="output", data_type=DataType.ANY)]
 
@@ -90,8 +91,8 @@ def register_tool(
             category=category,
             icon=icon,
             color=color,
-            input_ports=input_ports or default_input,
-            output_ports=output_ports or default_output,
+            input_ports=default_input if input_ports is None else input_ports,
+            output_ports=default_output if output_ports is None else output_ports,
             config_schema=config_schema or {},
             config_defaults=config_defaults or {},
             default_output_schema=default_output_schema,

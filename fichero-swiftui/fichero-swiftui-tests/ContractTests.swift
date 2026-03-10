@@ -11,21 +11,38 @@
 //  2. Generated API type tests (Components.Schemas.WorkflowDef, etc.)
 //
 
-import Foundation
-import Testing
 @testable import Fichero
 import FicheroAPIClient
+import Foundation
+import Testing
 
 /// Path to the contract fixtures directory
-/// Navigate from FicheroTests to the shared contracts folder
 private func contractsPath() -> URL {
-    // From: fichero-swiftui/fichero-swiftui-tests/ContractTests.swift
-    // To: tests/contracts/fixtures/
-    let thisFile = URL(fileURLWithPath: #file)
-    return thisFile
-        .deletingLastPathComponent()  // FicheroTests
-        .deletingLastPathComponent()  // Fichero
-        .deletingLastPathComponent()  // Fichero (project folder)
+    let fileManager = FileManager.default
+    let starts = [
+        URL(fileURLWithPath: #file).deletingLastPathComponent(),
+        URL(fileURLWithPath: fileManager.currentDirectoryPath)
+    ]
+
+    for start in starts {
+        var current = start
+        while true {
+            let candidate = current
+                .appendingPathComponent("fichero-api")
+                .appendingPathComponent("tests")
+                .appendingPathComponent("contracts")
+            if fileManager.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+
+            let parent = current.deletingLastPathComponent()
+            if parent.path == current.path { break }
+            current = parent
+        }
+    }
+
+    return URL(fileURLWithPath: fileManager.currentDirectoryPath)
+        .appendingPathComponent("fichero-api")
         .appendingPathComponent("tests")
         .appendingPathComponent("contracts")
 }

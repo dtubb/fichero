@@ -213,6 +213,16 @@
         ],
         "request_model": null,
         "response_model": "Document"
+      },
+      {
+        "method": "POST",
+        "path": "/documents/cleanup-orphans",
+        "operation_id": "cleanup_orphan_documents_api_documents_cleanup_orphans_post",
+        "summary": "Cleanup Orphan Documents",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
       }
     ],
     "search": [

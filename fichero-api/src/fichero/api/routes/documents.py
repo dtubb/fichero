@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Query, UploadFile, Depends
 from pydantic import BaseModel
 
 from fichero.db import Database
-from fichero.models import Document, DocType, FileType, Status
+from fichero.models import Document, DocType, FileType, Status, Artifact
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -204,13 +204,41 @@ async def update_document(doc_id: str, update: DocumentUpdate, db: Database = De
 
 @router.delete("/{doc_id}", status_code=204)
 async def delete_document(doc_id: str, db: Database = Depends(get_library_database)):
-    """Delete a document."""
+    """Delete a document and all descendants.
+
+    Cleanup includes:
+    - Descendant documents in the hierarchy
+    - Artifacts attached to any deleted document
+    - Vector embeddings for deleted documents
+    """
     doc = db.get(Document, doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
 
-    db.delete(doc)
-    logger.info(f"Deleted document: {doc_id}")
+    # Gather full subtree to avoid leaving orphaned rows that no longer appear
+    # in hierarchy views but still remain searchable/queryable.
+    stack = [doc_id]
+    to_delete_ids: list[str] = []
+
+    while stack:
+        current_id = stack.pop()
+        to_delete_ids.append(current_id)
+        children = db.query(Document, parent_id=current_id)
+        stack.extend(child.id for child in children)
+
+    for current_id in to_delete_ids:
+        artifacts = db.query(Artifact, document_id=current_id)
+        for artifact in artifacts:
+            db.delete(artifact)
+        db.delete_embedding(current_id)
+
+    # Delete children first for clean hierarchical teardown.
+    for current_id in reversed(to_delete_ids):
+        current_doc = db.get(Document, current_id)
+        if current_doc:
+            db.delete(current_doc)
+
+    logger.info(f"Deleted document subtree: root={doc_id}, total={len(to_delete_ids)}")
 
 
 @router.post("/reorder")
@@ -311,3 +339,54 @@ async def move_document(
     logger.info(f"Moved document: {doc_id} to parent: {parent_id}")
 
     return doc
+
+
+@router.post("/cleanup-orphans")
+async def cleanup_orphan_documents(db: Database = Depends(get_library_database)) -> dict:
+    """Remove unreachable/orphan document rows.
+
+    A document is considered orphaned when it is not reachable from any root
+    document (parent_id is None). This catches records left behind by past
+    non-cascading deletes and malformed parent chains.
+    """
+    all_docs = list(db.all(Document))
+    if not all_docs:
+        return {"orphaned_documents_deleted": 0, "artifacts_deleted": 0}
+
+    docs_by_parent: dict[str | None, list[Document]] = {}
+    for item in all_docs:
+        docs_by_parent.setdefault(item.parent_id, []).append(item)
+
+    reachable: set[str] = set()
+    stack = [item.id for item in docs_by_parent.get(None, [])]
+
+    while stack:
+        doc_id = stack.pop()
+        if doc_id in reachable:
+            continue
+        reachable.add(doc_id)
+        for child in docs_by_parent.get(doc_id, []):
+            stack.append(child.id)
+
+    orphaned = [item for item in all_docs if item.id not in reachable]
+    artifacts_deleted = 0
+
+    for orphan in orphaned:
+        artifacts = db.query(Artifact, document_id=orphan.id)
+        artifacts_deleted += len(artifacts)
+        for artifact in artifacts:
+            db.delete(artifact)
+        db.delete_embedding(orphan.id)
+        db.delete(orphan)
+
+    if orphaned:
+        logger.info(
+            "Cleanup removed %s orphan documents and %s artifacts",
+            len(orphaned),
+            artifacts_deleted,
+        )
+
+    return {
+        "orphaned_documents_deleted": len(orphaned),
+        "artifacts_deleted": artifacts_deleted,
+    }

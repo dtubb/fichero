@@ -6,10 +6,10 @@ Uses pytest and httpx for async testing of FastAPI endpoints.
 
 import pytest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 import tempfile
 
-from fichero.models import Document, DocType, FileType, Status
+from fichero.models import Document, DocType, FileType, Status, Artifact
 
 
 @pytest.fixture
@@ -179,11 +179,63 @@ class TestDocumentRoutes:
 
         response = client.delete(f"/api/documents/{sample_doc.id}")
         assert response.status_code == 204
+        assert db.get(Document, sample_doc.id) is None
+
+    def test_delete_document_cascades_descendants_and_artifacts(self, client, db):
+        """Delete document removes descendants and related artifacts."""
+        parent = Document(name="Parent", doc_type=DocType.folder)
+        child = Document(name="Child", doc_type=DocType.file, parent_id=parent.id, file_type=FileType.image)
+        grandchild = Document(name="Grandchild", doc_type=DocType.file, parent_id=child.id, file_type=FileType.image)
+        child_artifact = Artifact(
+            document_id=child.id,
+            artifact_type="transcription",
+            content="sample",
+        )
+
+        db.save(parent)
+        db.save(child)
+        db.save(grandchild)
+        db.save(child_artifact)
+
+        response = client.delete(f"/api/documents/{parent.id}")
+        assert response.status_code == 204
+
+        assert db.get(Document, parent.id) is None
+        assert db.get(Document, child.id) is None
+        assert db.get(Document, grandchild.id) is None
+        assert db.get(Artifact, child_artifact.id) is None
 
     def test_delete_document_not_found(self, client, db):
         """Delete nonexistent document returns 404."""
         response = client.delete("/api/documents/nonexistent")
         assert response.status_code == 404
+
+    def test_cleanup_orphan_documents(self, client, db):
+        """Cleanup endpoint removes unreachable orphan documents."""
+        root = Document(name="Root", doc_type=DocType.folder)
+        child = Document(name="Child", doc_type=DocType.file, parent_id=root.id, file_type=FileType.image)
+        orphan = Document(name="Orphan", doc_type=DocType.file, parent_id="missing-parent", file_type=FileType.image)
+        orphan_artifact = Artifact(
+            document_id=orphan.id,
+            artifact_type="transcription",
+            content="orphan artifact",
+        )
+
+        db.save(root)
+        db.save(child)
+        db.save(orphan)
+        db.save(orphan_artifact)
+
+        response = client.post("/api/documents/cleanup-orphans")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["orphaned_documents_deleted"] == 1
+        assert payload["artifacts_deleted"] == 1
+
+        assert db.get(Document, root.id) is not None
+        assert db.get(Document, child.id) is not None
+        assert db.get(Document, orphan.id) is None
+        assert db.get(Artifact, orphan_artifact.id) is None
 
 
 class TestSearchRoutes:
@@ -477,7 +529,6 @@ class TestIngestRoutes:
         for filename in special_names:
             with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
                 f.write(b"fake image data")
-                temp_path = f.name
                 # Rename to include special characters
                 special_path = Path(f.name).parent / filename
                 Path(f.name).rename(special_path)

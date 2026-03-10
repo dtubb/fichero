@@ -15,23 +15,46 @@
 //  3. HTTP methods follow REST conventions (API consistency)
 //
 
-import Foundation
-import Testing
 @testable import Fichero
 import FicheroAPIClient
+import Foundation
+import Testing
 
 /// Path to the Python-exported endpoints file
 private func endpointsFilePath() -> URL {
-    // From: fichero-swiftui/fichero-swiftui-tests/EndpointValidationTests.swift
-    // To: tests/contracts/endpoints.json
-    let thisFile = URL(fileURLWithPath: #file)
-    return thisFile
-        .deletingLastPathComponent()  // FicheroTests
-        .deletingLastPathComponent()  // Fichero
-        .deletingLastPathComponent()  // Fichero (project folder)
+    let contractsDir = findContractsDirectory()
+    return contractsDir.appendingPathComponent("endpoints.json")
+}
+
+private func findContractsDirectory() -> URL {
+    let fileManager = FileManager.default
+    let starts = [
+        URL(fileURLWithPath: #file).deletingLastPathComponent(),
+        URL(fileURLWithPath: fileManager.currentDirectoryPath)
+    ]
+
+    for start in starts {
+        var current = start
+        while true {
+            let candidate = current
+                .appendingPathComponent("fichero-api")
+                .appendingPathComponent("tests")
+                .appendingPathComponent("contracts")
+            if fileManager.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+
+            let parent = current.deletingLastPathComponent()
+            if parent.path == current.path { break }
+            current = parent
+        }
+    }
+
+    // Fallback for local runs where current directory is the repo root.
+    return URL(fileURLWithPath: fileManager.currentDirectoryPath)
+        .appendingPathComponent("fichero-api")
         .appendingPathComponent("tests")
         .appendingPathComponent("contracts")
-        .appendingPathComponent("endpoints.json")
 }
 
 /// Parsed endpoint from Python's endpoints.json
@@ -100,7 +123,7 @@ struct HTTPMethodValidationTests {
             endpoint.path.contains("{")
         }
 
-        #expect(updateEndpoints.count > 0, "Should have some update endpoints")
+        #expect(!updateEndpoints.isEmpty, "Should have some update endpoints")
 
         for endpoint in updateEndpoints {
             #expect(
