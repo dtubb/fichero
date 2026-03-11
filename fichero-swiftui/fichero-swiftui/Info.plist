@@ -48,8 +48,8 @@
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
 	<key>SUFeedURL</key>
-	<string>https://raw.githubusercontent.com/dtubb/fichero/main/fichero-swiftui/appcast.xml</string>
+	<string>$(SPARKLE_FEED_URL)</string>
 	<key>SUPublicEDKey</key>
-	<string></string>
+	<string>$(SPARKLE_PUBLIC_ED_KEY)</string>
 </dict>
 </plist>

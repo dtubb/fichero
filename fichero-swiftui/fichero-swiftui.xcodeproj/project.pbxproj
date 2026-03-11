@@ -2107,6 +2107,8 @@
 				MARKETING_VERSION = 0.1.0.dev1;
 				PRODUCT_BUNDLE_IDENTIFIER = ca.tubb.Fichero;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero/main/fichero-swiftui/appcast.xml";
+				SPARKLE_PUBLIC_ED_KEY = DEBUG_SPARKLE_KEY_NOT_REQUIRED;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
 			};
@@ -2153,6 +2155,8 @@
 				PRODUCT_BUNDLE_IDENTIFIER = ca.tubb.Fichero;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero/main/fichero-swiftui/appcast.xml";
+				SPARKLE_PUBLIC_ED_KEY = SET_RELEASE_SPARKLE_PUBLIC_ED_KEY;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
 			};
