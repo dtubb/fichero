@@ -9,10 +9,14 @@ import tempfile
 import shutil
 import inspect
 import asyncio
+import os
 from pathlib import Path
 from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
+
+# Keep existing route-heavy tests running against the broader dev API surface.
+os.environ.setdefault("FICHERO_FEATURE_TIER", "dev")
 
 from fichero.api.main import app
 from fichero.db import db_manager
