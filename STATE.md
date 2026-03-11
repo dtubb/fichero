@@ -89,3 +89,4 @@ Release/QA gate issues still open:
 - Session blocked before execution due to repository instruction gate in `AGENTS.md`: "Current Phase: Planning (Phase 0)" and "No coding until Daniel approves the plan."
 - No source code changes made. Await explicit Daniel approval to transition from Phase 0 to implementation work.
 - Daniel approved transition to execution on 2026-03-11; `AGENTS.md` updated to execution mode and GitHub-first milestone workflow.
+- Follow-up `/session-start-auto` run on 2026-03-11 is blocked before task claim/execution: `gh` commands (`gh issue list`, `gh auth status`) hang with no output, so milestone task selection/claim cannot be completed safely.
