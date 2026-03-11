@@ -4,17 +4,14 @@ How to work on Fichero as an AI agent. Read this at the start of every session a
 
 ---
 
-## Current Phase: Planning (Phase 0)
+## Current Phase: Execution (Post-Phase-0)
 
-**No coding until Daniel approves the plan.** This is not optional.
+**Phase 0 planning is approved.** Agents should execute milestone work from GitHub.
 
-Phase 0 work:
-- Audit existing features (what works / broken / partial / untested)
-- Design feature flag system (30 flags across 4 tiers: release, beta, dev, off)
-- Create milestone plan M0–M4
-- Get Daniel's sign-off
-
-When he approves, Phase 1 begins: implement M0 (stabilize core, gate everything else).
+Execution focus:
+- Implement and close milestone issues in priority order
+- Keep feature tiers and release gates aligned with approved roadmap
+- Record blockers in GitHub and `STATE.md` with concrete unblock conditions
 
 ---
 
@@ -120,17 +117,7 @@ xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj \
 
 ## Decision-Making
 
-### What to Work On (Phase 0)
-
-In strict priority order:
-1. Feature audit (what exists and what state is it in)
-2. Feature flag system (30 flags, 4 tiers)
-3. Milestone plan (M0–M4, shippable increments)
-4. Get Daniel to approve the plan
-
-Don't start Phase 1 coding until he approves.
-
-### What to Work On (Phase 1+)
+### What to Work On (Execution)
 
 Follow milestone priority:
 - **M0**: Stabilize core. Disable (flag as dev) anything broken or untested.
@@ -141,13 +128,12 @@ Follow milestone priority:
 ### When to Proceed vs. Ask
 
 **Proceed without asking:**
-- Planning, auditing, documentation work (Phase 0 is all of this)
+- Planning, auditing, documentation work
 - Bug fixes with clear root cause and test coverage
 - Adding tests for existing behavior
 - Lint/build fixes
 
 **Ask first (enter plan mode):**
-- Any feature work (requires Phase 1 approval first)
 - Architectural changes to either stack
 - Changes to the OpenAPI schema (frontend + backend must stay in sync)
 - Feature flag tier changes (what's release vs. dev)
@@ -193,11 +179,11 @@ Always reference GitHub issue number. One concern per commit. Don't mix feat + f
 
 ---
 
-## Current Situation (Feb 2026)
+## Current Situation (Mar 2026)
 
-**We are in Phase 0: Planning.**
+**Phase 0 is complete and approved.**
 
-The major restructure (codex/restructure-api-swiftui, 173 commits) has been merged to main. The app exists with many features in various states. We need to audit, flag, and plan before coding more.
+The major restructure (codex/restructure-api-swiftui, 173 commits) has been merged to main. The app exists with many features in various states. Audit/flag/plan work is complete, and execution now proceeds from the approved GitHub roadmap.
 
 **What's done:**
 - Phase 0 audit of existing features (frontend + backend)
@@ -205,12 +191,10 @@ The major restructure (codex/restructure-api-swiftui, 173 commits) has been merg
 - Milestone plan M0–M4 (81 tasks)
 - Dev environment verified (Python 3.14.3, .venv, swiftlint)
 
-**What's blocked on Daniel:**
-- Plan approval (Phase 0 → Phase 1 transition)
-- Feature flag tier decisions
-- Milestone scope sign-off
-
-**While blocked:** Keep constitution files current. Review the plan docs in `memory/2026-02-26.md`. Don't start M0 coding without approval.
+**What's active now:**
+- Milestone execution and release-gate closure on GitHub
+- Feature promotion only via milestone issues and approvals
+- Ongoing QA evidence capture against release-gate issues
 
 ---
 
@@ -238,7 +222,7 @@ Fichero is the document layer. When the integration is built, documents in Fiche
 2. Never deploy or publish without permission
 3. Never edit generated files (`*Generated.swift`, `openapi.json`, api-client)
 4. Never skip SwiftLint, ruff, pytest before completing work
-5. Never start coding before plan is approved
+5. Never start coding on unapproved scope (GitHub milestone/issues are the approval boundary)
 6. `PYTHONPATH=fichero-api/src` on all Python commands
 7. One concern per commit, conventional commit format
 8. `trash` over `rm`
