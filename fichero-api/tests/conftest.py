@@ -5,12 +5,9 @@ Provides fixtures for package documents testing with proper isolation.
 """
 
 import pytest
-import tempfile
-import shutil
 import inspect
 import asyncio
 import os
-from pathlib import Path
 from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
@@ -87,7 +84,7 @@ def test_package(tmp_path):
     (package_path / "files").mkdir()
 
     # Initialize database for this package
-    db = db_manager.get_database(package_path)
+    db_manager.get_database(package_path)
 
     yield package_path
 
