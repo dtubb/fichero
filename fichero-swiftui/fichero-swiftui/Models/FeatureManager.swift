@@ -33,7 +33,7 @@ class FeatureManager: ObservableObject {
 
     // MARK: - Advanced Features (Target: v0.1.0+)
 
-    @AppStorage("fichero.features.workflows") private var workflowsEnabledInternal: Bool = true
+    @AppStorage("fichero.features.workflows") private var workflowsEnabledInternal: Bool = false
     @AppStorage("fichero.features.workflow_editor_advanced_views")
     private var workflowEditorAdvancedViewsEnabled: Bool = false
     @AppStorage("fichero.features.batches") private var batchesEnabledInternal: Bool = false
@@ -42,7 +42,7 @@ class FeatureManager: ObservableObject {
     @AppStorage("fichero.features.automation") private var automationEnabledInternal: Bool = false
     @AppStorage("fichero.features.mcp") private var mcpEnabledInternal: Bool = false
     @AppStorage("fichero.features.integrations") private var integrationsEnabledInternal: Bool = false
-    @AppStorage("fichero.features.activity") private var activityEnabledInternal: Bool = true
+    @AppStorage("fichero.features.activity") private var activityEnabledInternal: Bool = false
     @AppStorage("fichero.features.settings_general_tab")
     private var settingsGeneralTabEnabledInternal: Bool = false
     @AppStorage("fichero.features.settings_backend_tab")
@@ -154,7 +154,7 @@ class FeatureManager: ObservableObject {
         librarySearchSplitLayoutsEnabledInternal = false
         libraryFilterToolbarEnabledInternal = false
         libraryIconZoomControlsEnabledInternal = false
-        workflowsEnabledInternal = true
+        workflowsEnabledInternal = false
         workflowEditorAdvancedViewsEnabled = false
         batchesEnabledInternal = false
         chatEnabledInternal = false
@@ -162,7 +162,7 @@ class FeatureManager: ObservableObject {
         automationEnabledInternal = false
         mcpEnabledInternal = false
         integrationsEnabledInternal = false
-        activityEnabledInternal = true
+        activityEnabledInternal = false
         settingsGeneralTabEnabledInternal = false
         settingsBackendTabEnabledInternal = false
         settingsModelsTabEnabledInternal = false
