@@ -1,10 +1,10 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-13 (evening)
+Last updated: 2026-03-13 (session end)
 
 ## Current Branch
 
-`main` (dirty working tree; pre-existing SwiftUI edits present)
+`main` (clean; synced to `origin/main`)
 
 ## Source of Truth
 
@@ -41,13 +41,20 @@ Milestone `0.0.1` due date:
 - Validation completed:
   - `swiftlint` passes on touched files.
   - `xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero -configuration Debug -sdk macosx build` succeeds.
+- GitHub tracking cleanup:
+  - Added issue `#310` (storage Unicode filename header crash).
+  - Added issue `#311` (workflow API 404/save-load visibility failure).
+  - Assigned both to milestone `0.0.1 - Core Library`.
+- Repo hygiene checks:
+  - No uncommitted source changes left after sync.
+  - `main` pushed and up to date.
 
 ## Blocked
 
-- Dirty working tree on `main` (`fichero-swiftui/...` files modified) prevents safe autonomous issue execution.
-- GitHub CLI auth is currently invalid:
-  - `gh auth status` reports invalid token for account `dtubb`.
-  - Required unblock: run `gh auth login -h github.com` (or refresh token) before issue claim/status updates.
+- No infrastructure blockers.
+- Product blockers remain in open issues:
+  - `#311` workflow endpoints returning 404 / save-load UX broken
+  - `#310` storage source-file response crashes on Unicode filenames
 
 ## Current 0.0.1 Outstanding (Open)
 
@@ -71,19 +78,15 @@ Release/QA gate issues still open:
 
 ## Next Session — Start Here
 
-1. Manual QA pass in app for tonight’s fixes:
-   - icon-mode arrow/page selection behavior
-   - rich-text autosave reliability
-   - persisted ruler visibility state across reopen.
-2. If regressions appear, patch in-place and re-run `swiftlint` + `xcodebuild`.
-3. Restore GitHub CLI auth (`gh auth login -h github.com`) and re-verify `gh auth status`.
-4. Re-run `/session-start-auto` and select one unblocked `0.0.1` issue.
-5. Prioritize implementation order: `#291` -> `#288` -> `#263`.
+1. Reproduce and triage `#311` from logs (`/api/workflows/tools/grouped` and `POST /api/workflows` 404).
+2. Reproduce and fix `#310` (`Content-Disposition` Unicode filename crash in `storage.py`).
+3. After fixes, run `swiftlint`, `xcodebuild`, and backend tests for touched routes.
+4. Update GitHub issues with verification notes and close only after manual UI confirmation.
 
 ## In Progress Now
 
-- 0.0.1 release hardening continues on keyboard navigation + rich-text editor persistence.
-- Workspace remains dirty with active SwiftUI changes; ready for next autonomous run continuation.
+- 0.0.1 release hardening: workflow reliability and storage filename handling.
+- Workspace is clean and ready for next autonomous run.
 
 ## Autonomous Session Notes (2026-03-11)
 

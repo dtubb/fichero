@@ -83,6 +83,9 @@ For the approved implementation surface, the required checks are:
 
 ## Lessons Learned
 
+- Starlette response headers are latin-1 encoded; Unicode filenames in `Content-Disposition` must use RFC 5987/6266-safe formatting (`filename*=` UTF-8 percent-encoded) with ASCII fallback.
+- The generated OpenAPI Swift client can fail on backend datetimes lacking timezone; using a custom lenient `DateTranscoder` at `FicheroClient` level avoids cross-service decode failures.
+- Local `gh` CLI in this environment does not provide `gh milestone list`; milestone workflows should use issue edit/create operations (or `gh api`) directly.
 - `/session-start-auto` must treat dirty source files on `main` as a hard blocker; only docs/state handoff work should continue until `main` is clean again
 - `/session-start-auto` must treat invalid `gh` authentication (`gh auth status` failure/token invalid) as a hard blocker for issue claim/progress work
 - Sidebar gating must sanitize both persisted `sidebarMode` and persisted/restored `viewMode`; hiding icons alone does not prevent off-tier surfaces from reappearing
