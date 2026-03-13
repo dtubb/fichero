@@ -150,3 +150,8 @@ Release/QA gate issues still open:
   - `gh auth status` invalid token for `dtubb`
   - `git fetch` cannot resolve `github.com`
   - `.venv` missing, so backend lint/tests cannot run
+- Follow-up check on `2026-03-13T23:02:09Z` confirms blockers are unchanged:
+  - `gh auth status` still reports invalid token for `dtubb`
+  - `git fetch --all --prune` still fails (`Could not resolve host: github.com`)
+  - `.venv` still missing (`ruff`/`pytest` unavailable)
+  - local validation still available: `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations
