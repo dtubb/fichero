@@ -65,22 +65,22 @@ struct DocumentInspector: View {
             Divider()
 
             // Tab Content
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    switch selectedTab {
-                    case .content:
-                        DocumentInspectorContentTab(document: doc)
-                    case .info:
+            switch selectedTab {
+            case .content:
+                DocumentInspectorContentTab(document: doc)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .info:
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
                         DocumentInspectorInfoTab(document: doc)
                         if !doc.metadata.isEmpty || doc.path != nil {
                             DocumentInspectorMetadataTab(document: doc)
                         }
                         DocumentInspectorArtifactsTab(documentId: doc.id)
+                        Spacer()
                     }
-
-                    Spacer()
+                    .padding()
                 }
-                .padding()
             }
         }
     }

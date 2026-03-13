@@ -21,7 +21,6 @@ struct FilesNodeConfig: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            // List of selected files
             if selectedFileIds.isEmpty {
                 dropZoneView
             } else {
@@ -29,8 +28,6 @@ struct FilesNodeConfig: View {
                     ForEach(selectedFileIds, id: \.self) { fileId in
                         fileRow(fileId: fileId)
                     }
-
-                    // Add more files via drop or picker.
                     dropZoneView
                 }
             }
@@ -48,8 +45,10 @@ struct FilesNodeConfig: View {
             loadInitialState()
         }
     }
+}
 
-    private var dropZoneView: some View {
+private extension FilesNodeConfig {
+    var dropZoneView: some View {
         RoundedRectangle(cornerRadius: 6)
             .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [5]))
             .foregroundColor(.secondary)
@@ -71,133 +70,7 @@ struct FilesNodeConfig: View {
             }
     }
 
-    private var allFolders: [Document] {
-        documentStore.collections
-            .filter { $0.docType == .folder }
-            .sorted { lhs, rhs in
-                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-            }
-    }
-
-    private var validFolderIds: Set<String> {
-        Set(allFolders.map(\.id))
-    }
-
-    private var availableDocuments: [Document] {
-        let candidates = documentStore.collections
-            .filter { $0.docType == .file }
-            .filter { doc in
-                guard !doc.id.isEmpty else { return false }
-                guard let parentId = doc.parentId else { return true }
-                return validFolderIds.contains(parentId)
-            }
-            .sorted { lhs, rhs in
-                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-            }
-
-        var seen = Set<String>()
-        return candidates.filter { doc in
-            if seen.contains(doc.id) {
-                return false
-            }
-            seen.insert(doc.id)
-            return true
-        }
-    }
-
-    private var folderChildrenMap: [String: [Document]] {
-        var map: [String: [Document]] = [:]
-        for folder in allFolders {
-            guard let parentId = folder.parentId, validFolderIds.contains(parentId) else { continue }
-            map[parentId, default: []].append(folder)
-        }
-        for key in map.keys {
-            map[key]?.sort { lhs, rhs in
-                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-            }
-        }
-        return map
-    }
-
-    private var filesByParentMap: [String?: [Document]] {
-        let files = filteredDocuments
-        return Dictionary(grouping: files, by: { $0.parentId })
-    }
-
-    private var rootFolders: [Document] {
-        let inbox = allFolders.filter { $0.parentId == nil && $0.name == "Inbox" }
-        let otherRoots = allFolders
-            .filter { folder in
-                folder.parentId == nil && folder.name != "Inbox"
-            }
-            .sorted { lhs, rhs in
-                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-            }
-        return inbox + otherRoots
-    }
-
-    private var filteredDocuments: [Document] {
-        guard !fileSearchText.isEmpty else { return availableDocuments }
-        return availableDocuments.filter { doc in
-            doc.name.localizedCaseInsensitiveContains(fileSearchText)
-        }
-    }
-
-    @ViewBuilder
-    private func fileRow(fileId: String) -> some View {
-        let docName =
-            documentStore.collections.first(where: { $0.id == fileId })?.name
-            ?? "Document \(fileId.prefix(8))..."
-
-        HStack {
-            Image(systemName: "doc")
-                .foregroundColor(.secondary)
-            Text(docName)
-                .font(.caption)
-                .lineLimit(1)
-            Spacer()
-            Button {
-                removeFile(fileId)
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.secondary)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color(.controlBackgroundColor))
-        .cornerRadius(4)
-    }
-
-    private func removeFile(_ fileId: String) {
-        selectedFileIds.removeAll { $0 == fileId }
-        syncConfig()
-    }
-
-    private func handleFileDrop(_ providers: [NSItemProvider]) -> Bool {
-        for provider in providers {
-            _ = provider.loadObject(ofClass: String.self) { string, _ in
-                guard let docId = string else { return }
-                Task { @MainActor in
-                    if !self.selectedFileIds.contains(docId) {
-                        self.selectedFileIds.append(docId)
-                        self.syncConfig()
-                    }
-                }
-            }
-        }
-        return true
-    }
-
-    private func showFilePickerSheet() {
-        fileSearchText = ""
-        stagedPickerSelection = Set(selectedFileIds)
-        expandedFolderIds = Set(rootFolders.map(\.id))
-        showFilePicker = true
-    }
-
-    private var filePickerPanel: some View {
+    var filePickerPanel: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Select Files")
                 .font(.caption)
@@ -259,64 +132,35 @@ struct FilesNodeConfig: View {
         .cornerRadius(6)
     }
 
-    private func togglePickerSelection(_ id: String) {
-        if stagedPickerSelection.contains(id) {
-            stagedPickerSelection.remove(id)
-        } else {
-            stagedPickerSelection.insert(id)
+    @ViewBuilder
+    func fileRow(fileId: String) -> some View {
+        let docName =
+            documentStore.collections.first(where: { $0.id == fileId })?.name
+            ?? "Document \(fileId.prefix(8))..."
+
+        HStack {
+            Image(systemName: "doc")
+                .foregroundColor(.secondary)
+            Text(docName)
+                .font(.caption)
+                .lineLimit(1)
+            Spacer()
+            Button {
+                removeFile(fileId)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
         }
-    }
-
-    private func folderSection(_ folder: Document, depth: Int, ancestry: Set<String>) -> AnyView {
-        // Guard against malformed cyclic folder graphs in persisted data.
-        guard !ancestry.contains(folder.id) else {
-            return AnyView(EmptyView())
-        }
-
-        let nextAncestry = ancestry.union([folder.id])
-        return AnyView(
-            DisclosureGroup(
-            isExpanded: Binding(
-                get: { expandedFolderIds.contains(folder.id) },
-                set: { isExpanded in
-                    if isExpanded {
-                        expandedFolderIds.insert(folder.id)
-                    } else {
-                        expandedFolderIds.remove(folder.id)
-                    }
-                }
-            )
-        ) {
-            if let directFiles = filesByParentMap[folder.id], !directFiles.isEmpty {
-                ForEach(directFiles, id: \.id) { doc in
-                    filePickerRow(doc: doc, depth: depth + 1)
-                }
-            }
-
-            if let children = folderChildrenMap[folder.id] {
-                ForEach(children, id: \.id) { child in
-                    folderSection(child, depth: depth + 1, ancestry: nextAncestry)
-                }
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: folder.name == "Inbox" ? "tray.fill" : "folder")
-                    .foregroundStyle(.secondary)
-                Text(folder.name)
-                    .lineLimit(1)
-                    .foregroundStyle(.primary)
-                Spacer()
-            }
-            .padding(.vertical, 4)
-            .padding(.leading, CGFloat(depth) * 14 + 4)
-            .padding(.trailing, 6)
-            }
-            .disclosureGroupStyle(.automatic)
-        )
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color(.controlBackgroundColor))
+        .cornerRadius(4)
     }
 
     @ViewBuilder
-    private func filePickerRow(doc: Document, depth: Int) -> some View {
+    func filePickerRow(doc: Document, depth: Int) -> some View {
         Button {
             togglePickerSelection(doc.id)
         } label: {
@@ -352,14 +196,171 @@ struct FilesNodeConfig: View {
         )
     }
 
-    private func syncConfig() {
+    func folderSection(_ folder: Document, depth: Int, ancestry: Set<String>) -> AnyView {
+        guard !ancestry.contains(folder.id) else {
+            return AnyView(EmptyView())
+        }
+
+        let nextAncestry = ancestry.union([folder.id])
+        return AnyView(
+            DisclosureGroup(
+                isExpanded: Binding(
+                    get: { expandedFolderIds.contains(folder.id) },
+                    set: { isExpanded in
+                        if isExpanded {
+                            expandedFolderIds.insert(folder.id)
+                        } else {
+                            expandedFolderIds.remove(folder.id)
+                        }
+                    }
+                )
+            ) {
+                if let directFiles = filesByParentMap[folder.id], !directFiles.isEmpty {
+                    ForEach(directFiles, id: \.id) { doc in
+                        filePickerRow(doc: doc, depth: depth + 1)
+                    }
+                }
+
+                if let children = folderChildrenMap[folder.id] {
+                    ForEach(children, id: \.id) { child in
+                        folderSection(child, depth: depth + 1, ancestry: nextAncestry)
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: folder.name == "Inbox" ? "tray.fill" : "folder")
+                        .foregroundStyle(.secondary)
+                    Text(folder.name)
+                        .lineLimit(1)
+                        .foregroundStyle(.primary)
+                    Spacer()
+                }
+                .padding(.vertical, 4)
+                .padding(.leading, CGFloat(depth) * 14 + 4)
+                .padding(.trailing, 6)
+            }
+            .disclosureGroupStyle(.automatic)
+        )
+    }
+}
+
+private extension FilesNodeConfig {
+    var allFolders: [Document] {
+        documentStore.collections
+            .filter { $0.docType == .folder }
+            .sorted { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+    }
+
+    var validFolderIds: Set<String> {
+        Set(allFolders.map(\.id))
+    }
+
+    var availableDocuments: [Document] {
+        let candidates = documentStore.collections
+            .filter { $0.docType == .file }
+            .filter { doc in
+                guard !doc.id.isEmpty else { return false }
+                guard let parentId = doc.parentId else { return true }
+                return validFolderIds.contains(parentId)
+            }
+            .sorted { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+
+        var seen = Set<String>()
+        return candidates.filter { doc in
+            if seen.contains(doc.id) {
+                return false
+            }
+            seen.insert(doc.id)
+            return true
+        }
+    }
+
+    var filteredDocuments: [Document] {
+        guard !fileSearchText.isEmpty else { return availableDocuments }
+        return availableDocuments.filter { doc in
+            doc.name.localizedCaseInsensitiveContains(fileSearchText)
+        }
+    }
+
+    var filesByParentMap: [String?: [Document]] {
+        Dictionary(grouping: filteredDocuments, by: { $0.parentId })
+    }
+
+    var folderChildrenMap: [String: [Document]] {
+        var map: [String: [Document]] = [:]
+        for folder in allFolders {
+            guard let parentId = folder.parentId, validFolderIds.contains(parentId) else { continue }
+            map[parentId, default: []].append(folder)
+        }
+        for key in map.keys {
+            map[key]?.sort { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+        }
+        return map
+    }
+
+    var rootFolders: [Document] {
+        let inbox = allFolders.filter { $0.parentId == nil && $0.name == "Inbox" }
+        let otherRoots = allFolders
+            .filter { folder in
+                folder.parentId == nil && folder.name != "Inbox"
+            }
+            .sorted { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+        return inbox + otherRoots
+    }
+}
+
+private extension FilesNodeConfig {
+    func removeFile(_ fileId: String) {
+        selectedFileIds.removeAll { $0 == fileId }
+        syncConfig()
+    }
+
+    func handleFileDrop(_ providers: [NSItemProvider]) -> Bool {
+        for provider in providers {
+            _ = provider.loadObject(ofClass: String.self) { string, _ in
+                guard let docId = string else { return }
+                Task { @MainActor in
+                    if !self.selectedFileIds.contains(docId) {
+                        self.selectedFileIds.append(docId)
+                        self.syncConfig()
+                    }
+                }
+            }
+        }
+        return true
+    }
+
+    func showFilePickerSheet() {
+        fileSearchText = ""
+        stagedPickerSelection = Set(selectedFileIds)
+        expandedFolderIds = Set(rootFolders.map(\.id))
+        showFilePicker = true
+    }
+
+    func togglePickerSelection(_ id: String) {
+        if stagedPickerSelection.contains(id) {
+            stagedPickerSelection.remove(id)
+        } else {
+            stagedPickerSelection.insert(id)
+        }
+    }
+
+    func syncConfig() {
         if node.config == nil {
             node.config = [:]
         }
         node.config?["file_ids"] = .array(selectedFileIds.map { .string($0) })
     }
 
-    private func loadInitialState() {
+    func loadInitialState() {
         if let configValue = node.config?["file_ids"],
            case .array(let ids) = configValue {
             selectedFileIds = ids.compactMap {

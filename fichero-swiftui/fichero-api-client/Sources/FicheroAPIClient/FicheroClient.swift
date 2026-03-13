@@ -50,6 +50,7 @@ public final class FicheroClient: ObservableObject {
         // The API paths in OpenAPI already include /api prefix, so use base URL directly
         self.api = Client(
             serverURL: baseURL,
+            configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
             transport: URLSessionTransport(),
             middlewares: [libraryPathProvider.createMiddleware()]
         )
@@ -59,6 +60,7 @@ public final class FicheroClient: ObservableObject {
     private func rebuildClient() {
         self.api = Client(
             serverURL: baseURL,
+            configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
             transport: URLSessionTransport(),
             middlewares: [libraryPathProvider.createMiddleware()]
         )

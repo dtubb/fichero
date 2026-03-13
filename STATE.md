@@ -1,10 +1,10 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-10
+Last updated: 2026-03-13 (evening)
 
 ## Current Branch
 
-`main` (clean working tree)
+`main` (dirty working tree; pre-existing SwiftUI edits present)
 
 ## Source of Truth
 
@@ -24,30 +24,30 @@ Milestone `0.0.1` due date:
 
 ## Completed This Session
 
-- Pushed directly to `origin/main`:
-  - `64c6edc1` fix document deletion integrity and API contract sync (`#279`)
-    - Cascading document delete now removes descendants, artifacts, and embeddings.
-    - Added `POST /api/documents/cleanup-orphans` for stale unreachable document cleanup.
-    - Fixed workflow registry default-port behavior for tools with explicit empty inputs.
-    - Synced OpenAPI/endpoint contracts across backend + Swift client.
-  - `7b8dabde` fix sidebar state reset + test isolation (`#220`)
-    - `DeleteStateManager.cancelDelete()` now clears `showingDeleteError`.
-    - `LibraryManagerTests` reset singleton mutable state in setup/teardown.
-- Verification completed:
-  - Backend:
-    - `PYTHONPATH=fichero-api/src fichero-api/.venv/bin/ruff check fichero-api/src fichero-api/tests/unit/test_api.py`
-    - `PYTHONPATH=fichero-api/src fichero-api/.venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived`
-    - Result: `789 passed, 16 skipped`.
-  - Swift:
-    - Focused `xcodebuild test` suites passed:
-      - `LibraryManagerTests`
-      - `StateManagerTests`
-      - `EndpointValidationTests`
-      - `ContractTests`
-- GitHub updates posted:
-  - `#279`: status/progress + verification summary.
-  - `#220`: fix note and test stabilization summary.
-  - `#238`: proposed concrete 0.0.1 manual QA runbook checklist.
+- Autonomous `/session-start-auto` startup checks executed.
+- Confirmed hard blockers before milestone task execution:
+  - Git working tree on `main` is dirty with pre-existing source edits.
+  - `gh auth status` fails due to invalid token, so GitHub issue claim/progress sync is blocked.
+- Performed docs/handoff-only updates for safe continuity:
+  - Updated this `STATE.md` with concrete blocker conditions.
+  - Added `memory/2026-03-13.md` session log.
+  - Added `memory/handoff-2026-03-13.md` next-run handoff.
+  - Refreshed blockers after re-check at `2026-03-13T19:02:33Z`.
+- Implemented and verified SwiftUI/editor stability fixes requested by Daniel:
+  - Fixed rich-text autosave decode failures by using a lenient date transcoder in `FicheroClient`.
+  - Hardened icon-mode keyboard navigation (`up/down/left/right/page up/page down`) with key-down handling plus move-command fallback.
+  - Persisted rich-text ruler visibility via `@AppStorage("editor.rulersVisible")` and wired Format menu toggle label/state.
+  - Added default content-pane focus on `ContentView` appear to improve immediate keyboard navigation reliability.
+- Validation completed:
+  - `swiftlint` passes on touched files.
+  - `xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero -configuration Debug -sdk macosx build` succeeds.
+
+## Blocked
+
+- Dirty working tree on `main` (`fichero-swiftui/...` files modified) prevents safe autonomous issue execution.
+- GitHub CLI auth is currently invalid:
+  - `gh auth status` reports invalid token for account `dtubb`.
+  - Required unblock: run `gh auth login -h github.com` (or refresh token) before issue claim/status updates.
 
 ## Current 0.0.1 Outstanding (Open)
 
@@ -71,17 +71,19 @@ Release/QA gate issues still open:
 
 ## Next Session — Start Here
 
-1. Implement `#291` default workflow templates + reset.
-2. Complete `#288` Search simplification and wire toolbar search flow QA.
-3. Resolve `#263` build-phase reliability.
-4. Finalize `#278` Sparkle 0.0.1 release configuration.
-5. Drive `#238`, `#250`, and `#279` checklists to explicit pass/fail evidence.
+1. Manual QA pass in app for tonight’s fixes:
+   - icon-mode arrow/page selection behavior
+   - rich-text autosave reliability
+   - persisted ruler visibility state across reopen.
+2. If regressions appear, patch in-place and re-run `swiftlint` + `xcodebuild`.
+3. Restore GitHub CLI auth (`gh auth login -h github.com`) and re-verify `gh auth status`.
+4. Re-run `/session-start-auto` and select one unblocked `0.0.1` issue.
+5. Prioritize implementation order: `#291` -> `#288` -> `#263`.
 
 ## In Progress Now
 
-- 0.0.1 release gate hardening on `main`:
-  - complete remaining release-gate issues and capture pass/fail evidence on GitHub
-  - prioritize template workflows and simplified search scope for 0.0.1
+- 0.0.1 release hardening continues on keyboard navigation + rich-text editor persistence.
+- Workspace remains dirty with active SwiftUI changes; ready for next autonomous run continuation.
 
 ## Autonomous Session Notes (2026-03-11)
 
@@ -91,3 +93,15 @@ Release/QA gate issues still open:
 - Daniel approved transition to execution on 2026-03-11; `AGENTS.md` updated to execution mode and GitHub-first milestone workflow.
 - Follow-up `/session-start-auto` run on 2026-03-11 is blocked before task claim/execution: `gh` commands (`gh issue list`, `gh auth status`) hang with no output, so milestone task selection/claim cannot be completed safely.
 - Subsequent `/session-start-auto` run succeeded with GitHub access restored; selected unblocked issue `#220`, verified it was already implemented on `main`, and closed it as completed.
+
+## Autonomous Session Notes (2026-03-13)
+
+- Startup context loaded from `SOUL.md`, `MEMORY.md`, `STATE.md`, and `TASKS.md`.
+- `main` is not clean; modified SwiftUI files were already present at session start.
+- GitHub access is currently blocked by invalid `gh` token:
+  - `gh auth status` output: "The token ... is invalid."
+- No milestone implementation work was started in this run to avoid writing on top of unknown in-progress code.
+- Session completed in docs/handoff mode only, with explicit unblock conditions for the next hourly automation.
+- Re-check on `2026-03-13T19:02:33Z` confirms blockers are still active with no state change:
+  - dirty Swift source files still present on `main`
+  - `gh auth status` still fails for `dtubb`

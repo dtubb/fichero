@@ -1,7 +1,9 @@
-import Foundation
-import SwiftUI
-import OSLog
 import FicheroAPIClient
+import Foundation
+import OSLog
+import SwiftUI
+
+// swiftlint:disable file_length
 
 // Store for managing workflows with backend persistence
 @MainActor

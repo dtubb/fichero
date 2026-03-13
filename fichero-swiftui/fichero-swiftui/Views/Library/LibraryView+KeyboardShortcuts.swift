@@ -22,17 +22,23 @@ extension LibraryView {
                 handleTypeToSelect(keyPress.characters)
                 return .handled
             }
-            .onKeyPress(.upArrow) {
+            .onKeyPress(.upArrow, phases: .down) { _ in
                 handleArrowKey(direction: .upDir)
             }
-            .onKeyPress(.downArrow) {
+            .onKeyPress(.downArrow, phases: .down) { _ in
                 handleArrowKey(direction: .down)
             }
-            .onKeyPress(.leftArrow) {
+            .onKeyPress(.leftArrow, phases: .down) { _ in
                 handleArrowKey(direction: .left)
             }
-            .onKeyPress(.rightArrow) {
+            .onKeyPress(.rightArrow, phases: .down) { _ in
                 handleArrowKey(direction: .right)
+            }
+            .onKeyPress(.pageUp, phases: .down) { _ in
+                handleArrowKey(direction: .pageUp)
+            }
+            .onKeyPress(.pageDown, phases: .down) { _ in
+                handleArrowKey(direction: .pageDown)
             }
             .onMoveCommand { direction in
                 handleMoveCommand(direction)
@@ -121,7 +127,7 @@ extension LibraryView {
     // MARK: - Arrow Key Navigation
 
     enum ArrowDirection {
-        case upDir, down, left, right
+        case upDir, down, left, right, pageUp, pageDown
     }
 
     func handleMoveCommand(_ direction: MoveCommandDirection) {
@@ -174,7 +180,17 @@ extension LibraryView {
         case .down:   return displayMode == .icon ?  gridColumnCount :  1
         case .left:   return -1
         case .right:  return  1
+        case .pageUp: return -pageStepSize()
+        case .pageDown: return pageStepSize()
         }
+    }
+
+    private func pageStepSize() -> Int {
+        if displayMode == .icon {
+            // Approximate one visual page in icon grid navigation.
+            return max(gridColumnCount * 4, gridColumnCount)
+        }
+        return 10
     }
 
     private func applySelection(targetIndex: Int, docs: [Document]) {

@@ -19,9 +19,16 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
     }
 }
 
+@objc private protocol TextFormattingResponder {
+    func toggleBoldface(_ sender: Any?)
+    func toggleItalics(_ sender: Any?)
+    func underline(_ sender: Any?)
+}
+
 @main
 struct FicheroApp: App {
     private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "FicheroApp")
+    @AppStorage("editor.rulersVisible") private var rulersVisible = false
 
     // App delegate for lifecycle events
     @NSApplicationDelegateAdaptor(FicheroAppDelegate.self) private var appDelegate
@@ -189,6 +196,42 @@ struct FicheroApp: App {
 
                 FocusedDeleteButton()
                     .keyboardShortcut(.delete, modifiers: [.command])
+            }
+
+            CommandMenu("Format") {
+                Button("Show Fonts") {
+                    NSFontManager.shared.orderFrontFontPanel(nil)
+                }
+                .keyboardShortcut("t", modifiers: [.command])
+
+                Button("Show Colors") {
+                    NSColorPanel.shared.orderFront(nil)
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+
+                Divider()
+
+                Button("Bold") {
+                    NSApp.sendAction(#selector(TextFormattingResponder.toggleBoldface(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("b", modifiers: [.command])
+
+                Button("Italic") {
+                    NSApp.sendAction(#selector(TextFormattingResponder.toggleItalics(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("i", modifiers: [.command])
+
+                Button("Underline") {
+                    NSApp.sendAction(#selector(TextFormattingResponder.underline(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("u", modifiers: [.command])
+
+                Divider()
+
+                Button(rulersVisible ? "Hide Ruler" : "Show Ruler") {
+                    rulersVisible.toggle()
+                    NSApp.sendAction(#selector(NSTextView.toggleRuler(_:)), to: nil, from: nil)
+                }
             }
 
             // View menu items

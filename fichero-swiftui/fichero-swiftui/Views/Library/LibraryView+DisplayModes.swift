@@ -38,6 +38,30 @@ extension LibraryView {
                     .padding()
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
+                // In icon mode, ScrollView may consume arrow keys for scrolling first.
+                // Handle them at this level so keyboard selection always works.
+                .onKeyPress(.upArrow, phases: .down) { _ in
+                    handleArrowKey(direction: .upDir)
+                }
+                .onKeyPress(.downArrow, phases: .down) { _ in
+                    handleArrowKey(direction: .down)
+                }
+                .onKeyPress(.leftArrow, phases: .down) { _ in
+                    handleArrowKey(direction: .left)
+                }
+                .onKeyPress(.rightArrow, phases: .down) { _ in
+                    handleArrowKey(direction: .right)
+                }
+                .onKeyPress(.pageUp, phases: .down) { _ in
+                    handleArrowKey(direction: .pageUp)
+                }
+                .onKeyPress(.pageDown, phases: .down) { _ in
+                    handleArrowKey(direction: .pageDown)
+                }
+                .onMoveCommand { direction in
+                    handleMoveCommand(direction)
+                }
+                .focusable()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onChange(of: geometry.size.width) { _, newWidth in
                     let cellWidth = CGFloat(120 * iconViewScale) + 20

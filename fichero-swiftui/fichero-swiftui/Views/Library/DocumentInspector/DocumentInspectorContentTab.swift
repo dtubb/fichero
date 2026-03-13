@@ -6,6 +6,7 @@ struct DocumentInspectorContentTab: View {
     let document: Document
     @EnvironmentObject private var documentService: DocumentServiceGenerated
     @EnvironmentObject private var documentStore: DocumentStore
+    @AppStorage("editor.rulersVisible") private var rulersVisible = false
 
     @State private var draftAttributedText = NSAttributedString(string: "")
     @State private var originalPlainContent: String = ""
@@ -15,6 +16,7 @@ struct DocumentInspectorContentTab: View {
     @State private var isEditingText = false
     @State private var editorRevision = 0
     @State private var isSaving = false
+    @State private var autoSaveTask: Task<Void, Never>?
     @State private var saveError: String?
 
     private static let richTextMetadataKey = "page_content_rtf"
@@ -41,75 +43,46 @@ struct DocumentInspectorContentTab: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Text")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-
-                Spacer()
-
-                if !draftContent.isEmpty {
-                    Button(
-                        action: { copyToClipboard(draftContent) },
-                        label: {
-                            Image(systemName: "doc.on.doc")
-                        }
-                    )
-                    .buttonStyle(.plain)
-                    .help("Copy to clipboard")
-                }
-
-                if hasChanges {
-                    Button("Revert") {
+        ZStack(alignment: .topLeading) {
+            AttributedTextEditor(
+                text: $draftAttributedText,
+                isEditable: !isSaving,
+                rulersVisible: rulersVisible,
+                contentRevision: editorRevision,
+                onTextChanged: {
+                    scheduleAutoSave()
+                    saveError = nil
+                },
+                onEditingChanged: { isEditing in
+                    isEditingText = isEditing
+                    if !isEditing {
+                        scheduleAutoSave(immediate: true)
+                    }
+                    if !isEditing, pendingExternalSignature != nil, !hasChanges {
                         loadDraft(from: document)
                         saveError = nil
                     }
-                    .buttonStyle(.borderless)
-                    .disabled(isSaving)
-
-                    Button("Save") {
-                        saveContent()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isSaving)
                 }
-            }
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.textBackgroundColor))
 
-            ZStack(alignment: .topLeading) {
-                AttributedTextEditor(
-                    text: $draftAttributedText,
-                    isEditable: !isSaving,
-                    contentRevision: editorRevision,
-                    onEditingChanged: { isEditing in
-                        isEditingText = isEditing
-                        if !isEditing, pendingExternalSignature != nil, !hasChanges {
-                            loadDraft(from: document)
-                            saveError = nil
-                        }
-                    }
-                )
-                    .frame(minHeight: 220)
-                    .background(Color(.textBackgroundColor))
-                    .cornerRadius(6)
-
-                if draftContent.isEmpty {
-                    Text("Add notes or edit extracted text...")
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 14)
-                        .allowsHitTesting(false)
-                }
+            if draftContent.isEmpty {
+                Text("Add notes or edit extracted text...")
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 14)
+                    .allowsHitTesting(false)
             }
 
             if let saveError {
                 Text(saveError)
                     .font(.caption)
                     .foregroundStyle(.red)
-            } else if pendingExternalSignature != nil {
-                Text("Document changed in the background. Save or Revert to refresh.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .padding(8)
+                    .background(.regularMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .padding(8)
             } else if isSaving {
                 HStack(spacing: 6) {
                     ProgressView()
@@ -118,10 +91,19 @@ struct DocumentInspectorContentTab: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                .padding(8)
+                .background(.regularMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .padding(8)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             loadDraft(from: document)
+        }
+        .onDisappear {
+            autoSaveTask?.cancel()
+            autoSaveTask = nil
         }
         .onChange(of: documentSignature) { _, newSignature in
             guard newSignature != lastLoadedSignature else { return }
@@ -134,39 +116,41 @@ struct DocumentInspectorContentTab: View {
         }
     }
 
-    // MARK: - Clipboard
-
-    private func copyToClipboard(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-    }
-
     // MARK: - Persistence
 
-    private func saveContent() {
-        guard !isSaving else { return }
+    private func scheduleAutoSave(immediate: Bool = false) {
+        autoSaveTask?.cancel()
+        autoSaveTask = Task { @MainActor in
+            if !immediate {
+                try? await Task.sleep(nanoseconds: 600_000_000)
+            }
+            guard !Task.isCancelled else { return }
+            await saveContent()
+        }
+    }
+
+    private func saveContent() async {
+        guard !isSaving, hasChanges else { return }
         isSaving = true
         saveError = nil
 
         var metadataPayload = document.metadata.mapValues { convertToSendable($0.value) }
         metadataPayload[Self.richTextMetadataKey] = currentRTFBase64
 
-        Task { @MainActor in
-            do {
-                let updated = try await documentService.updateDocument(
-                    document.id,
-                    metadataPayload: metadataPayload,
-                    pageContent: draftContent
-                )
-                documentStore.updateLocal(updated)
-                documentStore.publish(.documentsUpdated(documentStore.currentDocuments))
-                loadDraft(from: updated)
-                pendingExternalSignature = nil
-            } catch {
-                saveError = "Failed to save text: \(error.localizedDescription)"
-            }
-            isSaving = false
+        do {
+            let updated = try await documentService.updateDocument(
+                document.id,
+                metadataPayload: metadataPayload,
+                pageContent: draftContent
+            )
+            documentStore.updateLocal(updated)
+            documentStore.publish(.documentsUpdated(documentStore.currentDocuments))
+            loadDraft(from: updated)
+            pendingExternalSignature = nil
+        } catch {
+            saveError = "Failed to save text: \(error.localizedDescription)"
         }
+        isSaving = false
     }
 
     private func loadDraft(from doc: Document) {
@@ -262,13 +246,17 @@ struct DocumentInspectorContentTab: View {
 private struct AttributedTextEditor: NSViewRepresentable {
     @Binding var text: NSAttributedString
     let isEditable: Bool
+    let rulersVisible: Bool
     let contentRevision: Int
+    let onTextChanged: () -> Void
     let onEditingChanged: (Bool) -> Void
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
+        scrollView.hasHorizontalRuler = true
+        scrollView.rulersVisible = rulersVisible
         scrollView.borderType = .noBorder
         scrollView.drawsBackground = true
         scrollView.backgroundColor = .textBackgroundColor
@@ -277,6 +265,8 @@ private struct AttributedTextEditor: NSViewRepresentable {
         textView.isEditable = isEditable
         textView.isSelectable = true
         textView.isRichText = true
+        textView.usesRuler = true
+        textView.usesFontPanel = true
         textView.importsGraphics = false
         textView.allowsUndo = true
         textView.isAutomaticTextCompletionEnabled = true
@@ -303,6 +293,7 @@ private struct AttributedTextEditor: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = context.coordinator.textView else { return }
         textView.isEditable = isEditable
+        scrollView.rulersVisible = rulersVisible
 
         // Only push model text into AppKit view on explicit revision changes.
         // This avoids clobbering active edits and selection.
@@ -325,10 +316,16 @@ private struct AttributedTextEditor: NSViewRepresentable {
         weak var textView: NSTextView?
         var isApplyingModelUpdate = false
         var lastAppliedRevision = 0
+        let onTextChanged: () -> Void
         let onEditingChanged: (Bool) -> Void
 
-        init(text: Binding<NSAttributedString>, onEditingChanged: @escaping (Bool) -> Void) {
+        init(
+            text: Binding<NSAttributedString>,
+            onTextChanged: @escaping () -> Void,
+            onEditingChanged: @escaping (Bool) -> Void
+        ) {
             _text = text
+            self.onTextChanged = onTextChanged
             self.onEditingChanged = onEditingChanged
         }
 
@@ -336,6 +333,7 @@ private struct AttributedTextEditor: NSViewRepresentable {
             guard let textView else { return }
             guard !isApplyingModelUpdate else { return }
             text = textView.attributedString()
+            onTextChanged()
         }
 
         func textDidBeginEditing(_ notification: Notification) {
@@ -348,6 +346,10 @@ private struct AttributedTextEditor: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, onEditingChanged: onEditingChanged)
+        Coordinator(
+            text: $text,
+            onTextChanged: onTextChanged,
+            onEditingChanged: onEditingChanged
+        )
     }
 }

@@ -167,6 +167,11 @@ struct ContentView: View {
             cyclePaneFocus(reverse: keyPress.modifiers.contains(.shift))
             return .handled
         }
+        .onKeyPress(characters: CharacterSet(charactersIn: "\u{19}"), phases: .down) { _ in
+            // Shift+Tab can arrive as back-tab (U+0019) rather than Tab+Shift.
+            cyclePaneFocus(reverse: true)
+            return .handled
+        }
         .alert(item: $errorService.currentAlert) { errorModel in
             let message = errorModel.recoverySuggestion != nil ?
                 "\(errorModel.message)\n\n\(errorModel.recoverySuggestion!)" :
@@ -210,6 +215,9 @@ struct ContentView: View {
         .onAppear {
             // Restore all persisted state from @SceneStorage
             restorePersistedState()
+            if focusedPane == nil {
+                focusedPane = .content
+            }
             inspectorWidth = min(
                 max(inspectorWidth, ContentView.inspectorMinWidth),
                 ContentView.inspectorMaxWidth
