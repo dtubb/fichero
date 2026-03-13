@@ -1,6 +1,6 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-13 (session end, automation @ 21:05Z)
+Last updated: 2026-03-13 (session end, automation @ 22:03Z)
 
 ## Current Branch
 
@@ -24,6 +24,17 @@ Milestone `0.0.1` due date:
 
 ## Completed This Session
 
+- Ran another `/session-start-auto` pass focused on validation + handoff continuity for existing `#310/#311` branch work.
+- Re-verified runtime blockers in this sandbox:
+  - `gh auth status` still fails due to invalid token.
+  - `git fetch --all --prune` fails due to network DNS resolution (`github.com` unreachable).
+  - Python virtualenv is absent (`.venv/bin/python`, `.venv/bin/ruff`, `.venv/bin/pytest` not found).
+- Local validation executed:
+  - `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations.
+  - `swiftlint` run against `StorageServiceGenerated.swift` reports pre-existing import-order warnings only (generated file; not edited).
+- Performed session-end continuity updates:
+  - updated `memory/2026-03-13.md` with this run evidence
+  - refreshed `memory/handoff-2026-03-13.md` for the next hourly automation
 - `/session-start-auto` executed one additional 0.0.1 bugfix task for issue `#311` (workflow APIs returning 404 in debug startup path).
 - Implemented SwiftUI backend startup hardening in `fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift`:
   - In `DEBUG`, external backend is now probed for workflow route availability (`GET /api/workflows`).
@@ -135,3 +146,7 @@ Release/QA gate issues still open:
 - Re-check on `2026-03-13T19:02:33Z` confirms blockers are still active with no state change:
   - dirty Swift source files still present on `main`
   - `gh auth status` still fails for `dtubb`
+- Follow-up check on `2026-03-13T22:03:00Z` confirms branch `feature/issue-310` remains clean and local commits for `#310/#311` are intact; remote operations remain blocked in sandbox:
+  - `gh auth status` invalid token for `dtubb`
+  - `git fetch` cannot resolve `github.com`
+  - `.venv` missing, so backend lint/tests cannot run
