@@ -2,6 +2,8 @@
 
 Purpose: provide a single checklist for Daniel's manual QA runs and Codex follow-up triage.
 
+For release-gate execution on milestone `0.0.1`, use [0.0.1-manual-qa-checklist.md](./0.0.1-manual-qa-checklist.md).
+
 ## Reporting Format
 - Prefix every result with `[DANIEL]` or `[CODEX]` in issue comments.
 - For each failed step include:
