@@ -241,6 +241,26 @@ class TestThumbnailGeneration:
         finally:
             storage.settings = original_settings
 
+
+class TestStorageRouteHeaders:
+    """Tests for storage route response headers."""
+
+    def test_inline_content_disposition_ascii_filename(self):
+        """ASCII filenames should preserve readable fallback and encoded variant."""
+        from fichero.api.routes.storage import _inline_content_disposition
+
+        header = _inline_content_disposition("report.pdf")
+        assert 'filename="report.pdf"' in header
+        assert "filename*=UTF-8''report.pdf" in header
+
+    def test_inline_content_disposition_unicode_filename(self):
+        """Unicode filenames should not crash header generation."""
+        from fichero.api.routes.storage import _inline_content_disposition
+
+        header = _inline_content_disposition("résumé-日本語.pdf")
+        assert 'filename="r?sum?-???.pdf"' in header
+        assert "filename*=UTF-8''r%C3%A9sum%C3%A9-%E6%97%A5%E6%9C%AC%E8%AA%9E.pdf" in header
+
     @pytest.mark.skipif(
         not Path("/System").exists(),
         reason="Requires Pillow"
