@@ -82,3 +82,12 @@ Release/QA gate issues still open:
 - 0.0.1 release gate hardening on `main`:
   - complete remaining release-gate issues and capture pass/fail evidence on GitHub
   - prioritize template workflows and simplified search scope for 0.0.1
+
+## Autonomous Session Notes (2026-03-11)
+
+- `/session-start-auto` selected candidate task `#114` (lowest-numbered open issue in milestone `0.0.1 - Core Library`).
+- Session blocked before execution due to repository instruction gate in `AGENTS.md`: "Current Phase: Planning (Phase 0)" and "No coding until Daniel approves the plan."
+- No source code changes made. Await explicit Daniel approval to transition from Phase 0 to implementation work.
+- Daniel approved transition to execution on 2026-03-11; `AGENTS.md` updated to execution mode and GitHub-first milestone workflow.
+- Follow-up `/session-start-auto` run on 2026-03-11 is blocked before task claim/execution: `gh` commands (`gh issue list`, `gh auth status`) hang with no output, so milestone task selection/claim cannot be completed safely.
+- Subsequent `/session-start-auto` run succeeded with GitHub access restored; selected unblocked issue `#220`, verified it was already implemented on `main`, and closed it as completed.
