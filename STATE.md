@@ -1,6 +1,6 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-13 (session end, automation)
+Last updated: 2026-03-13 (session end, automation @ 21:05Z)
 
 ## Current Branch
 
@@ -24,6 +24,18 @@ Milestone `0.0.1` due date:
 
 ## Completed This Session
 
+- `/session-start-auto` executed one additional 0.0.1 bugfix task for issue `#311` (workflow APIs returning 404 in debug startup path).
+- Implemented SwiftUI backend startup hardening in `fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift`:
+  - In `DEBUG`, external backend is now probed for workflow route availability (`GET /api/workflows`).
+  - If the external backend returns `404` (missing workflow routes), app falls back to launching the embedded backend.
+  - Embedded backend launch now defaults `FICHERO_FEATURE_TIER=dev` in `DEBUG` when unset.
+- Committed fix on branch `feature/issue-310`:
+  - `15ba76c2` — `fix: avoid workflow API 404 in debug backend startup (#311)`
+- Validation completed for touched file:
+  - `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations.
+- Validation blocked in this sandbox:
+  - `.venv/bin/ruff` and `.venv/bin/pytest` are missing.
+  - `xcodebuild` fails with sandbox-denied access to Xcode/SwiftPM cache/log paths.
 - `/session-start-auto` selected and executed issue `#310` (Unicode filename crash in `/api/storage/source`).
 - Implemented RFC 5987-safe `Content-Disposition` header generation in backend storage route:
   - Added ASCII fallback `filename="..."` plus UTF-8 `filename*=` parameter.
@@ -59,12 +71,13 @@ Milestone `0.0.1` due date:
 ## Blocked
 
 - No implementation blockers on #310.
+- No implementation blockers on #311; fix is local and awaiting full validation + PR.
 - Infrastructure/tooling blockers in this sandbox:
   - Python env unavailable for project checks (`.venv/bin/ruff` and `.venv/bin/pytest` missing; no `ruff`/`pytest` on PATH).
   - `xcodebuild` cannot access required cache/log paths in sandbox, so full Swift build verification is blocked here.
 - Product blockers remain in open issues:
-  - `#311` workflow endpoints returning 404 / save-load UX broken
   - `#310` storage source-file response crashes on Unicode filenames (fixed locally on `feature/issue-310`, needs PR/merge)
+  - `#311` workflow API 404/save-load visibility failure (fix committed locally, needs validation + PR/merge)
 
 ## Current 0.0.1 Outstanding (Open)
 
@@ -92,13 +105,15 @@ Release/QA gate issues still open:
    - `PYTHONPATH=fichero-api/src .venv/bin/ruff check fichero-api/src/`
    - `PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_storage.py`
 2. Run `xcodebuild` in unrestricted environment to confirm no frontend regressions.
-3. Open PR for `feature/issue-310` and update issue `#310` with fix + validation notes.
-4. Continue with issue `#311` (workflow API 404 / save-load visibility).
+3. Validate debug startup behavior for `#311`:
+   - with external backend lacking workflows (`/api/workflows` -> `404`), app should fallback to embedded backend
+   - confirm workflows can be created/loaded after fallback
+4. Open/update PR for `feature/issue-310` covering commits for `#310` and `#311`, then update both issues with validation evidence.
 
 ## In Progress Now
 
 - 0.0.1 release hardening: workflow reliability and storage filename handling.
-- Workspace is clean and ready for next autonomous run.
+- Branch now contains local fixes for both `#310` and `#311`; awaiting full environment validation and PR update.
 
 ## Autonomous Session Notes (2026-03-11)
 
