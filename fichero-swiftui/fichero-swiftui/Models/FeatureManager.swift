@@ -8,6 +8,8 @@ class FeatureManager: ObservableObject {
     static let shared = FeatureManager()
     private static let releaseProfileVersion = 18
     private static let workflowV001EnabledTools = "files,collection,transcribe"
+    private static let isDevFeatureTier =
+        ProcessInfo.processInfo.environment["FICHERO_FEATURE_TIER"]?.lowercased() == "dev"
 
     /// Global toggle to override all flags for internal development.
     /// In a production release, this would be hardcoded to false.
@@ -132,6 +134,9 @@ class FeatureManager: ObservableObject {
         )
     }
     var isProvidersExtendedEnabled: Bool { allFeaturesEnabled || providersExtendedEnabledInternal }
+    var isProvidersEnabled: Bool {
+        allFeaturesEnabled || providersExtendedEnabledInternal || Self.isDevFeatureTier
+    }
     var isWorkflowImportExportEnabled: Bool { allFeaturesEnabled || workflowImportExportEnabledInternal }
     var isWorkflowLangGraphPreviewEnabled: Bool {
         allFeaturesEnabled || workflowLangGraphPreviewEnabledInternal
