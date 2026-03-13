@@ -1,10 +1,10 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-13 (session end)
+Last updated: 2026-03-13 (session end, automation)
 
 ## Current Branch
 
-`main` (clean; synced to `origin/main`)
+`feature/issue-310` (1 commit ahead locally)
 
 ## Source of Truth
 
@@ -24,6 +24,13 @@ Milestone `0.0.1` due date:
 
 ## Completed This Session
 
+- `/session-start-auto` selected and executed issue `#310` (Unicode filename crash in `/api/storage/source`).
+- Implemented RFC 5987-safe `Content-Disposition` header generation in backend storage route:
+  - Added ASCII fallback `filename="..."` plus UTF-8 `filename*=` parameter.
+  - Prevents header encoding crashes on non-ASCII filenames while preserving extension hints for Quick Look.
+- Added backend unit coverage for header generation in `fichero-api/tests/unit/test_storage.py`.
+- Committed fix on branch `feature/issue-310`:
+  - `40ee2a1c` — `fix: handle unicode source filename header (#310)`
 - Autonomous `/session-start-auto` startup checks executed.
 - Confirmed hard blockers before milestone task execution:
   - Git working tree on `main` is dirty with pre-existing source edits.
@@ -51,10 +58,13 @@ Milestone `0.0.1` due date:
 
 ## Blocked
 
-- No infrastructure blockers.
+- No implementation blockers on #310.
+- Infrastructure/tooling blockers in this sandbox:
+  - Python env unavailable for project checks (`.venv/bin/ruff` and `.venv/bin/pytest` missing; no `ruff`/`pytest` on PATH).
+  - `xcodebuild` cannot access required cache/log paths in sandbox, so full Swift build verification is blocked here.
 - Product blockers remain in open issues:
   - `#311` workflow endpoints returning 404 / save-load UX broken
-  - `#310` storage source-file response crashes on Unicode filenames
+  - `#310` storage source-file response crashes on Unicode filenames (fixed locally on `feature/issue-310`, needs PR/merge)
 
 ## Current 0.0.1 Outstanding (Open)
 
@@ -78,10 +88,12 @@ Release/QA gate issues still open:
 
 ## Next Session — Start Here
 
-1. Reproduce and triage `#311` from logs (`/api/workflows/tools/grouped` and `POST /api/workflows` 404).
-2. Reproduce and fix `#310` (`Content-Disposition` Unicode filename crash in `storage.py`).
-3. After fixes, run `swiftlint`, `xcodebuild`, and backend tests for touched routes.
-4. Update GitHub issues with verification notes and close only after manual UI confirmation.
+1. Run backend checks in a full local dev env (outside this sandbox):
+   - `PYTHONPATH=fichero-api/src .venv/bin/ruff check fichero-api/src/`
+   - `PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_storage.py`
+2. Run `xcodebuild` in unrestricted environment to confirm no frontend regressions.
+3. Open PR for `feature/issue-310` and update issue `#310` with fix + validation notes.
+4. Continue with issue `#311` (workflow API 404 / save-load visibility).
 
 ## In Progress Now
 
