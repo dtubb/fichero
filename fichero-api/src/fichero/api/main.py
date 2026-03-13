@@ -23,6 +23,7 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 import logging
 from contextlib import asynccontextmanager
+from typing import Sequence
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -205,45 +206,52 @@ from fichero.api.routes import (  # noqa: E402
     search,
     ingest,
     storage,
-    chat,
     providers,
-    workflows,
-    workflow_execution,
     models,
     folders,
-    mcp_servers,
-    batch,
-    activity,
-    schedules,
-    triggers,
-    integrations,
-    actions,
-    model_comparison,
-    chains,
     artifacts,
-    settings,
-    local_models,
 )
 
-app.include_router(documents.router, prefix="/api/documents", tags=["documents"])
-app.include_router(search.router, prefix="/api/search", tags=["search"])
-app.include_router(ingest.router, prefix="/api/ingest", tags=["ingest"])
-app.include_router(storage.router, prefix="/api/storage", tags=["storage"])
-app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
-app.include_router(providers.router, prefix="/api/providers", tags=["providers"])
-app.include_router(workflows.router, prefix="/api/workflows", tags=["workflows"])
-app.include_router(workflow_execution.router, prefix="/api/workflow-execution", tags=["workflow-execution"])
-app.include_router(models.router, prefix="/api/models", tags=["models"])
-app.include_router(folders.router, prefix="/api/folders", tags=["folders"])
-app.include_router(mcp_servers.router, prefix="/api", tags=["mcp-servers"])
-app.include_router(batch.router, prefix="/api", tags=["batches"])
-app.include_router(activity.router, prefix="/api", tags=["activity"])
-app.include_router(schedules.router, prefix="/api", tags=["schedules"])
-app.include_router(triggers.router, prefix="/api", tags=["triggers"])
-app.include_router(integrations.router, prefix="/api", tags=["integrations"])
-app.include_router(actions.router, prefix="/api", tags=["actions"])
-app.include_router(model_comparison.router, prefix="/api", tags=["model-comparison"])
-app.include_router(chains.router, prefix="/api", tags=["chains"])
-app.include_router(artifacts.router, prefix="/api/artifacts", tags=["artifacts"])
-app.include_router(settings.router, tags=["settings"])
-app.include_router(local_models.router, prefix="/api", tags=["local-models"])
+RouteSpec = tuple[object, str, list[str]]
+
+_CORE_ROUTE_SPECS: list[RouteSpec] = [
+    (documents.router, "/api/documents", ["documents"]),
+    (search.router, "/api/search", ["search"]),
+    (ingest.router, "/api/ingest", ["ingest"]),
+    (storage.router, "/api/storage", ["storage"]),
+    (folders.router, "/api/folders", ["folders"]),
+    (artifacts.router, "/api/artifacts", ["artifacts"]),
+]
+
+_DEV_ROUTE_SPECS: list[RouteSpec] = [
+    (providers.router, "/api/providers", ["providers"]),
+    (models.router, "/api/models", ["models"]),
+]
+
+
+def resolve_feature_tier() -> str:
+    """Resolve active API feature tier from env with release-safe default."""
+    tier = os.environ.get("FICHERO_FEATURE_TIER", "release").strip().lower()
+    if tier not in {"release", "dev"}:
+        logger.warning("Unknown FICHERO_FEATURE_TIER=%s, defaulting to release", tier)
+        return "release"
+    return tier
+
+
+def get_route_specs_for_tier(feature_tier: str) -> Sequence[RouteSpec]:
+    """Return routers enabled for the given feature tier."""
+    if feature_tier == "dev":
+        return [*_CORE_ROUTE_SPECS, *_DEV_ROUTE_SPECS]
+    return _CORE_ROUTE_SPECS
+
+
+def register_tiered_routes(feature_tier: str | None = None) -> str:
+    """Register API routers for the selected feature tier."""
+    tier = feature_tier or resolve_feature_tier()
+    for router, prefix, tags in get_route_specs_for_tier(tier):
+        app.include_router(router, prefix=prefix, tags=tags)
+    logger.info("Registered API routes for tier: %s", tier)
+    return tier
+
+
+ACTIVE_FEATURE_TIER = register_tiered_routes()
