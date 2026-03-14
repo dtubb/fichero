@@ -1,6 +1,6 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-14 (session end, automation @ 05:03Z)
+Last updated: 2026-03-14 (session end, automation @ 06:02Z)
 
 ## Current Branch
 
@@ -24,6 +24,15 @@ Milestone `0.0.1` due date:
 
 ## Completed This Session
 
+- Ran `/session-start-auto` gate checks (`BLOCK.md`, branch state, core context files) on `feature/issue-310`.
+- Re-verified environment blockers and captured fresh evidence at `2026-03-14T06:02:15Z`:
+  - `gh auth status` still reports invalid token for `dtubb`.
+  - `git fetch --all --prune` still fails (`Could not resolve host: github.com`).
+  - `.venv/bin/python`, `.venv/bin/ruff`, and `.venv/bin/pytest` are still missing.
+- Executed session-end/handoff continuity updates for the next hourly automation:
+  - refreshed `memory/2026-03-14.md`
+  - refreshed `memory/handoff-2026-03-14.md`
+  - refreshed this `STATE.md` with updated start-point instructions
 - Ran `/session-start-auto` context/load checks and milestone query from `STATE.md` handoff point.
 - Corrected stale repository guidance in `.claude/agent-briefing.md`:
   - switched phase text from "Phase 0: Planning" to execution mode
@@ -134,20 +143,17 @@ Release/QA gate issues still open:
 
 ## Next Session — Start Here
 
-1. Open handoff note first: `memory/handoff-2026-03-14.md`.
-2. Use updated orientation file: `.claude/agent-briefing.md` (now aligned to execution phase).
-3. Restore remote/auth access:
+1. Open [`memory/handoff-2026-03-14.md`](memory/handoff-2026-03-14.md) first.
+2. Restore remote/auth gates in order:
    - `gh auth login -h github.com`
    - `gh auth status`
    - `git fetch --all --prune`
-4. Run backend checks in a full local dev env (outside this sandbox):
+3. In a full local dev environment, run required validation:
    - `PYTHONPATH=fichero-api/src .venv/bin/ruff check fichero-api/src/`
    - `PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_storage.py`
-5. Run `xcodebuild` in unrestricted environment to confirm no frontend regressions.
-6. Validate debug startup behavior for `#311`:
-   - with external backend lacking workflows (`/api/workflows` -> `404`), app should fallback to embedded backend
-   - confirm workflows can be created/loaded after fallback
-7. Open/update PR for `feature/issue-310` covering commits for `#310` and `#311`, then update both issues with validation evidence.
+   - `xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero -configuration Debug -sdk macosx build`
+4. Validate `#311` fallback behavior (`/api/workflows` 404 on external backend should trigger embedded backend startup).
+5. Open/update PR from `feature/issue-310` (commits for `#310` and `#311`) and post validation evidence to both issues.
 
 ## In Progress Now
 
