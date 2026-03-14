@@ -1,6 +1,6 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-13 (session end, automation @ 23:01Z)
+Last updated: 2026-03-14 (session end, automation @ 04:03Z)
 
 ## Current Branch
 
@@ -24,6 +24,18 @@ Milestone `0.0.1` due date:
 
 ## Completed This Session
 
+- Ran `/session-start-auto` startup checks again on `feature/issue-310` and confirmed branch remains clean with local `#310/#311` fixes intact.
+- Re-verified remote/tooling blockers in this sandbox:
+  - `gh auth status` still reports invalid token for `dtubb`.
+  - `git fetch --all --prune` still fails (`Could not resolve host: github.com`).
+  - `.venv/bin/python`, `.venv/bin/ruff`, and `.venv/bin/pytest` are still missing.
+- Local validation executed:
+  - `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations.
+  - `xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero -configuration Debug -sdk macosx build` remains sandbox-blocked (cache/log/module write permission denied).
+- Performed session-end continuity updates:
+  - created `memory/2026-03-14.md`
+  - created `memory/handoff-2026-03-14.md`
+  - refreshed this `STATE.md` for next-hour pickup
 - Ran another `/session-start-auto` pass focused on validation + handoff continuity for existing `#310/#311` branch work.
 - Re-verified runtime blockers in this sandbox:
   - `gh auth status` still fails due to invalid token.
@@ -112,7 +124,7 @@ Release/QA gate issues still open:
 
 ## Next Session — Start Here
 
-1. Open handoff note first: `memory/handoff-2026-03-13.md`.
+1. Open handoff note first: `memory/handoff-2026-03-14.md`.
 2. Restore remote/auth access:
    - `gh auth login -h github.com`
    - `gh auth status`
@@ -177,3 +189,15 @@ Release/QA gate issues still open:
   - `.venv` still missing (`.venv/bin/python`, `.venv/bin/ruff`, `.venv/bin/pytest` absent; no `ruff`/`pytest` on PATH)
   - local validation still available: `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations
   - `xcodebuild` remains blocked by sandbox-denied access to Xcode/SwiftPM cache and log paths
+- Follow-up check on `2026-03-14T03:01:55Z` confirms blockers remain unchanged for the next hourly automation:
+  - `gh auth status` still reports invalid token for `dtubb`
+  - `git fetch --all --prune` still fails (`Could not resolve host: github.com`)
+  - `.venv` still missing (`.venv/bin/python`, `.venv/bin/ruff`, `.venv/bin/pytest` absent)
+  - local validation still available: `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations
+  - `xcodebuild` remains blocked by sandbox-denied access to cache/log/module paths outside writable roots
+- Follow-up check on `2026-03-14T04:02:51Z` confirms branch task status is unchanged (`#310/#311` fixes still local) and validation blockers remain:
+  - `gh issue list` reads public issues, but authenticated commands are still blocked by invalid token in `gh auth status`
+  - `git fetch --all --prune` still fails (`Could not resolve host: github.com`)
+  - repo `.venv` is absent; `python3 -m pytest` fails (`No module named pytest`)
+  - local validation still available: `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations
+  - `xcodebuild` remains blocked by sandbox-denied writes to cache/log/module paths
