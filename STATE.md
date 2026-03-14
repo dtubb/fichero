@@ -1,6 +1,6 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-13 (session end, automation @ 22:03Z)
+Last updated: 2026-03-13 (session end, automation @ 23:01Z)
 
 ## Current Branch
 
@@ -112,14 +112,19 @@ Release/QA gate issues still open:
 
 ## Next Session — Start Here
 
-1. Run backend checks in a full local dev env (outside this sandbox):
+1. Open handoff note first: `memory/handoff-2026-03-13.md`.
+2. Restore remote/auth access:
+   - `gh auth login -h github.com`
+   - `gh auth status`
+   - `git fetch --all --prune`
+3. Run backend checks in a full local dev env (outside this sandbox):
    - `PYTHONPATH=fichero-api/src .venv/bin/ruff check fichero-api/src/`
    - `PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_storage.py`
-2. Run `xcodebuild` in unrestricted environment to confirm no frontend regressions.
-3. Validate debug startup behavior for `#311`:
+4. Run `xcodebuild` in unrestricted environment to confirm no frontend regressions.
+5. Validate debug startup behavior for `#311`:
    - with external backend lacking workflows (`/api/workflows` -> `404`), app should fallback to embedded backend
    - confirm workflows can be created/loaded after fallback
-4. Open/update PR for `feature/issue-310` covering commits for `#310` and `#311`, then update both issues with validation evidence.
+6. Open/update PR for `feature/issue-310` covering commits for `#310` and `#311`, then update both issues with validation evidence.
 
 ## In Progress Now
 
@@ -155,3 +160,20 @@ Release/QA gate issues still open:
   - `git fetch --all --prune` still fails (`Could not resolve host: github.com`)
   - `.venv` still missing (`ruff`/`pytest` unavailable)
   - local validation still available: `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations
+- Follow-up check on `2026-03-14T00:02:51Z` confirms blockers remain unchanged for hourly automation handoff:
+  - `gh auth status` still reports invalid token for `dtubb`
+  - `git fetch --all --prune` still fails (`Could not resolve host: github.com`)
+  - `.venv` still missing (`.venv/bin/python`, `.venv/bin/ruff`, `.venv/bin/pytest` absent)
+  - local validation still available: `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations
+- Follow-up check on `2026-03-13T22:01:51Z` confirms blockers are still unchanged in this sandbox:
+  - `gh auth status` still reports invalid token for `dtubb`
+  - `git fetch --all --prune` still fails (`Could not resolve host: github.com`)
+  - `.venv` still missing (`.venv/bin/python`, `.venv/bin/ruff`, `.venv/bin/pytest` absent; no `ruff`/`pytest` on PATH)
+  - local validation still available: `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations
+  - `xcodebuild` still blocked by sandbox-denied access to Xcode/SwiftPM cache and log paths
+- Follow-up check on `2026-03-13T23:01:42Z` confirms blockers remain unchanged for next-hour handoff:
+  - `gh auth status` still reports invalid token for `dtubb`
+  - `git fetch --all --prune` still fails (`Could not resolve host: github.com`)
+  - `.venv` still missing (`.venv/bin/python`, `.venv/bin/ruff`, `.venv/bin/pytest` absent; no `ruff`/`pytest` on PATH)
+  - local validation still available: `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations
+  - `xcodebuild` remains blocked by sandbox-denied access to Xcode/SwiftPM cache and log paths
