@@ -1,10 +1,10 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-14 (session end, automation @ 06:02Z)
+Last updated: 2026-03-15 (session end, automation @ 13:43Z)
 
 ## Current Branch
 
-`feature/issue-310` (1 commit ahead locally)
+`main` (clean)
 
 ## Source of Truth
 
@@ -24,102 +24,15 @@ Milestone `0.0.1` due date:
 
 ## Completed This Session
 
-- Ran `/session-start-auto` gate checks (`BLOCK.md`, branch state, core context files) on `feature/issue-310`.
-- Re-verified environment blockers and captured fresh evidence at `2026-03-14T06:02:15Z`:
-  - `gh auth status` still reports invalid token for `dtubb`.
-  - `git fetch --all --prune` still fails (`Could not resolve host: github.com`).
-  - `.venv/bin/python`, `.venv/bin/ruff`, and `.venv/bin/pytest` are still missing.
-- Executed session-end/handoff continuity updates for the next hourly automation:
-  - refreshed `memory/2026-03-14.md`
-  - refreshed `memory/handoff-2026-03-14.md`
-  - refreshed this `STATE.md` with updated start-point instructions
-- Ran `/session-start-auto` context/load checks and milestone query from `STATE.md` handoff point.
-- Corrected stale repository guidance in `.claude/agent-briefing.md`:
-  - switched phase text from "Phase 0: Planning" to execution mode
-  - added explicit `AGENTS.md` pointer for current execution rules
-  - updated hard rule #4 to GitHub-first scope/status tracking
-- Re-verified remote/tooling blockers in this sandbox:
-  - `gh auth status` still reports invalid token for `dtubb`.
-  - `git fetch --all --prune` still fails (`Could not resolve host: github.com`).
-  - `.venv/bin/python`, `.venv/bin/ruff`, and `.venv/bin/pytest` are still missing.
-- Milestone queue visibility check (`gh issue list`) remains readable without auth; open 0.0.1 items still include `#114`, `#115`, `#116`, `#117`, `#279`, `#310`, `#311`.
-- Ran `/session-start-auto` startup checks again on `feature/issue-310` and confirmed branch remains clean with local `#310/#311` fixes intact.
-- Re-verified remote/tooling blockers in this sandbox:
-  - `gh auth status` still reports invalid token for `dtubb`.
-  - `git fetch --all --prune` still fails (`Could not resolve host: github.com`).
-  - `.venv/bin/python`, `.venv/bin/ruff`, and `.venv/bin/pytest` are still missing.
-- Local validation executed:
-  - `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations.
-  - `xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero -configuration Debug -sdk macosx build` remains sandbox-blocked (cache/log/module write permission denied).
-- Performed session-end continuity updates:
-  - created `memory/2026-03-14.md`
-  - created `memory/handoff-2026-03-14.md`
-  - refreshed this `STATE.md` for next-hour pickup
-- Ran another `/session-start-auto` pass focused on validation + handoff continuity for existing `#310/#311` branch work.
-- Re-verified runtime blockers in this sandbox:
-  - `gh auth status` still fails due to invalid token.
-  - `git fetch --all --prune` fails due to network DNS resolution (`github.com` unreachable).
-  - Python virtualenv is absent (`.venv/bin/python`, `.venv/bin/ruff`, `.venv/bin/pytest` not found).
-- Local validation executed:
-  - `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations.
-  - `swiftlint` run against `StorageServiceGenerated.swift` reports pre-existing import-order warnings only (generated file; not edited).
-- Performed session-end continuity updates:
-  - updated `memory/2026-03-13.md` with this run evidence
-  - refreshed `memory/handoff-2026-03-13.md` for the next hourly automation
-- `/session-start-auto` executed one additional 0.0.1 bugfix task for issue `#311` (workflow APIs returning 404 in debug startup path).
-- Implemented SwiftUI backend startup hardening in `fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift`:
-  - In `DEBUG`, external backend is now probed for workflow route availability (`GET /api/workflows`).
-  - If the external backend returns `404` (missing workflow routes), app falls back to launching the embedded backend.
-  - Embedded backend launch now defaults `FICHERO_FEATURE_TIER=dev` in `DEBUG` when unset.
-- Committed fix on branch `feature/issue-310`:
-  - `15ba76c2` — `fix: avoid workflow API 404 in debug backend startup (#311)`
-- Validation completed for touched file:
-  - `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations.
-- Validation blocked in this sandbox:
-  - `.venv/bin/ruff` and `.venv/bin/pytest` are missing.
-  - `xcodebuild` fails with sandbox-denied access to Xcode/SwiftPM cache/log paths.
-- `/session-start-auto` selected and executed issue `#310` (Unicode filename crash in `/api/storage/source`).
-- Implemented RFC 5987-safe `Content-Disposition` header generation in backend storage route:
-  - Added ASCII fallback `filename="..."` plus UTF-8 `filename*=` parameter.
-  - Prevents header encoding crashes on non-ASCII filenames while preserving extension hints for Quick Look.
-- Added backend unit coverage for header generation in `fichero-api/tests/unit/test_storage.py`.
-- Committed fix on branch `feature/issue-310`:
-  - `40ee2a1c` — `fix: handle unicode source filename header (#310)`
-- Autonomous `/session-start-auto` startup checks executed.
-- Confirmed hard blockers before milestone task execution:
-  - Git working tree on `main` is dirty with pre-existing source edits.
-  - `gh auth status` fails due to invalid token, so GitHub issue claim/progress sync is blocked.
-- Performed docs/handoff-only updates for safe continuity:
-  - Updated this `STATE.md` with concrete blocker conditions.
-  - Added `memory/2026-03-13.md` session log.
-  - Added `memory/handoff-2026-03-13.md` next-run handoff.
-  - Refreshed blockers after re-check at `2026-03-13T19:02:33Z`.
-- Implemented and verified SwiftUI/editor stability fixes requested by Daniel:
-  - Fixed rich-text autosave decode failures by using a lenient date transcoder in `FicheroClient`.
-  - Hardened icon-mode keyboard navigation (`up/down/left/right/page up/page down`) with key-down handling plus move-command fallback.
-  - Persisted rich-text ruler visibility via `@AppStorage("editor.rulersVisible")` and wired Format menu toggle label/state.
-  - Added default content-pane focus on `ContentView` appear to improve immediate keyboard navigation reliability.
-- Validation completed:
-  - `swiftlint` passes on touched files.
-  - `xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero -configuration Debug -sdk macosx build` succeeds.
-- GitHub tracking cleanup:
-  - Added issue `#310` (storage Unicode filename header crash).
-  - Added issue `#311` (workflow API 404/save-load visibility failure).
-  - Assigned both to milestone `0.0.1 - Core Library`.
-- Repo hygiene checks:
-  - No uncommitted source changes left after sync.
-  - `main` pushed and up to date.
+- Verified recovery from sandbox blockers (network, gh auth, .venv).
+- Merged PR #312 into `main`.
+- Closed issues #310 (Unicode filenames) and #311 (Workflow API 404).
+- Rebuilt `.venv` and verified with 28 passing backend tests.
+- Re-synced local `main` with origin.
 
 ## Blocked
 
-- No implementation blockers on #310.
-- No implementation blockers on #311; fix is local and awaiting full validation + PR.
-- Infrastructure/tooling blockers in this sandbox:
-  - Python env unavailable for project checks (`.venv/bin/ruff` and `.venv/bin/pytest` missing; no `ruff`/`pytest` on PATH).
-  - `xcodebuild` cannot access required cache/log paths in sandbox, so full Swift build verification is blocked here.
-- Product blockers remain in open issues:
-  - `#310` storage source-file response crashes on Unicode filenames (fixed locally on `feature/issue-310`, needs PR/merge)
-  - `#311` workflow API 404/save-load visibility failure (fix committed locally, needs validation + PR/merge)
+- Claude Code sub-agent is hitting interactive permission prompts for `gh` commands in the terminal.
 
 ## Current 0.0.1 Outstanding (Open)
 
@@ -135,91 +48,8 @@ Release/QA gate issues still open:
 - `#250` workflow QA and validation gates
 - `#114` / `#115` / `#116` / `#117` QA audits (ready-for-test / Daniel validation)
 
-## Active Risks
-
-- Embedding model first-run download is large (`intfloat/multilingual-e5-large`, ~2.25GB) and causes long first execution.
-- Sparkle feed/signing/distribution path is not yet finalized for production update channel.
-- Xcode SwiftLint script-phase behavior still inconsistent on some local setups.
-
 ## Next Session — Start Here
 
-1. Open [`memory/handoff-2026-03-14.md`](memory/handoff-2026-03-14.md) first.
-2. Restore remote/auth gates in order:
-   - `gh auth login -h github.com`
-   - `gh auth status`
-   - `git fetch --all --prune`
-3. In a full local dev environment, run required validation:
-   - `PYTHONPATH=fichero-api/src .venv/bin/ruff check fichero-api/src/`
-   - `PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_storage.py`
-   - `xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero -configuration Debug -sdk macosx build`
-4. Validate `#311` fallback behavior (`/api/workflows` 404 on external backend should trigger embedded backend startup).
-5. Open/update PR from `feature/issue-310` (commits for `#310` and `#311`) and post validation evidence to both issues.
-
-## In Progress Now
-
-- 0.0.1 release hardening: workflow reliability and storage filename handling.
-- Branch now contains local fixes for both `#310` and `#311`; awaiting full environment validation and PR update.
-
-## Autonomous Session Notes (2026-03-11)
-
-- `/session-start-auto` selected candidate task `#114` (lowest-numbered open issue in milestone `0.0.1 - Core Library`).
-- Session blocked before execution due to repository instruction gate in `AGENTS.md`: "Current Phase: Planning (Phase 0)" and "No coding until Daniel approves the plan."
-- No source code changes made. Await explicit Daniel approval to transition from Phase 0 to implementation work.
-- Daniel approved transition to execution on 2026-03-11; `AGENTS.md` updated to execution mode and GitHub-first milestone workflow.
-- Follow-up `/session-start-auto` run on 2026-03-11 is blocked before task claim/execution: `gh` commands (`gh issue list`, `gh auth status`) hang with no output, so milestone task selection/claim cannot be completed safely.
-- Subsequent `/session-start-auto` run succeeded with GitHub access restored; selected unblocked issue `#220`, verified it was already implemented on `main`, and closed it as completed.
-
-## Autonomous Session Notes (2026-03-13)
-
-- Startup context loaded from `SOUL.md`, `MEMORY.md`, `STATE.md`, and `TASKS.md`.
-- `main` is not clean; modified SwiftUI files were already present at session start.
-- GitHub access is currently blocked by invalid `gh` token:
-  - `gh auth status` output: "The token ... is invalid."
-- No milestone implementation work was started in this run to avoid writing on top of unknown in-progress code.
-- Session completed in docs/handoff mode only, with explicit unblock conditions for the next hourly automation.
-- Re-check on `2026-03-13T19:02:33Z` confirms blockers are still active with no state change:
-  - dirty Swift source files still present on `main`
-  - `gh auth status` still fails for `dtubb`
-- Follow-up check on `2026-03-13T22:03:00Z` confirms branch `feature/issue-310` remains clean and local commits for `#310/#311` are intact; remote operations remain blocked in sandbox:
-  - `gh auth status` invalid token for `dtubb`
-  - `git fetch` cannot resolve `github.com`
-  - `.venv` missing, so backend lint/tests cannot run
-- Follow-up check on `2026-03-13T23:02:09Z` confirms blockers are unchanged:
-  - `gh auth status` still reports invalid token for `dtubb`
-  - `git fetch --all --prune` still fails (`Could not resolve host: github.com`)
-  - `.venv` still missing (`ruff`/`pytest` unavailable)
-  - local validation still available: `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations
-- Follow-up check on `2026-03-14T00:02:51Z` confirms blockers remain unchanged for hourly automation handoff:
-  - `gh auth status` still reports invalid token for `dtubb`
-  - `git fetch --all --prune` still fails (`Could not resolve host: github.com`)
-  - `.venv` still missing (`.venv/bin/python`, `.venv/bin/ruff`, `.venv/bin/pytest` absent)
-  - local validation still available: `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations
-- Follow-up check on `2026-03-13T22:01:51Z` confirms blockers are still unchanged in this sandbox:
-  - `gh auth status` still reports invalid token for `dtubb`
-  - `git fetch --all --prune` still fails (`Could not resolve host: github.com`)
-  - `.venv` still missing (`.venv/bin/python`, `.venv/bin/ruff`, `.venv/bin/pytest` absent; no `ruff`/`pytest` on PATH)
-  - local validation still available: `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations
-  - `xcodebuild` still blocked by sandbox-denied access to Xcode/SwiftPM cache and log paths
-- Follow-up check on `2026-03-13T23:01:42Z` confirms blockers remain unchanged for next-hour handoff:
-  - `gh auth status` still reports invalid token for `dtubb`
-  - `git fetch --all --prune` still fails (`Could not resolve host: github.com`)
-  - `.venv` still missing (`.venv/bin/python`, `.venv/bin/ruff`, `.venv/bin/pytest` absent; no `ruff`/`pytest` on PATH)
-  - local validation still available: `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations
-  - `xcodebuild` remains blocked by sandbox-denied access to Xcode/SwiftPM cache and log paths
-- Follow-up check on `2026-03-14T03:01:55Z` confirms blockers remain unchanged for the next hourly automation:
-  - `gh auth status` still reports invalid token for `dtubb`
-  - `git fetch --all --prune` still fails (`Could not resolve host: github.com`)
-  - `.venv` still missing (`.venv/bin/python`, `.venv/bin/ruff`, `.venv/bin/pytest` absent)
-  - local validation still available: `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations
-  - `xcodebuild` remains blocked by sandbox-denied access to cache/log/module paths outside writable roots
-- Follow-up check on `2026-03-14T04:02:51Z` confirms branch task status is unchanged (`#310/#311` fixes still local) and validation blockers remain:
-  - `gh issue list` reads public issues, but authenticated commands are still blocked by invalid token in `gh auth status`
-  - `git fetch --all --prune` still fails (`Could not resolve host: github.com`)
-  - repo `.venv` is absent; `python3 -m pytest` fails (`No module named pytest`)
-  - local validation still available: `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` passes with 0 violations
-  - `xcodebuild` remains blocked by sandbox-denied writes to cache/log/module paths
-- Follow-up check on `2026-03-14T05:02:51Z` confirms blockers remain unchanged; this run focused on session-guidance correction plus handoff refresh:
-  - `gh auth status` still reports invalid token for `dtubb`
-  - `git fetch --all --prune` still fails (`Could not resolve host: github.com`)
-  - `.venv` still missing (`.venv/bin/python`, `.venv/bin/ruff`, `.venv/bin/pytest` absent)
-  - milestone queue remains readable via unauthenticated `gh issue list`
+1. Daniel: Approve the interactive `gh` permission prompt in the terminal.
+2. Run `/assign-task` to pick up the next priority item from the 0.0.1 milestone.
+3. Priority candidate: `#291` (default workflow templates) or `#288` (Search UX simplification).
