@@ -6,6 +6,7 @@ Thumbnail and file serving endpoints.
 
 import logging
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import FileResponse
@@ -16,6 +17,13 @@ from fichero.models import Document
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _inline_content_disposition(filename: str) -> str:
+    """Build a Content-Disposition header safe for non-ASCII filenames."""
+    ascii_fallback = filename.encode("ascii", "replace").decode("ascii").replace('"', "")
+    encoded_filename = quote(filename, safe="")
+    return f"inline; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded_filename}"
 
 
 @router.get("/thumbnail/{doc_id}")
@@ -162,12 +170,12 @@ async def get_source_file(
     }
     media_type = media_types.get(suffix, "application/octet-stream")
 
-    # Set filename in Content-Disposition so Quick Look knows the extension
-    filename = source_path.name
+    # Include RFC 5987 filename* to support Unicode names while keeping ASCII fallback.
+    content_disposition = _inline_content_disposition(source_path.name)
     return FileResponse(
         source_path,
         media_type=media_type,
-        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+        headers={"Content-Disposition": content_disposition},
     )
 
 

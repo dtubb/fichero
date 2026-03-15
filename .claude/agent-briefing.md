@@ -8,7 +8,7 @@ Fichero — macOS document management with AI processing (SwiftUI + Python FastA
 
 ## Current Phase
 
-**Phase 0: Planning.** No coding until plan is approved.
+**Execution (post-Phase-0).** Planning is approved; execute milestone issues from GitHub in priority order.
 
 ## Essential Files
 
@@ -16,7 +16,8 @@ Fichero — macOS document management with AI processing (SwiftUI + Python FastA
 |---|---|
 | `SOUL.md` | Agent identity and what Fichero is |
 | `MEMORY.md` | Current state, conventions, lessons learned |
-| `TASKS.md` | Session-level tasks (points to GitHub issues) |
+| `AGENTS.md` | Execution rules, current phase, and hard constraints |
+| `TASKS.md` | Deprecated local pointer to GitHub source of truth |
 | `STATE.md` | Current branch, focus, next session entry point |
 | `docs/CLAUDE.md` | Full agent guidance (canonical, detailed) |
 | `docs/agent-workflow/TODO.md` | Master task list in repo |
@@ -40,5 +41,5 @@ ruff check fichero-api/src/
 1. Never push to main without Daniel's approval
 2. Never skip build/test/lint before completing work
 3. Never modify generated files (`*Generated.swift`, openapi.json)
-4. Never start coding before a plan exists
+4. GitHub milestones/issues/project are source of truth for scope/status
 5. PYTHONPATH must be `fichero-api/src`

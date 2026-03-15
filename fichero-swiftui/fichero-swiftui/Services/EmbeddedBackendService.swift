@@ -1,5 +1,5 @@
-import Foundation
 import AppKit
+import Foundation
 import OSLog
 
 private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "EmbeddedBackend")
@@ -34,11 +34,19 @@ final class EmbeddedBackendService: ObservableObject {
 
         do {
             try await waitForBackend(timeout: 2)
-            status = .running
-            isExternalBackend = true
-            logger.info("✅ Connected to external backend (will not manage lifecycle)")
-            logger.warning("⚠️  External backend will NOT be stopped when app quits (user-managed)")
-            return
+            let supportsWorkflows = await backendSupportsWorkflowRoutes()
+            if supportsWorkflows {
+                status = .running
+                isExternalBackend = true
+                logger.info("✅ Connected to external backend (will not manage lifecycle)")
+                logger.warning("⚠️  External backend will NOT be stopped when app quits (user-managed)")
+                return
+            }
+
+            logger.warning(
+                "⚠️ External backend lacks /api/workflows routes (404); launching embedded dev-tier backend instead"
+            )
+            isExternalBackend = false
         } catch {
             logger.info("No external backend found, launching embedded backend...")
             isExternalBackend = false
@@ -138,6 +146,12 @@ final class EmbeddedBackendService: ObservableObject {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executablePath)
         process.arguments = []
+        var environment = ProcessInfo.processInfo.environment
+        #if DEBUG
+        // Ensure workflow/provider routes are available for debug UI surfaces.
+        environment["FICHERO_FEATURE_TIER"] = environment["FICHERO_FEATURE_TIER"] ?? "dev"
+        #endif
+        process.environment = environment
 
         // Redirect output to /dev/null (or we could log it)
         process.standardOutput = FileHandle.nullDevice
@@ -179,6 +193,23 @@ final class EmbeddedBackendService: ObservableObject {
         }
 
         throw BackendError.timeout
+    }
+
+    private func backendSupportsWorkflowRoutes() async -> Bool {
+        let workflowsURL = backendURL.appendingPathComponent("api/workflows")
+        var request = URLRequest(url: workflowsURL)
+        request.httpMethod = "GET"
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return false
+            }
+            // Missing library header may return 422; route absence returns 404.
+            return httpResponse.statusCode != 404
+        } catch {
+            return false
+        }
     }
 
     // MARK: - Health Check
