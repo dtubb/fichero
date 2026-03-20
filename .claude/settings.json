@@ -10,7 +10,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '=== Post-Compaction Context Re-injection ===' && echo '' && cat /Users/dtubb-openclaw/code/fichero/.claude/agent-briefing.md 2>/dev/null && echo '' && echo '=== Resume from STATE.md ===' && cat /Users/dtubb-openclaw/code/fichero/STATE.md 2>/dev/null || true"
+            "command": "echo '=== Post-Compaction Context Re-injection ===' && echo '' && cat $HOME/code/fichero/.claude/agent-briefing.md 2>/dev/null && echo '' && echo '=== Resume from STATE.md ===' && cat $HOME/code/fichero/STATE.md 2>/dev/null || true"
           }
         ]
       }
@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"{\\\"project\\\": \\\"$(basename $(pwd))\\\", \\\"ended\\\": \\\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\\\"}\" >> /Users/dtubb-openclaw/.claude/session-log.jsonl"
+            "command": "echo \"{\\\"project\\\": \\\"$(basename $(pwd))\\\", \\\"ended\\\": \\\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\\\"}\" >> $HOME/.claude/session-log.jsonl"
           }
         ]
       }
