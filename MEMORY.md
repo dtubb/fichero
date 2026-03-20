@@ -1,6 +1,6 @@
 # MEMORY.md — Fichero
 
-Last updated: 2026-03-08
+Last updated: 2026-03-17
 
 ## Current Phase
 
@@ -88,6 +88,7 @@ For the approved implementation surface, the required checks are:
 - Local `gh` CLI in this environment does not provide `gh milestone list`; milestone workflows should use issue edit/create operations (or `gh api`) directly.
 - `/session-start-auto` must treat dirty source files on `main` as a hard blocker; only docs/state handoff work should continue until `main` is clean again
 - `/session-start-auto` must treat invalid `gh` authentication (`gh auth status` failure/token invalid) as a hard blocker for issue claim/progress work
+- In this sandbox, full unit pytest can fail from environment constraints (DuckDB paths under `~/Library/Application Support/ca.tubb.fichero/` and network-dependent provider endpoints); treat as non-regression unless local code changed in those areas
 - Sidebar gating must sanitize both persisted `sidebarMode` and persisted/restored `viewMode`; hiding icons alone does not prevent off-tier surfaces from reappearing
 - Do not trust stale state docs; reconcile them before acting on them
 - Feature gating is the release mechanism, not a side concern
@@ -97,6 +98,7 @@ For the approved implementation surface, the required checks are:
 - Cross-release umbrella issues are acceptable when they are explicitly documented; `#113` stays unmilestoned by design while concrete QA issues are tied to release milestones
 - Frontend-only feature flag changes do not require cross-stack review; only OpenAPI contract changes do
 - `pytest` is not installed in `.venv` — use `python -m pytest` or install it; the validation commands in CLAUDE.md assume `.venv/bin/pytest` which does not exist
+- `gh issue list` can still return public issue queues even when `gh auth status` reports an invalid token; treat this as read-only visibility, not authenticated write access
 
 ## GitHub Roadmap
 

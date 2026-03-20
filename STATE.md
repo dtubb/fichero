@@ -1,10 +1,10 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-15 (session end, automation @ 13:43Z)
+Last updated: 2026-03-17 (session end, automation @ 03:03Z)
 
 ## Current Branch
 
-`main` (clean)
+`feature/313-connection-ui` (dirty: four Swift files + session memory docs)
 
 ## Source of Truth
 
@@ -24,32 +24,42 @@ Milestone `0.0.1` due date:
 
 ## Completed This Session
 
-- Verified recovery from sandbox blockers (network, gh auth, .venv).
-- Merged PR #312 into `main`.
-- Closed issues #310 (Unicode filenames) and #311 (Workflow API 404).
-- Rebuilt `.venv` and verified with 28 passing backend tests.
-- Re-synced local `main` with origin.
+- Ran `/session-start-auto` verification and session-end pass on `feature/313-connection-ui` without adding new source edits.
+- Revalidated local `#313/#314/#315` implementation files:
+  - `swiftlint lint --no-cache fichero-swiftui/fichero-swiftui/Views/ContentView+Navigation.swift fichero-swiftui/fichero-swiftui/Views/Library/LibraryView+ColumnConfig.swift fichero-swiftui/fichero-swiftui/Views/Library/LibraryView+InlineEditing.swift fichero-swiftui/fichero-swiftui/Views/Library/LibraryView+KeyboardShortcuts.swift` ✅
+  - `PYTHONPATH=fichero-api/src .venv/bin/ruff check fichero-api/src/` ✅
+  - `PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived` ❌ (22 failures; unchanged baseline mix: activity route 404s + provider/HuggingFace network + DB path permissions)
+  - `xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme fichero-swiftui -configuration Debug -sdk macosx -derivedDataPath /tmp/fichero-derived -disableAutomaticPackageResolution build` ❌ (offline Swift package fetch + CoreSimulator/cache/log sandbox restrictions)
+- Reconfirmed GitHub/network constraints:
+  - `git fetch --all --prune` cannot resolve `github.com`
+  - `gh auth status` token invalid for `dtubb`
+  - `gh issue list --state open --milestone "0.0.1 - Core Library"` is still readable (public issue visibility), but write/auth flows remain blocked
 
 ## Blocked
 
-- Claude Code sub-agent is hitting interactive permission prompts for `gh` commands in the terminal.
+- `git fetch --all --prune` cannot resolve `github.com` in this environment.
+- `gh auth status` reports invalid token for account `dtubb`.
+- `gh issue view` cannot reach `api.github.com` (issue-body retrieval blocked).
+- Full pytest includes environment-constrained failures:
+  - sandbox file permission failures opening app/library DuckDB files under `~/Library/Application Support/ca.tubb.fichero/`
+  - HuggingFace provider route tests returning 502 due DNS/network unavailability
+- `xcodebuild` cannot complete in this environment:
+  - package resolution requires `github.com` access (DNS unavailable)
+  - sandbox restrictions deny some CoreSimulator/cache/log paths
 
 ## Current 0.0.1 Outstanding (Open)
 
-Highest priority implementation issues:
-- `#291` built-in default workflow templates + reset
-- `#288` simplify Search UX to 0.0.1 scope
-- `#263` SwiftLint/Xcode build-phase path reliability
-- `#278` Sparkle updater release configuration
-- `#232` / `#233` / `#235` remaining feature-gate hardening and hidden-surface cleanup
+Active implementation focus:
+- `#313` Library View: add connection/API error state UI (implemented locally; needs full app-level verification and PR flow)
+- `#314` Library View: table Size column hardcoded dash (implemented locally; needs app-level verification + issue update when GitHub is reachable)
+- `#315` Library View: replace print() error logging with ErrorService (implemented locally; needs issue update/PR flow when GitHub is reachable)
 
 Release/QA gate issues still open:
-- `#238` manual QA checklist
-- `#250` workflow QA and validation gates
+- `#279` 0.0.1 sprint burn-down and release gate
 - `#114` / `#115` / `#116` / `#117` QA audits (ready-for-test / Daniel validation)
 
 ## Next Session — Start Here
 
-1. Daniel: Approve the interactive `gh` permission prompt in the terminal.
-2. Run `/assign-task` to pick up the next priority item from the 0.0.1 milestone.
-3. Priority candidate: `#291` (default workflow templates) or `#288` (Search UX simplification).
+1. Start from [`memory/handoff-2026-03-17.md`](/Users/dtubb-openclaw/code/fichero/memory/handoff-2026-03-17.md) and continue on `feature/313-connection-ui`.
+2. If network/sandbox constraints are lifted, rerun full validation (`swiftlint`, `xcodebuild`, `ruff`, `pytest`) to clear app-level verification for local `#313/#314/#315`.
+3. As soon as GitHub API access/auth is restored, post implementation updates on `#313`, `#314`, and `#315`, then pick the next open 0.0.1 Library issue.

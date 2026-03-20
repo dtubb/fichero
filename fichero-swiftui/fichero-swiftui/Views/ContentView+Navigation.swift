@@ -6,23 +6,52 @@ import SwiftUI
 
 extension ContentView {
 
+    private var libraryLoadErrorMessage: String? {
+        guard !documentStore.isLoading else { return nil }
+        guard selectedDocuments.isEmpty else { return nil }
+
+        if let error = documentStore.error {
+            return error.localizedDescription
+        }
+
+        if !documentStore.isConnected {
+            return "Cannot connect to the local API server."
+        }
+
+        return nil
+    }
+
     // MARK: - Content View Router (Middle Column)
 
     @ViewBuilder
     var contentView: some View {
         switch viewMode {
         case .library:
-            LibraryView(
-                documents: selectedDocuments,
-                selection: $browserSelection,
-                detailDocument: $detailDocument,
-                viewMode: $viewSettings.libraryLayout,
-                displayMode: viewDisplayMode,
-                folderId: selectedSidebarItemId,
-                onRequestFocus: { focusedPane = .content },
-                onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
-                onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) }
-            )
+            if let errorMessage = libraryLoadErrorMessage {
+                ContentUnavailableView {
+                    Label("Library Unavailable", systemImage: "wifi.exclamationmark")
+                } description: {
+                    Text(errorMessage)
+                } actions: {
+                    Button("Retry") {
+                        Task { @MainActor in
+                            await documentStore.refresh()
+                        }
+                    }
+                }
+            } else {
+                LibraryView(
+                    documents: selectedDocuments,
+                    selection: $browserSelection,
+                    detailDocument: $detailDocument,
+                    viewMode: $viewSettings.libraryLayout,
+                    displayMode: viewDisplayMode,
+                    folderId: selectedSidebarItemId,
+                    onRequestFocus: { focusedPane = .content },
+                    onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
+                    onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) }
+                )
+            }
 
         case .search(let savedSearch):
             SearchView(

@@ -107,9 +107,42 @@ extension LibraryView {
             Text(doc.updatedAt, style: .date)
                 .font(.caption).foregroundColor(.secondary)
         case "size":
-            Text("-").font(.caption).foregroundColor(.secondary)
+            if let fileSize = fileSizeInBytes(for: doc) {
+                Text(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                Text("-").font(.caption).foregroundColor(.secondary)
+            }
         default:
             Text("-").foregroundColor(.secondary)
         }
+    }
+
+    private func fileSizeInBytes(for doc: Document) -> Int64? {
+        let metadataKeys = ["File_Size", "file_size", "size"]
+
+        for key in metadataKeys {
+            guard let value = doc.metadata[key]?.value else { continue }
+
+            switch value {
+            case let intValue as Int:
+                return Int64(intValue)
+            case let intValue as Int64:
+                return intValue
+            case let doubleValue as Double:
+                return Int64(doubleValue)
+            case let numberValue as NSNumber:
+                return numberValue.int64Value
+            case let stringValue as String:
+                if let parsed = Int64(stringValue) {
+                    return parsed
+                }
+            default:
+                continue
+            }
+        }
+
+        return nil
     }
 }
