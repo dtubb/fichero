@@ -33,6 +33,10 @@ build/
 dist/
 logs/
 
+# Site
+site/_site/
+site/node_modules/
+
 # Swift / Xcode user-local
 **/xcuserdata/
 **/*.xcuserstate
