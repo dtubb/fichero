@@ -379,7 +379,7 @@
 			files = (
 				A1624FF82F2EE5880019C019 /* FicheroBackend.app in CopyFiles */,
 			);
-			runOnlyForDeploymentPostprocessing = 1;
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
 
