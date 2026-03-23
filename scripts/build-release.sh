@@ -54,7 +54,7 @@ else
   fi
 
   # Find signing identity for backend
-  SIGNING_IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
+  SIGNING_IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}' || true)
   if [ -z "$SIGNING_IDENTITY" ]; then
     SIGNING_IDENTITY=$(security find-identity -v -p codesigning | grep "Apple Development" | head -1 | awk -F'"' '{print $2}')
     echo "  warning: no Developer ID Application identity — using Apple Development for backend"
@@ -106,7 +106,7 @@ fi
 
 # ── 4. Codesign the final app ────────────────────────────────────────────────
 echo "[4/4] Codesigning"
-DEVELOPER_ID=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
+DEVELOPER_ID=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}' || true)
 
 if [ -n "$DEVELOPER_ID" ]; then
   codesign --force --sign "$DEVELOPER_ID" --deep --timestamp --options runtime "$APP_PATH"

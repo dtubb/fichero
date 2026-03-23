@@ -131,7 +131,7 @@ fi
 echo "[6/8] Codesign"
 APP_PATH="$ROOT_DIR/fichero-swiftui/build/xcode/Products/Release/Fichero.app"
 
-DEVELOPER_ID=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
+DEVELOPER_ID=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}' || true)
 if [ -n "$DEVELOPER_ID" ]; then
   codesign --force --sign "$DEVELOPER_ID" --deep --timestamp --options runtime "$APP_PATH" 2>/dev/null
   if codesign --verify --deep --strict "$APP_PATH" >/dev/null 2>&1; then
