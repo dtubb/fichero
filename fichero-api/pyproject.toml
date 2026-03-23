@@ -38,6 +38,7 @@ author_email = "dtubb@me.com"
 formal_name = "FicheroBackend"
 description = "Backend API server for Fichero macOS app"
 long_description = "FastAPI backend service embedded inside the Fichero Swift app. Provides document processing, AI workflows, and data storage."
+icon = "src/fichero_backend/resources/fichero-backend"  # Briefcase strips extension, adds platform suffixes
 console_app = true  # Headless app (no window, runs in background)
 sources = [
     "src/fichero",          # Main backend code
