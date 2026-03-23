@@ -5,7 +5,7 @@ import FicheroAPIClient
 import OpenAPIRuntime
 import OpenAPIURLSession
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "StorageServiceGenerated")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "StorageServiceGenerated")
 
 /// StorageService using the generated OpenAPI client.
 /// Handles storage operations (thumbnails, previews, source files).

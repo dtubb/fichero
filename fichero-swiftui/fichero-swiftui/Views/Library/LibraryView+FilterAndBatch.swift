@@ -5,7 +5,7 @@ import SwiftUI
 
 extension LibraryView {
     private var logger: Logger {
-        Logger(subsystem: "ca.tubb.Fichero", category: "LibraryView")
+        Logger(subsystem: "com.tubb.Fichero", category: "LibraryView")
     }
 
     // MARK: - Filtered Documents

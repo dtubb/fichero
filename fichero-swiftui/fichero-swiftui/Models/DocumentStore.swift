@@ -3,7 +3,7 @@ import SwiftUI
 import Combine
 import OSLog
 
-let documentStoreLogger = Logger(subsystem: "ca.tubb.Fichero", category: "DocumentStore")
+let documentStoreLogger = Logger(subsystem: "com.tubb.Fichero", category: "DocumentStore")
 
 /// Document change types for reactive updates.
 enum DocumentChange {
@@ -22,7 +22,7 @@ enum DocumentChange {
 class DocumentStore: ObservableObject {
     // MARK: - Private Properties
 
-    let logger = Logger(subsystem: "ca.tubb.Fichero", category: "DocumentStore")
+    let logger = Logger(subsystem: "com.tubb.Fichero", category: "DocumentStore")
 
     /// Publisher for document changes.
     private let documentChanges = PassthroughSubject<DocumentChange, Error>()

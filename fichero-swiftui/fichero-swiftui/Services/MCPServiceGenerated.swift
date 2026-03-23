@@ -3,7 +3,7 @@ import OSLog
 import FicheroAPIClient
 import OpenAPIRuntime
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "MCPServiceGenerated")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "MCPServiceGenerated")
 
 /// MCPService using the generated OpenAPI client.
 /// Manages MCP (Model Context Protocol) servers and tools.

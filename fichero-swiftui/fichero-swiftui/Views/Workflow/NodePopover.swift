@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "NodePopover")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "NodePopover")
 
 /// Popover for configuring a workflow node
 struct NodePopover: View {

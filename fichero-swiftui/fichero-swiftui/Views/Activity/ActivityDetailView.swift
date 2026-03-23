@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ActivityDetailView")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ActivityDetailView")
 
 /// Detail view for a selected activity run
 /// Shows content based on sidebar selection (Console, Progress, Errors, or Overview)

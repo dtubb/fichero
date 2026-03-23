@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "LibrarySidebarContent")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "LibrarySidebarContent")
 
 /// Sidebar content for Library mode - shows documents and folders grouped by library
 /// This extracts the existing library browsing behavior from SidebarView

@@ -2,7 +2,7 @@ import SwiftUI
 import OSLog
 import FicheroAPIClient
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AgentConfigurationView")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "AgentConfigurationView")
 
 /// View for configuring an agent node in a workflow
 struct AgentConfigurationView: View {

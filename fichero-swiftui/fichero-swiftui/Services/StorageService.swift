@@ -13,7 +13,7 @@ class StorageService: ObservableObject {
 
     private let api: APIClient
     private let session = URLSession.shared
-    private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "StorageService")
+    private let logger = Logger(subsystem: "com.tubb.Fichero", category: "StorageService")
 
     init(apiClient: APIClient) {
         self.api = apiClient

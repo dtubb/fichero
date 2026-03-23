@@ -2,7 +2,7 @@ import SwiftUI
 import OSLog
 import FicheroAPIClient
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AIProviderAddModelsSheet")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "AIProviderAddModelsSheet")
 
 /// Sheet for adding models to a provider (uses shared AIModelSelectionView)
 struct AIProviderAddModelsSheet: View {

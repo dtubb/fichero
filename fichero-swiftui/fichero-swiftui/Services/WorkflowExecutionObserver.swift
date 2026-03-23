@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-let workflowExecutionLogger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowExecutionObserver")
+let workflowExecutionLogger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowExecutionObserver")
 
 // MARK: - WorkflowExecutionObserver
 

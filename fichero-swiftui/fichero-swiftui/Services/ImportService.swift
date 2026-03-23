@@ -13,7 +13,7 @@ class ImportService: ObservableObject {
     @Published var lastError: ImportError?
 
     private let api: APIClient
-    private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ImportService")
+    private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ImportService")
 
     init(apiClient: APIClient) {
         self.api = apiClient

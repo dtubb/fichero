@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-let comparisonDetailLogger = Logger(subsystem: "ca.tubb.Fichero", category: "ComparisonDetailView")
+let comparisonDetailLogger = Logger(subsystem: "com.tubb.Fichero", category: "ComparisonDetailView")
 
 /// Detail view for a model comparison showing all model responses
 struct ComparisonDetailView: View {

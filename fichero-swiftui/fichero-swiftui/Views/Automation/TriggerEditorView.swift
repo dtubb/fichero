@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "TriggerEditorView")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "TriggerEditorView")
 
 /// Full-page editor for creating and editing file watch triggers
 /// Similar to workflow canvas - used instead of dialog sheets

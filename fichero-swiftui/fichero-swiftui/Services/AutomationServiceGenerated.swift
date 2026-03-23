@@ -3,7 +3,7 @@ import OSLog
 import FicheroAPIClient
 import OpenAPIRuntime
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AutomationServiceGenerated")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "AutomationServiceGenerated")
 
 /// Service for automation operations (schedules and triggers) using generated OpenAPI client
 @MainActor

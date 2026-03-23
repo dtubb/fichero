@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-let workflowInspectorLogger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowInspector")
+let workflowInspectorLogger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowInspector")
 
 /// Inspector panel for workflow editor - shows available blocks to drag onto canvas
 struct WorkflowInspector: View {

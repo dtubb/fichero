@@ -6,7 +6,7 @@ import SwiftUI
 
 /// Custom AppDelegate to handle app lifecycle events (especially termination)
 final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
-    private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "FicheroAppDelegate")
+    private let logger = Logger(subsystem: "com.tubb.Fichero", category: "FicheroAppDelegate")
     weak var backendService: EmbeddedBackendService?
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -27,7 +27,7 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
 
 @main
 struct FicheroApp: App {
-    private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "FicheroApp")
+    private let logger = Logger(subsystem: "com.tubb.Fichero", category: "FicheroApp")
     @AppStorage("editor.rulersVisible") private var rulersVisible = false
 
     // App delegate for lifecycle events

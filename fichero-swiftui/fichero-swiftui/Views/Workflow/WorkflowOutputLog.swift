@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-let workflowOutputLogger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowOutputLog")
+let workflowOutputLogger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowOutputLog")
 
 /// Output log showing workflow execution progress
 struct WorkflowOutputLog: View {

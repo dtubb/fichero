@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ChatSidebarContent")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ChatSidebarContent")
 
 /// Sidebar content for Chat mode - shows conversations and comparisons grouped by library
 struct ChatSidebarContent: View {

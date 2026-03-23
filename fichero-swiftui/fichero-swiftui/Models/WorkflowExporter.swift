@@ -2,7 +2,7 @@ import Foundation
 import AppKit
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowExporter")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowExporter")
 
 /// Utility for importing/exporting workflows to files via backend API
 enum WorkflowExporter {

@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ProviderService")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ProviderService")
 
 /// Service for managing AI providers via the backend API.
 /// API keys are stored in macOS Keychain via the Python backend.

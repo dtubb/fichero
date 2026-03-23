@@ -259,7 +259,7 @@ xcodebuild test -project Fichero.xcodeproj -scheme Fichero
 import SwiftUI
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "FileName")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "FileName")
 
 struct MyView: View {
     // MARK: - Properties

@@ -86,7 +86,7 @@ class Database:
         Initialize database connection.
 
         Args:
-            path: Path to database file. Defaults to ~/Library/Application Support/ca.tubb.fichero/library.duckdb
+            path: Path to database file. Defaults to ~/Library/Application Support/com.tubb.fichero/library.duckdb
         """
         if path is None:
             from fichero.storage import settings

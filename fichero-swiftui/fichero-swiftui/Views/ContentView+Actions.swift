@@ -5,7 +5,7 @@ import SwiftUI
 // Agent: ActionsAgent
 // Responsibility: All action handlers, event handlers, and business logic methods
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ContentView")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ContentView")
 
 extension ContentView {
 

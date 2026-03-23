@@ -4,7 +4,7 @@ import FicheroAPIClient
 import OpenAPIRuntime
 import OpenAPIURLSession
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowExecutionServiceGenerated")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowExecutionServiceGenerated")
 
 /// WorkflowExecutionService using the generated OpenAPI client.
 /// Handles workflow execution, thread management, and status tracking.

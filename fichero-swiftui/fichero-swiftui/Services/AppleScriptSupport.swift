@@ -2,7 +2,7 @@ import Foundation
 import Cocoa
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AppleScript")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "AppleScript")
 
 // MARK: - Async Helper
 

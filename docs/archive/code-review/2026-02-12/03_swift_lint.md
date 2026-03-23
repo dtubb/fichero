@@ -220,7 +220,7 @@ Files with `function_body_length` disabled:
 - **No `NSLog()` calls** found
 - **Consistent OSLog usage** with structured loggers:
   ```swift
-  private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ComponentName")
+  private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ComponentName")
   ```
 
 **Examples of proper logging:**

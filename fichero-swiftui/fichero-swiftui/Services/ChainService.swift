@@ -2,7 +2,7 @@ import Foundation
 import Combine
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ChainService")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ChainService")
 
 /// Service for managing workflow chains via the backend API.
 /// Observers should use Combine to subscribe to $chains instead of NotificationCenter.

@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import OSLog
 
-let chatInspectorLogger = Logger(subsystem: "ca.tubb.Fichero", category: "ChatInspector")
+let chatInspectorLogger = Logger(subsystem: "com.tubb.Fichero", category: "ChatInspector")
 
 struct ChatInspector: View {
     @Binding var selectedDocuments: Set<String>

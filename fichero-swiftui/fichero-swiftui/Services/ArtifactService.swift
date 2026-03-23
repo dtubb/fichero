@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ArtifactService")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ArtifactService")
 
 /// Service for interacting with the Artifact API
 @MainActor

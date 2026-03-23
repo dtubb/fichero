@@ -4,7 +4,7 @@ import FicheroAPIClient
 import OpenAPIRuntime
 import OpenAPIURLSession
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ActivityServiceGenerated")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ActivityServiceGenerated")
 
 /// Service for interacting with the Activity API using generated OpenAPI client
 @MainActor

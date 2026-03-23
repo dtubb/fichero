@@ -4,7 +4,7 @@ import OSLog
 import FicheroAPIClient
 import OpenAPIRuntime
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "SavedSearchService")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "SavedSearchService")
 
 /// SavedSearchService using the generated OpenAPI client.
 /// This replaces the manual APIClient with type-safe generated calls.

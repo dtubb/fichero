@@ -237,7 +237,7 @@ chmod +x fichero-api/scripts/xcode_copy_backend.sh
 **Fix:** Check if backend started successfully:
 ```bash
 # Check backend logs
-log show --predicate 'subsystem == "ca.tubb.Fichero" AND category == "EmbeddedBackend"' --last 1m
+log show --predicate 'subsystem == "com.tubb.Fichero" AND category == "EmbeddedBackend"' --last 1m
 ```
 
 ### Port 8765 already in use

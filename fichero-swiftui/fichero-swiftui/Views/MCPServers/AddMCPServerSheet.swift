@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AddMCPServerSheet")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "AddMCPServerSheet")
 
 /// Sheet for adding a new MCP server
 struct AddMCPServerSheet: View {

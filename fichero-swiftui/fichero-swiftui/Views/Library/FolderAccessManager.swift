@@ -10,7 +10,7 @@ import OSLog
 class FolderAccessManager: ObservableObject {
     static let shared = FolderAccessManager()
 
-    private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "FolderAccess")
+    private let logger = Logger(subsystem: "com.tubb.Fichero", category: "FolderAccess")
     private let bookmarksKey = "FolderAccessBookmarks"
     @Published private(set) var accessedFolders: [URL] = []
 

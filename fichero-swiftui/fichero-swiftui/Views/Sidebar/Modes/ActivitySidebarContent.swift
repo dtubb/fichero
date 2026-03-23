@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-let activitySidebarLogger = Logger(subsystem: "ca.tubb.Fichero", category: "ActivitySidebarContent")
+let activitySidebarLogger = Logger(subsystem: "com.tubb.Fichero", category: "ActivitySidebarContent")
 
 /// Represents a workflow group for sidebar display (groups runs by workflow ID, not name)
 struct ActivityWorkflowGroup: Hashable, Identifiable {

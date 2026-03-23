@@ -269,7 +269,7 @@ ${PROJECT_DIR}/../fichero-api/scripts/xcode_copy_backend.sh
 
 Check logs in Console.app:
 ```
-Subsystem: ca.tubb.Fichero
+Subsystem: com.tubb.Fichero
 Category: EmbeddedBackend
 ```
 

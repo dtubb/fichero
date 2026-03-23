@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-private let actionsLogger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowEditor")
+private let actionsLogger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowEditor")
 
 extension WorkflowEditor {
 

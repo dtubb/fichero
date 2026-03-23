@@ -177,7 +177,7 @@ Views/
 import SwiftUI
 import OSLog  // Other imports after SwiftUI
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "FileName")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "FileName")
 
 /// Main view component
 struct MyView: View {

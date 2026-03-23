@@ -21,7 +21,7 @@ struct LibraryWindow: View {
 
     @Environment(\.openWindow) private var openWindow
 
-    let libraryWindowLogger = Logger(subsystem: "ca.tubb.Fichero", category: "LibraryWindow")
+    let libraryWindowLogger = Logger(subsystem: "com.tubb.Fichero", category: "LibraryWindow")
 
     init() {
         _windowState = StateObject(wrappedValue: WindowState(libraryId: UUID()))

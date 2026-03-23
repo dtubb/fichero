@@ -3,7 +3,7 @@ import OSLog
 import FicheroAPIClient
 import OpenAPIRuntime
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ArtifactServiceGenerated")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ArtifactServiceGenerated")
 
 /// ArtifactService using the generated OpenAPI client.
 /// Manages document artifacts (transcripts, descriptions, etc.)

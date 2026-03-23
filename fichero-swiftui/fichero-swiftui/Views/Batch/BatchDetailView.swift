@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-let batchDetailLogger = Logger(subsystem: "ca.tubb.Fichero", category: "BatchDetailView")
+let batchDetailLogger = Logger(subsystem: "com.tubb.Fichero", category: "BatchDetailView")
 
 struct BatchDetailView: View {
     let batch: BatchInfo

@@ -4,7 +4,7 @@ import OSLog
 import FicheroAPIClient
 import OpenAPIRuntime
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowService")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowService")
 
 /// WorkflowService using the generated OpenAPI client.
 /// This replaces the manual APIClient with type-safe generated calls.

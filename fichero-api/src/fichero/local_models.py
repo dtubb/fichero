@@ -2,7 +2,7 @@
 Unified Local Model Management
 
 Manages locally-downloaded AI models for Whisper, FastEmbed, and spaCy.
-Models are stored in ~/Library/Application Support/ca.tubb.fichero/models/
+Models are stored in ~/Library/Application Support/com.tubb.fichero/models/
 to avoid macOS auto-cleanup of ~/.cache/ directories.
 
 Storage layout:
@@ -30,7 +30,7 @@ class ModelType(str, Enum):
 
 
 # Stable storage location (not ~/.cache which gets auto-cleaned by macOS)
-MODELS_BASE = Path.home() / "Library" / "Application Support" / "ca.tubb.fichero" / "models"
+MODELS_BASE = Path.home() / "Library" / "Application Support" / "com.tubb.fichero" / "models"
 
 
 # =============================================================================

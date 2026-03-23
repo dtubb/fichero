@@ -19,7 +19,7 @@ struct LibraryImageView: View {
     @State private var isLoading = false
     @State private var loadError: Error?
 
-    private static let logger = Logger(subsystem: "ca.tubb.Fichero", category: "LibraryImageView")
+    private static let logger = Logger(subsystem: "com.tubb.Fichero", category: "LibraryImageView")
 
     var body: some View {
         Group {

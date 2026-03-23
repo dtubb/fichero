@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ActivityDiagramView")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ActivityDiagramView")
 
 /// Shows the workflow diagram visualization
 struct ActivityDiagramView: View {

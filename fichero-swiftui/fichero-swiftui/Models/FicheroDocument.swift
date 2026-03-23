@@ -226,6 +226,6 @@ extension UTType {
     /// Package documents appear as single files but are actually directories
     /// Similar to .keynote, .pages, .sketch, .logic files
     static var ficheroSession: UTType {
-        UTType(exportedAs: "ca.tubb.fichero.library", conformingTo: .package)
+        UTType(exportedAs: "com.tubb.fichero.library", conformingTo: .package)
     }
 }

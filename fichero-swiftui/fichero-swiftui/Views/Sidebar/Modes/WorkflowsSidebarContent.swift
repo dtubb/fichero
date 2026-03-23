@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowsSidebarContent")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowsSidebarContent")
 
 /// Sidebar content for Workflows mode - shows workflow definitions and chains grouped by library
 struct WorkflowsSidebarContent: View {

@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "FilesNodeConfig")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "FilesNodeConfig")
 
 /// Configuration view for files node
 struct FilesNodeConfig: View {

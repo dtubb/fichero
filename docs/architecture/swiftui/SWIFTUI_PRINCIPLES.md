@@ -216,8 +216,8 @@ struct MassiveView: View {
 import OSLog
 
 extension Logger {
-    static let ui = Logger(subsystem: "ca.tubb.Fichero", category: "ui")
-    static let data = Logger(subsystem: "ca.tubb.Fichero", category: "data")
+    static let ui = Logger(subsystem: "com.tubb.Fichero", category: "ui")
+    static let data = Logger(subsystem: "com.tubb.Fichero", category: "data")
 }
 
 Logger.ui.info("User selected item: \(itemId)")

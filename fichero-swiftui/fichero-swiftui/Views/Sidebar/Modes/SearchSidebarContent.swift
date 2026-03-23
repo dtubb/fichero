@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "SearchSidebarContent")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "SearchSidebarContent")
 
 /// Sidebar content for Search mode - shows saved searches grouped by library
 struct SearchSidebarContent: View {

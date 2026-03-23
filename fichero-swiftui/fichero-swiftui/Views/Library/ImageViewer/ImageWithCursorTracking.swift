@@ -5,7 +5,7 @@ import OSLog
 // This file requires large bodies due to complex AppKit integration
 /// NSViewRepresentable wrapper for an image view with cursor tracking and loupe functionality
 struct ImageWithCursorTracking: NSViewRepresentable {
-    private static let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ImageWithCursorTracking")
+    private static let logger = Logger(subsystem: "com.tubb.Fichero", category: "ImageWithCursorTracking")
 
     let url: URL
     @Binding var scale: CGFloat

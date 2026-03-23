@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "SearchView")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "SearchView")
 
 /// Helper methods for SearchView
 extension SearchView {

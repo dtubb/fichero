@@ -28,7 +28,7 @@ import sys
 logger = logging.getLogger(__name__)
 
 # Service name for all Fichero keychain items
-SERVICE = "ca.tubb.fichero"
+SERVICE = "com.tubb.fichero"
 
 
 def _is_macos() -> bool:

@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-let scheduleEditorLogger = Logger(subsystem: "ca.tubb.Fichero", category: "ScheduleEditorView")
+let scheduleEditorLogger = Logger(subsystem: "com.tubb.Fichero", category: "ScheduleEditorView")
 
 /// Full-page editor for creating and editing schedules
 /// Similar to workflow canvas - used instead of dialog sheets

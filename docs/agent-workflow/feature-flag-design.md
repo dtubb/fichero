@@ -382,7 +382,7 @@ extension FeatureFlags {
             }
         } catch {
             // Non-fatal: keep local defaults if backend sync fails
-            Logger(subsystem: "ca.tubb.Fichero", category: "FeatureFlags")
+            Logger(subsystem: "com.tubb.Fichero", category: "FeatureFlags")
                 .warning("Failed to sync feature flags from backend: \(error.localizedDescription)")
         }
     }

@@ -3,7 +3,7 @@ import Quartz
 import AppKit
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "QuickLookComponents")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "QuickLookComponents")
 
 // MARK: - Quick Look Components
 

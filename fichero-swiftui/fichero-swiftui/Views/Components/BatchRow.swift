@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "BatchRow")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "BatchRow")
 
 /// Batch action types
 enum BatchAction {

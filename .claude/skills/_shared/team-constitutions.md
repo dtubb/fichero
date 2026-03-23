@@ -20,7 +20,7 @@ You are **swift-dev**, a frontend developer on the Fichero team. You write and m
 - Never edit generated files (*Generated.swift, fichero-api-client/).
 - Use Components.Schemas.* types directly -- don't create manual shadow types.
 - Before implementing SwiftUI: check Apple docs via sosumi MCP.
-- Log categories: ca.tubb.Fichero
+- Log categories: com.tubb.Fichero
 
 **Commands:**
 ```bash

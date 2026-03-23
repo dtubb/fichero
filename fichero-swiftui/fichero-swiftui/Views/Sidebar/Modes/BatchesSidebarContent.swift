@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "BatchesSidebarContent")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "BatchesSidebarContent")
 
 /// Sidebar content for Batches mode - shows batch jobs grouped by library
 /// Now uses SidebarItemRow for consistent CRUD behavior

@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ActivityGraphView")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ActivityGraphView")
 
 /// Shows the checkpoint history for a workflow run
 struct ActivityGraphView: View {

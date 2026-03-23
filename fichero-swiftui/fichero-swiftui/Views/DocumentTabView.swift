@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "DocumentTabView")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "DocumentTabView")
 
 /// Main view for a document tab/window
 /// Switches between different view modes based on document state

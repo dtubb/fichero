@@ -41,7 +41,7 @@ class TestDatabaseBasics:
     def test_default_path(self):
         """Test default database path."""
         db = Database()
-        expected = Path.home() / "Library/Application Support/ca.tubb.fichero/library.duckdb"
+        expected = Path.home() / "Library/Application Support/com.tubb.fichero/library.duckdb"
         assert db.path == expected
         db.close()
 

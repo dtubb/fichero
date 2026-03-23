@@ -251,7 +251,7 @@ DispatchQueue.main.async {  // ❌ Use @MainActor instead
 **Other Requirements:**
 - **SwiftLint is MANDATORY** - run before every commit
 - Use `@StateObject` for owned state, `@EnvironmentObject` for dependency injection
-- Use OSLog for logging (categories: `ca.tubb.Fichero`)
+- Use OSLog for logging (categories: `com.tubb.Fichero`)
 - Cache expensive computations (don't rebuild hierarchies on every view update)
 - Keyboard shortcuts: Ulysses-style (⌃⌘1-5 for sidebar modes, ⌘1-4 for view modes)
 

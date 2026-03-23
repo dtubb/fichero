@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "APIClient")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "APIClient")
 
 /// HTTP client for communicating with the Fichero Python backend.
 ///

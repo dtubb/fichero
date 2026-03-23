@@ -2,7 +2,7 @@ import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ContentView")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ContentView")
 // swiftlint:disable file_length
 
 /// Identifies which main pane has keyboard focus for Tab cycling

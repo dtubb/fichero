@@ -3,7 +3,7 @@ import OSLog
 import FicheroAPIClient
 import OpenAPIRuntime
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "BatchServiceGenerated")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "BatchServiceGenerated")
 
 /// Service for batch operations using generated OpenAPI client
 /// Note: Batch endpoints are global (not library-scoped)

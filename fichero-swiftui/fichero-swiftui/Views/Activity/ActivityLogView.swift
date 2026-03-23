@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ActivityLogView")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ActivityLogView")
 
 // Shows the saved execution log for a workflow run
 // swiftlint:disable:next type_body_length

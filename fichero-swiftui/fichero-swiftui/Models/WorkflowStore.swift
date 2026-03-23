@@ -16,7 +16,7 @@ class WorkflowStore: ObservableObject {
     @Published var isConnected = false
     @Published var error: Error?
 
-    private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowStore")
+    private let logger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowStore")
     private let workflowService: WorkflowServiceGenerated
     private let ficheroClient: FicheroClient
     private let defaultWorkflowTemplates: [DefaultWorkflowTemplate] = [

@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "EmbeddedBackend")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "EmbeddedBackend")
 
 /// Manages the embedded Python backend lifecycle
 @MainActor

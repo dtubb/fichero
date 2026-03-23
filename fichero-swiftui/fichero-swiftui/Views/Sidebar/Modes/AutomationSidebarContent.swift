@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "AutomationSidebarContent")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "AutomationSidebarContent")
 
 /// Sidebar content for Automation mode - shows schedules and triggers grouped by library
 /// Note: Running Batches are shown in the Batches sidebar, not here

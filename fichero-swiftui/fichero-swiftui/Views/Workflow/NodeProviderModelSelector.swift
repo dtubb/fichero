@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "NodeProviderModelSelector")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "NodeProviderModelSelector")
 
 /// Provider and model selection component for workflow nodes
 struct NodeProviderModelSelector: View {

@@ -2,7 +2,7 @@ import Foundation
 import Combine
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "WorkflowStreamService")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowStreamService")
 
 // MARK: - WorkflowStreamService
 

@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import OSLog
 
-private let logger = Logger(subsystem: "ca.tubb.Fichero", category: "ChatView")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ChatView")
 
 // MARK: - Data Loading
 

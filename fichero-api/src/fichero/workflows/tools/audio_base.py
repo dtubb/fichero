@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 
 # Stable storage for local models (not ~/.cache which gets auto-cleaned)
-MODELS_BASE = Path.home() / "Library" / "Application Support" / "ca.tubb.fichero" / "models"
+MODELS_BASE = Path.home() / "Library" / "Application Support" / "com.tubb.fichero" / "models"
 
 
 # =============================================================================
@@ -119,7 +119,7 @@ def transcribe_with_whisper_sync(
 ) -> str:
     """Transcribe audio using local Whisper model.
 
-    Models are stored in ~/Library/Application Support/ca.tubb.fichero/models/whisper/
+    Models are stored in ~/Library/Application Support/com.tubb.fichero/models/whisper/
     to avoid macOS auto-cleanup of ~/.cache/.
 
     Args:
