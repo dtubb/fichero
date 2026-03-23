@@ -1,10 +1,10 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-15 (session end, automation @ 13:43Z)
+Last updated: 2026-03-23 (session end)
 
 ## Current Branch
 
-`main` (clean)
+`main` — 14 commits ahead of origin (not pushed)
 
 ## Source of Truth
 
@@ -14,42 +14,37 @@ Last updated: 2026-03-15 (session end, automation @ 13:43Z)
   - Project: https://github.com/users/dtubb/projects/5
 - Local `PLAN.md`/`TASKS.md` are pointer files only.
 
-## 0.0.1 Release Gate
-
-Primary gate issue: `#279`
-- https://github.com/dtubb/fichero/issues/279
-
-Milestone `0.0.1` due date:
-- 2026-03-22
-
 ## Completed This Session
 
-- Verified recovery from sandbox blockers (network, gh auth, .venv).
-- Merged PR #312 into `main`.
-- Closed issues #310 (Unicode filenames) and #311 (Workflow API 404).
-- Rebuilt `.venv` and verified with 28 passing backend tests.
-- Re-synced local `main` with origin.
+- Built full build/release pipeline: 9 scripts in `scripts/`
+- Created Eleventy site with home page and FAQ (`site/`)
+- Added AppInstaller (move-to-Applications prompt)
+- Replaced app icon with card-file cabinet
+- Added backend icon (gears) for Briefcase build
+- Disabled app sandbox for DMG distribution
+- Fixed Briefcase to use Python 3.13 via `.briefcase-venv`
+- Switched to `briefcase package` (single command, matching original flow)
+- Slimmed Briefcase bundle: split deps into core vs dev extras
+- Styled installer DMG (app + Applications symlink, volume icon)
+- Created skills: `/fichero-build`, `/fichero-release-prep`, `/fichero-release`
+- Removed dev instructions from BackendConnectionView and ContentView
+- Migrated bundle identifier: `ca.tubb` → `com.tubb` across 128 files
+- Rebuilt `.venv` with Python 3.14 + all deps
 
 ## Blocked
 
-- Claude Code sub-agent is hitting interactive permission prompts for `gh` commands in the terminal.
+- **Developer ID Application certificate** — needed for notarization. Daniel needs to create one in Apple Developer portal.
+- **Notarytool credentials** — `xcrun notarytool store-credentials "notarytool"` not yet configured.
+- **Sparkle key pair** — not yet generated for release signing.
 
-## Current 0.0.1 Outstanding (Open)
+## Not Pushed
 
-Highest priority implementation issues:
-- `#291` built-in default workflow templates + reset
-- `#288` simplify Search UX to 0.0.1 scope
-- `#263` SwiftLint/Xcode build-phase path reliability
-- `#278` Sparkle updater release configuration
-- `#232` / `#233` / `#235` remaining feature-gate hardening and hidden-surface cleanup
-
-Release/QA gate issues still open:
-- `#238` manual QA checklist
-- `#250` workflow QA and validation gates
-- `#114` / `#115` / `#116` / `#117` QA audits (ready-for-test / Daniel validation)
+14 commits on main are not pushed to origin. Daniel should review and push.
 
 ## Next Session — Start Here
 
-1. Daniel: Approve the interactive `gh` permission prompt in the terminal.
-2. Run `/assign-task` to pick up the next priority item from the 0.0.1 milestone.
-3. Priority candidate: `#291` (default workflow templates) or `#288` (Search UX simplification).
+1. Push the 14 commits on main (or review first).
+2. Set up Developer ID Application certificate + notarytool credentials for notarization.
+3. Run `/fichero-release-prep` to produce a full release candidate.
+4. Test: install from DMG → move to Applications → backend starts → health check passes.
+5. Consider data migration for existing `~/Library/Application Support/ca.tubb.fichero/` if any data exists there.

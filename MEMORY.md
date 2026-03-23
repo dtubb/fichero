@@ -1,6 +1,6 @@
 # MEMORY.md — Fichero
 
-Last updated: 2026-03-08
+Last updated: 2026-03-23
 
 ## Current Phase
 
@@ -97,6 +97,13 @@ For the approved implementation surface, the required checks are:
 - Cross-release umbrella issues are acceptable when they are explicitly documented; `#113` stays unmilestoned by design while concrete QA issues are tied to release milestones
 - Frontend-only feature flag changes do not require cross-stack review; only OpenAPI contract changes do
 - `pytest` is not installed in `.venv` — use `python -m pytest` or install it; the validation commands in CLAUDE.md assume `.venv/bin/pytest` which does not exist
+- Bundle identifier is `com.tubb.Fichero` (migrated from `ca.tubb` on 2026-03-23). Backend is `com.tubb.fichero.fichero-backend`. Storage at `~/Library/Application Support/com.tubb.fichero/`.
+- App sandbox is disabled (`ENABLE_APP_SANDBOX = NO`) — required for DMG distribution and move-to-Applications flow
+- Briefcase must run under Python 3.13 (not 3.14) — use dedicated `.briefcase-venv` in `fichero-api/`. Briefcase 0.4.x only ships Python 3.14 support packages, but many ML packages lack 3.14 wheels.
+- Xcode scheme is `Fichero` (not `fichero-swiftui`). Requires `-skipPackagePluginValidation` for CLI builds.
+- The `[project]` dependencies in pyproject.toml are split: core deps ship in the Briefcase bundle, heavy deps (kreuzberg, fastembed, cloud providers) are in `[project.optional-dependencies] dev`. Dev install: `pip install -e ".[dev]"`
+- Build scripts live in `fichero/scripts/`. Skills: `/fichero-build`, `/fichero-release-prep`, `/fichero-release`
+- Site is Eleventy in `fichero/site/`, deploys to `tubb.ca/apps/fichero/` via `scripts/deploy-site.sh`
 
 ## GitHub Roadmap
 
