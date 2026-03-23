@@ -40,14 +40,18 @@ else
   echo "[$STEP/$TOTAL_STEPS] Building Python backend with Briefcase"
   cd "$API_ROOT"
 
-  # Look for briefcase in project venvs first, then PATH
-  if [ -x "$ROOT_DIR/.venv/bin/briefcase" ]; then
+  # Look for briefcase in dedicated venv (Python 3.13), then project venvs, then PATH
+  if [ -x "$API_ROOT/.briefcase-venv/bin/briefcase" ]; then
+    export PATH="$API_ROOT/.briefcase-venv/bin:$PATH"
+  elif [ -x "$ROOT_DIR/.venv/bin/briefcase" ]; then
     export PATH="$ROOT_DIR/.venv/bin:$PATH"
   elif [ -x "$API_ROOT/.venv/bin/briefcase" ]; then
     export PATH="$API_ROOT/.venv/bin:$PATH"
   elif ! command -v briefcase >/dev/null 2>&1; then
-    echo "Installing briefcase..."
-    pip install briefcase
+    echo "error: briefcase not found. Set up with:" >&2
+    echo "  python3.13 -m venv fichero-api/.briefcase-venv" >&2
+    echo "  fichero-api/.briefcase-venv/bin/pip install briefcase" >&2
+    exit 1
   fi
 
   # Clean previous build

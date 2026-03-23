@@ -24,6 +24,7 @@ fichero-api/.venv/
 venv/
 .ipynb_checkpoints/
 fichero-api/.briefcase/
+fichero-api/.briefcase-venv/
 fichero-api/.pytest_cache/
 fichero-api/.mypy_cache/
 
