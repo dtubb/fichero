@@ -123,26 +123,6 @@ struct ContentView: View {
                         .foregroundColor(.secondary)
                         .frame(maxWidth: 400)
 
-                    Divider()
-                        .frame(width: 200)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("To start the API, run:")
-                            .font(.headline)
-
-                        Text("cd /Users/dtubb/code/fichero_main/fichero")
-                            .font(.system(.body, design: .monospaced))
-                            .padding(8)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(4)
-
-                        Text("PYTHONPATH=src .venv/bin/uvicorn fichero.api.main:app --port 8765")
-                            .font(.system(.body, design: .monospaced))
-                            .padding(8)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(4)
-                    }
-
                     HStack(spacing: 16) {
                         Button("Retry") {
                             Task { @MainActor in

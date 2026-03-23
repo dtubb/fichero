@@ -54,27 +54,6 @@ struct BackendConnectionView: View {
                 }
             }
 
-            Divider()
-                .padding(.horizontal, 40)
-
-            // Instructions
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Start the backend with:")
-                    .font(.headline)
-
-                Text("PYTHONPATH=src .venv/bin/uvicorn fichero.api.main:app --port 8765")
-                    .font(.system(.body, design: .monospaced))
-                    .padding()
-                    .background(Color(nsColor: .textBackgroundColor))
-                    .cornerRadius(8)
-                    .textSelection(.enabled)
-
-                Text("The backend must be running on port 8765 for Fichero to function.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.horizontal, 40)
-
             // Retry button
             Button {
                 Task {
