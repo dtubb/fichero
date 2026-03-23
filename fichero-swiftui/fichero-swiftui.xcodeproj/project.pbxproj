@@ -195,6 +195,7 @@
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 		C10000010000000000000001 /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000110000000000000001 /* SparkleUpdater.swift */; };
+		C10000010000000000000002 /* AppInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000110000000000000002 /* AppInstaller.swift */; };
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = C10000310000000000000001 /* Sparkle */; };
 		A1A3A9C02F1028480021909D /* MCPToolsCatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BE2F1028480021909D /* MCPToolsCatalogView.swift */; };
 		A1A3A9C12F1028480021909D /* AddMCPServerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BA2F1028480021909D /* AddMCPServerSheet.swift */; };
@@ -416,6 +417,7 @@
 		109 /* SidebarItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItem.swift; sourceTree = "<group>"; };
 		A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureManager.swift; sourceTree = "<group>"; };
 		C10000110000000000000001 /* SparkleUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdater.swift; sourceTree = "<group>"; };
+		C10000110000000000000002 /* AppInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInstaller.swift; sourceTree = "<group>"; };
 		110 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		112 /* Provider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Provider.swift; sourceTree = "<group>"; };
 		117 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
@@ -1295,6 +1297,7 @@
 				20D8EDCB2F48F4A8006950A3 /* LibraryWindow.swift */,
 				20D8EDCD2F48F4AE006950A3 /* WelcomeView.swift */,
 				20D8EDD12F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift */,
+				C10000110000000000000002 /* AppInstaller.swift */,
 				C10000110000000000000001 /* SparkleUpdater.swift */,
 			);
 			path = App;
@@ -1619,6 +1622,7 @@
 				202674D62F48963F008EAB5D /* SearchResultRowFromAPI.swift in Sources */,
 				A1BFB2E02F04328300EAA55A /* FocusedCommandButtons.swift in Sources */,
 				001 /* FicheroApp.swift in Sources */,
+				C10000010000000000000002 /* AppInstaller.swift in Sources */,
 				C10000010000000000000001 /* SparkleUpdater.swift in Sources */,
 				002 /* ContentView.swift in Sources */,
 				003 /* Document.swift in Sources */,

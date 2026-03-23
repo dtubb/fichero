@@ -48,6 +48,9 @@ struct FicheroApp: App {
     @Environment(\.openWindow) private var openWindow
 
     init() {
+        // Offer to move to /Applications if launched from DMG or Downloads
+        AppInstaller.promptToMoveToApplicationsIfNeeded()
+
         // Restore libraries synchronously before any windows appear
         LibraryManager.shared.restoreSavedLibraries()
     }
