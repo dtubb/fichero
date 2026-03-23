@@ -1,43 +1,35 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-23 (session end, second update)
+Last updated: 2026-03-23 (session end)
 
 ## Current Branch
 
-`main` — 15 commits ahead of origin (not pushed)
+`main` — 18 commits ahead of origin (not pushed)
 
 ## Source of Truth
 
-- Scope/status/priorities are on GitHub only:
-  - Milestones: https://github.com/dtubb/fichero/milestones
-  - Issues: https://github.com/dtubb/fichero/issues
-  - Project: https://github.com/users/dtubb/projects/5
-- Local `PLAN.md`/`TASKS.md` are pointer files only.
+- GitHub Issues + Milestones: https://github.com/dtubb/fichero/milestones
+- Project board: https://github.com/users/dtubb/projects/5
 
 ## Completed This Session
 
 - Full build/release pipeline (9 scripts, 3 skills, Eleventy site)
-- AppInstaller (move-to-Applications), card-file icon, sandbox disabled
-- Briefcase backend working with Python 3.13, slim deps, `briefcase package`
-- Styled installer DMG (app + Applications symlink)
+- AppInstaller, card-file icon, sandbox disabled, backend icon
+- Briefcase with Python 3.13 via `.briefcase-venv`, slim deps, `briefcase package`
+- Styled installer DMG, move-to-Applications prompt
 - Bundle ID migration: `ca.tubb` → `com.tubb` (128 files)
-- Removed dev instructions from backend connection views
+- Created GitHub issues #317–#320 for remaining 0.0.1 work
 
 ## Blocked
 
-- Developer ID Application certificate — needed for notarization
-- Notarytool credentials — not configured
-- Sparkle key pair — not generated
+- Developer ID Application certificate (notarization)
+- Notarytool credentials
+- Sparkle key pair
 
 ## Next Session — Start Here
 
-1. **Enable 0.0.1 sidebar modes**: Update `FeatureManager.swift` to enable Workflows and Activity alongside Library and Search.
-2. **Enable workflow tools**: Ensure transcribe, named entity recognition, and catalogue tools are registered and available in the release tier.
-3. **Backend feature tier**: Verify `release` tier includes workflow routes (currently may be gated to `dev` only).
-4. **Fix document viewer**:
-   - Image not centered (left-aligned), scrollbars overlay image instead of container edge
-   - Background should be Preview-style gray, default zoom should fit-to-window (not 100%)
-   - Inspector panel: ruler should be visible by default (persist as universal tab setting, not per-image)
-   - Inspector panel: remove "add text" / "edit extracted text" placeholder — should not appear
-   - Inspector panel: image thumbnails not rendering
-5. Push the 16 commits on main after review.
+1. Push 18 commits on main (Daniel to review first).
+2. **#319** — Enable Workflows + Activity sidebar, wire up transcribe/NER/catalogue tools.
+3. **#317** — Fix document viewer: center image, scrollbars, gray bg, fit-to-window zoom.
+4. **#318** — Fix inspector: ruler default, remove placeholder text, fix thumbnails.
+5. **#320** — Bundle ID data migration (low priority).
