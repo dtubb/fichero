@@ -28,8 +28,8 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         scrollView.minMagnification = minScale
         scrollView.maxMagnification = maxScale
         scrollView.magnification = scale
-        scrollView.backgroundColor = NSColor.windowBackgroundColor
-        scrollView.scrollerStyle = .overlay
+        scrollView.backgroundColor = NSColor(white: 0.4, alpha: 1.0)  // Medium-dark gray like Preview.app
+        scrollView.scrollerStyle = .legacy  // Non-overlay scrollers at container edge
         scrollView.automaticallyAdjustsContentInsets = false
         scrollView.alphaValue = 0  // Hidden until first center to prevent flash
         scrollView.postsBoundsChangedNotifications = true
@@ -122,15 +122,11 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         // Fit-to-window and center on first layout when bounds are known
         if context.coordinator.needsInitialCenter && scrollView.bounds.width > 0 && scrollView.bounds.height > 0 {
             context.coordinator.needsInitialCenter = false
-            // Default to fit-to-window scale unless a saved scale exists
+            // Fit to window on first layout (like Preview.app)
             if let fitScale = context.coordinator.calculateFitScale() {
-                let savedScale = scale
-                // If scale is still the 1.0 default (no saved value), use fit scale
-                if abs(savedScale - 1.0) < 0.01 {
-                    scrollView.magnification = fitScale
-                    Task { @MainActor in
-                        self.scale = fitScale
-                    }
+                scrollView.magnification = fitScale
+                Task { @MainActor in
+                    self.scale = fitScale
                 }
             }
             centerImage(scrollView: scrollView, imageView: context.coordinator.imageView!)
