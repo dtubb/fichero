@@ -34,5 +34,10 @@ Last updated: 2026-03-23 (session end, second update)
 1. **Enable 0.0.1 sidebar modes**: Update `FeatureManager.swift` to enable Workflows and Activity alongside Library and Search.
 2. **Enable workflow tools**: Ensure transcribe, named entity recognition, and catalogue tools are registered and available in the release tier.
 3. **Backend feature tier**: Verify `release` tier includes workflow routes (currently may be gated to `dev` only).
-4. **Fix document viewer**: Image not centered (left-aligned), scrollbars overlay image instead of container edge, background should be Preview-style gray, default zoom should fit-to-window (not 100%). Affects image viewer at all zoom levels.
+4. **Fix document viewer**:
+   - Image not centered (left-aligned), scrollbars overlay image instead of container edge
+   - Background should be Preview-style gray, default zoom should fit-to-window (not 100%)
+   - Inspector panel: ruler should be visible by default (persist as universal tab setting, not per-image)
+   - Inspector panel: remove "add text" / "edit extracted text" placeholder — should not appear
+   - Inspector panel: image thumbnails not rendering
 5. Push the 16 commits on main after review.
