@@ -45,55 +45,25 @@ sources = [
     "src/fichero_backend",  # Briefcase entry point
 ]
 requires = [
-    # FastAPI & Server
+    # Core — 0.0.1 release surface (keep slim for bundle size)
     "fastapi",
     "uvicorn[standard]",
     "python-multipart",
-    "httpx",
+    "python-dotenv",
+    "aiofiles",
     # Data Layer
     "pydantic",
     "pydantic-settings",
     "duckdb",
     "lancedb",
-    # AI/LLM
+    # AI/LLM — Ollama (local) + LiteLLM (provider routing)
     "langchain",
     "langchain-core",
-    "langchain-community",
     "langgraph",
     "langchain-ollama",
-    "langchain-openai",
-    "langchain-anthropic",
-    "langchain-google-genai",
-    "langchain-aws",
-    "langchain-cohere",
-    "langchain-mistralai",
-    "langchain-mcp-adapters",
-    "mcp",
-    "nest-asyncio",
     "litellm",
-    "openai",
-    "dashscope",
     # Document Processing
-    "Pillow",
-    "numpy",
     "PyMuPDF",
-    "kreuzberg",
-    "fastembed",
-    "pyobjc-framework-Vision",
-    "pyobjc-framework-Quartz",
-    "pyobjc-framework-Cocoa",
-    # Utilities
-    "python-dotenv",
-    "pathvalidate",
-    "aiofiles",
-    "aiohttp",
-    "typer",
-    "rich",
-    "requests",
-    "cryptography",
-    "ruamel.yaml",
-    "apscheduler",
-    "watchdog",
 ]
 
 [tool.briefcase.app.fichero-backend.macOS]
@@ -136,27 +106,31 @@ description = "Backend API server for Fichero macOS app"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    # Core utilities
+    # Core — these ship in the Briefcase bundle
     "python-dotenv",
-    "pathvalidate",
     "aiofiles",
-    "aiohttp",
-    # FastAPI backend for Swift frontend
     "fastapi",
     "uvicorn[standard]",
     "python-multipart",
-    "httpx",
-    # Data layer
     "pydantic",
     "pydantic-settings",
     "duckdb",
     "lancedb",
-    # AI/LLM
     "langchain",
     "langchain-core",
-    "langchain-community",
     "langgraph",
     "langchain-ollama",
+    "litellm",
+    "PyMuPDF",
+]
+
+[project.optional-dependencies]
+# Full dev dependencies — install with: pip install -e ".[dev]"
+dev = [
+    "pathvalidate",
+    "aiohttp",
+    "httpx",
+    "langchain-community",
     "langchain-openai",
     "langchain-anthropic",
     "langchain-google-genai",
@@ -166,19 +140,15 @@ dependencies = [
     "langchain-mcp-adapters",
     "mcp",
     "nest-asyncio",
-    "litellm",
     "openai",
     "dashscope",
-    # Document processing
     "Pillow",
     "numpy",
-    "PyMuPDF",
     "kreuzberg",
     "fastembed",
     "pyobjc-framework-Vision",
     "pyobjc-framework-Quartz",
     "pyobjc-framework-Cocoa",
-    # Utilities
     "typer",
     "rich",
     "requests",
