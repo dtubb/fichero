@@ -1,10 +1,10 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-23 (session end)
+Last updated: 2026-03-23 (session end, second update)
 
 ## Current Branch
 
-`main` — 14 commits ahead of origin (not pushed)
+`main` — 15 commits ahead of origin (not pushed)
 
 ## Source of Truth
 
@@ -16,35 +16,23 @@ Last updated: 2026-03-23 (session end)
 
 ## Completed This Session
 
-- Built full build/release pipeline: 9 scripts in `scripts/`
-- Created Eleventy site with home page and FAQ (`site/`)
-- Added AppInstaller (move-to-Applications prompt)
-- Replaced app icon with card-file cabinet
-- Added backend icon (gears) for Briefcase build
-- Disabled app sandbox for DMG distribution
-- Fixed Briefcase to use Python 3.13 via `.briefcase-venv`
-- Switched to `briefcase package` (single command, matching original flow)
-- Slimmed Briefcase bundle: split deps into core vs dev extras
-- Styled installer DMG (app + Applications symlink, volume icon)
-- Created skills: `/fichero-build`, `/fichero-release-prep`, `/fichero-release`
-- Removed dev instructions from BackendConnectionView and ContentView
-- Migrated bundle identifier: `ca.tubb` → `com.tubb` across 128 files
-- Rebuilt `.venv` with Python 3.14 + all deps
+- Full build/release pipeline (9 scripts, 3 skills, Eleventy site)
+- AppInstaller (move-to-Applications), card-file icon, sandbox disabled
+- Briefcase backend working with Python 3.13, slim deps, `briefcase package`
+- Styled installer DMG (app + Applications symlink)
+- Bundle ID migration: `ca.tubb` → `com.tubb` (128 files)
+- Removed dev instructions from backend connection views
 
 ## Blocked
 
-- **Developer ID Application certificate** — needed for notarization. Daniel needs to create one in Apple Developer portal.
-- **Notarytool credentials** — `xcrun notarytool store-credentials "notarytool"` not yet configured.
-- **Sparkle key pair** — not yet generated for release signing.
-
-## Not Pushed
-
-14 commits on main are not pushed to origin. Daniel should review and push.
+- Developer ID Application certificate — needed for notarization
+- Notarytool credentials — not configured
+- Sparkle key pair — not generated
 
 ## Next Session — Start Here
 
-1. Push the 14 commits on main (or review first).
-2. Set up Developer ID Application certificate + notarytool credentials for notarization.
-3. Run `/fichero-release-prep` to produce a full release candidate.
-4. Test: install from DMG → move to Applications → backend starts → health check passes.
-5. Consider data migration for existing `~/Library/Application Support/ca.tubb.fichero/` if any data exists there.
+1. **Enable 0.0.1 sidebar modes**: Update `FeatureManager.swift` to enable Workflows and Activity alongside Library and Search.
+2. **Enable workflow tools**: Ensure transcribe, named entity recognition, and catalogue tools are registered and available in the release tier.
+3. **Backend feature tier**: Verify `release` tier includes workflow routes (currently may be gated to `dev` only).
+4. Push the 15 commits on main after review.
+5. Test full flow: Library → import docs → run workflow → see activity.

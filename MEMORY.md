@@ -104,6 +104,7 @@ For the approved implementation surface, the required checks are:
 - The `[project]` dependencies in pyproject.toml are split: core deps ship in the Briefcase bundle, heavy deps (kreuzberg, fastembed, cloud providers) are in `[project.optional-dependencies] dev`. Dev install: `pip install -e ".[dev]"`
 - Build scripts live in `fichero/scripts/`. Skills: `/fichero-build`, `/fichero-release-prep`, `/fichero-release`
 - Site is Eleventy in `fichero/site/`, deploys to `tubb.ca/apps/fichero/` via `scripts/deploy-site.sh`
+- 0.0.1 feature surface decision (2026-03-23): Daniel wants Library, Search, Workflows, and Activity sidebar modes enabled — with at least transcribe, named entity recognition, and catalogue workflow tools. Current FeatureManager defaults gate Workflows/Activity off — this needs to change.
 
 ## GitHub Roadmap
 
