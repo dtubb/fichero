@@ -156,7 +156,7 @@ struct ZoomableImagePreview: View {
                         coordinator: $imageCoordinator
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                    .background(Color(nsColor: .windowBackgroundColor))
+                    .background(Color(nsColor: NSColor(white: 0.4, alpha: 1.0)))
 
                     // Bottom magnifier panel
                     if magnifierEnabled, let img = image {
