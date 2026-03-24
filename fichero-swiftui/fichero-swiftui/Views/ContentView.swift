@@ -231,6 +231,14 @@ struct ContentView: View {
                 itemId: storedViewModeItemId
             )
         }
+        .onChange(of: documentStore.currentDocuments) { oldDocs, newDocs in
+            // On initial load, populate preview with restored selection
+            guard oldDocs.isEmpty, !newDocs.isEmpty, detailDocument == nil else { return }
+            if let firstSelectedId = browserSelection.first,
+               let doc = newDocs.first(where: { $0.id == firstSelectedId }) {
+                detailDocument = doc
+            }
+        }
         .onChange(of: showInspectorSidebar) { _, newValue in
             if viewSettings.showInspector != newValue {
                 viewSettings.showInspector = newValue
