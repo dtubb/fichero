@@ -4,45 +4,39 @@ Last updated: 2026-03-24
 
 ## Current Branch
 
-`main` — clean. All previous changes committed and pushed.
+`main` — clean. 8 feature branches with PRs awaiting review.
 
 ## Source of Truth
 
 - GitHub Issues + Milestones: https://github.com/dtubb/fichero/milestones
 - Project board: https://github.com/users/dtubb/projects/5
 
-## Completed This Session
+## Completed This Session (2026-03-24)
 
-- **#319** — Workflows + Activity sidebar enabled; transcribe, catalogue, extract_entities tools wired
-- **#318** — Inspector: ruler visible by default, checksum/mime type hidden, file size in MB
-- **#317** — Image viewer: fit-to-window default, lighter background, overlay scrollbars, centering (in progress)
-- Inspector sidebar toggle fixed (no longer hides left sidebar)
-- Icon view defaults to 1 column wide (scale 3.0)
-- Focus bars fade out after 2s (Tinderbox-style)
-- Tab title shows current sidebar mode name (Library, Search, Workflows, etc.)
-- Search bar only shows in search mode (not always centered in toolbar)
-- Inspector minimum width increased to 250 (matches sidebar)
-- Backend routes added: workflow-execution, batch, activity
-- Batches, providers/models settings enabled for 0.0.1
-- Feature profile bumped to v20
-- Peekaboo MCP configured with local Homebrew binary
-- GitHub issues created: #322-#327
+- **PR #329** — #314: Table Size column shows actual file size (ByteCountFormatter)
+- **PR #331** — #315: Replace print() error logging with ErrorService in LibraryView
+- **PR #333** — #332: Enable AI Providers & Models menu item for 0.0.1
+- **PR #334** — #313: Add connection error banner to Library view
+- **PR #335** — #322: Center image using frame expansion instead of contentInsets
+- **PR #336** — #324: Add font, line spacing, and margin settings with reset
+- **PR #337** — #327: Show folder contents grid in preview pane
+- **PR #338** — #330: Fix icon view default scale + preview pane on launch
 
 ## Blocked
 
 - Developer ID Application certificate (notarization)
 - Notarytool credentials
 - Sparkle key pair
-- **#322** — Image centering still not fully working (contentInsets approach, needs visual verification)
 
-## Recent PRs
+## Recent PRs (all awaiting review)
 
-- **PR #329** — fix: show actual file size in table Size column (#314) — awaiting review
+- PR #329 (#314), PR #331 (#315), PR #333 (#332), PR #334 (#313)
+- PR #335 (#322), PR #336 (#324), PR #337 (#327), PR #338 (#330)
 
 ## Next Session — Start Here
 
-1. **#322** — Image centering: verify current contentInsets approach works. If not, try NSClipView centering or wrap image in a container view.
-2. **#313** — Library View: Add connection/API error state UI.
-3. **#324** — Settings: default font, font size, margins with reset button.
-4. **#327** — Folder preview: show folder contents grid instead of file preview.
-5. **#326** — Keyboard shortcuts: verify all navigation shortcuts work end-to-end.
+1. **Review and merge PRs** — 8 PRs awaiting Daniel's review. Merge approved ones to main.
+2. **#326** — Keyboard shortcuts: verify all navigation shortcuts work end-to-end (needs app running).
+3. **#317** — Document viewer: existing worktree at `fichero-issue-317`. Assess if #322 PR resolves this too.
+4. **#320** — Bundle identifier migration: low priority, needs human oversight for keychain migration.
+5. **Wire font settings** — PR #336 adds the settings UI; a follow-up wires them to EditorView.

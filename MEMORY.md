@@ -105,7 +105,11 @@ For the approved implementation surface, the required checks are:
 - Build scripts live in `fichero/scripts/`. Skills: `/fichero-build`, `/fichero-release-prep`, `/fichero-release`
 - Site is Eleventy in `fichero/site/`, deploys to `tubb.ca/apps/fichero/` via `scripts/deploy-site.sh`
 - 0.0.1 feature surface (updated 2026-03-23): Library, Search, Workflows, Activity, Batches enabled. Settings tabs (General, Backend, Models) enabled. Workflow tools: files, collection, transcribe, catalogue, extract_entities. Workflow run-on-selection and files toolbar enabled. Release profile v20.
-- NSScrollView contentInsets add scrollable padding but do NOT reposition the document view. Centering images in an NSScrollView requires scrolling to negative clip view coordinates (`-inset/magnification`) after setting insets. The `automaticallyAdjustsContentInsets = false` is needed to prevent the system from overriding custom insets.
+- NSScrollView image centering: contentInsets approach has timing issues with SwiftUI view updates. Better approach: expand the image view frame to viewport/magnification size and use `imageAlignment = .alignCenter` for native centering. Clear stale contentInsets with `NSEdgeInsets()`.
+- When using Xcode MCP `XcodeWrite` to add files to the project from a worktree, the pbxproj changes land in the main repo (Xcode's open project), not the worktree. Must copy pbxproj to worktree and clean up main repo after.
+- `ErrorService.shared.reportError(_:)` accepts raw `Error`, converts to `ErrorModel`, logs via `os.log`, and shows user-facing alert via `currentAlert`. Preferred over `print()` for all error paths.
+- `DocumentStore.children(of:)` returns child documents of a folder; used by FolderContentsGrid for preview pane.
+- Font/typography settings are stored in `@AppStorage` keys: `editor.fontName`, `editor.fontSize`, `editor.lineSpacing`, `editor.marginHorizontal`, `editor.marginVertical`. Settings UI exists but editor views need wiring.
 - Backend routes for workflow-execution, batch, and activity are in `_CORE_ROUTE_SPECS` (registered for release tier). The batch and activity routers have built-in prefixes (`/batches`, `/activity`) so they mount at `/api`.
 - Debug builds don't embed the backend — must run uvicorn separately on port 8765 before launching the app
 - Peekaboo MCP is installed via Homebrew at `/opt/homebrew/bin/peekaboo`. Config in `.mcp.json` uses `peekaboo mcp` (not `peekaboo mcp serve --transport stdio`). The `npx @steipete/peekaboo` approach doesn't work.
