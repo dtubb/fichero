@@ -104,7 +104,12 @@ For the approved implementation surface, the required checks are:
 - The `[project]` dependencies in pyproject.toml are split: core deps ship in the Briefcase bundle, heavy deps (kreuzberg, fastembed, cloud providers) are in `[project.optional-dependencies] dev`. Dev install: `pip install -e ".[dev]"`
 - Build scripts live in `fichero/scripts/`. Skills: `/fichero-build`, `/fichero-release-prep`, `/fichero-release`
 - Site is Eleventy in `fichero/site/`, deploys to `tubb.ca/apps/fichero/` via `scripts/deploy-site.sh`
-- 0.0.1 feature surface decision (2026-03-23): Daniel wants Library, Search, Workflows, and Activity sidebar modes enabled — with at least transcribe, named entity recognition, and catalogue workflow tools. Current FeatureManager defaults gate Workflows/Activity off — this needs to change.
+- 0.0.1 feature surface (updated 2026-03-23): Library, Search, Workflows, Activity, Batches enabled. Settings tabs (General, Backend, Models) enabled. Workflow tools: files, collection, transcribe, catalogue, extract_entities. Workflow run-on-selection and files toolbar enabled. Release profile v20.
+- NSScrollView contentInsets add scrollable padding but do NOT reposition the document view. Centering images in an NSScrollView requires scrolling to negative clip view coordinates (`-inset/magnification`) after setting insets. The `automaticallyAdjustsContentInsets = false` is needed to prevent the system from overriding custom insets.
+- Backend routes for workflow-execution, batch, and activity are in `_CORE_ROUTE_SPECS` (registered for release tier). The batch and activity routers have built-in prefixes (`/batches`, `/activity`) so they mount at `/api`.
+- Debug builds don't embed the backend — must run uvicorn separately on port 8765 before launching the app
+- Peekaboo MCP is installed via Homebrew at `/opt/homebrew/bin/peekaboo`. Config in `.mcp.json` uses `peekaboo mcp` (not `peekaboo mcp serve --transport stdio`). The `npx @steipete/peekaboo` approach doesn't work.
+- `ruff` is not in `.venv` — use `uvx ruff check` instead
 
 ## GitHub Roadmap
 

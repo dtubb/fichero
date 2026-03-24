@@ -1,10 +1,10 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-23 (session end)
+Last updated: 2026-03-23
 
 ## Current Branch
 
-`main` — 18 commits ahead of origin (not pushed)
+`main` — 14 uncommitted files (UI fixes + feature enablement, not yet committed)
 
 ## Source of Truth
 
@@ -13,23 +13,32 @@ Last updated: 2026-03-23 (session end)
 
 ## Completed This Session
 
-- Full build/release pipeline (9 scripts, 3 skills, Eleventy site)
-- AppInstaller, card-file icon, sandbox disabled, backend icon
-- Briefcase with Python 3.13 via `.briefcase-venv`, slim deps, `briefcase package`
-- Styled installer DMG, move-to-Applications prompt
-- Bundle ID migration: `ca.tubb` → `com.tubb` (128 files)
-- Created GitHub issues #317–#320 for remaining 0.0.1 work
+- **#319** — Workflows + Activity sidebar enabled; transcribe, catalogue, extract_entities tools wired
+- **#318** — Inspector: ruler visible by default, checksum/mime type hidden, file size in MB
+- **#317** — Image viewer: fit-to-window default, lighter background, overlay scrollbars, centering (in progress)
+- Inspector sidebar toggle fixed (no longer hides left sidebar)
+- Icon view defaults to 1 column wide (scale 3.0)
+- Focus bars fade out after 2s (Tinderbox-style)
+- Tab title shows current sidebar mode name (Library, Search, Workflows, etc.)
+- Search bar only shows in search mode (not always centered in toolbar)
+- Inspector minimum width increased to 250 (matches sidebar)
+- Backend routes added: workflow-execution, batch, activity
+- Batches, providers/models settings enabled for 0.0.1
+- Feature profile bumped to v20
+- Peekaboo MCP configured with local Homebrew binary
+- GitHub issues created: #322-#327
 
 ## Blocked
 
 - Developer ID Application certificate (notarization)
 - Notarytool credentials
 - Sparkle key pair
+- **#322** — Image centering still not fully working (contentInsets approach, needs visual verification)
 
 ## Next Session — Start Here
 
-1. Push 18 commits on main (Daniel to review first).
-2. **#319** — Enable Workflows + Activity sidebar, wire up transcribe/NER/catalogue tools.
-3. **#317** — Fix document viewer: center image, scrollbars, gray bg, fit-to-window zoom.
-4. **#318** — Fix inspector: ruler default, remove placeholder text, fix thumbnails.
-5. **#320** — Bundle ID data migration (low priority).
+1. **Commit changes** — 14 dirty files on main. Review diff and commit in logical chunks.
+2. **#322** — Image centering: verify current contentInsets approach works. If not, try NSClipView centering or wrap image in a container view.
+3. **#324** — Settings: default font, font size, margins with reset button.
+4. **#327** — Folder preview: show folder contents grid instead of file preview.
+5. **#326** — Keyboard shortcuts: verify all navigation shortcuts work end-to-end.

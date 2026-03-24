@@ -69,6 +69,32 @@ Full architecture: `docs/CLAUDE.md` (canonical, detailed), `docs/architecture/`
 | `fichero-swiftui/` | Swift/SwiftUI frontend |
 | `fichero-api/src/fichero/` | Python FastAPI backend |
 
+## Visual Verification
+
+Use Peekaboo MCP for screenshot-based visual verification of UI changes:
+
+```bash
+# Run as MCP server (stdio transport)
+peekaboo mcp serve --transport stdio
+```
+
+```json
+// Claude Desktop config snippet (Developer → Edit Config):
+{
+  "mcpServers": {
+    "peekaboo": {
+      "command": "npx",
+      "args": ["-y", "@steipete/peekaboo"],
+      "env": {
+        "PEEKABOO_AI_PROVIDERS": "openai/gpt-5.1,anthropic/claude-opus-4"
+      }
+    }
+  }
+}
+```
+
+For quick UI iteration: `briefcase dev` in `fichero-api/` runs the backend without full build.
+
 ## Rules I Don't Break
 
 1. Never push to main without explicit approval.
