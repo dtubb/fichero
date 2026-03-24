@@ -29,24 +29,15 @@ final class EmbeddedBackendService: ObservableObject {
         status = .starting
 
         #if DEBUG
-        // Development mode: Try external backend first, fall back to embedded
+        // Development mode: connect to external backend if running, skip embedded launch
         logger.info("DEBUG mode: Checking for external backend on port 8765")
 
         do {
             try await waitForBackend(timeout: 2)
-            let supportsWorkflows = await backendSupportsWorkflowRoutes()
-            if supportsWorkflows {
-                status = .running
-                isExternalBackend = true
-                logger.info("✅ Connected to external backend (will not manage lifecycle)")
-                logger.warning("⚠️  External backend will NOT be stopped when app quits (user-managed)")
-                return
-            }
-
-            logger.warning(
-                "⚠️ External backend lacks /api/workflows routes (404); launching embedded dev-tier backend instead"
-            )
-            isExternalBackend = false
+            status = .running
+            isExternalBackend = true
+            logger.info("✅ Connected to external backend (will not manage lifecycle)")
+            return
         } catch {
             logger.info("No external backend found, launching embedded backend...")
             isExternalBackend = false

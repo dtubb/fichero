@@ -6,7 +6,7 @@ struct DocumentInspectorContentTab: View {
     let document: Document
     @EnvironmentObject private var documentService: DocumentServiceGenerated
     @EnvironmentObject private var documentStore: DocumentStore
-    @AppStorage("editor.rulersVisible") private var rulersVisible = false
+    @AppStorage("editor.rulersVisible") private var rulersVisible = true
 
     @State private var draftAttributedText = NSAttributedString(string: "")
     @State private var originalPlainContent: String = ""

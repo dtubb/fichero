@@ -20,11 +20,12 @@ struct DocumentInspectorMetadataTab: View {
                 .textSelection(.enabled)
             }
 
-            // Dynamic metadata fields
-            ForEach(Array(document.metadata.keys.sorted()), id: \.self) { key in
+            // Dynamic metadata fields (filter out noisy fields)
+            ForEach(Array(document.metadata.keys.sorted().filter { !hiddenMetadataKeys.contains($0) }),
+                    id: \.self) { key in
                 if let value = document.metadata[key] {
                     LabeledContent(formatMetadataKey(key)) {
-                        Text(String(describing: value.value))
+                        Text(formatMetadataValue(key: key, value: value.value))
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -43,11 +44,28 @@ struct DocumentInspectorMetadataTab: View {
 
     // MARK: - Helpers
 
+    private let hiddenMetadataKeys: Set<String> = [
+        "Checksum", "checksum", "hash", "md5", "sha256",
+        "Mime_Type", "mime_type", "MimeType", "content_type"
+    ]
+
     private func formatMetadataKey(_ key: String) -> String {
-        // Convert "Exif_Make" to "Make", "File_Size" to "Size", etc.
         key.replacingOccurrences(of: "_", with: " ")
            .components(separatedBy: " ")
            .map { $0.capitalized }
            .joined(separator: " ")
+    }
+
+    private func formatMetadataValue(key: String, value: Any) -> String {
+        let lowerKey = key.lowercased()
+        if lowerKey.contains("size") || lowerKey.contains("bytes") {
+            if let intVal = value as? Int {
+                return ByteCountFormatter.string(fromByteCount: Int64(intVal), countStyle: .file)
+            }
+            if let strVal = value as? String, let intVal = Int(strVal) {
+                return ByteCountFormatter.string(fromByteCount: Int64(intVal), countStyle: .file)
+            }
+        }
+        return String(describing: value)
     }
 }

@@ -210,6 +210,11 @@ from fichero.api.routes import (  # noqa: E402
     models,
     folders,
     artifacts,
+    workflows,
+    workflow_execution,
+    batch,
+    activity,
+    chat,
 )
 
 RouteSpec = tuple[object, str, list[str]]
@@ -221,12 +226,16 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (storage.router, "/api/storage", ["storage"]),
     (folders.router, "/api/folders", ["folders"]),
     (artifacts.router, "/api/artifacts", ["artifacts"]),
-]
-
-_DEV_ROUTE_SPECS: list[RouteSpec] = [
     (providers.router, "/api/providers", ["providers"]),
     (models.router, "/api/models", ["models"]),
+    (workflows.router, "/api/workflows", ["workflows"]),
+    (workflow_execution.router, "/api/workflow-execution", ["workflow-execution"]),
+    (batch.router, "/api", ["batches"]),
+    (activity.router, "/api", ["activity"]),
+    (chat.router, "/api/chat", ["chat"]),
 ]
+
+_DEV_ROUTE_SPECS: list[RouteSpec] = []
 
 
 def resolve_feature_tier() -> str:

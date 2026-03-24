@@ -8,13 +8,10 @@ extension ContentView {
 
     // MARK: - Pane Focus Indicator
 
-    /// Returns a view that shows an accent-colored border when the given pane has keyboard focus
+    /// Returns a view that shows an accent-colored border when the given pane has keyboard focus,
+    /// then fades out after a brief moment (like Tinderbox's focus highlight).
     func paneFocusIndicator(for pane: PaneFocus) -> some View {
-        RoundedRectangle(cornerRadius: 0)
-            .strokeBorder(
-                focusedPane == pane ? Color.accentColor : Color.clear,
-                lineWidth: 2
-            )
+        FadingFocusBorder(isActive: focusedPane == pane)
             .allowsHitTesting(false)
     }
 
@@ -240,5 +237,36 @@ extension ContentView {
             Text(doc.name)
                 .fontWeight(.medium)
         }
+    }
+}
+
+/// A border that briefly shows accent color when focus changes, then fades out
+struct FadingFocusBorder: View {
+    let isActive: Bool
+    @State private var opacity: Double = 0
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 0)
+            .strokeBorder(Color.accentColor, lineWidth: 2)
+            .opacity(opacity)
+            .onChange(of: isActive) { _, active in
+                if active {
+                    // Show immediately
+                    withAnimation(.easeIn(duration: 0.15)) {
+                        opacity = 1.0
+                    }
+                    // Fade out after 2 seconds
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .seconds(2))
+                        withAnimation(.easeOut(duration: 0.8)) {
+                            opacity = 0
+                        }
+                    }
+                } else {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        opacity = 0
+                    }
+                }
+            }
     }
 }

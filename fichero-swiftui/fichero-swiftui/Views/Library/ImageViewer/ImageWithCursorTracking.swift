@@ -28,7 +28,10 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         scrollView.minMagnification = minScale
         scrollView.maxMagnification = maxScale
         scrollView.magnification = scale
-        scrollView.backgroundColor = NSColor(white: 0.4, alpha: 1.0)  // Medium-dark gray like Preview.app
+        scrollView.backgroundColor = NSColor.windowBackgroundColor
+        scrollView.scrollerStyle = .overlay
+        scrollView.automaticallyAdjustsContentInsets = false
+        scrollView.alphaValue = 0  // Hidden until first center to prevent flash
         scrollView.postsBoundsChangedNotifications = true
         scrollView.contentView.postsBoundsChangedNotifications = true
 
@@ -116,10 +119,25 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        // Center image on first layout when bounds are known
+        // Fit-to-window and center on first layout when bounds are known
         if context.coordinator.needsInitialCenter && scrollView.bounds.width > 0 && scrollView.bounds.height > 0 {
             context.coordinator.needsInitialCenter = false
+            // Default to fit-to-window scale unless a saved scale exists
+            if let fitScale = context.coordinator.calculateFitScale() {
+                let savedScale = scale
+                // If scale is still the 1.0 default (no saved value), use fit scale
+                if abs(savedScale - 1.0) < 0.01 {
+                    scrollView.magnification = fitScale
+                    Task { @MainActor in
+                        self.scale = fitScale
+                    }
+                }
+            }
             centerImage(scrollView: scrollView, imageView: context.coordinator.imageView!)
+            // Reveal after centering (was hidden to prevent flash)
+            if scrollView.alphaValue < 1 {
+                scrollView.alphaValue = 1
+            }
         }
         if abs(scrollView.magnification - scale) > 0.01 {
             scrollView.magnification = scale
@@ -180,42 +198,45 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             return
         }
 
-        let viewSize = scrollView.bounds.size
+        // Restore natural frame (don't expand beyond image size)
         let imageSize = image.size
-        let scaledSize = CGSize(
-            width: imageSize.width * scrollView.magnification,
-            height: imageSize.height * scrollView.magnification
+        if imgView.frame.size != imageSize {
+            imgView.frame = NSRect(origin: .zero, size: imageSize)
+            imgView.imageAlignment = .alignTopLeft
+        }
+
+        let viewSize = scrollView.bounds.size
+        let mag = scrollView.magnification
+        let scaledW = imageSize.width * mag
+        let scaledH = imageSize.height * mag
+
+        // Use contentInsets for centering + scroll to negative origin to make them visible
+        let hInset = max(0, (viewSize.width - scaledW) / 2)
+        let vInset = max(0, (viewSize.height - scaledH) / 2)
+        scrollView.contentInsets = NSEdgeInsets(
+            top: vInset, left: hInset, bottom: vInset, right: hInset
         )
 
-        updateContentInsets(scrollView: scrollView, imageView: imageView)
-
-        // For undersized images, contentInsets already provide centering.
-        // Avoid negative scroll origins, which can skew horizontal/vertical framing.
-        let centerX = max(0, (scaledSize.width - viewSize.width) / 2)
-        let centerY = max(0, (scaledSize.height - viewSize.height) / 2)
-        scrollView.contentView.scroll(to: CGPoint(x: centerX, y: centerY))
+        // Scroll to show the inset area (negative origin in clip view coords)
+        let scrollX = scaledW < viewSize.width ? -hInset / mag : max(0, (scaledW - viewSize.width) / 2) / mag
+        let scrollY = scaledH < viewSize.height ? -vInset / mag : max(0, (scaledH - viewSize.height) / 2) / mag
+        scrollView.contentView.scroll(to: CGPoint(x: scrollX, y: scrollY))
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 
-    /// Update content insets to center the image when it's smaller than the scroll view
     private func updateContentInsets(scrollView: NSScrollView, imageView: NSView) {
         guard let imgView = imageView as? NSImageView, let image = imgView.image else { return }
 
         let viewSize = scrollView.bounds.size
-        let scaledImageSize = CGSize(
-            width: image.size.width * scrollView.magnification,
-            height: image.size.height * scrollView.magnification
-        )
+        let mag = scrollView.magnification
+        let scaledW = image.size.width * mag
+        let scaledH = image.size.height * mag
 
-        // Calculate insets to center the image
-        let horizontalInset = max(0, (viewSize.width - scaledImageSize.width) / 2)
-        let verticalInset = max(0, (viewSize.height - scaledImageSize.height) / 2)
+        let hInset = max(0, (viewSize.width - scaledW) / 2)
+        let vInset = max(0, (viewSize.height - scaledH) / 2)
 
         scrollView.contentInsets = NSEdgeInsets(
-            top: verticalInset,
-            left: horizontalInset,
-            bottom: verticalInset,
-            right: horizontalInset
+            top: vInset, left: hInset, bottom: vInset, right: hInset
         )
     }
 
@@ -239,23 +260,19 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         @MainActor
         private func updateContentInsetsForCurrentLayout() {
             guard let scrollView = scrollView,
-                  let imageView = imageView as? NSImageView,
-                  let image = imageView.image else { return }
+                  let imgView = imageView as? NSImageView,
+                  let image = imgView.image else { return }
 
             let viewSize = scrollView.bounds.size
-            let scaledImageSize = CGSize(
-                width: image.size.width * scrollView.magnification,
-                height: image.size.height * scrollView.magnification
-            )
+            let mag = scrollView.magnification
+            let scaledW = image.size.width * mag
+            let scaledH = image.size.height * mag
 
-            let horizontalInset = max(0, (viewSize.width - scaledImageSize.width) / 2)
-            let verticalInset = max(0, (viewSize.height - scaledImageSize.height) / 2)
+            let hInset = max(0, (viewSize.width - scaledW) / 2)
+            let vInset = max(0, (viewSize.height - scaledH) / 2)
 
             scrollView.contentInsets = NSEdgeInsets(
-                top: verticalInset,
-                left: horizontalInset,
-                bottom: verticalInset,
-                right: horizontalInset
+                top: vInset, left: hInset, bottom: vInset, right: hInset
             )
         }
 
@@ -393,20 +410,29 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         @MainActor
         func centerContent() {
             guard let scrollView = scrollView,
-                  let imageView = imageView as? NSImageView,
-                  let image = imageView.image else { return }
+                  let imgView = imageView as? NSImageView,
+                  let image = imgView.image else { return }
 
-            let imageSize = image.size
-            let magnification = scrollView.magnification
-            let scaledWidth = imageSize.width * magnification
-            let scaledHeight = imageSize.height * magnification
+            let mag = scrollView.magnification
             let viewSize = scrollView.bounds.size
+            let scaledW = image.size.width * mag
+            let scaledH = image.size.height * mag
 
-            // For undersized images, contentInsets already provide centering.
-            let centerX = max(0, (scaledWidth - viewSize.width) / 2)
-            let centerY = max(0, (scaledHeight - viewSize.height) / 2)
+            // Update insets
+            let hInset = max(0, (viewSize.width - scaledW) / 2)
+            let vInset = max(0, (viewSize.height - scaledH) / 2)
+            scrollView.contentInsets = NSEdgeInsets(
+                top: vInset, left: hInset, bottom: vInset, right: hInset
+            )
 
-            scrollView.contentView.scroll(to: CGPoint(x: centerX, y: centerY))
+            // Scroll to center
+            let scrollX = scaledW < viewSize.width
+                ? -hInset / mag
+                : max(0, (scaledW - viewSize.width) / 2) / mag
+            let scrollY = scaledH < viewSize.height
+                ? -vInset / mag
+                : max(0, (scaledH - viewSize.height) / 2) / mag
+            scrollView.contentView.scroll(to: CGPoint(x: scrollX, y: scrollY))
             scrollView.reflectScrolledClipView(scrollView.contentView)
         }
 

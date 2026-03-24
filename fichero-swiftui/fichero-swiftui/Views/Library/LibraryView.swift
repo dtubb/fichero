@@ -69,7 +69,7 @@ struct LibraryView: View {
     @State var gridColumnCount: Int = 4
 
     // Zoom scale for icon and map views (persisted per-app)
-    @AppStorage("library.iconViewScale") var iconViewScale: Double = 1.0
+    @AppStorage("library.iconViewScale") var iconViewScale: Double = 3.0
     @State var mapCanvasScale: CGFloat = 1.0
 
     var body: some View {

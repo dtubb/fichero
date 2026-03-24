@@ -8,12 +8,17 @@ private let logger = Logger(subsystem: "com.tubb.Fichero", category: "AppInstall
 enum AppInstaller {
 
     /// Returns true if the app is NOT in /Applications or ~/Applications.
+    /// Always returns false for debug builds (running from Xcode).
     static func shouldOfferMoveToApplications() -> Bool {
+        #if DEBUG
+        return false
+        #else
         let bundlePath = Bundle.main.bundleURL.resolvingSymlinksInPath().path
         let homeApplications = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Applications").path
         return !bundlePath.hasPrefix("/Applications/") &&
             !bundlePath.hasPrefix("\(homeApplications)/")
+        #endif
     }
 
     /// Shows an alert offering to move the app. Returns true if move was initiated.
@@ -47,6 +52,7 @@ enum AppInstaller {
 
     // MARK: - Private
 
+    @MainActor
     private static func moveCurrentAppToApplicationsAndRelaunch() -> Bool {
         let fileManager = FileManager.default
         let sourceURL = Bundle.main.bundleURL.resolvingSymlinksInPath()
@@ -73,6 +79,7 @@ enum AppInstaller {
         }
     }
 
+    @MainActor
     private static func relaunchInstalledCopy(at targetURL: URL) -> Bool {
         terminateOtherRunningInstances()
 
@@ -106,6 +113,7 @@ enum AppInstaller {
         }
     }
 
+    @MainActor
     private static func showError(_ message: String) {
         let alert = NSAlert()
         alert.messageText = "Installation Failed"

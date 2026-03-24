@@ -21,7 +21,7 @@ enum PaneFocus: Hashable {
 // - ContentView+Persistence: State serialization for @SceneStorage
 // swiftlint:disable:next type_body_length
 struct ContentView: View {
-    static let inspectorMinWidth: Double = 140
+    static let inspectorMinWidth: Double = 250
     static let inspectorMaxWidth: Double = 1000
 
     // MARK: - Environment
@@ -190,7 +190,7 @@ struct ContentView: View {
             }
         }
         .navigationSplitViewStyle(.prominentDetail)
-        .navigationTitle("")
+        .navigationTitle(sidebarMode.label)
         .toolbar(removing: .sidebarToggle)
         .onAppear {
             // Restore all persisted state from @SceneStorage
@@ -304,7 +304,8 @@ struct ContentView: View {
 
             // Far right: Inspector toggle (after search widget, explicit trailing position)
             // Only show for content modes that use inspector
-            if featureManager.isSearchEnabled {
+            // Search field only shown in search mode — avoids confusion in other modes
+            if featureManager.isSearchEnabled && sidebarMode == .search {
                 ToolbarItem(placement: .principal) {
                     HStack {
                         Image(systemName: "magnifyingglass")
@@ -330,7 +331,6 @@ struct ContentView: View {
                     Button {
                         withAnimation {
                             showInspectorSidebar.toggle()
-                            updateColumnVisibility()
                         }
                     } label: {
                         Image(systemName: "sidebar.right")

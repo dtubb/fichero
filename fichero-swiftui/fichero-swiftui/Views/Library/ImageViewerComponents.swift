@@ -156,7 +156,7 @@ struct ZoomableImagePreview: View {
                         coordinator: $imageCoordinator
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                    .background(Color(nsColor: .textBackgroundColor))
+                    .background(Color(nsColor: .windowBackgroundColor))
 
                     // Bottom magnifier panel
                     if magnifierEnabled, let img = image {
@@ -225,7 +225,12 @@ struct ZoomableImagePreview: View {
             }
             if let key = scaleKey {
                 let saved = UserDefaults.standard.double(forKey: key)
-                scale = saved > 0 ? CGFloat(saved) : 1.0
+                if saved > 0 {
+                    scale = CGFloat(saved)
+                } else {
+                    // No saved scale — fit-to-window will be applied on next layout
+                    scale = 1.0
+                }
             } else {
                 scale = 1.0
             }
@@ -304,22 +309,19 @@ struct ZoomableImagePreview: View {
     }
 
     private func fitToWindow() {
-        // Calculate fit scale from coordinator if available
         if let fitScale = imageCoordinator?.calculateFitScale() {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                scale = fitScale
-            }
-            // Center the content after a brief delay to let the scale apply
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(0.25))
+            scale = fitScale
+            // Defer center to next run loop so magnification has applied
+            DispatchQueue.main.async {
                 imageCoordinator?.centerContent()
             }
         }
     }
 
     private func actualSize() {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            scale = 1.0
+        scale = 1.0
+        DispatchQueue.main.async {
+            imageCoordinator?.centerContent()
         }
     }
 

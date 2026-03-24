@@ -6,8 +6,8 @@ import SwiftUI
 @MainActor
 class FeatureManager: ObservableObject {
     static let shared = FeatureManager()
-    private static let releaseProfileVersion = 18
-    private static let workflowV001EnabledTools = "files,collection,transcribe"
+    private static let releaseProfileVersion = 20
+    private static let workflowV001EnabledTools = "files,collection,transcribe,catalogue,extract_entities"
     private static let isDevFeatureTier =
         ProcessInfo.processInfo.environment["FICHERO_FEATURE_TIER"]?.lowercased() == "dev"
 
@@ -159,18 +159,18 @@ class FeatureManager: ObservableObject {
         librarySearchSplitLayoutsEnabledInternal = false
         libraryFilterToolbarEnabledInternal = false
         libraryIconZoomControlsEnabledInternal = false
-        workflowsEnabledInternal = false
+        workflowsEnabledInternal = true
         workflowEditorAdvancedViewsEnabled = false
-        batchesEnabledInternal = false
+        batchesEnabledInternal = true
         chatEnabledInternal = false
         agentsEnabledInternal = false
         automationEnabledInternal = false
         mcpEnabledInternal = false
         integrationsEnabledInternal = false
-        activityEnabledInternal = false
-        settingsGeneralTabEnabledInternal = false
-        settingsBackendTabEnabledInternal = false
-        settingsModelsTabEnabledInternal = false
+        activityEnabledInternal = true
+        settingsGeneralTabEnabledInternal = true
+        settingsBackendTabEnabledInternal = true
+        settingsModelsTabEnabledInternal = true
         settingsAIAdvancedTabEnabledInternal = false
         workflowToolsMCPEnabledInternal = false
         workflowToolsAgentsEnabledInternal = false
@@ -180,14 +180,14 @@ class FeatureManager: ObservableObject {
         workflowToolsConvertEnabledInternal = false
         workflowToolsLogicEnabledInternal = false
         workflowToolsOutputsEnabledInternal = false
-        workflowToolsFilesEnabledInternal = false
+        workflowToolsFilesEnabledInternal = true
         workflowToolsSearchEnabledInternal = false
         workflowEnabledToolsInternal = Self.workflowV001EnabledTools
         providersExtendedEnabledInternal = false
         workflowImportExportEnabledInternal = false
         workflowLangGraphPreviewEnabledInternal = false
-        workflowFilesToolbarEnabledInternal = false
-        workflowRunOnSelectionEnabledInternal = false
+        workflowFilesToolbarEnabledInternal = true
+        workflowRunOnSelectionEnabledInternal = true
         releaseProfileVersionApplied = Self.releaseProfileVersion
     }
 
