@@ -1,10 +1,10 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-23
+Last updated: 2026-03-24
 
 ## Current Branch
 
-`main` — 14 uncommitted files (UI fixes + feature enablement, not yet committed)
+`main` — clean. All previous changes committed and pushed.
 
 ## Source of Truth
 
@@ -35,10 +35,14 @@ Last updated: 2026-03-23
 - Sparkle key pair
 - **#322** — Image centering still not fully working (contentInsets approach, needs visual verification)
 
+## Recent PRs
+
+- **PR #329** — fix: show actual file size in table Size column (#314) — awaiting review
+
 ## Next Session — Start Here
 
-1. **Commit changes** — 14 dirty files on main. Review diff and commit in logical chunks.
-2. **#322** — Image centering: verify current contentInsets approach works. If not, try NSClipView centering or wrap image in a container view.
+1. **#322** — Image centering: verify current contentInsets approach works. If not, try NSClipView centering or wrap image in a container view.
+2. **#313** — Library View: Add connection/API error state UI.
 3. **#324** — Settings: default font, font size, margins with reset button.
 4. **#327** — Folder preview: show folder contents grid instead of file preview.
 5. **#326** — Keyboard shortcuts: verify all navigation shortcuts work end-to-end.
