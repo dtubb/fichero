@@ -250,10 +250,8 @@ struct FicheroApp: App {
             CommandGroup(after: .appSettings) {
                 Divider()
 
-                if featureManager.isProvidersEnabled {
-                    Button("AI Providers & Models...") {
-                        appState.showProvidersSettings = true
-                    }
+                Button("AI Providers & Models...") {
+                    appState.showProvidersSettings = true
                 }
 
                 if featureManager.isMCPEnabled {
