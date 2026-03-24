@@ -74,9 +74,9 @@ struct LibraryView: View {
     // Grid column count for arrow key navigation (updated by GeometryReader in iconsView)
     @State var gridColumnCount: Int = 4
 
-    // Zoom scale for icon and map views (persisted per-window/scene)
-    @SceneStorage("library.iconViewScale") var iconViewScale: Double = 1.0
-    @SceneStorage("library.mapCanvasScale") var mapCanvasScale: Double = 1.0
+    // Zoom scale for icon and map views (persisted per-app)
+    @AppStorage("library.iconViewScale") var iconViewScale: Double = 1.0
+    @State var mapCanvasScale: CGFloat = 1.0
 
     var body: some View {
         withKeyboardShortcuts(
