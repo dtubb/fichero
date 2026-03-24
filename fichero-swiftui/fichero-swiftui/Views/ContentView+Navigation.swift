@@ -12,17 +12,27 @@ extension ContentView {
     var contentView: some View {
         switch viewMode {
         case .library:
-            LibraryView(
-                documents: selectedDocuments,
-                selection: $browserSelection,
-                detailDocument: $detailDocument,
-                viewMode: $viewSettings.libraryLayout,
-                displayMode: viewDisplayMode,
-                folderId: selectedSidebarItemId,
-                onRequestFocus: { focusedPane = .content },
-                onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
-                onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) }
-            )
+            VStack(spacing: 0) {
+                if !documentStore.isConnected {
+                    ConnectionBanner(
+                        error: documentStore.error,
+                        onRetry: {
+                            Task { await documentStore.checkConnection() }
+                        }
+                    )
+                }
+                LibraryView(
+                    documents: selectedDocuments,
+                    selection: $browserSelection,
+                    detailDocument: $detailDocument,
+                    viewMode: $viewSettings.libraryLayout,
+                    displayMode: viewDisplayMode,
+                    folderId: selectedSidebarItemId,
+                    onRequestFocus: { focusedPane = .content },
+                    onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
+                    onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) }
+                )
+            }
 
         case .search(let savedSearch):
             SearchView(

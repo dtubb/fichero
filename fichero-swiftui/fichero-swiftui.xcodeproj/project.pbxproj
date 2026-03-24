@@ -13,7 +13,6 @@
 		008 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 108 /* EditorView.swift */; };
 		009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 201 /* Assets.xcassets */; };
 		010 /* SidebarItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 109 /* SidebarItem.swift */; };
-		FC3F95AC0E1F4A7DB6B9993E /* FeatureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */; };
 		011 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110 /* SearchView.swift */; };
 		013 /* Provider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 112 /* Provider.swift */; };
 		018 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 117 /* ChatView.swift */; };
@@ -85,6 +84,7 @@
 		202674E42F489742008EAB5D /* ChatMapGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E32F489742008EAB5D /* ChatMapGrid.swift */; };
 		202674E62F489757008EAB5D /* ChatMessagesList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E52F489757008EAB5D /* ChatMessagesList.swift */; };
 		202674E82F48976C008EAB5D /* ChatView+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E72F48976C008EAB5D /* ChatView+Extensions.swift */; };
+		2059FFBF2F729697009F40EB /* ConnectionBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2059FFBE2F729697009F40EB /* ConnectionBanner.swift */; };
 		20D8ED492F48E2B1006950A3 /* WorkflowInspector+AgentsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED482F48E2B1006950A3 /* WorkflowInspector+AgentsSection.swift */; };
 		20D8ED4B2F48E2B3006950A3 /* ActivityProgressModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED4A2F48E2B3006950A3 /* ActivityProgressModels.swift */; };
 		20D8ED4D2F48E2BE006950A3 /* WorkflowInspector+MCPTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED4C2F48E2BE006950A3 /* WorkflowInspector+MCPTools.swift */; };
@@ -127,9 +127,6 @@
 		20D8EE302F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE2F2F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift */; };
 		20D8EE382F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE372F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift */; };
 		20D8EE3A2F4BD9F6006950A3 /* LibraryView+InlineEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE392F4BD9F6006950A3 /* LibraryView+InlineEditing.swift */; };
-		AA112233001122AA /* LibraryView+Sorting.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122BB /* LibraryView+Sorting.swift */; };
-		AA112233001122CC /* LibraryView+ColumnConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122DD /* LibraryView+ColumnConfig.swift */; };
-		AA112233001122EE /* LibraryView+FilterAndBatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122FF /* LibraryView+FilterAndBatch.swift */; };
 		20D8EE3C2F4BE0D8006950A3 /* ActionsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE3B2F4BE0D8006950A3 /* ActionsService.swift */; };
 		20D8EE3E2F4BE1AB006950A3 /* ActionLibraryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE3D2F4BE1AB006950A3 /* ActionLibraryService.swift */; };
 		20D8EE452F4BE260006950A3 /* ActionLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE442F4BE260006950A3 /* ActionLibraryView.swift */; };
@@ -194,9 +191,6 @@
 		A1624FF82F2EE5880019C019 /* FicheroBackend.app in CopyFiles */ = {isa = PBXBuildFile; fileRef = A1624FF72F2EE5880019C019 /* FicheroBackend.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
-		C10000010000000000000001 /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000110000000000000001 /* SparkleUpdater.swift */; };
-		C10000010000000000000002 /* AppInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000110000000000000002 /* AppInstaller.swift */; };
-		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = C10000310000000000000001 /* Sparkle */; };
 		A1A3A9C02F1028480021909D /* MCPToolsCatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BE2F1028480021909D /* MCPToolsCatalogView.swift */; };
 		A1A3A9C12F1028480021909D /* AddMCPServerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BA2F1028480021909D /* AddMCPServerSheet.swift */; };
 		A1A3A9C22F1028480021909D /* MCPServerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BB2F1028480021909D /* MCPServerDetailView.swift */; };
@@ -283,6 +277,9 @@
 		A1FB1DA12F0420D50023093C /* SidebarSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D972F0420D50023093C /* SidebarSectionHeader.swift */; };
 		A1FB1DA22F0420D50023093C /* SidebarConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D932F0420D50023093C /* SidebarConstants.swift */; };
 		A3C1803DF6559D5BFCC9935E /* ComparisonDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */; };
+		AA112233001122AA /* LibraryView+Sorting.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122BB /* LibraryView+Sorting.swift */; };
+		AA112233001122CC /* LibraryView+ColumnConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122DD /* LibraryView+ColumnConfig.swift */; };
+		AA112233001122EE /* LibraryView+FilterAndBatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122FF /* LibraryView+FilterAndBatch.swift */; };
 		AA214031892F4668F16A3E75 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */; };
 		AD284E03A3377968AE568677 /* DocumentInspectorMetadataTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */; };
 		AF3C46E684A7D133B1BAA5D2 /* TriggerEditorFormPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0264B7B8616BA5159B2CEF1 /* TriggerEditorFormPanel.swift */; };
@@ -342,6 +339,9 @@
 		B6A0020B00000000BATCH6A4 /* AddProviderSheet+Step3.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010B00000000BATCH6A4 /* AddProviderSheet+Step3.swift */; };
 		B8CED5AA645840B7AC1696DD /* WindowState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E04EE1958EB4E23A7E1E328 /* WindowState.swift */; };
 		BFC56BC755C4B7C58EEAE341 /* LibraryManager+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF91C082286A2B7BB74E438D /* LibraryManager+Persistence.swift */; };
+		C10000010000000000000001 /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000110000000000000001 /* SparkleUpdater.swift */; };
+		C10000010000000000000002 /* AppInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000110000000000000002 /* AppInstaller.swift */; };
+		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = C10000310000000000000001 /* Sparkle */; };
 		C1C484907B28189E223436BE /* LibraryManager+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */; };
 		C96A47B8A003AF3A6FC98CF8 /* AISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C07B489C8F89204C43BD6E46 /* AISettingsView.swift */; };
 		D2A64087B8C786EE95E842A5 /* LocalModelsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */; };
@@ -349,6 +349,7 @@
 		E6E64CE83B1FF1235DCFDF80 /* ScheduleDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */; };
 		E8DB4DEABBD7388DB33D81DA /* DocumentInspectorInfoTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */; };
 		F53928FD9498E8D531260FFC /* BatchDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA3C752FB69D99BF62FA042 /* BatchDetailView.swift */; };
+		FC3F95AC0E1F4A7DB6B9993E /* FeatureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */; };
 		GTE2 /* GeneratedTypeExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = GTE1 /* GeneratedTypeExtensions.swift */; };
 		IMP00012F27F36000EC9EE1 /* ImportServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMP00022F27F36000EC9EE1 /* ImportServiceGenerated.swift */; };
 		MOD00012F27F36000EC9EE1 /* ModelServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = MOD00022F27F36000EC9EE1 /* ModelServiceGenerated.swift */; };
@@ -383,30 +384,6 @@
 		};
 /* End PBXCopyFilesBuildPhase section */
 
-/* Begin PBXShellScriptBuildPhase section */
-		CC0011223344556677889902 /* SwiftLint */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/../.swiftlint.yml",
-				"$(SRCROOT)/fichero-swiftui",
-			);
-			name = "SwiftLint";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/swiftlint.done",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-				shellScript = "SWIFTLINT_BIN=\"${SWIFTLINT_PATH:-/opt/homebrew/bin/swiftlint}\"\nif [ ! -x \"$SWIFTLINT_BIN\" ]; then\n  SWIFTLINT_BIN=\"$(command -v swiftlint || true)\"\nfi\n\nif [ -x \"$SWIFTLINT_BIN\" ]; then\n  \"$SWIFTLINT_BIN\" lint --config \"$SRCROOT/../.swiftlint.yml\" \"$SRCROOT/fichero-swiftui\"\nelse\n  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"\nfi\n\nmkdir -p \"$DERIVED_FILE_DIR\"\ntouch \"$DERIVED_FILE_DIR/swiftlint.done\"\n";
-			};
-/* End PBXShellScriptBuildPhase section */
-
 /* Begin PBXFileReference section */
 		04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DynamicConfigView.swift; sourceTree = "<group>"; };
 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -415,9 +392,6 @@
 		103 /* Document.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Document.swift; sourceTree = "<group>"; };
 		108 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 		109 /* SidebarItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItem.swift; sourceTree = "<group>"; };
-		A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureManager.swift; sourceTree = "<group>"; };
-		C10000110000000000000001 /* SparkleUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdater.swift; sourceTree = "<group>"; };
-		C10000110000000000000002 /* AppInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInstaller.swift; sourceTree = "<group>"; };
 		110 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		112 /* Provider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Provider.swift; sourceTree = "<group>"; };
 		117 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
@@ -495,6 +469,7 @@
 		202674E32F489742008EAB5D /* ChatMapGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMapGrid.swift; sourceTree = "<group>"; };
 		202674E52F489757008EAB5D /* ChatMessagesList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessagesList.swift; sourceTree = "<group>"; };
 		202674E72F48976C008EAB5D /* ChatView+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatView+Extensions.swift"; sourceTree = "<group>"; };
+		2059FFBE2F729697009F40EB /* ConnectionBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionBanner.swift; sourceTree = "<group>"; };
 		20D8ED482F48E2B1006950A3 /* WorkflowInspector+AgentsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowInspector+AgentsSection.swift"; sourceTree = "<group>"; };
 		20D8ED4A2F48E2B3006950A3 /* ActivityProgressModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityProgressModels.swift; sourceTree = "<group>"; };
 		20D8ED4C2F48E2BE006950A3 /* WorkflowInspector+MCPTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowInspector+MCPTools.swift"; sourceTree = "<group>"; };
@@ -537,9 +512,6 @@
 		20D8EE2F2F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowExecutionObserver+Events.swift"; sourceTree = "<group>"; };
 		20D8EE372F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+KeyboardShortcuts.swift"; sourceTree = "<group>"; };
 		20D8EE392F4BD9F6006950A3 /* LibraryView+InlineEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+InlineEditing.swift"; sourceTree = "<group>"; };
-		AA112233001122BB /* LibraryView+Sorting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+Sorting.swift"; sourceTree = "<group>"; };
-		AA112233001122DD /* LibraryView+ColumnConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+ColumnConfig.swift"; sourceTree = "<group>"; };
-		AA112233001122FF /* LibraryView+FilterAndBatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+FilterAndBatch.swift"; sourceTree = "<group>"; };
 		20D8EE3B2F4BE0D8006950A3 /* ActionsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionsService.swift; sourceTree = "<group>"; };
 		20D8EE3D2F4BE1AB006950A3 /* ActionLibraryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionLibraryService.swift; sourceTree = "<group>"; };
 		20D8EE442F4BE260006950A3 /* ActionLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionLibraryView.swift; sourceTree = "<group>"; };
@@ -693,6 +665,10 @@
 		A1FB1D992F0420D50023093C /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		A1FB1D9A2F0420D50023093C /* SidebarViewExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewExtensions.swift; sourceTree = "<group>"; };
 		A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FlowLayout.swift; path = "fichero-swiftui/Views/Components/FlowLayout.swift"; sourceTree = SOURCE_ROOT; };
+		A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureManager.swift; sourceTree = "<group>"; };
+		AA112233001122BB /* LibraryView+Sorting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+Sorting.swift"; sourceTree = "<group>"; };
+		AA112233001122DD /* LibraryView+ColumnConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+ColumnConfig.swift"; sourceTree = "<group>"; };
+		AA112233001122FF /* LibraryView+FilterAndBatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+FilterAndBatch.swift"; sourceTree = "<group>"; };
 		AUT00012F27F36000EC9EE1 /* AutomationServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationServiceGenerated.swift; sourceTree = "<group>"; };
 		B2A0010100000000BATCH2S1 /* SidebarItemRow+Label.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+Label.swift"; sourceTree = "<group>"; };
 		B2A0010200000000BATCH2S2 /* SidebarItemRow+DropHandlers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+DropHandlers.swift"; sourceTree = "<group>"; };
@@ -750,6 +726,8 @@
 		BF91C082286A2B7BB74E438D /* LibraryManager+Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Persistence.swift"; sourceTree = "<group>"; };
 		C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GeneralSettingsView.swift; path = "fichero-swiftui/Views/Settings/GeneralSettingsView.swift"; sourceTree = SOURCE_ROOT; };
 		C07B489C8F89204C43BD6E46 /* AISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AISettingsView.swift; path = "fichero-swiftui/Views/Settings/AISettingsView.swift"; sourceTree = SOURCE_ROOT; };
+		C10000110000000000000001 /* SparkleUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdater.swift; sourceTree = "<group>"; };
+		C10000110000000000000002 /* AppInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInstaller.swift; sourceTree = "<group>"; };
 		C69898938F25CFEA64385A16 /* TriggerDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TriggerDetailView.swift; sourceTree = "<group>"; };
 		CE9 /* SidebarItemBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemBuilder.swift; sourceTree = "<group>"; };
 		DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorInfoTab.swift; path = "fichero-swiftui/Views/Library/DocumentInspector/DocumentInspectorInfoTab.swift"; sourceTree = SOURCE_ROOT; };
@@ -856,20 +834,20 @@
 			path = Actions;
 			sourceTree = "<group>";
 		};
-			400 = {
-				isa = PBXGroup;
-				children = (
-					A1624FF72F2EE5880019C019 /* FicheroBackend.app */,
-					A18B76672EFDCD6E001C9EC2 /* fichero-tests.xctestplan */,
-					A151C6DE2EFDCD4300E46CE0 /* fichero-tests.xctestplan */,
-					A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */,
-					410 /* fichero-swiftui */,
-					A10521AA2EFDC92400B28C3E /* fichero-swiftui-tests */,
-					A10521C22EFDC94100B28C3E /* fichero-swiftui-ui-tests */,
-					420 /* Products */,
-				);
-				sourceTree = "<group>";
-			};
+		400 = {
+			isa = PBXGroup;
+			children = (
+				A1624FF72F2EE5880019C019 /* FicheroBackend.app */,
+				A18B76672EFDCD6E001C9EC2 /* fichero-tests.xctestplan */,
+				A151C6DE2EFDCD4300E46CE0 /* fichero-tests.xctestplan */,
+				A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */,
+				410 /* fichero-swiftui */,
+				A10521AA2EFDC92400B28C3E /* fichero-swiftui-tests */,
+				A10521C22EFDC94100B28C3E /* fichero-swiftui-ui-tests */,
+				420 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
 		410 /* fichero-swiftui */ = {
 			isa = PBXGroup;
 			children = (
@@ -1254,33 +1232,24 @@
 			path = Activity;
 			sourceTree = "<group>";
 		};
-			A1A3AA2A2F113E850021909D /* Automation */ = {
-				isa = PBXGroup;
-				children = (
-					16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */,
-					7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */,
-					B5A0010800000000BATCH5S1 /* ScheduleEditorView+Category.swift */,
-					152 /* ScheduleCreationSheet.swift */,
-					75371C597B1E4689B6E1803F /* TriggerEditorView.swift */,
-					D11000012F99900100ABC002 /* TriggerEditorView */,
-					C69898938F25CFEA64385A16 /* TriggerDetailView.swift */,
-					153 /* TriggerCreationSheet.swift */,
-					20D8ED5A2F48E4CA006950A3 /* TriggerDetailView+Configuration.swift */,
-					20D8ED5C2F48E4D4006950A3 /* TriggerDetailView+ExecutionHistory.swift */,
-					20D8ED5E2F48E4DA006950A3 /* TriggerDetailView+Helpers.swift */,
-				);
-				path = Automation;
-				sourceTree = "<group>";
-			};
-			D11000012F99900100ABC002 /* TriggerEditorView */ = {
-				isa = PBXGroup;
-				children = (
-					A0264B7B8616BA5159B2CEF1 /* TriggerEditorFormPanel.swift */,
-					5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */,
-				);
-				path = TriggerEditorView;
-				sourceTree = "<group>";
-			};
+		A1A3AA2A2F113E850021909D /* Automation */ = {
+			isa = PBXGroup;
+			children = (
+				16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */,
+				7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */,
+				B5A0010800000000BATCH5S1 /* ScheduleEditorView+Category.swift */,
+				152 /* ScheduleCreationSheet.swift */,
+				75371C597B1E4689B6E1803F /* TriggerEditorView.swift */,
+				D11000012F99900100ABC002 /* TriggerEditorView */,
+				C69898938F25CFEA64385A16 /* TriggerDetailView.swift */,
+				153 /* TriggerCreationSheet.swift */,
+				20D8ED5A2F48E4CA006950A3 /* TriggerDetailView+Configuration.swift */,
+				20D8ED5C2F48E4D4006950A3 /* TriggerDetailView+ExecutionHistory.swift */,
+				20D8ED5E2F48E4DA006950A3 /* TriggerDetailView+Helpers.swift */,
+			);
+			path = Automation;
+			sourceTree = "<group>";
+		};
 		A1A3AA352F11665B0021909D /* Integrations */ = {
 			isa = PBXGroup;
 			children = (
@@ -1303,17 +1272,17 @@
 			path = App;
 			sourceTree = "<group>";
 		};
-			A1BFB2D62F042C6D00EAA55A /* Components */ = {
-				isa = PBXGroup;
-				children = (
-					A1BFB2EF2F043FA100EAA55A /* BackendConnectionView.swift */,
-					A13E7C512F280C1C00EC9EE1 /* BatchRow.swift */,
-					A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */,
-					A1BFB2F22F045C8A00EAA55A /* LibraryImageView.swift */,
-					A1BFB2D42F042C6D00EAA55A /* ProviderLogoView.swift */,
-					A13E7C322F27F32E00EC9EE1 /* ScheduleRow.swift */,
-					A1BFB2D52F042C6D00EAA55A /* StatusBadge.swift */,
-					A13E7C332F27F32E00EC9EE1 /* TriggerRow.swift */,
+		A1BFB2D62F042C6D00EAA55A /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				A1BFB2EF2F043FA100EAA55A /* BackendConnectionView.swift */,
+				A13E7C512F280C1C00EC9EE1 /* BatchRow.swift */,
+				A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */,
+				A1BFB2F22F045C8A00EAA55A /* LibraryImageView.swift */,
+				A1BFB2D42F042C6D00EAA55A /* ProviderLogoView.swift */,
+				A13E7C322F27F32E00EC9EE1 /* ScheduleRow.swift */,
+				A1BFB2D52F042C6D00EAA55A /* StatusBadge.swift */,
+				A13E7C332F27F32E00EC9EE1 /* TriggerRow.swift */,
 				A13E7C372F27F33C00EC9EE1 /* WorkflowExecutionRow.swift */,
 				20D8ED502F48E2C4006950A3 /* WorkflowPreviewSheet.swift */,
 				20D8ED542F48E2CC006950A3 /* WorkflowExecutionRow+Helpers.swift */,
@@ -1332,19 +1301,19 @@
 			path = Menu;
 			sourceTree = "<group>";
 		};
-			A1BFB2DB2F042E5100EAA55A /* Settings */ = {
-				isa = PBXGroup;
-				children = (
-					1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */,
-					C07B489C8F89204C43BD6E46 /* AISettingsView.swift */,
-					371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */,
-					C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */,
-					1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */,
-					A1BFB2DA2F042E5100EAA55A /* SettingsView.swift */,
-				);
-				path = Settings;
-				sourceTree = "<group>";
-			};
+		A1BFB2DB2F042E5100EAA55A /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */,
+				C07B489C8F89204C43BD6E46 /* AISettingsView.swift */,
+				371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */,
+				C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */,
+				1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */,
+				A1BFB2DA2F042E5100EAA55A /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
 		A1BFB4102F057C4000EAA55A /* Toolbars */ = {
 			isa = PBXGroup;
 			children = (
@@ -1393,15 +1362,15 @@
 			path = AIProviders;
 			sourceTree = "<group>";
 		};
-			A1FB1D802F0420A90023093C /* Library */ = {
-				isa = PBXGroup;
-				children = (
-					A1FB1D7E2F0420A90023093C /* DocumentInspector.swift */,
-					D11000012F99900100ABC001 /* DocumentInspector */,
-					108 /* EditorView.swift */,
-					A1FB1D7F2F0420A90023093C /* LibraryView.swift */,
-					A1BFB3FA2F057B9300EAA55A /* CheckerboardPattern.swift */,
-					A1BFB3FB2F057B9300EAA55A /* FolderAccessManager.swift */,
+		A1FB1D802F0420A90023093C /* Library */ = {
+			isa = PBXGroup;
+			children = (
+				A1FB1D7E2F0420A90023093C /* DocumentInspector.swift */,
+				D11000012F99900100ABC001 /* DocumentInspector */,
+				108 /* EditorView.swift */,
+				A1FB1D7F2F0420A90023093C /* LibraryView.swift */,
+				A1BFB3FA2F057B9300EAA55A /* CheckerboardPattern.swift */,
+				A1BFB3FB2F057B9300EAA55A /* FolderAccessManager.swift */,
 				A1BFB3FC2F057B9300EAA55A /* ImageViewerComponents.swift */,
 				A1BFB3FD2F057B9300EAA55A /* MagnifierPanel.swift */,
 				A1BFB3FE2F057B9300EAA55A /* NavigatorMiniMap.swift */,
@@ -1415,21 +1384,11 @@
 				AA112233001122BB /* LibraryView+Sorting.swift */,
 				AA112233001122DD /* LibraryView+ColumnConfig.swift */,
 				AA112233001122FF /* LibraryView+FilterAndBatch.swift */,
+				2059FFBE2F729697009F40EB /* ConnectionBanner.swift */,
 			);
-				path = Library;
-				sourceTree = "<group>";
-			};
-			D11000012F99900100ABC001 /* DocumentInspector */ = {
-				isa = PBXGroup;
-				children = (
-					DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */,
-					E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */,
-					312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */,
-					36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */,
-				);
-				path = DocumentInspector;
-				sourceTree = "<group>";
-			};
+			path = Library;
+			sourceTree = "<group>";
+		};
 		B2A003000000000000BATCH2 /* WorkflowChainListView */ = {
 			isa = PBXGroup;
 			children = (
@@ -1441,6 +1400,26 @@
 				B2A0010D00000000BATCH2C6 /* NewChainSheet.swift */,
 			);
 			path = WorkflowChainListView;
+			sourceTree = "<group>";
+		};
+		D11000012F99900100ABC001 /* DocumentInspector */ = {
+			isa = PBXGroup;
+			children = (
+				DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */,
+				E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */,
+				312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */,
+				36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */,
+			);
+			path = DocumentInspector;
+			sourceTree = "<group>";
+		};
+		D11000012F99900100ABC002 /* TriggerEditorView */ = {
+			isa = PBXGroup;
+			children = (
+				A0264B7B8616BA5159B2CEF1 /* TriggerEditorFormPanel.swift */,
+				5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */,
+			);
+			path = TriggerEditorView;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1576,6 +1555,37 @@
 			);
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		CC0011223344556677889902 /* SwiftLint */ = {
+			isa = PBXShellScriptBuildPhase;
+			inputPaths = (
+				"$(SRCROOT)/../.swiftlint.yml",
+				"$(SRCROOT)/fichero-swiftui",
+			);
+			name = SwiftLint;
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/swiftlint.done",
+			);
+			shellPath = /bin/sh;
+			shellScript = (
+				"SWIFTLINT_BIN=\"${SWIFTLINT_PATH:-/opt/homebrew/bin/swiftlint}\"",
+				"if [ ! -x \"$SWIFTLINT_BIN\" ]; then",
+				"  SWIFTLINT_BIN=\"$(command -v swiftlint || true)\"",
+				"fi",
+				"",
+				"if [ -x \"$SWIFTLINT_BIN\" ]; then",
+				"  \"$SWIFTLINT_BIN\" lint --config \"$SRCROOT/../.swiftlint.yml\" \"$SRCROOT/fichero-swiftui\"",
+				"else",
+				"  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"",
+				"fi",
+				"",
+				"mkdir -p \"$DERIVED_FILE_DIR\"",
+				"touch \"$DERIVED_FILE_DIR/swiftlint.done\"",
+				"",
+			);
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		510 /* Sources */ = {
@@ -1820,6 +1830,7 @@
 				A1FB1D7D2F0420930023093C /* ChatInspector.swift in Sources */,
 				B3A002040000000000BATCH3 /* ChatInspector+Actions.swift in Sources */,
 				B3A002050000000000BATCH3 /* ChatInspector+Header.swift in Sources */,
+				2059FFBF2F729697009F40EB /* ConnectionBanner.swift in Sources */,
 				B3A002060000000000BATCH3 /* ChatInspector+ScopedDocuments.swift in Sources */,
 				B3A002070000000000BATCH3 /* ChatInspector+Search.swift in Sources */,
 				A1BFB2EE2F043F5800EAA55A /* DocumentTabView.swift in Sources */,
@@ -2303,17 +2314,17 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-			C10000210000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
-				isa = XCRemoteSwiftPackageReference;
-				repositoryURL = "https://github.com/sparkle-project/Sparkle";
-				requirement = {
-					kind = upToNextMajorVersion;
-					minimumVersion = 2.6.0;
-				};
+		C10000210000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.0;
 			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
-	/* Begin XCSwiftPackageProductDependency section */
+/* Begin XCSwiftPackageProductDependency section */
 		A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = FicheroAPIClient;
@@ -2327,7 +2338,7 @@
 			package = C10000210000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
 		};
-	/* End XCSwiftPackageProductDependency section */
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 700 /* Project object */;
 }
