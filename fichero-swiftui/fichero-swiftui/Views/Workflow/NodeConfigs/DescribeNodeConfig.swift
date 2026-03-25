@@ -66,6 +66,9 @@ struct DescribeNodeConfig: View {
                     }
             }
 
+            // Thinking mode
+            ThinkingModePicker(node: $node)
+
             // Custom prompt
             VStack(alignment: .leading, spacing: 4) {
                 Text("Prompt")

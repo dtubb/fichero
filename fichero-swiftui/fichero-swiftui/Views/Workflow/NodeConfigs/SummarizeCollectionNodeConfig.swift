@@ -48,6 +48,9 @@ struct SummarizeCollectionNodeConfig: View {
                 }
             }
 
+            // Thinking mode
+            ThinkingModePicker(node: $node)
+
             // Include statistics
             Toggle("Include Statistics", isOn: $includeStatistics)
                 .font(.caption)

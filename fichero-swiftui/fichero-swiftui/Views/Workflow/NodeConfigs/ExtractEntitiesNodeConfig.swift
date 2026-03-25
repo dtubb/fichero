@@ -38,6 +38,9 @@ struct ExtractEntitiesNodeConfig: View {
                 }
             }
 
+            // Thinking mode
+            ThinkingModePicker(node: $node)
+
             // Include context
             Toggle("Include Context", isOn: $includeContext)
                 .font(.caption)
