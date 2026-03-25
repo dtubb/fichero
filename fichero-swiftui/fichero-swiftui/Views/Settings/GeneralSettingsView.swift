@@ -8,6 +8,20 @@ struct GeneralSettingsView: View {
     @AppStorage("autoExtractText") private var autoExtractText: Bool = true
     @AppStorage("autoCreateEmbeddings") private var autoCreateEmbeddings: Bool = true
 
+    // Typography settings
+    @AppStorage("editor.fontName") private var fontName: String = "System"
+    @AppStorage("editor.fontSize") private var fontSize: Double = 14
+    @AppStorage("editor.lineSpacing") private var lineSpacing: Double = 4
+    @AppStorage("editor.marginHorizontal") private var marginH: Double = 16
+    @AppStorage("editor.marginVertical") private var marginV: Double = 12
+
+    private static let defaultFontName = "System"
+    private static let defaultFontSize: Double = 14
+    private static let defaultLineSpacing: Double = 4
+    private static let defaultMarginH: Double = 16
+    private static let defaultMarginV: Double = 12
+    private static let defaultThumbnailSize: Double = 120
+
     var body: some View {
         Form {
             Section("Display") {
@@ -16,11 +30,67 @@ struct GeneralSettingsView: View {
                 }
             }
 
+            Section("Typography") {
+                fontPicker
+
+                HStack {
+                    Text("Font Size")
+                    Spacer()
+                    TextField("", value: $fontSize, format: .number)
+                        .frame(width: 50)
+                        .textFieldStyle(.roundedBorder)
+                    Stepper("", value: $fontSize, in: 9...36, step: 1)
+                        .labelsHidden()
+                }
+
+                Slider(value: $lineSpacing, in: 0...20, step: 1) {
+                    Text("Line Spacing")
+                }
+            }
+
+            Section("Margins") {
+                Slider(value: $marginH, in: 0...80, step: 4) {
+                    Text("Horizontal")
+                }
+                Slider(value: $marginV, in: 0...80, step: 4) {
+                    Text("Vertical")
+                }
+            }
+
             Section("Ingestion") {
                 Toggle("Auto-extract text from documents", isOn: $autoExtractText)
                 Toggle("Auto-create search embeddings", isOn: $autoCreateEmbeddings)
             }
+
+            Section {
+                Button("Reset to Defaults") {
+                    fontName = Self.defaultFontName
+                    fontSize = Self.defaultFontSize
+                    lineSpacing = Self.defaultLineSpacing
+                    marginH = Self.defaultMarginH
+                    marginV = Self.defaultMarginV
+                    thumbnailSize = Self.defaultThumbnailSize
+                    autoExtractText = true
+                    autoCreateEmbeddings = true
+                }
+            }
         }
         .padding()
+    }
+
+    @ViewBuilder
+    private var fontPicker: some View {
+        Picker("Font", selection: $fontName) {
+            Text("System Default").tag("System")
+            Divider()
+            ForEach(availableFonts, id: \.self) { name in
+                Text(name).tag(name)
+            }
+        }
+    }
+
+    private var availableFonts: [String] {
+        let families = NSFontManager.shared.availableFontFamilies
+        return families.sorted()
     }
 }
