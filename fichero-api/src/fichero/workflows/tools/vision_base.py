@@ -110,10 +110,70 @@ class VisionToolConfig(LLMToolConfig):
 # Apple Vision OCR (macOS native)
 # =============================================================================
 
-def apple_vision_ocr(image_path: str, language: str = "en") -> str:
-    """Extract text from image using macOS Vision framework.
+def _render_pdf_page_to_cgimage(pdf_path: str, page_index: int = 0, dpi: int = 300):
+    """Render a PDF page to a CGImage at the given DPI.
 
-    Uses VNRecognizeTextRequest for on-device OCR.
+    CGImageSource cannot create CGImages from PDFs directly — PDFs are vector
+    documents that must be rendered to a bitmap first.
+    """
+    from Quartz import (
+        CGPDFDocumentCreateWithURL,
+        CGBitmapContextCreate,
+        CGBitmapContextCreateImage,
+        CGContextDrawPDFPage,
+        CGContextTranslateCTM,
+        CGContextScaleCTM,
+        kCGColorSpaceGenericRGB,
+        CGColorSpaceCreateWithName,
+        kCGImageAlphaPremultipliedLast,
+    )
+    from Foundation import NSURL
+
+    url = NSURL.fileURLWithPath_(pdf_path)
+    pdf_doc = CGPDFDocumentCreateWithURL(url)
+    if not pdf_doc:
+        raise ValueError(f"Could not open PDF: {pdf_path}")
+
+    # PDF pages are 1-indexed
+    page = pdf_doc.getPage(page_index + 1)
+    if not page:
+        raise ValueError(f"PDF page {page_index + 1} not found in: {pdf_path}")
+
+    # Get page dimensions at 72 DPI (PDF default) and scale to target DPI
+    media_box = page.getBoxRect(0)  # kCGPDFMediaBox = 0
+    scale = dpi / 72.0
+    width = int(media_box.size.width * scale)
+    height = int(media_box.size.height * scale)
+
+    color_space = CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB)
+    ctx = CGBitmapContextCreate(
+        None, width, height, 8, width * 4,
+        color_space, kCGImageAlphaPremultipliedLast,
+    )
+    if not ctx:
+        raise ValueError(f"Failed to create bitmap context for PDF: {pdf_path}")
+
+    # White background
+    from Quartz import CGContextSetRGBFillColor, CGContextFillRect, CGRectMake
+    CGContextSetRGBFillColor(ctx, 1.0, 1.0, 1.0, 1.0)
+    CGContextFillRect(ctx, CGRectMake(0, 0, width, height))
+
+    # Scale and draw the PDF page
+    CGContextScaleCTM(ctx, scale, scale)
+    CGContextDrawPDFPage(ctx, page)
+
+    cg_image = CGBitmapContextCreateImage(ctx)
+    if not cg_image:
+        raise ValueError(f"Failed to render PDF page to image: {pdf_path}")
+
+    return cg_image, pdf_doc.getNumberOfPages()
+
+
+def apple_vision_ocr(image_path: str, language: str = "en") -> str:
+    """Extract text from image or PDF using macOS Vision framework.
+
+    Uses VNRecognizeTextRequest for on-device OCR. For PDFs, renders each
+    page to a bitmap first since CGImageSource can't create CGImages from PDFs.
     """
     try:
         import Vision
@@ -145,50 +205,44 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
         except OSError:
             pass
 
-        # Load image
-        url = NSURL.fileURLWithPath_(image_path)
-        image_source = CGImageSourceCreateWithURL(url, None)
-        if not image_source:
-            file_size = os.path.getsize(image_path)
-            raise ValueError(f"Could not load image (size: {file_size} bytes): {image_path}")
+        is_pdf = image_path.lower().endswith(".pdf")
 
-        # Get image properties for diagnostics
-        props = CGImageSourceCopyPropertiesAtIndex(image_source, 0, None)
-        if props:
-            logger.debug(f"Image: {props.get('PixelWidth', '?')}x{props.get('PixelHeight', '?')}")
+        if is_pdf:
+            # Render all PDF pages and OCR each one
+            all_lines = []
+            first_image, num_pages = _render_pdf_page_to_cgimage(image_path, 0)
+            logger.info(f"PDF has {num_pages} pages, OCR-ing all pages")
 
-        cg_image = CGImageSourceCreateImageAtIndex(image_source, 0, None)
-        if not cg_image:
-            raise ValueError(f"CGImage creation failed: {image_path}")
+            for page_idx in range(num_pages):
+                if page_idx == 0:
+                    cg_image = first_image
+                else:
+                    cg_image, _ = _render_pdf_page_to_cgimage(image_path, page_idx)
 
-        # Create text recognition request
-        request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
-        request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
+                page_text = _vision_ocr_cgimage(cg_image, language)
+                if page_text:
+                    if num_pages > 1:
+                        all_lines.append(f"--- Page {page_idx + 1} ---")
+                    all_lines.append(page_text)
 
-        # Set language hints
-        lang_map = {"en": "en-US", "es": "es-ES", "fr": "fr-FR", "de": "de-DE", "pt": "pt-BR"}
-        request.setRecognitionLanguages_([lang_map.get(language, language)])
+            return "\n\n".join(all_lines)
+        else:
+            # Standard image path
+            url = NSURL.fileURLWithPath_(image_path)
+            image_source = CGImageSourceCreateWithURL(url, None)
+            if not image_source:
+                file_size = os.path.getsize(image_path)
+                raise ValueError(f"Could not load image (size: {file_size} bytes): {image_path}")
 
-        # Perform request
-        handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(cg_image, None)  # pylint: disable=no-member
-        success = handler.performRequests_error_([request], None)
+            props = CGImageSourceCopyPropertiesAtIndex(image_source, 0, None)
+            if props:
+                logger.debug(f"Image: {props.get('PixelWidth', '?')}x{props.get('PixelHeight', '?')}")
 
-        if not success:
-            raise ValueError("Vision request failed")
+            cg_image = CGImageSourceCreateImageAtIndex(image_source, 0, None)
+            if not cg_image:
+                raise ValueError(f"CGImage creation failed: {image_path}")
 
-        # Extract results
-        results = request.results()
-        if not results:
-            return ""
-
-        lines = []
-        for observation in results:
-            if hasattr(observation, 'topCandidates_'):
-                candidates = observation.topCandidates_(1)
-                if candidates:
-                    lines.append(candidates[0].string())
-
-        return "\n".join(lines)
+            return _vision_ocr_cgimage(cg_image, language)
 
     except ImportError as e:
         logger.error(f"Apple Vision not available: {e}")
@@ -196,6 +250,36 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
     except Exception as e:
         logger.error(f"Apple Vision OCR failed: {e}")
         raise
+
+
+def _vision_ocr_cgimage(cg_image, language: str = "en") -> str:
+    """Run Vision OCR on a CGImage and return the recognized text."""
+    import Vision
+
+    request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
+    request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
+
+    lang_map = {"en": "en-US", "es": "es-ES", "fr": "fr-FR", "de": "de-DE", "pt": "pt-BR"}
+    request.setRecognitionLanguages_([lang_map.get(language, language)])
+
+    handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(cg_image, None)  # pylint: disable=no-member
+    success = handler.performRequests_error_([request], None)
+
+    if not success:
+        raise ValueError("Vision request failed")
+
+    results = request.results()
+    if not results:
+        return ""
+
+    lines = []
+    for observation in results:
+        if hasattr(observation, 'topCandidates_'):
+            candidates = observation.topCandidates_(1)
+            if candidates:
+                lines.append(candidates[0].string())
+
+    return "\n".join(lines)
 
 
 async def apple_vision_ocr_async(image_path: str, language: str = "en") -> str:
