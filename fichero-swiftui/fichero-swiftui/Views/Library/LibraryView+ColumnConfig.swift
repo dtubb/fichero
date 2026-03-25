@@ -107,7 +107,12 @@ extension LibraryView {
             Text(doc.updatedAt, style: .date)
                 .font(.caption).foregroundColor(.secondary)
         case "size":
-            Text("-").font(.caption).foregroundColor(.secondary)
+            if let fileSize = doc.metadata["File_Size"]?.value as? Int {
+                Text(ByteCountFormatter.string(fromByteCount: Int64(fileSize), countStyle: .file))
+                    .font(.caption).foregroundColor(.secondary)
+            } else {
+                Text("-").font(.caption).foregroundColor(.secondary)
+            }
         default:
             Text("-").foregroundColor(.secondary)
         }
