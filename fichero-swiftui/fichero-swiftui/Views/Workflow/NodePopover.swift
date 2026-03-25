@@ -18,8 +18,7 @@ struct NodePopover: View {
     @State private var selectedProviderId: String = ""
     @State private var selectedModelId: String = ""
 
-    // Vision mode for transcribe/describe (used by shouldShowProviderSection)
-    @State private var visionMode: String = "apple"  // "apple" or "llm"
+    // Vision mode is now managed by the provider selector (Apple Vision = a provider)
 
     @EnvironmentObject var chatService: ChatServiceGenerated
     @EnvironmentObject var documentStore: DocumentStore
@@ -81,9 +80,9 @@ struct NodePopover: View {
                 await loadProviders()
             }
         }
-        .onChange(of: visionMode) { _, newValue in
-            // Load providers when switching to LLM mode
-            if newValue == "llm" && providers.isEmpty {
+        .onChange(of: selectedProviderId) { _, newValue in
+            // Load providers when switching away from Apple Vision to an LLM provider
+            if newValue != appleVisionProviderId && !newValue.isEmpty && providers.isEmpty {
                 Task { @MainActor in
                     await loadProviders()
                 }
@@ -139,17 +138,16 @@ struct NodePopover: View {
     // MARK: - Config Helpers
 
     private func initConfigFromNode() {
-        // Vision mode only applies to tools that support Apple Vision (transcribe)
-        // Default to "apple" for transcribe, "llm" for all other vision tools
-        if Self.appleVisionTools.contains(node.tool) {
+        // Restore provider selection from node config
+        // For Apple Vision tools, check if vision_mode is "apple" to pre-select Apple Vision provider
+        if toolSupportsAppleVision {
             if let configValue = node.config?["vision_mode"],
-               case .string(let mode) = configValue {
-                visionMode = mode
-            } else {
-                visionMode = "apple"
+               case .string(let mode) = configValue, mode == "apple" {
+                selectedProviderId = appleVisionProviderId
+            } else if node.providerName == nil && node.config?["vision_mode"] == nil {
+                // Default to Apple Vision for transcribe when no provider set
+                selectedProviderId = appleVisionProviderId
             }
-        } else {
-            visionMode = "llm"  // All other vision tools only support LLM
         }
     }
 
@@ -212,6 +210,7 @@ struct NodePopover: View {
             isLoadingProviders: $isLoadingProviders,
             providers: providers,
             toolRequiresVision: toolRequiresVision,
+            toolSupportsAppleVision: toolSupportsAppleVision,
             onLoadProviders: loadProviders
         )
     }
@@ -290,9 +289,9 @@ struct NodePopover: View {
 
     /// Whether to show the provider/model section
     private var shouldShowProviderSection: Bool {
-        // For tools that support Apple Vision switching, only show when using LLM mode
+        // Always show for Apple Vision tools (provider selector includes Apple Vision option)
         if toolSupportsAppleVision {
-            return visionMode == "llm"
+            return true
         }
         // For other vision tools (LLM-only), always show if it's a vision tool
         if toolRequiresVision {
