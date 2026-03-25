@@ -90,7 +90,7 @@ extension LibraryView {
             do {
                 try await library.documentStore.deleteDocument(doc)
             } catch {
-                print("Failed to delete document \(doc.name): \(error)")
+                ErrorService.shared.reportError(error)
             }
         }
         // Clear selection for deleted items
