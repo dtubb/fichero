@@ -84,6 +84,7 @@
 		202674E42F489742008EAB5D /* ChatMapGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E32F489742008EAB5D /* ChatMapGrid.swift */; };
 		202674E62F489757008EAB5D /* ChatMessagesList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E52F489757008EAB5D /* ChatMessagesList.swift */; };
 		2133BF0B15424FFDBA37619B /* FolderContentsGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747AC1DB57A54EA79D0817E8 /* FolderContentsGrid.swift */; };
+		C340001000000000PROMPT01 /* PromptPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C340001100000000PROMPT01 /* PromptPreviewPanel.swift */; };
 		202674E82F48976C008EAB5D /* ChatView+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E72F48976C008EAB5D /* ChatView+Extensions.swift */; };
 		20D8ED492F48E2B1006950A3 /* WorkflowInspector+AgentsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED482F48E2B1006950A3 /* WorkflowInspector+AgentsSection.swift */; };
 		20D8ED4B2F48E2B3006950A3 /* ActivityProgressModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED4A2F48E2B3006950A3 /* ActivityProgressModels.swift */; };
@@ -469,6 +470,7 @@
 		202674E32F489742008EAB5D /* ChatMapGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMapGrid.swift; sourceTree = "<group>"; };
 		202674E52F489757008EAB5D /* ChatMessagesList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessagesList.swift; sourceTree = "<group>"; };
 		747AC1DB57A54EA79D0817E8 /* FolderContentsGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderContentsGrid.swift; sourceTree = "<group>"; };
+		C340001100000000PROMPT01 /* PromptPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptPreviewPanel.swift; sourceTree = "<group>"; };
 		202674E72F48976C008EAB5D /* ChatView+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatView+Extensions.swift"; sourceTree = "<group>"; };
 		20D8ED482F48E2B1006950A3 /* WorkflowInspector+AgentsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowInspector+AgentsSection.swift"; sourceTree = "<group>"; };
 		20D8ED4A2F48E2B3006950A3 /* ActivityProgressModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityProgressModels.swift; sourceTree = "<group>"; };
@@ -975,6 +977,7 @@
 				B4A0010C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift */,
 				B4A0010D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift */,
 				202674932F475B06008EAB5D /* NodeConfigs */,
+				C340001100000000PROMPT01 /* PromptPreviewPanel.swift */,
 				202674AB2F4779AA008EAB5D /* NodeProviderModelSelector.swift */,
 				202674AD2F477AFE008EAB5D /* NodeInputMappings.swift */,
 				202674B32F4783A9008EAB5D /* WorkflowNodeCard.swift */,
@@ -1673,6 +1676,7 @@
 				A1A3AA122F110D520021909D /* WorkflowCanvasView+Gestures.swift in Sources */,
 				20D8ED572F48E2D7006950A3 /* ActivityProgressView+HistoricalProgress.swift in Sources */,
 				A1A3AA132F110D520021909D /* NodePopover.swift in Sources */,
+				C340001000000000PROMPT01 /* PromptPreviewPanel.swift in Sources */,
 				20D8ED5F2F48E4DA006950A3 /* TriggerDetailView+Helpers.swift in Sources */,
 				20D8EE3A2F4BD9F6006950A3 /* LibraryView+InlineEditing.swift in Sources */,
 				2026749F2F475B7A008EAB5D /* DescribeNodeConfig.swift in Sources */,

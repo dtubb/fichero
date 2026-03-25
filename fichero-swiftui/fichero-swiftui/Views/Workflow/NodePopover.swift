@@ -58,6 +58,9 @@ struct NodePopover: View {
                     // Tool-specific configuration
                     toolConfigSection
 
+                    // Prompt preview (LLM tools only)
+                    PromptPreviewPanel(node: node)
+
                     if shouldShowProviderSection {
                         providerModelSection
                     }
