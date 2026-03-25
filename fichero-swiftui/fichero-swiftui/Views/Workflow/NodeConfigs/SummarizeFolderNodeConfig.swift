@@ -48,6 +48,9 @@ struct SummarizeFolderNodeConfig: View {
                 }
             }
 
+            // Thinking mode
+            ThinkingModePicker(node: $node)
+
             // Include themes
             Toggle("Include Themes", isOn: $includeThemes)
                 .font(.caption)

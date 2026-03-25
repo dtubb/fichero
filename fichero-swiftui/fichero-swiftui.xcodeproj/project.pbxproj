@@ -50,6 +50,7 @@
 		202674992F475B33008EAB5D /* SearchNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674982F475B33008EAB5D /* SearchNodeConfig.swift */; };
 		2026749B2F475B4A008EAB5D /* FilesNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749A2F475B4A008EAB5D /* FilesNodeConfig.swift */; };
 		2026749D2F475B64008EAB5D /* TranscribeNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749C2F475B64008EAB5D /* TranscribeNodeConfig.swift */; };
+		A48C3E366EB68F5DFBD38499 /* ThinkingModePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E8C3EFBCE91C295309468AB /* ThinkingModePicker.swift */; };
 		2026749F2F475B7A008EAB5D /* DescribeNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749E2F475B7A008EAB5D /* DescribeNodeConfig.swift */; };
 		202674A22F4762E6008EAB5D /* ImageZoomToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A12F4762E6008EAB5D /* ImageZoomToolbar.swift */; };
 		202674A42F47642A008EAB5D /* SummarizeFileNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A32F47642A008EAB5D /* SummarizeFileNodeConfig.swift */; };
@@ -435,6 +436,7 @@
 		202674982F475B33008EAB5D /* SearchNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchNodeConfig.swift; sourceTree = "<group>"; };
 		2026749A2F475B4A008EAB5D /* FilesNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesNodeConfig.swift; sourceTree = "<group>"; };
 		2026749C2F475B64008EAB5D /* TranscribeNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscribeNodeConfig.swift; sourceTree = "<group>"; };
+		3E8C3EFBCE91C295309468AB /* ThinkingModePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThinkingModePicker.swift; sourceTree = "<group>"; };
 		2026749E2F475B7A008EAB5D /* DescribeNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DescribeNodeConfig.swift; sourceTree = "<group>"; };
 		202674A12F4762E6008EAB5D /* ImageZoomToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageZoomToolbar.swift; sourceTree = "<group>"; };
 		202674A32F47642A008EAB5D /* SummarizeFileNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummarizeFileNodeConfig.swift; sourceTree = "<group>"; };
@@ -782,6 +784,7 @@
 				202674982F475B33008EAB5D /* SearchNodeConfig.swift */,
 				2026749A2F475B4A008EAB5D /* FilesNodeConfig.swift */,
 				2026749C2F475B64008EAB5D /* TranscribeNodeConfig.swift */,
+				3E8C3EFBCE91C295309468AB /* ThinkingModePicker.swift */,
 				2026749E2F475B7A008EAB5D /* DescribeNodeConfig.swift */,
 				202674A32F47642A008EAB5D /* SummarizeFileNodeConfig.swift */,
 				202674A52F476439008EAB5D /* SummarizeFolderNodeConfig.swift */,
@@ -1658,6 +1661,7 @@
 				20D8ED6D2F48E62F006950A3 /* DocumentStore+Helpers.swift in Sources */,
 				20D8EE3E2F4BE1AB006950A3 /* ActionLibraryService.swift in Sources */,
 				2026749D2F475B64008EAB5D /* TranscribeNodeConfig.swift in Sources */,
+				A48C3E366EB68F5DFBD38499 /* ThinkingModePicker.swift in Sources */,
 				20D8ED632F48E61C006950A3 /* SidebarItem+MoreFactories.swift in Sources */,
 				202674DC2F489677008EAB5D /* SearchView+Helpers.swift in Sources */,
 				A1BFB2D12F042C4100EAA55A /* ProvidersView.swift in Sources */,
