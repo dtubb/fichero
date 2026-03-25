@@ -41,6 +41,7 @@ from fichero.workflows.tools.llm_base import (
     parse_output,
     build_context_section,
     build_reference_section,
+    build_thinking_preamble,
     apply_reference_matching,
     save_artifact as llm_save_artifact,
     save_to_file as llm_save_to_file,
@@ -406,6 +407,8 @@ async def process_vision(
     # Context (from BASE_CONFIG_SCHEMA)
     context: str | None = None,
     input_metadata: dict | None = None,
+    # Thinking mode (from BASE_CONFIG_SCHEMA)
+    thinking_mode: str = "off",
     # Storage (from BASE_CONFIG_SCHEMA)
     save_to_db: bool = True,
     save_to_file_flag: bool = False,
@@ -416,21 +419,6 @@ async def process_vision(
 
     This is the shared core function for all vision tools.
     Supports all BASE_CONFIG options plus vision-specific options.
-
-    Args:
-        files: List of image file paths
-        documents: Document metadata from source tools
-        prompt: The prompt to send to vision AI
-        llm_config: LLM configuration
-        library_path: Path to library database
-        task_id: Workflow task ID
-        tool_config: Tool-specific configuration
-        vision_mode: "apple" or "llm"
-        language: Language hint for OCR
-        max_image_dimension: Max image size for LLM
-        temperature: Override LLM temperature
-        max_tokens: Override LLM max tokens
-        output_format: Expected output format
         output_options: Format-specific options
         reference_values: Known values to match against
         match_mode: How to use reference values
@@ -486,8 +474,11 @@ async def process_vision(
     # Build output constraint
     output_constraint = build_output_constraint(output_format, output_options)
 
+    # Build thinking preamble
+    thinking_preamble = build_thinking_preamble(thinking_mode)
+
     # Combine prompt
-    final_prompt = f"{context_section}{prompt}{ref_section}{output_constraint}"
+    final_prompt = f"{thinking_preamble}{context_section}{prompt}{ref_section}{output_constraint}"
 
     results = []
     texts = []

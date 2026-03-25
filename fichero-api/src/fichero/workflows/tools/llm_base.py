@@ -174,6 +174,14 @@ BASE_CONFIG_SCHEMA = {
         "description": "Export to file",
         "x-group": "advanced",
     },
+    # Thinking mode
+    "thinking_mode": {
+        "type": "string",
+        "enum": ["off", "short", "medium", "long"],
+        "default": "off",
+        "description": "Chain-of-thought reasoning depth",
+        "x-group": "primary",
+    },
     # Custom prompt override
     "prompt": {
         "type": "string",
@@ -516,6 +524,36 @@ def apply_reference_matching(
 # Context Building
 # =============================================================================
 
+def build_thinking_preamble(thinking_mode: str = "off") -> str:
+    """Build a thinking-mode instruction to prepend to the prompt.
+
+    Thinking mode encourages the model to reason step-by-step before answering.
+    Higher levels produce more thorough reasoning at the cost of more tokens.
+    """
+    if thinking_mode == "off":
+        return ""
+
+    instructions = {
+        "short": (
+            "Before answering, briefly consider the key aspects of this task. "
+            "Keep your reasoning concise — a few sentences of analysis before your answer.\n\n"
+        ),
+        "medium": (
+            "Before answering, think through this task step by step. "
+            "Consider the context, identify the key information, and reason about "
+            "the best approach. Show your reasoning, then provide your answer.\n\n"
+        ),
+        "long": (
+            "Before answering, perform a thorough analysis. Consider multiple "
+            "perspectives, evaluate the evidence carefully, identify potential issues "
+            "or ambiguities, and reason through each aspect systematically. "
+            "Take as much space as needed for your reasoning before providing "
+            "your final answer.\n\n"
+        ),
+    }
+    return instructions.get(thinking_mode, "")
+
+
 def build_context_section(
     context: str | None = None,
     input_metadata: dict | None = None,
@@ -833,41 +871,15 @@ async def process_text(
     # Context (from BASE_CONFIG_SCHEMA)
     context: str | None = None,
     input_metadata: dict | None = None,
+    # Thinking mode (from BASE_CONFIG_SCHEMA)
+    thinking_mode: str = "off",
     # Storage (from BASE_CONFIG_SCHEMA)
     save_to_db: bool = True,
     save_to_file_flag: bool = False,
     metadata_field: str | None = None,
     custom_metadata: dict | None = None,
 ) -> dict[str, Any]:
-    """Shared text processing for all LLM text tools.
-
-    This is the core function for summarize, entities, and other text-based tools.
-    Mirrors process_vision() but for text-only inputs.
-
-    Args:
-        text: Input text to process
-        prompt: The prompt template (will be enhanced with context/format constraints)
-        llm_config: LLM configuration
-        library_path: Path to library database
-        task_id: Workflow task ID
-        tool_config: Tool-specific configuration
-        documents: Document metadata for saving artifacts
-        temperature: Override LLM temperature
-        max_tokens: Override LLM max tokens
-        output_format: Expected output format
-        output_options: Format-specific options (choices, max_words, etc.)
-        reference_values: Known values to match against
-        match_mode: How to use reference values
-        context: Additional context text
-        input_metadata: Existing metadata to include in prompt
-        save_to_db: Whether to save results
-        save_to_file_flag: Whether to export results to a file
-        metadata_field: Override metadata field
-        custom_metadata: Additional metadata to save
-
-    Returns:
-        Dict with text, value, results, artifacts, error, output_files
-    """
+    """Shared text processing for all LLM text tools."""
     from fichero.llm import chat
 
     if not text:
@@ -900,8 +912,11 @@ async def process_text(
     # Build output constraint
     output_constraint = build_output_constraint(output_format, output_options)
 
+    # Build thinking preamble
+    thinking_preamble = build_thinking_preamble(thinking_mode)
+
     # Combine prompt
-    final_prompt = f"{context_section}{prompt}{ref_section}{output_constraint}"
+    final_prompt = f"{thinking_preamble}{context_section}{prompt}{ref_section}{output_constraint}"
 
     # Add the input text
     full_prompt = f"{final_prompt}\n\nText:\n{text}"
