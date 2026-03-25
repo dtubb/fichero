@@ -1,7 +1,10 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 private let logger = Logger(subsystem: "com.tubb.Fichero", category: "NodeProviderModelSelector")
+
+/// Sentinel provider ID for Apple Vision (on-device OCR)
+let appleVisionProviderId = "apple_vision"
 
 /// Provider and model selection component for workflow nodes
 struct NodeProviderModelSelector: View {
@@ -12,7 +15,14 @@ struct NodeProviderModelSelector: View {
 
     let providers: [LLMProvider]
     let toolRequiresVision: Bool
+    /// Whether this tool supports Apple Vision as a provider option
+    let toolSupportsAppleVision: Bool
     let onLoadProviders: () async -> Void
+
+    /// Whether Apple Vision is currently selected
+    private var isAppleVisionSelected: Bool {
+        selectedProviderId == appleVisionProviderId
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -25,7 +35,7 @@ struct NodeProviderModelSelector: View {
                 if isLoadingProviders {
                     ProgressView()
                         .frame(maxWidth: .infinity, alignment: .leading)
-                } else if providers.isEmpty {
+                } else if providers.isEmpty && !toolSupportsAppleVision {
                     Text("No providers configured")
                         .font(.caption)
                         .foregroundColor(.orange)
@@ -34,13 +44,15 @@ struct NodeProviderModelSelector: View {
                 }
             }
 
-            // Model picker
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Model")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            // Model picker (hidden when Apple Vision is selected)
+            if !isAppleVisionSelected {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Model")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
 
-                modelPicker
+                    modelPicker
+                }
             }
         }
     }
@@ -55,7 +67,7 @@ struct NodeProviderModelSelector: View {
         }
 
         return Group {
-            if availableProviders.isEmpty {
+            if availableProviders.isEmpty && !toolSupportsAppleVision {
                 if toolRequiresVision {
                     Text("No vision-capable providers available")
                         .font(.caption)
@@ -68,6 +80,13 @@ struct NodeProviderModelSelector: View {
             } else {
                 Picker("Provider", selection: $selectedProviderId) {
                     Text("Select provider...").tag("")
+
+                    // Apple Vision as first option for tools that support it
+                    if toolSupportsAppleVision {
+                        Label("Apple Vision (On-Device)", systemImage: "apple.logo")
+                            .tag(appleVisionProviderId)
+                    }
+
                     ForEach(availableProviders) { provider in
                         Text(provider.name).tag(provider.id)
                     }
@@ -75,20 +94,29 @@ struct NodeProviderModelSelector: View {
                 .pickerStyle(.menu)
                 .onChange(of: selectedProviderId) { _, newValue in
                     guard !newValue.isEmpty else { return }
-                    // Use provider ID (e.g. "openrouter") not display name (e.g. "OpenRouter")
-                    // The backend expects the provider type ID
-                    node.providerName = newValue
-                    print("[DEBUG] Provider selected: id=\(newValue)")
-                    if let provider = providers.first(where: { $0.id == newValue }),
-                       let firstModel = provider.models.first {
-                        selectedModelId = firstModel
-                        node.modelName = firstModel
-                        print("[DEBUG] Model set to: \(firstModel)")
+
+                    if newValue == appleVisionProviderId {
+                        // Apple Vision selected — set vision_mode, clear LLM provider/model
+                        if node.config == nil { node.config = [:] }
+                        node.config?["vision_mode"] = .string("apple")
+                        node.providerName = nil
+                        node.modelName = nil
+                        node.usesLLM = false
+                        selectedModelId = ""
+                        logger.info("Apple Vision selected for node \(node.id)")
+                    } else {
+                        // LLM provider selected
+                        if node.config == nil { node.config = [:] }
+                        node.config?["vision_mode"] = .string("llm")
+                        node.providerName = newValue
+                        node.usesLLM = true
+                        logger.info("Provider selected: id=\(newValue)")
+                        if let provider = providers.first(where: { $0.id == newValue }),
+                           let firstModel = provider.models.first {
+                            selectedModelId = firstModel
+                            node.modelName = firstModel
+                        }
                     }
-                    print(
-                        "[DEBUG] Node after update: providerName=\(node.providerName ?? "nil"), " +
-                        "modelName=\(node.modelName ?? "nil")"
-                    )
                 }
             }
         }
@@ -114,7 +142,7 @@ struct NodeProviderModelSelector: View {
                 .onChange(of: selectedModelId) { _, newValue in
                     guard !newValue.isEmpty else { return }
                     node.modelName = newValue
-                    print("[DEBUG] Model manually selected: \(newValue), node.modelName=\(node.modelName ?? "nil")")
+                    logger.info("Model selected: \(newValue)")
                 }
             }
         }

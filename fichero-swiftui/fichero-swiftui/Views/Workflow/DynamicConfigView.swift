@@ -61,7 +61,7 @@ struct DynamicConfigView: View {
 
     // MARK: - Grouped Keys
 
-    let dedicatedKeys: Set<String> = ["provider_name", "model_name"]
+    let dedicatedKeys: Set<String> = ["provider_name", "model_name", "vision_mode"]
 
     var visibleKeys: [String] {
         toolInfo.configSchema.keys.filter { key in

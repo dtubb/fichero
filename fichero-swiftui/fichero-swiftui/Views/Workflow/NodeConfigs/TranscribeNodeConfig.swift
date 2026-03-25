@@ -1,13 +1,15 @@
 import SwiftUI
 
 /// Configuration view for transcribe node
+///
+/// The Vision Engine toggle has been removed — Apple Vision is now a provider
+/// option in the unified provider/model selector (see NodeProviderModelSelector).
 struct TranscribeNodeConfig: View {
     @Binding var node: WorkflowNode
 
     let toolInfo: ToolInfo?
     let backendPrompt: String?
 
-    @State private var visionMode: String = "apple"
     @State private var language: String = "en"
     @State private var maxImageDimension: Double = 11024
     @State private var promptText: String = ""
@@ -22,36 +24,19 @@ struct TranscribeNodeConfig: View {
         return toolInfo?.defaultPrompt
     }
 
+    /// Whether the node is currently configured for LLM mode (not Apple Vision)
+    private var isLLMMode: Bool {
+        if let configValue = node.config?["vision_mode"],
+           case .string(let mode) = configValue {
+            return mode == "llm"
+        }
+        // Default: Apple Vision (not LLM mode)
+        return false
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Vision Mode selector
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Vision Engine")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                Picker("Vision Engine", selection: $visionMode) {
-                    Label("Apple Vision (On-Device)", systemImage: "apple.logo")
-                        .tag("apple")
-                    Label("Vision LLM (Cloud)", systemImage: "cloud")
-                        .tag("llm")
-                }
-                .pickerStyle(.menu)
-                .onChange(of: visionMode) { _, newValue in
-                    if node.config == nil {
-                        node.config = [:]
-                    }
-                    node.config?["vision_mode"] = .string(newValue)
-                    node.usesLLM = (newValue == "llm")
-                    // Clear provider/model when switching to Apple Vision
-                    if newValue == "apple" {
-                        node.providerName = nil
-                        node.modelName = nil
-                    }
-                }
-            }
-
-            // Language
+            // Language (always shown — relevant for both Apple Vision and LLM)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Language")
                     .font(.caption)
@@ -68,7 +53,7 @@ struct TranscribeNodeConfig: View {
             }
 
             // Image Size (only for LLM mode)
-            if visionMode == "llm" {
+            if isLLMMode {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Max Image Size")
                         .font(.caption)
@@ -98,7 +83,7 @@ struct TranscribeNodeConfig: View {
             }
 
             // Custom prompt (only for LLM mode)
-            if visionMode == "llm" {
+            if isLLMMode {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Prompt")
                         .font(.caption)
@@ -146,11 +131,6 @@ struct TranscribeNodeConfig: View {
     }
 
     private func loadInitialState() {
-        if let configValue = node.config?["vision_mode"],
-           case .string(let mode) = configValue {
-            visionMode = mode
-        }
-
         if let configValue = node.config?["language"],
            case .string(let lang) = configValue {
             language = lang
