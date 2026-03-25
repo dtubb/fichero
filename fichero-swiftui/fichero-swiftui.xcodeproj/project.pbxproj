@@ -83,6 +83,7 @@
 		202674E22F48973E008EAB5D /* ChatInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E12F48973E008EAB5D /* ChatInputView.swift */; };
 		202674E42F489742008EAB5D /* ChatMapGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E32F489742008EAB5D /* ChatMapGrid.swift */; };
 		202674E62F489757008EAB5D /* ChatMessagesList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E52F489757008EAB5D /* ChatMessagesList.swift */; };
+		2133BF0B15424FFDBA37619B /* FolderContentsGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747AC1DB57A54EA79D0817E8 /* FolderContentsGrid.swift */; };
 		202674E82F48976C008EAB5D /* ChatView+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E72F48976C008EAB5D /* ChatView+Extensions.swift */; };
 		20D8ED492F48E2B1006950A3 /* WorkflowInspector+AgentsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED482F48E2B1006950A3 /* WorkflowInspector+AgentsSection.swift */; };
 		20D8ED4B2F48E2B3006950A3 /* ActivityProgressModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED4A2F48E2B3006950A3 /* ActivityProgressModels.swift */; };
@@ -467,6 +468,7 @@
 		202674E12F48973E008EAB5D /* ChatInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatInputView.swift; sourceTree = "<group>"; };
 		202674E32F489742008EAB5D /* ChatMapGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMapGrid.swift; sourceTree = "<group>"; };
 		202674E52F489757008EAB5D /* ChatMessagesList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessagesList.swift; sourceTree = "<group>"; };
+		747AC1DB57A54EA79D0817E8 /* FolderContentsGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderContentsGrid.swift; sourceTree = "<group>"; };
 		202674E72F48976C008EAB5D /* ChatView+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatView+Extensions.swift"; sourceTree = "<group>"; };
 		20D8ED482F48E2B1006950A3 /* WorkflowInspector+AgentsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowInspector+AgentsSection.swift"; sourceTree = "<group>"; };
 		20D8ED4A2F48E2B3006950A3 /* ActivityProgressModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityProgressModels.swift; sourceTree = "<group>"; };
@@ -1366,6 +1368,7 @@
 				A1FB1D7E2F0420A90023093C /* DocumentInspector.swift */,
 				D11000012F99900100ABC001 /* DocumentInspector */,
 				108 /* EditorView.swift */,
+				747AC1DB57A54EA79D0817E8 /* FolderContentsGrid.swift */,
 				A1FB1D7F2F0420A90023093C /* LibraryView.swift */,
 				A1BFB3FA2F057B9300EAA55A /* CheckerboardPattern.swift */,
 				A1BFB3FB2F057B9300EAA55A /* FolderAccessManager.swift */,
@@ -1776,6 +1779,7 @@
 				844 /* DragDropService.swift in Sources */,
 				A1BFB2DC2F042E5100EAA55A /* SettingsView.swift in Sources */,
 				008 /* EditorView.swift in Sources */,
+				2133BF0B15424FFDBA37619B /* FolderContentsGrid.swift in Sources */,
 				A1BFB4502F0AABA600EAA55A /* ItemTypeRegistry.swift in Sources */,
 				011 /* SearchView.swift in Sources */,
 				A1FB1D7B2F0420310023093C /* AIModelCatalog.swift in Sources */,

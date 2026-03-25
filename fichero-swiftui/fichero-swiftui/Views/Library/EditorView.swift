@@ -75,8 +75,11 @@ struct EditorView: View {
 
     @ViewBuilder
     private func previewContent(_ doc: Document) -> some View {
-        // Use Quick Look for all file types - downloads from API to temp location
-        QuickLookDownloadView(document: doc)
+        if doc.docType == .folder {
+            FolderContentsGrid(folder: doc)
+        } else {
+            QuickLookDownloadView(document: doc)
+        }
     }
 
     // MARK: - Text Preview

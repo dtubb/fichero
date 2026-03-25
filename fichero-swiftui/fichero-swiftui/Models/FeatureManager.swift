@@ -188,6 +188,8 @@ class FeatureManager: ObservableObject {
         workflowLangGraphPreviewEnabledInternal = false
         workflowFilesToolbarEnabledInternal = true
         workflowRunOnSelectionEnabledInternal = true
+        // Reset icon view scale to sensible default (was 3.0 in earlier profiles)
+        UserDefaults.standard.set(1.0, forKey: "library.iconViewScale")
         releaseProfileVersionApplied = Self.releaseProfileVersion
     }
 

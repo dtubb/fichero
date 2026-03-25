@@ -125,21 +125,30 @@ class BatchServiceGenerated: ObservableObject {
         }
     }
 
-    /// Execute a batch (starts SSE stream - returns immediately)
-    /// Note: Use getBatchProgress() to poll for status, or use SSE streaming endpoint directly
+    /// Execute a batch (starts SSE stream).
+    /// Uses raw URLRequest because the backend returns text/event-stream (SSE)
+    /// which the generated OpenAPI client cannot handle.
+    /// The request fires and the backend runs asynchronously — poll getBatchProgress() for status.
     func executeBatch(batchId: String) async throws {
-        let response = try await client.api.executeBatchApiBatchesBatchIdExecutePost(
-            path: .init(batchId: batchId)
-        )
+        let url = client.baseURL
+            .appendingPathComponent("api/batches/\(batchId)/execute")
 
-        switch response {
-        case .ok:
-            return  // SSE streaming started
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw BatchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw BatchServiceGeneratedError.unexpectedResponse(statusCode)
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let libraryPath = client.currentLibraryPath {
+            request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
+        }
+
+        // Fire the request — the backend starts processing and streams SSE.
+        // We just need to confirm it started (2xx status).
+        let (_, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw BatchServiceGeneratedError.unexpectedResponse(0)
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw BatchServiceGeneratedError.unexpectedResponse(httpResponse.statusCode)
         }
     }
 
