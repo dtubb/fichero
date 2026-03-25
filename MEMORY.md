@@ -104,7 +104,7 @@ For the approved implementation surface, the required checks are:
 - The `[project]` dependencies in pyproject.toml are split: core deps ship in the Briefcase bundle, heavy deps (kreuzberg, fastembed, cloud providers) are in `[project.optional-dependencies] dev`. Dev install: `pip install -e ".[dev]"`
 - Build scripts live in `fichero/scripts/`. Skills: `/fichero-build`, `/fichero-release-prep`, `/fichero-release`
 - Site is Eleventy in `fichero/site/`, deploys to `tubb.ca/apps/fichero/` via `scripts/deploy-site.sh`
-- 0.0.1 feature surface (updated 2026-03-23): Library, Search, Workflows, Activity, Batches enabled. Settings tabs (General, Backend, Models) enabled. Workflow tools: files, collection, transcribe, catalogue, extract_entities. Workflow run-on-selection and files toolbar enabled. Release profile v20.
+- 0.0.1 feature surface (updated 2026-03-25): Library, Search, Workflows, Activity, Batches enabled. Settings tabs (General, Backend, Models) enabled. Workflow tools: files, collection, transcribe, catalogue, extract_entities, describe, rewrite. Workflow run-on-selection and files toolbar enabled. Release profile v21.
 - NSScrollView image centering: contentInsets approach has timing issues with SwiftUI view updates. Better approach: expand the image view frame to viewport/magnification size and use `imageAlignment = .alignCenter` for native centering. Clear stale contentInsets with `NSEdgeInsets()`.
 - When using Xcode MCP `XcodeWrite` to add files to the project from a worktree, the pbxproj changes land in the main repo (Xcode's open project), not the worktree. Must copy pbxproj to worktree and clean up main repo after.
 - `ErrorService.shared.reportError(_:)` accepts raw `Error`, converts to `ErrorModel`, logs via `os.log`, and shows user-facing alert via `currentAlert`. Preferred over `print()` for all error paths.
@@ -114,6 +114,10 @@ For the approved implementation surface, the required checks are:
 - Debug builds don't embed the backend — must run uvicorn separately on port 8765 before launching the app
 - Peekaboo MCP is installed via Homebrew at `/opt/homebrew/bin/peekaboo`. Config in `.mcp.json` uses `peekaboo mcp` (not `peekaboo mcp serve --transport stdio`). The `npx @steipete/peekaboo` approach doesn't work.
 - `ruff` is not in `.venv` — use `uvx ruff check` instead
+- Settings router (`fichero/api/routes/settings.py`) has its own `/api/settings` prefix baked in — mount it with empty prefix in `_CORE_ROUTE_SPECS` to avoid path doubling.
+- `CGImageSource` cannot create CGImages from PDFs — PDFs must be rendered page-by-page via `CGPDFDocument` + `CGBitmapContext` at target DPI. The `_render_pdf_page_to_cgimage()` helper in `vision_base.py` handles this.
+- Batch execute endpoint returns SSE (`text/event-stream`), not JSON. The OpenAPI-generated client can't handle SSE, so `executeBatch()` uses a raw `URLRequest` bypass.
+- Thinking mode is in `BASE_CONFIG_SCHEMA` (llm_base.py) and wired into both `process_text` and `process_vision`. Frontend UI for the selector still needed (#344).
 
 ## GitHub Roadmap
 
