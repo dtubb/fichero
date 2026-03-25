@@ -215,6 +215,7 @@ from fichero.api.routes import (  # noqa: E402
     batch,
     activity,
     chat,
+    settings,
 )
 
 RouteSpec = tuple[object, str, list[str]]
@@ -233,6 +234,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (batch.router, "/api", ["batches"]),
     (activity.router, "/api", ["activity"]),
     (chat.router, "/api/chat", ["chat"]),
+    (settings.router, "", ["settings"]),
 ]
 
 _DEV_ROUTE_SPECS: list[RouteSpec] = []
