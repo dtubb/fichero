@@ -7,6 +7,11 @@ struct DocumentInspectorContentTab: View {
     @EnvironmentObject private var documentService: DocumentServiceGenerated
     @EnvironmentObject private var documentStore: DocumentStore
     @AppStorage("editor.rulersVisible") private var rulersVisible = true
+    @AppStorage("editor.fontName") private var fontName: String = "System"
+    @AppStorage("editor.fontSize") private var fontSize: Double = 14
+    @AppStorage("editor.lineSpacing") private var lineSpacing: Double = 4
+    @AppStorage("editor.marginHorizontal") private var marginH: Double = 16
+    @AppStorage("editor.marginVertical") private var marginV: Double = 12
 
     @State private var draftAttributedText = NSAttributedString(string: "")
     @State private var originalPlainContent: String = ""
@@ -48,6 +53,11 @@ struct DocumentInspectorContentTab: View {
                 text: $draftAttributedText,
                 isEditable: !isSaving,
                 rulersVisible: rulersVisible,
+                fontName: fontName,
+                fontSize: fontSize,
+                lineSpacing: lineSpacing,
+                marginH: marginH,
+                marginV: marginV,
                 contentRevision: editorRevision,
                 onTextChanged: {
                     scheduleAutoSave()
@@ -247,9 +257,22 @@ private struct AttributedTextEditor: NSViewRepresentable {
     @Binding var text: NSAttributedString
     let isEditable: Bool
     let rulersVisible: Bool
+    let fontName: String
+    let fontSize: Double
+    let lineSpacing: Double
+    let marginH: Double
+    let marginV: Double
     let contentRevision: Int
     let onTextChanged: () -> Void
     let onEditingChanged: (Bool) -> Void
+
+    private var resolvedFont: NSFont {
+        if fontName == "System" {
+            return .systemFont(ofSize: CGFloat(fontSize))
+        }
+        return NSFont(name: fontName, size: CGFloat(fontSize))
+            ?? .systemFont(ofSize: CGFloat(fontSize))
+    }
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -276,8 +299,13 @@ private struct AttributedTextEditor: NSViewRepresentable {
         textView.drawsBackground = true
         textView.backgroundColor = .textBackgroundColor
         textView.textColor = .labelColor
-        textView.font = .systemFont(ofSize: NSFont.systemFontSize)
-        textView.textContainerInset = NSSize(width: 8, height: 8)
+        textView.font = resolvedFont
+        textView.textContainerInset = NSSize(width: marginH, height: marginV)
+        textView.defaultParagraphStyle = {
+            let style = NSMutableParagraphStyle()
+            style.lineSpacing = CGFloat(lineSpacing)
+            return style
+        }()
         textView.textContainer?.widthTracksTextView = true
         textView.isHorizontallyResizable = false
         textView.autoresizingMask = [.width]
@@ -294,6 +322,13 @@ private struct AttributedTextEditor: NSViewRepresentable {
         guard let textView = context.coordinator.textView else { return }
         textView.isEditable = isEditable
         scrollView.rulersVisible = rulersVisible
+
+        // Apply typography settings
+        textView.font = resolvedFont
+        textView.textContainerInset = NSSize(width: marginH, height: marginV)
+        let paraStyle = NSMutableParagraphStyle()
+        paraStyle.lineSpacing = CGFloat(lineSpacing)
+        textView.defaultParagraphStyle = paraStyle
 
         // Only push model text into AppKit view on explicit revision changes.
         // This avoids clobbering active edits and selection.
