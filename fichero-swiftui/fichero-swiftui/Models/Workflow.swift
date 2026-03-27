@@ -11,6 +11,7 @@ struct Workflow: Identifiable, Codable {
     var edges: [WorkflowEdge]
     var folderPath: String
     var sortOrder: Int
+    var inputSource: WorkflowInputSource
 
     init(
         id: String = UUID().uuidString,
@@ -21,7 +22,8 @@ struct Workflow: Identifiable, Codable {
         nodes: [WorkflowNode] = [],
         edges: [WorkflowEdge] = [],
         folderPath: String = "/",
-        sortOrder: Int = 0
+        sortOrder: Int = 0,
+        inputSource: WorkflowInputSource = .collection
     ) {
         self.id = id
         self.name = name
@@ -32,6 +34,7 @@ struct Workflow: Identifiable, Codable {
         self.edges = edges
         self.folderPath = folderPath
         self.sortOrder = sortOrder
+        self.inputSource = inputSource
     }
 
     /// Initialize from API response
@@ -45,6 +48,7 @@ struct Workflow: Identifiable, Codable {
         self.edges = apiWorkflow.edges
         self.folderPath = apiWorkflow.folderPath
         self.sortOrder = apiWorkflow.sortOrder
+        self.inputSource = apiWorkflow.inputSource
     }
 
     /// Convert to API format for saving to backend
@@ -58,7 +62,8 @@ struct Workflow: Identifiable, Codable {
             nodes: self.nodes,
             edges: self.edges,
             folderPath: self.folderPath,
-            sortOrder: self.sortOrder
+            sortOrder: self.sortOrder,
+            inputSource: self.inputSource
         )
     }
 }

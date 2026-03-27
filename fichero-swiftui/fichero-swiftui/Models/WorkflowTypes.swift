@@ -1,6 +1,35 @@
 import Foundation
 import SwiftUI
 
+// MARK: - Batch Input Source
+
+/// Declares whether a workflow processes a named collection or the current library selection.
+enum WorkflowInputSource: String, Codable, CaseIterable {
+    case collection = "collection"
+    case currentSelection = "current_selection"
+
+    var displayName: String {
+        switch self {
+        case .collection: return "Collection"
+        case .currentSelection: return "Current Selection"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .collection: return "folder"
+        case .currentSelection: return "checkmark.circle"
+        }
+    }
+
+    var helpText: String {
+        switch self {
+        case .collection: return "Process documents from a specific collection"
+        case .currentSelection: return "Process whatever is selected in the library"
+        }
+    }
+}
+
 // MARK: - Workflow Data Models
 
 /// Workflow definition for API communication
@@ -14,6 +43,7 @@ struct WorkflowDefinition: Codable {
     let edges: [WorkflowEdge]
     let folderPath: String
     let sortOrder: Int
+    let inputSource: WorkflowInputSource
     // Execution settings
     let timeoutSeconds: Int
     let maxRetries: Int
@@ -26,6 +56,7 @@ struct WorkflowDefinition: Codable {
         case id, name, description, provider, model, nodes, edges, version
         case folderPath = "folder_path"
         case sortOrder = "sort_order"
+        case inputSource = "input_source"
         case timeoutSeconds = "timeout_seconds"
         case maxRetries = "max_retries"
         case createdAt = "created_at"
@@ -43,6 +74,7 @@ struct WorkflowDefinition: Codable {
         edges: [WorkflowEdge] = [],
         folderPath: String = "/",
         sortOrder: Int = 0,
+        inputSource: WorkflowInputSource = .collection,
         timeoutSeconds: Int = 300,
         maxRetries: Int = 3,
         version: String = "1.0",
@@ -58,6 +90,7 @@ struct WorkflowDefinition: Codable {
         self.edges = edges
         self.folderPath = folderPath
         self.sortOrder = sortOrder
+        self.inputSource = inputSource
         self.timeoutSeconds = timeoutSeconds
         self.maxRetries = maxRetries
         self.version = version
@@ -76,6 +109,7 @@ struct WorkflowDefinition: Codable {
         edges = try container.decodeIfPresent([WorkflowEdge].self, forKey: .edges) ?? []
         folderPath = try container.decodeIfPresent(String.self, forKey: .folderPath) ?? "/"
         sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
+        inputSource = try container.decodeIfPresent(WorkflowInputSource.self, forKey: .inputSource) ?? .collection
         timeoutSeconds = try container.decodeIfPresent(Int.self, forKey: .timeoutSeconds) ?? 300
         maxRetries = try container.decodeIfPresent(Int.self, forKey: .maxRetries) ?? 3
         version = try container.decodeIfPresent(String.self, forKey: .version) ?? "1.0"

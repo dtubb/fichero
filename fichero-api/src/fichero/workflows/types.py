@@ -386,6 +386,10 @@ class WorkflowDef(BaseModel):
     provider: str = "openai"
     model: str = "gpt-4o"
 
+    # Batch input source: "collection" (from a named collection) or
+    # "current_selection" (whatever the user selected in the library).
+    input_source: Literal["collection", "current_selection"] = "collection"
+
     # Execution settings
     timeout_seconds: int = 300      # Max execution time
     max_retries: int = 3            # Retries per node on failure

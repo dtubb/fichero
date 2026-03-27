@@ -6,6 +6,9 @@ struct WorkflowToolbar: View {
     @Binding var isRunning: Bool
     let canRun: Bool
 
+    // Input source (workflow-level batch config)
+    @Binding var inputSource: WorkflowInputSource
+
     // Actions
     let onRun: () -> Void
     let onExport: () -> Void
@@ -15,6 +18,22 @@ struct WorkflowToolbar: View {
 
     var body: some View {
         HStack(spacing: 12) {
+            // Input source picker (left side)
+            HStack(spacing: 4) {
+                Image(systemName: inputSource.icon)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Picker("Input", selection: $inputSource) {
+                    ForEach(WorkflowInputSource.allCases, id: \.self) { source in
+                        Label(source.displayName, systemImage: source.icon)
+                            .tag(source)
+                    }
+                }
+                .pickerStyle(.menu)
+                .fixedSize()
+                .help(inputSource.helpText)
+            }
+
             Spacer(minLength: 0)
 
             // Workflow controls (right side)

@@ -62,6 +62,7 @@ struct WorkflowEditor: View {
             WorkflowToolbar(
                 isRunning: $isRunning,
                 canRun: !editingWorkflow.nodes.isEmpty,
+                inputSource: $editingWorkflow.inputSource,
                 onRun: runWorkflow,
                 onExport: exportWorkflow,
                 onPreviewDiagram: {
