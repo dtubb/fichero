@@ -1,6 +1,6 @@
 # MEMORY.md — Fichero
 
-Last updated: 2026-03-23
+Last updated: 2026-03-29
 
 ## Current Phase
 
@@ -46,7 +46,7 @@ The correct release strategy is:
 1. Implement M0 against the approved `0.0.1` surface
 2. Keep the local plan and GitHub roadmap in sync as implementation progresses
 3. Preserve the feature-tier model while implementation begins
-4. Prepare the `0.0.2` provider promotion path without broadening `0.0.1`
+4. Keep `0.0.2` planning isolated in a separate worktree without broadening `0.0.1`
 
 ## Validation Standard
 
@@ -96,6 +96,9 @@ For the approved implementation surface, the required checks are:
 - Once the roadmap is published, the main docs must be rewritten into post-approval language quickly or they will continue to mislead agents
 - Cross-release umbrella issues are acceptable when they are explicitly documented; `#113` stays unmilestoned by design while concrete QA issues are tied to release milestones
 - Frontend-only feature flag changes do not require cross-stack review; only OpenAPI contract changes do
+- Separate worktrees are now the operating pattern: `~/code/fichero` stays on `main` for 0.0.1 release work, while `~/code/fichero-0.0.2` carries `codex/0.0.2-planning` for search + semantic layer planning
+- The canonical 0.0.2 planning breakdown lives in `~/code/fichero-0.0.2/docs/0.0.2-planning/PLAN.md` and includes component slices, undo/snapshot baseline, and a strict 0.0.3/0.1.0 deferral split
+- XMP sidecars (`.xmp`) are the chosen interoperable image sidecar format to discuss with external apps rather than inventing a custom format first
 - `pytest` is not installed in `.venv` — use `python -m pytest` or install it; the validation commands in CLAUDE.md assume `.venv/bin/pytest` which does not exist
 - Bundle identifier is `com.tubb.Fichero` (migrated from `ca.tubb` on 2026-03-23). Backend is `com.tubb.fichero.fichero-backend`. Storage at `~/Library/Application Support/com.tubb.fichero/`.
 - App sandbox is disabled (`ENABLE_APP_SANDBOX = NO`) — required for DMG distribution and move-to-Applications flow
