@@ -61,6 +61,7 @@ requires = [
     # AI/LLM — Ollama (local) + LiteLLM (provider routing)
     "langchain",
     "langchain-core",
+    "langchain-openai",
     "langgraph",
     "langchain-ollama",
     "litellm",
@@ -123,6 +124,7 @@ dependencies = [
     "lancedb",
     "langchain",
     "langchain-core",
+    "langchain-openai",
     "langgraph",
     "langchain-ollama",
     "litellm",
@@ -137,7 +139,6 @@ dev = [
     "aiohttp",
     "httpx",
     "langchain-community",
-    "langchain-openai",
     "langchain-anthropic",
     "langchain-google-genai",
     "langchain-aws",
