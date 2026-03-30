@@ -313,7 +313,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                         initialMagnification = trackingView.loupeMagnification
                     case .changed:
                         let newMag = initialMagnification * (1 + gesture.magnification)
-                        let clampedMag = max(1.5, min(10.0, newMag))
+                        let clampedMag = max(0.25, min(20.0, newMag))
                         trackingView.loupeMagnification = clampedMag
                         trackingView.onLoupeMagnificationChanged?(clampedMag)
                         trackingView.needsDisplay = true

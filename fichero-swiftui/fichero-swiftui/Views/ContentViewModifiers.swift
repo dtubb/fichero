@@ -274,8 +274,6 @@ struct MainContentModifiers: ViewModifier {
             viewMode = .chat(nil)
         case .workflows:
             viewMode = .workflow(nil)
-        case .batches:
-            viewMode = .batches
         case .automation:
             viewMode = .automation
         case .activity:

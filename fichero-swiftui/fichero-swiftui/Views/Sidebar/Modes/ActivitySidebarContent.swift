@@ -119,11 +119,7 @@ struct ActivitySidebarContent: View {
             if case .activity(let run) = newMode {
                 if let run = run {
                     let selectedRunToken = sidebarRunToken(for: run.id) ?? run.id
-                    if let childType = run.childType {
-                        selectedItemId = "run-\(selectedRunToken)-\(childType.rawValue)"
-                    } else {
-                        selectedItemId = "run-\(selectedRunToken)"
-                    }
+                    selectedItemId = "run-\(selectedRunToken)"
                 } else {
                     selectedItemId = nil
                 }

@@ -38,7 +38,7 @@ struct LibraryWindow: View {
         case .workflow: viewModeName = "Workflow"
         case .chat: viewModeName = "Chat"
         case .search: viewModeName = "Search"
-        case .batches: viewModeName = "Batches"
+        case .batches: viewModeName = "Activity"
         case .automation: viewModeName = "Automation"
         case .running: viewModeName = "Running"
         case .history: viewModeName = "History"
@@ -247,9 +247,30 @@ struct LibraryWindow: View {
     }
 
     private func handleNewLibrary() {
-        let newLibrary = libraryManager.createNewLibrary()
-        libraryManager.currentLibraryId = newLibrary.id
-        openWindow(id: "main")
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.package]
+        savePanel.canCreateDirectories = true
+        savePanel.nameFieldStringValue = "Untitled.fichero"
+        savePanel.title = "Create New Database"
+        savePanel.message = "Choose where to save your new database."
+        savePanel.prompt = "Create"
+
+        if savePanel.runModal() == .OK, let url = savePanel.url {
+            let finalURL = url.pathExtension.lowercased() == "fichero"
+                ? url
+                : url.appendingPathExtension("fichero")
+
+            // Create unsaved library, immediately save to chosen location, keep in current window.
+            let newLibrary = libraryManager.createNewLibrary()
+            do {
+                try libraryManager.saveLibrary(newLibrary.id, to: finalURL)
+                assignLibrary(id: newLibrary.id)
+                libraryManager.currentLibraryId = newLibrary.id
+                libraryWindowLogger.info("Created and saved new library: \(finalURL.lastPathComponent)")
+            } catch {
+                libraryWindowLogger.error("Failed to create new library: \(error.localizedDescription)")
+            }
+        }
     }
 
     private func handleSaveLibrary() {

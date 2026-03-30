@@ -78,7 +78,7 @@ extension WorkflowExecutionObserver {
             execution.documentProgress[filePath] = docProgress
             execution.currentFilePath = filePath
 
-        case .fileComplete(_, let nodeId, let filePath, let fileIndex, let fileTotal, let progress):
+        case .fileComplete(_, let nodeId, let filePath, let fileIndex, let fileTotal, let progress, let cached):
             let fileName = (filePath as NSString).lastPathComponent
             workflowExecutionLogger.debug("File complete: \(fileName) (\(fileIndex + 1)/\(fileTotal))")
 
@@ -96,7 +96,7 @@ extension WorkflowExecutionObserver {
                 documentName: fileName,
                 stepStatuses: [:]
             )
-            docProgress.stepStatuses[nodeId] = .completed(duration: nil)
+            docProgress.stepStatuses[nodeId] = .completed(duration: nil, cached: cached)
             execution.documentProgress[filePath] = docProgress
 
             // Track overall progress

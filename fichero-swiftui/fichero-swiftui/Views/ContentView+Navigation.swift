@@ -59,7 +59,7 @@ extension ContentView {
                 WorkflowEditor(
                     workflow: selectedWorkflow,
                     editingWorkflow: $editingWorkflow,
-                    displayMode: viewDisplayMode
+                    displayMode: .icon
                 )
             } else {
                 ContentUnavailableView(
@@ -82,21 +82,17 @@ extension ContentView {
 
         case .batches:
             ContentUnavailableView(
-                "Batches",
-                systemImage: "square.stack.3d.up",
-                description: Text("Select a batch in the sidebar to view details")
+                "Activity",
+                systemImage: "clock",
+                description: Text("Batch monitoring is now unified under Activity")
             )
 
-        case .batch(let batch):
-            if let batch = batch {
-                BatchDetailView(batch: batch, libraryManager: LibraryManager.shared)
-            } else {
-                ContentUnavailableView(
-                    "Create Batch",
-                    systemImage: "square.stack.3d.up.badge.plus",
-                    description: Text("Batch creation view coming soon")
-                )
-            }
+        case .batch:
+            ContentUnavailableView(
+                "Activity",
+                systemImage: "clock",
+                description: Text("Batch monitoring is now unified under Activity")
+            )
 
         case .automation:
             ContentUnavailableView(

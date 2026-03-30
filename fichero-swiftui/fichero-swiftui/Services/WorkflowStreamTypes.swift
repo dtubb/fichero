@@ -13,7 +13,7 @@ enum WorkflowStreamEvent: Equatable {
     case fileStart(threadId: String, nodeId: String, filePath: String, fileIndex: Int, fileTotal: Int,
                    progress: Double)
     case fileComplete(threadId: String, nodeId: String, filePath: String, fileIndex: Int, fileTotal: Int,
-                      progress: Double)
+                      progress: Double, cached: Bool)
     case fileError(threadId: String, nodeId: String, filePath: String, error: String, progress: Double)
     case parallelComplete(threadId: String, nodeId: String, successCount: Int, errorCount: Int, total: Int)
     case complete(threadId: String, checkpointId: String?, finalState: [String: Any]?)
@@ -37,8 +37,8 @@ enum WorkflowStreamEvent: Equatable {
         case (.fileStart(let lhsThread, let lhsNode, _, _, _, _),
               .fileStart(let rhsThread, let rhsNode, _, _, _, _)):
             return lhsThread == rhsThread && lhsNode == rhsNode
-        case (.fileComplete(let lhsThread, let lhsNode, _, _, _, _),
-              .fileComplete(let rhsThread, let rhsNode, _, _, _, _)):
+        case (.fileComplete(let lhsThread, let lhsNode, _, _, _, _, _),
+              .fileComplete(let rhsThread, let rhsNode, _, _, _, _, _)):
             return lhsThread == rhsThread && lhsNode == rhsNode
         case (.fileError(let lhsThread, let lhsNode, _, _, _),
               .fileError(let rhsThread, let rhsNode, _, _, _)):
@@ -158,6 +158,15 @@ extension AnyCodableValue {
             return value
         case .double(let value):
             return Int(value)
+        default:
+            return nil
+        }
+    }
+
+    var boolValue: Bool? {
+        switch self {
+        case .bool(let value):
+            return value
         default:
             return nil
         }

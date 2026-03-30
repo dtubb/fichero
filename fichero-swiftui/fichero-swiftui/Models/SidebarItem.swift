@@ -170,6 +170,7 @@ struct SidebarItem: Identifiable, Hashable {
     }
 
     // Create a library group header (top-level library item)
+    @MainActor
     static func libraryHeader(
         library: LibraryManager.LibraryReference,
         children: [SidebarItem]

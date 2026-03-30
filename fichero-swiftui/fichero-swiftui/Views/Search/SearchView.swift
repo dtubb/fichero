@@ -46,24 +46,13 @@ struct SearchView: View {
 
 extension SearchView {
     var resultsPanel: some View {
-        VStack(spacing: 0) {
-            // View-specific toolbar at top
-            SearchViewToolbar(
-                isSearching: isSearching,
-                searchError: searchError,
-                resultsCount: searchResults.count
-            )
-
-            Divider()
-
-            // Results display (adapts to displayMode)
-            SearchResultsDisplay(
-                searchResults: searchResults,
-                displayMode: displayMode,
-                selection: $selection,
-                onLoadDocument: loadDocument
-            )
-        }
+        // Search uses the window toolbar search field, so avoid duplicate in-view toolbar chrome.
+        SearchResultsDisplay(
+            searchResults: searchResults,
+            displayMode: displayMode,
+            selection: $selection,
+            onLoadDocument: loadDocument
+        )
     }
 }
 

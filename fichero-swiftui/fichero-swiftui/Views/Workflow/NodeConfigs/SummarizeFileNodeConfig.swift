@@ -57,9 +57,8 @@ struct SummarizeFileNodeConfig: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                TextEditor(text: $promptText)
+                MacPlainTextEditor(text: $promptText, font: .preferredFont(forTextStyle: .caption1))
                     .frame(minHeight: 60)
-                    .font(.caption)
                     .overlay(
                         RoundedRectangle(cornerRadius: 4)
                             .stroke(Color(.separatorColor), lineWidth: 1)

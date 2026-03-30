@@ -26,6 +26,7 @@ struct SidebarItemRow: View {
     var workflowStore: WorkflowStore? { library?.workflowStore }
     var chainService: ChainService? { library?.chainService }
     var automationService: AutomationServiceGenerated? { library?.automationService }
+    var importService: ImportServiceGenerated? { library?.importService }
 
     @State var isDropTargeted = false
     @FocusState var isRenameFocused: Bool
@@ -85,6 +86,9 @@ struct SidebarItemRow: View {
                     .draggable(item.id)
                     .dropDestination(for: String.self) { droppedIDs, _ in
                         handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
+                    }
+                    .dropDestination(for: URL.self) { droppedURLs, _ in
+                        handleExternalFileDrop(urls: droppedURLs, targetFolder: item)
                     } isTargeted: { isTargeted in
                         isDropTargeted = isTargeted
                     }
@@ -108,6 +112,9 @@ struct SidebarItemRow: View {
                         itemIDs: droppedIDs,
                         targetFolder: item
                     )
+                }
+                .dropDestination(for: URL.self) { droppedURLs, _ in
+                    handleExternalFileDrop(urls: droppedURLs, targetFolder: item)
                 } isTargeted: { isTargeted in
                     isDropTargeted = isTargeted
                 }
@@ -127,6 +134,9 @@ struct SidebarItemRow: View {
                 .draggable(item.id)
                 .dropDestination(for: String.self) { droppedIDs, _ in
                     handleDropBesideItem(itemIDs: droppedIDs, targetItem: item)
+                }
+                .dropDestination(for: URL.self) { droppedURLs, _ in
+                    handleExternalFileDrop(urls: droppedURLs, targetFolder: nil)
                 } isTargeted: { isTargeted in
                     isDropTargeted = isTargeted
                 }

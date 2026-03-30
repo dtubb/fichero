@@ -19,8 +19,7 @@ extension ModelComparisonView {
             Text("Prompt")
                 .font(.headline)
 
-            TextEditor(text: $prompt)
-                .font(.body)
+            MacPlainTextEditor(text: $prompt, font: .preferredFont(forTextStyle: .body))
                 .frame(minHeight: 100)
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)

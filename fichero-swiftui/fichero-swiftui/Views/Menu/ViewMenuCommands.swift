@@ -37,7 +37,7 @@ struct ViewMenuCommands: View {
 
 // MARK: - Sidebar Mode Section
 
-/// Sidebar mode selection commands (7 modes with keyboard shortcuts)
+/// Sidebar mode selection commands with keyboard shortcuts
 /// Uses @FocusedValue to update the current window's sidebar mode (reads from focusedSceneValue)
 struct SidebarModeSection: View {
     @FocusedValue(\.sidebarMode) var sidebarMode
@@ -99,21 +99,8 @@ struct SidebarModeSection: View {
                 }
             }
 
-            if featureManager.isBatchesEnabled || featureManager.isAutomationEnabled {
+            if featureManager.isAutomationEnabled {
                 Divider()
-            }
-
-            // Automation modes (5-6)
-            if featureManager.isBatchesEnabled {
-                SidebarModeButton(
-                    mode: .batches,
-                    label: SidebarMode.batches.label,
-                    icon: SidebarMode.batches.icon,
-                    shortcut: SidebarMode.batches.shortcutNumber,
-                    current: currentMode
-                ) {
-                    sidebarMode?.wrappedValue = .batches
-                }
             }
 
             if featureManager.isAutomationEnabled {
@@ -184,7 +171,7 @@ struct LibraryLayoutSection: View {
         switch mode {
         case .library, .search:
             return true
-        case .chat, .workflows, .automation, .batches, .activity:
+        case .chat, .workflows, .automation, .activity:
             return false
         }
     }
@@ -359,7 +346,7 @@ struct PreviewModeSection: View {
             return [.none, .standard, .widescreen]
         case .chat:
             return [.none, .standard, .widescreen]
-        case .workflows, .automation, .batches, .activity:
+        case .workflows, .automation, .activity:
             return []
         }
     }

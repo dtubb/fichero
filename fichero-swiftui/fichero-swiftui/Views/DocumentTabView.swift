@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 private let logger = Logger(subsystem: "com.tubb.Fichero", category: "DocumentTabView")
 
@@ -105,11 +105,11 @@ struct DocumentTabView: View {
                 SearchPlaceholderView()
 
             case .batches:
-                // Batch jobs view
+                // Unified monitoring view
                 ContentUnavailableView(
-                    "Batches",
-                    systemImage: "square.stack.3d.up",
-                    description: Text("Select a batch in the sidebar to view details")
+                    "Activity",
+                    systemImage: "clock",
+                    description: Text("Batch monitoring is unified under Activity")
                 )
 
             case .automation:

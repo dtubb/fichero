@@ -167,7 +167,7 @@ class FeatureManager: ObservableObject {
         workflowsEnabledInternal = true
         workflowEditorAdvancedViewsEnabled = false
         workflowChainsEnabledInternal = false
-        batchesEnabledInternal = true
+        batchesEnabledInternal = false
         chatEnabledInternal = false
         agentsEnabledInternal = false
         automationEnabledInternal = false

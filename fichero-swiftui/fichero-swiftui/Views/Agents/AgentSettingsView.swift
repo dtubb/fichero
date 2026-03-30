@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 private let logger = Logger(subsystem: "com.tubb.Fichero", category: "AgentSettingsView")
 
@@ -64,8 +64,7 @@ struct AgentTypeSettingsView: View {
                     Text("Default System Prompt")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                    TextEditor(text: binding(for: \.systemPrompt))
-                        .font(.body)
+                    MacPlainTextEditor(text: binding(for: \.systemPrompt), font: .preferredFont(forTextStyle: .body))
                         .frame(minHeight: 80)
                         .padding(4)
                         .background(Color(.textBackgroundColor))

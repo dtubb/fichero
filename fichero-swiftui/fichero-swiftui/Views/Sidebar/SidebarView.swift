@@ -22,6 +22,7 @@ struct SidebarView: View {
 
     // API client for service calls
     @EnvironmentObject var apiClient: APIClient
+    @Environment(WorkflowExecutionObserver.self) var executionObserver
 
     // Callback when documents are dropped to create a new chat
     var onCreateChatWithDocuments: (([String]) -> Void)?
@@ -50,16 +51,17 @@ struct SidebarView: View {
     @State var triggers: [TriggerInfo] = []
     @State var automationIsLoading = false
 
-    // Batch data
-    @State var batches: [BatchInfo] = []
-    @State var batchesIsLoading = false
-
     // Activity data (historical runs)
     @State var historicalRunsByLibrary: [UUID: [ActivityItem]] = [:]
     @State var activityIsLoading = false
+    @State var selectedActivityItemIds: Set<String> = []
+    @State var showingRenameLibraryPrompt = false
+    @State var libraryToRenameId: UUID?
+    @State var pendingLibraryName = ""
 
     // Store Combine subscriptions
     @State var cancellables = Set<AnyCancellable>()
+    @State private var lastHandledSelectionId: String?
 
     init(
         sidebarMode: Binding<SidebarMode>,
@@ -120,13 +122,38 @@ struct SidebarView: View {
                     schedules = []
                     triggers = []
                 }
+
+                guard !Task.isCancelled else { return }
+
+                // Load historical activity runs for unified Activity section.
+                if FeatureManager.shared.isActivityEnabled {
+                    await loadActivityData()
+                } else {
+                    historicalRunsByLibrary = [:]
+                }
             }
             .onChange(of: selectedItemId) { _, newId in
                 // Handle selection changes
                 sidebarViewLogger.info("selectedItemId changed to: \(newId ?? "nil")")
+                if newId == nil || !(newId?.hasPrefix("run:") ?? false) {
+                    selectedActivityItemIds.removeAll()
+                } else if let runId = newId {
+                    selectedActivityItemIds = [runId]
+                }
                 if let id = newId {
+                    if lastHandledSelectionId == id {
+                        return
+                    }
+                    lastHandledSelectionId = id
+                    if id.hasPrefix("run:"),
+                       let selectedRun = unifiedSelectedRun(forSidebarId: id) {
+                        viewMode = .activity(selectedRun.toSelectedRun())
+                        return
+                    }
                     let item = findItemById(id, in: allCachedItems)
                     handleSelection(item)
+                } else {
+                    lastHandledSelectionId = nil
                 }
             }
             .onChange(of: libraryManager.openLibraries.count) { _, _ in
@@ -149,16 +176,22 @@ struct SidebarView: View {
                         }
                         await loadAutomationData()
                     }
-                } else if newMode == .batches {
-                    Task {
-                        guard !Task.isCancelled else { return }
-                        await loadBatchData()
-                    }
                 } else if newMode == .activity {
                     Task {
                         guard !Task.isCancelled else { return }
                         await loadActivityData()
                     }
+                }
+            }
+            .onChange(of: executionObserver.activeExecutions.count) { oldCount, newCount in
+                guard FeatureManager.shared.isActivityEnabled else { return }
+                // When a run starts or finishes, refresh historical runs so completed items persist.
+                guard oldCount != newCount else { return }
+                Task { @MainActor in
+                    // Give backend activity writer a brief moment to persist completion events.
+                    try? await Task.sleep(for: .milliseconds(400))
+                    guard !Task.isCancelled else { return }
+                    await loadActivityData()
                 }
             }
             .sidebarFocusedValues(config: SidebarFocusedValuesConfig(
@@ -187,6 +220,17 @@ struct SidebarView: View {
                 isPresented: $sidebarState.showingFileImporter,
                 importFiles: handleImportedFiles
             )
+            .alert("Rename Library", isPresented: $showingRenameLibraryPrompt) {
+                TextField("Library Name", text: $pendingLibraryName)
+                Button("Cancel", role: .cancel) { }
+                Button("Rename") {
+                    guard let libraryId = libraryToRenameId else { return }
+                    libraryManager.renameLibrary(id: libraryId, to: pendingLibraryName)
+                    rebuildCaches()
+                }
+            } message: {
+                Text("Set a new display name for this library.")
+            }
     }
 }
 

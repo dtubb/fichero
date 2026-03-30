@@ -20,6 +20,7 @@ from typing import Any, AsyncIterator, Optional
 import duckdb
 
 from fichero.workflows.runtime import create_compiled_app, build_initial_state
+from fichero.workflows.activity import get_activity_tracker
 from fichero.workflows.workflow_store import WorkflowStore
 
 logger = logging.getLogger(__name__)
@@ -157,6 +158,7 @@ class BatchManager:
     def __init__(self, db_path: str):
         """Initialize batch manager with database path."""
         self.db_path = db_path
+        self.activity_tracker = get_activity_tracker(str(db_path))
         self._batches: dict[str, BatchExecution] = {}
         self._semaphores: dict[str, asyncio.Semaphore] = {}
         self._cancel_events: dict[str, asyncio.Event] = {}
@@ -254,6 +256,12 @@ class BatchManager:
         # Store in memory and database
         self._batches[batch_id] = batch
         await self._save_batch(batch)
+        self.activity_tracker.batch_created(
+            batch_id=batch_id,
+            workflow_id=workflow_id,
+            total_items=len(items),
+            max_concurrent=max_concurrent,
+        )
 
         logger.info(f"Created batch {batch_id} with {len(items)} items")
         return batch
@@ -433,6 +441,12 @@ class BatchManager:
         batch.status = BatchStatus.RUNNING
         batch.started_at = batch.started_at or datetime.now(timezone.utc)
         await self._save_batch(batch)
+        self.activity_tracker.batch_started(
+            batch_id=batch_id,
+            workflow_id=batch.workflow_id,
+            total_items=batch.total_items,
+            max_concurrent=batch.max_concurrent,
+        )
 
         yield BatchEvent(
             batch_id=batch_id,
@@ -511,6 +525,12 @@ class BatchManager:
 
         async def execute_with_events(item: BatchItem):
             """Execute item and emit events."""
+            self.activity_tracker.batch_item_started(
+                batch_id=batch_id,
+                thread_id=item.thread_id,
+                item_index=item.item_index,
+                workflow_id=batch.workflow_id,
+            )
             await event_queue.put(BatchEvent(
                 batch_id=batch_id,
                 event_type="item_started",
@@ -521,6 +541,16 @@ class BatchManager:
             await execute_item(item)
 
             if item.status == BatchItemStatus.COMPLETED:
+                duration_ms = None
+                if item.started_at and item.completed_at:
+                    duration_ms = (item.completed_at - item.started_at).total_seconds() * 1000
+                self.activity_tracker.batch_item_completed(
+                    batch_id=batch_id,
+                    thread_id=item.thread_id,
+                    item_index=item.item_index,
+                    duration_ms=duration_ms or 0,
+                    workflow_id=batch.workflow_id,
+                )
                 await event_queue.put(BatchEvent(
                     batch_id=batch_id,
                     event_type="item_completed",
@@ -529,6 +559,13 @@ class BatchManager:
                     progress=batch.get_progress(),
                 ))
             elif item.status == BatchItemStatus.FAILED:
+                self.activity_tracker.batch_item_failed(
+                    batch_id=batch_id,
+                    thread_id=item.thread_id,
+                    item_index=item.item_index,
+                    error=item.error or "Unknown batch item failure",
+                    workflow_id=batch.workflow_id,
+                )
                 await event_queue.put(BatchEvent(
                     batch_id=batch_id,
                     event_type="item_failed",
@@ -575,6 +612,35 @@ class BatchManager:
 
         batch.completed_at = datetime.now(timezone.utc)
         await self._save_batch(batch)
+        duration_ms = None
+        if batch.started_at and batch.completed_at:
+            duration_ms = (batch.completed_at - batch.started_at).total_seconds() * 1000
+        if batch.status == BatchStatus.CANCELLED:
+            self.activity_tracker.batch_cancelled(
+                batch_id=batch_id,
+                workflow_id=batch.workflow_id,
+                total_items=batch.total_items,
+            )
+        elif batch.status == BatchStatus.FAILED:
+            self.activity_tracker.batch_failed(
+                batch_id=batch_id,
+                workflow_id=batch.workflow_id,
+                total_items=batch.total_items,
+                failed_items=batch.failed_items,
+                error=batch.error_message or "All batch items failed",
+                duration_ms=duration_ms,
+            )
+        else:
+            # COMPLETED or PARTIAL_FAILURE map to batch_completed with counts.
+            self.activity_tracker.batch_completed(
+                batch_id=batch_id,
+                workflow_id=batch.workflow_id,
+                total_items=batch.total_items,
+                completed_items=batch.completed_items,
+                failed_items=batch.failed_items,
+                duration_ms=duration_ms or 0,
+                status=batch.status.value,
+            )
 
         # Cleanup
         del self._cancel_events[batch_id]
@@ -601,6 +667,11 @@ class BatchManager:
 
         batch.status = BatchStatus.PAUSED
         await self._save_batch(batch)
+        self.activity_tracker.batch_paused(
+            batch_id=batch_id,
+            workflow_id=batch.workflow_id,
+            total_items=batch.total_items,
+        )
 
         logger.info(f"Paused batch {batch_id}")
         return batch
@@ -620,6 +691,11 @@ class BatchManager:
 
         if batch_id in self._pause_events:
             self._pause_events[batch_id].clear()
+        self.activity_tracker.batch_resumed(
+            batch_id=batch_id,
+            workflow_id=batch.workflow_id,
+            total_items=batch.total_items,
+        )
 
         # Continue execution
         async for event in self.execute_batch(batch_id, workflow_store):
@@ -645,6 +721,11 @@ class BatchManager:
         batch.status = BatchStatus.CANCELLED
         batch.completed_at = datetime.now(timezone.utc)
         await self._save_batch(batch)
+        self.activity_tracker.batch_cancelled(
+            batch_id=batch_id,
+            workflow_id=batch.workflow_id,
+            total_items=batch.total_items,
+        )
 
         logger.info(f"Cancelled batch {batch_id}")
         return batch

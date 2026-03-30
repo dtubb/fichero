@@ -33,23 +33,89 @@ extension WorkflowEditor {
 
     /// List view - shows nodes as rows in a list
     var workflowNodesListView: some View {
-        Group {
-            if editingWorkflow.nodes.isEmpty {
+        let orderedNodes = orderedWorkflowNodes()
+
+        return Group {
+            if orderedNodes.isEmpty {
                 ContentUnavailableView(
                     "No Nodes",
                     systemImage: "list.bullet",
                     description: Text("Drag tools from the inspector to add nodes")
                 )
             } else {
-                List(editingWorkflow.nodes) { node in
-                    WorkflowNodeRow(
-                        node: node,
-                        executionState: nodeStates[node.id]
-                    )
+                List(Array(orderedNodes.enumerated()), id: \.element.id) { index, node in
+                    HStack(alignment: .center, spacing: 8) {
+                        Text("\(index + 1).")
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 28, alignment: .trailing)
+
+                        WorkflowNodeRow(
+                            node: node,
+                            executionState: nodeStates[node.id]
+                        )
+                    }
                 }
                 .listStyle(.plain)
             }
         }
+    }
+
+    // Returns nodes in execution order when the graph is acyclic; falls back to visual order.
+    // swiftlint:disable:next cyclomatic_complexity
+    func orderedWorkflowNodes() -> [WorkflowNode] {
+        let nodes = editingWorkflow.nodes
+        guard !nodes.isEmpty else { return [] }
+
+        let nodeById = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
+
+        var indegree = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, 0) })
+        var outgoing: [String: [String]] = [:]
+
+        for edge in editingWorkflow.edges {
+            guard nodeById[edge.sourceNodeId] != nil, nodeById[edge.targetNodeId] != nil else { continue }
+            outgoing[edge.sourceNodeId, default: []].append(edge.targetNodeId)
+            indegree[edge.targetNodeId, default: 0] += 1
+        }
+
+        // Stable tie-breaker by canvas position for deterministic ordering.
+        let positionSorted = nodes.sorted {
+            if $0.positionX == $1.positionX {
+                return $0.positionY < $1.positionY
+            }
+            return $0.positionX < $1.positionX
+        }
+
+        var queue = positionSorted.filter { indegree[$0.id, default: 0] == 0 }.map(\.id)
+        var ordered: [WorkflowNode] = []
+
+        while !queue.isEmpty {
+            let currentId = queue.removeFirst()
+            guard let node = nodeById[currentId] else { continue }
+            ordered.append(node)
+
+            for nextId in outgoing[currentId, default: []] {
+                let nextIn = (indegree[nextId] ?? 0) - 1
+                indegree[nextId] = nextIn
+                if nextIn == 0 {
+                    queue.append(nextId)
+                    queue.sort { lhs, rhs in
+                        guard let lhsNode = nodeById[lhs], let rhsNode = nodeById[rhs] else { return lhs < rhs }
+                        if lhsNode.positionX == rhsNode.positionX {
+                            return lhsNode.positionY < rhsNode.positionY
+                        }
+                        return lhsNode.positionX < rhsNode.positionX
+                    }
+                }
+            }
+        }
+
+        // Cycles or disconnected malformed graph: fall back to visual order.
+        if ordered.count != nodes.count {
+            return positionSorted
+        }
+        return ordered
     }
 
     /// Table view - shows nodes in columns

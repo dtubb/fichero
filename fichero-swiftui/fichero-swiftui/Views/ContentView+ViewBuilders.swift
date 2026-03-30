@@ -5,6 +5,13 @@ import SwiftUI
 // Responsibility: Complex view builders for sidebar, content, preview, inspector
 
 extension ContentView {
+    private var widescreenContentPaneWidth: CGFloat {
+        320
+    }
+
+    var effectiveCenterIdealWidth: Double {
+        showInspectorSidebar ? contentWidth : max(contentWidth, 1100)
+    }
 
     // MARK: - Pane Focus Indicator
 
@@ -103,7 +110,11 @@ extension ContentView {
                 .focusable()
                 .focused($focusedPane, equals: .content)
                 .focusEffectDisabled()
-                .navigationSplitViewColumnWidth(min: 350, ideal: 600, max: .infinity)
+                .navigationSplitViewColumnWidth(
+                    min: ContentView.contentMinWidth,
+                    ideal: effectiveCenterIdealWidth,
+                    max: ContentView.contentMaxWidth
+                )
 
         case .standard:
             // Standard: Content stacked above preview (vertical split)
@@ -122,26 +133,38 @@ extension ContentView {
                     .focused($focusedPane, equals: .preview)
                     .focusEffectDisabled()
             }
-            .navigationSplitViewColumnWidth(min: 350, ideal: 700, max: .infinity)
+            .navigationSplitViewColumnWidth(
+                min: ContentView.contentMinWidth,
+                ideal: effectiveCenterIdealWidth,
+                max: ContentView.contentMaxWidth
+            )
 
         case .widescreen:
             // Widescreen: Content and preview side-by-side (horizontal split)
             HSplitView {
                 contentWithOptionalModeRail
                     .overlay { paneFocusIndicator(for: .content) }
-                    .frame(minWidth: 200, idealWidth: 200)
+                    .frame(
+                        minWidth: widescreenContentPaneWidth,
+                        idealWidth: widescreenContentPaneWidth,
+                        maxWidth: widescreenContentPaneWidth
+                    )
                     .focusable()
                     .focused($focusedPane, equals: .content)
                     .focusEffectDisabled()
 
                 previewView
                     .overlay { paneFocusIndicator(for: .preview) }
-                    .frame(minWidth: 400, idealWidth: 800)
+                    .frame(minWidth: 420, idealWidth: 760, maxWidth: .infinity)
                     .focusable()
                     .focused($focusedPane, equals: .preview)
                     .focusEffectDisabled()
             }
-            .navigationSplitViewColumnWidth(min: 600, ideal: 1000, max: .infinity)
+            .navigationSplitViewColumnWidth(
+                min: ContentView.contentMinWidth,
+                ideal: effectiveCenterIdealWidth,
+                max: ContentView.contentMaxWidth
+            )
         }
     }
 

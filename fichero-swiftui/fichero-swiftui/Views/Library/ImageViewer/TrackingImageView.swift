@@ -37,8 +37,8 @@ class TrackingImageView: NSImageView {
             }
         }
     }
-    private let minLoupeMagnification: CGFloat = 1.5
-    private let maxLoupeMagnification: CGFloat = 10.0
+    private let minLoupeMagnification: CGFloat = 0.25
+    private let maxLoupeMagnification: CGFloat = 20.0
 
     /// Show loupe at center of visible area
     func showLoupeAtCenter() {

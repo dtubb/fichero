@@ -19,17 +19,9 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
     }
 }
 
-@objc private protocol TextFormattingResponder {
-    func toggleBoldface(_ sender: Any?)
-    func toggleItalics(_ sender: Any?)
-    func underline(_ sender: Any?)
-}
-
 @main
 struct FicheroApp: App {
     private let logger = Logger(subsystem: "com.tubb.Fichero", category: "FicheroApp")
-    @AppStorage("editor.rulersVisible") private var rulersVisible = false
-
     // App delegate for lifecycle events
     @NSApplicationDelegateAdaptor(FicheroAppDelegate.self) private var appDelegate
 
@@ -44,13 +36,9 @@ struct FicheroApp: App {
     // Library manager - singleton managing all open libraries
     @StateObject private var libraryManager = LibraryManager.shared
 
-    // Environment to open windows
-    @Environment(\.openWindow) private var openWindow
-
     init() {
         // Offer to move to /Applications if launched from DMG or Downloads
         AppInstaller.promptToMoveToApplicationsIfNeeded()
-
         // Restore libraries synchronously before any windows appear
         LibraryManager.shared.restoreSavedLibraries()
     }
@@ -73,13 +61,6 @@ struct FicheroApp: App {
 
         // Safari model: just switch the current window, don't open new ones
         // App auto-activates on URL handling
-    }
-
-    private func handleNewLibrary() {
-        let newLibrary = libraryManager.createNewLibrary()
-        libraryManager.currentLibraryId = newLibrary.id
-        openWindow(id: "main")
-        logger.info("Created new library: \(newLibrary.displayName)")
     }
 
     @MainActor
@@ -134,10 +115,7 @@ struct FicheroApp: App {
 
             // File menu - Database/Library management
             CommandGroup(replacing: .newItem) {
-                Button("New Database") {
-                    handleNewLibrary()
-                }
-                .keyboardShortcut("n", modifiers: [.command])
+                FocusedNewDatabaseButton()
 
                 FocusedOpenDatabaseButton()
 
@@ -201,41 +179,7 @@ struct FicheroApp: App {
                     .keyboardShortcut(.delete, modifiers: [.command])
             }
 
-            CommandMenu("Format") {
-                Button("Show Fonts") {
-                    NSFontManager.shared.orderFrontFontPanel(nil)
-                }
-                .keyboardShortcut("t", modifiers: [.command])
-
-                Button("Show Colors") {
-                    NSColorPanel.shared.orderFront(nil)
-                    NSApp.activate(ignoringOtherApps: true)
-                }
-
-                Divider()
-
-                Button("Bold") {
-                    NSApp.sendAction(#selector(TextFormattingResponder.toggleBoldface(_:)), to: nil, from: nil)
-                }
-                .keyboardShortcut("b", modifiers: [.command])
-
-                Button("Italic") {
-                    NSApp.sendAction(#selector(TextFormattingResponder.toggleItalics(_:)), to: nil, from: nil)
-                }
-                .keyboardShortcut("i", modifiers: [.command])
-
-                Button("Underline") {
-                    NSApp.sendAction(#selector(TextFormattingResponder.underline(_:)), to: nil, from: nil)
-                }
-                .keyboardShortcut("u", modifiers: [.command])
-
-                Divider()
-
-                Button(rulersVisible ? "Hide Ruler" : "Show Ruler") {
-                    rulersVisible.toggle()
-                    NSApp.sendAction(#selector(NSTextView.toggleRuler(_:)), to: nil, from: nil)
-                }
-            }
+            TextFormattingCommands()
 
             // View menu items
             CommandGroup(after: .toolbar) {

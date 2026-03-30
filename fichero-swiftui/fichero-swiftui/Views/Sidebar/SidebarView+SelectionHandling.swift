@@ -4,7 +4,7 @@ import SwiftUI
 
 extension SidebarView {
     // Handle sidebar item selection and update view mode
-    // swiftlint:disable:next cyclomatic_complexity
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     func handleSelection(_ item: SidebarItem?) {
         guard let item = item else {
             sidebarViewLogger.info("handleSelection called with nil item")
@@ -30,17 +30,35 @@ extension SidebarView {
         switch item.itemType {
         case .document(let doc):
             sidebarViewLogger.info("Switching to library view with document: \(doc.name)")
+            sidebarMode = .library
             viewMode = .library(doc)
         case .savedSearch(let search):
             sidebarViewLogger.info("Switching to search view with search: \(search.name)")
+            sidebarMode = .search
             viewMode = .search(search)
         case .conversation(let conversation):
             sidebarViewLogger.info("Switching to chat view with conversation: \(conversation.id)")
+            sidebarMode = .chat
             viewMode = .chat(conversation)
         case .workflow(let workflow):
             sidebarViewLogger.info("Switching to workflow view with workflow: \(workflow.name)")
+            sidebarMode = .workflows
             viewMode = .workflow(workflow)
-        case .chain, .comparison, .schedule, .trigger, .batch, .activityRun:
+        case .activityRun(let activity):
+            let selectedRun = SelectedActivityRun(
+                id: activity.threadId ?? activity.id,
+                name: activityExtractWorkflowName(from: activity),
+                workflowId: activity.workflowId,
+                threadId: activity.threadId ?? activity.batchId.map { "batch:\($0)" },
+                timestamp: activity.parsedTimestamp ?? Date(),
+                status: activityMapActivityType(activity.type).toStatusType(),
+                isLive: false,
+                childType: nil
+            )
+            sidebarViewLogger.info("Switching to activity view with run: \(selectedRun.id)")
+            sidebarMode = .activity
+            viewMode = .activity(selectedRun)
+        case .chain, .comparison, .schedule, .trigger, .batch:
             // These item types are handled by their specialized sidebar modes
             sidebarViewLogger.info("Item type \(item.category.rawValue) clicked - detail views handled by mode sidebar")
         case .folder:
@@ -50,12 +68,15 @@ extension SidebarView {
             switch item.category {
             case .search:
                 sidebarViewLogger.info("Switching to empty search view")
+                sidebarMode = .search
                 viewMode = .search(nil)
             case .chat:
                 sidebarViewLogger.info("Switching to empty chat view")
+                sidebarMode = .chat
                 viewMode = .chat(nil)
             case .workflow:
                 sidebarViewLogger.info("Switching to empty workflow view")
+                sidebarMode = .workflows
                 viewMode = .workflow(nil)
             case .automation, .batch, .activity:
                 // Automation-related folders

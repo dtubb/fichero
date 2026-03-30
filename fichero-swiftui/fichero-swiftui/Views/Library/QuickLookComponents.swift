@@ -1,7 +1,7 @@
-import SwiftUI
-import Quartz
 import AppKit
 import OSLog
+import Quartz
+import SwiftUI
 
 private let logger = Logger(subsystem: "com.tubb.Fichero", category: "QuickLookComponents")
 
@@ -309,9 +309,7 @@ struct SmartPreviewView: View {
     private var isImage: Bool {
         let imageExtensions = ["jpg", "jpeg", "png", "gif", "tiff", "tif", "bmp", "heic", "webp"]
         let ext = url.pathExtension.lowercased()
-        let result = imageExtensions.contains(ext)
-        logger.info("SmartPreviewView: \(url.lastPathComponent) extension='\(ext)' isImage=\(result)")
-        return result
+        return imageExtensions.contains(ext)
     }
 
     var body: some View {

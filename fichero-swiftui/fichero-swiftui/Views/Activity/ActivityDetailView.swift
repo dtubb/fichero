@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ActivityDetailView")
 
@@ -13,6 +13,7 @@ struct ActivityDetailView: View {
     @State private var activityItems: [ActivityItem] = []
     @State private var isLoading = false
     @State private var error: String?
+    @State private var selectedSectionId: String = "overview"
 
     /// Get the live execution if this run is currently active
     private var liveExecution: WorkflowExecution? {
@@ -36,15 +37,30 @@ struct ActivityDetailView: View {
 
             Divider()
 
-            // Content based on selected child type
-            contentView
+            // In-detail section list + pane (keeps sidebar focused on runs only)
+            HSplitView {
+                List(selection: $selectedSectionId) {
+                    Text("Overview").tag("overview")
+                    ForEach(ActivityChildType.allCases, id: \.self) { childType in
+                        Label(childType.label, systemImage: childType.icon)
+                            .tag(childType.rawValue)
+                    }
+                }
+                .listStyle(.sidebar)
+                .frame(minWidth: 160, idealWidth: 190, maxWidth: 240)
+
+                contentView
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
         .task {
             guard !Task.isCancelled else { return }
+            selectedSectionId = sectionId(for: selectedRun.childType)
             await loadActivityDetails()
         }
         .onChange(of: selectedRun.id) { _, _ in
             Task {
+                selectedSectionId = sectionId(for: selectedRun.childType)
                 await loadActivityDetails()
             }
         }
@@ -143,7 +159,7 @@ struct ActivityDetailView: View {
 
     @ViewBuilder
     private var contentView: some View {
-        switch selectedRun.childType {
+        switch selectedChildType {
         case .console:
             ActivityConsoleView(
                 selectedRun: selectedRun,
@@ -188,6 +204,14 @@ struct ActivityDetailView: View {
                 errorCount: errorCount
             )
         }
+    }
+
+    private var selectedChildType: ActivityChildType? {
+        selectedSectionId == "overview" ? nil : ActivityChildType(rawValue: selectedSectionId)
+    }
+
+    private func sectionId(for childType: ActivityChildType?) -> String {
+        childType?.rawValue ?? "overview"
     }
 
     // MARK: - Data Loading

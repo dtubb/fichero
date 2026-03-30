@@ -48,11 +48,8 @@ extension ContentView {
         case "chain":
             return .chain(nil)
 
-        case "batches":
-            return .batches
-
-        case "batch":
-            return .batches
+        case "batches", "batch":
+            return .activity(nil)
 
         case "automation":
             return .automation
@@ -88,10 +85,8 @@ extension ContentView {
             return ("workflow", workflow?.id)
         case .chain(let chain):
             return ("chain", chain?.id)
-        case .batches:
-            return ("batches", nil)
-        case .batch(let batch):
-            return ("batch", batch?.batchId)
+        case .batches, .batch:
+            return ("activity", nil)
         case .automation:
             return ("automation", nil)
         case .schedule(let schedule):
@@ -113,6 +108,10 @@ extension ContentView {
             default: return .all
             }
         }()
+
+        // Derive explicit left-sidebar state from persisted split-view visibility.
+        // In this app's layout, `.doubleColumn` means sidebar + content.
+        showSidebar = columnVisibility != .detailOnly
 
         if let decodedSelection = try? JSONDecoder().decode(Set<String>.self, from: browserSelectionData) {
             browserSelection = decodedSelection

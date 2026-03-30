@@ -107,7 +107,7 @@ extension DynamicConfigView {
                         .padding(.vertical, 8)
                 }
 
-                TextEditor(text: Binding(
+                MacPlainTextEditor(text: Binding(
                     get: { stringValues[key] ?? "" },
                     set: { newValue in
                         stringValues[key] = newValue
@@ -117,10 +117,7 @@ extension DynamicConfigView {
                             updateConfig(key: key, value: .string(newValue))
                         }
                     }
-                ))
-                .font(.caption)
-                .scrollContentBackground(.hidden)
-                .background(Color.clear)
+                ), font: .preferredFont(forTextStyle: .caption1))
             }
             .frame(minHeight: 80)
             .background(Color(.textBackgroundColor))

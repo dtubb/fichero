@@ -69,13 +69,18 @@ extension WorkflowOutputLog {
         case .running:
             ProgressView()
                 .scaleEffect(0.5)
-        case .completed(let duration):
+        case .completed(let duration, let cached):
             HStack(spacing: 2) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
+                Image(systemName: cached ? "bolt.circle.fill" : "checkmark.circle.fill")
+                    .foregroundColor(cached ? .orange : .green)
                     .font(.caption2)
                 if let duration = duration {
                     Text(String(format: "%.1fs", duration))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                if cached {
+                    Text("cache")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }

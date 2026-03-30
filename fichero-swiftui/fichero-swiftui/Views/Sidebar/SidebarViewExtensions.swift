@@ -393,7 +393,7 @@ extension View {
     ) -> some View {
         self.fileImporter(
             isPresented: isPresented,
-            allowedContentTypes: [.item, .folder],
+            allowedContentTypes: [.item, .folder, .pdf, .audio],
             allowsMultipleSelection: true
         ) { result in
             switch result {

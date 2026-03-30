@@ -31,9 +31,9 @@ extension ContentView {
         case .chain(let chain):
             viewName = chain?.name ?? "Chain"
         case .batches:
-            viewName = "Batches"
-        case .batch(let batch):
-            viewName = batch.map { "Batch \(String($0.batchId.prefix(8)))" } ?? "Batch"
+            viewName = "Activity"
+        case .batch:
+            viewName = "Activity"
         case .automation:
             viewName = "Automation"
         case .schedule(let schedule):
@@ -89,12 +89,12 @@ extension ContentView {
     }
 
     /// Whether to show the view mode picker (icon/list/table/map)
-    /// Only makes sense for Library and Search modes
+    /// Shown for modes that support multiple content presentations.
     var showViewModePicker: Bool {
         switch sidebarMode {
-        case .library, .search:
+        case .library, .search, .workflows:
             return true
-        case .chat, .workflows, .automation, .batches, .activity:
+        case .chat, .automation, .activity:
             return false
         }
     }
@@ -108,13 +108,24 @@ extension ContentView {
     /// Available display modes for the current sidebar mode.
     /// Library is icon-only in 0.0.1 unless advanced views are explicitly enabled.
     var availableViewDisplayModes: [ViewDisplayMode] {
-        if sidebarMode == .library && !featureManager.isLibraryAdvancedViewsEnabled {
+        switch sidebarMode {
+        case .library:
+            if !featureManager.isLibraryAdvancedViewsEnabled {
+                return [.icon]
+            }
+            return ViewDisplayMode.allCases
+        case .search:
+            if !featureManager.isSearchAdvancedViewsEnabled {
+                return [.list]
+            }
+            return ViewDisplayMode.allCases
+        case .workflows:
+            // 0.0.1: keep workflow presentation simple and explicit.
+            // Icon = visual graph/canvas, List = ordered execution steps.
+            return [.icon, .list]
+        case .chat, .automation, .activity:
             return [.icon]
         }
-        if sidebarMode == .search && !featureManager.isSearchAdvancedViewsEnabled {
-            return [.list]
-        }
-        return ViewDisplayMode.allCases
     }
 
     /// Normalize a requested display mode against current feature gates.
@@ -140,7 +151,7 @@ extension ContentView {
             return [.none, .standard, .widescreen]
         case .chat:
             return [.none, .standard, .widescreen]
-        case .workflows, .automation, .batches, .activity:
+        case .workflows, .automation, .activity:
             return []
         }
     }

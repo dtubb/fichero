@@ -108,6 +108,9 @@ extension SidebarItemRow {
                     newName: newName
                 )
                 sidebarRowLogger.debug(" Renamed trigger \(trigger.triggerId) to '\(newName)'")
+            case .libraryHeader:
+                libraryManager.renameLibrary(id: itemLibrary.id, to: newName)
+                sidebarRowLogger.debug(" Renamed library \(itemLibrary.id.uuidString) to '\(newName)'")
             default:
                 sidebarRowLogger.debug(" Unknown item type for rename (itemId: \(itemId))")
             }

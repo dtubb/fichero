@@ -156,7 +156,6 @@
 		A13E7C202F27E01E00EC9EE1 /* SearchSidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C192F27E01E00EC9EE1 /* SearchSidebarContent.swift */; };
 		A13E7C212F27E01E00EC9EE1 /* AutomationSidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C152F27E01E00EC9EE1 /* AutomationSidebarContent.swift */; };
 		A13E7C222F27E01E00EC9EE1 /* WorkflowsSidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C1A2F27E01E00EC9EE1 /* WorkflowsSidebarContent.swift */; };
-		A13E7C232F27E01E00EC9EE1 /* BatchesSidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C162F27E01E00EC9EE1 /* BatchesSidebarContent.swift */; };
 		A13E7C242F27E01E00EC9EE1 /* ChatSidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C172F27E01E00EC9EE1 /* ChatSidebarContent.swift */; };
 		A13E7C272F27E03300EC9EE1 /* SidebarModeIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C262F27E03300EC9EE1 /* SidebarModeIcon.swift */; };
 		A13E7C282F27E03300EC9EE1 /* SidebarModeBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C252F27E03300EC9EE1 /* SidebarModeBar.swift */; };
@@ -178,7 +177,6 @@
 		A13E7C4D2F280BE900EC9EE1 /* ActivityCodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3B2F280BE900EC9EE1 /* ActivityCodeView.swift */; };
 		A13E7C4E2F280BE900EC9EE1 /* ActivityViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C442F280BE900EC9EE1 /* ActivityViewHelpers.swift */; };
 		A13E7C4F2F280BE900EC9EE1 /* ActivityGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C402F280BE900EC9EE1 /* ActivityGraphView.swift */; };
-		A13E7C5D2F280C1C00EC9EE1 /* BatchRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C512F280C1C00EC9EE1 /* BatchRow.swift */; };
 		A13E7C642F27F36000EC9EE1 /* ArtifactServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C632F27F36000EC9EE1 /* ArtifactServiceGenerated.swift */; };
 		A13E7C652F27F36000EC9EE1 /* StorageServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C662F27F36000EC9EE1 /* StorageServiceGenerated.swift */; };
 		A13E80A22F2AD75100EC9EE1 /* ModelComparisonService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E80A12F2AD75100EC9EE1 /* ModelComparisonService.swift */; };
@@ -231,6 +229,7 @@
 		A1BFB2D32F042C4100EAA55A /* AddProviderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2CA2F042C4100EAA55A /* AddProviderSheet.swift */; };
 		A1BFB2D72F042C6D00EAA55A /* ProviderLogoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2D42F042C6D00EAA55A /* ProviderLogoView.swift */; };
 		A1BFB2D82F042C6D00EAA55A /* StatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2D52F042C6D00EAA55A /* StatusBadge.swift */; };
+		A1BFB4F22F30000100EAA55A /* MacPlainTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4F12F30000100EAA55A /* MacPlainTextEditor.swift */; };
 		A1BFB2DC2F042E5100EAA55A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2DA2F042E5100EAA55A /* SettingsView.swift */; };
 		A1BFB2DF2F04328300EAA55A /* ImagePreviewMenuCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2DE2F04328300EAA55A /* ImagePreviewMenuCommands.swift */; };
 		A1BFB2E02F04328300EAA55A /* FocusedCommandButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2DD2F04328300EAA55A /* FocusedCommandButtons.swift */; };
@@ -309,11 +308,6 @@
 		B4A002030000000000BATCH4 /* ModelResultCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001030000000000BATCH4 /* ModelResultCard.swift */; };
 		B4A002040000000000BATCH4 /* ModelPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001040000000000BATCH4 /* ModelPickerSheet.swift */; };
 		B4A002050000000000BATCH4 /* PresetPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001050000000000BATCH4 /* PresetPickerSheet.swift */; };
-		B4A002060000000000BATCH4 /* BatchDetailView+Header.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001060000000000BATCH4 /* BatchDetailView+Header.swift */; };
-		B4A002070000000000BATCH4 /* BatchDetailView+Progress.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001070000000000BATCH4 /* BatchDetailView+Progress.swift */; };
-		B4A002080000000000BATCH4 /* BatchDetailView+Configuration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001080000000000BATCH4 /* BatchDetailView+Configuration.swift */; };
-		B4A002090000000000BATCH4 /* BatchDetailView+Items.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001090000000000BATCH4 /* BatchDetailView+Items.swift */; };
-		B4A0020A0000000000BATCH4 /* BatchDetailView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010A0000000000BATCH4 /* BatchDetailView+Actions.swift */; };
 		B4A0020B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift */; };
 		B4A0020C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift */; };
 		B4A0020D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift */; };
@@ -344,7 +338,6 @@
 		DDE8A1E95DE61B0723A40BC9 /* DynamicConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */; };
 		E6E64CE83B1FF1235DCFDF80 /* ScheduleDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */; };
 		E8DB4DEABBD7388DB33D81DA /* DocumentInspectorInfoTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */; };
-		F53928FD9498E8D531260FFC /* BatchDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA3C752FB69D99BF62FA042 /* BatchDetailView.swift */; };
 		FC3F95AC0E1F4A7DB6B9993E /* FeatureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */; };
 		GTE2 /* GeneratedTypeExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = GTE1 /* GeneratedTypeExtensions.swift */; };
 		IMP00012F27F36000EC9EE1 /* ImportServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMP00022F27F36000EC9EE1 /* ImportServiceGenerated.swift */; };
@@ -534,7 +527,6 @@
 		A13E7C122F27E01E00EC9EE1 /* ActivityRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityRun.swift; sourceTree = "<group>"; };
 		A13E7C142F27E01E00EC9EE1 /* ActivitySidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivitySidebarContent.swift; sourceTree = "<group>"; };
 		A13E7C152F27E01E00EC9EE1 /* AutomationSidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationSidebarContent.swift; sourceTree = "<group>"; };
-		A13E7C162F27E01E00EC9EE1 /* BatchesSidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchesSidebarContent.swift; sourceTree = "<group>"; };
 		A13E7C172F27E01E00EC9EE1 /* ChatSidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSidebarContent.swift; sourceTree = "<group>"; };
 		A13E7C182F27E01E00EC9EE1 /* LibrarySidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySidebarContent.swift; sourceTree = "<group>"; };
 		A13E7C192F27E01E00EC9EE1 /* SearchSidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchSidebarContent.swift; sourceTree = "<group>"; };
@@ -559,7 +551,6 @@
 		A13E7C422F280BE900EC9EE1 /* ActivityOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityOverviewView.swift; sourceTree = "<group>"; };
 		A13E7C432F280BE900EC9EE1 /* ActivityProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityProgressView.swift; sourceTree = "<group>"; };
 		A13E7C442F280BE900EC9EE1 /* ActivityViewHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityViewHelpers.swift; sourceTree = "<group>"; };
-		A13E7C512F280C1C00EC9EE1 /* BatchRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchRow.swift; sourceTree = "<group>"; };
 		A13E7C632F27F36000EC9EE1 /* ArtifactServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactServiceGenerated.swift; sourceTree = "<group>"; };
 		A13E7C662F27F36000EC9EE1 /* StorageServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageServiceGenerated.swift; sourceTree = "<group>"; };
 		A13E80A12F2AD75100EC9EE1 /* ModelComparisonService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelComparisonService.swift; sourceTree = "<group>"; };
@@ -614,6 +605,7 @@
 		A1BFB2CE2F042C4100EAA55A /* ProvidersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvidersView.swift; sourceTree = "<group>"; };
 		A1BFB2D42F042C6D00EAA55A /* ProviderLogoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderLogoView.swift; sourceTree = "<group>"; };
 		A1BFB2D52F042C6D00EAA55A /* StatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadge.swift; sourceTree = "<group>"; };
+		A1BFB4F12F30000100EAA55A /* MacPlainTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPlainTextEditor.swift; sourceTree = "<group>"; };
 		A1BFB2DA2F042E5100EAA55A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A1BFB2DD2F04328300EAA55A /* FocusedCommandButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusedCommandButtons.swift; sourceTree = "<group>"; };
 		A1BFB2DE2F04328300EAA55A /* ImagePreviewMenuCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePreviewMenuCommands.swift; sourceTree = "<group>"; };
@@ -691,11 +683,6 @@
 		B4A001030000000000BATCH4 /* ModelResultCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelResultCard.swift; sourceTree = "<group>"; };
 		B4A001040000000000BATCH4 /* ModelPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPickerSheet.swift; sourceTree = "<group>"; };
 		B4A001050000000000BATCH4 /* PresetPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetPickerSheet.swift; sourceTree = "<group>"; };
-		B4A001060000000000BATCH4 /* BatchDetailView+Header.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BatchDetailView+Header.swift"; sourceTree = "<group>"; };
-		B4A001070000000000BATCH4 /* BatchDetailView+Progress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BatchDetailView+Progress.swift"; sourceTree = "<group>"; };
-		B4A001080000000000BATCH4 /* BatchDetailView+Configuration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BatchDetailView+Configuration.swift"; sourceTree = "<group>"; };
-		B4A001090000000000BATCH4 /* BatchDetailView+Items.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BatchDetailView+Items.swift"; sourceTree = "<group>"; };
-		B4A0010A0000000000BATCH4 /* BatchDetailView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BatchDetailView+Actions.swift"; sourceTree = "<group>"; };
 		B4A0010B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DynamicConfigView+FieldRendering.swift"; sourceTree = "<group>"; };
 		B4A0010C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DynamicConfigView+SchemaHelpers.swift"; sourceTree = "<group>"; };
 		B4A0010D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DynamicConfigView+StateManagement.swift"; sourceTree = "<group>"; };
@@ -725,7 +712,6 @@
 		DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorInfoTab.swift; path = "fichero-swiftui/Views/Library/DocumentInspector/DocumentInspectorInfoTab.swift"; sourceTree = SOURCE_ROOT; };
 		E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorMetadataTab.swift; path = "fichero-swiftui/Views/Library/DocumentInspector/DocumentInspectorMetadataTab.swift"; sourceTree = SOURCE_ROOT; };
 		EBFA9C3247C03BDCE9BE6092 /* LibraryManager+Operations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Operations.swift"; sourceTree = "<group>"; };
-		FFA3C752FB69D99BF62FA042 /* BatchDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BatchDetailView.swift; sourceTree = "<group>"; };
 		GTE1 /* GeneratedTypeExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedTypeExtensions.swift; sourceTree = "<group>"; };
 		IMP00022F27F36000EC9EE1 /* ImportServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportServiceGenerated.swift; sourceTree = "<group>"; };
 		MOD00022F27F36000EC9EE1 /* ModelServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelServiceGenerated.swift; sourceTree = "<group>"; };
@@ -1133,19 +1119,6 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		5EEA8EB9BA7AE70A4833233E /* Batch */ = {
-			isa = PBXGroup;
-			children = (
-				FFA3C752FB69D99BF62FA042 /* BatchDetailView.swift */,
-				B4A001060000000000BATCH4 /* BatchDetailView+Header.swift */,
-				B4A001070000000000BATCH4 /* BatchDetailView+Progress.swift */,
-				B4A001080000000000BATCH4 /* BatchDetailView+Configuration.swift */,
-				B4A001090000000000BATCH4 /* BatchDetailView+Items.swift */,
-				B4A0010A0000000000BATCH4 /* BatchDetailView+Actions.swift */,
-			);
-			path = Batch;
-			sourceTree = "<group>";
-		};
 		A13E7C1B2F27E01E00EC9EE1 /* Modes */ = {
 			isa = PBXGroup;
 			children = (
@@ -1156,7 +1129,6 @@
 				B3A0010A0000000000BATCH3 /* ActivitySidebarContent+SelectionHandling.swift */,
 				B3A0010B0000000000BATCH3 /* ActivitySidebarContent+WorkflowSection.swift */,
 				A13E7C152F27E01E00EC9EE1 /* AutomationSidebarContent.swift */,
-				A13E7C162F27E01E00EC9EE1 /* BatchesSidebarContent.swift */,
 				A13E7C172F27E01E00EC9EE1 /* ChatSidebarContent.swift */,
 				A13E7C182F27E01E00EC9EE1 /* LibrarySidebarContent.swift */,
 				A13E7C192F27E01E00EC9EE1 /* SearchSidebarContent.swift */,
@@ -1264,12 +1236,12 @@
 			isa = PBXGroup;
 			children = (
 				A1BFB2EF2F043FA100EAA55A /* BackendConnectionView.swift */,
-				A13E7C512F280C1C00EC9EE1 /* BatchRow.swift */,
 				A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */,
 				A1BFB2F22F045C8A00EAA55A /* LibraryImageView.swift */,
 				A1BFB2D42F042C6D00EAA55A /* ProviderLogoView.swift */,
 				A13E7C322F27F32E00EC9EE1 /* ScheduleRow.swift */,
 				A1BFB2D52F042C6D00EAA55A /* StatusBadge.swift */,
+				A1BFB4F12F30000100EAA55A /* MacPlainTextEditor.swift */,
 				A13E7C332F27F32E00EC9EE1 /* TriggerRow.swift */,
 				A13E7C372F27F33C00EC9EE1 /* WorkflowExecutionRow.swift */,
 				20D8ED502F48E2C4006950A3 /* WorkflowPreviewSheet.swift */,
@@ -1601,7 +1573,6 @@
 				A13E7C212F27E01E00EC9EE1 /* AutomationSidebarContent.swift in Sources */,
 				A13E7C222F27E01E00EC9EE1 /* WorkflowsSidebarContent.swift in Sources */,
 				20D8ED712F48E63B006950A3 /* DocumentStoreTypes.swift in Sources */,
-				A13E7C232F27E01E00EC9EE1 /* BatchesSidebarContent.swift in Sources */,
 				A13E7C242F27E01E00EC9EE1 /* ChatSidebarContent.swift in Sources */,
 				A1BFB4042F057B9300EAA55A /* ScrollWheelZoom.swift in Sources */,
 				A1BFB4052F057B9300EAA55A /* FolderAccessManager.swift in Sources */,
@@ -1613,7 +1584,6 @@
 				A13E7C2E2F27E17F00EC9EE1 /* ProviderServiceGenerated.swift in Sources */,
 				A13E7C2F2F27E17F00EC9EE1 /* SearchServiceGenerated.swift in Sources */,
 				A13E7C302F27E17F00EC9EE1 /* BatchServiceGenerated.swift in Sources */,
-				A13E7C5D2F280C1C00EC9EE1 /* BatchRow.swift in Sources */,
 				A1BFB45E2F0AAC3700EAA55A /* ChatViewToolbar.swift in Sources */,
 				A1BFB45F2F0AAC3700EAA55A /* SearchViewToolbar.swift in Sources */,
 				202674D62F48963F008EAB5D /* SearchResultRowFromAPI.swift in Sources */,
@@ -1778,6 +1748,7 @@
 				A1FB1D822F0420A90023093C /* DocumentInspector.swift in Sources */,
 				A1BFB2D72F042C6D00EAA55A /* ProviderLogoView.swift in Sources */,
 				A1BFB2D82F042C6D00EAA55A /* StatusBadge.swift in Sources */,
+				A1BFB4F22F30000100EAA55A /* MacPlainTextEditor.swift in Sources */,
 				A1BFB4092F057BAC00EAA55A /* ViewMenuCommands.swift in Sources */,
 				20D8ED512F48E2C4006950A3 /* WorkflowPreviewSheet.swift in Sources */,
 				A1BFB2C82F042C0500EAA55A /* ViewSettings.swift in Sources */,
@@ -1873,12 +1844,6 @@
 				20D8EE3C2F4BE0D8006950A3 /* ActionsService.swift in Sources */,
 				898AABCC531843909C0C6AA8 /* TriggerEditorView.swift in Sources */,
 				8C35E319E4B9A46AB0383C10 /* TriggerDetailView.swift in Sources */,
-				F53928FD9498E8D531260FFC /* BatchDetailView.swift in Sources */,
-				B4A002060000000000BATCH4 /* BatchDetailView+Header.swift in Sources */,
-				B4A002070000000000BATCH4 /* BatchDetailView+Progress.swift in Sources */,
-				B4A002080000000000BATCH4 /* BatchDetailView+Configuration.swift in Sources */,
-				B4A002090000000000BATCH4 /* BatchDetailView+Items.swift in Sources */,
-				B4A0020A0000000000BATCH4 /* BatchDetailView+Actions.swift in Sources */,
 				DDE8A1E95DE61B0723A40BC9 /* DynamicConfigView.swift in Sources */,
 				B4A0020B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift in Sources */,
 				20D8EE302F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift in Sources */,

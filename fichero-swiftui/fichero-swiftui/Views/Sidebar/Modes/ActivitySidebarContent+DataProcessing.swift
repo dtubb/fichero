@@ -43,7 +43,9 @@ func runsByWorkflow(
 
     let libraryRuns = historicalRuns[library.id] ?? []
     for item in libraryRuns where item.type != "workflow_started" {
-        guard let threadId = item.threadId else { continue }
+        // Batch-level events can be missing threadId; use synthetic thread token.
+        let threadId = item.threadId ?? item.batchId.map { "batch:\($0)" }
+        guard let threadId else { continue }
 
         if seenThreadIds.contains(threadId) {
             continue
@@ -94,13 +96,17 @@ func activityMapActivityType(_ type: String) -> ActivityRunStatus {
     case "workflow_completed": return .completed
     case "workflow_failed": return .failed
     case "workflow_cancelled": return .cancelled
+    case "batch_started", "batch_item_started": return .running
+    case "batch_completed", "batch_item_completed": return .completed
+    case "batch_failed", "batch_item_failed": return .failed
+    case "batch_cancelled": return .cancelled
     default: return .completed
     }
 }
 
 func activityHasError(_ item: ActivityItem) -> Bool {
     if let error = item.error, !error.isEmpty { return true }
-    return item.type == "workflow_failed"
+    return item.type == "workflow_failed" || item.type == "batch_failed" || item.type == "batch_item_failed"
 }
 
 func activityExtractFileCount(from item: ActivityItem) -> Int {
@@ -111,6 +117,9 @@ func activityExtractFileCount(from item: ActivityItem) -> Int {
 }
 
 func activityExtractWorkflowName(from item: ActivityItem) -> String {
+    if item.type.hasPrefix("batch_"), let batchId = item.batchId {
+        return "Batch \(String(batchId.prefix(8)))"
+    }
     if let name = item.metadata?["workflow_name"] { return activityCleanWorkflowName(name) }
     if item.message.hasPrefix("Workflow '") {
         let afterPrefix = String(item.message.dropFirst(10))

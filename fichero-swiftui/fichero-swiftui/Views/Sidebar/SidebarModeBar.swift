@@ -4,7 +4,7 @@ import SwiftUI
 private let logger = Logger(subsystem: "com.tubb.Fichero", category: "SidebarModeBar")
 
 /// Xcode-style mode icon bar at the top of the sidebar
-/// Shows 7 mode icons: Library, Search, Chat, Workflows | Batches, Automation | Activity
+/// Shows mode icons: Library, Search, Chat, Workflows | Automation | Activity
 struct SidebarModeBar: View {
     @Binding var selectedMode: SidebarMode
 
@@ -13,9 +13,6 @@ struct SidebarModeBar: View {
 
     // Badge counts from environment
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
-
-    // Badge counts that need to be loaded
-    @State private var runningBatchCount: Int = 0
 
     var body: some View {
         HStack(spacing: 2) {
@@ -60,22 +57,12 @@ struct SidebarModeBar: View {
                 }
             }
 
-            if featureManager.isBatchesEnabled || featureManager.isAutomationEnabled {
+            if featureManager.isAutomationEnabled {
                 modeSeparator
             }
 
-            // Automation modes (5-6)
+            // Automation mode
             Group {
-                if featureManager.isBatchesEnabled {
-                    SidebarModeIcon(
-                        mode: .batches,
-                        isSelected: selectedMode == .batches,
-                        badgeCount: badgeCount(for: .batches)
-                    ) {
-                        selectMode(.batches)
-                    }
-                }
-
                 if featureManager.isAutomationEnabled {
                     SidebarModeIcon(
                         mode: .automation,
@@ -121,8 +108,6 @@ struct SidebarModeBar: View {
         case .activity:
             // Show count of running executions
             return executionObserver.activeExecutions.count
-        case .batches:
-            return runningBatchCount
         default:
             return 0
         }

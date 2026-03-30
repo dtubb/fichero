@@ -2,6 +2,48 @@ import OSLog
 import SwiftUI
 
 extension SidebarItemRow {
+    func handleExternalFileDrop(urls: [URL], targetFolder: SidebarItem?) -> Bool {
+        guard let importService else {
+            sidebarRowLogger.warning("❌ External drop rejected: no import service for library")
+            return false
+        }
+
+        let fileURLs = urls.filter { $0.isFileURL }
+        guard !fileURLs.isEmpty else {
+            sidebarRowLogger.warning("❌ External drop rejected: no file URLs")
+            return false
+        }
+
+        let targetFolderId: String?
+        if let targetFolder,
+           case .document(let doc) = targetFolder.itemType,
+           doc.docType == .folder {
+            targetFolderId = targetFolder.id
+        } else {
+            targetFolderId = nil
+        }
+
+        Task {
+            do {
+                _ = try await importService.importFiles(
+                    fileURLs,
+                    mode: .link,
+                    parentId: targetFolderId
+                )
+                if let targetFolderId {
+                    sidebarRowLogger.debug("✅ Imported \(fileURLs.count) external file(s) to folder \(targetFolderId)")
+                } else {
+                    sidebarRowLogger.debug("✅ Imported \(fileURLs.count) external file(s) to library root")
+                }
+                await documentStore?.refresh()
+            } catch {
+                sidebarRowLogger.error("❌ External drop import failed: \(error.localizedDescription)")
+            }
+        }
+
+        return true
+    }
+
     func handleDropBesideItem(itemIDs: [String], targetItem: SidebarItem) -> Bool {
         sidebarRowLogger.debug(" ========== DROP BESIDE STARTED ==========")
         sidebarRowLogger.debug(" handleDropBesideItem called with \(itemIDs.count) items beside \(targetItem.name)")

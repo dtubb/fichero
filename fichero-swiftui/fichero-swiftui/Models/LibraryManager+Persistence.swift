@@ -1,17 +1,30 @@
-import SwiftUI
-import OSLog
 import FicheroAPIClient
+import OSLog
+import SwiftUI
 
 // MARK: - Library Persistence
 
 extension LibraryManager {
     private static let openLibraryPathsKey = "FicheroOpenLibraryPaths"
+    private static let libraryDisplayNamesByPathKey = "FicheroLibraryDisplayNamesByPath"
 
     /// Save current open library paths to UserDefaults
     func saveOpenLibraryPaths() {
         let paths = openLibraries.map { $0.url.path }
         UserDefaults.standard.set(paths, forKey: Self.openLibraryPathsKey)
+        saveLibraryDisplayNames()
         libraryManagerLogger.info("Saved \(paths.count) library paths to UserDefaults")
+    }
+
+    /// Save custom display names by library path.
+    func saveLibraryDisplayNames() {
+        let namesByPath = Dictionary(uniqueKeysWithValues: openLibraries.map { ($0.url.path, $0.displayName) })
+        UserDefaults.standard.set(namesByPath, forKey: Self.libraryDisplayNamesByPathKey)
+    }
+
+    /// Get custom display names by library path.
+    func getSavedLibraryDisplayNames() -> [String: String] {
+        UserDefaults.standard.dictionary(forKey: Self.libraryDisplayNamesByPathKey) as? [String: String] ?? [:]
     }
 
     /// Get previously open library paths

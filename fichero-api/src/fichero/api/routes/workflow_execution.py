@@ -22,9 +22,14 @@ from fichero.api.main import get_library_database
 from fichero.models import Workflow
 from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
 from fichero.workflows.workflow_store import WorkflowStore
-from fichero.workflows.builder import SystemicErrorDetected, SOURCE_TOOLS, PARALLEL_TOOLS
+from fichero.workflows.builder import SystemicErrorDetected
 from fichero.workflows.activity import get_activity_tracker
-from fichero.workflows.runtime import create_compiled_app, build_initial_state
+from fichero.workflows.runtime import (
+    build_initial_state,
+    create_compiled_app,
+    create_compiled_app_with_checkpointer,
+    to_workflow_def,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -224,54 +229,10 @@ async def _run_workflow_in_background(
             data={"workflow_name": workflow.name, "inputs": request.inputs}
         ))
 
-        # Build workflow using the parallel-aware builder
-        from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
+        # Build workflow using the shared runtime conversion path.
         from fichero.workflows.builder import build_graph
 
-        # Convert Workflow model to WorkflowDef
-        workflow_def = WorkflowDef(
-            id=workflow.id,
-            name=workflow.name,
-            description=workflow.description or "",
-            provider=workflow.provider or "",
-            model=workflow.model or "",
-            nodes=[
-                NodeDef(
-                    id=n["id"],
-                    tool=n["tool"],
-                    label=n.get("label", ""),
-                    inputs=n.get("inputs", {}),
-                    config=n.get("config", {}),
-                    provider_name=n.get("provider_name", ""),
-                    model_name=n.get("model_name", ""),
-                )
-                for n in workflow.nodes
-            ],
-            edges=[
-                EdgeDef(
-                    source=e.get("source") or e.get("source_node_id", ""),
-                    target=e.get("target") or e.get("target_node_id", ""),
-                    source_port=e.get("source_port", "output"),
-                    target_port=e.get("target_port", "input"),
-                )
-                for e in workflow.edges
-            ],
-        )
-
-        # Resolve default provider/model if not set on workflow
-        if not workflow_def.provider or not workflow_def.model:
-            try:
-                from fichero.app_db import get_app_db
-                app_db = get_app_db()
-                default = app_db.get_default_model()
-                if default:
-                    if not workflow_def.provider:
-                        workflow_def.provider = default[0]
-                    if not workflow_def.model:
-                        workflow_def.model = default[1]
-                    logger.info(f"Using default provider: {workflow_def.provider}/{workflow_def.model}")
-            except Exception as e:
-                logger.warning(f"Could not load default provider: {e}")
+        workflow_def = to_workflow_def(workflow)
 
         # Generate and save Python code
         await log_execution("Generating Python code for workflow")
@@ -1415,227 +1376,16 @@ def _build_workflow_with_checkpointer(
     enable_parallel: bool = True,
 ):
     """
-    Build a LangGraph workflow with checkpointing enabled.
-
-    Uses the parallel-aware build_graph() function for proper fan-out/fan-in
-    execution of batch processing nodes.
-
-    Args:
-        workflow: Workflow database model
-        checkpointer: AsyncDuckDBCheckpointer instance
-        interrupt_before: Optional list of node IDs to pause before
-        interrupt_after: Optional list of node IDs to pause after
-        enable_parallel: Whether to enable parallel file processing (default: True)
-
-    Returns:
-        Compiled LangGraph application with checkpointing
+    Build a workflow with checkpointing using the shared runtime path.
     """
-    from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
+    if interrupt_before or interrupt_after:
+        logger.debug("Interrupt hooks are not currently applied in shared runtime builder")
 
-    # Convert Workflow model to WorkflowDef
-    workflow_def = WorkflowDef(
-        id=workflow.id,
-        name=workflow.name,
-        description=workflow.description or "",
-        provider=workflow.provider or "",
-        model=workflow.model or "",
-        nodes=[
-            NodeDef(
-                id=n["id"],
-                tool=n["tool"],
-                label=n.get("label", ""),
-                inputs=n.get("inputs", {}),
-                config=n.get("config", {}),
-                provider_name=n.get("provider_name", ""),
-                model_name=n.get("model_name", ""),
-            )
-            for n in workflow.nodes
-        ],
-        edges=[
-            EdgeDef(
-                source=e.get("source") or e.get("source_node_id", ""),
-                target=e.get("target") or e.get("target_node_id", ""),
-                source_port=e.get("source_port", "output"),
-                target_port=e.get("target_port", "input"),
-            )
-            for e in workflow.edges
-        ],
-    )
-
-    # Resolve default provider/model if not set on workflow
-    if not workflow_def.provider or not workflow_def.model:
-        try:
-            from fichero.app_db import get_app_db
-            app_db = get_app_db()
-            default = app_db.get_default_model()
-            if default:
-                if not workflow_def.provider:
-                    workflow_def.provider = default[0]
-                if not workflow_def.model:
-                    workflow_def.model = default[1]
-                logger.info(f"Using default provider: {workflow_def.provider}/{workflow_def.model}")
-        except Exception as e:
-            logger.warning(f"Could not load default provider: {e}")
-
-    logger.debug(f"Building workflow '{workflow_def.name}': {len(workflow_def.nodes)} nodes, {len(workflow_def.edges)} edges")
-
-    # Log edges and detect parallel edges
-    print("[BUILD] Edges:")
-    for edge in workflow_def.edges:
-        target_node = workflow_def.get_node(edge.target)
-        source_node = workflow_def.get_node(edge.source)
-        is_parallel = (
-            enable_parallel
-            and target_node
-            and target_node.tool in PARALLEL_TOOLS
-            and source_node
-            and source_node.tool in SOURCE_TOOLS
-        )
-        parallel_marker = " [PARALLEL]" if is_parallel else ""
-        print(f"[BUILD]   {edge.source} -> {edge.target}{parallel_marker}")
-
-    # Build graph using parallel-aware builder
-    # Note: build_graph returns a compiled graph, but we need to recompile with checkpointer
-    # So we use the StateGraph directly but with parallel detection
-    from langgraph.graph import StateGraph, START, END
-    from fichero.workflows.types import State
-    from fichero.workflows.registry import get_tool
-    from fichero.workflows.builder import (
-        _make_node_function,
-        _make_fan_out_function,
-        _make_parallel_node_function,
-        _make_aggregation_function,
-    )
-    from fichero.llm import LLMConfig
-
-    # Create state graph
-    graph = StateGraph(State)
-
-    # Build LLM config
-    llm_config = LLMConfig(provider=workflow_def.provider, model=workflow_def.model)
-    workflow_config = {"provider": workflow_def.provider, "model": workflow_def.model}
-
-    # Build edge lookup for auto-wiring
-    edges_by_target = {}
-    for edge in workflow_def.edges:
-        if edge.target not in edges_by_target:
-            edges_by_target[edge.target] = []
-        edges_by_target[edge.target].append({
-            "source": edge.source,
-            "source_port": edge.source_port,
-            "target_port": edge.target_port,
-        })
-
-    # Identify parallel processing edges (source -> batch tool)
-    parallel_edges = set()
-    if enable_parallel:
-        for edge in workflow_def.edges:
-            target_node = workflow_def.get_node(edge.target)
-            if target_node and target_node.tool in PARALLEL_TOOLS:
-                source_node = workflow_def.get_node(edge.source)
-                if source_node and source_node.tool in SOURCE_TOOLS:
-                    parallel_edges.add((edge.source, edge.target))
-                    print(f"[BUILD] Parallel edge detected: {edge.source} -> {edge.target}")
-
-    # Add nodes
-    for node_def in workflow_def.nodes:
-        tool_fn = get_tool(node_def.tool)
-        if tool_fn is None:
-            raise ValueError(f"Unknown tool: {node_def.tool}")
-
-        incoming_edges = edges_by_target.get(node_def.id, [])
-
-        # Check if this node receives parallel fan-out
-        is_parallel_target = any(
-            (e["source"], node_def.id) in parallel_edges
-            for e in incoming_edges
-        )
-
-        if is_parallel_target:
-            # Create single-file processing node for parallel execution
-            node_fn = _make_parallel_node_function(
-                node_def, tool_fn, llm_config, workflow_config
-            )
-            # Add aggregation node
-            agg_fn = _make_aggregation_function(node_def.id)
-            graph.add_node(f"{node_def.id}_process", node_fn)
-            graph.add_node(f"{node_def.id}_aggregate", agg_fn)
-            print(f"[BUILD] Added parallel nodes: {node_def.id}_process, {node_def.id}_aggregate")
-        else:
-            # Standard node
-            node_fn = _make_node_function(
-                node_def, tool_fn, llm_config, workflow_config, incoming_edges
-            )
-            graph.add_node(node_def.id, node_fn)
-
-    # Add edges
-    # Group parallel edges by source node (one conditional edge per source)
-    parallel_by_source: dict[str, list[str]] = {}
-    for edge in workflow_def.edges:
-        if (edge.source, edge.target) in parallel_edges:
-            if edge.source not in parallel_by_source:
-                parallel_by_source[edge.source] = []
-            parallel_by_source[edge.source].append(edge.target)
-
-    # Add fan-out conditional edges (one per source node)
-    for source_id, target_ids in parallel_by_source.items():
-        fan_out_fn = _make_fan_out_function(
-            source_id,
-            target_ids,
-            {target_id: target_id for target_id in target_ids},
-        )
-        graph.add_conditional_edges(
-            source_id,
-            fan_out_fn,
-            [f"{t}_process" for t in target_ids]
-        )
-        for target_id in target_ids:
-            graph.add_edge(f"{target_id}_process", f"{target_id}_aggregate")
-
-    # Add non-parallel edges
-    for edge in workflow_def.edges:
-        if (edge.source, edge.target) in parallel_edges:
-            continue  # Already handled above
-        else:
-            # Check if source was parallelized - connect from aggregate
-            source_is_parallel = any(
-                (e.source, e.target) in parallel_edges and e.target == edge.source
-                for e in workflow_def.edges
-            )
-            if source_is_parallel:
-                graph.add_edge(f"{edge.source}_aggregate", edge.target)
-            else:
-                graph.add_edge(edge.source, edge.target)
-
-    # Connect START to entry nodes
-    entry_nodes = workflow_def.get_entry_nodes()
-    if not entry_nodes:
-        raise ValueError("Workflow has no entry nodes")
-
-    for entry in entry_nodes:
-        print(f"[BUILD] START -> {entry}")
-        graph.add_edge(START, entry)
-
-    # Connect exit nodes to END
-    exit_nodes = workflow_def.get_exit_nodes()
-    for exit_node in exit_nodes:
-        # Check if this exit node was parallelized
-        is_parallel = any(
-            (e.source, e.target) in parallel_edges and e.target == exit_node
-            for e in workflow_def.edges
-        )
-        if is_parallel:
-            print(f"[BUILD] {exit_node}_aggregate -> END")
-            graph.add_edge(f"{exit_node}_aggregate", END)
-        else:
-            print(f"[BUILD] {exit_node} -> END")
-            graph.add_edge(exit_node, END)
-
-    # Compile with checkpointer
-    return graph.compile(
+    workflow_def = to_workflow_def(workflow)
+    return create_compiled_app_with_checkpointer(
+        workflow_def,
         checkpointer=checkpointer,
-        interrupt_before=interrupt_before,
-        interrupt_after=interrupt_after,
+        enable_parallel=enable_parallel,
     )
 
 
@@ -1689,35 +1439,9 @@ async def get_workflow_visualization(
             )
 
         # Build graph (without checkpointer for visualization)
-        from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
         from fichero.workflows.builder import build_graph
 
-        workflow_def = WorkflowDef(
-            id=workflow.id,
-            name=workflow.name,
-            description=workflow.description or "",
-            provider=workflow.provider or "",
-            model=workflow.model or "",
-            nodes=[
-                NodeDef(
-                    id=n["id"],
-                    tool=n["tool"],
-                    label=n.get("label", ""),
-                    inputs=n.get("inputs", {}),
-                    config=n.get("config", {}),
-                )
-                for n in workflow.nodes
-            ],
-            edges=[
-                EdgeDef(
-                    source=e.get("source") or e.get("source_node_id", ""),
-                    target=e.get("target") or e.get("target_node_id", ""),
-                    source_port=e.get("source_port", "output"),
-                    target_port=e.get("target_port", "input"),
-                )
-                for e in workflow.edges
-            ],
-        )
+        workflow_def = to_workflow_def(workflow)
 
         # Build compiled graph
         app = build_graph(workflow_def, enable_parallel=True, checkpointer=None)
@@ -1770,35 +1494,9 @@ async def get_workflow_visualization_png(
             )
 
         # Build graph
-        from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
         from fichero.workflows.builder import build_graph
 
-        workflow_def = WorkflowDef(
-            id=workflow.id,
-            name=workflow.name,
-            description=workflow.description or "",
-            provider=workflow.provider or "",
-            model=workflow.model or "",
-            nodes=[
-                NodeDef(
-                    id=n["id"],
-                    tool=n["tool"],
-                    label=n.get("label", ""),
-                    inputs=n.get("inputs", {}),
-                    config=n.get("config", {}),
-                )
-                for n in workflow.nodes
-            ],
-            edges=[
-                EdgeDef(
-                    source=e.get("source") or e.get("source_node_id", ""),
-                    target=e.get("target") or e.get("target_node_id", ""),
-                    source_port=e.get("source_port", "output"),
-                    target_port=e.get("target_port", "input"),
-                )
-                for e in workflow.edges
-            ],
-        )
+        workflow_def = to_workflow_def(workflow)
 
         # Build compiled graph
         app = build_graph(workflow_def, enable_parallel=True, checkpointer=None)

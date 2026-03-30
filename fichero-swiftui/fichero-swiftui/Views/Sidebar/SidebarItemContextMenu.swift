@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 /// Structured logger for context menu operations.
 private let logger = Logger(subsystem: "com.fichero.app", category: "SidebarContextMenu")
@@ -130,9 +130,9 @@ struct SidebarItemContextMenu: View {
 extension SidebarItem.ItemType {
     var canBeRenamed: Bool {
         switch self {
-        case .document, .savedSearch, .conversation, .workflow, .folder, .chain, .schedule, .trigger:
+        case .document, .savedSearch, .conversation, .workflow, .folder, .chain, .schedule, .trigger, .libraryHeader:
             return true
-        case .comparison, .batch, .activityRun, .libraryHeader:
+        case .comparison, .batch, .activityRun:
             return false
         }
     }

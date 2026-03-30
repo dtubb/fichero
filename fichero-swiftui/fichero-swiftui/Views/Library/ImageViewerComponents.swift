@@ -226,11 +226,9 @@ struct ZoomableImagePreview: View {
             }
         }
         .onAppear {
-            Self.logger.info("ZoomableImagePreview onAppear: loading \(url.lastPathComponent)")
             image = NSImage(contentsOf: url)
             if let img = image {
                 imageSize = img.size
-                Self.logger.info("Successfully loaded image: size=\(img.size.width)x\(img.size.height)")
             } else {
                 Self.logger.error("Failed to load NSImage from: \(url.path)")
             }
@@ -241,11 +239,9 @@ struct ZoomableImagePreview: View {
             }
         }
         .onChange(of: url) { _, newURL in
-            Self.logger.info("ZoomableImagePreview URL changed: loading \(newURL.lastPathComponent)")
             image = NSImage(contentsOf: newURL)
             if let img = image {
                 imageSize = img.size
-                Self.logger.info("Successfully loaded new image: size=\(img.size.width)x\(img.size.height)")
             } else {
                 Self.logger.error("Failed to load NSImage from: \(newURL.path)")
             }
@@ -314,8 +310,7 @@ struct ZoomableImagePreview: View {
             actualSize: actualSize,
             zoomToFit: fitToWindow,
             canZoomIn: scale < maxScale,
-            canZoomOut: scale > minScale,
-            currentScale: scale
+            canZoomOut: scale > minScale
         ))
     }
 

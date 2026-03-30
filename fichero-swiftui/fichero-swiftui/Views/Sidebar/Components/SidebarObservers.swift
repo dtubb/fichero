@@ -79,24 +79,6 @@ extension SidebarView {
         }
     }
 
-    /// Load batch data
-    func loadBatchData() async {
-        guard !batchesIsLoading else { return }
-        batchesIsLoading = true
-        defer { batchesIsLoading = false }
-
-        do {
-            guard let library = libraryManager.openLibraries.first else {
-                logger.warning("No library available for loading batches")
-                return
-            }
-            batches = try await library.batchService.listBatchesAsInfo(status: nil, limit: 100)
-            logger.info("Loaded \(batches.count) batches")
-        } catch {
-            logger.error("Failed to load batch data: \(error.localizedDescription)")
-        }
-    }
-
     /// Load activity data (historical workflow runs)
     func loadActivityData() async {
         guard !activityIsLoading else { return }

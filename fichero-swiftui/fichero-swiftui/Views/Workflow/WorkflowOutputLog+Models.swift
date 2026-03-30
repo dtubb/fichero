@@ -25,7 +25,7 @@ struct DocumentProgress: Identifiable {
 enum StepStatus {
     case pending
     case running
-    case completed(duration: Double?)
+    case completed(duration: Double?, cached: Bool)
     case failed(error: String?)
 }
 
@@ -39,7 +39,7 @@ extension WorkflowExecutionState {
                 id: "doc-1",
                 documentName: "letter_001.jpg",
                 stepStatuses: [
-                    "step-1": .completed(duration: 2.3),
+                    "step-1": .completed(duration: 2.3, cached: false),
                     "step-2": .running,
                     "step-3": .pending
                 ]
@@ -48,7 +48,7 @@ extension WorkflowExecutionState {
                 id: "doc-2",
                 documentName: "letter_002.jpg",
                 stepStatuses: [
-                    "step-1": .completed(duration: 1.8),
+                    "step-1": .completed(duration: 1.8, cached: false),
                     "step-2": .pending,
                     "step-3": .pending
                 ]

@@ -1,6 +1,6 @@
-import SwiftUI
-import OSLog
 import FicheroAPIClient
+import OSLog
+import SwiftUI
 
 extension LibraryManager {
 
@@ -19,7 +19,8 @@ extension LibraryManager {
         let document = FicheroDocument()
 
         // Extract display name from file URL (remove .fichero extension)
-        let displayName = url.deletingPathExtension().lastPathComponent
+        let defaultDisplayName = url.deletingPathExtension().lastPathComponent
+        let displayName = getSavedLibraryDisplayNames()[url.path] ?? defaultDisplayName
 
         // Determine if this is a user-opened library (needs security-scoped access)
         let needsSecurityAccess = !isTemporaryLibrary(url)
@@ -115,6 +116,18 @@ extension LibraryManager {
     /// Get a library by ID
     func getLibrary(id: UUID) -> LibraryReference? {
         return openLibraries.first(where: { $0.id == id })
+    }
+
+    /// Rename a library display name (does not rename the package on disk).
+    func renameLibrary(id: UUID, to newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard id != Self.globalLibraryId else { return }  // Keep Global/Local fixed in 0.0.1
+        guard let library = getLibrary(id: id) else { return }
+
+        library.displayName = trimmed
+        saveLibraryDisplayNames()
+        libraryManagerLogger.info("Renamed library \(id.uuidString) to: \(trimmed)")
     }
 
     /// Close a library

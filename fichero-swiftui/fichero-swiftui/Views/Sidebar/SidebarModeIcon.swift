@@ -43,8 +43,6 @@ struct SidebarModeIcon: View {
             return "bubble.left.and.bubble.right.fill"
         case .workflows:
             return "bolt.fill"
-        case .batches:
-            return "shippingbox.fill"
         case .automation:
             return "gearshape.2.fill"
         case .activity:
@@ -67,8 +65,6 @@ struct SidebarModeIcon: View {
         switch mode {
         case .activity:
             return .blue  // Blue for running items
-        case .batches:
-            return .orange
         default:
             return .secondary
         }
@@ -79,7 +75,6 @@ struct SidebarModeIcon: View {
     HStack {
         SidebarModeIcon(mode: .library, isSelected: true, badgeCount: 0) {}
         SidebarModeIcon(mode: .activity, isSelected: true, badgeCount: 3) {}
-        SidebarModeIcon(mode: .batches, isSelected: false, badgeCount: 5) {}
     }
     .padding()
 }

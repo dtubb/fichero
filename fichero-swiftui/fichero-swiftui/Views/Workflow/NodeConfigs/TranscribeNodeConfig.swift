@@ -89,10 +89,7 @@ struct TranscribeNodeConfig: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
 
-                    TextEditor(text: $promptText)
-                        .font(.caption)
-                        .scrollContentBackground(.hidden)
-                        .background(Color.clear)
+                    MacPlainTextEditor(text: $promptText, font: .preferredFont(forTextStyle: .caption1))
                     .frame(minHeight: 80)
                     .background(Color(.textBackgroundColor))
                     .overlay(

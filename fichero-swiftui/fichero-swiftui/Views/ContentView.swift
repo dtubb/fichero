@@ -23,6 +23,8 @@ enum PaneFocus: Hashable {
 struct ContentView: View {
     static let inspectorMinWidth: Double = 250
     static let inspectorMaxWidth: Double = 1000
+    static let contentMinWidth: Double = 520
+    static let contentMaxWidth: Double = 2200
 
     // MARK: - Environment
 
@@ -191,7 +193,8 @@ struct ContentView: View {
             }
         }
         .navigationSplitViewStyle(.prominentDetail)
-        .navigationTitle(sidebarMode.label)
+        // Avoid duplicate generic per-column title pills in macOS split view.
+        .navigationTitle("")
         .toolbar(removing: .sidebarToggle)
         .onAppear {
             // Restore all persisted state from @SceneStorage
@@ -202,6 +205,10 @@ struct ContentView: View {
             inspectorWidth = min(
                 max(inspectorWidth, ContentView.inspectorMinWidth),
                 ContentView.inspectorMaxWidth
+            )
+            contentWidth = min(
+                max(contentWidth, ContentView.contentMinWidth),
+                ContentView.contentMaxWidth
             )
             if !featureManager.isSearchEnabled && sidebarMode == .search {
                 sidebarMode = .library
@@ -241,8 +248,6 @@ struct ContentView: View {
         .onChange(of: viewSettings.showInspector) { _, newValue in
             if showInspectorSidebar != newValue {
                 showInspectorSidebar = newValue
-            } else {
-                updateColumnVisibility()
             }
         }
         .toolbar {
@@ -334,7 +339,7 @@ struct ContentView: View {
                             showInspectorSidebar.toggle()
                         }
                     } label: {
-                        Image(systemName: "sidebar.right")
+                        Image(systemName: "info.circle")
                     }
                     .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
                 }
@@ -414,7 +419,6 @@ struct ContentView: View {
             let (type, id) = serializeViewMode(newMode)
             storedViewModeType = type
             storedViewModeItemId = id
-            updateColumnVisibility()
         }
         .onChange(of: selectedSidebarItemId) { _, newFolderId in
             // Restore per-folder view mode when switching folders
@@ -445,6 +449,9 @@ struct ContentView: View {
                 currentLayoutMode = effectiveLayoutMode
             }
         }
+        .onChange(of: showSidebar) { _, _ in
+            updateColumnVisibility()
+        }
         .onChange(of: columnVisibility) { _, newVisibility in
             // Persist column visibility to @SceneStorage
             // Map NavigationSplitViewVisibility to raw int for @SceneStorage
@@ -458,6 +465,14 @@ struct ContentView: View {
                 columnVisibilityRaw = 3
             } else {
                 columnVisibilityRaw = 0
+            }
+
+            // Keep explicit left-sidebar state in sync with split-view visibility.
+            // In this app's layout, `.doubleColumn` is sidebar + content.
+            if newVisibility == .detailOnly {
+                showSidebar = false
+            } else if newVisibility == .all || newVisibility == .doubleColumn || newVisibility == .automatic {
+                showSidebar = true
             }
         }
         .onChange(of: browserSelection) { _, newSelection in

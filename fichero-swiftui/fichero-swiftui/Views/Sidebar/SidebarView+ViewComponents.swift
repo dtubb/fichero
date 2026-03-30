@@ -1,20 +1,25 @@
+import AppKit
 import SwiftUI
 
 // MARK: - View Components
 
 extension SidebarView {
+    private struct UnifiedLibraryBuckets {
+        let documentItems: [SidebarItem]
+        let searchItems: [SidebarItem]
+        let workflowItems: [SidebarItem]
+        let chainItems: [SidebarItem]
+        let scheduleItems: [SidebarItem]
+        let triggerItems: [SidebarItem]
+        let activityItems: [SidebarItem]
+    }
+
     @ViewBuilder
     var sidebarContent: some View {
         VStack(spacing: 0) {
-            // Mode bar at top (Xcode-style)
-            SidebarModeBar(selectedMode: $sidebarMode)
+            unifiedContent
 
-            Divider()
-
-            // Content based on selected mode
-            modeContent
-
-            // Bottom toolbar (only show for content creation modes)
+            // Bottom toolbar
             if shouldShowBottomToolbar {
                 Divider()
                 SidebarBottomToolbar(
@@ -31,102 +36,357 @@ extension SidebarView {
         }
     }
 
-    /// Whether to show the bottom toolbar (only for content modes)
+    /// Whether to show the bottom toolbar.
     var shouldShowBottomToolbar: Bool {
-        switch sidebarMode {
-        case .library, .search, .chat, .workflows, .automation:
-            return true
-        case .batches, .activity:
-            return false
+        true
+    }
+
+    /// Unified sidebar content with feature-gated sections per library.
+    @ViewBuilder
+    var unifiedContent: some View {
+        List {
+            ForEach(cachedLibraryHeaders) { libraryHeader in
+                unifiedLibrarySection(libraryHeader)
+            }
+        }
+        .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
+        .onDeleteCommand {
+            deleteSelectedActivityRuns()
         }
     }
 
-    /// Content view based on selected sidebar mode
     @ViewBuilder
-    var modeContent: some View {
-        switch sidebarMode {
-        case .library:
-            LibrarySidebarContent(
-                selectedItemId: $selectedItemId,
-                libraryManager: libraryManager,
-                sidebarState: sidebarState,
-                renameState: renameState,
-                deleteState: deleteState,
-                cachedLibraryHeaders: cachedLibraryHeaders
+    // swiftlint:disable:next function_body_length
+    private func unifiedLibrarySection(_ libraryHeader: SidebarItem) -> some View {
+        if let libraryId = libraryHeader.libraryId,
+           let library = libraryManager.getLibrary(id: libraryId) {
+            let allChildren = libraryHeader.children ?? []
+            let documentItems = allChildren.filter { item in
+                if case .document = item.itemType { return true }
+                if case .folder = item.itemType, item.category == .folder { return true }
+                return false
+            }
+            let searchItems = allChildren.filter { item in
+                if case .savedSearch = item.itemType { return true }
+                if case .folder = item.itemType, item.category == .search { return true }
+                return false
+            }
+            let workflowItems = allChildren.filter { item in
+                if case .workflow = item.itemType { return true }
+                if case .folder = item.itemType, item.category == .workflow { return true }
+                return false
+            }
+            let chainItems = (libraryId == LibraryManager.globalLibraryId && FeatureManager.shared.isWorkflowChainsEnabled)
+                ? chains.map { SidebarItem.fromChain($0, libraryId: libraryId) }
+                : []
+            let scheduleItems = (libraryId == LibraryManager.globalLibraryId && FeatureManager.shared.isAutomationEnabled)
+                ? schedules.map { SidebarItem.fromSchedule($0, libraryId: libraryId) }
+                : []
+            let triggerItems = (libraryId == LibraryManager.globalLibraryId && FeatureManager.shared.isAutomationEnabled)
+                ? triggers.map { SidebarItem.fromTrigger($0, libraryId: libraryId) }
+                : []
+            let activityItems = FeatureManager.shared.isActivityEnabled
+                ? unifiedActivityRuns(for: library).map { run in
+                    SidebarItem(
+                        id: "run:\(run.id)",
+                        name: activityRunDisplayName(for: run),
+                        icon: run.status.icon,
+                        category: .activity,
+                        itemType: .activityRun(
+                            ActivityItem(
+                                id: run.id,
+                                type: activityType(for: run.status),
+                                level: "info",
+                                timestamp: ISO8601DateFormatter().string(from: run.timestamp),
+                                message: run.workflowName,
+                                workflowId: run.workflowId,
+                                batchId: nil,
+                                threadId: run.threadId,
+                                nodeId: nil,
+                                metadataRaw: nil,
+                                durationMs: nil,
+                                error: nil
+                            )
+                        ),
+                        children: nil,
+                        progress: run.progress,
+                        showProgress: run.isLive,
+                        libraryId: libraryId,
+                        folderPath: "/",
+                        sortOrder: 0,
+                        isFolder: false
+                    )
+                }
+                : []
+            let buckets = UnifiedLibraryBuckets(
+                documentItems: documentItems,
+                searchItems: searchItems,
+                workflowItems: workflowItems,
+                chainItems: chainItems,
+                scheduleItems: scheduleItems,
+                triggerItems: triggerItems,
+                activityItems: activityItems
             )
 
-        case .search:
-            SearchSidebarContent(
-                selectedItemId: $selectedItemId,
-                libraryManager: libraryManager,
-                sidebarState: sidebarState,
-                renameState: renameState,
-                deleteState: deleteState,
-                cachedLibraryHeaders: cachedLibraryHeaders
-            )
+            let totalCount = documentItems.count + searchItems.count + workflowItems.count + chainItems.count +
+                scheduleItems.count + triggerItems.count + activityItems.count
 
-        case .chat:
-            ChatSidebarContent(
-                selectedItemId: $selectedItemId,
-                viewMode: $viewMode,
-                sidebarMode: $sidebarMode,
-                libraryManager: libraryManager,
-                sidebarState: sidebarState,
-                renameState: renameState,
-                deleteState: deleteState,
-                cachedLibraryHeaders: cachedLibraryHeaders
-            )
+            if library.id == LibraryManager.globalLibraryId {
+                // Global library stays always expanded.
+                Section {
+                    unifiedLibrarySections(
+                        libraryId: libraryId,
+                        buckets: buckets
+                    )
+                } header: {
+                    LibrarySectionHeader(
+                        library: library,
+                        itemCount: totalCount,
+                        isCurrentLibrary: library.id == windowState.libraryId
+                    )
+                    .contextMenu {
+                        if library.id != LibraryManager.globalLibraryId {
+                            Button("Rename Library…") {
+                                libraryToRenameId = library.id
+                                pendingLibraryName = library.displayName
+                                showingRenameLibraryPrompt = true
+                            }
+                        }
+                    }
+                }
+            } else {
+                DisclosureGroup(
+                    isExpanded: Binding(
+                        get: { sidebarState.isLibraryExpanded(library.id) },
+                        set: { sidebarState.libraryExpansionStates[library.id.uuidString] = $0 }
+                    )
+                ) {
+                    unifiedLibrarySections(
+                        libraryId: libraryId,
+                        buckets: buckets
+                    )
+                } label: {
+                    LibrarySectionHeader(
+                        library: library,
+                        itemCount: totalCount,
+                        isCurrentLibrary: library.id == windowState.libraryId
+                    )
+                    .contextMenu {
+                        if library.id != LibraryManager.globalLibraryId {
+                            Button("Rename Library…") {
+                                libraryToRenameId = library.id
+                                pendingLibraryName = library.displayName
+                                showingRenameLibraryPrompt = true
+                            }
+                        }
+                    }
+                }
+                .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+            }
+        }
+    }
 
-        case .workflows:
-            WorkflowsSidebarContent(
-                selectedItemId: $selectedItemId,
-                viewMode: $viewMode,
-                libraryManager: libraryManager,
-                sidebarState: sidebarState,
-                renameState: renameState,
-                deleteState: deleteState,
-                cachedLibraryHeaders: cachedLibraryHeaders,
-                chains: chains,
-                chainService: chainService
-            )
+    @ViewBuilder
+    private func unifiedLibrarySections(
+        libraryId: UUID,
+        buckets: UnifiedLibraryBuckets
+    ) -> some View {
+        unifiedDisclosureSection(
+            title: "Library",
+            sectionKey: "library",
+            libraryId: libraryId,
+            items: buckets.documentItems
+        )
 
-        case .batches:
-            BatchesSidebarContent(
-                libraryManager: libraryManager,
-                selectedItemId: $selectedItemId,
-                viewMode: $viewMode,
-                sidebarState: sidebarState,
-                renameState: renameState,
-                deleteState: deleteState,
-                batches: batches,
-                isLoading: batchesIsLoading,
-                onRefresh: { Task { await loadBatchData() } }
-            )
-
-        case .automation:
-            AutomationSidebarContent(
-                libraryManager: libraryManager,
-                selectedItemId: $selectedItemId,
-                viewMode: $viewMode,
-                sidebarState: sidebarState,
-                renameState: renameState,
-                deleteState: deleteState,
-                schedules: schedules,
-                triggers: triggers,
-                isLoading: automationIsLoading,
-                onRefresh: { Task { await loadAutomationData() } }
-            )
-
-        case .activity:
-            ActivitySidebarContent(
-                libraryManager: libraryManager,
-                sidebarState: sidebarState,
-                selectedItemId: $selectedItemId,
-                viewMode: $viewMode,
-                historicalRunsByLibrary: historicalRunsByLibrary,
-                isLoading: activityIsLoading,
-                onRefresh: { Task { await loadActivityData() } }
+        if FeatureManager.shared.isSearchEnabled {
+            unifiedDisclosureSection(
+                title: "Saved Searches",
+                sectionKey: "search",
+                libraryId: libraryId,
+                items: buckets.searchItems
             )
         }
+
+        if FeatureManager.shared.isWorkflowsEnabled {
+            unifiedDisclosureSection(
+                title: "Workflows",
+                sectionKey: "workflows",
+                libraryId: libraryId,
+                items: buckets.workflowItems + buckets.chainItems
+            )
+        }
+
+        if FeatureManager.shared.isAutomationEnabled {
+            unifiedDisclosureSection(
+                title: "Automation",
+                sectionKey: "automation",
+                libraryId: libraryId,
+                items: buckets.scheduleItems + buckets.triggerItems
+            )
+        }
+
+        if FeatureManager.shared.isActivityEnabled {
+            unifiedDisclosureSection(
+                title: "Activity",
+                sectionKey: "activity",
+                libraryId: libraryId,
+                items: buckets.activityItems
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func unifiedRows(_ items: [SidebarItem]) -> some View {
+        ForEach(items) { item in
+            SidebarItemRow(
+                item: item,
+                allCachedItems: allCachedItems,
+                expandedItems: Binding(
+                    get: { sidebarState.expandedItems },
+                    set: { sidebarState.expandedItems = $0 }
+                ),
+                selectedItemId: $selectedItemId,
+                renameState: renameState,
+                deleteState: deleteState,
+                libraryManager: libraryManager
+            )
+            .contentShape(Rectangle())
+            .onTapGesture {
+                handleUnifiedRowTap(item)
+            }
+            .listRowBackground(
+                selectedActivityItemIds.contains(item.id)
+                    ? Color.accentColor.opacity(0.18)
+                    : Color.clear
+            )
+            .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 8))
+        }
+    }
+
+    @ViewBuilder
+    private func unifiedDisclosureSection(
+        title: String,
+        sectionKey: String,
+        libraryId: UUID,
+        items: [SidebarItem]
+    ) -> some View {
+        if !items.isEmpty {
+            DisclosureGroup(
+                isExpanded: Binding(
+                    get: { isUnifiedSectionExpanded(libraryId: libraryId, sectionKey: sectionKey) },
+                    set: { setUnifiedSectionExpanded($0, libraryId: libraryId, sectionKey: sectionKey) }
+                ),
+                content: {
+                    unifiedRows(items)
+                },
+                label: {
+                    Text(title)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            )
+        }
+    }
+
+    private func unifiedSectionStorageKey(libraryId: UUID, sectionKey: String) -> String {
+        "unified-section:\(libraryId.uuidString):\(sectionKey)"
+    }
+
+    private func isUnifiedSectionExpanded(libraryId: UUID, sectionKey: String) -> Bool {
+        let key = unifiedSectionStorageKey(libraryId: libraryId, sectionKey: sectionKey)
+        return sidebarState.unifiedSectionExpansionStates[key] ?? true
+    }
+
+    private func setUnifiedSectionExpanded(_ expanded: Bool, libraryId: UUID, sectionKey: String) {
+        let key = unifiedSectionStorageKey(libraryId: libraryId, sectionKey: sectionKey)
+        sidebarState.unifiedSectionExpansionStates[key] = expanded
+    }
+
+    private func handleUnifiedRowTap(_ item: SidebarItem) {
+        if item.category == .activity {
+            let isCommandDown = NSApp.currentEvent?.modifierFlags.contains(.command) ?? false
+            if isCommandDown {
+                if selectedActivityItemIds.contains(item.id) {
+                    selectedActivityItemIds.remove(item.id)
+                } else {
+                    selectedActivityItemIds.insert(item.id)
+                }
+                selectedItemId = selectedActivityItemIds.count == 1 ? selectedActivityItemIds.first : nil
+                return
+            }
+
+            selectedActivityItemIds = [item.id]
+            selectedItemId = item.id
+            return
+        }
+
+        // Selecting any non-activity row resets activity multi-selection.
+        selectedActivityItemIds.removeAll()
+        selectedItemId = item.id
+    }
+
+    private func deleteSelectedActivityRuns() {
+        guard !selectedActivityItemIds.isEmpty else { return }
+
+        for selectedId in selectedActivityItemIds {
+            guard selectedId.hasPrefix("run:") else { continue }
+            let rawToken = String(selectedId.dropFirst("run:".count))
+            let parts = rawToken.split(separator: "|", maxSplits: 1).map(String.init)
+            guard parts.count == 2, let libraryId = UUID(uuidString: parts[0]) else { continue }
+            let threadToken = parts[1]
+
+            guard var items = historicalRunsByLibrary[libraryId] else { continue }
+            items.removeAll { item in
+                let candidate = item.threadId ?? item.batchId.map { "batch:\($0)" }
+                return candidate == threadToken
+            }
+            historicalRunsByLibrary[libraryId] = items
+        }
+
+        selectedActivityItemIds.removeAll()
+        if selectedItemId?.hasPrefix("run:") == true {
+            selectedItemId = nil
+        }
+        if case .activity = viewMode {
+            viewMode = .activity(nil)
+        }
+    }
+
+    @MainActor
+    private func unifiedActivityRuns(for library: LibraryManager.LibraryReference) -> [ActivityRun] {
+        runsByWorkflow(
+            for: library,
+            activeExecutions: executionObserver.activeExecutions,
+            historicalRuns: historicalRunsByLibrary
+        )
+        .values
+        .flatMap { $0 }
+        .sorted { $0.timestamp > $1.timestamp }
+    }
+
+    private func activityType(for status: ActivityRunStatus) -> String {
+        switch status {
+        case .running:
+            return "workflow_started"
+        case .completed:
+            return "workflow_completed"
+        case .failed:
+            return "workflow_failed"
+        case .cancelled:
+            return "workflow_cancelled"
+        }
+    }
+
+    @MainActor
+    func unifiedSelectedRun(forSidebarId sidebarId: String) -> ActivityRun? {
+        guard sidebarId.hasPrefix("run:") else { return nil }
+        let runSidebarId = String(sidebarId.dropFirst("run:".count))
+        for library in libraryManager.openLibraries {
+            if let run = unifiedActivityRuns(for: library).first(where: { $0.id == runSidebarId }) {
+                return run
+            }
+        }
+        return nil
     }
 }

@@ -86,13 +86,15 @@ extension WorkflowStreamService {
                 let fileIndex = eventData.fileIndex ?? eventData.data["file_index"]?.intValue ?? 0
                 let fileTotal = eventData.fileTotal ?? eventData.data["file_total"]?.intValue ?? 0
                 let progress = eventData.progress ?? eventData.data["progress"]?.doubleValue ?? 0.0
+                let cached = eventData.data["cached"]?.boolValue ?? false
                 return .fileComplete(
                     threadId: eventData.threadId,
                     nodeId: nodeId,
                     filePath: filePath,
                     fileIndex: fileIndex,
                     fileTotal: fileTotal,
-                    progress: progress
+                    progress: progress,
+                    cached: cached
                 )
 
             case "file_error":

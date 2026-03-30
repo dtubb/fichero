@@ -83,7 +83,7 @@ extension SidebarView {
                 await loadAutomationData()  // Refresh automation sidebar
             case .batch(let batch):
                 try await library.batchService.deleteBatch(batchId: batch.batchId)
-                await loadBatchData()  // Refresh batches sidebar
+                await loadActivityData()  // Refresh unified activity sidebar
             case .comparison, .activityRun:
                 logger.warning("This item type cannot be deleted")
             case .folder:

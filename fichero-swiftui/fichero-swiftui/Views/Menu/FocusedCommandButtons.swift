@@ -10,7 +10,6 @@ struct ImageZoomActions {
     let zoomToFit: () -> Void
     let canZoomIn: Bool
     let canZoomOut: Bool
-    let currentScale: CGFloat
 }
 
 /// FocusedValue key for image zoom actions
@@ -229,6 +228,19 @@ struct FocusedNewLibraryButton: View {
             newLibraryAction?()
         }
         .keyboardShortcut("n", modifiers: [.command])
+    }
+}
+
+/// Button that creates a new database in the focused window (alias for Database terminology)
+struct FocusedNewDatabaseButton: View {
+    @FocusedValue(\.newLibraryAction) private var newLibraryAction
+
+    var body: some View {
+        Button("New Database") {
+            newLibraryAction?()
+        }
+        .keyboardShortcut("n", modifiers: [.command])
+        .disabled(newLibraryAction == nil)
     }
 }
 

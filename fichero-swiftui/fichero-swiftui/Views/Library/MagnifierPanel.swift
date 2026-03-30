@@ -12,7 +12,7 @@ struct MagnifierPanelView: View {
     @Binding var isLocked: Bool
     var onLockToggle: () -> Void
 
-    private let minMagnification: CGFloat = 1.0
+    private let minMagnification: CGFloat = 0.25
     private let maxMagnification: CGFloat = 16.0
     private let minHeight: CGFloat = 60
     private let maxHeight: CGFloat = 300
@@ -84,11 +84,11 @@ struct MagnifierPanelView: View {
                         .buttonStyle(.plain)
                         .disabled(magnification <= minMagnification)
 
-                        Text("\(Int(magnification))x")
+                        Text(String(format: "%.2gx", magnification))
                             .font(.caption)
                             .fontWeight(.medium)
                             .monospacedDigit()
-                            .frame(width: 30)
+                            .frame(width: 44)
 
                         Button(action: zoomIn) {
                             Image(systemName: "plus")
@@ -210,7 +210,7 @@ class MagnifierPanelNSView: NSView {
     var image: NSImage?
     var cursorPosition: CGPoint = .zero
     var magnification: CGFloat = 4.0
-    var minMagnification: CGFloat = 1.0
+    var minMagnification: CGFloat = 0.25
     var maxMagnification: CGFloat = 16.0
     var onMagnificationChanged: ((CGFloat) -> Void)?
 

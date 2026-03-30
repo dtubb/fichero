@@ -73,20 +73,25 @@ extension ContentView {
 
     func toggleSidebar() {
         withAnimation {
-            if columnVisibility == .all {
-                columnVisibility = .doubleColumn
-            } else {
-                columnVisibility = .all
-            }
+            showSidebar.toggle()
+            updateColumnVisibility()
         }
     }
 
     func updateColumnVisibility() {
         withAnimation {
-            if showInspectorSidebar {
+            switch (showSidebar, showInspectorSidebar) {
+            case (true, true):
                 columnVisibility = .all
-            } else {
+            case (true, false):
+                // Sidebar + content (inspector hidden): this is still a 2-column layout.
                 columnVisibility = .doubleColumn
+            case (false, true):
+                // Content + inspector (left sidebar hidden).
+                columnVisibility = .detailOnly
+            case (false, false):
+                // Content only.
+                columnVisibility = .detailOnly
             }
         }
     }

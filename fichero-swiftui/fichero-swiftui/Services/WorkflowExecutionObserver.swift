@@ -39,7 +39,7 @@ class WorkflowExecutionObserver {
     // MARK: - Initialization
 
     init() {
-        workflowExecutionLogger.info("WorkflowExecutionObserver initialized")
+        workflowExecutionLogger.debug("WorkflowExecutionObserver initialized")
     }
 
     // MARK: - Execution Lifecycle

@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 private let actionsLogger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowEditor")
 
@@ -186,7 +186,7 @@ extension WorkflowEditor {
         case .fileStart(_, _, let filePath, _, _, _):
             documentStore.updateProcessingStatus(forPath: filePath, status: .processing)
 
-        case .fileComplete(_, _, let filePath, _, _, _):
+        case .fileComplete(_, _, let filePath, _, _, _, _):
             documentStore.updateProcessingStatus(forPath: filePath, status: .completed)
 
         case .fileError(_, _, let filePath, _, _):

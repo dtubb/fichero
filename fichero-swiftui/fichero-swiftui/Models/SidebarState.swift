@@ -16,6 +16,11 @@ class SidebarState: ObservableObject {
         didSet { saveLibraryExpansionStates() }
     }
 
+    /// Unified sidebar section expansion states (library+section key -> expanded)
+    @Published var unifiedSectionExpansionStates: [String: Bool] {
+        didSet { saveUnifiedSectionExpansionStates() }
+    }
+
     // MARK: - Transient State (not persisted)
 
     @Published var isChatDropTargeted: Bool = false
@@ -51,6 +56,7 @@ class SidebarState: ObservableObject {
     private let windowId: String
     private var expandedItemsKey: String { "sidebar.expanded.\(windowId)" }
     private var libraryExpansionKey: String { "sidebar.libraries.\(windowId)" }
+    private var unifiedSectionsKey: String { "sidebar.unified.sections.\(windowId)" }
 
     init(windowId: String = "main") {
         self.windowId = windowId
@@ -69,6 +75,14 @@ class SidebarState: ObservableObject {
             self.libraryExpansionStates = saved
         } else {
             self.libraryExpansionStates = [:]
+        }
+
+        // Load persisted unified section expansion states (default: all expanded)
+        let unifiedKey = "sidebar.unified.sections.\(windowId)"
+        if let saved = UserDefaults.standard.dictionary(forKey: unifiedKey) as? [String: Bool] {
+            self.unifiedSectionExpansionStates = saved
+        } else {
+            self.unifiedSectionExpansionStates = [:]
         }
     }
 
@@ -105,6 +119,7 @@ class SidebarState: ObservableObject {
     func reset() {
         expandedItems = []
         libraryExpansionStates = [:]
+        unifiedSectionExpansionStates = [:]
 
         // Reset transient state
         isChatDropTargeted = false
@@ -144,5 +159,9 @@ class SidebarState: ObservableObject {
 
     private func saveLibraryExpansionStates() {
         UserDefaults.standard.set(libraryExpansionStates, forKey: libraryExpansionKey)
+    }
+
+    private func saveUnifiedSectionExpansionStates() {
+        UserDefaults.standard.set(unifiedSectionExpansionStates, forKey: unifiedSectionsKey)
     }
 }

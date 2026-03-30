@@ -13,15 +13,14 @@ class ViewSettings: ObservableObject {
 // MARK: - View Mode Enums
 
 /// Sidebar mode selection - Xcode-style mode switching
-/// Order: Content (1-4), Automation (5-6), Monitoring (7)
+/// Order: Content (1-4), Automation (5), Monitoring (6)
 enum SidebarMode: String, CaseIterable {
     case library      // 1: Documents, folders
     case search       // 2: Saved searches + search bar
     case chat         // 3: Conversations
     case workflows    // 4: Workflow definitions
-    case batches      // 5: Multi-item batch jobs
-    case automation   // 6: Schedules + triggers
-    case activity     // 7: All workflow runs (running + completed + failed) with logs/errors
+    case automation   // 5: Schedules + triggers
+    case activity     // 6: All workflow runs (running + completed + failed) with logs/errors
 
     /// SF Symbol icon name for this mode
     var icon: String {
@@ -30,7 +29,6 @@ enum SidebarMode: String, CaseIterable {
         case .search: "magnifyingglass"
         case .chat: "bubble.left.and.bubble.right"
         case .workflows: "bolt"
-        case .batches: "shippingbox"
         case .automation: "gearshape.2"
         case .activity: "clock"
         }
@@ -43,7 +41,6 @@ enum SidebarMode: String, CaseIterable {
         case .search: "Search"
         case .chat: "Chat"
         case .workflows: "Workflows"
-        case .batches: "Batches"
         case .automation: "Automation"
         case .activity: "Activity"
         }
@@ -56,9 +53,8 @@ enum SidebarMode: String, CaseIterable {
         case .search: "2"
         case .chat: "3"
         case .workflows: "4"
-        case .batches: "5"
-        case .automation: "6"
-        case .activity: "7"
+        case .automation: "5"
+        case .activity: "6"
         }
     }
 }

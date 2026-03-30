@@ -81,29 +81,33 @@ struct WorkflowEditor: View {
             VSplitView {
                 // Main content area (adapts to displayMode)
                 Group {
-                    if !featureManager.isWorkflowEditorAdvancedViewsEnabled {
+                    switch displayMode {
+                    case .icon:
                         // Note: WorkflowCanvasView reads nodeStates from @Environment(WorkflowExecutionObserver.self)
                         WorkflowCanvasView(
                             workflow: $editingWorkflow,
                             scale: $scale,
                             snapToGrid: $snapToGrid
                         )
-                    } else {
-                        switch displayMode {
-                        case .icon:
-                            workflowNodesIconView
-                        case .list:
-                            workflowNodesListView
-                        case .table:
+                    case .list:
+                        workflowNodesListView
+                    case .table:
+                        if featureManager.isWorkflowEditorAdvancedViewsEnabled {
                             workflowNodesTableView
-                        case .map:
-                            // WorkflowCanvasView reads nodeStates from WorkflowExecutionObserver environment.
+                        } else {
                             WorkflowCanvasView(
                                 workflow: $editingWorkflow,
                                 scale: $scale,
                                 snapToGrid: $snapToGrid
                             )
                         }
+                    case .map:
+                        // Keep map/table as advanced-mode fallback to avoid adding extra surface in 0.0.1.
+                        WorkflowCanvasView(
+                            workflow: $editingWorkflow,
+                            scale: $scale,
+                            snapToGrid: $snapToGrid
+                        )
                     }
                 }
                 .frame(minHeight: 200)

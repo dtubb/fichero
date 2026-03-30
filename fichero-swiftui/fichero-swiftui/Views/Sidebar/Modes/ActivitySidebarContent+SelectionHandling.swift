@@ -15,34 +15,14 @@ extension ActivitySidebarContent {
             return
         }
 
-        let remainder = String(id.dropFirst("run-".count))
+        let runToken = String(id.dropFirst("run-".count))
+        activitySidebarLogger.debug("🔵 Parsed run token: \(runToken)")
 
-        var runId = remainder
-        var childType: ActivityChildType?
-
-        for type in ActivityChildType.allCases {
-            let suffix = "-\(type.rawValue)"
-            if remainder.hasSuffix(suffix) {
-                childType = type
-                runId = String(remainder.dropLast(suffix.count))
-                break
-            }
-        }
-
-        activitySidebarLogger.debug("🔵 Parsed run token: \(runId), childType: \(childType?.rawValue ?? "none")")
-
-        if let run = findRun(bySelectionToken: runId) {
-            if let childType = childType {
-                activitySidebarLogger.debug(
-                    "🔵 Setting viewMode to activity run \(run.runId) with child: \(childType.rawValue)"
-                )
-                viewMode = .activity(run.toSelectedRun().with(childType: childType))
-            } else {
-                activitySidebarLogger.debug("🔵 Setting viewMode to activity run \(run.runId) (overview)")
-                viewMode = .activity(run.toSelectedRun())
-            }
+        if let run = findRun(bySelectionToken: runToken) {
+            activitySidebarLogger.debug("🔵 Setting viewMode to activity run \(run.runId) (overview)")
+            viewMode = .activity(run.toSelectedRun())
         } else {
-            activitySidebarLogger.warning("🔵 Could not find run for selection token: \(runId)")
+            activitySidebarLogger.warning("🔵 Could not find run for selection token: \(runToken)")
         }
     }
 

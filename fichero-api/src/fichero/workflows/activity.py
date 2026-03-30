@@ -957,6 +957,22 @@ class ActivityTracker:
             metadata={"total_items": total_items, **metadata},
         )
 
+    def batch_created(
+        self,
+        batch_id: str,
+        workflow_id: str,
+        total_items: int,
+        **metadata,
+    ) -> Activity:
+        """Log batch created event."""
+        return self.log(
+            type=ActivityType.BATCH_CREATED,
+            message=f"Batch created with {total_items} items",
+            batch_id=batch_id,
+            workflow_id=workflow_id,
+            metadata={"total_items": total_items, **metadata},
+        )
+
     def batch_completed(
         self,
         batch_id: str,
@@ -982,12 +998,89 @@ class ActivityTracker:
             },
         )
 
+    def batch_failed(
+        self,
+        batch_id: str,
+        workflow_id: str,
+        total_items: int,
+        failed_items: int,
+        error: str,
+        duration_ms: float | None = None,
+        **metadata,
+    ) -> Activity:
+        """Log batch failed event."""
+        return self.log(
+            type=ActivityType.BATCH_FAILED,
+            level=ActivityLevel.ERROR,
+            message=f"Batch failed: {failed_items}/{total_items} failed",
+            batch_id=batch_id,
+            workflow_id=workflow_id,
+            duration_ms=duration_ms,
+            error=error,
+            metadata={
+                "total_items": total_items,
+                "failed_items": failed_items,
+                **metadata,
+            },
+        )
+
+    def batch_paused(self, batch_id: str, workflow_id: str, **metadata) -> Activity:
+        """Log batch paused event."""
+        return self.log(
+            type=ActivityType.BATCH_PAUSED,
+            message="Batch paused",
+            batch_id=batch_id,
+            workflow_id=workflow_id,
+            metadata=metadata,
+        )
+
+    def batch_resumed(self, batch_id: str, workflow_id: str, **metadata) -> Activity:
+        """Log batch resumed event."""
+        return self.log(
+            type=ActivityType.BATCH_RESUMED,
+            message="Batch resumed",
+            batch_id=batch_id,
+            workflow_id=workflow_id,
+            metadata=metadata,
+        )
+
+    def batch_cancelled(self, batch_id: str, workflow_id: str, **metadata) -> Activity:
+        """Log batch cancelled event."""
+        return self.log(
+            type=ActivityType.BATCH_CANCELLED,
+            level=ActivityLevel.WARNING,
+            message="Batch cancelled",
+            batch_id=batch_id,
+            workflow_id=workflow_id,
+            metadata=metadata,
+        )
+
+    def batch_item_started(
+        self,
+        batch_id: str,
+        thread_id: str,
+        item_index: int,
+        workflow_id: str | None = None,
+        **metadata,
+    ) -> Activity:
+        """Log batch item started event."""
+        return self.log(
+            type=ActivityType.BATCH_ITEM_STARTED,
+            level=ActivityLevel.DEBUG,
+            message=f"Batch item {item_index} started",
+            batch_id=batch_id,
+            workflow_id=workflow_id,
+            thread_id=thread_id,
+            metadata={"item_index": item_index, **metadata},
+        )
+
     def batch_item_completed(
         self,
         batch_id: str,
         thread_id: str,
         item_index: int,
         duration_ms: float,
+        workflow_id: str | None = None,
         **metadata,
     ) -> Activity:
         """Log batch item completed event."""
@@ -996,6 +1089,7 @@ class ActivityTracker:
             level=ActivityLevel.DEBUG,
             message=f"Batch item {item_index} completed",
             batch_id=batch_id,
+            workflow_id=workflow_id,
             thread_id=thread_id,
             duration_ms=duration_ms,
             metadata={"item_index": item_index, **metadata},
@@ -1007,6 +1101,7 @@ class ActivityTracker:
         thread_id: str,
         item_index: int,
         error: str,
+        workflow_id: str | None = None,
         **metadata,
     ) -> Activity:
         """Log batch item failed event."""
@@ -1015,6 +1110,7 @@ class ActivityTracker:
             level=ActivityLevel.ERROR,
             message=f"Batch item {item_index} failed: {error}",
             batch_id=batch_id,
+            workflow_id=workflow_id,
             thread_id=thread_id,
             error=error,
             metadata={"item_index": item_index, **metadata},

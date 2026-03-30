@@ -1,6 +1,6 @@
-import SwiftUI
-import OSLog
 import FicheroAPIClient
+import OSLog
+import SwiftUI
 
 let libraryManagerLogger = Logger(subsystem: "com.tubb.Fichero", category: "LibraryManager")
 
@@ -28,7 +28,7 @@ class LibraryManager: ObservableObject {
     class LibraryReference: Identifiable, ObservableObject {
         let id: UUID
         let url: URL
-        let displayName: String  // Display name for window title (e.g., "Untitled 2", "MyResearch")
+        @Published var displayName: String  // Display name for window title (e.g., "Untitled 2", "MyResearch")
         @Published var document: FicheroDocument
 
         // Core services - one instance per library, shared across all tabs/windows
