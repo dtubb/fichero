@@ -1,6 +1,6 @@
+import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
-import OSLog
 
 let sidebarRowLogger = Logger(subsystem: "com.fichero.app", category: "SidebarRow")
 

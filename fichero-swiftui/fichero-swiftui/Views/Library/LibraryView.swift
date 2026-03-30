@@ -4,6 +4,9 @@ import UniformTypeIdentifiers
 /// Grid/List/Table/Map view of documents
 struct LibraryView: View {
     let documents: [Document]
+    let isLoading: Bool
+    let errorMessage: String?
+    let onRetry: () -> Void
     @Binding var selection: Set<String>
     @Binding var detailDocument: Document?
     @Binding var viewMode: LibraryLayout
@@ -20,6 +23,8 @@ struct LibraryView: View {
     @State var sortFieldRaw: String = LibrarySortField.name.rawValue
     @State var sortAscending: Bool = true
     @State var sortOrder: [KeyPathComparator<Document>] = [.init(\.name, order: .forward)]
+    @SceneStorage("library.sortFieldsByFolder") var sortFieldsByFolderJSON: String = "{}"
+    @SceneStorage("library.sortAscendingByFolder") var sortAscendingByFolderJSON: String = "{}"
 
     var sortField: LibrarySortField {
         LibrarySortField(rawValue: sortFieldRaw) ?? .name
@@ -33,16 +38,16 @@ struct LibraryView: View {
     @EnvironmentObject var windowState: WindowState
     @ObservedObject var featureManager = FeatureManager.shared
 
-    // Column visibility for Table view
-    @AppStorage("column_name") var showName = true
-    @AppStorage("column_status") var showStatus = true
-    @AppStorage("column_progress") var showProgress = true
-    @AppStorage("column_output") var showOutput = true
-    @AppStorage("column_fileType") var showFileType = true
-    @AppStorage("column_path") var showPath = false
-    @AppStorage("column_createdDate") var showCreatedDate = true
-    @AppStorage("column_modifiedDate") var showModifiedDate = false
-    @AppStorage("column_size") var showSize = false
+    // Column visibility for Table view (persisted per-window/scene)
+    @SceneStorage("column_name") var showName = true
+    @SceneStorage("column_status") var showStatus = true
+    @SceneStorage("column_progress") var showProgress = true
+    @SceneStorage("column_output") var showOutput = true
+    @SceneStorage("column_fileType") var showFileType = true
+    @SceneStorage("column_path") var showPath = false
+    @SceneStorage("column_createdDate") var showCreatedDate = true
+    @SceneStorage("column_modifiedDate") var showModifiedDate = false
+    @SceneStorage("column_size") var showSize = false
 
     // Map view positions
     @State var mapPositions: [String: CGPoint] = [:]
@@ -68,9 +73,9 @@ struct LibraryView: View {
     // Grid column count for arrow key navigation (updated by GeometryReader in iconsView)
     @State var gridColumnCount: Int = 4
 
-    // Zoom scale for icon and map views (persisted per-app)
-    @AppStorage("library.iconViewScale") var iconViewScale: Double = 1.0
-    @State var mapCanvasScale: CGFloat = 1.0
+    // Zoom scale for icon and map views (persisted per-window/scene)
+    @SceneStorage("library.iconViewScale") var iconViewScale: Double = 1.0
+    @SceneStorage("library.mapCanvasScale") var mapCanvasScale: Double = 1.0
 
     var body: some View {
         withKeyboardShortcuts(
@@ -81,7 +86,11 @@ struct LibraryView: View {
                 }
 
                 // Main content
-                if filteredDocuments.isEmpty {
+                if isLoading {
+                    loadingState
+                } else if let errorMessage {
+                    errorState(message: errorMessage)
+                } else if filteredDocuments.isEmpty {
                     emptyState
                 } else {
                     switch displayMode {
@@ -206,6 +215,9 @@ struct LibraryView: View {
 #Preview("Empty") {
     LibraryView(
         documents: [],
+        isLoading: false,
+        errorMessage: nil,
+        onRetry: {},
         selection: .constant(Set<String>()),
         detailDocument: .constant(nil),
         viewMode: .constant(.icons),

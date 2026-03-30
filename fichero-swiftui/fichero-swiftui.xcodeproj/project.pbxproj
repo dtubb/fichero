@@ -14,13 +14,11 @@
 		009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 201 /* Assets.xcassets */; };
 		010 /* SidebarItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 109 /* SidebarItem.swift */; };
 		011 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110 /* SearchView.swift */; };
-		013 /* Provider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 112 /* Provider.swift */; };
 		018 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 117 /* ChatView.swift */; };
 		019 /* DocumentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 118 /* DocumentStore.swift */; };
 		020 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 119 /* APIClient.swift */; };
 		023 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 122 /* ChatService.swift */; };
 		025 /* SavedSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124 /* SavedSearchService.swift */; };
-		026 /* ProviderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125 /* ProviderService.swift */; };
 		028 /* ModelService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127 /* ModelService.swift */; };
 		035 /* WorkflowTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 134 /* WorkflowTypes.swift */; };
 		036 /* WorkflowStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135 /* WorkflowStore.swift */; };
@@ -124,8 +122,6 @@
 		20D8EE262F4BC0E2006950A3 /* IntegrationsServiceTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE252F4BC0E2006950A3 /* IntegrationsServiceTypes.swift */; };
 		20D8EE282F4BC0ED006950A3 /* IntegrationsService+AppSpecific.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE272F4BC0ED006950A3 /* IntegrationsService+AppSpecific.swift */; };
 		20D8EE2A2F4BC0F3006950A3 /* WorkflowExecutionTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE292F4BC0F3006950A3 /* WorkflowExecutionTypes.swift */; };
-		20D8EE2C2F4BC0FC006950A3 /* DragDropHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE2B2F4BC0FC006950A3 /* DragDropHelpers.swift */; };
-		20D8EE2E2F4BC103006950A3 /* DragDropService+ErrorHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE2D2F4BC103006950A3 /* DragDropService+ErrorHandling.swift */; };
 		20D8EE302F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE2F2F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift */; };
 		20D8EE382F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE372F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift */; };
 		20D8EE3A2F4BD9F6006950A3 /* LibraryView+InlineEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE392F4BD9F6006950A3 /* LibraryView+InlineEditing.swift */; };
@@ -150,8 +146,6 @@
 		841 /* ErrorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4124 /* ErrorModel.swift */; };
 		842 /* SidebarState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4125 /* SidebarState.swift */; };
 		843 /* DragDropModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4126 /* DragDropModel.swift */; };
-		844 /* DragDropService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4127 /* DragDropService.swift */; };
-		845 /* ArtifactService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 846 /* ArtifactService.swift */; };
 		852B1713BA5220E613865101 /* LibraryManager+Operations.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBFA9C3247C03BDCE9BE6092 /* LibraryManager+Operations.swift */; };
 		898AABCC531843909C0C6AA8 /* TriggerEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75371C597B1E4689B6E1803F /* TriggerEditorView.swift */; };
 		8C35E319E4B9A46AB0383C10 /* TriggerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C69898938F25CFEA64385A16 /* TriggerDetailView.swift */; };
@@ -395,13 +389,11 @@
 		108 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 		109 /* SidebarItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItem.swift; sourceTree = "<group>"; };
 		110 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
-		112 /* Provider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Provider.swift; sourceTree = "<group>"; };
 		117 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		118 /* DocumentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStore.swift; sourceTree = "<group>"; };
 		119 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		122 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
 		124 /* SavedSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedSearchService.swift; sourceTree = "<group>"; };
-		125 /* ProviderService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderService.swift; sourceTree = "<group>"; };
 		127 /* ModelService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelService.swift; sourceTree = "<group>"; };
 		134 /* WorkflowTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowTypes.swift; sourceTree = "<group>"; };
 		135 /* WorkflowStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowStore.swift; sourceTree = "<group>"; };
@@ -511,8 +503,6 @@
 		20D8EE252F4BC0E2006950A3 /* IntegrationsServiceTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsServiceTypes.swift; sourceTree = "<group>"; };
 		20D8EE272F4BC0ED006950A3 /* IntegrationsService+AppSpecific.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "IntegrationsService+AppSpecific.swift"; sourceTree = "<group>"; };
 		20D8EE292F4BC0F3006950A3 /* WorkflowExecutionTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExecutionTypes.swift; sourceTree = "<group>"; };
-		20D8EE2B2F4BC0FC006950A3 /* DragDropHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropHelpers.swift; sourceTree = "<group>"; };
-		20D8EE2D2F4BC103006950A3 /* DragDropService+ErrorHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DragDropService+ErrorHandling.swift"; sourceTree = "<group>"; };
 		20D8EE2F2F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowExecutionObserver+Events.swift"; sourceTree = "<group>"; };
 		20D8EE372F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+KeyboardShortcuts.swift"; sourceTree = "<group>"; };
 		20D8EE392F4BD9F6006950A3 /* LibraryView+InlineEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+InlineEditing.swift"; sourceTree = "<group>"; };
@@ -533,12 +523,10 @@
 		4124 /* ErrorModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorModel.swift; sourceTree = "<group>"; };
 		4125 /* SidebarState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarState.swift; sourceTree = "<group>"; };
 		4126 /* DragDropModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropModel.swift; sourceTree = "<group>"; };
-		4127 /* DragDropService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropService.swift; sourceTree = "<group>"; };
 		462 /* Workflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Workflow.swift; sourceTree = "<group>"; };
 		5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TriggerEditorPreviewPanel.swift; path = "fichero-swiftui/Views/Automation/TriggerEditorView/TriggerEditorPreviewPanel.swift"; sourceTree = SOURCE_ROOT; };
 		75371C597B1E4689B6E1803F /* TriggerEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerEditorView.swift; sourceTree = "<group>"; };
 		7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleEditorView.swift; sourceTree = "<group>"; };
-		846 /* ArtifactService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactService.swift; sourceTree = "<group>"; };
 		9E04EE1958EB4E23A7E1E328 /* WindowState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowState.swift; sourceTree = "<group>"; };
 		A0264B7B8616BA5159B2CEF1 /* TriggerEditorFormPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TriggerEditorFormPanel.swift; path = "fichero-swiftui/Views/Automation/TriggerEditorView/TriggerEditorFormPanel.swift"; sourceTree = SOURCE_ROOT; };
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -1045,7 +1033,6 @@
 				A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */,
 				A1A3AB192F11CCC70021909D /* MCPServer.swift */,
 				A1A3AB1A2F11CCC70021909D /* Note.swift */,
-				112 /* Provider.swift */,
 				A1A3AB1C2F11CCC70021909D /* Run.swift */,
 				109 /* SidebarItem.swift */,
 				CE9 /* SidebarItemBuilder.swift */,
@@ -1080,7 +1067,6 @@
 				138 /* ChainService.swift */,
 				122 /* ChatService.swift */,
 				124 /* SavedSearchService.swift */,
-				125 /* ProviderService.swift */,
 				143 /* WorkflowServiceGenerated.swift */,
 				144 /* SavedSearchServiceGenerated.swift */,
 				145 /* ConversationServiceGenerated.swift */,
@@ -1089,7 +1075,6 @@
 				127 /* ModelService.swift */,
 				4121 /* PerformanceService.swift */,
 				4123 /* ErrorService.swift */,
-				4127 /* DragDropService.swift */,
 				A1BFB2E32F0439FE00EAA55A /* ImportService.swift */,
 				A1BFB2E62F043D2300EAA55A /* StorageService.swift */,
 				A1A3A9F32F1028E70021909D /* MCPService.swift */,
@@ -1099,7 +1084,6 @@
 				141 /* AppleScriptSupport.swift */,
 				A1A3AA272F113E6F0021909D /* AutomationService.swift */,
 				A1A3AA372F1166660021909D /* IntegrationsService.swift */,
-				846 /* ArtifactService.swift */,
 				A13E7C2B2F27E17F00EC9EE1 /* BatchServiceGenerated.swift */,
 				A13E7C2C2F27E17F00EC9EE1 /* ProviderServiceGenerated.swift */,
 				A13E7C2D2F27E17F00EC9EE1 /* SearchServiceGenerated.swift */,
@@ -1124,8 +1108,6 @@
 				20D8EE252F4BC0E2006950A3 /* IntegrationsServiceTypes.swift */,
 				20D8EE272F4BC0ED006950A3 /* IntegrationsService+AppSpecific.swift */,
 				20D8EE292F4BC0F3006950A3 /* WorkflowExecutionTypes.swift */,
-				20D8EE2B2F4BC0FC006950A3 /* DragDropHelpers.swift */,
-				20D8EE2D2F4BC103006950A3 /* DragDropService+ErrorHandling.swift */,
 				20D8EE2F2F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift */,
 				20D8EE3B2F4BE0D8006950A3 /* ActionsService.swift */,
 				20D8EE3D2F4BE1AB006950A3 /* ActionLibraryService.swift */,
@@ -1609,7 +1591,6 @@
 				A13E7C1D2F27E01E00EC9EE1 /* LibrarySidebarContent.swift in Sources */,
 				202674D02F4789BF008EAB5D /* LibraryViewComponents.swift in Sources */,
 				20D8EE202F4BBFAF006950A3 /* AppleScriptCommands.swift in Sources */,
-				20D8EE2E2F4BC103006950A3 /* DragDropService+ErrorHandling.swift in Sources */,
 				A13E7C1E2F27E01E00EC9EE1 /* ActivitySidebarContent.swift in Sources */,
 				B3A002080000000000BATCH3 /* ActivitySidebarContent+DataProcessing.swift in Sources */,
 				B3A002090000000000BATCH3 /* ActivitySidebarContent+RunDisclosure.swift in Sources */,
@@ -1651,7 +1632,6 @@
 				5E8 /* SidebarItemBuilder.swift in Sources */,
 				200BCF362F3D547F00D7851A /* ContentView+ViewBuilders.swift in Sources */,
 				A13E7C382F27F33C00EC9EE1 /* WorkflowExecutionRow.swift in Sources */,
-				013 /* Provider.swift in Sources */,
 				836 /* CacheModel.swift in Sources */,
 				A1D8BCE82F2CD054006D91D7 /* WorkflowPickerSheet.swift in Sources */,
 				A1D8BCE92F2CD054006D91D7 /* DocumentPickerSheet.swift in Sources */,
@@ -1784,7 +1764,6 @@
 				842 /* SidebarState.swift in Sources */,
 				843 /* DragDropModel.swift in Sources */,
 				202674BF2F478647008EAB5D /* SidebarActions.swift in Sources */,
-				844 /* DragDropService.swift in Sources */,
 				A1BFB2DC2F042E5100EAA55A /* SettingsView.swift in Sources */,
 				008 /* EditorView.swift in Sources */,
 				2133BF0B15424FFDBA37619B /* FolderContentsGrid.swift in Sources */,
@@ -1816,7 +1795,6 @@
 				A13E80A22F2AD75100EC9EE1 /* ModelComparisonService.swift in Sources */,
 				20D8EE452F4BE260006950A3 /* ActionLibraryView.swift in Sources */,
 				20D8EE222F4BBFB8006950A3 /* AutomationServiceTypes.swift in Sources */,
-				845 /* ArtifactService.swift in Sources */,
 				A1BFB2E42F0439FE00EAA55A /* ImportService.swift in Sources */,
 				A1A3A9FE2F110D260021909D /* AgentSettingsView.swift in Sources */,
 				A1A3A9FF2F110D260021909D /* AgentConfigurationView.swift in Sources */,
@@ -1824,7 +1802,6 @@
 				023 /* ChatService.swift in Sources */,
 				025 /* SavedSearchService.swift in Sources */,
 				A1BFB4532F0AABBC00EAA55A /* AddItemMenu.swift in Sources */,
-				026 /* ProviderService.swift in Sources */,
 				044 /* WorkflowServiceGenerated.swift in Sources */,
 				045 /* SavedSearchServiceGenerated.swift in Sources */,
 				202674E22F48973E008EAB5D /* ChatInputView.swift in Sources */,
@@ -1900,7 +1877,6 @@
 				B4A002060000000000BATCH4 /* BatchDetailView+Header.swift in Sources */,
 				B4A002070000000000BATCH4 /* BatchDetailView+Progress.swift in Sources */,
 				B4A002080000000000BATCH4 /* BatchDetailView+Configuration.swift in Sources */,
-				20D8EE2C2F4BC0FC006950A3 /* DragDropHelpers.swift in Sources */,
 				B4A002090000000000BATCH4 /* BatchDetailView+Items.swift in Sources */,
 				B4A0020A0000000000BATCH4 /* BatchDetailView+Actions.swift in Sources */,
 				DDE8A1E95DE61B0723A40BC9 /* DynamicConfigView.swift in Sources */,

@@ -177,6 +177,66 @@ class TestProviderConnectionTest:
         assert "latency_ms" in data or data.get("latency_ms") is None
         assert "model_tested" in data or data.get("model_tested") is None
 
+    def test_test_ollama_success(self):
+        """Test connection test for Ollama local provider."""
+
+        class MockResponse:
+            status_code = 200
+
+            @staticmethod
+            def json():
+                return {"models": [{"name": "llama3.2"}, {"name": "qwen2.5"}]}
+
+        class MockAsyncClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return None
+
+            async def get(self, url, timeout=5.0):
+                assert url == "http://localhost:11434/api/tags"
+                return MockResponse()
+
+        with patch("httpx.AsyncClient", return_value=MockAsyncClient()):
+            response = client.post(f"{API_BASE}/providers/ollama/test")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["provider_type"] == "ollama"
+        assert data["success"] is True
+        assert "2 models" in data["message"]
+
+    def test_test_lmstudio_success(self):
+        """Test connection test for LM Studio local provider."""
+
+        class MockResponse:
+            status_code = 200
+
+            @staticmethod
+            def json():
+                return {"data": [{"id": "qwen2.5-7b-instruct"}, {"id": "llama3.1-8b"}]}
+
+        class MockAsyncClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return None
+
+            async def get(self, url, timeout=5.0):
+                assert url == "http://localhost:1234/v1/models"
+                return MockResponse()
+
+        with patch("httpx.AsyncClient", return_value=MockAsyncClient()):
+            response = client.post(f"{API_BASE}/providers/lmstudio/test")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["provider_type"] == "lmstudio"
+        assert data["success"] is True
+        assert "2 models loaded" in data["message"]
+
 
 # =============================================================================
 # Models API Tests

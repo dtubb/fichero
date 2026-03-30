@@ -82,11 +82,8 @@ extension ContentView {
     }
 
     func updateColumnVisibility() {
-        let inspectorAvailableForMode = showInspectorToggle
-        let shouldShowDetailColumn = showInspectorSidebar && inspectorAvailableForMode
-
         withAnimation {
-            if shouldShowDetailColumn {
+            if showInspectorSidebar {
                 columnVisibility = .all
             } else {
                 columnVisibility = .doubleColumn
@@ -267,49 +264,43 @@ extension ContentView {
             targetParentId = doc?.id
         }
 
+        let targetLibrary = LibraryManager.shared.getLibrary(id: windowState.libraryId)
+            ?? LibraryManager.shared.globalLibrary
+
         Task { @MainActor in
             isImporting = true
             importError = nil
 
-            var successCount = 0
-            var failedFiles: [String] = []
+            guard let library = targetLibrary else {
+                isImporting = false
+                importProgress = nil
+                importError = "No library available for import."
+                logger.error("Run file drop import failed: no target library")
+                return
+            }
 
-            for url in urls {
-                do {
-                    guard url.isFileURL else {
-                        logger.warning("Skipping non-file URL: \(url)")
-                        continue
-                    }
-
-                    await MainActor.run {
-                        importProgress = "Importing \(url.lastPathComponent)..."
-                    }
-
-                    logger.info("Importing file: \(url.path)")
-                    _ = try await documentStore.importFile(at: url, parentId: targetParentId)
-                    successCount += 1
-
-                } catch {
-                    logger.error("Failed to import \(url.lastPathComponent): \(String(describing: error))")
-                    failedFiles.append(url.lastPathComponent)
+            do {
+                _ = try await library.importService.importFiles(
+                    urls,
+                    mode: .link,
+                    parentId: targetParentId
+                ) { current, total in
+                    importProgress = "Importing \(current) of \(total)..."
                 }
+                await library.documentStore.refresh()
+                logger.info("Successfully imported \(urls.count) dropped item(s)")
+            } catch {
+                logger.error("Failed dropped import: \(String(describing: error))")
+                importError = "Import failed: \(error.localizedDescription)"
+            }
+
+            if let importError {
+                logger.error("Dropped import ended with error: \(importError)")
             }
 
             await MainActor.run {
                 isImporting = false
                 importProgress = nil
-
-                if !failedFiles.isEmpty {
-                    let fileList = failedFiles.joined(separator: ", ")
-                    importError = "Failed to import \(failedFiles.count) file(s): \(fileList)"
-                }
-
-                if successCount > 0 {
-                    Task { @MainActor in
-                        await documentStore.loadCollections()
-                        logger.info("Successfully imported \(successCount) file(s)")
-                    }
-                }
             }
         }
     }

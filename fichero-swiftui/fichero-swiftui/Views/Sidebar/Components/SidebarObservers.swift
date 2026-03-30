@@ -1,6 +1,6 @@
-import SwiftUI
-import OSLog
 import Combine
+import OSLog
+import SwiftUI
 
 /// Structured logger for sidebar observer operations
 private let logger = Logger(subsystem: "com.fichero.app", category: "SidebarObservers")
@@ -141,9 +141,21 @@ extension SidebarView {
         itemRegistry.createSearch = createNewSearch
         itemRegistry.createChat = createNewChat
         itemRegistry.createComparison = createNewComparison
-        itemRegistry.createWorkflow = createNewWorkflow
-        itemRegistry.createChain = createNewChain
-        itemRegistry.createSchedule = createNewSchedule
-        itemRegistry.createTrigger = createNewTrigger
+        if FeatureManager.shared.isWorkflowChainsEnabled {
+            itemRegistry.createWorkflow = createNewWorkflow
+            itemRegistry.createChain = createNewChain
+        } else {
+            // Keep base workflow creation available, but gate chain creation.
+            itemRegistry.createWorkflow = createNewWorkflow
+            itemRegistry.createChain = nil
+        }
+
+        if FeatureManager.shared.isAutomationEnabled {
+            itemRegistry.createSchedule = createNewSchedule
+            itemRegistry.createTrigger = createNewTrigger
+        } else {
+            itemRegistry.createSchedule = nil
+            itemRegistry.createTrigger = nil
+        }
     }
 }

@@ -81,15 +81,11 @@ extension ContentView {
         }
     }
 
-    /// Whether to show the inspector toggle button
-    /// Only show for modes that have an inspector view
+    /// Whether to show the inspector toggle button.
+    /// Keep this available across modes so inspector visibility is
+    /// controlled by persistent window state, not current selection/view.
     var showInspectorToggle: Bool {
-        switch viewMode {
-        case .library, .search, .chat, .comparison, .workflow, .chain:
-            return true
-        case .batches, .batch, .automation, .schedule, .trigger, .activity:
-            return false
-        }
+        true
     }
 
     /// Whether to show the view mode picker (icon/list/table/map)

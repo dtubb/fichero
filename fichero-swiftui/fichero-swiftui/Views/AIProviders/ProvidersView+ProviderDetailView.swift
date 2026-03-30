@@ -1,6 +1,6 @@
-import SwiftUI
-import OSLog
 import FicheroAPIClient
+import OSLog
+import SwiftUI
 
 // swiftlint:disable:next type_body_length
 struct ProviderDetailView: View {
@@ -20,6 +20,7 @@ struct ProviderDetailView: View {
     @State private var isLoadingModels = false
 
     @EnvironmentObject var providerService: ProviderServiceGenerated
+    private let maskedKeyPlaceholder = "••••••••••••••••"
 
     private var isLocalProvider: Bool {
         catalogEntry?.isLocal ?? false
@@ -115,8 +116,12 @@ struct ProviderDetailView: View {
                                 Spacer()
                             }
 
-                            SecureField("Enter new key to replace", text: $apiKey)
+                            SecureField(maskedKeyPlaceholder, text: $apiKey)
                                 .textFieldStyle(.roundedBorder)
+
+                            Text("Enter a new key to replace the saved one")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
 
                             HStack {
                                 Button("Replace Key") {

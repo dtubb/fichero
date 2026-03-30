@@ -184,11 +184,17 @@ struct WorkflowInspector: View {
                     }
                     .onDrag {
                         // Encode full ToolInfo as JSON for drag-drop
-                        if let data = try? JSONEncoder().encode(tool),
-                           let json = String(data: data, encoding: .utf8) {
+                        do {
+                            let data = try JSONEncoder().encode(tool)
+                            guard let json = String(data: data, encoding: .utf8) else {
+                                assertionFailure("Failed to encode UTF-8 drag payload for tool \(tool.name)")
+                                return NSItemProvider()
+                            }
                             return NSItemProvider(object: json as NSString)
+                        } catch {
+                            assertionFailure("Failed to encode drag payload for tool \(tool.name): \(error)")
+                            return NSItemProvider()
                         }
-                        return NSItemProvider(object: tool.name as NSString)
                     }
                 }
             }

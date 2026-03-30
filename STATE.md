@@ -1,6 +1,6 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-29
+Last updated: 2026-03-30
 
 ## Current Branch
 
@@ -19,10 +19,9 @@ Last updated: 2026-03-29
 
 ## In Progress
 
-- `main` already includes the integrated 0.0.1 branch work from `#317`, `#340`, `#344`, `#345`, and `#346`
-- Open 0.0.1 issues now include `#313`, `#320`, `#326`, `#330`, `#341`, `#349`, `#353`, `#354`, `#355`, `#359`, and `#360`
-- `~/code/fichero-0.0.2` is the separate worktree for search + semantic layer planning on `codex/0.0.2-planning`
-- 0.0.2 plan now includes componentized slices (A-G), explicit undo/snapshot baseline, and 0.0.3/0.1.0 split in `docs/0.0.2-planning/PLAN.md`
+- Ongoing 0.0.1 hardening across SwiftUI + backend: feature-gating alignment, persistence behavior cleanup, workflow reliability, and provider/model settings UX
+- Backend runtime consistency work in progress: Python 3.12 alignment across envs, Briefcase dev hot-reload behavior, and dependency parity
+- Active bug loop includes sidebar/inspector state persistence, workflow selection behavior, and log/runtime noise reduction
 
 ## Blocked
 
@@ -32,8 +31,8 @@ Last updated: 2026-03-29
 
 ## Next Session — Start Here
 
-1. Stay on `main` in `~/code/fichero` for `0.0.1` release work only.
-2. Continue the `0.0.1` issue queue, especially `#313`, `#320`, `#326`, `#353`, `#354`, `#355`, `#359`, and `#360`.
-3. Treat Folder Watchers `#359` and XMP sidecars `#360` as 0.0.1 scope discussions.
-4. Do not move `0.0.2` planning docs or semantic-layer prototype work back into this worktree; use `~/code/fichero-0.0.2/docs/0.0.2-planning/PLAN.md` there.
-5. Remember that `ruff` still fails on pre-existing backend lint issues and `pytest` is missing from the current environment.
+1. Verify runtime behavior after latest gating fixes: confirm SwiftUI no longer calls gated `/api/chains`, `/api/triggers`, `/api/schedules` when those features are off.
+2. Rebuild Briefcase dev runtime and re-check workflow runs for `PIL` import success from declared deps (not manual env drift).
+3. Continue 0.0.1 bug pass with manual checklist in `docs/qa/0.0.1-manual-qa-checklist.md`, prioritizing drag/drop, image import, window-state persistence, and workflow execution on folders/selections.
+4. Keep `main` focused on 0.0.1 stabilization only; do not pull 0.0.2 planning artifacts into this worktree.
+5. Before any release-ready checkpoint, run SwiftLint + xcodebuild + backend tests/lint and capture remaining blockers explicitly.

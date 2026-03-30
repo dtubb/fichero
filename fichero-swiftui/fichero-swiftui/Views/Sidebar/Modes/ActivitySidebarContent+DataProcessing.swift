@@ -21,8 +21,10 @@ func runsByWorkflow(
                 displayName: workflowName
             )
             let status = activityMapExecutionStatus(execution.status)
+            let sidebarRunId = "\(library.id.uuidString)|\(execution.threadId)"
             let run = ActivityRun(
-                id: execution.threadId,
+                id: sidebarRunId,
+                runId: execution.threadId,
                 workflowId: execution.id,
                 threadId: execution.threadId,
                 workflowName: workflowName,
@@ -49,12 +51,14 @@ func runsByWorkflow(
 
         let status = activityMapActivityType(item.type)
         let workflowName = activityExtractWorkflowName(from: item)
+        let sidebarRunId = "\(library.id.uuidString)|\(threadId)"
         let groupKey = ActivityWorkflowGroup(
             id: ActivityWorkflowGroup.key(workflowId: item.workflowId, workflowName: workflowName),
             displayName: workflowName
         )
         let run = ActivityRun(
-            id: threadId,
+            id: sidebarRunId,
+            runId: threadId,
             workflowId: item.workflowId,
             threadId: threadId,
             workflowName: workflowName,

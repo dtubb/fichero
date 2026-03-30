@@ -4,7 +4,10 @@ import SwiftUI
 
 /// Represents a workflow run (active or historical) for sidebar display
 struct ActivityRun: Identifiable {
+    /// Sidebar-unique identifier (scoped by library) used for SwiftUI list identity.
     let id: String
+    /// Logical run identifier (thread ID) used for data loading and navigation.
+    let runId: String
     let workflowId: String?
     let threadId: String?
     let workflowName: String  // Name of the workflow (for grouping)
@@ -19,7 +22,7 @@ struct ActivityRun: Identifiable {
     /// Convert to SelectedActivityRun for viewMode
     func toSelectedRun() -> SelectedActivityRun {
         SelectedActivityRun(
-            id: id,
+            id: runId,
             name: workflowName,
             workflowId: workflowId,
             threadId: threadId,

@@ -65,27 +65,53 @@ extension LibraryView {
 
     // MARK: - Per-Folder Sort Persistence
 
-    private func sortFieldKey(for id: String?) -> String {
-        id.map { "librarySortField_\($0)" } ?? "librarySortField"
-    }
-
-    private func sortAscendingKey(for id: String?) -> String {
-        id.map { "librarySortAscending_\($0)" } ?? "librarySortAscending"
+    private func sortKey(for id: String?) -> String {
+        id ?? "__root__"
     }
 
     func loadSortSettings(for id: String?) {
-        let defaults = UserDefaults.standard
-        sortFieldRaw = defaults.string(forKey: sortFieldKey(for: id)) ?? LibrarySortField.name.rawValue
-        if let saved = defaults.object(forKey: sortAscendingKey(for: id)) as? Bool {
-            sortAscending = saved
+        let key = sortKey(for: id)
+
+        if let fieldsData = sortFieldsByFolderJSON.data(using: .utf8),
+           let fields = try? JSONDecoder().decode([String: String].self, from: fieldsData),
+           let savedField = fields[key] {
+            sortFieldRaw = savedField
+        } else {
+            sortFieldRaw = LibrarySortField.name.rawValue
+        }
+
+        if let ascendingData = sortAscendingByFolderJSON.data(using: .utf8),
+           let ascendingValues = try? JSONDecoder().decode([String: Bool].self, from: ascendingData),
+           let savedAscending = ascendingValues[key] {
+            sortAscending = savedAscending
         } else {
             sortAscending = true
         }
     }
 
     func saveSortSettings(for id: String?) {
-        let defaults = UserDefaults.standard
-        defaults.set(sortFieldRaw, forKey: sortFieldKey(for: id))
-        defaults.set(sortAscending, forKey: sortAscendingKey(for: id))
+        let key = sortKey(for: id)
+
+        var fields: [String: String] = [:]
+        if let fieldsData = sortFieldsByFolderJSON.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([String: String].self, from: fieldsData) {
+            fields = decoded
+        }
+        fields[key] = sortFieldRaw
+        if let encoded = try? JSONEncoder().encode(fields),
+           let json = String(data: encoded, encoding: .utf8) {
+            sortFieldsByFolderJSON = json
+        }
+
+        var ascendingValues: [String: Bool] = [:]
+        if let ascendingData = sortAscendingByFolderJSON.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([String: Bool].self, from: ascendingData) {
+            ascendingValues = decoded
+        }
+        ascendingValues[key] = sortAscending
+        if let encoded = try? JSONEncoder().encode(ascendingValues),
+           let json = String(data: encoded, encoding: .utf8) {
+            sortAscendingByFolderJSON = json
+        }
     }
 }

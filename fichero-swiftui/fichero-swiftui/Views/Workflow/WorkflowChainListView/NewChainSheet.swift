@@ -2,13 +2,21 @@ import SwiftUI
 
 struct NewChainSheet: View {
     let workflows: [WorkflowSidebarItem]
-    let onCreate: (String, String, [ChainStep]) async -> Void
+    let onCreate: @MainActor @Sendable (String, String, [ChainStep]) async -> Void
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""
     @State private var description = ""
     @State private var steps: [ChainStep] = []
     @State private var isCreating = false
+
+    init(
+        workflows: [WorkflowSidebarItem],
+        onCreate: @escaping @MainActor @Sendable (String, String, [ChainStep]) async -> Void
+    ) {
+        self.workflows = workflows
+        self.onCreate = onCreate
+    }
 
     var body: some View {
         NavigationStack {
@@ -64,10 +72,8 @@ struct NewChainSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") {
                         isCreating = true
-                        let localSteps = steps
-                        Task {
-                            await onCreate(name, description, localSteps)
-                            dismiss()
+                        Task { @MainActor in
+                            await createChain()
                         }
                     }
                     .disabled(name.isEmpty || steps.isEmpty || isCreating)
@@ -93,5 +99,11 @@ struct NewChainSheet: View {
             timeoutSeconds: 300
         )
         steps.append(step)
+    }
+
+    @MainActor
+    private func createChain() async {
+        await onCreate(name, description, steps)
+        dismiss()
     }
 }

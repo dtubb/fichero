@@ -7,15 +7,7 @@ extension DocumentStore {
 
     /// Create a new collection (deprecated - use createFolder instead).
     func createCollection(name: String) async throws -> Document {
-        let doc = DocumentCreateRequest(
-            name: name,
-            parentId: nil,
-            docType: .folder
-        )
-        let collection: Document = try await api.post("/documents", body: doc)
-        collections.append(collection)
-        publish(.documentCreated(collection))
-        return collection
+        try await createFolder(name: name, parentId: nil)
     }
 
     /// Create a new folder.

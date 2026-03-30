@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 let activitySidebarLogger = Logger(subsystem: "com.tubb.Fichero", category: "ActivitySidebarContent")
 
@@ -118,10 +118,11 @@ struct ActivitySidebarContent: View {
         .onChange(of: viewMode) { _, newMode in
             if case .activity(let run) = newMode {
                 if let run = run {
+                    let selectedRunToken = sidebarRunToken(for: run.id) ?? run.id
                     if let childType = run.childType {
-                        selectedItemId = "run-\(run.id)-\(childType.rawValue)"
+                        selectedItemId = "run-\(selectedRunToken)-\(childType.rawValue)"
                     } else {
-                        selectedItemId = "run-\(run.id)"
+                        selectedItemId = "run-\(selectedRunToken)"
                     }
                 } else {
                     selectedItemId = nil
@@ -149,6 +150,22 @@ struct ActivitySidebarContent: View {
                 }
             }
         }
+    }
+
+    func sidebarRunToken(for runId: String) -> String? {
+        for library in libraryManager.openLibraries {
+            let groups = runsByWorkflow(
+                for: library,
+                activeExecutions: activeExecutionsSnapshot,
+                historicalRuns: historicalRunsByLibrary
+            )
+            for runs in groups.values {
+                if let run = runs.first(where: { $0.runId == runId }) {
+                    return run.id
+                }
+            }
+        }
+        return nil
     }
 }
 

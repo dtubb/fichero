@@ -26,6 +26,7 @@ extension ContentView {
             libraryManager: LibraryManager.shared,
             itemRegistry: itemRegistry,
             apiClient: apiClient,
+            windowPersistenceId: sidebarWindowPersistenceId,
             onCreateChatWithDocuments: { documentIds in
                 chatSelectedDocuments = Set(documentIds)
             }
@@ -213,8 +214,19 @@ extension ContentView {
             )
 
         case .batches, .batch, .automation, .schedule, .trigger, .activity:
-            EmptyView()
-                .navigationSplitViewColumnWidth(0)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Inspector")
+                    .font(.headline)
+                Text("No inspector content for this view.")
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding()
+            .navigationSplitViewColumnWidth(
+                min: ContentView.inspectorMinWidth,
+                ideal: inspectorWidth,
+                max: ContentView.inspectorMaxWidth
+            )
         }
     }
 

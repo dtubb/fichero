@@ -751,9 +751,19 @@ class Database:
         if self._embedder is None:
             try:
                 from fastembed import TextEmbedding
+                from fichero.local_models import MODELS_BASE
                 model_name = self._get_embedding_model_name()
-                self._embedder = TextEmbedding(model_name=model_name)
-                logger.debug("Loaded embedding model: %s", model_name)
+                cache_dir = MODELS_BASE / "embeddings"
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                self._embedder = TextEmbedding(
+                    model_name=model_name,
+                    cache_dir=str(cache_dir),
+                )
+                logger.info(
+                    "Loaded embedding model: %s (cache_dir=%s)",
+                    model_name,
+                    cache_dir,
+                )
             except ImportError:
                 raise ImportError(
                     "fastembed not installed. "

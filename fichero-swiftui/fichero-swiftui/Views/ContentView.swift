@@ -73,9 +73,10 @@ struct ContentView: View {
     @SceneStorage("mapLatitude") var mapLatitude: Double = 0.0
     @SceneStorage("mapLongitude") var mapLongitude: Double = 0.0
     @SceneStorage("mapZoom") var mapZoom: Double = 1.0
+    @SceneStorage("sidebarWindowPersistenceId") var sidebarWindowPersistenceId: String = UUID().uuidString
 
-    // Per-folder view mode persistence (JSON-encoded [folderId: displayMode.rawValue])
-    @AppStorage("folderViewDisplayModes") var folderViewDisplayModesJSON: String = "{}"
+    // Per-folder view mode persistence (JSON-encoded [folderId: displayMode.rawValue], per-window)
+    @SceneStorage("folderViewDisplayModes") var folderViewDisplayModesJSON: String = "{}"
 
     @StateObject var itemRegistry = ItemTypeRegistry()
     @StateObject var performanceService = PerformanceService()
@@ -182,7 +183,7 @@ struct ContentView: View {
         } content: {
             centerContent
         } detail: {
-            if showInspectorSidebar && showInspectorToggle {
+            if showInspectorSidebar {
                 detailView
             } else {
                 EmptyView()

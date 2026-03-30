@@ -29,24 +29,24 @@ extension ActivitySidebarContent {
             }
         }
 
-        activitySidebarLogger.debug("🔵 Parsed runId: \(runId), childType: \(childType?.rawValue ?? "none")")
+        activitySidebarLogger.debug("🔵 Parsed run token: \(runId), childType: \(childType?.rawValue ?? "none")")
 
-        if let run = findRun(byId: runId) {
+        if let run = findRun(bySelectionToken: runId) {
             if let childType = childType {
                 activitySidebarLogger.debug(
-                    "🔵 Setting viewMode to activity run \(runId) with child: \(childType.rawValue)"
+                    "🔵 Setting viewMode to activity run \(run.runId) with child: \(childType.rawValue)"
                 )
                 viewMode = .activity(run.toSelectedRun().with(childType: childType))
             } else {
-                activitySidebarLogger.debug("🔵 Setting viewMode to activity run \(runId) (overview)")
+                activitySidebarLogger.debug("🔵 Setting viewMode to activity run \(run.runId) (overview)")
                 viewMode = .activity(run.toSelectedRun())
             }
         } else {
-            activitySidebarLogger.warning("🔵 Could not find run with ID: \(runId)")
+            activitySidebarLogger.warning("🔵 Could not find run for selection token: \(runId)")
         }
     }
 
-    func findRun(byId runId: String) -> ActivityRun? {
+    func findRun(bySelectionToken token: String) -> ActivityRun? {
         for library in libraryManager.openLibraries {
             let groups = runsByWorkflow(
                 for: library,
@@ -54,7 +54,7 @@ extension ActivitySidebarContent {
                 historicalRuns: historicalRunsByLibrary
             )
             for runs in groups.values {
-                if let run = runs.first(where: { $0.id == runId }) {
+                if let run = runs.first(where: { $0.id == token || $0.runId == token }) {
                     return run
                 }
             }

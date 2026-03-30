@@ -7,7 +7,9 @@ import SwiftUI
 class FeatureManager: ObservableObject {
     static let shared = FeatureManager()
     private static let releaseProfileVersion = 21
-    private static let workflowV001EnabledTools = "files,collection,transcribe,catalogue,extract_entities,describe,rewrite"
+    private static let workflowV001EnabledTools =
+        "files,collection,transcribe,catalogue,"
+        + "extract_entities,describe,rewrite"
     private static let isDevFeatureTier =
         ProcessInfo.processInfo.environment["FICHERO_FEATURE_TIER"]?.lowercased() == "dev"
 
@@ -38,6 +40,8 @@ class FeatureManager: ObservableObject {
     @AppStorage("fichero.features.workflows") private var workflowsEnabledInternal: Bool = false
     @AppStorage("fichero.features.workflow_editor_advanced_views")
     private var workflowEditorAdvancedViewsEnabled: Bool = false
+    @AppStorage("fichero.features.workflow_chains")
+    private var workflowChainsEnabledInternal: Bool = false
     @AppStorage("fichero.features.batches") private var batchesEnabledInternal: Bool = false
     @AppStorage("fichero.features.chat") private var chatEnabledInternal: Bool = false
     @AppStorage("fichero.features.agents") private var agentsEnabledInternal: Bool = false
@@ -93,6 +97,7 @@ class FeatureManager: ObservableObject {
     var isWorkflowEditorAdvancedViewsEnabled: Bool {
         allFeaturesEnabled || workflowEditorAdvancedViewsEnabled
     }
+    var isWorkflowChainsEnabled: Bool { allFeaturesEnabled || workflowChainsEnabledInternal }
     var isBatchesEnabled: Bool { allFeaturesEnabled || batchesEnabledInternal }
     var isChatEnabled: Bool { allFeaturesEnabled || chatEnabledInternal }
     var isAgentsEnabled: Bool { allFeaturesEnabled || agentsEnabledInternal }
@@ -161,6 +166,7 @@ class FeatureManager: ObservableObject {
         libraryIconZoomControlsEnabledInternal = false
         workflowsEnabledInternal = true
         workflowEditorAdvancedViewsEnabled = false
+        workflowChainsEnabledInternal = false
         batchesEnabledInternal = true
         chatEnabledInternal = false
         agentsEnabledInternal = false
@@ -188,8 +194,6 @@ class FeatureManager: ObservableObject {
         workflowLangGraphPreviewEnabledInternal = false
         workflowFilesToolbarEnabledInternal = true
         workflowRunOnSelectionEnabledInternal = true
-        // Reset icon view scale to sensible default (was 3.0 in earlier profiles)
-        UserDefaults.standard.set(1.0, forKey: "library.iconViewScale")
         releaseProfileVersionApplied = Self.releaseProfileVersion
     }
 
@@ -199,21 +203,6 @@ class FeatureManager: ObservableObject {
         }
         let normalized = normalizeWorkflowToolName(toolName)
         return workflowEnabledTools.contains(normalized)
-    }
-
-    func isProviderTypeEnabled(_ providerType: String) -> Bool {
-        if isProvidersExtendedEnabled {
-            return true
-        }
-
-        let normalized = providerType.lowercased()
-        let releaseProviders: Set<String> = [
-            "apple",
-            "apple_vision",
-            "apple_intelligence",
-            "openai"
-        ]
-        return releaseProviders.contains(normalized)
     }
 
     private func applyReleaseProfileDefaultsIfNeeded() {

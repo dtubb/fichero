@@ -287,7 +287,7 @@ extension View {
     /// Adds delete confirmation and error alerts for sidebar items.
     func sidebarDeleteAlerts(
         deleteState: DeleteStateManager,
-        performDelete: @escaping (SidebarItem) async -> Void
+        performDelete: @escaping @MainActor (SidebarItem) async -> Void
     ) -> some View {
         self.modifier(SidebarDeleteAlertsModifier(
             deleteState: deleteState,
@@ -298,7 +298,7 @@ extension View {
 
 private struct SidebarDeleteAlertsModifier: ViewModifier {
     @ObservedObject var deleteState: DeleteStateManager
-    let performDelete: (SidebarItem) async -> Void
+    let performDelete: @MainActor (SidebarItem) async -> Void
 
     func body(content: Content) -> some View {
         content
@@ -308,7 +308,7 @@ private struct SidebarDeleteAlertsModifier: ViewModifier {
                 presenting: deleteState.itemToDelete,
                 actions: { itemToDelete in
                     Button("Delete", role: .destructive) {
-                        Task {
+                        Task { @MainActor in
                             await performDelete(itemToDelete)
                         }
                     }

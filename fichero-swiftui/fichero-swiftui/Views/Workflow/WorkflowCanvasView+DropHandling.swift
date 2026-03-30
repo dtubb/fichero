@@ -38,13 +38,10 @@ extension WorkflowCanvasView {
             provider.loadObject(ofClass: NSString.self) { item, _ in
                 if let jsonString = item as? String {
                     Task { @MainActor in
-                        // Try to decode as ToolInfo JSON first
+                        // Drag payload is ToolInfo JSON from the workflow inspector.
                         if let data = jsonString.data(using: .utf8),
                            let toolInfo = try? JSONDecoder().decode(ToolInfo.self, from: data) {
                             addNodeFromToolInfo(toolInfo, at: location)
-                        } else {
-                            // Fallback: treat as plain tool name (legacy)
-                            addNodeFromToolName(jsonString, at: location)
                         }
                     }
                 }
@@ -118,41 +115,6 @@ extension WorkflowCanvasView {
             selectedNodeIds = [node.id]
             editingNodeId = node.id
         }
-    }
-
-    /// Add node from tool name only (legacy fallback)
-    func addNodeFromToolName(_ toolName: String, at position: CGPoint) {
-        // Find selected node to auto-connect from
-        let sourceNode = selectedNodeIds.first.flatMap { selectedId in
-            workflow.nodes.first { $0.id == selectedId }
-        }
-
-        // Adjust position to avoid overlapping existing nodes
-        let adjustedPosition = findNonOverlappingPosition(near: position)
-
-        let node = WorkflowNode(
-            tool: toolName,
-            label: toolName.capitalized,
-            positionX: adjustedPosition.x,
-            positionY: adjustedPosition.y
-        )
-        workflow.nodes.append(node)
-
-        // Auto-connect: if there's a selected node with output ports, connect to new node's input
-        if let source = sourceNode,
-           let outputPort = source.outputPorts.first,
-           let inputPort = node.inputPorts.first {
-            let newEdge = WorkflowEdge(
-                sourceNodeId: source.id,
-                targetNodeId: node.id,
-                sourcePortId: outputPort.id,
-                targetPortId: inputPort.id
-            )
-            workflow.edges.append(newEdge)
-        }
-
-        selectedNodeIds = [node.id]
-        editingNodeId = node.id
     }
 
     /// Find a position that doesn't overlap existing nodes

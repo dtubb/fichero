@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 extension SidebarItemRow {
     func handleDropBesideItem(itemIDs: [String], targetItem: SidebarItem) -> Bool {

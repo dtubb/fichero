@@ -9,9 +9,7 @@ extension LibraryManager {
 
     /// Save current open library paths to UserDefaults
     func saveOpenLibraryPaths() {
-        let paths = openLibraries
-            .filter { !isTemporaryLibrary($0.url) }
-            .map { $0.url.path }
+        let paths = openLibraries.map { $0.url.path }
         UserDefaults.standard.set(paths, forKey: Self.openLibraryPathsKey)
         libraryManagerLogger.info("Saved \(paths.count) library paths to UserDefaults")
     }

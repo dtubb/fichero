@@ -86,7 +86,8 @@ extension WorkflowInspector {
                            let json = String(data: data, encoding: .utf8) {
                             return NSItemProvider(object: json as NSString)
                         }
-                        return NSItemProvider(object: "agent" as NSString)
+                        assertionFailure("Failed to encode drag payload for agent node")
+                        return NSItemProvider()
                     }
                 }
             }

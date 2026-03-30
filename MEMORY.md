@@ -1,6 +1,6 @@
 # MEMORY.md — Fichero
 
-Last updated: 2026-03-29
+Last updated: 2026-03-30
 
 ## Current Phase
 
@@ -102,7 +102,7 @@ For the approved implementation surface, the required checks are:
 - `pytest` is not installed in `.venv` — use `python -m pytest` or install it; the validation commands in CLAUDE.md assume `.venv/bin/pytest` which does not exist
 - Bundle identifier is `com.tubb.Fichero` (migrated from `ca.tubb` on 2026-03-23). Backend is `com.tubb.fichero.fichero-backend`. Storage at `~/Library/Application Support/com.tubb.fichero/`.
 - App sandbox is disabled (`ENABLE_APP_SANDBOX = NO`) — required for DMG distribution and move-to-Applications flow
-- Briefcase must run under Python 3.13 (not 3.14) — use dedicated `.briefcase-venv` in `fichero-api/`. Briefcase 0.4.x only ships Python 3.14 support packages, but many ML packages lack 3.14 wheels.
+- For this repo, keep all active dev/runtime envs aligned on Python 3.12 (project `.venv`, `~/.venv` when used for Fichero tooling, and Briefcase dev runtime); Python 3.14 caused runtime instability with the current ML stack.
 - Xcode scheme is `Fichero` (not `fichero-swiftui`). Requires `-skipPackagePluginValidation` for CLI builds.
 - The `[project]` dependencies in pyproject.toml are split: core deps ship in the Briefcase bundle, heavy deps (kreuzberg, fastembed, cloud providers) are in `[project.optional-dependencies] dev`. Dev install: `pip install -e ".[dev]"`
 - Build scripts live in `fichero/scripts/`. Skills: `/fichero-build`, `/fichero-release-prep`, `/fichero-release`
@@ -121,6 +121,9 @@ For the approved implementation surface, the required checks are:
 - `CGImageSource` cannot create CGImages from PDFs — PDFs must be rendered page-by-page via `CGPDFDocument` + `CGBitmapContext` at target DPI. The `_render_pdf_page_to_cgimage()` helper in `vision_base.py` handles this.
 - Batch execute endpoint returns SSE (`text/event-stream`), not JSON. The OpenAPI-generated client can't handle SSE, so `executeBatch()` uses a raw `URLRequest` bypass.
 - Thinking mode is in `BASE_CONFIG_SCHEMA` (llm_base.py) and wired into both `process_text` and `process_vision`. Frontend UI for the selector still needed (#344).
+- Briefcase backend hot reload should default ON in dev mode with a narrow watch path (`fichero-api/src`) to avoid scanning the whole home directory and to reduce noisy startup behavior.
+- `Pillow` must be in runtime dependencies (not only dev extras) because workflow vision/transcribe flows import `PIL` in packaged/Briefcase runs.
+- Feature-gated endpoints must be gated in both stacks: backend route registration and SwiftUI call sites. Hiding UI alone is insufficient because startup/observer paths can still issue requests.
 
 ## GitHub Roadmap
 

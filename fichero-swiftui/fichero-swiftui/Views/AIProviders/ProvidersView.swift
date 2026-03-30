@@ -13,7 +13,6 @@ struct ProvidersView: View {
     @State private var selectedProvider: Components.Schemas.ProviderResponse?
 
     @EnvironmentObject var providerService: ProviderServiceGenerated
-    @ObservedObject var featureManager = FeatureManager.shared
 
     var body: some View {
         HSplitView {
@@ -80,7 +79,6 @@ struct ProvidersView: View {
 
     var sortedProviders: [Components.Schemas.ProviderResponse] {
         providers
-            .filter { featureManager.isProviderTypeEnabled($0.providerType) }
             .sorted { provider1, provider2 in
             let orderA = sortOrder(provider1.providerType)
             let orderB = sortOrder(provider2.providerType)
@@ -108,10 +106,6 @@ struct ProvidersView: View {
         do {
             providers = try await providerService.listProviders()
             catalog = try await providerService.listCatalog()
-            if let selected = selectedProvider,
-               !featureManager.isProviderTypeEnabled(selected.providerType) {
-                selectedProvider = nil
-            }
         } catch {
             providersViewLogger.error("Failed to load: \(String(describing: error))")
         }

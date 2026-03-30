@@ -232,7 +232,7 @@ private extension AISettingsView {
         Picker("Provider", selection: selection) {
             Text("None").tag("")
             ForEach(
-                appState.providers.filter { featureManager.isProviderTypeEnabled($0.providerType) },
+                appState.providers,
                 id: \.providerType
             ) { provider in
                 Text(provider.name).tag(provider.providerType)

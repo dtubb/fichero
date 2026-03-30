@@ -15,6 +15,8 @@ struct ZoomableImagePreview: View {
         documentId.map { "imageZoom_\($0)" }
     }
 
+    @SceneStorage("imagePreview.zoomScalesByDocument") private var zoomScalesByDocumentJSON: String = "{}"
+
     // These settings persist across image changes using AppStorage
     @AppStorage("imagePreview.magnifierEnabled") private var magnifierEnabled = false
     @AppStorage("imagePreview.loupeEnabled") private var loupeEnabled = false
@@ -34,6 +36,29 @@ struct ZoomableImagePreview: View {
     @State private var image: NSImage?
     @State private var visibleRect: CGRect = .zero  // Normalized 0-1
     @State private var imageCoordinator: ImageWithCursorTracking.Coordinator?
+
+    private func loadSavedScale(for key: String) -> CGFloat? {
+        guard let data = zoomScalesByDocumentJSON.data(using: .utf8),
+              let values = try? JSONDecoder().decode([String: Double].self, from: data),
+              let saved = values[key],
+              saved > 0 else {
+            return nil
+        }
+        return CGFloat(saved)
+    }
+
+    private func saveScale(_ newScale: CGFloat, for key: String) {
+        var values: [String: Double] = [:]
+        if let data = zoomScalesByDocumentJSON.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([String: Double].self, from: data) {
+            values = decoded
+        }
+        values[key] = Double(newScale)
+        if let encoded = try? JSONEncoder().encode(values),
+           let json = String(data: encoded, encoding: .utf8) {
+            zoomScalesByDocumentJSON = json
+        }
+    }
 
     /// The position to use for magnifier (locked or cursor)
     private var magnifierPosition: CGPoint {
@@ -210,8 +235,9 @@ struct ZoomableImagePreview: View {
                 Self.logger.error("Failed to load NSImage from: \(url.path)")
             }
             if let key = scaleKey {
-                let saved = UserDefaults.standard.double(forKey: key)
-                if saved > 0 { scale = CGFloat(saved) }
+                if let saved = loadSavedScale(for: key) {
+                    scale = saved
+                }
             }
         }
         .onChange(of: url) { _, newURL in
@@ -224,9 +250,8 @@ struct ZoomableImagePreview: View {
                 Self.logger.error("Failed to load NSImage from: \(newURL.path)")
             }
             if let key = scaleKey {
-                let saved = UserDefaults.standard.double(forKey: key)
-                if saved > 0 {
-                    scale = CGFloat(saved)
+                if let saved = loadSavedScale(for: key) {
+                    scale = saved
                 } else {
                     // No saved scale — fit-to-window will be applied on next layout
                     scale = 1.0
@@ -237,7 +262,7 @@ struct ZoomableImagePreview: View {
         }
         .onChange(of: scale) { _, newScale in
             if let key = scaleKey {
-                UserDefaults.standard.set(Double(newScale), forKey: key)
+                saveScale(newScale, for: key)
             }
         }
         .onKeyPress(.init("+"), phases: .down) { _ in

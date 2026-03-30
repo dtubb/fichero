@@ -22,7 +22,6 @@ struct AddProviderSheet: View {
     @State var isAddingModel = false
 
     @EnvironmentObject var providerService: ProviderServiceGenerated
-    @ObservedObject var featureManager = FeatureManager.shared
 
     init(onAdd: @escaping () async -> Void, isFirstLaunch: Bool = false) {
         self.onAdd = onAdd
@@ -37,8 +36,7 @@ struct AddProviderSheet: View {
     /// Catalog entries that haven't been added yet
     var availableCatalog: [Components.Schemas.ProviderCatalogResponse] {
         catalog.filter {
-            !existingProviderTypes.contains($0.providerType) &&
-            featureManager.isProviderTypeEnabled($0.providerType)
+            !existingProviderTypes.contains($0.providerType)
         }
     }
 

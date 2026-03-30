@@ -823,5 +823,45 @@ class TestParquet:
         db2.close()
 
 
+class TestEmbeddingsModelLoading:
+    """Test embedding model loading/caching behavior."""
+
+    def test_embedder_uses_managed_cache_dir(self, temp_db, monkeypatch):
+        """Embedding model should use app-managed cache dir and configured model."""
+        import sys
+        import types
+        from fichero.local_models import MODELS_BASE
+
+        calls: list[dict] = []
+
+        class FakeTextEmbedding:
+            def __init__(self, *, model_name: str, cache_dir: str):
+                calls.append({"model_name": model_name, "cache_dir": cache_dir})
+
+            def embed(self, texts):
+                for _ in texts:
+                    yield [0.1, 0.2]
+
+        fake_fastembed = types.SimpleNamespace(TextEmbedding=FakeTextEmbedding)
+        monkeypatch.setitem(sys.modules, "fastembed", fake_fastembed)
+
+        class FakeAppDB:
+            @staticmethod
+            def get_setting(key: str):
+                if key == "default_embeddings_model":
+                    return "intfloat/multilingual-e5-base"
+                return None
+
+        fake_app_db_module = types.SimpleNamespace(get_app_db=lambda: FakeAppDB())
+        monkeypatch.setitem(sys.modules, "fichero.app_db", fake_app_db_module)
+
+        temp_db._embedder = None
+        temp_db._ensure_embedder()
+
+        assert len(calls) == 1
+        assert calls[0]["model_name"] == "intfloat/multilingual-e5-base"
+        assert calls[0]["cache_dir"] == str(MODELS_BASE / "embeddings")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

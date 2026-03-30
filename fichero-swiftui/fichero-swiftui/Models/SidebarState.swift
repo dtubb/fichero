@@ -146,29 +146,3 @@ class SidebarState: ObservableObject {
         UserDefaults.standard.set(libraryExpansionStates, forKey: libraryExpansionKey)
     }
 }
-
-/// Global sidebar state manager - tracks state for each window
-@MainActor
-class SidebarStateManager {
-    static let shared = SidebarStateManager()
-
-    private var windowStates: [String: SidebarState] = [:]
-
-    private init() {}
-
-    /// Get or create sidebar state for a window
-    func state(for windowId: String) -> SidebarState {
-        if let existing = windowStates[windowId] {
-            return existing
-        }
-
-        let newState = SidebarState(windowId: windowId)
-        windowStates[windowId] = newState
-        return newState
-    }
-
-    /// Remove state for a closed window
-    func removeState(for windowId: String) {
-        windowStates.removeValue(forKey: windowId)
-    }
-}

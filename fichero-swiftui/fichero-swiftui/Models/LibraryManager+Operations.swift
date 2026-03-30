@@ -99,6 +99,9 @@ extension LibraryManager {
         let clientIdStr = String(describing: clientId)
         libraryManagerLogger.info("Created new unsaved library '\(displayName)' with APIClient-\(clientIdStr)")
 
+        // Persist open libraries so newly-created databases can be restored on next launch.
+        saveOpenLibraryPaths()
+
         // Initialize the backend database, load data, and ensure Inbox
         Task { @MainActor in
             await initializeBackendDatabase(for: library)

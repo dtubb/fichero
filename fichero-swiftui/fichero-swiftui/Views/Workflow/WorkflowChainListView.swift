@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 private let logger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowChainListView")
 
@@ -29,11 +29,23 @@ struct WorkflowChainListView: View {
             onSelectChain: { selectedChainId = $0 },
             onExecuteChain: { executeChain($0) },
             onConfirmDelete: { confirmDelete($0) },
-            onRefresh: { Task { await chainService.loadChains() } }
+            onRefresh: {
+                Task {
+                    guard FeatureManager.shared.isWorkflowChainsEnabled else {
+                        chainService.chains = []
+                        return
+                    }
+                    await chainService.loadChains()
+                }
+            }
         )
         .searchable(text: $searchText, prompt: "Search chains...")
         .task {
             guard !Task.isCancelled else { return }
+            guard FeatureManager.shared.isWorkflowChainsEnabled else {
+                chainService.chains = []
+                return
+            }
             await chainService.loadChains()
         }
         .sheet(isPresented: $showNewChainSheet) {

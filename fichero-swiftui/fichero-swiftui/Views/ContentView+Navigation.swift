@@ -14,6 +14,13 @@ extension ContentView {
         case .library:
             LibraryView(
                 documents: selectedDocuments,
+                isLoading: documentStore.isLoading,
+                errorMessage: documentStore.error?.localizedDescription,
+                onRetry: {
+                    Task { @MainActor in
+                        await documentStore.refresh()
+                    }
+                },
                 selection: $browserSelection,
                 detailDocument: $detailDocument,
                 viewMode: $viewSettings.libraryLayout,

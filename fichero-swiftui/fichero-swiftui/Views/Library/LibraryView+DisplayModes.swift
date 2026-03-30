@@ -216,7 +216,10 @@ extension LibraryView {
                 // Document cards at scaled positions
                 ForEach(filteredDocuments) { doc in
                     let base = mapPositions[doc.id] ?? defaultMapPosition(for: doc)
-                    let pos = CGPoint(x: base.x * mapCanvasScale, y: base.y * mapCanvasScale)
+                    let pos = CGPoint(
+                        x: base.x * CGFloat(mapCanvasScale),
+                        y: base.y * CGFloat(mapCanvasScale)
+                    )
                     MapCard(
                         document: doc,
                         isSelected: selection.contains(doc.id),
@@ -233,8 +236,8 @@ extension LibraryView {
                             .onChanged { value in
                                 // Store in unscaled document coordinates
                                 mapPositions[doc.id] = CGPoint(
-                                    x: value.location.x / mapCanvasScale,
-                                    y: value.location.y / mapCanvasScale
+                                    x: value.location.x / CGFloat(mapCanvasScale),
+                                    y: value.location.y / CGFloat(mapCanvasScale)
                                 )
                             }
                     )
@@ -243,7 +246,10 @@ extension LibraryView {
                     }
                 }
             }
-            .frame(width: mapCanvasWidth * mapCanvasScale, height: mapCanvasHeight * mapCanvasScale)
+            .frame(
+                width: mapCanvasWidth * CGFloat(mapCanvasScale),
+                height: mapCanvasHeight * CGFloat(mapCanvasScale)
+            )
         }
         .background(Color(.textBackgroundColor))
         .onAppear {

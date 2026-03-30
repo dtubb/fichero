@@ -48,6 +48,8 @@ requires = [
     # Core — 0.0.1 release surface (keep slim for bundle size)
     "fastapi",
     "uvicorn[standard]",
+    # Uvicorn 0.42 still imports websockets.legacy API; keep pre-14 for clean logs.
+    "websockets<14",
     "python-multipart",
     "python-dotenv",
     "aiofiles",
@@ -64,6 +66,7 @@ requires = [
     "litellm",
     # Document Processing
     "PyMuPDF",
+    "Pillow",
 ]
 
 [tool.briefcase.app.fichero-backend.macOS]
@@ -111,6 +114,8 @@ dependencies = [
     "aiofiles",
     "fastapi",
     "uvicorn[standard]",
+    # Keep aligned with Briefcase deps to avoid runtime deprecation warnings.
+    "websockets<14",
     "python-multipart",
     "pydantic",
     "pydantic-settings",
@@ -122,6 +127,7 @@ dependencies = [
     "langchain-ollama",
     "litellm",
     "PyMuPDF",
+    "Pillow",
 ]
 
 [project.optional-dependencies]

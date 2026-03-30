@@ -1,7 +1,7 @@
+import Combine
+import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
-import OSLog
-import Combine
 
 /// Structured logger for sidebar operations
 let sidebarViewLogger = Logger(subsystem: "com.fichero.app", category: "Sidebar")
@@ -30,7 +30,7 @@ struct SidebarView: View {
     @ObservedObject var itemRegistry: ItemTypeRegistry
 
     // SidebarState for expansion persistence (internal for extension access)
-    @StateObject var sidebarState = SidebarState()
+    @StateObject var sidebarState: SidebarState
 
     // Rename and delete state (internal for extension access)
     @StateObject var renameState = RenameStateManager()
@@ -68,6 +68,7 @@ struct SidebarView: View {
         libraryManager: LibraryManager,
         itemRegistry: ItemTypeRegistry,
         apiClient: APIClient,
+        windowPersistenceId: String,
         onCreateChatWithDocuments: (([String]) -> Void)? = nil
     ) {
         self._sidebarMode = sidebarMode
@@ -76,6 +77,9 @@ struct SidebarView: View {
         self.libraryManager = libraryManager
         self.itemRegistry = itemRegistry
         self.onCreateChatWithDocuments = onCreateChatWithDocuments
+        self._sidebarState = StateObject(
+            wrappedValue: SidebarState(windowId: windowPersistenceId)
+        )
         // Initialize ChainService with apiClient
         self._chainService = StateObject(wrappedValue: ChainService(apiClient: apiClient))
     }
@@ -101,12 +105,21 @@ struct SidebarView: View {
                 guard !Task.isCancelled else { return }
 
                 // Load chains for workflows sidebar
-                await chainService.loadChains()
+                if FeatureManager.shared.isWorkflowChainsEnabled {
+                    await chainService.loadChains()
+                } else {
+                    chains = []
+                }
 
                 guard !Task.isCancelled else { return }
 
                 // Load automation data (schedules and triggers)
-                await loadAutomationData()
+                if FeatureManager.shared.isAutomationEnabled {
+                    await loadAutomationData()
+                } else {
+                    schedules = []
+                    triggers = []
+                }
             }
             .onChange(of: selectedItemId) { _, newId in
                 // Handle selection changes
@@ -129,6 +142,11 @@ struct SidebarView: View {
                 if newMode == .automation {
                     Task {
                         guard !Task.isCancelled else { return }
+                        guard FeatureManager.shared.isAutomationEnabled else {
+                            schedules = []
+                            triggers = []
+                            return
+                        }
                         await loadAutomationData()
                     }
                 } else if newMode == .batches {
