@@ -53,6 +53,8 @@ requires = [
     "python-multipart",
     "python-dotenv",
     "aiofiles",
+    "aiohttp",
+    "httpx",
     # Data Layer
     "pydantic",
     "pydantic-settings",
@@ -73,6 +75,10 @@ requires = [
     "langgraph",
     "langchain-ollama",
     "litellm",
+    "apscheduler",
+    "watchdog",
+    "kreuzberg",
+    "fastembed",
     # Document Processing
     "PyMuPDF",
     "Pillow",
@@ -121,6 +127,8 @@ dependencies = [
     # Core — these ship in the Briefcase bundle
     "python-dotenv",
     "aiofiles",
+    "aiohttp",
+    "httpx",
     "fastapi",
     "uvicorn[standard]",
     # Keep aligned with Briefcase deps to avoid runtime deprecation warnings.
@@ -144,6 +152,10 @@ dependencies = [
     "langgraph",
     "langchain-ollama",
     "litellm",
+    "apscheduler",
+    "watchdog",
+    "kreuzberg",
+    "fastembed",
     "PyMuPDF",
     "Pillow",
 ]
@@ -152,15 +164,11 @@ dependencies = [
 # Full dev dependencies — install with: pip install -e ".[dev]"
 dev = [
     "pathvalidate",
-    "aiohttp",
-    "httpx",
     "nest-asyncio",
     "openai",
     "dashscope",
     "Pillow",
     "numpy",
-    "kreuzberg",
-    "fastembed",
     "pyobjc-framework-Vision",
     "pyobjc-framework-Quartz",
     "pyobjc-framework-Cocoa",
@@ -169,8 +177,6 @@ dev = [
     "requests",
     "cryptography",
     "ruamel.yaml",
-    "apscheduler",
-    "watchdog",
 ]
 
 [project.scripts]

@@ -27,6 +27,8 @@ except ModuleNotFoundError:  # Python <3.11
 
 
 REQUIRED_RUNTIME_DEPS = {
+    "aiohttp",
+    "httpx",
     "langchain-openai",
     "langchain-anthropic",
     "langchain-google-genai",
@@ -36,6 +38,10 @@ REQUIRED_RUNTIME_DEPS = {
     "langchain-community",
     "langchain-mcp-adapters",
     "mcp",
+    "apscheduler",
+    "watchdog",
+    "kreuzberg",
+    "fastembed",
 }
 
 
