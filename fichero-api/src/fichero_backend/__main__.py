@@ -10,6 +10,7 @@ import logging
 import os
 import socket
 import sys
+import faulthandler
 import tracemalloc
 import warnings
 
@@ -50,12 +51,27 @@ def main():
 
     # Disable tokenizers parallelism (avoids fork warnings)
     os.environ.setdefault('TOKENIZERS_PARALLELISM', 'false')
+
+    # Keep fatal thread dumps off by default; enable only when explicitly debugging crashes.
+    fault_enabled = _env_flag("FICHERO_BACKEND_FAULTHANDLER", default=False)
+    if fault_enabled:
+        if not faulthandler.is_enabled():
+            faulthandler.enable(all_threads=True)
+        logger.info("Faulthandler: ENABLED")
+    else:
+        # If the parent process enabled it globally (e.g., PYTHONFAULTHANDLER=1), disable for clean logs.
+        if faulthandler.is_enabled():
+            faulthandler.disable()
+            logger.info("Faulthandler: DISABLED")
     # Keep asyncio debug noise off by default; opt in with FICHERO_ASYNCIO_DEBUG=1.
     if _env_flag("FICHERO_ASYNCIO_DEBUG", default=False):
         os.environ["PYTHONASYNCIODEBUG"] = "1"
         logger.info("Asyncio debug: ENABLED")
     else:
-        os.environ["PYTHONASYNCIODEBUG"] = "0"
+        # Important: remove the var entirely; setting "0" still enables debug in some runtimes.
+        os.environ.pop("PYTHONASYNCIODEBUG", None)
+        # Suppress asyncio "Executing <Task ... took ...>" warning spam in normal runs.
+        logging.getLogger("asyncio").setLevel(logging.ERROR)
 
     # Import uvicorn
     import uvicorn
@@ -64,12 +80,15 @@ def main():
         "FICHERO_BACKEND_RELOAD",
         default=_is_briefcase_dev_bundle(),
     )
+    # Workflow bug testing is much more stable without reloader subprocess churn.
+    if _env_flag("FICHERO_BACKEND_STABLE_MODE", default=False):
+        reload_enabled = False
     src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
     # Enable traceback allocation context for ResourceWarning in dev mode.
     trace_enabled = _env_flag(
         "FICHERO_BACKEND_TRACEMALLOC",
-        default=reload_enabled,
+        default=False,
     )
     if trace_enabled and not tracemalloc.is_tracing():
         tracemalloc.start(25)
@@ -91,7 +110,8 @@ def main():
         log_level="info",
         # Python 3.14 + uvloop can crash in asyncgen finalization paths.
         # Keep runtime stable by using the stdlib asyncio loop.
-        loop="asyncio" if sys.version_info >= (3, 14) else "auto",
+        # Force stdlib asyncio loop for stability with streaming + C extensions.
+        loop="asyncio",
         reload=reload_enabled,
     )
     if reload_enabled:

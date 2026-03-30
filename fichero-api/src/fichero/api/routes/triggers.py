@@ -8,7 +8,7 @@ Provides REST endpoints for file system triggers:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -321,7 +321,7 @@ async def update_trigger(
         if request.max_concurrent is not None:
             trigger.max_concurrent = request.max_concurrent
 
-        trigger.updated_at = datetime.utcnow()
+        trigger.updated_at = datetime.now(timezone.utc)
 
         # Save updated trigger
         await watcher.update_trigger(trigger)

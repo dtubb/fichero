@@ -9,7 +9,7 @@ Includes Server-Sent Events (SSE) for real-time progress updates.
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, AsyncGenerator
 from uuid import uuid4
 
@@ -133,7 +133,7 @@ class SSEEvent(BaseModel):
     thread_id: str
     workflow_id: str
     data: dict[str, Any] = Field(default_factory=dict)
-    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     # Parallel execution fields
     node_id: str | None = None
     file_path: str | None = None
@@ -182,14 +182,14 @@ async def _run_workflow_in_background(
 
     # Activity tracking
     activity_tracker = get_activity_tracker(str(db.path))
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
     node_start_times: dict[str, datetime] = {}
     execution_log_lines: list[str] = []  # Collect execution logs
     progress_timeline: dict[str, Any] = {"nodes": {}, "steps": []}  # Capture progress for historical viewing
 
     async def log_execution(message: str) -> None:
         """Log a message to both console and execution log, and stream via SSE."""
-        timestamp = datetime.utcnow().strftime("%H:%M:%S.%f")[:-3]
+        timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S.%f")[:-3]
         log_line = f"[{timestamp}] {message}"
         execution_log_lines.append(log_line)
         print(log_line)
@@ -364,7 +364,7 @@ async def _run_workflow_in_background(
                     "file_path": file_path,
                     "file_index": file_index,
                     "file_total": file_total,
-                    "started_at": datetime.utcnow().isoformat(),
+                    "started_at": datetime.now(timezone.utc).isoformat(),
                     "status": "running"
                 })
             elif event_type == "file_complete":
@@ -379,11 +379,11 @@ async def _run_workflow_in_background(
                     if (entry.get("type") == "file" and
                         entry.get("file_path") == file_path and
                         entry.get("status") == "running"):
-                        entry["completed_at"] = datetime.utcnow().isoformat()
+                        entry["completed_at"] = datetime.now(timezone.utc).isoformat()
                         entry["status"] = "success"
                         # Calculate duration
                         start = datetime.fromisoformat(entry["started_at"])
-                        duration_ms = (datetime.utcnow() - start).total_seconds() * 1000
+                        duration_ms = (datetime.now(timezone.utc) - start).total_seconds() * 1000
                         entry["duration_ms"] = duration_ms
                         break
 
@@ -399,7 +399,7 @@ async def _run_workflow_in_background(
                     if (entry.get("type") == "file" and
                         entry.get("file_path") == file_path and
                         entry.get("status") == "running"):
-                        entry["completed_at"] = datetime.utcnow().isoformat()
+                        entry["completed_at"] = datetime.now(timezone.utc).isoformat()
                         entry["status"] = "error"
                         entry["error"] = error_msg
                         break
@@ -464,7 +464,7 @@ async def _run_workflow_in_background(
             if event_kind == "on_chain_start" and event.get("name"):
                 node_name = event.get("name", "")
                 if node_name not in ("__start__", "LangGraph"):
-                    node_start_times[node_name] = datetime.utcnow()
+                    node_start_times[node_name] = datetime.now(timezone.utc)
                     original_id = _normalize_node_name(node_name)
 
                     # Skip node_begin for _aggregate (internal — the node already started with _process)
@@ -484,7 +484,7 @@ async def _run_workflow_in_background(
                     # Capture node start to progress timeline
                     progress_timeline["steps"].append({
                         "node_id": original_id,
-                        "started_at": datetime.utcnow().isoformat(),
+                        "started_at": datetime.now(timezone.utc).isoformat(),
                         "status": "running"
                     })
 
@@ -509,8 +509,8 @@ async def _run_workflow_in_background(
 
                     # Calculate node duration (use _process start time if this is _aggregate)
                     process_name = f"{original_id}_process" if node_name.endswith("_aggregate") else node_name
-                    node_start = node_start_times.get(process_name, node_start_times.get(node_name, datetime.utcnow()))
-                    node_duration_ms = (datetime.utcnow() - node_start).total_seconds() * 1000
+                    node_start = node_start_times.get(process_name, node_start_times.get(node_name, datetime.now(timezone.utc)))
+                    node_duration_ms = (datetime.now(timezone.utc) - node_start).total_seconds() * 1000
 
                     # Build activity metadata from output
                     activity_metadata = {}
@@ -584,7 +584,7 @@ async def _run_workflow_in_background(
                         if (entry.get("node_id") == original_id and
                             entry.get("status") == "running" and
                             entry.get("type") is None):  # Only update node steps, not file steps
-                            entry["completed_at"] = datetime.utcnow().isoformat()
+                            entry["completed_at"] = datetime.now(timezone.utc).isoformat()
                             entry["status"] = "success"
                             entry["duration_ms"] = node_duration_ms
                             # Add metadata
@@ -621,7 +621,7 @@ async def _run_workflow_in_background(
         state["final_state"] = final_state
 
         # Calculate total duration
-        total_duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        total_duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
         # Build completion metadata from final state
         completion_metadata = {
@@ -667,7 +667,7 @@ async def _run_workflow_in_background(
             execution_log=execution_log,
             progress_timeline=progress_timeline,
             duration_ms=total_duration_ms,
-            completed_at=datetime.utcnow(),
+            completed_at=datetime.now(timezone.utc),
         )
 
         # Send complete event
@@ -688,7 +688,7 @@ async def _run_workflow_in_background(
         state["error"] = str(e)
 
         # Calculate duration
-        total_duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        total_duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
         await log_execution(f"SYSTEMIC ERROR: {e.error_count}/{e.total_count} consecutive failures")
         await log_execution(f"Sample errors: {e.errors[:3] if e.errors else []}")
@@ -711,7 +711,7 @@ async def _run_workflow_in_background(
             progress_timeline=progress_timeline,
             duration_ms=total_duration_ms,
             error=f"Systemic error: {e.error_count}/{e.total_count} consecutive failures",
-            completed_at=datetime.utcnow(),
+            completed_at=datetime.now(timezone.utc),
         )
 
         await event_queue.put(SSEEvent(
@@ -732,7 +732,7 @@ async def _run_workflow_in_background(
         state["error"] = str(e)
 
         # Calculate duration
-        total_duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        total_duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
         await log_execution(f"ERROR: {str(e)}")
 
@@ -754,7 +754,7 @@ async def _run_workflow_in_background(
             progress_timeline=progress_timeline,
             duration_ms=total_duration_ms,
             error=str(e),
-            completed_at=datetime.utcnow(),
+            completed_at=datetime.now(timezone.utc),
         )
 
         await event_queue.put(SSEEvent(

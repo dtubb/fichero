@@ -7,7 +7,7 @@ def _route_prefixes_for(tier: str) -> set[str]:
     return {prefix for _, prefix, _ in get_route_specs_for_tier(tier)}
 
 
-def test_release_tier_exposes_only_core_routes():
+def test_release_tier_exposes_001_routes():
     prefixes = _route_prefixes_for("release")
 
     assert "/api/documents" in prefixes
@@ -17,18 +17,15 @@ def test_release_tier_exposes_only_core_routes():
     assert "/api/folders" in prefixes
     assert "/api/artifacts" in prefixes
 
-    assert "/api/providers" not in prefixes
-    assert "/api/models" not in prefixes
-    assert "/api/chat" not in prefixes
-    assert "/api/workflows" not in prefixes
-    assert "/api/workflow-execution" not in prefixes
-
-
-def test_dev_tier_adds_provider_routes():
-    prefixes = _route_prefixes_for("dev")
-
     assert "/api/providers" in prefixes
     assert "/api/models" in prefixes
+    assert "/api/chat" in prefixes
+    assert "/api/workflows" in prefixes
+    assert "/api/workflow-execution" in prefixes
+
+
+def test_dev_tier_matches_release_until_dev_routes_added():
+    assert _route_prefixes_for("dev") == _route_prefixes_for("release")
 
 
 def test_invalid_tier_defaults_to_release(monkeypatch):

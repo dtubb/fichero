@@ -8,7 +8,7 @@ Provides REST endpoints for workflow scheduling:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -311,7 +311,7 @@ async def update_schedule(
         if request.max_concurrent is not None:
             schedule.max_concurrent = request.max_concurrent
 
-        schedule.updated_at = datetime.utcnow()
+        schedule.updated_at = datetime.now(timezone.utc)
 
         # Save updated schedule
         await scheduler.update_schedule(schedule)

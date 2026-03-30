@@ -122,7 +122,6 @@ def _render_pdf_page_to_cgimage(pdf_path: str, page_index: int = 0, dpi: int = 3
         CGBitmapContextCreate,
         CGBitmapContextCreateImage,
         CGContextDrawPDFPage,
-        CGContextTranslateCTM,
         CGContextScaleCTM,
         kCGColorSpaceGenericRGB,
         CGColorSpaceCreateWithName,
@@ -177,7 +176,6 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
     page to a bitmap first since CGImageSource can't create CGImages from PDFs.
     """
     try:
-        import Vision
         from Quartz import (
             CGImageSourceCreateWithURL,
             CGImageSourceCreateImageAtIndex,

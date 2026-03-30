@@ -18,7 +18,7 @@ import hashlib
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -162,7 +162,7 @@ class NodeCache:
                 node_id,
                 tool,
                 file_path,
-                datetime.utcnow(),
+                datetime.now(timezone.utc),
                 result_json,
             ])
 

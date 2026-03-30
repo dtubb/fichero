@@ -14,7 +14,7 @@ import logging
 import uuid
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from enum import Enum
 from typing import Any, AsyncIterator, Optional
 
@@ -510,7 +510,7 @@ class ActivityStore:
                     workflow_snapshot_json,
                     node_name_map_json,
                     diagram_mermaid,
-                    started_at or datetime.utcnow(),
+                    started_at or datetime.now(timezone.utc),
                 ])
             finally:
                 conn.close()
