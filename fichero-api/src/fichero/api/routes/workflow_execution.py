@@ -24,6 +24,7 @@ from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
 from fichero.workflows.workflow_store import WorkflowStore
 from fichero.workflows.builder import SystemicErrorDetected, SOURCE_TOOLS, PARALLEL_TOOLS
 from fichero.workflows.activity import get_activity_tracker
+from fichero.workflows.runtime import create_compiled_app, build_initial_state
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -223,9 +224,6 @@ async def _run_workflow_in_background(
             data={"workflow_name": workflow.name, "inputs": request.inputs}
         ))
 
-        # Get checkpointer
-        checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
-
         # Build workflow using the parallel-aware builder
         from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
         from fichero.workflows.builder import build_graph
@@ -411,12 +409,12 @@ async def _run_workflow_in_background(
                     "error_count": data.get("error_count", 0)
                 }
 
-        # Build graph with parallel execution support, event callback, and checkpointer
-        app = build_graph(
+        # Build graph with shared runtime path (same engine used by batch execution).
+        app, checkpointer = create_compiled_app(
             workflow_def,
+            db_path=db.path,
             enable_parallel=True,
             event_callback=emit_parallel_event,
-            checkpointer=checkpointer,
             skip_cache=request.skip_cache,
         )
 
@@ -429,10 +427,10 @@ async def _run_workflow_in_background(
         }
 
         # Build initial state with library_path
-        initial_state = {
-            **request.inputs,
-            "library_path": str(db.path.parent) if hasattr(db, 'path') else "",
-        }
+        initial_state = build_initial_state(
+            request.inputs,
+            library_path=str(db.path.parent) if hasattr(db, "path") else "",
+        )
 
         # Identify exit nodes (nodes with no outgoing edges) using raw IDs
         exit_node_ids = set()

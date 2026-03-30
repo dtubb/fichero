@@ -13,14 +13,13 @@ import asyncio
 import logging
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, AsyncIterator, Optional
 
 import duckdb
 
-from fichero.workflows.builder import build_graph
-from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
+from fichero.workflows.runtime import create_compiled_app, build_initial_state
 from fichero.workflows.workflow_store import WorkflowStore
 
 logger = logging.getLogger(__name__)
@@ -432,7 +431,7 @@ class BatchManager:
 
         # Update batch status
         batch.status = BatchStatus.RUNNING
-        batch.started_at = batch.started_at or datetime.now()
+        batch.started_at = batch.started_at or datetime.now(timezone.utc)
         await self._save_batch(batch)
 
         yield BatchEvent(
@@ -442,7 +441,7 @@ class BatchManager:
         )
 
         # Load workflow definition
-        workflow_def = await workflow_store.get(batch.workflow_id)
+        workflow_def = workflow_store.get(batch.workflow_id)
         if not workflow_def:
             batch.status = BatchStatus.FAILED
             batch.error_message = f"Workflow {batch.workflow_id} not found"
@@ -454,10 +453,12 @@ class BatchManager:
             )
             return
 
-        # Build the graph once
-        checkpointer = AsyncDuckDBCheckpointer(self.db_path)
-        graph = build_graph(workflow_def)
-        compiled_graph = graph.compile(checkpointer=checkpointer)
+        # Build the graph once via shared runtime helper.
+        compiled_graph, _ = create_compiled_app(
+            workflow_def,
+            db_path=self.db_path,
+            enable_parallel=True,
+        )
 
         # Create tasks for pending items
         pending_items = [i for i in batch.items if i.status == BatchItemStatus.PENDING]
@@ -478,20 +479,16 @@ class BatchManager:
 
             async with self._semaphores[batch_id]:
                 item.status = BatchItemStatus.RUNNING
-                item.started_at = datetime.now()
+                item.started_at = datetime.now(timezone.utc)
 
                 try:
                     # Execute with LangGraph
                     config = {"configurable": {"thread_id": item.thread_id}}
-                    initial_state = {
-                        "inputs": item.inputs,
-                        "input_files": item.inputs.get("files", []),
-                        "outputs": {},
-                        "current_node": None,
-                        "execution_path": [],
-                        "errors": [],
-                        "metadata": {"batch_id": batch_id, "item_index": item.item_index},
-                    }
+                    initial_state = build_initial_state(
+                        item.inputs,
+                        library_path=str(self.db_path.parent),
+                        metadata={"batch_id": batch_id, "item_index": item.item_index},
+                    )
 
                     # Run the graph
                     async for _ in compiled_graph.astream(initial_state, config):
@@ -501,12 +498,12 @@ class BatchManager:
                             return
 
                     item.status = BatchItemStatus.COMPLETED
-                    item.completed_at = datetime.now()
+                    item.completed_at = datetime.now(timezone.utc)
 
                 except Exception as e:
                     item.status = BatchItemStatus.FAILED
                     item.error = str(e)
-                    item.completed_at = datetime.now()
+                    item.completed_at = datetime.now(timezone.utc)
                     logger.error(f"Batch {batch_id} item {item.item_index} failed: {e}")
 
         # Execute items with progress tracking
@@ -576,7 +573,7 @@ class BatchManager:
         else:
             batch.status = BatchStatus.COMPLETED
 
-        batch.completed_at = datetime.now()
+        batch.completed_at = datetime.now(timezone.utc)
         await self._save_batch(batch)
 
         # Cleanup
@@ -646,7 +643,7 @@ class BatchManager:
                 item.status = BatchItemStatus.CANCELLED
 
         batch.status = BatchStatus.CANCELLED
-        batch.completed_at = datetime.now()
+        batch.completed_at = datetime.now(timezone.utc)
         await self._save_batch(batch)
 
         logger.info(f"Cancelled batch {batch_id}")
