@@ -37,21 +37,12 @@ struct ActivityDetailView: View {
 
             Divider()
 
-            // In-detail section list + pane (keeps sidebar focused on runs only)
-            HSplitView {
-                List(selection: $selectedSectionId) {
-                    Text("Overview").tag("overview")
-                    ForEach(ActivityChildType.allCases, id: \.self) { childType in
-                        Label(childType.label, systemImage: childType.icon)
-                            .tag(childType.rawValue)
-                    }
-                }
-                .listStyle(.sidebar)
-                .frame(minWidth: 160, idealWidth: 190, maxWidth: 240)
+            sectionBar
 
-                contentView
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+            Divider()
+
+            contentView
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .task {
             guard !Task.isCancelled else { return }
@@ -153,6 +144,44 @@ struct ActivityDetailView: View {
                     .frame(maxWidth: 150)
             }
         }
+    }
+
+    @ViewBuilder
+    private var sectionBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                sectionButton("overview", label: "Overview", icon: "list.bullet.rectangle")
+
+                ForEach(ActivityChildType.allCases, id: \.self) { childType in
+                    sectionButton(
+                        childType.rawValue,
+                        label: childType.label,
+                        icon: childType.icon
+                    )
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private func sectionButton(_ id: String, label: String, icon: String) -> some View {
+        let isSelected = selectedSectionId == id
+
+        return Button {
+            selectedSectionId = id
+        } label: {
+            Label(label, systemImage: icon)
+                .font(.caption)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Content View

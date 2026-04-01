@@ -24,7 +24,6 @@ struct DocumentInspectorContentTab: View {
     @State private var autoSaveTask: Task<Void, Never>?
     @State private var saveError: String?
     @State private var lastSavedPayloadSignature: String = ""
-    @State private var availableFonts: [String] = []
 
     private static let richTextMetadataKey = "page_content_rtf"
 
@@ -55,9 +54,6 @@ struct DocumentInspectorContentTab: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            editorFormatBar
-            Divider()
-
             ZStack(alignment: .topLeading) {
                 AttributedTextEditor(
                     text: $draftAttributedText,
@@ -120,12 +116,6 @@ struct DocumentInspectorContentTab: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            if availableFonts.isEmpty {
-                let fonts = NSFontManager.shared.availableFonts
-                    .filter { !$0.hasPrefix(".") }
-                    .sorted()
-                availableFonts = ["System"] + fonts
-            }
             loadDraft(from: document)
         }
         .onDisappear {
@@ -141,48 +131,6 @@ struct DocumentInspectorContentTab: View {
             loadDraft(from: document)
             saveError = nil
         }
-    }
-
-    private var editorFormatBar: some View {
-        HStack(spacing: 10) {
-            Picker("Font", selection: $fontName) {
-                ForEach(availableFonts, id: \.self) { name in
-                    Text(name).tag(name)
-                }
-            }
-            .frame(maxWidth: 200)
-
-            HStack(spacing: 6) {
-                Text("Size")
-                    .foregroundStyle(.secondary)
-                Stepper(value: $fontSize, in: 8...72, step: 1) {
-                    Text("\(Int(fontSize))")
-                        .monospacedDigit()
-                }
-                .labelsHidden()
-                .frame(width: 70)
-            }
-
-            HStack(spacing: 6) {
-                Text("Spacing")
-                    .foregroundStyle(.secondary)
-                Stepper(value: $lineSpacing, in: 0...24, step: 1) {
-                    Text("\(Int(lineSpacing))")
-                        .monospacedDigit()
-                }
-                .labelsHidden()
-                .frame(width: 70)
-            }
-
-            Toggle("Ruler", isOn: $rulersVisible)
-                .toggleStyle(.checkbox)
-
-            Spacer()
-        }
-        .font(.caption)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     // MARK: - Persistence
@@ -353,7 +301,8 @@ private struct AttributedTextEditor: NSViewRepresentable {
         textView.allowsUndo = true
         textView.allowsDocumentBackgroundColorChange = true
         textView.usesFindBar = true
-        textView.usesInspectorBar = true
+        // Keep formatting controls local to the editor view (not the window-level inspector bar).
+        textView.usesInspectorBar = false
         textView.usesRuler = true
         textView.usesFontPanel = true
         textView.importsGraphics = true

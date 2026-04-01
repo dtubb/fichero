@@ -108,6 +108,20 @@ def _merge_output_files(
     return result
 
 
+def _merge_error(
+    existing: str | None,
+    new: str | None,
+) -> str | None:
+    """Reducer for error field during concurrent execution.
+
+    Multiple nodes may emit an `error` key in the same LangGraph step.
+    Keep the newest non-empty error; otherwise preserve existing value.
+    """
+    if new:
+        return new
+    return existing
+
+
 def _new_id() -> str:
     """Generate a new unique ID."""
     return uuid.uuid4().hex
@@ -209,7 +223,7 @@ class State(TypedDict):
     # Execution tracking
     current_node: Annotated[str, _last_value]  # Current node being executed (uses reducer for parallel)
     completed_nodes: Annotated[list[str], _merge_completed_nodes]  # Nodes that have completed
-    error: str | None               # Error message if failed
+    error: Annotated[str | None, _merge_error]  # Error message if failed
 
     # File tracking
     input_files: list[str]          # Input file paths

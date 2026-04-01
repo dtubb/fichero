@@ -41,12 +41,6 @@ struct DocumentInspectorInfoTab: View {
                             Text(ByteCountFormatter.string(fromByteCount: Int64(fileSize), countStyle: .file))
                         }
                     }
-                    if let width = document.metadata["Width"]?.value as? Int,
-                       let height = document.metadata["Height"]?.value as? Int {
-                        LabeledContent("Dimensions") {
-                            Text("\(width) × \(height)")
-                        }
-                    }
                 }
             }
             .formStyle(.grouped)

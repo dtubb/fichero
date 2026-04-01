@@ -28,7 +28,7 @@ struct ZoomableImagePreview: View {
     @AppStorage("imagePreview.loupeLocked") private var loupeLocked = false
 
     @State private var scale: CGFloat = 1.0
-    @State private var minScale: CGFloat = 0.1
+    @State private var minScale: CGFloat = 0.01
     @State private var maxScale: CGFloat = 10.0
     @State private var cursorPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)  // Current cursor position over image
     @State private var lockedPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)  // Position when locked

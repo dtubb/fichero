@@ -20,7 +20,7 @@ from fichero.workflows.executor import (
     execute_workflow_with_progress,
 )
 from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef, State
-from fichero.workflows.registry import TOOLS, register_tool
+from fichero.workflows.registry import register_tool
 from fichero.llm import LLMConfig
 
 
@@ -565,7 +565,7 @@ class TestParallelExecution:
 
     def test_parallel_edge_detection(self, parallel_workflow):
         """Test that parallel edges are detected correctly."""
-        from fichero.workflows.builder import build_graph, PARALLEL_TOOLS, SOURCE_TOOLS
+        from fichero.workflows.builder import PARALLEL_TOOLS, SOURCE_TOOLS
 
         # Verify the edge connects source -> parallel tool
         edge = parallel_workflow.edges[0]
@@ -687,6 +687,14 @@ class TestParallelExecution:
         assert "parallel_total" in annotations
         assert "parallel_file" in annotations
         assert "parallel_document" in annotations
+        assert "error" in annotations
+
+        # error must be reducer-backed to avoid INVALID_CONCURRENT_GRAPH_UPDATE
+        error_annotation = annotations["error"]
+        # Future annotations store TypedDict annotations as ForwardRef strings.
+        # Verify we keep reducer-backed Annotated form.
+        assert "Annotated" in str(error_annotation)
+        assert "_merge_error" in str(error_annotation)
 
 
 # =============================================================================
@@ -702,7 +710,6 @@ class TestErrorDetection:
         from fichero.workflows.builder import (
             _make_aggregation_function,
             SystemicErrorDetected,
-            MAX_CONSECUTIVE_ERRORS,
         )
 
         # Create aggregation function
@@ -763,7 +770,6 @@ class TestErrorDetection:
         from fichero.workflows.builder import (
             _make_aggregation_function,
             SystemicErrorDetected,
-            MIN_FILES_FOR_ERROR_RATE,
         )
 
         agg_fn = _make_aggregation_function("test_node")
