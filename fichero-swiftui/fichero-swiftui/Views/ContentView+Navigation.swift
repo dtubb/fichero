@@ -15,6 +15,7 @@ extension ContentView {
             LibraryView(
                 documents: selectedDocuments,
                 isLoading: documentStore.isLoading,
+                isConnected: documentStore.isConnected,
                 errorMessage: documentStore.error?.localizedDescription,
                 onRetry: {
                     Task { @MainActor in
