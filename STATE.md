@@ -32,7 +32,7 @@ Last updated: 2026-04-02
 | **1** | 1-4 | Knowledge Graph Core + PyKEEN | #387 | ✅ Backend complete |
 | **2** | 5 | Hermeneutics (Interpretation) | #388 | ✅ Complete |
 | **3** | 6 | Mind Palace + RealityKit | #389 | ✅ Complete |
-| **4** | 0 | Agent Research (Sandboxed) | #390 | Planned |
+| **4** | 0 | Agent Research (Sandboxed) | #390 | ✅ Backend + workflow tools |
 | **5** | All | Integration & Polish | #391 | Planned |
 
 ## This Week's Focus
@@ -42,8 +42,10 @@ Last updated: 2026-04-02
 
 ## In Progress
 
-- Phase 2 Hermeneutics: ✅ Done (11 tests, 835 suite total)
-- Phase 3 Mind Palace: ✅ Done (13 tests, 835 suite total)
+- Phase 4 Agent Research (Layer 0): ✅ Backend complete, workflow tools added
+  - research_web_search, research_browser_navigate, research_document_fetch as workflow tools
+  - MCP tools (research agents) already present in mcp_server.py
+  - Remaining: LangGraph agent composition for autonomous research
 
 ## Blocked
 
