@@ -1,45 +1,55 @@
 # STATE.md — Fichero
 
-Last updated: 2026-03-25
+Last updated: 2026-04-02
 
 ## Current Branch
 
-`main` — clean. All direct commits pushed.
+`codex/0.0.2-planning` — 0.0.2 semantic layer planning and early implementation
 
 ## Source of Truth
 
 - GitHub Issues + Milestones: https://github.com/dtubb/fichero/milestones
 - Project board: https://github.com/users/dtubb/projects/5
+- Canonical roadmap: `docs/0.0.2-planning/AUTHORITATIVE_ROADMAP_SPEC.md`
 
-## Completed This Session (2026-03-25)
+## Completed This Session
 
-- Created #348 (workflow batch input: collection vs selection as workflow-level config)
-- Created #349 (workflow batch: selectable processing order — alpha, date, etc.)
-- Earlier: Merged PRs #329, #331, #333, #336. Fixed OCR, icon scale, folder preview, batch SSE, settings router. Created issues #339-#346.
+- Aligned GitHub issues (#387-#391) with roadmap spec
+- Confirmed TASKS.md deprecated — GitHub is sole source of truth for execution
+- Confirmed 17 open issues cover 0.0.2 → 0.1.0 scope
+
+## Active Work (2026-04-02)
+
+**Phase 1: Knowledge Graph Core + PyKEEN (#387) — IN PROGRESS**
+
+Backend complete (models, migration, routes, embeddings, MCP tools).
+Deferred: PyKEEN wiring (needs `pykeen` dependency), SwiftUI views (Phase 1-4 UI pending).
+
+Next step for Phase 1:
+- SwiftUI views: ClaimInspectorView, OntologyBrowserView, EpistemologyGraphView, PredictionReviewView
+
+**Phase dependencies:** Phase 2-5 all depend on Phase 1 backend being solid.
 
 ## Blocked
 
-- Developer ID Application certificate (notarization)
-- Notarytool credentials
-- Sparkle key pair
+- None currently — Phase 1 backend is complete, UI work can proceed independently
 
-## Open 0.0.1 Issues
+## Open Issues by Phase
 
-- **#326** — Keyboard shortcuts
-- **#330** — Icon view: remember column width, fix first-run jump
-- **#340** — Prompt preview panel (workflow node editor)
-- **#341** — CLI agent provider (Claude, Codex, Gemini)
-- **#344** — Thinking mode selector UI in workflow node config
-- **#345** — Unify vision engine and provider/model in workflow node config
-- **#346** — Improve Settings Defaults UI (group boxes, help text)
-- **#348** — Workflow batch input: collection vs current selection
-- **#349** — Workflow batch: selectable processing order
-- **#313** — Connection/API error state UI (PR #334 created but not merged)
+| Phase | Issue | Status | Notes |
+|-------|-------|--------|-------|
+| Phase 1 | #387 | In Progress | Backend done; SwiftUI pending |
+| Phase 2 | #388 | Not Started | Depends on #387 |
+| Phase 3 | #389 | Not Started | Depends on #387, #388 |
+| Phase 4 | #390 | Not Started | Depends on #387, #388, #389 |
+| Phase 5 | #391 | Not Started | Depends on #387-390 |
+
+Plus 12 sub-task issues (#362-#381) for 0.0.2-0.1.0 features.
 
 ## Next Session — Start Here
 
-1. **Merge remaining PRs** — #334, #335, #337, #338 may need rebase against main.
-2. **#348 + #349** — Workflow batch input source and processing order (new, high priority).
-3. **#345** — Unify vision engine/provider in workflow node config.
-4. **#344** — Thinking mode picker in workflow node config UI.
-5. **#330** — Icon view first-click jump bug.
+1. **Claim #387** if not already claimed — verify backend tests still green
+2. **Build SwiftUI views for Phase 1**: ClaimInspectorView, OntologyBrowserView, EpistemologyGraphView, PredictionReviewView
+3. **Sync OpenAPI schema** (`./scripts/sync_openapi_schema.sh`) after any backend changes
+4. **Verify `ruff check` and `swiftlint`** pass before any PR
+5. After Phase 1 SwiftUI done — move to Phase 2 (#388, Hermeneutics)

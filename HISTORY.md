@@ -1,4 +1,11 @@
 
+## 2026-04-02 — Session Summary
+
+- Aligned GitHub issues (#387-#391, #362-381) with AUTHORITATIVE_ROADMAP_SPEC.md
+- Confirmed TASKS.md deprecated — GitHub is sole source of truth for execution tracking
+- Updated STATE.md to reflect current Phase 1 status (backend complete, SwiftUI pending)
+- Identified 17 open issues covering 0.0.2 → 0.1.0 scope
+
 ## 2026-03-29 — Session Summary
 
 - Realigned planning split: 0.0.1 execution stays in ~/code/fichero and 0.0.2 planning stays in ~/code/fichero-0.0.2.
