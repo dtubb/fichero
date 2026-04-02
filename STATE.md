@@ -1,6 +1,6 @@
 # STATE.md — Fichero
 
-Last updated: 2026-04-01
+Last updated: 2026-04-02
 
 ## Current Branch
 
@@ -29,40 +29,36 @@ Last updated: 2026-04-01
 
 | Phase | Layer | Focus | Issue | Status |
 |-------|-------|-------|-------|--------|
-| **1** | 1-4 | Knowledge Graph Core + PyKEEN | #387 | **Next** |
-| **2** | 5 | Hermeneutics (Interpretation) | #388 | Planned |
-| **3** | 6 | Mind Palace + RealityKit | #389 | Planned |
+| **1** | 1-4 | Knowledge Graph Core + PyKEEN | #387 | ✅ Backend complete |
+| **2** | 5 | Hermeneutics (Interpretation) | #388 | ✅ Complete |
+| **3** | 6 | Mind Palace + RealityKit | #389 | ✅ Complete |
 | **4** | 0 | Agent Research (Sandboxed) | #390 | Planned |
 | **5** | All | Integration & Polish | #391 | Planned |
 
 ## This Week's Focus
 
-- **Phase 1: Layers 1-4** — Begin immediately
-- Multi-source claims with ontology/epistemology
-- PyKEEN link prediction (NOT deferred)
-- Each component: models → routes → MCP → SwiftUI → tests
+- Phases 1-3 backend (models + routes + MCP) complete
+- Remaining: PyKEEN ML backend, then full SwiftUI views for all phases
 
 ## In Progress
 
-- Final plan review complete
-- GitHub issues created and milestoned
-- Ready to begin Phase 1 implementation (#387)
+- Phase 2 Hermeneutics: ✅ Done (11 tests, 835 suite total)
+- Phase 3 Mind Palace: ✅ Done (13 tests, 835 suite total)
 
 ## Blocked
 
 - None
 
-## Next Session — Start Here
+## Next Session — Continue Here
 
-**Phase 1: Layers 1-4 — Knowledge Graph Core (#387)**
+**Phase 1 deferred: PyKEEN Integration + SwiftUI Views**
 
-1. Activate `.venv`: `source ~/code/fichero-0.0.2/.venv/bin/activate`
-2. Start backend: `PYTHONPATH=fichero-api/src uvicorn fichero.api.main:app --port 8765 --reload`
-3. Begin with models (`knowledge_models.py`):
-   - Add `SourceType`, `ClaimType`, `EpistemicStatus` enums
-   - Add prediction metadata models
-   - Update `KnowledgeClaim` with multi-source support
-4. Run quality gates: `ruff check` + `pytest`
-5. Continue with migration script → routes → PyKEEN → MCP → SwiftUI
+1. PyKEEN ML: `pykeen` not in dependencies — requires pip install + training pipeline
+2. SwiftUI views: ClaimInspectorView, OntologyBrowserView, InterpretationPanelView, MindPalaceView
+3. Quality gates: swiftlint + xcodebuild for each view
 
-**Quality Gates:** Run at EACH step — ruff, pytest, swiftlint, xcodebuild
+**Also:**
+- Run `./scripts/sync_openapi_schema.sh` to sync all new endpoints to Swift client
+- After SwiftUI work: Phase 4 Agent Research (#390)
+
+**Quality Gates:** ruff check + pytest at each step
