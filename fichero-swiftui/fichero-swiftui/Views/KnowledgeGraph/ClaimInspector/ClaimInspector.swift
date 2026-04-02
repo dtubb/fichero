@@ -26,8 +26,8 @@ struct ClaimInspector: View {
 
     var body: some View {
         Group {
-            if let c = claim {
-                claimDetail(c)
+            if let selectedClaim = claim {
+                claimDetail(selectedClaim)
             } else {
                 emptyState
             }
@@ -37,7 +37,7 @@ struct ClaimInspector: View {
 
     // MARK: - Claim Detail
 
-    private func claimDetail(_ c: Components.Schemas.KnowledgeClaim) -> some View {
+    private func claimDetail(_ selectedClaim: Components.Schemas.KnowledgeClaim) -> some View {
         VStack(spacing: 0) {
             tabBar
 
@@ -45,11 +45,11 @@ struct ClaimInspector: View {
 
             switch selectedTab {
             case .details:
-                ClaimInspectorDetailsTab(claim: c)
+                ClaimInspectorDetailsTab(claim: selectedClaim)
             case .sources:
-                ClaimInspectorSourcesTab(claim: c)
+                ClaimInspectorSourcesTab(claim: selectedClaim)
             case .links:
-                ClaimInspectorLinksTab(claim: c)
+                ClaimInspectorLinksTab(claim: selectedClaim)
             }
         }
     }
