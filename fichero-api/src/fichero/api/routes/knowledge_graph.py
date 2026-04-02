@@ -11,12 +11,16 @@ from fichero.db import Database
 from fichero.knowledge_models import (
     ClaimCurationState,
     ClaimRelationType,
+    ClaimType,
     EntityType,
+    EpistemicStatus,
     InclusionScopeType,
     KnowledgeClaim,
     KnowledgeClaimLink,
     KnowledgeEntity,
     KnowledgeGraphInclusion,
+    PredictionMetadata,
+    SourceType,
 )
 from fichero.models import DocType, Document
 
@@ -49,9 +53,18 @@ class ClaimCreateRequest(BaseModel):
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     predicted_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     predicted_by: list[str] = Field(default_factory=list)
+    prediction: PredictionMetadata | None = None
     language: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_by: str = "human"
+    # --- multi-source ---
+    source_type: SourceType = SourceType.document
+    source_ids: list[str] = Field(default_factory=list)
+    source_page_labels: list[str] = Field(default_factory=list)
+    source_languages: list[str] = Field(default_factory=list)
+    # --- claim classification ---
+    claim_type: ClaimType | None = None
+    epistemic_status: EpistemicStatus | None = None
 
 
 class ClaimPatchRequest(BaseModel):
@@ -65,8 +78,15 @@ class ClaimPatchRequest(BaseModel):
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     predicted_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     predicted_by: list[str] | None = None
+    prediction: PredictionMetadata | None = None
     language: str | None = None
     metadata: dict[str, Any] | None = None
+    source_type: SourceType | None = None
+    source_ids: list[str] | None = None
+    source_page_labels: list[str] | None = None
+    source_languages: list[str] | None = None
+    claim_type: ClaimType | None = None
+    epistemic_status: EpistemicStatus | None = None
 
 
 class ClaimLinkCreateRequest(BaseModel):
@@ -252,11 +272,18 @@ async def create_claim(
         confidence=request.confidence,
         predicted_confidence=request.predicted_confidence,
         predicted_by=request.predicted_by,
+        prediction=request.prediction,
         language=request.language,
         metadata=request.metadata,
         created_by=request.created_by,
         created_at=now,
         updated_at=now,
+        source_type=request.source_type,
+        source_ids=request.source_ids,
+        source_page_labels=request.source_page_labels,
+        source_languages=request.source_languages,
+        claim_type=request.claim_type,
+        epistemic_status=request.epistemic_status,
     )
     db.save(claim)
     return claim
@@ -299,7 +326,11 @@ async def list_claims(
     entity_id: str | None = Query(default=None),
     entity_type: EntityType | None = Query(default=None),
     curation_state: ClaimCurationState | None = Query(default=None),
+    claim_type: ClaimType | None = Query(default=None),
+    epistemic_status: EpistemicStatus | None = Query(default=None),
     source_document_id: str | None = Query(default=None),
+    source_language: str | None = Query(default=None),
+    source_type: SourceType | None = Query(default=None),
     scope_type: InclusionScopeType | None = Query(default=None),
     target_id: str | None = Query(default=None),
     included_only: bool = Query(default=False),
@@ -328,6 +359,61 @@ async def list_claims(
         ]
     if curation_state:
         claims = [claim for claim in claims if claim.curation_state == curation_state]
+    if claim_type:
+        claims = [claim for claim in claims if claim.claim_type == claim_type]
+    if epistemic_status:
+        claims = [claim for claim in claims if claim.epistemic_status == epistemic_status]
+    if source_language:
+        claims = [claim for claim in claims if source_language in claim.source_languages]
+    if source_type:
+        claims = [claim for claim in claims if claim.source_type == source_type]
+
+    claims = [claim for claim in claims if _passes_query_filter(claim, q, entity_map)]
+    if included_only:
+        claims = [claim for claim in claims if _is_source_included(db, claim.source_document_id)]
+
+    claims.sort(key=lambda claim: claim.updated_at, reverse=True)
+    return claims[offset:offset + limit]
+
+
+@router.get("/claims/filtered", response_model=list[KnowledgeClaim])
+async def list_claims_filtered(
+    q: str | None = Query(default=None),
+    claim_type: ClaimType | None = Query(default=None),
+    curation_state: ClaimCurationState | None = Query(default=None),
+    epistemic_status: EpistemicStatus | None = Query(default=None),
+    entity_id: str | None = Query(default=None),
+    source_language: str | None = Query(default=None),
+    source_type: SourceType | None = Query(default=None),
+    scope_type: InclusionScopeType | None = Query(default=None),
+    target_id: str | None = Query(default=None),
+    included_only: bool = Query(default=False),
+    limit: int = Query(default=200, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    db: Database = Depends(get_library_database),
+) -> list[KnowledgeClaim]:
+    """Advanced claim search with all Phase 1 filter types.
+
+    Separate from /claims to keep the simple list endpoint clean for SwiftUI.
+    """
+    claims = db.all(KnowledgeClaim)
+    entity_map = _load_entity_map(db)
+    scoped_document_ids = _resolve_scope_document_ids(db, scope_type, target_id)
+
+    if scoped_document_ids is not None:
+        claims = [claim for claim in claims if claim.source_document_id in scoped_document_ids]
+    if entity_id:
+        claims = [claim for claim in claims if entity_id in claim.entity_ids]
+    if claim_type:
+        claims = [claim for claim in claims if claim.claim_type == claim_type]
+    if curation_state:
+        claims = [claim for claim in claims if claim.curation_state == curation_state]
+    if epistemic_status:
+        claims = [claim for claim in claims if claim.epistemic_status == epistemic_status]
+    if source_language:
+        claims = [claim for claim in claims if source_language in claim.source_languages]
+    if source_type:
+        claims = [claim for claim in claims if claim.source_type == source_type]
 
     claims = [claim for claim in claims if _passes_query_filter(claim, q, entity_map)]
     if included_only:
