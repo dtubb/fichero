@@ -211,7 +211,7 @@ def test_knowledge_graph_claim_with_prediction_metadata(client, db):
     assert len(claim["prediction"]["entities"]) == 2
     assert claim["prediction"]["entities"][0]["text"] == "Sector 7"
     assert len(claim["prediction"]["uncertainty_spans"]) == 1
-    assert claim["prediction"]["uncertainty_spans"][0]["reason"] == "location ambiguous"
+    assert claim["prediction"]["uncertainty_spans"][0]["reason"] == "location ambiguous — could refer to multiple sectors"
     assert len(claim["prediction"]["predicted_links"]) == 1
     assert claim["prediction"]["predicted_links"][0]["link_type"] == "supports"
 

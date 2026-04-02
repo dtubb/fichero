@@ -312,70 +312,6 @@ async def patch_claim(
     return claim
 
 
-@router.get("/claims/{claim_id}", response_model=KnowledgeClaim)
-async def get_claim(claim_id: str, db: Database = Depends(get_library_database)) -> KnowledgeClaim:
-    claim = db.get(KnowledgeClaim, claim_id)
-    if claim is None:
-        raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
-    return claim
-
-
-@router.get("/claims", response_model=list[KnowledgeClaim])
-async def list_claims(
-    q: str | None = Query(default=None),
-    entity_id: str | None = Query(default=None),
-    entity_type: EntityType | None = Query(default=None),
-    curation_state: ClaimCurationState | None = Query(default=None),
-    claim_type: ClaimType | None = Query(default=None),
-    epistemic_status: EpistemicStatus | None = Query(default=None),
-    source_document_id: str | None = Query(default=None),
-    source_language: str | None = Query(default=None),
-    source_type: SourceType | None = Query(default=None),
-    scope_type: InclusionScopeType | None = Query(default=None),
-    target_id: str | None = Query(default=None),
-    included_only: bool = Query(default=False),
-    limit: int = Query(default=200, ge=1, le=1000),
-    offset: int = Query(default=0, ge=0),
-    db: Database = Depends(get_library_database),
-) -> list[KnowledgeClaim]:
-    claims = db.all(KnowledgeClaim)
-    entity_map = _load_entity_map(db)
-    scoped_document_ids = _resolve_scope_document_ids(db, scope_type, target_id)
-
-    if source_document_id:
-        claims = [claim for claim in claims if claim.source_document_id == source_document_id]
-    if scoped_document_ids is not None:
-        claims = [claim for claim in claims if claim.source_document_id in scoped_document_ids]
-    if entity_id:
-        claims = [claim for claim in claims if entity_id in claim.entity_ids]
-    if entity_type:
-        claims = [
-            claim
-            for claim in claims
-            if any(
-                entity_map.get(current_id) and entity_map[current_id].entity_type == entity_type
-                for current_id in claim.entity_ids
-            )
-        ]
-    if curation_state:
-        claims = [claim for claim in claims if claim.curation_state == curation_state]
-    if claim_type:
-        claims = [claim for claim in claims if claim.claim_type == claim_type]
-    if epistemic_status:
-        claims = [claim for claim in claims if claim.epistemic_status == epistemic_status]
-    if source_language:
-        claims = [claim for claim in claims if source_language in claim.source_languages]
-    if source_type:
-        claims = [claim for claim in claims if claim.source_type == source_type]
-
-    claims = [claim for claim in claims if _passes_query_filter(claim, q, entity_map)]
-    if included_only:
-        claims = [claim for claim in claims if _is_source_included(db, claim.source_document_id)]
-
-    claims.sort(key=lambda claim: claim.updated_at, reverse=True)
-    return claims[offset:offset + limit]
-
-
 @router.get("/claims/filtered", response_model=list[KnowledgeClaim])
 async def list_claims_filtered(
     q: str | None = Query(default=None),
@@ -397,29 +333,120 @@ async def list_claims_filtered(
     Separate from /claims to keep the simple list endpoint clean for SwiftUI.
     """
     claims = db.all(KnowledgeClaim)
+    claims = _filter_claims(
+        claims,
+        db,
+        q=q,
+        entity_id=entity_id,
+        curation_state=curation_state,
+        claim_type=claim_type,
+        epistemic_status=epistemic_status,
+        source_language=source_language,
+        source_type=source_type,
+        scope_type=scope_type,
+        target_id=target_id,
+        included_only=included_only,
+    )
+    return claims[offset:offset + limit]
+
+
+@router.get("/claims/{claim_id}", response_model=KnowledgeClaim)
+async def get_claim(claim_id: str, db: Database = Depends(get_library_database)) -> KnowledgeClaim:
+    claim = db.get(KnowledgeClaim, claim_id)
+    if claim is None:
+        raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
+    return claim
+
+
+def _filter_claims(
+    claims: list[KnowledgeClaim],
+    db: Database,
+    q: str | None = None,
+    entity_id: str | None = None,
+    entity_type: EntityType | None = None,
+    curation_state: ClaimCurationState | None = None,
+    claim_type: ClaimType | None = None,
+    epistemic_status: EpistemicStatus | None = None,
+    source_document_id: str | None = None,
+    source_language: str | None = None,
+    source_type: SourceType | None = None,
+    scope_type: InclusionScopeType | None = None,
+    target_id: str | None = None,
+    included_only: bool = False,
+) -> list[KnowledgeClaim]:
+    """Apply all claim filters to an already-loaded list of claims."""
     entity_map = _load_entity_map(db)
     scoped_document_ids = _resolve_scope_document_ids(db, scope_type, target_id)
 
+    if source_document_id:
+        claims = [c for c in claims if c.source_document_id == source_document_id]
     if scoped_document_ids is not None:
-        claims = [claim for claim in claims if claim.source_document_id in scoped_document_ids]
+        claims = [c for c in claims if c.source_document_id in scoped_document_ids]
     if entity_id:
-        claims = [claim for claim in claims if entity_id in claim.entity_ids]
-    if claim_type:
-        claims = [claim for claim in claims if claim.claim_type == claim_type]
+        claims = [c for c in claims if entity_id in c.entity_ids]
+    if entity_type:
+        claims = [
+            c
+            for c in claims
+            if any(
+                entity_map.get(eid) and entity_map[eid].entity_type == entity_type
+                for eid in c.entity_ids
+            )
+        ]
     if curation_state:
-        claims = [claim for claim in claims if claim.curation_state == curation_state]
+        claims = [c for c in claims if c.curation_state == curation_state]
+    if claim_type:
+        claims = [c for c in claims if c.claim_type == claim_type]
     if epistemic_status:
-        claims = [claim for claim in claims if claim.epistemic_status == epistemic_status]
+        claims = [c for c in claims if c.epistemic_status == epistemic_status]
     if source_language:
-        claims = [claim for claim in claims if source_language in claim.source_languages]
+        claims = [c for c in claims if source_language in c.source_languages]
     if source_type:
-        claims = [claim for claim in claims if claim.source_type == source_type]
+        claims = [c for c in claims if c.source_type == source_type]
 
-    claims = [claim for claim in claims if _passes_query_filter(claim, q, entity_map)]
+    claims = [c for c in claims if _passes_query_filter(c, q, entity_map)]
     if included_only:
-        claims = [claim for claim in claims if _is_source_included(db, claim.source_document_id)]
+        claims = [c for c in claims if _is_source_included(db, c.source_document_id)]
 
-    claims.sort(key=lambda claim: claim.updated_at, reverse=True)
+    claims.sort(key=lambda c: c.updated_at, reverse=True)
+    return claims
+
+
+@router.get("/claims", response_model=list[KnowledgeClaim])
+async def list_claims(
+    q: str | None = Query(default=None),
+    entity_id: str | None = Query(default=None),
+    entity_type: EntityType | None = Query(default=None),
+    curation_state: ClaimCurationState | None = Query(default=None),
+    claim_type: ClaimType | None = Query(default=None),
+    epistemic_status: EpistemicStatus | None = Query(default=None),
+    source_document_id: str | None = Query(default=None),
+    source_language: str | None = Query(default=None),
+    source_type: SourceType | None = Query(default=None),
+    scope_type: InclusionScopeType | None = Query(default=None),
+    target_id: str | None = Query(default=None),
+    included_only: bool = Query(default=False),
+    limit: int = Query(default=200, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    db: Database = Depends(get_library_database),
+) -> list[KnowledgeClaim]:
+    claims = db.all(KnowledgeClaim)
+    claims = _filter_claims(
+        claims,
+        db,
+        q=q,
+        entity_id=entity_id,
+        entity_type=entity_type,
+        curation_state=curation_state,
+        claim_type=claim_type,
+        epistemic_status=epistemic_status,
+        source_document_id=source_document_id,
+        source_language=source_language,
+        source_type=source_type,
+        scope_type=scope_type,
+        target_id=target_id,
+        included_only=included_only,
+    )
     return claims[offset:offset + limit]
 
 
@@ -511,18 +538,17 @@ async def overview(
     target_id: str | None = Query(default=None),
     db: Database = Depends(get_library_database),
 ) -> dict[str, Any]:
-    claims = await list_claims(
+    claims = db.all(KnowledgeClaim)
+    claims = _filter_claims(
+        claims,
+        db,
         q=None,
         entity_id=None,
         entity_type=None,
         curation_state=None,
-        source_document_id=None,
         scope_type=scope_type,
         target_id=target_id,
         included_only=False,
-        limit=100000,
-        offset=0,
-        db=db,
     )
     entities = db.all(KnowledgeEntity)
     claim_links = db.all(KnowledgeClaimLink)

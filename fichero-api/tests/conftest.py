@@ -100,12 +100,15 @@ def client(test_package, app_db):
     This client automatically includes the library path header in all requests,
     so tests can make requests without needing to manually add headers.
 
-    Also overrides the app database dependency to use the test app_db.
+    Also overrides the app database dependency to use the test app_db
+    and the library database dependency to use the test package db.
     """
+    from fichero.api.main import get_library_database
     from fichero.api.routes.providers import get_app_database
 
-    # Override dependency to use test app_db
+    # Override dependencies to use test dbs
     app.dependency_overrides[get_app_database] = lambda: app_db
+    app.dependency_overrides[get_library_database] = lambda: db_manager.get_database(test_package)
 
     # Create client with default headers
     client = TestClient(
