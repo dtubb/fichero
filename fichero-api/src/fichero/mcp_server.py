@@ -378,6 +378,149 @@ TOOLS = [
             "required": ["execution_id"],
         },
     ),
+    # Knowledge Graph tools
+    types.Tool(
+        name="fichero_kg_list_claims",
+        description="List knowledge claims with optional filters",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "q": {"type": "string", "description": "Text search query"},
+                "claim_type": {"type": "string", "description": "Filter by claim type: fact, analysis, interpretation, argument, historiography, theory"},
+                "curation_state": {"type": "string", "description": "Filter by curation state: unreviewed, shortlisted, curated, rejected"},
+                "epistemic_status": {"type": "string", "description": "Filter by epistemic status: tentative, confirmed, rejected"},
+                "entity_id": {"type": "string", "description": "Filter by linked entity ID"},
+                "source_language": {"type": "string", "description": "Filter by source language code (e.g., 'en', 'es')"},
+                "source_type": {"type": "string", "description": "Filter by source type: document, claim, multiple, synthesis"},
+                "limit": {"type": "integer", "description": "Max results (default 200)", "default": 200},
+                "offset": {"type": "integer", "description": "Pagination offset", "default": 0},
+            },
+        },
+    ),
+    types.Tool(
+        name="fichero_kg_create_claim",
+        description="Create a new knowledge claim",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "text": {"type": "string", "description": "Claim text (required)"},
+                "source_document_id": {"type": "string", "description": "Primary source document ID"},
+                "source_ids": {"type": "array", "items": {"type": "string"}, "description": "Additional source document IDs for multi-source claims"},
+                "source_page_labels": {"type": "array", "items": {"type": "string"}, "description": "Page labels per source"},
+                "source_languages": {"type": "array", "items": {"type": "string"}, "description": "Languages per source (e.g., ['en', 'es'])"},
+                "source_type": {"type": "string", "description": "Source type: document, claim, multiple, synthesis", "default": "document"},
+                "entity_ids": {"type": "array", "items": {"type": "string"}, "description": "Linked entity IDs"},
+                "claim_type": {"type": "string", "description": "Claim type: fact, analysis, interpretation, argument, historiography, theory"},
+                "epistemic_status": {"type": "string", "description": "Epistemic status: tentative, confirmed, rejected"},
+                "curation_state": {"type": "string", "description": "Curation state", "default": "unreviewed"},
+                "confidence": {"type": "number", "description": "Confidence 0.0-1.0", "default": 0.5},
+            },
+            "required": ["text"],
+        },
+    ),
+    types.Tool(
+        name="fichero_kg_patch_claim",
+        description="Update an existing knowledge claim",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "claim_id": {"type": "string", "description": "Claim ID to update"},
+                "text": {"type": "string", "description": "New claim text"},
+                "claim_type": {"type": "string", "description": "New claim type"},
+                "epistemic_status": {"type": "string", "description": "New epistemic status"},
+                "curation_state": {"type": "string", "description": "New curation state"},
+                "confidence": {"type": "number", "description": "New confidence 0.0-1.0"},
+                "entity_ids": {"type": "array", "items": {"type": "string"}, "description": "New entity IDs"},
+            },
+            "required": ["claim_id"],
+        },
+    ),
+    types.Tool(
+        name="fichero_kg_list_entities",
+        description="List knowledge graph entities with optional search",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "q": {"type": "string", "description": "Search query (matches canonical name or aliases)"},
+                "entity_type": {"type": "string", "description": "Filter by type: person, location, organization, event, concept, other"},
+                "limit": {"type": "integer", "description": "Max results", "default": 50},
+            },
+        },
+    ),
+    types.Tool(
+        name="fichero_kg_upsert_entity",
+        description="Create or update a knowledge graph entity",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "id": {"type": "string", "description": "Entity ID (omit to create new)"},
+                "canonical_name": {"type": "string", "description": "Primary name for the entity"},
+                "entity_type": {"type": "string", "description": "Entity type", "default": "other"},
+                "aliases": {"type": "array", "items": {"type": "string"}, "description": "Alternative names"},
+                "description": {"type": "string", "description": "Entity description"},
+                "language": {"type": "string", "description": "Primary language code"},
+            },
+            "required": ["canonical_name"],
+        },
+    ),
+    types.Tool(
+        name="fichero_kg_embed_claims",
+        description="Embed knowledge claims into LanceDB for semantic search. Run this before using semantic claim search.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "claim_ids": {"type": "array", "items": {"type": "string"}, "description": "Specific claim IDs to embed (omit to embed all)"},
+            },
+        },
+    ),
+    types.Tool(
+        name="fichero_kg_semantic_search",
+        description="Search knowledge claims semantically using vector similarity",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Natural language search query", "required": True},
+                "claim_type": {"type": "string", "description": "Filter by claim type"},
+                "curation_state": {"type": "string", "description": "Filter by curation state"},
+                "limit": {"type": "integer", "description": "Max results", "default": 20},
+            },
+            "required": ["query"],
+        },
+    ),
+    types.Tool(
+        name="fichero_kg_embed_entities",
+        description="Embed knowledge graph entities into LanceDB for semantic search",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "entity_ids": {"type": "array", "items": {"type": "string"}, "description": "Specific entity IDs to embed (omit to embed all)"},
+            },
+        },
+    ),
+    types.Tool(
+        name="fichero_kg_semantic_entity_search",
+        description="Search knowledge graph entities semantically",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Natural language query", "required": True},
+                "entity_type": {"type": "string", "description": "Filter by entity type"},
+                "limit": {"type": "integer", "description": "Max results", "default": 20},
+            },
+            "required": ["query"],
+        },
+    ),
+    types.Tool(
+        name="fichero_kg_overview",
+        description="Get knowledge graph overview statistics for claims, entities, and links",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "scope_type": {"type": "string", "description": "Scope filter: library, folder, document"},
+                "target_id": {"type": "string", "description": "Target ID for scope filter"},
+            },
+        },
+    ),
 ]
 
 
@@ -518,6 +661,68 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
 
     elif name == "fichero_chain_status":
         return await api_client.request("GET", f"/chains/executions/{args['execution_id']}")
+
+    # Knowledge Graph tools
+    elif name == "fichero_kg_list_claims":
+        params = {k: v for k, v in args.items() if v is not None and k != "claim_ids"}
+        return await api_client.request("GET", "/knowledge-graph/claims", params=params)
+
+    elif name == "fichero_kg_create_claim":
+        data = {k: v for k, v in args.items() if v is not None}
+        return await api_client.request("POST", "/knowledge-graph/claims", data=data)
+
+    elif name == "fichero_kg_patch_claim":
+        claim_id = args["claim_id"]
+        data = {k: v for k, v in args.items() if v is not None and k != "claim_id"}
+        return await api_client.request("PATCH", f"/knowledge-graph/claims/{claim_id}", data=data)
+
+    elif name == "fichero_kg_list_entities":
+        params = {k: v for k, v in args.items() if v is not None}
+        return await api_client.request("GET", "/knowledge-graph/entities", params=params)
+
+    elif name == "fichero_kg_upsert_entity":
+        data = {k: v for k, v in args.items() if v is not None}
+        return await api_client.request("POST", "/knowledge-graph/entities", data=data)
+
+    elif name == "fichero_kg_embed_claims":
+        data = {}
+        if args.get("claim_ids"):
+            data["claim_ids"] = args["claim_ids"]
+        return await api_client.request("POST", "/knowledge-graph/claims/semantic/embed", data=data)
+
+    elif name == "fichero_kg_semantic_search":
+        params = {
+            "q": args["query"],
+            "limit": args.get("limit", 20),
+        }
+        if args.get("claim_type"):
+            params["claim_type"] = args["claim_type"]
+        if args.get("curation_state"):
+            params["curation_state"] = args["curation_state"]
+        return await api_client.request("GET", "/knowledge-graph/claims/semantic", params=params)
+
+    elif name == "fichero_kg_embed_entities":
+        data = {}
+        if args.get("entity_ids"):
+            data["entity_ids"] = args["entity_ids"]
+        return await api_client.request("POST", "/knowledge-graph/entities/semantic/embed", data=data)
+
+    elif name == "fichero_kg_semantic_entity_search":
+        params = {
+            "q": args["query"],
+            "limit": args.get("limit", 20),
+        }
+        if args.get("entity_type"):
+            params["entity_type"] = args["entity_type"]
+        return await api_client.request("GET", "/knowledge-graph/entities/semantic", params=params)
+
+    elif name == "fichero_kg_overview":
+        params = {}
+        if args.get("scope_type"):
+            params["scope_type"] = args["scope_type"]
+        if args.get("target_id"):
+            params["target_id"] = args["target_id"]
+        return await api_client.request("GET", "/knowledge-graph/overview", params=params)
 
     else:
         return {"error": f"Unknown tool: {name}"}
