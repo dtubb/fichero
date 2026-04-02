@@ -578,6 +578,129 @@ TOOLS = [
             "required": ["claim_ids"],
         },
     ),
+    # Mind Palace tools
+    types.Tool(
+        name="fichero_mp_create_room",
+        description="Create a new Mind Palace workspace room",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Room name", "required": True},
+                "description": {"type": "string", "description": "Room description"},
+                "room_type": {"type": "string", "description": "Type: research, synthesis, presentation", "default": "research"},
+            },
+            "required": ["name"],
+        },
+    ),
+    types.Tool(
+        name="fichero_mp_list_rooms",
+        description="List Mind Palace rooms",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "room_type": {"type": "string", "description": "Filter by room type"},
+                "owner_id": {"type": "string", "description": "Filter by owner"},
+            },
+        },
+    ),
+    types.Tool(
+        name="fichero_mp_place_node",
+        description="Place a spatial node (source, claim, note, entity) in a room",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "room_id": {"type": "string", "description": "Target room ID", "required": True},
+                "node_type": {"type": "string", "description": "Node type: source, claim, note, entity, transcription", "required": True},
+                "source_id": {"type": "string", "description": "ID of the underlying item"},
+                "label": {"type": "string", "description": "Display label"},
+                "position_x": {"type": "number", "description": "X position", "default": 0},
+                "position_y": {"type": "number", "description": "Y position", "default": 0},
+                "position_z": {"type": "number", "description": "Z position", "default": 0},
+            },
+            "required": ["room_id", "node_type"],
+        },
+    ),
+    types.Tool(
+        name="fichero_mp_move_node",
+        description="Move a spatial node to a new position in a room",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "node_id": {"type": "string", "description": "Node ID to move", "required": True},
+                "position_x": {"type": "number", "description": "New X position", "required": True},
+                "position_y": {"type": "number", "description": "New Y position", "required": True},
+                "position_z": {"type": "number", "description": "New Z position", "required": True},
+            },
+            "required": ["node_id", "position_x", "position_y", "position_z"],
+        },
+    ),
+    types.Tool(
+        name="fichero_mp_create_connection",
+        description="Create a visual connection between two nodes in a room",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "room_id": {"type": "string", "description": "Room ID", "required": True},
+                "source_node_id": {"type": "string", "description": "Source node ID", "required": True},
+                "target_node_id": {"type": "string", "description": "Target node ID", "required": True},
+                "connection_type": {"type": "string", "description": "Connection type: evidentiary, semantic, ontological, hermeneutic, user_drawn", "required": True},
+                "link_subtype": {"type": "string", "description": "Link subtype: supports, contradicts, interprets, etc."},
+            },
+            "required": ["room_id", "source_node_id", "target_node_id", "connection_type"],
+        },
+    ),
+    types.Tool(
+        name="fichero_mp_focus_node",
+        description="Set or clear focus on a specific node in a room",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "room_id": {"type": "string", "description": "Room ID", "required": True},
+                "node_id": {"type": "string", "description": "Node ID to focus on (omit to clear focus)"},
+            },
+            "required": ["room_id"],
+        },
+    ),
+    types.Tool(
+        name="fichero_mp_create_note",
+        description="Create a first-class text note in Mind Palace",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "room_id": {"type": "string", "description": "Room ID"},
+                "content": {"type": "string", "description": "Note content", "required": True},
+                "note_type": {"type": "string", "description": "Note type: user, ai_workspace, ai_hypothesis, ai_summary, ai_relation, shared", "default": "user"},
+                "author_id": {"type": "string", "description": "Author ID", "default": "user"},
+                "linked_claim_ids": {"type": "array", "items": {"type": "string"}, "description": "Linked claim IDs"},
+                "linked_source_ids": {"type": "array", "items": {"type": "string"}, "description": "Linked source IDs"},
+            },
+            "required": ["content"],
+        },
+    ),
+    types.Tool(
+        name="fichero_mp_suggest_arrangement",
+        description="Get AI-suggested positions for nodes based on an arrangement strategy",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "room_id": {"type": "string", "description": "Room ID", "required": True},
+                "node_ids": {"type": "array", "items": {"type": "string"}, "description": "Node IDs to arrange", "required": True},
+                "arrangement_type": {"type": "string", "description": "Strategy: semantic, chronological, thematic", "default": "semantic"},
+            },
+            "required": ["room_id", "node_ids"],
+        },
+    ),
+    types.Tool(
+        name="fichero_mp_get_scene",
+        description="Get a summary of a Mind Palace room scene (node count, connection count, etc.)",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "room_id": {"type": "string", "description": "Room ID", "required": True},
+            },
+            "required": ["room_id"],
+        },
+    ),
 ]
 
 
@@ -797,6 +920,49 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
     elif name == "fichero_hm_suggest_interpretations":
         data = {k: v for k, v in args.items() if v is not None}
         return await api_client.request("POST", "/hermeneutics/suggestions", data=data)
+
+    # Mind Palace tools
+    elif name == "fichero_mp_create_room":
+        data = {k: v for k, v in args.items() if v is not None}
+        return await api_client.request("POST", "/mind-palace/rooms", data=data)
+
+    elif name == "fichero_mp_list_rooms":
+        params = {k: v for k, v in args.items() if v is not None}
+        return await api_client.request("GET", "/mind-palace/rooms", params=params)
+
+    elif name == "fichero_mp_place_node":
+        data = {k: v for k, v in args.items() if v is not None}
+        return await api_client.request("POST", "/mind-palace/nodes", data=data)
+
+    elif name == "fichero_mp_move_node":
+        node_id = args["node_id"]
+        data = {k: v for k, v in args.items() if v is not None and k != "node_id"}
+        return await api_client.request("PATCH", f"/mind-palace/nodes/{node_id}", data=data)
+
+    elif name == "fichero_mp_create_connection":
+        data = {k: v for k, v in args.items() if v is not None}
+        return await api_client.request("POST", "/mind-palace/connections", data=data)
+
+    elif name == "fichero_mp_focus_node":
+        room_id = args["room_id"]
+        node_id = args.get("node_id")
+        params = {"room_id": room_id}
+        if node_id:
+            params["node_id"] = node_id
+        return await api_client.request("POST", f"/mind-palace/rooms/{room_id}/focus", params=params)
+
+    elif name == "fichero_mp_create_note":
+        data = {k: v for k, v in args.items() if v is not None}
+        return await api_client.request("POST", "/mind-palace/notes", data=data)
+
+    elif name == "fichero_mp_suggest_arrangement":
+        room_id = args["room_id"]
+        data = {k: v for k, v in args.items() if v is not None and k != "room_id"}
+        return await api_client.request("POST", f"/mind-palace/rooms/{room_id}/suggest-arrangement", data=data)
+
+    elif name == "fichero_mp_get_scene":
+        room_id = args["room_id"]
+        return await api_client.request("GET", f"/mind-palace/rooms/{room_id}/scene")
 
     else:
         return {"error": f"Unknown tool: {name}"}
