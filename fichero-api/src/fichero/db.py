@@ -126,12 +126,26 @@ class Database:
         computed_keys = set(model_cls.model_computed_fields.keys()) if hasattr(model_cls, 'model_computed_fields') else set()
         data = obj.model_dump(exclude=computed_keys)
 
-        # Convert dict/list/tuple/Path fields for DuckDB
+        # Convert dict/list/tuple/Path fields for DuckDB (recursively handle nested Pydantic models with datetimes)
+        def _json_safe(obj):
+            """Recursively convert Pydantic models and datetime for JSON serialization."""
+            if isinstance(obj, BaseModel):
+                return _json_safe(obj.model_dump())
+            elif isinstance(obj, dict):
+                return {k: _json_safe(v) for k, v in obj.items()}
+            elif isinstance(obj, (list, tuple)):
+                return [_json_safe(item) for item in obj]
+            elif isinstance(obj, datetime):
+                return obj.isoformat()
+            return obj
+
         for key, value in data.items():
             if isinstance(value, (dict, list, tuple)):
-                data[key] = json.dumps(value)
+                data[key] = json.dumps(_json_safe(value))
             elif isinstance(value, Path):
                 data[key] = str(value)
+            elif isinstance(value, datetime):
+                data[key] = value.isoformat()
 
         # Build upsert query
         cols = list(data.keys())
