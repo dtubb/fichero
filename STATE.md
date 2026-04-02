@@ -20,13 +20,14 @@ Last updated: 2026-04-02
 
 ## Active Work (2026-04-02)
 
-**Phase 1: Knowledge Graph Core + PyKEEN (#387) — IN PROGRESS**
+**Phase 1: Knowledge Graph Core + PyKEEN (#387) — SWIFTUI COMPLETE (backend deferred)**
 
 Backend complete (models, migration, routes, embeddings, MCP tools).
-Deferred: PyKEEN wiring (needs `pykeen` dependency), SwiftUI views (Phase 1-4 UI pending).
+SwiftUI views: all done — ClaimInspectorView, OntologyBrowserView, EpistemologyGraphView, PredictionReviewView.
+Deferred: PyKEEN wiring (needs `pykeen` dependency).
 
 Next step for Phase 1:
-- SwiftUI views: ClaimInspectorView, OntologyBrowserView, EpistemologyGraphView, PredictionReviewView
+- PyKEEN wiring: add `pykeen` dependency, wire `POST /predictions/generate/pykeen`, implement training pipeline
 
 **Phase dependencies:** Phase 2-5 all depend on Phase 1 backend being solid.
 
@@ -48,8 +49,7 @@ Plus 12 sub-task issues (#362-#381) for 0.0.2-0.1.0 features.
 
 ## Next Session — Start Here
 
-1. **Claim #387** if not already claimed — verify backend tests still green
-2. **Build SwiftUI views for Phase 1**: ClaimInspectorView, OntologyBrowserView, EpistemologyGraphView, PredictionReviewView
-3. **Sync OpenAPI schema** (`./scripts/sync_openapi_schema.sh`) after any backend changes
-4. **Verify `ruff check` and `swiftlint`** pass before any PR
-5. After Phase 1 SwiftUI done — move to Phase 2 (#388, Hermeneutics)
+1. **PyKEEN wiring** (backend): add `pykeen` to dependencies, wire `POST /predictions/generate/pykeen`, implement training pipeline
+2. **Sync OpenAPI schema** (`./scripts/sync_openapi_schema.sh`) after any backend changes
+3. Verify `ruff check` and `swiftlint` pass before any PR
+4. After Phase 1 PyKEEN done — move to Phase 2 (#388, Hermeneutics)
