@@ -60,7 +60,14 @@ Last updated: 2026-04-02
 3. Quality gates: swiftlint + xcodebuild for each view
 
 **Also:**
-- Run `./scripts/sync_openapi_schema.sh` to sync all new endpoints to Swift client
 - After SwiftUI work: Phase 4 Agent Research (#390)
 
 **Quality Gates:** ruff check + pytest at each step
+
+## Session 2026-04-02 — Completed
+
+- **#381 Gate Map**: Created `docs/0.0.2-planning/GATE-MAP.md` — full gate matrix across all 7 layers
+  - Key finding: all Layers 0-6 are in dev tier, nothing promoted to release
+  - SwiftUI tier gating not yet implemented
+- **OpenAPI sync fix**: `export_openapi_schema.py` now uses `FICHERO_FEATURE_TIER=dev` → 226 endpoints/20 resources (was 125/16)
+- SwiftLint 72 sorted-import warnings: codebase-wide issue, skipped (no clear convention to apply)
