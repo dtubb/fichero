@@ -1787,6 +1787,1523 @@
         "request_model": null,
         "response_model": null
       }
+    ],
+    "knowledge-graph": [
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/entities",
+        "operation_id": "upsert_entity_api_knowledge_graph_entities_post",
+        "summary": "Upsert Entity",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EntityUpsertRequest",
+        "response_model": "KnowledgeEntity"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/entities",
+        "operation_id": "list_entities_api_knowledge_graph_entities_get",
+        "summary": "List Entities",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[KnowledgeEntity]"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/entities/{entity_id}/aliases",
+        "operation_id": "add_entity_aliases_api_knowledge_graph_entities__entity_id__aliases_post",
+        "summary": "Add Entity Aliases",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [],
+        "request_model": "EntityAliasRequest",
+        "response_model": "KnowledgeEntity"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/entities/resolve/{value}",
+        "operation_id": "resolve_entity_api_knowledge_graph_entities_resolve__value__get",
+        "summary": "Resolve Entity",
+        "path_params": [
+          "value"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EntityResolutionResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/claims",
+        "operation_id": "create_claim_api_knowledge_graph_claims_post",
+        "summary": "Create Claim",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ClaimCreateRequest",
+        "response_model": "KnowledgeClaim"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/claims",
+        "operation_id": "list_claims_api_knowledge_graph_claims_get",
+        "summary": "List Claims",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "entity_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "curation_state",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "claim_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "epistemic_status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "source_document_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "source_language",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "source_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "scope_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "target_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "included_only",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[KnowledgeClaim]"
+      },
+      {
+        "method": "PATCH",
+        "path": "/knowledge-graph/claims/{claim_id}",
+        "operation_id": "patch_claim_api_knowledge_graph_claims__claim_id__patch",
+        "summary": "Patch Claim",
+        "path_params": [
+          "claim_id"
+        ],
+        "query_params": [],
+        "request_model": "ClaimPatchRequest",
+        "response_model": "KnowledgeClaim"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/claims/{claim_id}",
+        "operation_id": "get_claim_api_knowledge_graph_claims__claim_id__get",
+        "summary": "Get Claim",
+        "path_params": [
+          "claim_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "KnowledgeClaim"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/claims/filtered",
+        "operation_id": "list_claims_filtered_api_knowledge_graph_claims_filtered_get",
+        "summary": "List Claims Filtered",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "claim_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "curation_state",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "epistemic_status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "entity_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "source_language",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "source_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "scope_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "target_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "included_only",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[KnowledgeClaim]"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/claims/semantic/embed",
+        "operation_id": "embed_claims_api_knowledge_graph_claims_semantic_embed_post",
+        "summary": "Embed Claims",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "_EmbedClaimRequest",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/claims/semantic",
+        "operation_id": "search_claims_semantic_api_knowledge_graph_claims_semantic_get",
+        "summary": "Search Claims Semantic",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "claim_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "curation_state",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/claims/{claim_id}/similar",
+        "operation_id": "find_similar_claims_api_knowledge_graph_claims__claim_id__similar_get",
+        "summary": "Find Similar Claims",
+        "path_params": [
+          "claim_id"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/claims/{claim_id}/links",
+        "operation_id": "create_claim_link_api_knowledge_graph_claims__claim_id__links_post",
+        "summary": "Create Claim Link",
+        "path_params": [
+          "claim_id"
+        ],
+        "query_params": [],
+        "request_model": "ClaimLinkCreateRequest",
+        "response_model": "KnowledgeClaimLink"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/claims/{claim_id}/links",
+        "operation_id": "list_claim_links_api_knowledge_graph_claims__claim_id__links_get",
+        "summary": "List Claim Links",
+        "path_params": [
+          "claim_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[KnowledgeClaimLink]"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/inclusion",
+        "operation_id": "upsert_inclusion_api_knowledge_graph_inclusion_post",
+        "summary": "Upsert Inclusion",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "InclusionUpsertRequest",
+        "response_model": "KnowledgeGraphInclusion"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/inclusion",
+        "operation_id": "list_inclusion_api_knowledge_graph_inclusion_get",
+        "summary": "List Inclusion",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "scope_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "target_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[KnowledgeGraphInclusion]"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/overview",
+        "operation_id": "overview_api_knowledge_graph_overview_get",
+        "summary": "Overview",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "scope_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "target_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/entities/semantic/embed",
+        "operation_id": "embed_entities_api_knowledge_graph_entities_semantic_embed_post",
+        "summary": "Embed Entities",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "_EmbedEntityRequest",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/entities/semantic",
+        "operation_id": "search_entities_semantic_api_knowledge_graph_entities_semantic_get",
+        "summary": "Search Entities Semantic",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/predictions/generate/heuristic",
+        "operation_id": "generate_heuristic_predictions_api_knowledge_graph_predictions_generate_heuristic_post",
+        "summary": "Generate Heuristic Predictions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "PredictionGenerateHeuristicRequest",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/predictions",
+        "operation_id": "list_predictions_api_knowledge_graph_predictions_get",
+        "summary": "List Predictions",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[KnowledgePredictionRun]"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/predictions/{run_id}/apply",
+        "operation_id": "apply_prediction_api_knowledge_graph_predictions__run_id__apply_post",
+        "summary": "Apply Prediction",
+        "path_params": [
+          "run_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
+    "hermeneutics": [
+      {
+        "method": "POST",
+        "path": "/hermeneutics/frameworks",
+        "operation_id": "create_framework_api_hermeneutics_frameworks_post",
+        "summary": "Create Framework",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "FrameworkCreateRequest",
+        "response_model": "InterpretiveFramework"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/frameworks",
+        "operation_id": "list_frameworks_api_hermeneutics_frameworks_get",
+        "summary": "List Frameworks",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "framework_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "is_active",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[InterpretiveFramework]"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/frameworks/{framework_id}",
+        "operation_id": "get_framework_api_hermeneutics_frameworks__framework_id__get",
+        "summary": "Get Framework",
+        "path_params": [
+          "framework_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "InterpretiveFramework"
+      },
+      {
+        "method": "PATCH",
+        "path": "/hermeneutics/frameworks/{framework_id}",
+        "operation_id": "update_framework_api_hermeneutics_frameworks__framework_id__patch",
+        "summary": "Update Framework",
+        "path_params": [
+          "framework_id"
+        ],
+        "query_params": [],
+        "request_model": "FrameworkUpdateRequest",
+        "response_model": "InterpretiveFramework"
+      },
+      {
+        "method": "DELETE",
+        "path": "/hermeneutics/frameworks/{framework_id}",
+        "operation_id": "delete_framework_api_hermeneutics_frameworks__framework_id__delete",
+        "summary": "Delete Framework",
+        "path_params": [
+          "framework_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/hermeneutics/interpretations",
+        "operation_id": "create_interpretation_api_hermeneutics_interpretations_post",
+        "summary": "Create Interpretation",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "InterpretationCreateRequest",
+        "response_model": "Interpretation"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/interpretations",
+        "operation_id": "list_interpretations_api_hermeneutics_interpretations_get",
+        "summary": "List Interpretations",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "framework_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "claim_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "document_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "act",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[Interpretation]"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/interpretations/{interpretation_id}",
+        "operation_id": "get_interpretation_api_hermeneutics_interpretations__interpretation_id__get",
+        "summary": "Get Interpretation",
+        "path_params": [
+          "interpretation_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "Interpretation"
+      },
+      {
+        "method": "PATCH",
+        "path": "/hermeneutics/interpretations/{interpretation_id}",
+        "operation_id": "update_interpretation_api_hermeneutics_interpretations__interpretation_id__patch",
+        "summary": "Update Interpretation",
+        "path_params": [
+          "interpretation_id"
+        ],
+        "query_params": [],
+        "request_model": "InterpretationUpdateRequest",
+        "response_model": "Interpretation"
+      },
+      {
+        "method": "POST",
+        "path": "/hermeneutics/patterns",
+        "operation_id": "create_pattern_api_hermeneutics_patterns_post",
+        "summary": "Create Pattern",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "PatternCreateRequest",
+        "response_model": "PatternInstance"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/patterns",
+        "operation_id": "list_patterns_api_hermeneutics_patterns_get",
+        "summary": "List Patterns",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "pattern_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "framework_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[PatternInstance]"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/patterns/{pattern_id}",
+        "operation_id": "get_pattern_api_hermeneutics_patterns__pattern_id__get",
+        "summary": "Get Pattern",
+        "path_params": [
+          "pattern_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PatternInstance"
+      },
+      {
+        "method": "PATCH",
+        "path": "/hermeneutics/patterns/{pattern_id}",
+        "operation_id": "update_pattern_api_hermeneutics_patterns__pattern_id__patch",
+        "summary": "Update Pattern",
+        "path_params": [
+          "pattern_id"
+        ],
+        "query_params": [],
+        "request_model": "PatternUpdateRequest",
+        "response_model": "PatternInstance"
+      },
+      {
+        "method": "POST",
+        "path": "/hermeneutics/patterns/{pattern_id}/claims/{claim_id}",
+        "operation_id": "add_claim_to_pattern_api_hermeneutics_patterns__pattern_id__claims__claim_id__post",
+        "summary": "Add Claim To Pattern",
+        "path_params": [
+          "pattern_id",
+          "claim_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PatternInstance"
+      },
+      {
+        "method": "POST",
+        "path": "/hermeneutics/circle-state",
+        "operation_id": "create_circle_state_api_hermeneutics_circle_state_post",
+        "summary": "Create Circle State",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CircleStateCreateRequest",
+        "response_model": "HermeneuticCircleState"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/circle-state",
+        "operation_id": "list_circle_states_api_hermeneutics_circle_state_get",
+        "summary": "List Circle States",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "claim_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[HermeneuticCircleState]"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/circle-state/{state_id}",
+        "operation_id": "get_circle_state_api_hermeneutics_circle_state__state_id__get",
+        "summary": "Get Circle State",
+        "path_params": [
+          "state_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HermeneuticCircleState"
+      },
+      {
+        "method": "POST",
+        "path": "/hermeneutics/circle-state/{state_id}/navigate",
+        "operation_id": "navigate_circle_api_hermeneutics_circle_state__state_id__navigate_post",
+        "summary": "Navigate Circle",
+        "path_params": [
+          "state_id"
+        ],
+        "query_params": [],
+        "request_model": "CircleStateNavigateRequest",
+        "response_model": "HermeneuticCircleState"
+      },
+      {
+        "method": "POST",
+        "path": "/hermeneutics/circle-state/{state_id}/backtrack",
+        "operation_id": "backtrack_circle_api_hermeneutics_circle_state__state_id__backtrack_post",
+        "summary": "Backtrack Circle",
+        "path_params": [
+          "state_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HermeneuticCircleState"
+      },
+      {
+        "method": "POST",
+        "path": "/hermeneutics/suggestions",
+        "operation_id": "suggest_interpretations_api_hermeneutics_suggestions_post",
+        "summary": "Suggest Interpretations",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "HermesSuggestionRequest",
+        "response_model": "[HermesSuggestion]"
+      }
+    ],
+    "mind-palace": [
+      {
+        "method": "POST",
+        "path": "/mind-palace/rooms",
+        "operation_id": "create_room_api_mind_palace_rooms_post",
+        "summary": "Create Room",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "RoomCreateRequest",
+        "response_model": "SpatialRoom"
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/rooms",
+        "operation_id": "list_rooms_api_mind_palace_rooms_get",
+        "summary": "List Rooms",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "room_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "owner_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[SpatialRoom]"
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/rooms/{room_id}",
+        "operation_id": "get_room_api_mind_palace_rooms__room_id__get",
+        "summary": "Get Room",
+        "path_params": [
+          "room_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SpatialRoom"
+      },
+      {
+        "method": "PATCH",
+        "path": "/mind-palace/rooms/{room_id}",
+        "operation_id": "update_room_api_mind_palace_rooms__room_id__patch",
+        "summary": "Update Room",
+        "path_params": [
+          "room_id"
+        ],
+        "query_params": [],
+        "request_model": "RoomUpdateRequest",
+        "response_model": "SpatialRoom"
+      },
+      {
+        "method": "DELETE",
+        "path": "/mind-palace/rooms/{room_id}",
+        "operation_id": "delete_room_api_mind_palace_rooms__room_id__delete",
+        "summary": "Delete Room",
+        "path_params": [
+          "room_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/rooms/{room_id}/scene",
+        "operation_id": "get_scene_summary_api_mind_palace_rooms__room_id__scene_get",
+        "summary": "Get Scene Summary",
+        "path_params": [
+          "room_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RoomSceneSummary"
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/nodes",
+        "operation_id": "place_node_api_mind_palace_nodes_post",
+        "summary": "Place Node",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "NodeCreateRequest",
+        "response_model": "SpatialNode"
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/nodes",
+        "operation_id": "list_nodes_api_mind_palace_nodes_get",
+        "summary": "List Nodes",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "room_id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "node_type",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[SpatialNode]"
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/nodes/{node_id}",
+        "operation_id": "get_node_api_mind_palace_nodes__node_id__get",
+        "summary": "Get Node",
+        "path_params": [
+          "node_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SpatialNode"
+      },
+      {
+        "method": "PATCH",
+        "path": "/mind-palace/nodes/{node_id}",
+        "operation_id": "move_node_api_mind_palace_nodes__node_id__patch",
+        "summary": "Move Node",
+        "path_params": [
+          "node_id"
+        ],
+        "query_params": [],
+        "request_model": "NodeMoveRequest",
+        "response_model": "SpatialNode"
+      },
+      {
+        "method": "DELETE",
+        "path": "/mind-palace/nodes/{node_id}",
+        "operation_id": "remove_node_api_mind_palace_nodes__node_id__delete",
+        "summary": "Remove Node",
+        "path_params": [
+          "node_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/connections",
+        "operation_id": "create_connection_api_mind_palace_connections_post",
+        "summary": "Create Connection",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ConnectionCreateRequest",
+        "response_model": "SpatialConnection"
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/connections",
+        "operation_id": "list_connections_api_mind_palace_connections_get",
+        "summary": "List Connections",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "room_id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "connection_type",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[SpatialConnection]"
+      },
+      {
+        "method": "DELETE",
+        "path": "/mind-palace/connections/{connection_id}",
+        "operation_id": "remove_connection_api_mind_palace_connections__connection_id__delete",
+        "summary": "Remove Connection",
+        "path_params": [
+          "connection_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/stacks",
+        "operation_id": "create_stack_api_mind_palace_stacks_post",
+        "summary": "Create Stack",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "StackCreateRequest",
+        "response_model": "SpatialStack"
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/stacks",
+        "operation_id": "list_stacks_api_mind_palace_stacks_get",
+        "summary": "List Stacks",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "room_id",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[SpatialStack]"
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/stacks/{stack_id}",
+        "operation_id": "get_stack_api_mind_palace_stacks__stack_id__get",
+        "summary": "Get Stack",
+        "path_params": [
+          "stack_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SpatialStack"
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/stacks/{stack_id}/nodes/{node_id}",
+        "operation_id": "add_to_stack_api_mind_palace_stacks__stack_id__nodes__node_id__post",
+        "summary": "Add To Stack",
+        "path_params": [
+          "stack_id",
+          "node_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SpatialStack"
+      },
+      {
+        "method": "DELETE",
+        "path": "/mind-palace/stacks/{stack_id}/nodes/{node_id}",
+        "operation_id": "remove_from_stack_api_mind_palace_stacks__stack_id__nodes__node_id__delete",
+        "summary": "Remove From Stack",
+        "path_params": [
+          "stack_id",
+          "node_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SpatialStack"
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/notes",
+        "operation_id": "create_note_api_mind_palace_notes_post",
+        "summary": "Create Note",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "fichero__api__routes__mind_palace__NoteCreateRequest",
+        "response_model": "NativeNote"
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/notes",
+        "operation_id": "list_notes_api_mind_palace_notes_get",
+        "summary": "List Notes",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "room_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "note_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "author_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[NativeNote]"
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/notes/{note_id}",
+        "operation_id": "get_note_api_mind_palace_notes__note_id__get",
+        "summary": "Get Note",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "NativeNote"
+      },
+      {
+        "method": "PATCH",
+        "path": "/mind-palace/notes/{note_id}",
+        "operation_id": "update_note_api_mind_palace_notes__note_id__patch",
+        "summary": "Update Note",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": "fichero__api__routes__mind_palace__NoteUpdateRequest",
+        "response_model": "NativeNote"
+      },
+      {
+        "method": "DELETE",
+        "path": "/mind-palace/notes/{note_id}",
+        "operation_id": "delete_note_api_mind_palace_notes__note_id__delete",
+        "summary": "Delete Note",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/rooms/{room_id}/viewport/{user_id}",
+        "operation_id": "get_viewport_api_mind_palace_rooms__room_id__viewport__user_id__get",
+        "summary": "Get Viewport",
+        "path_params": [
+          "room_id",
+          "user_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SpatialViewport"
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/rooms/{room_id}/viewport/{user_id}",
+        "operation_id": "save_viewport_api_mind_palace_rooms__room_id__viewport__user_id__post",
+        "summary": "Save Viewport",
+        "path_params": [
+          "room_id",
+          "user_id"
+        ],
+        "query_params": [],
+        "request_model": "ViewportSaveRequest",
+        "response_model": "SpatialViewport"
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/rooms/{room_id}/focus",
+        "operation_id": "focus_node_api_mind_palace_rooms__room_id__focus_post",
+        "summary": "Focus Node",
+        "path_params": [
+          "room_id"
+        ],
+        "query_params": [
+          {
+            "name": "user_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "node_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "SpatialViewport"
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/rooms/{room_id}/suggest-arrangement",
+        "operation_id": "suggest_arrangement_api_mind_palace_rooms__room_id__suggest_arrangement_post",
+        "summary": "Suggest Arrangement",
+        "path_params": [
+          "room_id"
+        ],
+        "query_params": [],
+        "request_model": "ArrangeRequest",
+        "response_model": "[SpatialNode]"
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/rooms/{room_id}/capture",
+        "operation_id": "capture_viewport_api_mind_palace_rooms__room_id__capture_post",
+        "summary": "Capture Viewport",
+        "path_params": [
+          "room_id"
+        ],
+        "query_params": [],
+        "request_model": "CaptureRequest",
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/export/tinderbox",
+        "operation_id": "export_to_tinderbox_api_mind_palace_export_tinderbox_post",
+        "summary": "Export To Tinderbox",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "room_id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "tinderbox_note_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/import/tinderbox",
+        "operation_id": "import_from_tinderbox_api_mind_palace_import_tinderbox_post",
+        "summary": "Import From Tinderbox",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "tinderbox_note_id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "room_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[NativeNote]"
+      }
+    ],
+    "research": [
+      {
+        "method": "POST",
+        "path": "/research/projects",
+        "operation_id": "create_project_api_research_projects_post",
+        "summary": "Create Project",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ProjectCreateRequest",
+        "response_model": "ResearchProject"
+      },
+      {
+        "method": "GET",
+        "path": "/research/projects",
+        "operation_id": "list_projects_api_research_projects_get",
+        "summary": "List Projects",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "status",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ResearchProject]"
+      },
+      {
+        "method": "GET",
+        "path": "/research/projects/{project_id}",
+        "operation_id": "get_project_api_research_projects__project_id__get",
+        "summary": "Get Project",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ResearchProject"
+      },
+      {
+        "method": "PATCH",
+        "path": "/research/projects/{project_id}",
+        "operation_id": "update_project_api_research_projects__project_id__patch",
+        "summary": "Update Project",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [],
+        "request_model": "ProjectUpdateRequest",
+        "response_model": "ResearchProject"
+      },
+      {
+        "method": "DELETE",
+        "path": "/research/projects/{project_id}",
+        "operation_id": "delete_project_api_research_projects__project_id__delete",
+        "summary": "Delete Project",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/research/plans",
+        "operation_id": "create_plan_api_research_plans_post",
+        "summary": "Create Plan",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "PlanCreateRequest",
+        "response_model": "ResearchPlan"
+      },
+      {
+        "method": "GET",
+        "path": "/research/projects/{project_id}/plans",
+        "operation_id": "list_plans_api_research_projects__project_id__plans_get",
+        "summary": "List Plans",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ResearchPlan]"
+      },
+      {
+        "method": "GET",
+        "path": "/research/plans/{plan_id}",
+        "operation_id": "get_plan_api_research_plans__plan_id__get",
+        "summary": "Get Plan",
+        "path_params": [
+          "plan_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ResearchPlan"
+      },
+      {
+        "method": "PATCH",
+        "path": "/research/plans/{plan_id}",
+        "operation_id": "update_plan_api_research_plans__plan_id__patch",
+        "summary": "Update Plan",
+        "path_params": [
+          "plan_id"
+        ],
+        "query_params": [],
+        "request_model": "PlanUpdateRequest",
+        "response_model": "ResearchPlan"
+      },
+      {
+        "method": "POST",
+        "path": "/research/tasks",
+        "operation_id": "create_task_api_research_tasks_post",
+        "summary": "Create Task",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "TaskCreateRequest",
+        "response_model": "ResearchTask"
+      },
+      {
+        "method": "GET",
+        "path": "/research/plans/{plan_id}/tasks",
+        "operation_id": "list_tasks_api_research_plans__plan_id__tasks_get",
+        "summary": "List Tasks",
+        "path_params": [
+          "plan_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ResearchTask]"
+      },
+      {
+        "method": "GET",
+        "path": "/research/tasks/{task_id}",
+        "operation_id": "get_task_api_research_tasks__task_id__get",
+        "summary": "Get Task",
+        "path_params": [
+          "task_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ResearchTask"
+      },
+      {
+        "method": "PATCH",
+        "path": "/research/tasks/{task_id}",
+        "operation_id": "update_task_api_research_tasks__task_id__patch",
+        "summary": "Update Task",
+        "path_params": [
+          "task_id"
+        ],
+        "query_params": [],
+        "request_model": "TaskUpdateRequest",
+        "response_model": "ResearchTask"
+      },
+      {
+        "method": "POST",
+        "path": "/research/steps",
+        "operation_id": "create_step_api_research_steps_post",
+        "summary": "Create Step",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "StepCreateRequest",
+        "response_model": "ResearchStep"
+      },
+      {
+        "method": "GET",
+        "path": "/research/tasks/{task_id}/steps",
+        "operation_id": "list_steps_api_research_tasks__task_id__steps_get",
+        "summary": "List Steps",
+        "path_params": [
+          "task_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ResearchStep]"
+      },
+      {
+        "method": "PATCH",
+        "path": "/research/steps/{step_id}",
+        "operation_id": "update_step_api_research_steps__step_id__patch",
+        "summary": "Update Step",
+        "path_params": [
+          "step_id"
+        ],
+        "query_params": [],
+        "request_model": "StepUpdateRequest",
+        "response_model": "ResearchStep"
+      },
+      {
+        "method": "POST",
+        "path": "/research/sources",
+        "operation_id": "create_search_source_api_research_sources_post",
+        "summary": "Create Search Source",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SearchSourceCreateRequest",
+        "response_model": "SearchSource"
+      },
+      {
+        "method": "GET",
+        "path": "/research/projects/{project_id}/sources",
+        "operation_id": "list_search_sources_api_research_projects__project_id__sources_get",
+        "summary": "List Search Sources",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[SearchSource]"
+      },
+      {
+        "method": "POST",
+        "path": "/research/notes",
+        "operation_id": "create_note_api_research_notes_post",
+        "summary": "Create Note",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "fichero__api__routes__research_agents__NoteCreateRequest",
+        "response_model": "ResearchNote"
+      },
+      {
+        "method": "GET",
+        "path": "/research/projects/{project_id}/notes",
+        "operation_id": "list_notes_api_research_projects__project_id__notes_get",
+        "summary": "List Notes",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [
+          {
+            "name": "task_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ResearchNote]"
+      },
+      {
+        "method": "GET",
+        "path": "/research/notes/{note_id}",
+        "operation_id": "get_note_api_research_notes__note_id__get",
+        "summary": "Get Note",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ResearchNote"
+      },
+      {
+        "method": "PATCH",
+        "path": "/research/notes/{note_id}",
+        "operation_id": "update_note_api_research_notes__note_id__patch",
+        "summary": "Update Note",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": "fichero__api__routes__research_agents__NoteUpdateRequest",
+        "response_model": "ResearchNote"
+      },
+      {
+        "method": "POST",
+        "path": "/research/checklists",
+        "operation_id": "create_checklist_api_research_checklists_post",
+        "summary": "Create Checklist",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ChecklistCreateRequest",
+        "response_model": "ResearchChecklist"
+      },
+      {
+        "method": "GET",
+        "path": "/research/projects/{project_id}/checklists",
+        "operation_id": "list_checklists_api_research_projects__project_id__checklists_get",
+        "summary": "List Checklists",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ResearchChecklist]"
+      },
+      {
+        "method": "PATCH",
+        "path": "/research/checklists/{checklist_id}/items/{item_id}",
+        "operation_id": "toggle_checklist_item_api_research_checklists__checklist_id__items__item_id__patch",
+        "summary": "Toggle Checklist Item",
+        "path_params": [
+          "checklist_id",
+          "item_id"
+        ],
+        "query_params": [],
+        "request_model": "ChecklistItemToggleRequest",
+        "response_model": "ResearchChecklist"
+      },
+      {
+        "method": "POST",
+        "path": "/research/tools/web-search",
+        "operation_id": "execute_web_search_api_research_tools_web_search_post",
+        "summary": "Execute Web Search",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "WebSearchRequest",
+        "response_model": "WebSearchResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/research/tools/browser-navigate",
+        "operation_id": "execute_browser_navigate_api_research_tools_browser_navigate_post",
+        "summary": "Execute Browser Navigate",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "BrowserNavigateRequest",
+        "response_model": "BrowserNavigateResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/research/tools/document-fetch",
+        "operation_id": "execute_document_fetch_api_research_tools_document_fetch_post",
+        "summary": "Execute Document Fetch",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "DocumentFetchRequest",
+        "response_model": "DocumentFetchResponse"
+      }
     ]
   }
 }
