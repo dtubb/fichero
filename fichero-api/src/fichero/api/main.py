@@ -217,6 +217,7 @@ from fichero.api.routes import (  # noqa: E402
     chat,
     settings,
     knowledge_graph,
+    hermeneutics,
 )
 
 RouteSpec = tuple[object, str, list[str]]
@@ -240,6 +241,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
 
 _DEV_ROUTE_SPECS: list[RouteSpec] = [
     (knowledge_graph.router, "/api/knowledge-graph", ["knowledge-graph"]),
+    (hermeneutics.router, "/api/hermeneutics", ["hermeneutics"]),
 ]
 
 

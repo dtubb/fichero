@@ -521,6 +521,63 @@ TOOLS = [
             },
         },
     ),
+    # Hermeneutics tools
+    types.Tool(
+        name="fichero_hm_list_frameworks",
+        description="List available interpretive frameworks for analyzing claims and documents",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "framework_type": {"type": "string", "description": "Filter by type: historical, disciplinary, thematic, methodological, theoretical, narrative"},
+                "is_active": {"type": "boolean", "description": "Filter by active status"},
+            },
+        },
+    ),
+    types.Tool(
+        name="fichero_hm_apply_framework",
+        description="Apply an interpretive framework to a claim and record the interpretation",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "framework_id": {"type": "string", "description": "Framework ID to apply", "required": True},
+                "claim_id": {"type": "string", "description": "Target claim ID"},
+                "document_id": {"type": "string", "description": "Or target document ID"},
+                "passage_text": {"type": "string", "description": "Or passage text directly"},
+                "interpretation_text": {"type": "string", "description": "What the framework reveals about the target", "required": True},
+                "act": {"type": "string", "description": "Interpretive act: reading, translating, contextualizing, synthesizing, critiquing, applying", "default": "contextualizing"},
+                "confidence": {"type": "number", "description": "Confidence 0.0-1.0", "default": 0.5},
+                "key_insights": {"type": "array", "items": {"type": "string"}, "description": "Key insights from this interpretation"},
+            },
+            "required": ["framework_id", "interpretation_text"],
+        },
+    ),
+    types.Tool(
+        name="fichero_hm_find_patterns",
+        description="Find recognized patterns across knowledge claims and entities",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "pattern_type": {"type": "string", "description": "Filter by pattern type: temporal, causal, structural, thematic"},
+                "framework_id": {"type": "string", "description": "Filter by framework that recognized the pattern"},
+                "status": {"type": "string", "description": "Filter by status: tentative, confirmed, superseded"},
+                "entity_id": {"type": "string", "description": "Find patterns involving an entity"},
+                "limit": {"type": "integer", "description": "Max results", "default": 50},
+            },
+        },
+    ),
+    types.Tool(
+        name="fichero_hm_suggest_interpretations",
+        description="Get AI-suggested interpretations for claims using available frameworks",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "claim_ids": {"type": "array", "items": {"type": "string"}, "description": "Claim IDs to interpret", "required": True},
+                "framework_ids": {"type": "array", "items": {"type": "string"}, "description": "Specific frameworks to use (omit for all active)"},
+                "num_suggestions": {"type": "integer", "description": "Number of suggestions (1-10)", "default": 3},
+            },
+            "required": ["claim_ids"],
+        },
+    ),
 ]
 
 
@@ -723,6 +780,23 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
         if args.get("target_id"):
             params["target_id"] = args["target_id"]
         return await api_client.request("GET", "/knowledge-graph/overview", params=params)
+
+    # Hermeneutics tools
+    elif name == "fichero_hm_list_frameworks":
+        params = {k: v for k, v in args.items() if v is not None}
+        return await api_client.request("GET", "/hermeneutics/frameworks", params=params)
+
+    elif name == "fichero_hm_apply_framework":
+        data = {k: v for k, v in args.items() if v is not None}
+        return await api_client.request("POST", "/hermeneutics/interpretations", data=data)
+
+    elif name == "fichero_hm_find_patterns":
+        params = {k: v for k, v in args.items() if v is not None}
+        return await api_client.request("GET", "/hermeneutics/patterns", params=params)
+
+    elif name == "fichero_hm_suggest_interpretations":
+        data = {k: v for k, v in args.items() if v is not None}
+        return await api_client.request("POST", "/hermeneutics/suggestions", data=data)
 
     else:
         return {"error": f"Unknown tool: {name}"}
