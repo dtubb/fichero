@@ -161,3 +161,38 @@ class KnowledgeGraphInclusion(BaseModel):
     reason: str | None = None
     updated_by: str = "human"
     updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class PredictionModelType(str, Enum):
+    transe = "transe"
+    rotate = "rotate"
+    complex = "complex"
+    hermite = "hermite"
+
+
+class KnowledgePredictionRun(BaseModel):
+    """Stores a PyKEEN model training run and its output predictions.
+
+    Separate from individual claim predictions (which are stored in claim.prediction).
+    This tracks which model was trained, on what data, and the resulting predictions.
+    """
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    model_type: PredictionModelType
+    pykeen_config: dict = Field(default_factory=dict)  # PyKEEN config dict
+    trained_at: datetime = Field(default_factory=datetime.now)
+    # Training set info
+    num_entities: int = 0
+    num_claims: int = 0
+    num_relation_types: int = 0
+    # Evaluation metrics
+    mrr: float | None = None
+    hits_at_10: float | None = None
+    hits_at_5: float | None = None
+    hits_at_1: float | None = None
+    # Model artifact path (if saved to disk)
+    model_path: str | None = None
+    # Status
+    status: str = "trained"  # trained, failed, archived
+    metadata: dict = Field(default_factory=dict)

@@ -19,12 +19,17 @@ from fichero.knowledge_models import (
     KnowledgeClaimLink,
     KnowledgeEntity,
     KnowledgeGraphInclusion,
+    KnowledgePredictionRun,
     PredictionMetadata,
+    PredictionModelType,
     SourceType,
 )
 from fichero.models import DocType, Document
 
 router = APIRouter()
+
+KG_CLAIM_EMBEDDINGS_TABLE = "kg_claim_embeddings"
+KG_ENTITY_EMBEDDINGS_TABLE = "kg_entity_embeddings"
 
 
 class EntityUpsertRequest(BaseModel):
@@ -350,12 +355,163 @@ async def list_claims_filtered(
     return claims[offset:offset + limit]
 
 
+# Static /claims sub-paths MUST be defined BEFORE /{claim_id} to avoid
+# FastAPI's greedy path-parameter matching swallowing them.
+class _EmbedClaimRequest(BaseModel):
+    claim_ids: list[str] | None = None
+
+
+class _EmbedEntityRequest(BaseModel):
+    entity_ids: list[str] | None = None
+
+
+@router.post("/claims/semantic/embed")
+async def embed_claims(
+    request: _EmbedClaimRequest | None = None,
+    db: Database = Depends(get_library_database),
+) -> dict[str, Any]:
+    """Embed claims into LanceDB for semantic search.
+
+    If claim_ids is provided, only those claims are embedded.
+    Otherwise, all claims are embedded (idempotent — re-embeds existing).
+    """
+    if request and request.claim_ids:
+        claims = [db.get(KnowledgeClaim, cid) for cid in request.claim_ids]
+        claims = [c for c in claims if c is not None]
+    else:
+        claims = db.all(KnowledgeClaim)
+
+    if not claims:
+        return {"embedded": 0, "table": KG_CLAIM_EMBEDDINGS_TABLE}
+
+    texts = [c.text for c in claims]
+    vectors = db._embed_texts(texts)  # type: ignore[attr-defined]
+
+    records = [
+        {"id": c.id, "text": c.text, "vector": v, "claim_type": c.claim_type.value if c.claim_type else None}
+        for c, v in zip(claims, vectors)
+    ]
+    db.save_vectors(KG_CLAIM_EMBEDDINGS_TABLE, records)
+    return {"embedded": len(records), "table": KG_CLAIM_EMBEDDINGS_TABLE}
+
+
+@router.get("/claims/semantic")
+async def search_claims_semantic(
+    q: str = Query(..., description="Natural language query"),
+    claim_type: ClaimType | None = Query(default=None),
+    curation_state: ClaimCurationState | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    db: Database = Depends(get_library_database),
+) -> list[dict[str, Any]]:
+    """Semantic claim search using LanceDB vectors."""
+    if KG_CLAIM_EMBEDDINGS_TABLE not in db._lance_tables():
+        raise HTTPException(
+            status_code=503,
+            detail="Claim embeddings not yet indexed. POST /claims/semantic/embed first.",
+        )
+
+    try:
+        query_vector = db._embed_text(q)  # type: ignore[attr-defined]
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Embedding generation failed: {e}")
+
+    results = db.search_vectors(KG_CLAIM_EMBEDDINGS_TABLE, query_vector, limit=limit)
+    claim_ids = [r["id"] for r in results]
+
+    if not claim_ids:
+        return []
+
+    # Load full claims and apply additional filters
+    claims = {c.id: c for c in db.all(KnowledgeClaim) if c.id in claim_ids}
+    filtered = [
+        claims[cid] for cid in claim_ids
+        if cid in claims
+        and (claim_type is None or claims[cid].claim_type == claim_type)
+        and (curation_state is None or claims[cid].curation_state == curation_state)
+    ]
+
+    # Attach similarity scores
+    score_map = {r["id"]: r.get("_score", 0.0) for r in results}
+    return [
+        {**c.model_dump(), "similarity_score": score_map.get(c.id, 0.0)}
+        for c in filtered
+    ]
+
+
+# Wildcard /{claim_id} must come AFTER all static /claims sub-paths.
 @router.get("/claims/{claim_id}", response_model=KnowledgeClaim)
 async def get_claim(claim_id: str, db: Database = Depends(get_library_database)) -> KnowledgeClaim:
     claim = db.get(KnowledgeClaim, claim_id)
     if claim is None:
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
     return claim
+
+
+# /{claim_id}/sub paths must come AFTER /{claim_id} but /similar must be before /links
+@router.get("/claims/{claim_id}/similar")
+async def find_similar_claims(
+    claim_id: str,
+    limit: int = Query(default=10, ge=1, le=50),
+    db: Database = Depends(get_library_database),
+) -> list[dict[str, Any]]:
+    """Find claims similar to a given claim."""
+    claim = db.get(KnowledgeClaim, claim_id)
+    if claim is None:
+        raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
+
+    if KG_CLAIM_EMBEDDINGS_TABLE not in db._lance_tables():
+        raise HTTPException(status_code=503, detail="Claims not embedded yet.")
+
+    try:
+        query_vector = db._embed_text(claim.text)  # type: ignore[attr-defined]
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Embedding failed: {e}")
+
+    results = db.search_vectors(KG_CLAIM_EMBEDDINGS_TABLE, query_vector, limit=limit + 1)
+    results = [r for r in results if r["id"] != claim_id]
+
+    claim_map = {c.id: c for c in db.all(KnowledgeClaim) if c.id in [r["id"] for r in results]}
+    score_map = {r["id"]: r.get("_score", 0.0) for r in results}
+
+    return [
+        {**claim_map[rid].model_dump(), "similarity_score": score_map.get(rid, 0.0)}
+        for rid in [r["id"] for r in results]
+        if rid in claim_map
+    ][:limit]
+
+
+@router.post("/claims/{claim_id}/links", response_model=KnowledgeClaimLink)
+async def create_claim_link(
+    claim_id: str,
+    request: ClaimLinkCreateRequest,
+    db: Database = Depends(get_library_database),
+) -> KnowledgeClaimLink:
+    claim = db.get(KnowledgeClaim, claim_id)
+    if claim is None:
+        raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
+    related_claim = db.get(KnowledgeClaim, request.related_claim_id)
+    if related_claim is None:
+        raise HTTPException(status_code=404, detail=f"Related claim not found: {request.related_claim_id}")
+
+    link = KnowledgeClaimLink(
+        claim_id=claim_id,
+        related_claim_id=request.related_claim_id,
+        relation_type=request.relation_type,
+        link_quality=request.link_quality,
+        evidence=request.evidence,
+        metadata=request.metadata,
+        created_at=datetime.now(),
+    )
+    db.save(link)
+    return link
+
+
+@router.get("/claims/{claim_id}/links", response_model=list[KnowledgeClaimLink])
+async def list_claim_links(claim_id: str, db: Database = Depends(get_library_database)) -> list[KnowledgeClaimLink]:
+    links = db.query(KnowledgeClaimLink, claim_id=claim_id)
+    reverse_links = db.query(KnowledgeClaimLink, related_claim_id=claim_id)
+    merged = {link.id: link for link in [*links, *reverse_links]}
+    return sorted(merged.values(), key=lambda link: link.created_at, reverse=True)
 
 
 def _filter_claims(
@@ -448,40 +604,6 @@ async def list_claims(
         included_only=included_only,
     )
     return claims[offset:offset + limit]
-
-
-@router.post("/claims/{claim_id}/links", response_model=KnowledgeClaimLink)
-async def create_claim_link(
-    claim_id: str,
-    request: ClaimLinkCreateRequest,
-    db: Database = Depends(get_library_database),
-) -> KnowledgeClaimLink:
-    claim = db.get(KnowledgeClaim, claim_id)
-    if claim is None:
-        raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
-    related_claim = db.get(KnowledgeClaim, request.related_claim_id)
-    if related_claim is None:
-        raise HTTPException(status_code=404, detail=f"Related claim not found: {request.related_claim_id}")
-
-    link = KnowledgeClaimLink(
-        claim_id=claim_id,
-        related_claim_id=request.related_claim_id,
-        relation_type=request.relation_type,
-        link_quality=request.link_quality,
-        evidence=request.evidence,
-        metadata=request.metadata,
-        created_at=datetime.now(),
-    )
-    db.save(link)
-    return link
-
-
-@router.get("/claims/{claim_id}/links", response_model=list[KnowledgeClaimLink])
-async def list_claim_links(claim_id: str, db: Database = Depends(get_library_database)) -> list[KnowledgeClaimLink]:
-    links = db.query(KnowledgeClaimLink, claim_id=claim_id)
-    reverse_links = db.query(KnowledgeClaimLink, related_claim_id=claim_id)
-    merged = {link.id: link for link in [*links, *reverse_links]}
-    return sorted(merged.values(), key=lambda link: link.created_at, reverse=True)
 
 
 @router.post("/inclusion", response_model=KnowledgeGraphInclusion)
@@ -580,3 +702,182 @@ async def overview(
             "target_id": target_id,
         },
     }
+
+
+# =============================================================================
+# Semantic Search (Step 5)
+# =============================================================================
+
+@router.post("/entities/semantic/embed")
+async def embed_entities(
+    request: _EmbedEntityRequest | None = None,
+    db: Database = Depends(get_library_database),
+) -> dict[str, Any]:
+    """Embed entities into LanceDB for semantic search."""
+    if request and request.entity_ids:
+        entities = [db.get(KnowledgeEntity, eid) for eid in request.entity_ids]
+        entities = [e for e in entities if e is not None]
+    else:
+        entities = db.all(KnowledgeEntity)
+
+    if not entities:
+        return {"embedded": 0, "table": KG_ENTITY_EMBEDDINGS_TABLE}
+
+    texts = [e.canonical_name + (" " + " ".join(e.aliases) if e.aliases else "") for e in entities]
+    vectors = db._embed_texts(texts)  # type: ignore[attr-defined]
+
+    records = [
+        {
+            "id": e.id,
+            "text": e.canonical_name,
+            "aliases": e.aliases,
+            "entity_type": e.entity_type.value,
+            "vector": v,
+        }
+        for e, v in zip(entities, vectors)
+    ]
+    db.save_vectors(KG_ENTITY_EMBEDDINGS_TABLE, records)
+    return {"embedded": len(records), "table": KG_ENTITY_EMBEDDINGS_TABLE}
+
+
+@router.get("/entities/semantic")
+async def search_entities_semantic(
+    q: str = Query(..., description="Natural language query"),
+    entity_type: EntityType | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    db: Database = Depends(get_library_database),
+) -> list[dict[str, Any]]:
+    """Semantic entity search using LanceDB vectors."""
+    if KG_ENTITY_EMBEDDINGS_TABLE not in db._lance_tables():
+        raise HTTPException(
+            status_code=503,
+            detail="Entity embeddings not yet indexed. POST /entities/semantic/embed first.",
+        )
+
+    try:
+        query_vector = db._embed_text(q)  # type: ignore[attr-defined]
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Embedding generation failed: {e}")
+
+    results = db.search_vectors(KG_ENTITY_EMBEDDINGS_TABLE, query_vector, limit=limit)
+    entity_ids = [r["id"] for r in results]
+
+    if not entity_ids:
+        return []
+
+    entities = {e.id: e for e in db.all(KnowledgeEntity) if e.id in entity_ids}
+    filtered = [
+        entities[eid] for eid in entity_ids
+        if eid in entities
+        and (entity_type is None or entities[eid].entity_type == entity_type)
+    ]
+
+    score_map = {r["id"]: r.get("_score", 0.0) for r in results}
+    return [
+        {**e.model_dump(), "similarity_score": score_map.get(e.id, 0.0)}
+        for e in filtered
+    ]
+
+
+# =============================================================================
+# PyKEEN Predictions (Step 4)
+# =============================================================================
+
+class PredictionGenerateHeuristicRequest(BaseModel):
+    """Generate heuristic link predictions based on embedding similarity."""
+    top_k: int = Field(default=10, ge=1, le=100)
+    entity_id: str | None = None  # limit predictions for specific entity
+
+
+class PredictionGeneratePyKEENRequest(BaseModel):
+    """Train a PyKEEN model and generate predictions."""
+    model_type: PredictionModelType = PredictionModelType.transe
+    training_epochs: int = Field(default=100, ge=1, le=1000)
+    learning_rate: float = Field(default=0.001, ge=0.0001, le=1.0)
+    batch_size: int = Field(default=256, ge=8, le=1024)
+
+
+@router.post("/predictions/generate/heuristic")
+async def generate_heuristic_predictions(
+    request: PredictionGenerateHeuristicRequest,
+    db: Database = Depends(get_library_database),
+) -> dict[str, Any]:
+    """Generate heuristic predictions using embedding similarity.
+
+    Finds claim pairs with high embedding similarity but no existing link,
+    treating high similarity as a weak signal for link existence.
+    """
+    if KG_CLAIM_EMBEDDINGS_TABLE not in db._lance_tables():
+        raise HTTPException(status_code=503, detail="Claims not embedded. POST /claims/semantic/embed first.")
+
+    all_claims = db.all(KnowledgeClaim)
+    existing_links = db.all(KnowledgeClaimLink)
+    linked_pairs: set[tuple[str, str]] = set()
+    for link in existing_links:
+        linked_pairs.add((link.claim_id, link.related_claim_id))
+        linked_pairs.add((link.related_claim_id, link.claim_id))
+
+    # Get top-k similar for each claim
+    predictions: list[dict[str, Any]] = []
+    for claim in all_claims:
+        try:
+            query_vector = db._embed_text(claim.text)  # type: ignore[attr-defined]
+        except Exception:
+            continue
+
+        similar = db.search_vectors(KG_CLAIM_EMBEDDINGS_TABLE, query_vector, limit=request.top_k + 1)
+        for result in similar:
+            other_id = result["id"]
+            if other_id == claim.id:
+                continue
+            if (claim.id, other_id) in linked_pairs:
+                continue
+            if request.entity_id:
+                other = db.get(KnowledgeClaim, other_id)
+                if not other or request.entity_id not in other.entity_ids:
+                    continue
+            predictions.append({
+                "source_claim_id": claim.id,
+                "target_claim_id": other_id,
+                "similarity_score": result.get("_score", 0.0),
+                "method": "heuristic",
+            })
+
+    predictions.sort(key=lambda p: p["similarity_score"], reverse=True)
+    return {
+        "predictions": predictions[: request.top_k * 5],
+        "method": "heuristic",
+        "claims_embedded": len(all_claims),
+    }
+
+
+@router.get("/predictions", response_model=list[KnowledgePredictionRun])
+async def list_predictions(
+    status: str | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    db: Database = Depends(get_library_database),
+) -> list[KnowledgePredictionRun]:
+    """List PyKEEN prediction runs."""
+    runs = db.all(KnowledgePredictionRun)
+    if status:
+        runs = [r for r in runs if r.status == status]
+    runs.sort(key=lambda r: r.trained_at, reverse=True)
+    return runs[:limit]
+
+
+@router.post("/predictions/{run_id}/apply")
+async def apply_prediction(
+    run_id: str,
+    db: Database = Depends(get_library_database),
+) -> dict[str, Any]:
+    """Apply a prediction run's top-scoring predictions as claim links.
+
+    Creates KnowledgeClaimLink records for high-confidence predictions
+    from a PyKEEN run (heuristic or trained model).
+    """
+    # For now, apply heuristic predictions that were stored in metadata
+    # Full PyKEEN model training + application is Phase 2
+    raise HTTPException(
+        status_code=501,
+        detail="Full PyKEEN apply requires trained model storage. Use heuristic predictions for now.",
+    )

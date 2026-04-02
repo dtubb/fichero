@@ -269,3 +269,209 @@ def test_knowledge_graph_claims_filtered_endpoint(client, db):
     none_resp = client.get("/api/knowledge-graph/claims/filtered?epistemic_status=rejected")
     assert none_resp.status_code == 200
     assert none_resp.json() == []
+
+
+# =============================================================================
+# Migration tests (run against real Database via db fixture)
+# =============================================================================
+
+def test_migrate_claims_idempotent(db):
+    """Migration is idempotent — running twice has no effect."""
+    from fichero.knowledge_models import KnowledgeClaim, SourceType
+    from fichero.migrations import migrate_claims_to_multi_source
+
+    # Create a pre-migration claim (source_type=document, empty source_ids)
+    doc = Document(name="old-source", doc_type=DocType.file, path="/tmp/old.txt")
+    db.save(doc)
+
+    old_claim = KnowledgeClaim(
+        text="This is a very old claim.",
+        source_document_id=doc.id,
+        source_type=SourceType.document,  # default — not yet migrated
+        source_ids=[],  # empty — not yet migrated
+        curation_state="curated",
+    )
+    db.save(old_claim)
+    old_id = old_claim.id
+
+    # First migration pass
+    migrated_1, skipped_1 = migrate_claims_to_multi_source(db, dry_run=False)
+    assert migrated_1 >= 1
+
+    # Reload and verify
+    reloaded = db.get(KnowledgeClaim, old_id)
+    assert reloaded.source_ids == [doc.id]
+    assert reloaded.source_type == SourceType.document
+
+    # Second migration pass — should be skipped (already migrated)
+    migrated_2, skipped_2 = migrate_claims_to_multi_source(db, dry_run=False)
+    # The previously migrated claim + whatever else was in the DB
+    assert migrated_2 == 0  # nothing left to migrate
+
+    # Verify state unchanged after second pass
+    reloaded2 = db.get(KnowledgeClaim, old_id)
+    assert reloaded2.source_ids == [doc.id]
+
+
+def test_migrate_claims_dry_run(db):
+    """Dry run does not modify data."""
+    from fichero.knowledge_models import KnowledgeClaim, SourceType
+    from fichero.migrations import migrate_claims_to_multi_source
+
+    doc = Document(name="dry-run-test", doc_type=DocType.file, path="/tmp/dry.txt")
+    db.save(doc)
+
+    pre_migration = KnowledgeClaim(
+        text="This claim has not been migrated yet.",
+        source_document_id=doc.id,
+        source_type=SourceType.document,
+        source_ids=[],
+        curation_state="shortlisted",
+    )
+    db.save(pre_migration)
+    pre_id = pre_migration.id
+
+    migrated, skipped = migrate_claims_to_multi_source(db, dry_run=True)
+
+    # Dry run should not change anything
+    reloaded = db.get(KnowledgeClaim, pre_id)
+    assert reloaded.source_ids == []
+    assert reloaded.source_type == SourceType.document
+    assert migrated >= 1
+
+
+# =============================================================================
+# Semantic Search tests (Step 5)
+# =============================================================================
+
+def test_embed_claims_and_semantic_search(client, db):
+    """Embed claims and search them semantically."""
+    doc = Document(name="source", doc_type=DocType.file, path="/tmp/source.txt")
+    db.save(doc)
+
+    claim_resp = client.post(
+        "/api/knowledge-graph/claims",
+        json={
+            "text": "The mine operated continuously from 1950 to 1975.",
+            "source_document_id": doc.id,
+            "curation_state": "curated",
+        },
+    )
+    assert claim_resp.status_code == 200
+    claim = claim_resp.json()
+
+    # Embed the claim
+    embed_resp = client.post("/api/knowledge-graph/claims/semantic/embed")
+    assert embed_resp.status_code == 200
+    assert embed_resp.json()["embedded"] >= 1
+
+    # Search semantically — should find the claim
+    search_resp = client.get("/api/knowledge-graph/claims/semantic?q=gold+mining+operations&limit=5")
+    assert search_resp.status_code == 200
+    results = search_resp.json()
+    assert len(results) >= 1
+
+
+def test_semantic_search_503_when_not_embedded(client, db):
+    """Semantic search returns 503 if embeddings not built yet."""
+    doc = Document(name="source", doc_type=DocType.file, path="/tmp/source.txt")
+    db.save(doc)
+
+    claim_resp = client.post(
+        "/api/knowledge-graph/claims",
+        json={"text": "Some claim.", "source_document_id": doc.id},
+    )
+    assert claim_resp.status_code == 200
+
+    # No embed step — should get 503
+    search_resp = client.get("/api/knowledge-graph/claims/semantic?q=some+query")
+    assert search_resp.status_code == 503
+
+
+def test_embed_entities_and_semantic_search(client, db):
+    """Embed entities and search them semantically."""
+    # Create an entity
+    entity_resp = client.post(
+        "/api/knowledge-graph/entities",
+        json={"canonical_name": "Cerro Bolivar", "entity_type": "location"},
+    )
+    assert entity_resp.status_code == 200
+    entity = entity_resp.json()
+
+    # Embed entities
+    embed_resp = client.post("/api/knowledge-graph/entities/semantic/embed")
+    assert embed_resp.status_code == 200
+    assert embed_resp.json()["embedded"] >= 1
+
+    # Search semantically
+    search_resp = client.get("/api/knowledge-graph/entities/semantic?q=iron+ore+deposits")
+    assert search_resp.status_code == 200
+    results = search_resp.json()
+    assert len(results) >= 1
+    # Cerro Bolivar should be returned
+    ids = [r["id"] for r in results]
+    assert entity["id"] in ids
+
+
+def test_find_similar_claims(client, db):
+    """Find similar claims using vector similarity."""
+    doc = Document(name="source", doc_type=DocType.file, path="/tmp/source.txt")
+    db.save(doc)
+
+    # Create two related claims
+    claim1_resp = client.post(
+        "/api/knowledge-graph/claims",
+        json={"text": "The mine produced iron ore continuously.", "source_document_id": doc.id},
+    )
+    assert claim1_resp.status_code == 200
+    claim1 = claim1_resp.json()
+
+    claim2_resp = client.post(
+        "/api/knowledge-graph/claims",
+        json={"text": "Production at the mine stopped in 1975.", "source_document_id": doc.id},
+    )
+    assert claim2_resp.status_code == 200
+
+    # Embed all claims
+    embed_resp = client.post("/api/knowledge-graph/claims/semantic/embed")
+    assert embed_resp.status_code == 200
+
+    # Find similar to claim1
+    similar_resp = client.get(f"/api/knowledge-graph/claims/{claim1['id']}/similar?limit=5")
+    assert similar_resp.status_code == 200
+    similar = similar_resp.json()
+    assert len(similar) >= 1
+    # claim2 should appear as similar
+    similar_ids = [s["id"] for s in similar]
+    assert claim2_resp.json()["id"] in similar_ids
+
+
+# =============================================================================
+# Prediction Run tests (Step 4)
+# =============================================================================
+
+def test_list_predictions(client, db):
+    """List prediction runs returns empty list when none exist."""
+    resp = client.get("/api/knowledge-graph/predictions")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_generate_heuristic_predictions_requires_embedding(client, db):
+    """Heuristic prediction generation requires embeddings to exist first."""
+    doc = Document(name="source", doc_type=DocType.file, path="/tmp/source.txt")
+    db.save(doc)
+
+    client.post(
+        "/api/knowledge-graph/claims",
+        json={"text": "Some claim about mining.", "source_document_id": doc.id},
+    )
+    # No embeddings yet — should fail
+    pred_resp = client.post("/api/knowledge-graph/predictions/generate/heuristic", json={"top_k": 5})
+    assert pred_resp.status_code == 503
+
+
+def test_apply_prediction_returns_501_without_trained_model(client, db):
+    """Apply prediction is not implemented until full PyKEEN model training exists."""
+    resp = client.post("/api/knowledge-graph/predictions/some-run-id/apply")
+    assert resp.status_code == 501
