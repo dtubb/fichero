@@ -9,6 +9,9 @@ so it's always in sync with the actual implementation.
 Usage:
     python scripts/export_openapi_schema.py
 
+    FICHERO_FEATURE_TIER=dev python scripts/export_openapi_schema.py
+        # Export with dev feature tier (includes knowledge-graph, hermeneutics, mind-palace, research routes)
+
 Output:
     fichero-api/tests/contracts/openapi.json - Full OpenAPI 3.0 schema
     fichero-api/tests/contracts/endpoints.json - Simplified endpoint list for Swift validation
@@ -17,6 +20,7 @@ The Swift app can validate its API calls against these files.
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 

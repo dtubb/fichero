@@ -21,7 +21,7 @@ else
 fi
 
 cd "$REPO_ROOT"
-PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" "$API_ROOT/scripts/export_openapi_schema.py"
+PYTHONPATH="$API_ROOT/src" FICHERO_FEATURE_TIER=dev "$PYTHON_BIN" "$API_ROOT/scripts/export_openapi_schema.py"
 
 cp "$API_ROOT/tests/contracts/openapi.json" "$REPO_ROOT/fichero-swiftui/fichero-api-client/Sources/FicheroAPIClient/openapi.json"
 
