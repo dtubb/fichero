@@ -475,3 +475,98 @@ def test_apply_prediction_returns_501_without_trained_model(client, db):
     """Apply prediction is not implemented until full PyKEEN model training exists."""
     resp = client.post("/api/knowledge-graph/predictions/some-run-id/apply")
     assert resp.status_code == 501
+
+
+def test_entity_resolve_by_id(client, db):
+    """Entity resolution returns entity when queried by its ID."""
+    entity_resp = client.post(
+        "/api/knowledge-graph/entities",
+        json={"canonical_name": "Simón Bolívar", "entity_type": "person"},
+    )
+    assert entity_resp.status_code == 200
+    entity = entity_resp.json()
+
+    resolve_resp = client.get(f"/api/knowledge-graph/entities/resolve/{entity['id']}")
+    assert resolve_resp.status_code == 200
+    result = resolve_resp.json()
+    assert result["resolved"] is True
+    assert result["entity_id"] == entity["id"]
+    assert result["match_type"] == "id"
+    assert result["canonical_name"] == "Simón Bolívar"
+
+
+def test_entity_resolve_by_alias(client, db):
+    """Entity resolution returns entity when queried by an alias."""
+    entity_resp = client.post(
+        "/api/knowledge-graph/entities",
+        json={
+            "canonical_name": "Simón Bolívar",
+            "entity_type": "person",
+            "aliases": ["El Libertador", "BolivarSB"],
+        },
+    )
+    assert entity_resp.status_code == 200
+    entity = entity_resp.json()
+
+    # Note: "simon" (without accent) does NOT match "Simón" (with accent) —
+    # transliteration/accent-insensitive matching is out of scope for this fix.
+    for lookup_value in ["El Libertador", "bolivarsb"]:
+        resolve_resp = client.get(f"/api/knowledge-graph/entities/resolve/{lookup_value}")
+        assert resolve_resp.status_code == 200
+        result = resolve_resp.json()
+        assert result["resolved"] is True
+        assert result["entity_id"] == entity["id"]
+
+
+def test_entity_resolve_not_found(client, db):
+    """Entity resolution returns resolved=False for unknown values."""
+    resolve_resp = client.get("/api/knowledge-graph/entities/resolve/Unknown Entity Name")
+    assert resolve_resp.status_code == 200
+    result = resolve_resp.json()
+    assert result["resolved"] is False
+    assert result["entity_id"] is None
+
+
+def test_claims_retrieval_by_entity_alias(client, db):
+    """Claims can be retrieved using entity alias in the entity_id filter."""
+    source_doc = Document(name="mining-report", doc_type=DocType.file, path="/tmp/report.txt")
+    db.save(source_doc)
+
+    entity_resp = client.post(
+        "/api/knowledge-graph/entities",
+        json={
+            "canonical_name": "Simón Bolívar",
+            "entity_type": "person",
+            "aliases": ["El Libertador"],
+        },
+    )
+    assert entity_resp.status_code == 200
+    entity = entity_resp.json()
+
+    claim_resp = client.post(
+        "/api/knowledge-graph/claims",
+        json={
+            "text": "Bolívar led independence movements across South America.",
+            "source_document_id": source_doc.id,
+            "entity_ids": [entity["id"]],
+            "confidence": 0.85,
+        },
+    )
+    assert claim_resp.status_code == 200
+    claim = claim_resp.json()
+
+    # Filter by canonical name (not ID)
+    by_name_resp = client.get("/api/knowledge-graph/claims?entity_id=Simón Bolívar")
+    assert by_name_resp.status_code == 200
+    by_name_claims = by_name_resp.json()
+    assert len(by_name_claims) == 1
+    assert by_name_claims[0]["id"] == claim["id"]
+
+    # Filter by alias (not ID)
+    by_alias_resp = client.get("/api/knowledge-graph/claims?entity_id=El Libertador")
+    assert by_alias_resp.status_code == 200
+    by_alias_claims = by_alias_resp.json()
+    assert len(by_alias_claims) == 1
+    assert by_alias_claims[0]["id"] == claim["id"]
+
+

@@ -46,6 +46,16 @@ class EntityAliasRequest(BaseModel):
     aliases: list[str]
 
 
+class EntityResolutionResponse(BaseModel):
+    """Response from resolving a lookup value to an entity."""
+    resolved: bool
+    value: str
+    entity_id: str | None = None
+    canonical_name: str | None = None
+    entity_type: EntityType | None = None
+    match_type: str | None = None  # "id", "canonical_name", "alias"
+
+
 class ClaimCreateRequest(BaseModel):
     text: str
     source_document_id: str
@@ -155,6 +165,43 @@ def _load_entity_map(db: Database) -> dict[str, KnowledgeEntity]:
     return {entity.id: entity for entity in db.all(KnowledgeEntity)}
 
 
+def _build_alias_to_entity_id_map(
+    db: Database,
+) -> dict[str, str]:
+    """Build a lowercase alias → canonical entity ID lookup map."""
+    result: dict[str, str] = {}
+    for entity in db.all(KnowledgeEntity):
+        norm = _normalize_text(entity.canonical_name)
+        result[norm] = entity.id
+        for alias in entity.aliases:
+            result[_normalize_text(alias)] = entity.id
+    return result
+
+
+def _resolve_entity_id(db: Database, value: str) -> str | None:
+    """Resolve a lookup value (id, canonical name, or alias) to a canonical entity ID.
+
+    Returns the entity ID if found, None otherwise.
+    """
+    # Try direct ID match first
+    if db.get(KnowledgeEntity, value) is not None:
+        return value
+    # Try canonical name / alias match
+    alias_map = _build_alias_to_entity_id_map(db)
+    resolved = alias_map.get(_normalize_text(value))
+    return resolved
+
+
+def _resolve_entity_ids(db: Database, values: list[str]) -> list[str]:
+    """Resolve a list of lookup values (ids, names, aliases) to canonical entity IDs."""
+    result: list[str] = []
+    for v in values:
+        resolved = _resolve_entity_id(db, v)
+        if resolved is not None:
+            result.append(resolved)
+    return result
+
+
 def _passes_query_filter(claim: KnowledgeClaim, q: str | None, entity_map: dict[str, KnowledgeEntity]) -> bool:
     if not q:
         return True
@@ -249,6 +296,39 @@ async def list_entities(
         ]
     entities.sort(key=lambda entity: entity.canonical_name.lower())
     return entities[:limit]
+
+
+@router.get("/entities/resolve/{value}", response_model=EntityResolutionResponse)
+async def resolve_entity(
+    value: str,
+    db: Database = Depends(get_library_database),
+) -> EntityResolutionResponse:
+    """Resolve a lookup value (UUID, canonical name, or alias) to a canonical entity."""
+    entity = db.get(KnowledgeEntity, value)
+    if entity is not None:
+        return EntityResolutionResponse(
+            resolved=True,
+            value=value,
+            entity_id=entity.id,
+            canonical_name=entity.canonical_name,
+            entity_type=entity.entity_type,
+            match_type="id",
+        )
+    # Try canonical name / alias
+    alias_map = _build_alias_to_entity_id_map(db)
+    resolved_id = alias_map.get(_normalize_text(value))
+    if resolved_id is not None:
+        entity = db.get(KnowledgeEntity, resolved_id)
+        if entity is not None:
+            return EntityResolutionResponse(
+                resolved=True,
+                value=value,
+                entity_id=entity.id,
+                canonical_name=entity.canonical_name,
+                entity_type=entity.entity_type,
+                match_type="canonical_name" if _normalize_text(value) == _normalize_text(entity.canonical_name) else "alias",
+            )
+    return EntityResolutionResponse(resolved=False, value=value, match_type=None)
 
 
 @router.post("/claims", response_model=KnowledgeClaim)
@@ -539,7 +619,12 @@ def _filter_claims(
     if scoped_document_ids is not None:
         claims = [c for c in claims if c.source_document_id in scoped_document_ids]
     if entity_id:
-        claims = [c for c in claims if entity_id in c.entity_ids]
+        # Resolve entity_id: supports UUID, canonical name, or alias
+        resolved_id = _resolve_entity_id(db, entity_id)
+        if resolved_id:
+            claims = [c for c in claims if resolved_id in c.entity_ids]
+        else:
+            claims = []
     if entity_type:
         claims = [
             c
