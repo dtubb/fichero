@@ -1,73 +1,45 @@
 # STATE.md — Fichero
 
-Last updated: 2026-04-02
+Last updated: 2026-03-25
 
 ## Current Branch
 
-`codex/0.0.2-planning` — 0.0.2 knowledge graph implementation worktree.
+`main` — clean. All direct commits pushed.
 
 ## Source of Truth
 
-- **GitHub Milestone:** [0.0.2 - Search + Semantic Foundation](https://github.com/dtubb/fichero/milestone/8)
-- **GitHub Issues:** https://github.com/dtubb/fichero/issues
-- **Project board:** https://github.com/users/dtubb/projects/5
-- **Active Plan:** `docs/agent-workflow/PLAN-0.0.2-knowledge-graph.md` (comprehensive 7-layer architecture)
+- GitHub Issues + Milestones: https://github.com/dtubb/fichero/milestones
+- Project board: https://github.com/users/dtubb/projects/5
 
-## GitHub Issues Created
+## Completed This Session (2026-03-25)
 
-| Issue | Phase | Layer | Title |
-|-------|-------|-------|-------|
-| #387 | 1 | 1-4 | Knowledge Graph Core + PyKEEN |
-| #388 | 2 | 5 | Hermeneutics |
-| #389 | 3 | 6 | Mind Palace + RealityKit |
-| #390 | 4 | 0 | Agent Research |
-| #391 | 5 | All | Integration & Polish |
-
-## Implementation Order (Step-by-Step)
-
-**Principle:** Layer-by-layer, fully integrated (models → routes → MCP → SwiftUI → tests) before proceeding.
-
-| Phase | Layer | Focus | Issue | Status |
-|-------|-------|-------|-------|--------|
-| **1** | 1-4 | Knowledge Graph Core + PyKEEN | #387 | ✅ Backend complete |
-| **2** | 5 | Hermeneutics (Interpretation) | #388 | ✅ Complete |
-| **3** | 6 | Mind Palace + RealityKit | #389 | ✅ Complete |
-| **4** | 0 | Agent Research (Sandboxed) | #390 | ✅ Backend + workflow tools |
-| **5** | All | Integration & Polish | #391 | Planned |
-
-## This Week's Focus
-
-- Phases 1-3 backend (models + routes + MCP) complete
-- Remaining: PyKEEN ML backend, then full SwiftUI views for all phases
-
-## In Progress
-
-- Phase 4 Agent Research (Layer 0): ✅ Backend complete, workflow tools added
-  - research_web_search, research_browser_navigate, research_document_fetch as workflow tools
-  - MCP tools (research agents) already present in mcp_server.py
-  - Remaining: LangGraph agent composition for autonomous research
+- Created #348 (workflow batch input: collection vs selection as workflow-level config)
+- Created #349 (workflow batch: selectable processing order — alpha, date, etc.)
+- Earlier: Merged PRs #329, #331, #333, #336. Fixed OCR, icon scale, folder preview, batch SSE, settings router. Created issues #339-#346.
 
 ## Blocked
 
-- None
+- Developer ID Application certificate (notarization)
+- Notarytool credentials
+- Sparkle key pair
 
-## Next Session — Continue Here
+## Open 0.0.1 Issues
 
-**Phase 1 deferred: PyKEEN Integration + SwiftUI Views**
+- **#326** — Keyboard shortcuts
+- **#330** — Icon view: remember column width, fix first-run jump
+- **#340** — Prompt preview panel (workflow node editor)
+- **#341** — CLI agent provider (Claude, Codex, Gemini)
+- **#344** — Thinking mode selector UI in workflow node config
+- **#345** — Unify vision engine and provider/model in workflow node config
+- **#346** — Improve Settings Defaults UI (group boxes, help text)
+- **#348** — Workflow batch input: collection vs current selection
+- **#349** — Workflow batch: selectable processing order
+- **#313** — Connection/API error state UI (PR #334 created but not merged)
 
-1. PyKEEN ML: `pykeen` not in dependencies — requires pip install + training pipeline
-2. SwiftUI views: ClaimInspectorView, OntologyBrowserView, InterpretationPanelView, MindPalaceView
-3. Quality gates: swiftlint + xcodebuild for each view
+## Next Session — Start Here
 
-**Also:**
-- After SwiftUI work: Phase 4 Agent Research (#390)
-
-**Quality Gates:** ruff check + pytest at each step
-
-## Session 2026-04-02 — Completed
-
-- **#381 Gate Map**: Created `docs/0.0.2-planning/GATE-MAP.md` — full gate matrix across all 7 layers
-  - Key finding: all Layers 0-6 are in dev tier, nothing promoted to release
-  - SwiftUI tier gating not yet implemented
-- **OpenAPI sync fix**: `export_openapi_schema.py` now uses `FICHERO_FEATURE_TIER=dev` → 226 endpoints/20 resources (was 125/16)
-- SwiftLint 72 sorted-import warnings: codebase-wide issue, skipped (no clear convention to apply)
+1. **Merge remaining PRs** — #334, #335, #337, #338 may need rebase against main.
+2. **#348 + #349** — Workflow batch input source and processing order (new, high priority).
+3. **#345** — Unify vision engine/provider in workflow node config.
+4. **#344** — Thinking mode picker in workflow node config UI.
+5. **#330** — Icon view first-click jump bug.
