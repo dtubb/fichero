@@ -40,3 +40,13 @@
 - Realigned planning split: 0.0.1 execution stays in ~/code/fichero and 0.0.2 planning stays in ~/code/fichero-0.0.2.
 - Completed peer-review framing for 0.0.2 semantic layer and captured the componentized plan in the 0.0.2 worktree (A-G slices, undo/snapshot baseline, and 0.0.3/0.1.0 deferral split).
 - Updated STATE.md and MEMORY.md in main worktree to preserve the two-worktree operating model and clear next-session entry points for 0.0.1.
+
+## 2026-04-03 — #367 Reversible entity merge/split and claim curation state v1
+
+- Branch: codex/0.0.2-planning
+- Entity merge/split/undo + curation transitions done
+
+## 2026-04-03 — #362 Undo and rollback for human + AI changes
+
+- Branch: codex/0.0.2-planning
+- MutationLog + undo/rollback + AI run grouping done
