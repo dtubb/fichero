@@ -44,6 +44,24 @@ Last updated: 2026-04-03
 
 **All 900 pytest pass. ruff clean. SwiftLint clean.**
 
+## Completed This Session (2026-04-03 second autonomous loop)
+
+- **#363**: Library snapshots and restore
+  - `LibrarySnapshot` model with paths, sizes, retention policy
+  - `snapshot_library()`: exports DuckDB tables to Parquet + copies LanceDB vectors
+  - `POST /api/storage/snapshots`, `GET /api/storage/snapshots`, `GET /api/storage/snapshots/{id}`
+  - `POST /api/storage/snapshots/{id}/restore`, `DELETE /api/storage/snapshots/{id}`, `PATCH /api/storage/snapshots/{id}/pin`
+  - Pinned snapshots exempt from auto-retention; auto-expire via `auto_expire_days`
+
+- **#361**: XMP sidecar support for images
+  - `xmp_loader.py`: parse XMP sidecars with libxmp + regex fallback
+  - Standard namespaces: dc, xmp, photoshop, Iptc4xmpCore, Iptc4xmpExt
+  - Custom `ficher:` namespace for entity links, claim links, archive IDs, IIIF manifests
+  - `apply_xmp_to_document()` merges into `Document.metadata`
+  - Wired into `ingest.py` `_extract_image_metadata()` — runs during normal image ingestion
+
+**900 pytest pass. ruff clean. SwiftLint clean.**
+
 ## Active Work
 
 **Phase 1: Knowledge Graph Core + PyKEEN (#387)**
@@ -71,6 +89,5 @@ Last updated: 2026-04-03
 ## Next Session — Start Here
 
 1. **PyKEEN wiring** (#387): add `pykeen` to dependencies, wire `POST /predictions/generate/pykeen`, implement training pipeline
-2. **Entity merge/split** (#367): `POST /entities/merge`, `POST /entities/split`, audit log, undo
-3. **After Phase 1 PyKEEN done**: move to Phase 2 (#388, Hermeneutics)
-4. **0.0.1 regression gate**: manual QA checklist in `docs/qa/0.0.1-manual-qa-checklist.md`
+2. **After Phase 1 PyKEEN done**: move to Phase 2 (#388, Hermeneutics)
+3. **0.0.1 regression gate**: manual QA checklist in `docs/qa/0.0.1-manual-qa-checklist.md`
