@@ -570,3 +570,89 @@ def test_claims_retrieval_by_entity_alias(client, db):
     assert by_alias_claims[0]["id"] == claim["id"]
 
 
+def test_claims_filter_by_entity_name_or_alias(client, db):
+    """GET /claims?entity=X resolves name or alias to entity ID before filtering."""
+    source_doc = Document(name="test-doc", doc_type=DocType.file, path="/tmp/test.txt")
+    db.save(source_doc)
+
+    entity_resp = client.post(
+        "/api/knowledge-graph/entities",
+        json={
+            "canonical_name": "Napoleon Bonaparte",
+            "entity_type": "person",
+            "aliases": ["Napoleon", "The Emperor"],
+        },
+    )
+    assert entity_resp.status_code == 200
+    entity = entity_resp.json()
+
+    # Create a claim about Napoleon
+    claim_resp = client.post(
+        "/api/knowledge-graph/claims",
+        json={
+            "text": "Napoleon was exiled to Elba.",
+            "source_document_id": source_doc.id,
+            "entity_ids": [entity["id"]],
+        },
+    )
+    assert claim_resp.status_code == 200
+
+    # Filter using ?entity= (free-text name/alias)
+    for lookup in ["Napoleon Bonaparte", "Napoleon", "The Emperor"]:
+        resp = client.get(f"/api/knowledge-graph/claims?entity={lookup}")
+        assert resp.status_code == 200, f"Failed for {lookup}"
+        claims = resp.json()
+        assert len(claims) == 1, f"Expected 1 claim for {lookup}, got {len(claims)}"
+        assert claims[0]["text"] == "Napoleon was exiled to Elba."
+
+    # Unknown entity returns empty
+    resp = client.get("/api/knowledge-graph/claims?entity=Unknown Entity")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_entity_alias_map(client, db):
+    """GET /entities/alias-map returns all aliases and their canonical entities."""
+    e1_resp = client.post(
+        "/api/knowledge-graph/entities",
+        json={
+            "canonical_name": "Albert Einstein",
+            "entity_type": "person",
+            "aliases": ["Einstein", "A. Einstein"],
+        },
+    )
+    assert e1_resp.status_code == 200
+    e1 = e1_resp.json()
+
+    e2_resp = client.post(
+        "/api/knowledge-graph/entities",
+        json={
+            "canonical_name": "Marie Curie",
+            "entity_type": "person",
+            "aliases": ["Marie Curie Skłodowska"],
+        },
+    )
+    assert e2_resp.status_code == 200
+    e2 = e2_resp.json()
+
+    alias_map_resp = client.get("/api/knowledge-graph/entities/alias-map")
+    assert alias_map_resp.status_code == 200
+    alias_map = alias_map_resp.json()
+
+    entries = alias_map["entries"]
+    # Should have: Albert Einstein (canonical), Einstein, A. Einstein, Marie Curie (canonical), Marie Curie Skłodowska
+    assert len(entries) == 5
+
+    # Verify Einstein alias
+    einstein_aliases = [e for e in entries if e["entity_id"] == e1["id"]]
+    assert len(einstein_aliases) == 3
+    alias_texts = {e["alias"] for e in einstein_aliases}
+    assert alias_texts == {"Albert Einstein", "Einstein", "A. Einstein"}
+
+    # Verify Curie alias
+    curie_aliases = [e for e in entries if e["entity_id"] == e2["id"]]
+    assert len(curie_aliases) == 2
+
+    # Entries are sorted by alias
+    alias_names = [e["alias"] for e in entries]
+    assert alias_names == sorted(alias_names, key=str.lower)

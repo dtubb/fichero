@@ -46,6 +46,20 @@ class EntityAliasRequest(BaseModel):
     aliases: list[str]
 
 
+class EntityAliasMapEntry(BaseModel):
+    """A single alias mapped to its entity."""
+
+    alias: str
+    entity_id: str
+    canonical_name: str
+
+
+class EntityAliasMapResponse(BaseModel):
+    """Full alias → entity map for reviewer decisions."""
+
+    entries: list[EntityAliasMapEntry]
+
+
 class EntityResolutionResponse(BaseModel):
     """Response from resolving a lookup value to an entity."""
     resolved: bool
@@ -296,6 +310,43 @@ async def list_entities(
         ]
     entities.sort(key=lambda entity: entity.canonical_name.lower())
     return entities[:limit]
+
+
+@router.get("/entities/alias-map", response_model=EntityAliasMapResponse)
+async def get_entity_alias_map(
+    db: Database = Depends(get_library_database),
+) -> EntityAliasMapResponse:
+    """Return the full alias → entity mapping for reviewer decisions.
+
+    Shows every alias and its canonical entity, useful for:
+    - Reviewing which aliases map to the same entity
+    - Detecting duplicate/conflicting aliases
+    - Understanding entity name variations in the corpus
+    """
+    entries: list[EntityAliasMapEntry] = []
+    seen: set[str] = set()
+    for entity in db.all(KnowledgeEntity):
+        # Canonical name as an alias entry
+        norm_canonical = _normalize_text(entity.canonical_name)
+        if norm_canonical not in seen:
+            entries.append(EntityAliasMapEntry(
+                alias=entity.canonical_name,
+                entity_id=entity.id,
+                canonical_name=entity.canonical_name,
+            ))
+            seen.add(norm_canonical)
+        # Alias entries
+        for alias in entity.aliases:
+            norm_alias = _normalize_text(alias)
+            if norm_alias not in seen:
+                entries.append(EntityAliasMapEntry(
+                    alias=alias,
+                    entity_id=entity.id,
+                    canonical_name=entity.canonical_name,
+                ))
+                seen.add(norm_alias)
+    entries.sort(key=lambda e: e.alias.lower())
+    return EntityAliasMapResponse(entries=entries)
 
 
 @router.get("/entities/resolve/{value}", response_model=EntityResolutionResponse)
@@ -599,6 +650,7 @@ def _filter_claims(
     db: Database,
     q: str | None = None,
     entity_id: str | None = None,
+    entity: str | None = None,
     entity_type: EntityType | None = None,
     curation_state: ClaimCurationState | None = None,
     claim_type: ClaimType | None = None,
@@ -623,6 +675,13 @@ def _filter_claims(
         resolved_id = _resolve_entity_id(db, entity_id)
         if resolved_id:
             claims = [c for c in claims if resolved_id in c.entity_ids]
+        else:
+            claims = []
+    if entity:
+        # Resolve a name/alias string to entity ID, then filter
+        resolved_entity_id = _resolve_entity_id(db, entity)
+        if resolved_entity_id:
+            claims = [c for c in claims if resolved_entity_id in c.entity_ids]
         else:
             claims = []
     if entity_type:
@@ -657,6 +716,7 @@ def _filter_claims(
 async def list_claims(
     q: str | None = Query(default=None),
     entity_id: str | None = Query(default=None),
+    entity: str | None = Query(default=None),
     entity_type: EntityType | None = Query(default=None),
     curation_state: ClaimCurationState | None = Query(default=None),
     claim_type: ClaimType | None = Query(default=None),
@@ -677,6 +737,7 @@ async def list_claims(
         db,
         q=q,
         entity_id=entity_id,
+        entity=entity,
         entity_type=entity_type,
         curation_state=curation_state,
         claim_type=claim_type,
