@@ -1839,6 +1839,16 @@
       },
       {
         "method": "GET",
+        "path": "/knowledge-graph/entities/alias-map",
+        "operation_id": "get_entity_alias_map_api_knowledge_graph_entities_alias_map_get",
+        "summary": "Get Entity Alias Map",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EntityAliasMapResponse"
+      },
+      {
+        "method": "GET",
         "path": "/knowledge-graph/entities/resolve/{value}",
         "operation_id": "resolve_entity_api_knowledge_graph_entities_resolve__value__get",
         "summary": "Resolve Entity",
@@ -1877,6 +1887,11 @@
             "type": "string"
           },
           {
+            "name": "entity",
+            "required": false,
+            "type": "string"
+          },
+          {
             "name": "entity_type",
             "required": false,
             "type": "string"
@@ -1885,6 +1900,11 @@
             "name": "curation_state",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "curated_only",
+            "required": false,
+            "type": "boolean"
           },
           {
             "name": "claim_type",
@@ -2018,6 +2038,11 @@
           },
           {
             "name": "included_only",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "curated_only",
             "required": false,
             "type": "boolean"
           },

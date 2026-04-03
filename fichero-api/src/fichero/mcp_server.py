@@ -521,6 +521,60 @@ TOOLS = [
             },
         },
     ),
+    # Knowledge Graph — Prediction tools
+    types.Tool(
+        name="fichero_kg_generate_heuristic_predictions",
+        description="Generate heuristic link predictions for knowledge claims using embedding similarity",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "top_k": {"type": "integer", "description": "Number of top similar claims to consider per claim (default 10, max 100)", "default": 10},
+                "entity_id": {"type": "string", "description": "Limit predictions to a specific entity ID"},
+            },
+        },
+    ),
+    types.Tool(
+        name="fichero_kg_apply_predictions",
+        description="Apply top-scoring predictions as knowledge claim links",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "run_id": {"type": "string", "description": "Prediction run ID to apply", "required": True},
+            },
+            "required": ["run_id"],
+        },
+    ),
+    # Hermeneutics — Circle navigation tools
+    types.Tool(
+        name="fichero_hm_create_circle_state",
+        description="Start a hermeneutic circle for navigating part-whole relationships in a claim",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "claim_id": {"type": "string", "description": "Claim ID to navigate"},
+                "current_focus": {"type": "string", "description": "Initial focus: 'part' or 'whole'", "required": True},
+                "focus_id": {"type": "string", "description": "ID of the initial focus element"},
+                "focus_label": {"type": "string", "description": "Human-readable label for the focus", "required": True},
+                "direction": {"type": "string", "description": "Navigation direction: whole_to_part or part_to_whole", "required": True},
+                "metadata": {"type": "object", "description": "Additional metadata"},
+            },
+            "required": ["current_focus", "focus_label", "direction"],
+        },
+    ),
+    types.Tool(
+        name="fichero_hm_navigate_circle",
+        description="Navigate one step in an active hermeneutic circle (part→whole or whole→part)",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "state_id": {"type": "string", "description": "Circle state ID to navigate", "required": True},
+                "focus_id": {"type": "string", "description": "ID of the new focus element", "required": True},
+                "focus_label": {"type": "string", "description": "Human-readable label for the new focus", "required": True},
+                "direction": {"type": "string", "description": "Navigation direction: whole_to_part or part_to_whole", "required": True},
+            },
+            "required": ["state_id", "focus_id", "focus_label", "direction"],
+        },
+    ),
     # Hermeneutics tools
     types.Tool(
         name="fichero_hm_list_frameworks",
@@ -1106,6 +1160,30 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
         if args.get("target_id"):
             params["target_id"] = args["target_id"]
         return await api_client.request("GET", "/knowledge-graph/overview", params=params)
+
+    # Knowledge Graph — Prediction tools
+    elif name == "fichero_kg_generate_heuristic_predictions":
+        data = {k: v for k, v in args.items() if v is not None and k != "top_k" and k != "entity_id"}
+        params = {}
+        if args.get("top_k"):
+            params["top_k"] = args["top_k"]
+        if args.get("entity_id"):
+            params["entity_id"] = args["entity_id"]
+        return await api_client.request("POST", "/knowledge-graph/predictions/generate/heuristic", data=data, params=params)
+
+    elif name == "fichero_kg_apply_predictions":
+        run_id = args["run_id"]
+        return await api_client.request("POST", f"/knowledge-graph/predictions/{run_id}/apply")
+
+    # Hermeneutics — Circle navigation tools
+    elif name == "fichero_hm_create_circle_state":
+        data = {k: v for k, v in args.items() if v is not None}
+        return await api_client.request("POST", "/hermeneutics/circle-state", data=data)
+
+    elif name == "fichero_hm_navigate_circle":
+        state_id = args["state_id"]
+        data = {k: v for k, v in args.items() if v is not None and k != "state_id"}
+        return await api_client.request("POST", f"/hermeneutics/circle-state/{state_id}/navigate", data=data)
 
     # Hermeneutics tools
     elif name == "fichero_hm_list_frameworks":

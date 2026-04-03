@@ -6876,6 +6876,49 @@
         }
       }
     },
+    "/api/knowledge-graph/entities/alias-map": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Get Entity Alias Map",
+        "description": "Return the full alias \u2192 entity mapping for reviewer decisions.\n\nShows every alias and its canonical entity, useful for:\n- Reviewing which aliases map to the same entity\n- Detecting duplicate/conflicting aliases\n- Understanding entity name variations in the corpus",
+        "operationId": "get_entity_alias_map_api_knowledge_graph_entities_alias_map_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityAliasMapResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/knowledge-graph/entities/resolve/{value}": {
       "get": {
         "tags": [
@@ -7007,6 +7050,16 @@
             }
           },
           {
+            "name": "entity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Entity"
+            }
+          },
+          {
             "name": "entity_type",
             "in": "query",
             "required": false,
@@ -7024,6 +7077,16 @@
               "$ref": "#/components/schemas/ClaimCurationState",
               "nullable": true,
               "title": "Curation State"
+            }
+          },
+          {
+            "name": "curated_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Curated Only"
             }
           },
           {
@@ -7384,6 +7447,16 @@
               "type": "boolean",
               "default": false,
               "title": "Included Only"
+            }
+          },
+          {
+            "name": "curated_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Curated Only"
             }
           },
           {
@@ -14678,6 +14751,47 @@
         "title": "EdgeDef",
         "description": "Definition of an edge connecting two nodes via their ports.\n\nEdges define data flow between nodes. Each edge connects\nan output port on the source node to an input port on the target node."
       },
+      "EntityAliasMapEntry": {
+        "properties": {
+          "alias": {
+            "type": "string",
+            "title": "Alias"
+          },
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "alias",
+          "entity_id",
+          "canonical_name"
+        ],
+        "title": "EntityAliasMapEntry",
+        "description": "A single alias mapped to its entity."
+      },
+      "EntityAliasMapResponse": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/EntityAliasMapEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entries"
+        ],
+        "title": "EntityAliasMapResponse",
+        "description": "Full alias \u2192 entity map for reviewer decisions."
+      },
       "EntityAliasRequest": {
         "properties": {
           "aliases": {
@@ -16051,6 +16165,11 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Metadata"
+          },
+          "source_metadata": {
+            "$ref": "#/components/schemas/SourceMetadata",
+            "nullable": true,
+            "description": "Structured citation and archival metadata for the primary source"
           },
           "created_by": {
             "type": "string",
@@ -17644,6 +17763,39 @@
         "title": "PromptResponse",
         "description": "Response with built prompt."
       },
+      "ProvenanceInfo": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "How this metadata was obtained: 'imported', 'manual', 'agent'"
+          },
+          "agent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Agent Id",
+            "description": "Agent ID if source='agent'"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Confidence"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source"
+        ],
+        "title": "ProvenanceInfo",
+        "description": "Tracks how source metadata was obtained."
+      },
       "ProviderCatalogResponse": {
         "properties": {
           "type": {
@@ -18939,6 +19091,163 @@
           "api"
         ],
         "title": "SearchSourceType"
+      },
+      "SourceMetadata": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "title": "Title"
+          },
+          "authors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Authors"
+          },
+          "date": {
+            "type": "string",
+            "nullable": true,
+            "title": "Date",
+            "description": "Publication date in any common format (ISO 8601 preferred)"
+          },
+          "publisher": {
+            "type": "string",
+            "nullable": true,
+            "title": "Publisher"
+          },
+          "journal": {
+            "type": "string",
+            "nullable": true,
+            "title": "Journal"
+          },
+          "volume": {
+            "type": "string",
+            "nullable": true,
+            "title": "Volume"
+          },
+          "issue": {
+            "type": "string",
+            "nullable": true,
+            "title": "Issue"
+          },
+          "pages": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pages"
+          },
+          "doi": {
+            "type": "string",
+            "nullable": true,
+            "title": "Doi",
+            "description": "Digital Object Identifier"
+          },
+          "isbn_13": {
+            "type": "string",
+            "nullable": true,
+            "title": "Isbn 13",
+            "description": "ISBN-13"
+          },
+          "isbn_10": {
+            "type": "string",
+            "nullable": true,
+            "title": "Isbn 10",
+            "description": "ISBN-10"
+          },
+          "issn": {
+            "type": "string",
+            "nullable": true,
+            "title": "Issn",
+            "description": "International Standard Serial Number"
+          },
+          "arxiv_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Arxiv Id",
+            "description": "arXiv identifier"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true,
+            "title": "Url"
+          },
+          "url_accessed": {
+            "type": "string",
+            "nullable": true,
+            "title": "Url Accessed",
+            "description": "Date URL was accessed/archived (ISO 8601)"
+          },
+          "archive_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Archive Name",
+            "description": "Archive that holds the source (e.g., 'Internet Archive')"
+          },
+          "archive_identifier": {
+            "type": "string",
+            "nullable": true,
+            "title": "Archive Identifier",
+            "description": "Identifier within the archive"
+          },
+          "wwb_legacy_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Wwb Legacy Id",
+            "description": "Weber Wentzel Bize legacy archive ID"
+          },
+          "rights": {
+            "type": "string",
+            "nullable": true,
+            "title": "Rights",
+            "description": "License or copyright statement"
+          },
+          "access_restrictions": {
+            "type": "string",
+            "nullable": true,
+            "title": "Access Restrictions",
+            "description": "Access restrictions: 'public', 'restricted', 'closed'"
+          },
+          "iiif_manifest": {
+            "type": "string",
+            "nullable": true,
+            "title": "Iiif Manifest",
+            "description": "IIIF manifest URL for image collections"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language",
+            "description": "Primary language code (ISO 639-1, e.g., 'en', 'fr')"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/SourceMetadataProvenance",
+            "description": "Tracks how metadata fields were obtained"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "SourceMetadata",
+        "description": "Structured citation and archival metadata for knowledge sources.\n\nCovers: documents, articles, books, web pages, datasets, archives.\nSupports DOI, ISBN, ISSN, arXiv, URL, and archive identifiers."
+      },
+      "SourceMetadataProvenance": {
+        "properties": {
+          "imported": {
+            "$ref": "#/components/schemas/ProvenanceInfo",
+            "nullable": true
+          },
+          "manual": {
+            "$ref": "#/components/schemas/ProvenanceInfo",
+            "nullable": true
+          },
+          "agent": {
+            "$ref": "#/components/schemas/ProvenanceInfo",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "title": "SourceMetadataProvenance",
+        "description": "Per-field provenance tracking for source metadata."
       },
       "SourceType": {
         "type": "string",
