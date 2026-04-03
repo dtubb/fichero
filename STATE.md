@@ -12,22 +12,24 @@ Last updated: 2026-04-02
 - Project board: https://github.com/users/dtubb/projects/5
 - Canonical roadmap: `docs/0.0.2-planning/AUTHORITATIVE_ROADMAP_SPEC.md`
 
-## Completed This Session
+## Completed This Session (2026-04-02 autonomous loop)
 
-- Aligned GitHub issues (#387-#391) with roadmap spec
-- Confirmed TASKS.md deprecated — GitHub is sole source of truth for execution
-- Confirmed 17 open issues cover 0.0.2 → 0.1.0 scope
+- #381: Created `docs/agent-workflow/0.0.2-gate-map.md` — gate map for all semantic features across Layers 0-6
+- #365: Added `SourceMetadata` model with full citation validation (DOI, ISBN-13, ISBN-10, ISSN, arXiv), `ProvenanceInfo`, `KnowledgeClaim.source_metadata` field, 36 unit tests
+- #366: Added `GET /entities/alias-map` endpoint + `GET /claims?entity=X` free-text filter, 2 unit tests
 
 ## Active Work (2026-04-02)
 
-**Phase 1: Knowledge Graph Core + PyKEEN (#387) — SWIFTUI COMPLETE (backend deferred)**
+**Phase 1: Knowledge Graph Core + PyKEEN (#387) — SWIFTUI COMPLETE, supporting features done**
 
 Backend complete (models, migration, routes, embeddings, MCP tools).
 SwiftUI views: all done — ClaimInspectorView, OntologyBrowserView, EpistemologyGraphView, PredictionReviewView.
 Deferred: PyKEEN wiring (needs `pykeen` dependency).
 
-Next step for Phase 1:
-- PyKEEN wiring: add `pykeen` dependency, wire `POST /predictions/generate/pykeen`, implement training pipeline
+Supporting work done this session:
+- #381: gate map documented in `docs/agent-workflow/0.0.2-gate-map.md`
+- #365: SourceMetadata model implemented (citation validation)
+- #366: entity alias-map + `?entity=` filter implemented
 
 **Phase dependencies:** Phase 2-5 all depend on Phase 1 backend being solid.
 
