@@ -1,4 +1,16 @@
 
+## 2026-04-03 — Autonomous Loop Session
+
+- #395: Fixed 8 SwiftLint violations across 4 SwiftUI view files:
+  - Extracted 13 component files from 4 long views
+  - `PredictionReviewView`: 4 subviews + PredictionReviewState view model
+  - `EpistemologyGraphView`: 9 component views (canvas layers, toolbar, state views)
+  - `OntologyBrowser`: 4 subviews (EntityRow, EntityDetailView, ClaimSummaryCard, FlowLayout)
+  - `DocumentInspectorContentTab`: AttributedTextEditor NSViewRepresentable + DocumentInspectorContentState
+  - Result: 0 violations across 341 Swift files
+- #387: Updated — confirmed SwiftUI views complete; stale DEFERRED section corrected
+- #367: Updated — curated_only filter confirmed done; merge/split/audit still pending
+
 ## 2026-04-02 — Autonomous Loop Session
 
 - #381: Created `docs/agent-workflow/0.0.2-gate-map.md` — gate map for Layers 0-6
