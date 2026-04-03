@@ -359,6 +359,50 @@ class EntityMergeAudit(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class MutationOperationType(str, Enum):
+    create = "create"
+    update = "update"
+    delete = "delete"
+    restore = "restore"
+
+
+class MutationLog(BaseModel):
+    """General-purpose mutation log for auditable entity/claim changes.
+
+    Tracks before/after snapshots so any mutation can be reversed.
+    Supports both individual undo and grouped AI-run rollback.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    entity_type: str = Field(
+        description="Type of entity mutated: 'KnowledgeClaim', 'KnowledgeEntity', etc."
+    )
+    entity_id: str = Field(description="ID of the mutated entity")
+    operation: MutationOperationType
+    before_state: dict | None = Field(
+        default=None,
+        description="Full entity state before mutation (null for creates)",
+    )
+    after_state: dict | None = Field(
+        default=None,
+        description="Full entity state after mutation (null for deletes)",
+    )
+    changed_fields: list[str] | None = Field(
+        default=None,
+        description="Which fields were modified (for updates)",
+    )
+    run_id: str | None = Field(
+        default=None,
+        description="AI run ID if this mutation was part of an agent batch",
+    )
+    agent_id: str | None = Field(default=None)
+    created_by: str = "human"
+    reversal_id: str | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class KnowledgeClaim(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="allow")
 

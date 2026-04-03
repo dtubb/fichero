@@ -22,6 +22,8 @@ from fichero.knowledge_models import (
     KnowledgeEntity,
     KnowledgeGraphInclusion,
     KnowledgePredictionRun,
+    MutationLog,
+    MutationOperationType,
     PredictionMetadata,
     PredictionModelType,
     SourceType,
@@ -245,6 +247,192 @@ def _is_source_included(db: Database, source_document_id: str) -> bool:
         return True
     latest = max(rows, key=lambda row: row.updated_at)
     return latest.included
+
+
+def _log_mutation(
+    db: Database,
+    entity_type: str,
+    entity_id: str,
+    operation: MutationOperationType,
+    before_state: dict | None,
+    after_state: dict | None,
+    changed_fields: list[str] | None,
+    run_id: str | None = None,
+    agent_id: str | None = None,
+    created_by: str = "human",
+) -> MutationLog:
+    """Create a mutation log entry for a knowledge graph entity change."""
+    log = MutationLog(
+        entity_type=entity_type,
+        entity_id=entity_id,
+        operation=operation,
+        before_state=before_state,
+        after_state=after_state,
+        changed_fields=changed_fields,
+        run_id=run_id,
+        agent_id=agent_id,
+        created_by=created_by,
+        created_at=datetime.now(),
+    )
+    db.save(log)
+    return log
+
+
+class MutationLogResponse(BaseModel):
+    id: str
+    entity_type: str
+    entity_id: str
+    operation: MutationOperationType
+    before_state: dict | None
+    after_state: dict | None
+    changed_fields: list[str] | None
+    run_id: str | None
+    agent_id: str | None
+    created_by: str
+    reversal_id: str | None
+    created_at: datetime
+
+
+class UndoRequest(BaseModel):
+    run_id: str | None = Field(default=None, description="Rollback all mutations in this AI run")
+    mutation_id: str | None = Field(default=None, description="Undo a specific mutation")
+
+
+@router.post("/knowledge-mutations/undo", response_model=list[MutationLogResponse])
+async def undo_mutations(
+    request: UndoRequest,
+    db: Database = Depends(get_library_database),
+) -> list[MutationLogResponse]:
+    """Undo specific mutation(s) by replaying before_state.
+
+    Either provide a mutation_id to undo one, or a run_id to undo all mutations
+    from an AI agent run as a group.
+    """
+    if not request.mutation_id and not request.run_id:
+        raise HTTPException(status_code=400, detail="Provide either mutation_id or run_id")
+
+    if request.mutation_id:
+        logs = [db.get(MutationLog, request.mutation_id)]
+    else:
+        all_mlogs = db.all(MutationLog)
+        logs = [mlog for mlog in all_mlogs if mlog.run_id == request.run_id and mlog.reversal_id is None]
+        logs.sort(key=lambda mlog: mlog.created_at, reverse=True)
+
+    undone: list[MutationLogResponse] = []
+    for log in logs:
+        if log is None or log.reversal_id is not None:
+            continue
+
+        entity_cls = _entity_class_for_type(log.entity_type)
+        if entity_cls is None:
+            raise HTTPException(status_code=400, detail=f"Unknown entity type: {log.entity_type}")
+
+        entity = db.get(entity_cls, log.entity_id)
+        if entity is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Entity {log.entity_id} ({log.entity_type}) not found — cannot undo",
+            )
+
+        # Replay before_state
+        before = log.before_state
+        if before is None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Mutation {log.id} has no before_state — cannot undo a create",
+            )
+
+        for key, value in before.items():
+            if key not in ("id", "created_at"):
+                setattr(entity, key, value)
+        from datetime import datetime as dt
+        entity.updated_at = dt.now()
+        db.save(entity)
+
+        # Create reversal log entry
+        after = {k: v for k, v in entity.model_dump().items() if k not in ("id", "created_at")}
+        reverse = MutationLog(
+            entity_type=log.entity_type,
+            entity_id=log.entity_id,
+            operation=MutationOperationType.restore,
+            before_state=log.after_state,
+            after_state=after,
+            changed_fields=log.changed_fields,
+            run_id=log.run_id,
+            agent_id=log.agent_id,
+            created_by=log.created_by,
+            reversal_id=log.id,
+            created_at=dt.now(),
+        )
+        db.save(reverse)
+
+        log.reversal_id = reverse.id
+        db.save(log)
+
+        undone.append(MutationLogResponse(
+            id=reverse.id,
+            entity_type=reverse.entity_type,
+            entity_id=reverse.entity_id,
+            operation=reverse.operation,
+            before_state=reverse.before_state,
+            after_state=reverse.after_state,
+            changed_fields=reverse.changed_fields,
+            run_id=reverse.run_id,
+            agent_id=reverse.agent_id,
+            created_by=reverse.created_by,
+            reversal_id=reverse.reversal_id,
+            created_at=reverse.created_at,
+        ))
+
+    return undone
+
+
+@router.get("/knowledge-mutations", response_model=list[MutationLogResponse])
+async def list_mutations(
+    entity_type: str | None = Query(default=None),
+    entity_id: str | None = Query(default=None),
+    run_id: str | None = Query(default=None),
+    created_by: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Database = Depends(get_library_database),
+) -> list[MutationLogResponse]:
+    """List mutation log entries, optionally filtered."""
+    all_logs = db.all(MutationLog)
+    if entity_type:
+        all_logs = [mlog for mlog in all_logs if mlog.entity_type == entity_type]
+    if entity_id:
+        all_logs = [mlog for mlog in all_logs if mlog.entity_id == entity_id]
+    if run_id:
+        all_logs = [mlog for mlog in all_logs if mlog.run_id == run_id]
+    if created_by:
+        all_logs = [mlog for mlog in all_logs if mlog.created_by == created_by]
+    all_logs.sort(key=lambda mlog: mlog.created_at, reverse=True)
+    return [
+        MutationLogResponse(
+            id=mlog.id,
+            entity_type=mlog.entity_type,
+            entity_id=mlog.entity_id,
+            operation=mlog.operation,
+            before_state=mlog.before_state,
+            after_state=mlog.after_state,
+            changed_fields=mlog.changed_fields,
+            run_id=mlog.run_id,
+            agent_id=mlog.agent_id,
+            created_by=mlog.created_by,
+            reversal_id=mlog.reversal_id,
+            created_at=mlog.created_at,
+        )
+        for mlog in all_logs[:limit]
+    ]
+
+
+def _entity_class_for_type(entity_type: str):
+    """Map entity type string to the actual model class."""
+    mapping = {
+        "KnowledgeClaim": KnowledgeClaim,
+        "KnowledgeEntity": KnowledgeEntity,
+    }
+    return mapping.get(entity_type)
 
 
 @router.post("/entities", response_model=KnowledgeEntity)
@@ -735,6 +923,8 @@ async def resolve_entity(
 @router.post("/claims", response_model=KnowledgeClaim)
 async def create_claim(
     request: ClaimCreateRequest,
+    run_id: str | None = Query(default=None),
+    agent_id: str | None = Query(default=None),
     db: Database = Depends(get_library_database),
 ) -> KnowledgeClaim:
     source_doc = db.get(Document, request.source_document_id)
@@ -772,6 +962,21 @@ async def create_claim(
         epistemic_status=request.epistemic_status,
     )
     db.save(claim)
+
+    # Log the mutation
+    _log_mutation(
+        db=db,
+        entity_type="KnowledgeClaim",
+        entity_id=claim.id,
+        operation=MutationOperationType.create,
+        before_state=None,
+        after_state={k: v for k, v in claim.model_dump().items() if k not in ("id", "created_at")},
+        changed_fields=None,
+        run_id=run_id,
+        agent_id=agent_id,
+        created_by=agent_id if agent_id else "human",
+    )
+
     return claim
 
 
@@ -779,11 +984,19 @@ async def create_claim(
 async def patch_claim(
     claim_id: str,
     request: ClaimPatchRequest,
+    run_id: str | None = Query(default=None),
+    agent_id: str | None = Query(default=None),
     db: Database = Depends(get_library_database),
 ) -> KnowledgeClaim:
     claim = db.get(KnowledgeClaim, claim_id)
     if claim is None:
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
+
+    # Capture before state for mutation log
+    before_state = {
+        k: v for k, v in claim.model_dump().items()
+        if k not in ("id", "created_at")
+    }
 
     data = request.model_dump(exclude_unset=True)
     if "entity_ids" in data and data["entity_ids"] is not None:
@@ -791,10 +1004,30 @@ async def patch_claim(
         if missing_entities:
             raise HTTPException(status_code=404, detail=f"Unknown entities: {missing_entities}")
 
+    changed_fields = list(data.keys())
     for key, value in data.items():
         setattr(claim, key, value)
     claim.updated_at = datetime.now()
     db.save(claim)
+
+    # Log the mutation
+    after_state = {
+        k: v for k, v in claim.model_dump().items()
+        if k not in ("id", "created_at")
+    }
+    _log_mutation(
+        db=db,
+        entity_type="KnowledgeClaim",
+        entity_id=claim_id,
+        operation=MutationOperationType.update,
+        before_state=before_state,
+        after_state=after_state,
+        changed_fields=changed_fields,
+        run_id=run_id,
+        agent_id=agent_id,
+        created_by=agent_id if agent_id else "human",
+    )
+
     return claim
 
 
