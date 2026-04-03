@@ -23,3 +23,10 @@
 - Fixed labels on all 5 Phase issues (removed conflicting status:done on #390, added proper labels)
 - Added status comment to #387 documenting backend complete, PyKEEN deferred
 - Confirmed TASKS.md deprecated — GitHub is sole source of truth
+
+## 2026-04-02 — Autonomous Session
+
+- #381: Created `docs/agent-workflow/0.0.2-gate-map.md` — gate map for all semantic features across Layers 0-6
+- #365: Added `SourceMetadata` model with full citation validation (DOI, ISBN-13, ISBN-10, ISSN, arXiv), `ProvenanceInfo`, `KnowledgeClaim.source_metadata` field, 36 unit tests
+- #366: Added `GET /entities/alias-map` endpoint + `GET /claims?entity=X` free-text filter, 2 unit tests
+- Phase 1 #387 SwiftUI complete: ClaimInspectorView, OntologyBrowserView, EpistemologyGraphView, PredictionReviewView
