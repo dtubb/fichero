@@ -334,6 +334,31 @@ class KnowledgeEntity(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
 
 
+class EntityMergeOperationType(str, Enum):
+    merge = "merge"
+    split = "split"
+    undo_merge = "undo_merge"
+    undo_split = "undo_split"
+
+
+class EntityMergeAudit(BaseModel):
+    """Immutable audit record for entity merge/split operations."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    operation_type: EntityMergeOperationType
+    source_entity_ids: list[str]  # entities absorbed (merge) or split apart (split)
+    target_entity_id: str  # canonical entity involved
+    alias_changes: dict = Field(
+        default_factory=dict,
+        description="Keys: 'added', 'removed', 'moved_to', 'restored_from'",
+    )
+    reversal_id: str | None = None  # set to the audit ID that reverses this operation
+    created_by: str = "human"
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class KnowledgeClaim(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="allow")
 

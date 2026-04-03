@@ -12,6 +12,8 @@ from fichero.knowledge_models import (
     ClaimCurationState,
     ClaimRelationType,
     ClaimType,
+    EntityMergeAudit,
+    EntityMergeOperationType,
     EntityType,
     EpistemicStatus,
     InclusionScopeType,
@@ -290,6 +292,354 @@ async def add_entity_aliases(
     entity.updated_at = datetime.now()
     db.save(entity)
     return entity
+
+
+class EntityMergeRequest(BaseModel):
+    absorbing_entity_id: str = Field(description="Entity that absorbs the others (survivor)")
+    absorbed_entity_ids: list[str] = Field(description="Entities to be merged into the absorber")
+    merged_aliases: list[str] = Field(
+        default_factory=list,
+        description="Aliases from absorbed entities to add to the absorbing entity",
+    )
+    merged_description: str | None = Field(
+        default=None,
+        description="Optional override description for the absorbing entity",
+    )
+
+
+class EntitySplitRequest(BaseModel):
+    primary_entity_id: str = Field(description="Entity that retains canonical identity")
+    split_off_entity_ids: list[str] = Field(description="Entities to create from the split")
+    aliases_to_move: list[str] = Field(
+        default_factory=list,
+        description="Aliases from primary to move to the split-off entities",
+    )
+
+
+class EntityAuditResponse(BaseModel):
+    id: str
+    operation_type: EntityMergeOperationType
+    source_entity_ids: list[str]
+    target_entity_id: str
+    alias_changes: dict
+    reversal_id: str | None
+    created_by: str
+    created_at: datetime
+
+
+@router.post("/entities/merge", response_model=EntityAuditResponse)
+async def merge_entities(
+    request: EntityMergeRequest,
+    db: Database = Depends(get_library_database),
+) -> EntityAuditResponse:
+    """Merge multiple entities into a single absorbing entity.
+
+    The absorbing entity survives and gains all aliases from absorbed entities.
+    Absorbed entities are marked with merged_into_id so queries redirect properly.
+    """
+    absorber = db.get(KnowledgeEntity, request.absorbing_entity_id)
+    if absorber is None:
+        raise HTTPException(status_code=404, detail=f"Absorbing entity not found: {request.absorbing_entity_id}")
+
+    absorbed_entities: list[KnowledgeEntity] = []
+    for eid in request.absorbed_entity_ids:
+        entity = db.get(KnowledgeEntity, eid)
+        if entity is None:
+            raise HTTPException(status_code=404, detail=f"Absorbed entity not found: {eid}")
+        if entity.merged_into_id is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Entity {eid} was already merged into {entity.merged_into_id}",
+            )
+        absorbed_entities.append(entity)
+
+    # Build alias changes record
+    alias_changes: dict[str, list[str]] = {
+        "added": [],
+        "removed": [],
+        "moved_to": {},
+    }
+    absorber_aliases = set(absorber.aliases)
+    for entity in absorbed_entities:
+        for alias in entity.aliases:
+            if alias not in absorber_aliases:
+                alias_changes["added"].append(alias)
+                absorber_aliases.add(alias)
+        for alias in entity.aliases:
+            alias_changes["moved_to"][alias] = absorber.id
+        entity.merged_into_id = absorber.id
+        entity.updated_at = datetime.now()
+        alias_changes["removed"].extend(entity.aliases)
+
+    # Merge requested aliases too
+    for alias in request.merged_aliases:
+        stripped = alias.strip()
+        if stripped and stripped not in absorber_aliases:
+            alias_changes["added"].append(stripped)
+            absorber_aliases.add(stripped)
+
+    absorber.aliases = sorted(absorber_aliases)
+    if request.merged_description:
+        absorber.description = request.merged_description
+    absorber.updated_at = datetime.now()
+
+    # Create audit record first (immutable)
+    now = datetime.now()
+    audit = EntityMergeAudit(
+        operation_type=EntityMergeOperationType.merge,
+        source_entity_ids=[e.id for e in absorbed_entities],
+        target_entity_id=absorber.id,
+        alias_changes=alias_changes,
+        created_by="human",
+        created_at=now,
+    )
+    db.save(audit)
+
+    # Mark reversal_id on the audit record
+    # (save audit again with reversal_id populated after we know it — but since
+    # audit id is auto-generated, we can set it now as the reverse points to this)
+    # Actually, we need the audit's own ID to reference it — it already has one
+    audit.reversal_id = audit.id  # temporary; will be updated by the undo operation
+    db.save(audit)  # save again with reversal_id
+
+    # Save absorbed entities (soft-deleted)
+    for entity in absorbed_entities:
+        db.save(entity)
+    db.save(absorber)
+
+    return EntityAuditResponse(
+        id=audit.id,
+        operation_type=audit.operation_type,
+        source_entity_ids=audit.source_entity_ids,
+        target_entity_id=audit.target_entity_id,
+        alias_changes=audit.alias_changes,
+        reversal_id=audit.reversal_id,
+        created_by=audit.created_by,
+        created_at=audit.created_at,
+    )
+
+
+@router.post("/entities/split", response_model=EntityAuditResponse)
+async def split_entity(
+    request: EntitySplitRequest,
+    db: Database = Depends(get_library_database),
+) -> EntityAuditResponse:
+    """Split one entity into a primary + new split-off entities.
+
+    The primary entity keeps some aliases; split-off entities get the rest.
+    """
+    primary = db.get(KnowledgeEntity, request.primary_entity_id)
+    if primary is None:
+        raise HTTPException(status_code=404, detail=f"Primary entity not found: {request.primary_entity_id}")
+
+    alias_changes: dict[str, list[str]] = {
+        "restored_from": [],
+        "moved_to": {},
+    }
+    moved_alias_set = set(a.strip() for a in request.aliases_to_move if a.strip())
+
+    # Aliases being moved: remove from primary, track in audit
+    remaining_aliases = [a for a in primary.aliases if a not in moved_alias_set]
+    for alias in moved_alias_set:
+        alias_changes["restored_from"].append(alias)
+
+    # Primary keeps the un-moved aliases
+    primary.aliases = remaining_aliases
+    primary.updated_at = datetime.now()
+
+    # Create split-off entities
+    split_entity_ids: list[str] = []
+    for split_off_id in request.split_off_entity_ids:
+        split_off = db.get(KnowledgeEntity, split_off_id)
+        if split_off is None:
+            raise HTTPException(status_code=404, detail=f"Split-off entity not found: {split_off_id}")
+        split_off.merged_into_id = None  # ensure it's active
+        split_off.updated_at = datetime.now()
+        db.save(split_off)
+        split_entity_ids.append(split_off.id)
+        alias_changes["moved_to"][split_off.id] = []
+
+    now = datetime.now()
+    audit = EntityMergeAudit(
+        operation_type=EntityMergeOperationType.split,
+        source_entity_ids=split_entity_ids,
+        target_entity_id=primary.id,
+        alias_changes=alias_changes,
+        created_by="human",
+        created_at=now,
+    )
+    db.save(audit)
+    audit.reversal_id = audit.id
+    db.save(audit)
+
+    db.save(primary)
+
+    return EntityAuditResponse(
+        id=audit.id,
+        operation_type=audit.operation_type,
+        source_entity_ids=audit.source_entity_ids,
+        target_entity_id=audit.target_entity_id,
+        alias_changes=audit.alias_changes,
+        reversal_id=audit.reversal_id,
+        created_by=audit.created_by,
+        created_at=audit.created_at,
+    )
+
+
+@router.post("/entities/audit/{audit_id}/undo", response_model=EntityAuditResponse)
+async def undo_entity_operation(
+    audit_id: str,
+    db: Database = Depends(get_library_database),
+) -> EntityAuditResponse:
+    """Undo a previous merge or split operation using its audit record."""
+    audit = db.get(EntityMergeAudit, audit_id)
+    if audit is None:
+        raise HTTPException(status_code=404, detail=f"Audit record not found: {audit_id}")
+
+    if audit.reversal_id != audit.id:
+        raise HTTPException(
+            status_code=409,
+            detail="This operation was already undone or is not directly reversible",
+        )
+
+    now = datetime.now()
+    if audit.operation_type == EntityMergeOperationType.merge:
+        # Restore absorbed entities (un-merge)
+        absorber = db.get(KnowledgeEntity, audit.target_entity_id)
+        if absorber is None:
+            raise HTTPException(status_code=404, detail=f"Target entity not found: {audit.target_entity_id}")
+
+        alias_changes = audit.alias_changes
+        restored_aliases: list[str] = []
+
+        for entity_id in audit.source_entity_ids:
+            entity = db.get(KnowledgeEntity, entity_id)
+            if entity is None:
+                raise HTTPException(status_code=404, detail=f"Source entity not found: {entity_id}")
+            entity.merged_into_id = None
+            entity.updated_at = now
+            db.save(entity)
+            # Restore aliases that were added from this entity to absorber
+            for alias, target in alias_changes.get("moved_to", {}).items():
+                if target == absorber.id and alias in entity.aliases:
+                    restored_aliases.append(alias)
+
+        # Remove absorbed aliases from absorber
+        absorbed_aliases = set(alias_changes.get("added", []))
+        absorber.aliases = [a for a in absorber.aliases if a not in absorbed_aliases]
+        absorber.updated_at = now
+        db.save(absorber)
+
+        undo_alias_changes: dict[str, list[str]] = {
+            "added": [],
+            "removed": [],
+            "moved_to": {},
+            "restored_from": restored_aliases,
+        }
+
+        undo_audit = EntityMergeAudit(
+            operation_type=EntityMergeOperationType.undo_merge,
+            source_entity_ids=audit.source_entity_ids,
+            target_entity_id=audit.target_entity_id,
+            alias_changes=undo_alias_changes,
+            reversal_id=audit_id,
+            created_by="human",
+            created_at=now,
+        )
+        db.save(undo_audit)
+
+        # Mark original audit as reversed
+        audit.reversal_id = undo_audit.id
+        db.save(audit)
+
+        return EntityAuditResponse(
+            id=undo_audit.id,
+            operation_type=undo_audit.operation_type,
+            source_entity_ids=undo_audit.source_entity_ids,
+            target_entity_id=undo_audit.target_entity_id,
+            alias_changes=undo_audit.alias_changes,
+            reversal_id=undo_audit.reversal_id,
+            created_by=undo_audit.created_by,
+            created_at=undo_audit.created_at,
+        )
+
+    elif audit.operation_type == EntityMergeOperationType.split:
+        # Re-merge: reassign aliases back to primary entity
+        primary = db.get(KnowledgeEntity, audit.target_entity_id)
+        if primary is None:
+            raise HTTPException(status_code=404, detail=f"Primary entity not found: {audit.target_entity_id}")
+
+        alias_changes = audit.alias_changes
+        moved_aliases: list[str] = alias_changes.get("restored_from", [])
+
+        primary.aliases = sorted(set(primary.aliases) | set(moved_aliases))
+        primary.updated_at = now
+        db.save(primary)
+
+        undo_alias_changes: dict[str, list[str]] = {
+            "restored_from": [],
+            "moved_to": {},
+        }
+
+        undo_audit = EntityMergeAudit(
+            operation_type=EntityMergeOperationType.undo_split,
+            source_entity_ids=audit.source_entity_ids,
+            target_entity_id=audit.target_entity_id,
+            alias_changes=undo_alias_changes,
+            reversal_id=audit_id,
+            created_by="human",
+            created_at=now,
+        )
+        db.save(undo_audit)
+
+        audit.reversal_id = undo_audit.id
+        db.save(audit)
+
+        return EntityAuditResponse(
+            id=undo_audit.id,
+            operation_type=undo_audit.operation_type,
+            source_entity_ids=undo_audit.source_entity_ids,
+            target_entity_id=undo_audit.target_entity_id,
+            alias_changes=undo_audit.alias_changes,
+            reversal_id=undo_audit.reversal_id,
+            created_by=undo_audit.created_by,
+            created_at=undo_audit.created_at,
+        )
+
+    else:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot undo operation type: {audit.operation_type}",
+        )
+
+
+@router.get("/entities/audit", response_model=list[EntityAuditResponse])
+async def list_entity_audits(
+    entity_id: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Database = Depends(get_library_database),
+) -> list[EntityAuditResponse]:
+    """List entity merge/split audit records, optionally filtered by entity."""
+    all_audits = db.all(EntityMergeAudit)
+    if entity_id:
+        all_audits = [
+            a for a in all_audits
+            if a.target_entity_id == entity_id or entity_id in a.source_entity_ids
+        ]
+    all_audits.sort(key=lambda a: a.created_at, reverse=True)
+    return [
+        EntityAuditResponse(
+            id=a.id,
+            operation_type=a.operation_type,
+            source_entity_ids=a.source_entity_ids,
+            target_entity_id=a.target_entity_id,
+            alias_changes=a.alias_changes,
+            reversal_id=a.reversal_id,
+            created_by=a.created_by,
+            created_at=a.created_at,
+        )
+        for a in all_audits[:limit]
+    ]
 
 
 @router.get("/entities", response_model=list[KnowledgeEntity])
