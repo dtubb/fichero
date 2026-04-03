@@ -3,19 +3,7 @@ import SwiftUI
 
 /// View for reviewing and applying AI-generated link predictions
 struct PredictionReviewView: View {
-    @State private var predictionRuns: [Components.Schemas.KnowledgePredictionRun] = []
-    @State private var selectedRun: Components.Schemas.KnowledgePredictionRun?
-    @State private var isLoading = false
-    @State private var isGenerating = false
-    @State private var isApplying = false
-    @State private var loadError: String?
-    @State private var applyResult: ApplyResult?
-
-    struct ApplyResult: Identifiable {
-        let id = UUID()
-        let success: Bool
-        let message: String
-    }
+    @StateObject private var state = PredictionReviewState()
 
     var body: some View {
         HSplitView {
@@ -23,9 +11,7 @@ struct PredictionReviewView: View {
             runDetailPanel
         }
         .frame(minWidth: 400, minHeight: 300)
-        .task {
-            await loadPredictionRuns()
-        }
+        .task { await state.loadPredictionRuns() }
     }
 
     // MARK: - Run List Sidebar
@@ -47,9 +33,9 @@ struct PredictionReviewView: View {
             Spacer()
 
             Button {
-                Task { await generatePredictions() }
+                Task { await state.generatePredictions() }
             } label: {
-                if isGenerating {
+                if state.isGenerating {
                     ProgressView()
                         .scaleEffect(0.7)
                 } else {
@@ -57,22 +43,22 @@ struct PredictionReviewView: View {
                 }
             }
             .help("Generate new predictions")
-            .disabled(isGenerating)
+            .disabled(state.isGenerating)
         }
         .padding(12)
         .background(Color(.controlBackgroundColor))
     }
 
     private var runList: some View {
-        List(selection: $selectedRun) {
-            if isLoading {
+        List(selection: $state.selectedRun) {
+            if state.isLoading {
                 HStack {
                     Spacer()
                     ProgressView()
                     Spacer()
                 }
                 .listRowBackground(Color.clear)
-            } else if let error = loadError {
+            } else if let error = state.loadError {
                 VStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
@@ -83,7 +69,7 @@ struct PredictionReviewView: View {
                 }
                 .padding()
                 .listRowBackground(Color.clear)
-            } else if predictionRuns.isEmpty {
+            } else if state.predictionRuns.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "brain")
                         .font(.system(size: 28))
@@ -98,7 +84,7 @@ struct PredictionReviewView: View {
                 .padding()
                 .listRowBackground(Color.clear)
             } else {
-                ForEach(predictionRuns, id: \.id) { run in
+                ForEach(state.predictionRuns, id: \.id) { run in
                     PredictionRunRow(run: run)
                         .tag(run)
                 }
@@ -109,11 +95,9 @@ struct PredictionReviewView: View {
 
     // MARK: - Run Detail Panel
 
-    @State private var runPredictions: [Components.Schemas.KnowledgePrediction] = []
-
     private var runDetailPanel: some View {
         Group {
-            if let run = selectedRun {
+            if let run = state.selectedRun {
                 VStack(spacing: 0) {
                     runDetailHeader(run)
                     Divider()
@@ -122,9 +106,6 @@ struct PredictionReviewView: View {
                     predictionsList
                 }
                 .frame(minWidth: 300)
-                .task {
-                    await loadPredictionsForRun(run)
-                }
             } else {
                 emptyDetailState
             }
@@ -147,9 +128,9 @@ struct PredictionReviewView: View {
             Spacer()
 
             Button {
-                Task { await applyPredictions(run) }
+                Task { await state.applyPredictions(run) }
             } label: {
-                if isApplying {
+                if state.isApplying {
                     ProgressView()
                         .scaleEffect(0.7)
                 } else {
@@ -157,7 +138,7 @@ struct PredictionReviewView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(isApplying)
+            .disabled(state.isApplying)
         }
         .padding(12)
         .background(Color(.controlBackgroundColor))
@@ -216,10 +197,10 @@ struct PredictionReviewView: View {
     private var predictionsList: some View {
         ScrollView {
             LazyVStack(spacing: 8) {
-                if runPredictions.isEmpty {
+                if state.runPredictions.isEmpty {
                     emptyPredictionsState
                 } else {
-                    ForEach(runPredictions, id: \.id) { prediction in
+                    ForEach(state.runPredictions, id: \.id) { prediction in
                         PredictionCard(
                             prediction: prediction,
                             claims: claimsForPrediction(prediction)
@@ -267,237 +248,16 @@ struct PredictionReviewView: View {
         .padding()
     }
 
-    // MARK: - Data Loading
-
-    private func loadPredictionRuns() async {
-        isLoading = true
-        loadError = nil
-
-        do {
-            let library = LibraryManager.shared.globalLibrary
-            let service = KnowledgeGraphServiceGenerated(apiClient: library!.apiClient)
-            predictionRuns = try await service.listPredictions(limit: 20)
-        } catch {
-            loadError = error.localizedDescription
-        }
-
-        isLoading = false
-    }
-
-    private func loadPredictionsForRun(_ run: Components.Schemas.KnowledgePredictionRun) async {
-        // Predictions are embedded in the run or loaded separately
-        // For now, display run-level info
-    }
-
-    private func generatePredictions() async {
-        isGenerating = true
-        loadError = nil
-
-        do {
-            let library = LibraryManager.shared.globalLibrary
-            let service = KnowledgeGraphServiceGenerated(apiClient: library!.apiClient)
-            let newRun = try await service.generateHeuristicPredictions()
-            predictionRuns.insert(newRun, at: 0)
-            selectedRun = newRun
-        } catch {
-            loadError = "Generation failed: \(error.localizedDescription)"
-        }
-
-        isGenerating = false
-    }
-
-    private func applyPredictions(_ run: Components.Schemas.KnowledgePredictionRun) async {
-        guard let runId = run.id else { return }
-
-        isApplying = true
-
-        do {
-            let library = LibraryManager.shared.globalLibrary
-            let service = KnowledgeGraphServiceGenerated(apiClient: library!.apiClient)
-            try await service.applyPredictions(runId: runId)
-            applyResult = ApplyResult(success: true, message: "Predictions applied successfully")
-        } catch {
-            applyResult = ApplyResult(success: false, message: "Apply failed: \(error.localizedDescription)")
-        }
-
-        isApplying = false
-    }
-
-    private func claimsForPrediction(_ prediction: Components.Schemas.KnowledgePrediction) -> (source: Components.Schemas.KnowledgeClaim?, target: Components.Schemas.KnowledgeClaim?) {
-        // In a full implementation, we'd load the actual claims
-        return (nil, nil)
-    }
-}
-
-// MARK: - Prediction Run Row
-
-private struct PredictionRunRow: View {
-    let run: Components.Schemas.KnowledgePredictionRun
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Image(systemName: iconForModelType)
-                    .foregroundStyle(.secondary)
-
-                Text(run.modelType?.rawValue.capitalized ?? "Unknown")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-
-                Spacer()
-            }
-
-            if let trainedAt = run.trainedAt {
-                Text(trainedAt, style: .relative)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 8) {
-                if let mrr = run.mrr {
-                    Label(String(format: "MRR: %.2f", mrr), systemImage: "chart.line.uptrend.xyaxis")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-
-                if let predictions = run.numPredictions {
-                    Label("\(predictions)", systemImage: "sparkles")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .padding(.vertical, 4)
-    }
-
-    private var iconForModelType: String {
-        guard let modelType = run.modelType else { return "brain" }
-        switch modelType {
-        case .heuristic: return "wand.and.stars"
-        case .pykeen: return "cpu"
-        case .openai: return "star"
-        case .anthropic: return "person.fill"
-        default: return "brain"
-        }
-    }
-}
-
-// MARK: - Metric Card
-
-private struct MetricCard: View {
-    let title: String
-    let value: String
-    let icon: String
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundStyle(.secondary)
-
-            Text(value)
-                .font(.headline)
-                .fontWeight(.semibold)
-
-            Text(title)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .frame(minWidth: 70)
-        .padding(8)
-        .background(Color(.controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-}
-
-// MARK: - Prediction Card
-
-private struct PredictionCard: View {
-    let prediction: Components.Schemas.KnowledgePrediction
-    let claims: (source: Components.Schemas.KnowledgeClaim?, target: Components.Schemas.KnowledgeClaim?)
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "arrow.right.circle")
-                    .foregroundStyle(.accentColor)
-
-                Text("Link Prediction")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-
-                Spacer()
-
-                if let confidence = prediction.predictedConfidence {
-                    ConfidenceBadge(confidence: confidence)
-                }
-            }
-
-            if let sourceId = prediction.sourceClaimId {
-                LabeledContent("Source") {
-                    Text(sourceId)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
-            }
-
-            if let targetId = prediction.targetClaimId {
-                LabeledContent("Target") {
-                    Text(targetId)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
-            }
-
-            if let relationType = prediction.relationType {
-                LabeledContent("Relation") {
-                    Text(relationType)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .padding(12)
-        .background(Color(.controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-}
-
-// MARK: - Confidence Badge
-
-private struct ConfidenceBadge: View {
-    let confidence: Double
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(confidenceColor)
-                .frame(width: 8, height: 8)
-
-            Text(String(format: "%.0f%%", confidence * 100))
-                .font(.caption)
-                .fontWeight(.medium)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(confidenceColor.opacity(0.15))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-    }
-
-    private var confidenceColor: Color {
-        if confidence >= 0.8 {
-            return .green
-        } else if confidence >= 0.5 {
-            return .orange
-        } else {
-            return .red
-        }
+    private func claimsForPrediction(_ prediction: Components.Schemas.KnowledgePrediction) -> PredictionReviewState.ClaimPair {
+        (nil, nil)
     }
 }
 
 // MARK: - Previews
+
+extension PredictionReviewState {
+    typealias ClaimPair = (source: Components.Schemas.KnowledgeClaim?, target: Components.Schemas.KnowledgeClaim?)
+}
 
 #Preview("Review View") {
     PredictionReviewView()
