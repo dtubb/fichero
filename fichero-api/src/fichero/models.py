@@ -814,6 +814,55 @@ class MCPServer(BaseModel):
 
 
 # =============================================================================
+# Library Snapshot
+# =============================================================================
+
+class SnapshotInitiatorType(str, Enum):
+    """Who or what created the snapshot."""
+    user = "user"
+    ai = "ai"
+    system = "system"
+
+
+class LibrarySnapshot(BaseModel):
+    """A point-in-time snapshot of a library database and its vectors.
+
+    Snapshots are stored as Parquet exports of DuckDB tables plus a copy
+    of the LanceDB vector directory. They are named with a timestamp and
+    an optional reason, and can be restored to recover from bad AI runs
+    or schema changes.
+
+    Stored in:
+        ~/Library/Application Support/com.tubb.fichero/snapshots/{library_name}/
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    library_path: str                          # Path to the .fichero package
+    library_name: str                          # Display name of the library
+    reason: str = ""                           # Human-readable reason (e.g. "pre-AI run")
+    initiator: SnapshotInitiatorType = SnapshotInitiatorType.user
+    initiator_id: str | None = None            # agent_id or user_id if applicable
+    run_id: str | None = None                  # AI run_id if this was auto-created
+
+    # Storage info
+    snapshot_path: str                          # Absolute path to snapshot directory
+    duckdb_path: str                           # Relative path to .duckdb.export Parquet files
+    lance_path: str                            # Relative path to LanceDB copy
+    file_count: int = 0                        # Number of files in snapshot
+    duckdb_size_bytes: int = 0                 # Size of DuckDB Parquet export
+    lance_size_bytes: int = 0                  # Size of LanceDB vector copy
+
+    # Retention
+    is_pinned: bool = False                    # Pinned snapshots are not auto-deleted
+    tags: list[str] = Field(default_factory=list)
+
+    # Metadata
+    created_at: datetime = Field(default_factory=datetime.now)
+    expires_at: datetime | None = None         # Auto-delete after this time
+
+
+# =============================================================================
 # Convenience exports
 # =============================================================================
 
