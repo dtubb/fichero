@@ -28,7 +28,15 @@ extension LibraryView {
             do {
                 _ = try await library.documentStore.renameDocument(doc, to: newName)
             } catch {
-                ErrorService.shared.reportError(error)
+                ErrorService.shared.reportError(
+                    ErrorModel.fileSystemError(
+                        message: "Failed to rename \"\(doc.name)\" to \"\(newName)\".",
+                        context: [
+                            "operation": "rename_document",
+                            "document_id": doc.id
+                        ]
+                    )
+                )
             }
         }
     }

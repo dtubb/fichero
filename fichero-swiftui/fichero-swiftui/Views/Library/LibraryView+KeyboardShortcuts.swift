@@ -90,7 +90,16 @@ extension LibraryView {
             do {
                 try await library.documentStore.deleteDocument(doc)
             } catch {
-                ErrorService.shared.reportError(error)
+                ErrorService.shared.reportError(
+                    ErrorModel.fileSystemError(
+                        message: "Failed to delete \"\(doc.name)\".",
+                        context: [
+                            "operation": "delete_document",
+                            "document_id": doc.id,
+                            "underlying_error": error.localizedDescription
+                        ]
+                    )
+                )
             }
         }
         // Clear selection for deleted items
