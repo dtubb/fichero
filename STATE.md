@@ -20,6 +20,9 @@ Last updated: 2026-04-02
 - SwiftLint: fixed 6 identifier_name errors (posX/posY/gridX/gridY in OntologyBrowser + EpistemologyGraphView)
 - rules.json: committed agent rules configuration
 - #367 partial: added `curated_only=true` convenience filter to GET /claims and /claims/filtered
+- #392: Added 4 MCP tools — `fichero_kg_generate_heuristic_predictions`, `fichero_kg_apply_predictions`, `fichero_hm_create_circle_state`, `fichero_hm_navigate_circle`
+- OpenAPI sync: 46 endpoints across 16 resources — regenerated Swift client
+- SwiftLint: auto-fixed 88 sorted_imports violations (88→0 serious)
 
 ## Active Work (2026-04-02)
 
@@ -69,7 +72,7 @@ Plus 12 sub-task issues (#362-#381) for 0.0.2-0.1.0 features.
 
 ## Next Session — Start Here
 
-1. **PyKEEN wiring** (backend): add `pykeen` to dependencies, wire `POST /predictions/generate/pykeen`, implement training pipeline
-2. **Sync OpenAPI schema** (`./scripts/sync_openapi_schema.sh`) after any backend changes
-3. Verify `ruff check` and `swiftlint` pass before any PR
-4. After Phase 1 PyKEEN done — move to Phase 2 (#388, Hermeneutics)
+1. **Remaining Phase 1 SwiftUI**: PyKEEN wiring (backend) — add `pykeen` to dependencies, wire `POST /predictions/generate/pykeen`, implement training pipeline
+2. Verify `ruff check` and `swiftlint` pass before any PR
+3. After Phase 1 PyKEEN done — move to Phase 2 (#388, Hermeneutics)
+4. 8 pre-existing length violations in KnowledgeGraph views (files 400-505 lines) — low priority
