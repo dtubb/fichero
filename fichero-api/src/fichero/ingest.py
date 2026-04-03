@@ -363,9 +363,13 @@ def _file_checksum(path: Path, algorithm: str = "sha256") -> str:
 
 
 def _extract_image_metadata(doc: Document, path: Path) -> None:
-    """Extract image dimensions and other metadata."""
+    """Extract image dimensions and XMP sidecar metadata.
+
+    Updates doc.metadata in place.
+    """
     try:
         from PIL import Image
+        from fichero.loaders.xmp_loader import parse_xmp_sidecar, apply_xmp_to_document
 
         with Image.open(path) as img:
             doc.metadata["width"] = img.width
@@ -383,6 +387,12 @@ def _extract_image_metadata(doc: Document, path: Path) -> None:
                         doc.metadata["exif_make"] = exif[271]
                     if 272 in exif:
                         doc.metadata["exif_model"] = exif[272]
+
+        # Parse XMP sidecar if present
+        xmp_data = parse_xmp_sidecar(path)
+        if xmp_data:
+            apply_xmp_to_document(doc, xmp_data)
+            logger.debug(f"Applied XMP sidecar for {path.name}: {list(xmp_data.keys())}")
 
     except ImportError:
         logger.debug("Pillow not available for image metadata")
