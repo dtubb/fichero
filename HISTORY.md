@@ -30,3 +30,12 @@
 - #365: Added `SourceMetadata` model with full citation validation (DOI, ISBN-13, ISBN-10, ISSN, arXiv), `ProvenanceInfo`, `KnowledgeClaim.source_metadata` field, 36 unit tests
 - #366: Added `GET /entities/alias-map` endpoint + `GET /claims?entity=X` free-text filter, 2 unit tests
 - Phase 1 #387 SwiftUI complete: ClaimInspectorView, OntologyBrowserView, EpistemologyGraphView, PredictionReviewView
+
+## 2026-04-02 — Autonomous Loop Session
+
+- #381: Created `docs/agent-workflow/0.0.2-gate-map.md` — gate map for semantic features (Layers 0-6)
+- #365: Added `SourceMetadata` model with full citation validation (DOI, ISBN-13, ISBN-10, ISSN, arXiv), `ProvenanceInfo`, 36 unit tests
+- #366: Added `GET /entities/alias-map` endpoint + `GET /claims?entity=X` free-text filter, 2 unit tests
+- SwiftLint: fixed 6 `identifier_name` violations (posX/posY/gridX/gridY in OntologyBrowser + EpistemologyGraphView)
+- rules.json: committed agent rules configuration
+- #367 partial: added `curated_only=true` convenience filter to GET /claims and /claims/filtered
