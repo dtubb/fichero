@@ -1,6 +1,6 @@
-import SwiftUI
-import OSLog
 import FicheroAPIClient
+import OSLog
+import SwiftUI
 
 private let logger = Logger(subsystem: "com.tubb.Fichero", category: "AgentConfigurationView")
 
@@ -190,7 +190,7 @@ struct ToolSelectionView: View {
         return availableTools.compactMap { category in
             let filteredTools = category.tools.filter { tool in
                 tool.name.localizedCaseInsensitiveContains(searchText) ||
-                tool.description.localizedCaseInsensitiveContains(searchText)
+                    tool.description.localizedCaseInsensitiveContains(searchText)
             }
             if filteredTools.isEmpty {
                 return nil

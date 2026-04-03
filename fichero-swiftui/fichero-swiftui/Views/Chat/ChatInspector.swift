@@ -1,6 +1,6 @@
+import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
-import OSLog
 
 let chatInspectorLogger = Logger(subsystem: "com.tubb.Fichero", category: "ChatInspector")
 

@@ -242,7 +242,7 @@ struct ProviderDetailView: View {
             .help(capability.capitalized)
     }
 
-    private func testConnection() {
+    func testConnection() {
         isTesting = true
         testResult = nil
         testError = nil

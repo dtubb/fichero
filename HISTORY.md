@@ -4,9 +4,13 @@
 - #381: Created `docs/agent-workflow/0.0.2-gate-map.md` — gate map for Layers 0-6
 - #365: SourceMetadata model + citation validation (DOI, ISBN-13/10, ISSN, arXiv) + ProvenanceInfo + 36 unit tests
 - #366: GET /entities/alias-map + GET /claims?entity=X filter + 2 unit tests
-- SwiftLint: 6 identifier_name violations fixed (posX/posY/gridX/gridY)
+- #392: Added 4 MCP tools — `fichero_kg_generate_heuristic_predictions`, `fichero_kg_apply_predictions`, `fichero_hm_create_circle_state`, `fichero_hm_navigate_circle`
+- OpenAPI sync: 46 endpoints across 16 resources — regenerated Swift client
+- SwiftLint: auto-fixed 88 sorted_imports violations across all SwiftUI files (101 files, +275/-275 lines)
+- SwiftLint: fixed 6 identifier_name violations (posX/posY/gridX/gridY in OntologyBrowser + EpistemologyGraphView)
 - rules.json: agent rules configuration committed
 - #367 partial: curated_only=true filter added to GET /claims and /claims/filtered
+- Phase 1 SwiftUI: ClaimInspectorView, OntologyBrowserView, EpistemologyGraphView, PredictionReviewView
 
 ## 2026-04-02 — Session Sync
 

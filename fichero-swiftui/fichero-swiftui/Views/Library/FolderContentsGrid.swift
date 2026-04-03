@@ -56,8 +56,8 @@ private struct FolderContentItem: View {
     var body: some View {
         VStack(spacing: 6) {
             Image(systemName: document.docType == .folder
-                  ? "folder.fill"
-                  : (document.fileType?.icon ?? "doc"))
+                    ? "folder.fill"
+                    : (document.fileType?.icon ?? "doc"))
                 .font(.system(size: 36))
                 .foregroundStyle(document.docType == .folder ? Color.accentColor : .secondary)
                 .frame(height: 44)

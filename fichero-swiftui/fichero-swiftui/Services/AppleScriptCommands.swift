@@ -1,5 +1,5 @@
-import Foundation
 import Cocoa
+import Foundation
 import OSLog
 
 let appleScriptCommandsLogger = Logger(subsystem: "com.tubb.Fichero", category: "AppleScript")

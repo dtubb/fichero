@@ -1,5 +1,5 @@
-import SwiftUI
 import FicheroAPIClient
+import SwiftUI
 
 /// Graph view showing claim-to-claim epistemology relationships
 /// Visualizes supports/contradicts/refines/supersedes links between claims

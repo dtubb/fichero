@@ -18,7 +18,7 @@ extension ChatInspector {
             let allDocs: [Document] = try await apiClient.get("/documents", query: ["limit": "100"])
             let filtered = allDocs.filter {
                 $0.name.localizedCaseInsensitiveContains(searchText) &&
-                $0.docType == .file
+                    $0.docType == .file
             }
             await MainActor.run {
                 searchResults = filtered

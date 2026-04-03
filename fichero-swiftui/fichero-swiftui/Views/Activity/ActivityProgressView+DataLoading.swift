@@ -19,11 +19,11 @@ extension ActivityProgressView {
             // swiftlint:disable:next todo
             // TODO: Re-enable when backend schema is updated
             /*
-            if let timelineDict = run.progressTimeline {
-                let data = try JSONSerialization.data(withJSONObject: timelineDict)
-                progressTimeline = try JSONDecoder().decode(ProgressTimeline.self, from: data)
-            }
-            */
+             if let timelineDict = run.progressTimeline {
+             let data = try JSONSerialization.data(withJSONObject: timelineDict)
+             progressTimeline = try JSONDecoder().decode(ProgressTimeline.self, from: data)
+             }
+             */
             activityProgressLogger.info("Progress timeline loading disabled - waiting for backend schema update")
         } catch {
             activityProgressLogger.error("Failed to load progress timeline: \(error)")

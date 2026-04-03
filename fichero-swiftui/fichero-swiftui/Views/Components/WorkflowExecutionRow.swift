@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 let workflowExecutionRowLogger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowExecutionRow")
 

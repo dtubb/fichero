@@ -10,7 +10,7 @@ extension ActivitySidebarContent {
                 selectedItemId = "run-\(run.id)"
             }
             .listRowInsets(EdgeInsets(top: 2, leading: 14, bottom: 2, trailing: 8))
-        .tag("run-\(run.id)")
+            .tag("run-\(run.id)")
     }
 
     @ViewBuilder

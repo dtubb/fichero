@@ -1,5 +1,5 @@
-import SwiftUI
 import FicheroAPIClient
+import SwiftUI
 
 /// Links tab showing claim-to-claim relationships (supports/contradicts/refines)
 struct ClaimInspectorLinksTab: View {

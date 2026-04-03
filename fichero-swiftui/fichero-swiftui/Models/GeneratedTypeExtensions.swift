@@ -1,7 +1,7 @@
-import Foundation
-import SwiftUI
 import FicheroAPIClient
+import Foundation
 import OpenAPIRuntime
+import SwiftUI
 
 // MARK: - Generated Type Extensions
 // These add convenience methods to generated types without creating conflicting type aliases.

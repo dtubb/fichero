@@ -1,5 +1,5 @@
-import SwiftUI
 import FicheroAPIClient
+import SwiftUI
 
 /// Sources tab showing document references for a claim
 struct ClaimInspectorSourcesTab: View {

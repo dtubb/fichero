@@ -51,9 +51,9 @@ struct DocumentInspectorMetadataTab: View {
 
     private func formatMetadataKey(_ key: String) -> String {
         key.replacingOccurrences(of: "_", with: " ")
-           .components(separatedBy: " ")
-           .map { $0.capitalized }
-           .joined(separator: " ")
+            .components(separatedBy: " ")
+            .map { $0.capitalized }
+            .joined(separator: " ")
     }
 
     private func formatMetadataValue(key: String, value: Any) -> String {

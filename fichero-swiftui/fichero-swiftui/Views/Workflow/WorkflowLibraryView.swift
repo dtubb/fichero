@@ -73,53 +73,53 @@ struct WorkflowListView: View {
 
     var body: some View {
         workflowContent
-        .searchable(text: $searchText, prompt: "Search workflows...")
-        .task {
-            guard !Task.isCancelled else { return }
-            await loadWorkflows()
-        }
-        .sheet(isPresented: $showNewWorkflowSheet) {
-            NewWorkflowSheet { name, description in
-                await createWorkflow(name: name, description: description)
+            .searchable(text: $searchText, prompt: "Search workflows...")
+            .task {
+                guard !Task.isCancelled else { return }
+                await loadWorkflows()
             }
-        }
-        .alert("Delete Workflow?", isPresented: $showDeleteConfirmation) {
-            Button("Cancel", role: .cancel) {
-                workflowToDelete = nil
-            }
-            Button("Delete", role: .destructive) {
-                if let workflow = workflowToDelete {
-                    Task { await deleteWorkflow(workflow) }
+            .sheet(isPresented: $showNewWorkflowSheet) {
+                NewWorkflowSheet { name, description in
+                    await createWorkflow(name: name, description: description)
                 }
             }
-        } message: {
-            if let workflow = workflowToDelete {
-                Text("Are you sure you want to delete \"\(workflow.name)\"? This action cannot be undone.")
-            }
-        }
-        .alert("Reset Default Workflows?", isPresented: $showResetDefaultsConfirmation) {
-            Button("Cancel", role: .cancel) {}
-            Button("Reset", role: .destructive) {
-                Task { await resetDefaultWorkflows() }
-            }
-        } message: {
-            Text("This removes and recreates built-in default workflows.")
-        }
-        .alert(
-            "Workflow Templates",
-            isPresented: Binding(
-                get: { templateOperationMessage != nil },
-                set: { show in
-                    if !show {
-                        templateOperationMessage = nil
+            .alert("Delete Workflow?", isPresented: $showDeleteConfirmation) {
+                Button("Cancel", role: .cancel) {
+                    workflowToDelete = nil
+                }
+                Button("Delete", role: .destructive) {
+                    if let workflow = workflowToDelete {
+                        Task { await deleteWorkflow(workflow) }
                     }
                 }
-            )
-        ) {
-            Button("OK") { templateOperationMessage = nil }
-        } message: {
-            Text(templateOperationMessage ?? "")
-        }
+            } message: {
+                if let workflow = workflowToDelete {
+                    Text("Are you sure you want to delete \"\(workflow.name)\"? This action cannot be undone.")
+                }
+            }
+            .alert("Reset Default Workflows?", isPresented: $showResetDefaultsConfirmation) {
+                Button("Cancel", role: .cancel) {}
+                Button("Reset", role: .destructive) {
+                    Task { await resetDefaultWorkflows() }
+                }
+            } message: {
+                Text("This removes and recreates built-in default workflows.")
+            }
+            .alert(
+                "Workflow Templates",
+                isPresented: Binding(
+                    get: { templateOperationMessage != nil },
+                    set: { show in
+                        if !show {
+                            templateOperationMessage = nil
+                        }
+                    }
+                )
+            ) {
+                Button("OK") { templateOperationMessage = nil }
+            } message: {
+                Text(templateOperationMessage ?? "")
+            }
     }
 
     // MARK: - Content Views Based on Display Mode
@@ -342,7 +342,7 @@ struct WorkflowListView: View {
         }
         return workflowStore.workflows.filter { workflow in
             workflow.name.localizedCaseInsensitiveContains(searchText) ||
-            (workflow.description ?? "").localizedCaseInsensitiveContains(searchText)
+                (workflow.description ?? "").localizedCaseInsensitiveContains(searchText)
         }
     }
 

@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ArtifactsBrowserView")
 
@@ -41,8 +41,8 @@ struct ArtifactsBrowserView: View {
         if !searchText.isEmpty {
             filtered = filtered.filter { artifact in
                 artifact.content?.localizedCaseInsensitiveContains(searchText) ?? false ||
-                artifact.artifactType.localizedCaseInsensitiveContains(searchText) ||
-                artifact.documentId.localizedCaseInsensitiveContains(searchText)
+                    artifact.artifactType.localizedCaseInsensitiveContains(searchText) ||
+                    artifact.documentId.localizedCaseInsensitiveContains(searchText)
             }
         }
 
@@ -330,7 +330,7 @@ struct ArtifactsBrowserView: View {
         } description: {
             Text(
                 "Run workflows on documents to generate artifacts like " +
-                "transcriptions, summaries, and entity extractions."
+                    "transcriptions, summaries, and entity extractions."
             )
         }
     }

@@ -102,10 +102,10 @@ extension WorkflowInspector {
 
                 Text(
                     "Agent nodes use AI to reason and select tools dynamically. " +
-                    "They can handle complex multi-step tasks by breaking them down and executing appropriate actions."
+                        "They can handle complex multi-step tasks by breaking them down and executing appropriate actions."
                 )
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                .font(.caption)
+                .foregroundColor(.secondary)
             }
             .padding()
             .background(Color.secondary.opacity(0.1))

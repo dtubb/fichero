@@ -1,5 +1,5 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 // MARK: - Magnifier Panel (bottom bar - full width with zoom controls)
 

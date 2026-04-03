@@ -1,5 +1,5 @@
-import SwiftUI
 import FicheroAPIClient
+import SwiftUI
 
 /// View for reviewing and applying AI-generated link predictions
 struct PredictionReviewView: View {

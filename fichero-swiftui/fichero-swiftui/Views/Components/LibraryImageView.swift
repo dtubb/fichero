@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 /// Image view that loads from backend with proper library path headers
 /// Replacement for AsyncImage which doesn't support custom headers

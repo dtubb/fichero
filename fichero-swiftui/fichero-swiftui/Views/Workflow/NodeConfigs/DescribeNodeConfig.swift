@@ -76,22 +76,22 @@ struct DescribeNodeConfig: View {
                     .foregroundColor(.secondary)
 
                 MacPlainTextEditor(text: $promptText, font: .preferredFont(forTextStyle: .caption1))
-                .frame(minHeight: 80)
-                .background(Color(.textBackgroundColor))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(Color(.separatorColor), lineWidth: 1)
-                )
-                .onChange(of: promptText) { _, newValue in
-                    if newValue.isEmpty {
-                        node.config?.removeValue(forKey: "prompt")
-                    } else {
-                        if node.config == nil {
-                            node.config = [:]
+                    .frame(minHeight: 80)
+                    .background(Color(.textBackgroundColor))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Color(.separatorColor), lineWidth: 1)
+                    )
+                    .onChange(of: promptText) { _, newValue in
+                        if newValue.isEmpty {
+                            node.config?.removeValue(forKey: "prompt")
+                        } else {
+                            if node.config == nil {
+                                node.config = [:]
+                            }
+                            node.config?["prompt"] = .string(newValue)
                         }
-                        node.config?["prompt"] = .string(newValue)
                     }
-                }
 
                 Text("Prompt is editable. Clear to restore tool default.")
                     .font(.caption2)

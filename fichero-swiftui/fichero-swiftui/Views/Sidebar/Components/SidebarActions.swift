@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 /// Structured logger for sidebar action operations
 private let logger = Logger(subsystem: "com.fichero.app", category: "SidebarActions")

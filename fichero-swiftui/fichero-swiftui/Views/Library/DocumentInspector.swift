@@ -52,8 +52,8 @@ struct DocumentInspector: View {
                     .background(
                         RoundedRectangle(cornerRadius: 6)
                             .fill(selectedTab == tab
-                                  ? Color.accentColor.opacity(0.15)
-                                  : Color.clear)
+                                    ? Color.accentColor.opacity(0.15)
+                                    : Color.clear)
                     )
                     .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
                     .help(tab.rawValue)

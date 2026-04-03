@@ -15,8 +15,8 @@ extension LibraryView {
         if !searchText.isEmpty {
             docs = docs.filter {
                 $0.name.localizedCaseInsensitiveContains(searchText) ||
-                ($0.pageContent?.localizedCaseInsensitiveContains(searchText) ?? false) ||
-                $0.status.rawValue.localizedCaseInsensitiveContains(searchText)
+                    ($0.pageContent?.localizedCaseInsensitiveContains(searchText) ?? false) ||
+                    $0.status.rawValue.localizedCaseInsensitiveContains(searchText)
             }
         }
         return docs.sorted(using: sortOrder)

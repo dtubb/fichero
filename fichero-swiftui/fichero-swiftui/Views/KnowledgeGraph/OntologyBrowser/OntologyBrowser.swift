@@ -1,5 +1,5 @@
-import SwiftUI
 import FicheroAPIClient
+import SwiftUI
 
 /// Browser panel for exploring entities and their associated claims
 struct OntologyBrowser: View {
@@ -443,7 +443,7 @@ struct FlowLayout: Layout {
         let result = FlowResult(in: bounds.width, subviews: subviews, spacing: spacing)
         for (index, subview) in subviews.enumerated() {
             subview.place(at: CGPoint(x: bounds.minX + result.positions[index].x,
-                                       y: bounds.minY + result.positions[index].y),
+                                      y: bounds.minY + result.positions[index].y),
                           proposal: .unspecified)
         }
     }

@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 import UniformTypeIdentifiers
 
 /// Action picker view for the workflow inspector - allows dragging actions onto canvas
@@ -92,7 +92,7 @@ struct ActionPickerView: View {
             let query = searchText.lowercased()
             result = result.filter {
                 $0.name.lowercased().contains(query) ||
-                $0.description.lowercased().contains(query)
+                    $0.description.lowercased().contains(query)
             }
         }
 
@@ -292,7 +292,7 @@ struct CompactActionPicker: View {
             let query = searchText.lowercased()
             filtered = filtered.filter {
                 $0.name.lowercased().contains(query) ||
-                $0.description.lowercased().contains(query)
+                    $0.description.lowercased().contains(query)
             }
         }
 

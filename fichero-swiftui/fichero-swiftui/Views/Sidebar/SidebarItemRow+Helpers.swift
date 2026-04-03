@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 extension SidebarItemRow {
     func isDescendant(_ potentialDescendant: String, of ancestorId: String) -> Bool {

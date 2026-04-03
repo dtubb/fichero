@@ -191,8 +191,8 @@ private extension FilesNodeConfig {
         .background(
             RoundedRectangle(cornerRadius: 4)
                 .fill(stagedPickerSelection.contains(doc.id)
-                    ? Color.accentColor.opacity(0.12)
-                    : Color.clear)
+                        ? Color.accentColor.opacity(0.12)
+                        : Color.clear)
         )
     }
 

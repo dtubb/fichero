@@ -1,5 +1,5 @@
-import SwiftUI
 import FicheroAPIClient
+import SwiftUI
 
 /// Details tab for ClaimInspector showing claim text, type, status, confidence
 struct ClaimInspectorDetailsTab: View {

@@ -1,6 +1,6 @@
-import SwiftUI
-import OSLog
 import FicheroAPIClient
+import OSLog
+import SwiftUI
 
 extension LibraryManager {
 
@@ -18,7 +18,7 @@ extension LibraryManager {
         }
 
         return standardizedURL.path.hasPrefix(tempDir.path) &&
-               standardizedURL.lastPathComponent.hasPrefix("Untitled-")
+            standardizedURL.lastPathComponent.hasPrefix("Untitled-")
     }
 
     // MARK: - Internal Helpers

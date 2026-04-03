@@ -21,7 +21,7 @@ struct WorkflowPickerSheet: View {
         }
         return workflows.filter { workflow in
             workflow.name.localizedCaseInsensitiveContains(searchText) ||
-            (workflow.description?.localizedCaseInsensitiveContains(searchText) ?? false)
+                (workflow.description?.localizedCaseInsensitiveContains(searchText) ?? false)
         }
     }
 

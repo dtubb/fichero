@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 /// Action Library view for browsing and using reusable workflow actions
 struct ActionLibraryView: View {
@@ -19,8 +19,8 @@ struct ActionLibraryView: View {
         if !searchText.isEmpty {
             result = result.filter {
                 $0.name.localizedCaseInsensitiveContains(searchText) ||
-                $0.description.localizedCaseInsensitiveContains(searchText) ||
-                $0.tags.contains { $0.localizedCaseInsensitiveContains(searchText) }
+                    $0.description.localizedCaseInsensitiveContains(searchText) ||
+                    $0.tags.contains { $0.localizedCaseInsensitiveContains(searchText) }
             }
         }
 
