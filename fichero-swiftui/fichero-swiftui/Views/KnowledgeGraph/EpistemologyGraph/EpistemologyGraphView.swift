@@ -166,18 +166,18 @@ struct EpistemologyGraphView: View {
 
             var path = Path()
 
-            var x = offsetX
-            while x < canvasSize.width {
-                path.move(to: CGPoint(x: x, y: 0))
-                path.addLine(to: CGPoint(x: x, y: canvasSize.height))
-                x += gridSpacing
+            var gridX = offsetX
+            while gridX < canvasSize.width {
+                path.move(to: CGPoint(x: gridX, y: 0))
+                path.addLine(to: CGPoint(x: gridX, y: canvasSize.height))
+                gridX += gridSpacing
             }
 
-            var y = offsetY
-            while y < canvasSize.height {
-                path.move(to: CGPoint(x: 0, y: y))
-                path.addLine(to: CGPoint(x: canvasSize.width, y: y))
-                y += gridSpacing
+            var gridY = offsetY
+            while gridY < canvasSize.height {
+                path.move(to: CGPoint(x: 0, y: gridY))
+                path.addLine(to: CGPoint(x: canvasSize.width, y: gridY))
+                gridY += gridSpacing
             }
 
             context.stroke(path, with: .color(.gray.opacity(0.15)), lineWidth: 0.5)
@@ -253,9 +253,9 @@ struct EpistemologyGraphView: View {
     private func nodePosition(for claim: Components.Schemas.KnowledgeClaim, in size: CGSize) -> CGPoint {
         // Use claim ID hash for deterministic positioning
         let hash = abs((claim.id ?? "").hashValue)
-        let x = CGFloat(hash % 10000) / 10000.0 * (size.width - 80) + 40
-        let y = CGFloat((hash / 10000) % 10000) / 10000.0 * (size.height - 80) + 40
-        return CGPoint(x: x, y: y)
+        let posX = CGFloat(hash % 10000) / 10000.0 * (size.width - 80) + 40
+        let posY = CGFloat((hash / 10000) % 10000) / 10000.0 * (size.height - 80) + 40
+        return CGPoint(x: posX, y: posY)
     }
 
     private func linkColor(for type: String) -> Color {

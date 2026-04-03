@@ -453,23 +453,23 @@ struct FlowLayout: Layout {
         var positions: [CGPoint] = []
 
         init(in maxWidth: CGFloat, subviews: Subviews, spacing: CGFloat) {
-            var x: CGFloat = 0
-            var y: CGFloat = 0
+            var posX: CGFloat = 0
+            var posY: CGFloat = 0
             var rowHeight: CGFloat = 0
 
             for subview in subviews {
                 let size = subview.sizeThatFits(.unspecified)
-                if x + size.width > maxWidth, x > 0 {
-                    x = 0
-                    y += rowHeight + spacing
+                if posX + size.width > maxWidth, posX > 0 {
+                    posX = 0
+                    posY += rowHeight + spacing
                     rowHeight = 0
                 }
-                positions.append(CGPoint(x: x, y: y))
+                positions.append(CGPoint(x: posX, y: posY))
                 rowHeight = max(rowHeight, size.height)
-                x += size.width + spacing
+                posX += size.width + spacing
             }
 
-            self.size = CGSize(width: maxWidth, height: y + rowHeight)
+            self.size = CGSize(width: maxWidth, height: posY + rowHeight)
         }
     }
 }
