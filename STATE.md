@@ -17,6 +17,24 @@ Last updated: 2026-04-02
 - #381: Created `docs/agent-workflow/0.0.2-gate-map.md` — gate map for all semantic features across Layers 0-6
 - #365: Added `SourceMetadata` model with full citation validation (DOI, ISBN-13, ISBN-10, ISSN, arXiv), `ProvenanceInfo`, `KnowledgeClaim.source_metadata` field, 36 unit tests
 - #366: Added `GET /entities/alias-map` endpoint + `GET /claims?entity=X` free-text filter, 2 unit tests
+- SwiftLint: fixed 6 identifier_name errors (posX/posY/gridX/gridY in OntologyBrowser + EpistemologyGraphView)
+- rules.json: committed agent rules configuration
+- #367 partial: added `curated_only=true` convenience filter to GET /claims and /claims/filtered
+
+## Active Work (2026-04-02)
+
+**Phase 1: Knowledge Graph Core + PyKEEN (#387) — SWIFTUI COMPLETE, supporting features done**
+
+Backend complete (models, migration, routes, embeddings, MCP tools).
+SwiftUI views: all done — ClaimInspectorView, OntologyBrowserView, EpistemologyGraphView, PredictionReviewView.
+Deferred: PyKEEN wiring (needs `pykeen` dependency).
+
+Supporting work done this session:
+- #381: gate map documented in `docs/agent-workflow/0.0.2-gate-map.md`
+- #365: SourceMetadata model implemented (citation validation)
+- #366: entity alias-map + `?entity=` filter implemented
+- SwiftLint: 6 identifier_name violations fixed
+- #367 partial: `curated_only=true` filter added to claims endpoints
 
 ## Active Work (2026-04-02)
 
