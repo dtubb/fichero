@@ -460,6 +460,7 @@ async def list_claims_filtered(
     scope_type: InclusionScopeType | None = Query(default=None),
     target_id: str | None = Query(default=None),
     included_only: bool = Query(default=False),
+    curated_only: bool = Query(default=False),
     limit: int = Query(default=200, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     db: Database = Depends(get_library_database),
@@ -482,6 +483,7 @@ async def list_claims_filtered(
         scope_type=scope_type,
         target_id=target_id,
         included_only=included_only,
+        curated_only=curated_only,
     )
     return claims[offset:offset + limit]
 
@@ -653,6 +655,7 @@ def _filter_claims(
     entity: str | None = None,
     entity_type: EntityType | None = None,
     curation_state: ClaimCurationState | None = None,
+    curated_only: bool = False,
     claim_type: ClaimType | None = None,
     epistemic_status: EpistemicStatus | None = None,
     source_document_id: str | None = None,
@@ -695,6 +698,8 @@ def _filter_claims(
         ]
     if curation_state:
         claims = [c for c in claims if c.curation_state == curation_state]
+    if curated_only:
+        claims = [c for c in claims if c.curation_state == ClaimCurationState.curated]
     if claim_type:
         claims = [c for c in claims if c.claim_type == claim_type]
     if epistemic_status:
@@ -719,6 +724,7 @@ async def list_claims(
     entity: str | None = Query(default=None),
     entity_type: EntityType | None = Query(default=None),
     curation_state: ClaimCurationState | None = Query(default=None),
+    curated_only: bool = Query(default=False),
     claim_type: ClaimType | None = Query(default=None),
     epistemic_status: EpistemicStatus | None = Query(default=None),
     source_document_id: str | None = Query(default=None),
@@ -740,6 +746,7 @@ async def list_claims(
         entity=entity,
         entity_type=entity_type,
         curation_state=curation_state,
+        curated_only=curated_only,
         claim_type=claim_type,
         epistemic_status=epistemic_status,
         source_document_id=source_document_id,

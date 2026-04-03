@@ -271,6 +271,45 @@ def test_knowledge_graph_claims_filtered_endpoint(client, db):
     assert none_resp.json() == []
 
 
+def test_curated_only_filter(client, db):
+    """curated_only=true is a convenience shorthand for curation_state=curated."""
+    doc = Document(name="source", doc_type=DocType.file, path="/tmp/source.txt")
+    db.save(doc)
+
+    # Create three claims: one curated, one shortlisted, one unreviewed
+    for state, text in [
+        ("curated", "This is a confirmed fact."),
+        ("shortlisted", "This needs more review."),
+        ("unreviewed", "Raw extraction, not yet reviewed."),
+    ]:
+        resp = client.post(
+            "/api/knowledge-graph/claims",
+            json={
+                "text": text,
+                "source_document_id": doc.id,
+                "curation_state": state,
+            },
+        )
+        assert resp.status_code == 200
+
+    # curated_only=true returns only curated claims
+    curated_resp = client.get("/api/knowledge-graph/claims?curated_only=true")
+    assert curated_resp.status_code == 200
+    claims = curated_resp.json()
+    assert len(claims) == 1
+    assert claims[0]["curation_state"] == "curated"
+
+    # curated_only=true on /claims/filtered also works
+    filtered_curated = client.get("/api/knowledge-graph/claims/filtered?curated_only=true")
+    assert filtered_curated.status_code == 200
+    assert len(filtered_curated.json()) == 1
+
+    # curated_only=false returns all claims (default)
+    all_resp = client.get("/api/knowledge-graph/claims?curated_only=false")
+    assert all_resp.status_code == 200
+    assert len(all_resp.json()) == 3
+
+
 # =============================================================================
 # Migration tests (run against real Database via db fixture)
 # =============================================================================
