@@ -1,15 +1,27 @@
 
 ## 2026-04-03 — Autonomous Loop Session
 
+- #367: Reversible entity merge/split + claim curation transitions
+  - `POST /entities/merge`: absorbs entities into survivor with alias preservation
+  - `POST /entities/split`: distributes aliases across primary + split-off entities
+  - `POST /entities/audit/{id}/undo`: reverses any merge/split via audit chain
+  - `GET /entities/audit`: lists audit records filtered by entity_id
+  - `EntityMergeAudit` model: immutable operation log with reversal linkage
+  - `KnowledgeEntity.merged_into_id` used for soft-delete redirect
+  - `PATCH /claims/{id}` covers curation_state transitions (already existed)
+
+- #362: General mutation log with undo/rollback for KG entities
+  - `MutationLog` model: before/after state snapshots with `run_id` for AI batch grouping
+  - `POST /knowledge-mutations/undo`: undo single mutation or rollback full AI run
+  - `GET /knowledge-mutations`: list with filters (entity_type, entity_id, run_id, created_by)
+  - `POST|PATCH /claims` now log mutations automatically with run_id/agent_id query params
+  - `_log_mutation` helper for wiring mutations into any KG entity
+
 - #395: Fixed 8 SwiftLint violations across 4 SwiftUI view files:
   - Extracted 13 component files from 4 long views
-  - `PredictionReviewView`: 4 subviews + PredictionReviewState view model
-  - `EpistemologyGraphView`: 9 component views (canvas layers, toolbar, state views)
-  - `OntologyBrowser`: 4 subviews (EntityRow, EntityDetailView, ClaimSummaryCard, FlowLayout)
-  - `DocumentInspectorContentTab`: AttributedTextEditor NSViewRepresentable + DocumentInspectorContentState
   - Result: 0 violations across 341 Swift files
-- #387: Updated — confirmed SwiftUI views complete; stale DEFERRED section corrected
-- #367: Updated — curated_only filter confirmed done; merge/split/audit still pending
+
+**All 900 pytest pass. ruff clean. SwiftLint clean.**
 
 ## 2026-04-02 — Autonomous Loop Session
 
