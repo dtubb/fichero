@@ -17,8 +17,10 @@ Last updated: 2026-04-09
 - Verified GitHub issue #387 directly via `gh issue view` before implementation
 - Wired `POST /predictions/generate/pykeen` to real PyKEEN training/evaluation in `fichero-api/src/fichero/api/routes/knowledge_graph.py`
 - Rejected a simulated/fake Codex implementation and replaced it with actual PyKEEN pipeline usage (`TriplesFactory`, `pipeline`, `predict_target`)
-- Added/updated unit tests covering PyKEEN run persistence and missing-graph validation in `fichero-api/tests/unit/test_knowledge_graph_api.py`
-- Validated targeted backend tests, `ruff check`, and `swiftlint`
+- Added PyKEEN model artifact persistence and stored `model_path` on `KnowledgePredictionRun`
+- Added/updated unit tests covering PyKEEN run persistence, artifact output, and missing-graph validation in `fichero-api/tests/unit/test_knowledge_graph_api.py`
+- Ran full backend unit suite (`902 passed, 16 skipped`), `ruff check`, and `swiftlint`
+- Committed the first PyKEEN wiring pass: `feat: wire PyKEEN prediction generation route (#387)`
 
 ## Phase Implementation Status (2026-04-07 Assessment)
 
@@ -30,10 +32,10 @@ Last updated: 2026-04-09
 - Real PyKEEN imports added in `knowledge_graph.py`
 - Prediction runs persist `KnowledgePredictionRun` records with real ranking metrics and preview metadata
 **Still missing:**
-- No model artifact persistence/loading yet
 - `POST /predictions/{run_id}/apply` still returns 501
 - No OpenAPI/schema sync or Swift client regeneration has been run for this change
-- No full backend suite / xcodebuild pass has been run yet this session
+- No `xcodebuild` pass has been run this session
+- Current artifact persistence follow-up is uncommitted in the worktree
 
 ### Phase 2 — Hermeneutics (#388) ✅ BUILT
 - Models (`hermeneutics_models.py`): Framework, Interpretation, HermeneuticCircle, PatternInstance, HermesSuggestion — all done
@@ -74,7 +76,7 @@ Last updated: 2026-04-09
 
 ## Next Session — Start Here
 
-1. **Finish #387 properly:** run broader backend quality checks, then decide whether this route needs OpenAPI sync / Swift client regeneration despite no request/response schema change
-2. **Implement next PyKEEN step:** add model artifact persistence and/or wire `POST /predictions/{run_id}/apply` off stored run metadata
-3. **Phase 2 verification** (#388): run hermeneutics routes/tests end-to-end after #387 is stable
-4. **Check git state first:** there are pre-existing unrelated deletions/modifications in the worktree; do not commit blindly
+1. **Sort git state first:** there are uncommitted PyKEEN follow-up changes mixed with unrelated pre-existing worktree modifications; separate them before any new commit
+2. **Finish #387:** implement `POST /predictions/{run_id}/apply` using stored prediction run metadata/artifacts and add tests
+3. **OpenAPI/client review:** decide whether #387 requires schema sync / Swift client regeneration even without obvious contract changes
+4. **Then Phase 2** (#388): run hermeneutics verification once #387 is clean

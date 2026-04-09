@@ -1,6 +1,7 @@
 """Knowledge graph API routes (dev tier, backend-first 0.0.2 slice)."""
 
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -1580,6 +1581,13 @@ def _extract_pykeen_metrics(result: Any) -> dict[str, float | None]:
     }
 
 
+def _prediction_artifacts_dir(db: Database) -> Path:
+    """Return the directory used to persist PyKEEN run artifacts."""
+    artifacts_dir = Path(db.path).parent / "knowledge-predictions"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    return artifacts_dir
+
+
 def _build_claim_link_prediction_preview(
     result: Any,
     triples_factory: TriplesFactory,
@@ -1681,6 +1689,9 @@ async def generate_pykeen_predictions(
     metrics = _extract_pykeen_metrics(result)
     prediction_preview = _build_claim_link_prediction_preview(result, triples_factory, claims, claim_links)
 
+    artifact_dir = _prediction_artifacts_dir(db) / f"pykeen-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+    result.save_to_directory(str(artifact_dir))
+
     run = KnowledgePredictionRun(
         model_type=request.model_type,
         pykeen_config={
@@ -1699,6 +1710,7 @@ async def generate_pykeen_predictions(
         hits_at_10=metrics["hits_at_10"],
         hits_at_5=metrics["hits_at_5"],
         hits_at_1=metrics["hits_at_1"],
+        model_path=str(artifact_dir),
         status="trained",
         metadata={
             "training_triples": len(triples),

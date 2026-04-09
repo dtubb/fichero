@@ -1,5 +1,7 @@
 """Unit tests for dev-tier knowledge graph API routes."""
 
+from pathlib import Path
+
 from fichero.models import DocType, Document
 
 
@@ -563,6 +565,9 @@ def test_generate_pykeen_predictions_persists_run_with_metadata(client, db):
     assert payload["mrr"] is not None
     assert payload["hits_at_10"] is not None
     assert payload["pykeen_config"]["pipeline_mode"] == "pykeen"
+    assert payload["model_path"] is not None
+    assert Path(payload["model_path"]).exists()
+    assert (Path(payload["model_path"]) / "trained_model.pkl").exists()
     assert payload["metadata"]["training_triples"] >= 2
     assert payload["metadata"]["prediction_preview_count"] >= 1
 
