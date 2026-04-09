@@ -1,4 +1,16 @@
 
+## 2026-04-07 — Autonomous Loop Session
+
+- **#387 Phase 1 assessment**: Assessed 0.0.2 phase implementation status across all 5 phases
+  - Phase 1 (#387): Backend done, PyKEEN route needs wiring + pip install
+  - Phase 2 (#388): Backend + SwiftUI done, fully built
+  - Phase 3 (#389): Backend done, SwiftUI Mind Palace views missing
+  - Phase 4 (#390): Backend done, SwiftUI Research views missing
+  - Phase 5 (#391): Not started — MCP adapters + integration
+  - 0.0.1 regression bugs (#382-#386) are NOT blockers for 0.0.2 work
+- Added `pykeen` to `pyproject.toml` (Briefcase `requires` + `dependencies`)
+- Removed stale `BLOCK.md` and `CONTINUE.md`
+
 ## 2026-04-03 — Autonomous Loop Session
 
 - **#367**: Reversible entity merge/split + claim curation transitions
