@@ -3,8 +3,12 @@
 from datetime import datetime
 from typing import Any
 
+import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from pykeen.pipeline import pipeline
+from pykeen.predict import predict_target
+from pykeen.triples import TriplesFactory
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -1531,6 +1535,180 @@ class PredictionGeneratePyKEENRequest(BaseModel):
     training_epochs: int = Field(default=100, ge=1, le=1000)
     learning_rate: float = Field(default=0.001, ge=0.0001, le=1.0)
     batch_size: int = Field(default=256, ge=8, le=1024)
+
+
+def _build_minimal_pykeen_triples(
+    claims: list[KnowledgeClaim],
+    claim_links: list[KnowledgeClaimLink],
+) -> list[tuple[str, str, str]]:
+    """Build a compact training graph from existing claim/entity/link data."""
+    triples: list[tuple[str, str, str]] = []
+
+    for claim in claims:
+        entity_ids = sorted(set(claim.entity_ids))
+        for entity_id in entity_ids:
+            triples.append((claim.id, "mentions", entity_id))
+
+        # Add simple co-occurrence edges so a model has typed relation structure.
+        for index, left_entity_id in enumerate(entity_ids):
+            for right_entity_id in entity_ids[index + 1:]:
+                triples.append((left_entity_id, "co_occurs_with", right_entity_id))
+                triples.append((right_entity_id, "co_occurs_with", left_entity_id))
+
+    for claim_link in claim_links:
+        triples.append(
+            (
+                claim_link.claim_id,
+                f"claim_{claim_link.relation_type.value}",
+                claim_link.related_claim_id,
+            )
+        )
+
+    # Stable dedupe while preserving insertion order.
+    return list(dict.fromkeys(triples))
+
+
+def _extract_pykeen_metrics(result: Any) -> dict[str, float | None]:
+    """Extract realistic ranking metrics from a PyKEEN pipeline result."""
+    metrics = result.metric_results.to_dict()
+    realistic = metrics.get("both", {}).get("realistic", {})
+    return {
+        "mrr": realistic.get("inverse_harmonic_mean_rank"),
+        "hits_at_10": realistic.get("hits_at_10"),
+        "hits_at_5": realistic.get("hits_at_5"),
+        "hits_at_1": realistic.get("hits_at_1"),
+    }
+
+
+def _build_claim_link_prediction_preview(
+    result: Any,
+    triples_factory: TriplesFactory,
+    claims: list[KnowledgeClaim],
+    claim_links: list[KnowledgeClaimLink],
+    top_k: int = 10,
+) -> list[dict[str, Any]]:
+    """Create lightweight candidate links from real PyKEEN scores."""
+    linked_pairs: set[tuple[str, str]] = set()
+    for claim_link in claim_links:
+        linked_pairs.add((claim_link.claim_id, claim_link.related_claim_id))
+        linked_pairs.add((claim_link.related_claim_id, claim_link.claim_id))
+
+    claim_ids = [claim.id for claim in claims]
+    candidate_relations = [
+        relation for relation in ("claim_supports", "claim_refines", "claim_contradicts", "mentions")
+        if relation in triples_factory.relation_to_id
+    ]
+    if not candidate_relations:
+        return []
+
+    candidates: list[dict[str, Any]] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    for claim in claims:
+        predictions = predict_target(
+            result.model,
+            head=claim.id,
+            relation=candidate_relations[0],
+            triples_factory=triples_factory,
+            targets=claim_ids,
+        )
+        for row in predictions.df.itertuples(index=False):
+            target_claim_id = row.tail_label
+            if target_claim_id == claim.id:
+                continue
+            pair = tuple(sorted((claim.id, target_claim_id)))
+            if pair in seen_pairs or (claim.id, target_claim_id) in linked_pairs:
+                continue
+            seen_pairs.add(pair)
+            candidates.append(
+                {
+                    "source_claim_id": claim.id,
+                    "target_claim_id": target_claim_id,
+                    "predicted_relation": "supports",
+                    "score": round(float(row.score), 6),
+                }
+            )
+
+    candidates.sort(key=lambda item: item["score"], reverse=True)
+    return candidates[:top_k]
+
+
+@router.post("/predictions/generate/pykeen", response_model=KnowledgePredictionRun)
+async def generate_pykeen_predictions(
+    request: PredictionGeneratePyKEENRequest,
+    db: Database = Depends(get_library_database),
+) -> KnowledgePredictionRun:
+    """Train or simulate a minimal PyKEEN pipeline and persist run metadata."""
+    claims = db.all(KnowledgeClaim)
+    if not claims:
+        raise HTTPException(status_code=400, detail="Cannot train predictions: no knowledge claims found.")
+
+    entities = db.all(KnowledgeEntity)
+    if not entities:
+        raise HTTPException(status_code=400, detail="Cannot train predictions: no knowledge entities found.")
+
+    claim_links = db.all(KnowledgeClaimLink)
+    triples = _build_minimal_pykeen_triples(claims, claim_links)
+    if not triples:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot train predictions: no graph triples derived from claims/entities.",
+        )
+
+    relation_types = sorted({relation for _, relation, _ in triples})
+    triples_array = np.array(triples, dtype=str)
+    triples_factory = TriplesFactory.from_labeled_triples(triples_array)
+    model_name = {
+        PredictionModelType.transe: "TransE",
+        PredictionModelType.rotate: "RotatE",
+        PredictionModelType.complex: "ComplEx",
+        PredictionModelType.hermite: "HolE",
+    }[request.model_type]
+
+    try:
+        result = pipeline(
+            training=triples_factory,
+            testing=triples_factory,
+            validation=triples_factory,
+            model=model_name,
+            epochs=request.training_epochs,
+            training_kwargs={"batch_size": request.batch_size},
+            optimizer_kwargs={"lr": request.learning_rate},
+            random_seed=42,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"PyKEEN training failed: {exc}") from exc
+
+    metrics = _extract_pykeen_metrics(result)
+    prediction_preview = _build_claim_link_prediction_preview(result, triples_factory, claims, claim_links)
+
+    run = KnowledgePredictionRun(
+        model_type=request.model_type,
+        pykeen_config={
+            "model_type": request.model_type.value,
+            "pykeen_model": model_name,
+            "training_epochs": request.training_epochs,
+            "learning_rate": request.learning_rate,
+            "batch_size": request.batch_size,
+            "pipeline_mode": "pykeen",
+        },
+        trained_at=datetime.now(),
+        num_entities=len(entities),
+        num_claims=len(claims),
+        num_relation_types=len(relation_types),
+        mrr=metrics["mrr"],
+        hits_at_10=metrics["hits_at_10"],
+        hits_at_5=metrics["hits_at_5"],
+        hits_at_1=metrics["hits_at_1"],
+        status="trained",
+        metadata={
+            "training_triples": len(triples),
+            "relation_types": relation_types,
+            "prediction_preview": prediction_preview,
+            "prediction_preview_count": len(prediction_preview),
+        },
+    )
+    db.save(run)
+    return run
 
 
 @router.post("/predictions/generate/heuristic")

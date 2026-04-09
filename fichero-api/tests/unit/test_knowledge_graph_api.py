@@ -397,7 +397,6 @@ def test_embed_claims_and_semantic_search(client, db):
         },
     )
     assert claim_resp.status_code == 200
-    claim = claim_resp.json()
 
     # Embed the claim
     embed_resp = client.post("/api/knowledge-graph/claims/semantic/embed")
@@ -508,6 +507,77 @@ def test_generate_heuristic_predictions_requires_embedding(client, db):
     # No embeddings yet — should fail
     pred_resp = client.post("/api/knowledge-graph/predictions/generate/heuristic", json={"top_k": 5})
     assert pred_resp.status_code == 503
+
+
+def test_generate_pykeen_predictions_persists_run_with_metadata(client, db):
+    """PyKEEN generation persists a prediction run with real training metadata."""
+    source_doc = Document(name="source", doc_type=DocType.file, path="/tmp/source.txt")
+    db.save(source_doc)
+
+    entity_resp = client.post(
+        "/api/knowledge-graph/entities",
+        json={"canonical_name": "Cerro Bolívar", "entity_type": "location"},
+    )
+    assert entity_resp.status_code == 200
+    entity_id = entity_resp.json()["id"]
+
+    claim_a_resp = client.post(
+        "/api/knowledge-graph/claims",
+        json={
+            "text": "Ore extraction at Cerro Bolívar intensified after 1960.",
+            "source_document_id": source_doc.id,
+            "entity_ids": [entity_id],
+            "confidence": 0.8,
+        },
+    )
+    assert claim_a_resp.status_code == 200
+
+    claim_b_resp = client.post(
+        "/api/knowledge-graph/claims",
+        json={
+            "text": "Rail shipments from Cerro Bolívar expanded in the same period.",
+            "source_document_id": source_doc.id,
+            "entity_ids": [entity_id],
+            "confidence": 0.7,
+        },
+    )
+    assert claim_b_resp.status_code == 200
+
+    run_resp = client.post(
+        "/api/knowledge-graph/predictions/generate/pykeen",
+        json={
+            "model_type": "transe",
+            "training_epochs": 12,
+            "learning_rate": 0.01,
+            "batch_size": 64,
+        },
+    )
+    assert run_resp.status_code == 200
+    payload = run_resp.json()
+
+    assert payload["model_type"] == "transe"
+    assert payload["status"] == "trained"
+    assert payload["num_entities"] == 1
+    assert payload["num_claims"] == 2
+    assert payload["num_relation_types"] >= 1
+    assert payload["mrr"] is not None
+    assert payload["hits_at_10"] is not None
+    assert payload["pykeen_config"]["pipeline_mode"] == "pykeen"
+    assert payload["metadata"]["training_triples"] >= 2
+    assert payload["metadata"]["prediction_preview_count"] >= 1
+
+    # Verify the run is persisted and visible in listing endpoint.
+    list_resp = client.get("/api/knowledge-graph/predictions")
+    assert list_resp.status_code == 200
+    runs = list_resp.json()
+    assert any(run["id"] == payload["id"] for run in runs)
+
+
+def test_generate_pykeen_predictions_requires_graph_data(client, db):
+    """PyKEEN generation fails fast when no claims/entities exist."""
+    run_resp = client.post("/api/knowledge-graph/predictions/generate/pykeen", json={})
+    assert run_resp.status_code == 400
+    assert "no knowledge claims" in run_resp.json()["detail"].lower()
 
 
 def test_apply_prediction_returns_501_without_trained_model(client, db):

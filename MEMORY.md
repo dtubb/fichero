@@ -1,6 +1,6 @@
 # MEMORY.md — Fichero
 
-Last updated: 2026-04-01
+Last updated: 2026-04-09
 
 ## Current Phase
 
@@ -62,6 +62,7 @@ For each layer:
 - Branch naming: `feature/<name>`, `codex/<name>`, `fix/<name>`
 - Generated files are read-only; regenerate instead of editing
 - `PYTHONPATH=fichero-api/src` for all Python commands
+- PyKEEN is installed and importable in the project environment; use real PyKEEN training/evaluation for `/predictions/generate/pykeen`, not simulated metrics
 - Sandboxed agent tools (no filesystem/CLI escape)
 - **Quality gates at each step:**
   - `ruff check fichero-api/src/` — Python linting
