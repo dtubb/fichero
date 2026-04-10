@@ -1,46 +1,19 @@
 # Current Focus
-📝 Code Quality Review Initiative — 7 GitHub Issues Created for Security PRs
+📝 Code Quality Review Initiative — Phase 1: Automated Quality Gates
 
 # Branch
 - Active branch: `0.0.2` (pushes to `origin/0.0.2`)
-- Last commit: Issue #408 — HIGH severity security fixes implemented
-- PR: #409 — fix(security): Implement HIGH severity fixes for Phase 5 (#408)
+- Last commit: Issue #410 — Phase 0 pre-flight complete
+- Next: Rebase 5 PR branches before Phase 1
 
 # Completed
-- ✅ Phase 0: Pre-flight Checklist (#410) — Complete
-  - All 6 security PRs verified against pre-flight criteria
-  - PR #409 ready to proceed to Phase 1
-  - PRs #399, #401, #403, #405, #407 need rebase from 0.0.2 (8-30 commits behind)
-  - No merge conflicts detected
-  - All PRs have conventional commit titles and descriptive bodies
+- ✅ Phase 0: Pre-flight Checklist (#410) — See HISTORY.md
 - ✅ Phase 1: Knowledge Graph Core (#387) — Complete, code reviewed
-- ✅ Phase 2: Hermeneutics (#388) — Complete, code reviewed  
+- ✅ Phase 2: Hermeneutics (#388) — Complete, code reviewed
 - ✅ Phase 3: Mind Palace + RealityKit (#389) — Complete, code reviewed
 - ✅ Phase 4: Agent Research (#390) — Complete, code reviewed, PR #397 closed
 - ✅ Phase 5: Integration & Polish (#391) — Complete, code reviewed, issue closed
-- ✅ Phase 4 Security Audit (#398)** — SSRF fixes implemented, ready for review
-  - SECURITY_FINDINGS_398.md with complete vulnerability report
-  - test_research_ssrf_security.py with 53 security test cases (48 PASSING)
-  - Implemented `_is_internal_ip()` and `_is_safe_url()` validation
-  - Branch: feature/issue-398 pushed to origin, ready for PR
-- ✅ **Phase 1 Knowledge Graph Security Audit (#402)** — PyKEEN/entity access review complete
-  - SECURITY_FINDINGS_402.md with vulnerability findings (PyKEEN pickle risk)
-  - test_knowledge_graph_security.py with 8 security tests (2 FAILING)
-  - Branch: feature/issue-402 pushed, PR #403 ready for review
-- ✅ **Phase 2 Hermeneutics Security Audit (#404)** — LLM injection review complete
-  - SECURITY_FINDINGS_404.md with future LLM risk analysis
-  - test_hermeneutics_security.py with 5 security tests (all PASSING)
-  - Current code secure — placeholder, no active LLM integration
-  - Branch: feature/issue-404 pushed, PR #405 ready for review
-- ✅ **Phase 5 HIGH Severity Security Fixes (#408)** — CORS and MCP authorization
-  - Implemented environment-based CORS origin configuration
-  - Added API key authentication to MCP server (FICHERO_API_KEY)
-  - Test results: 10/13 integration tests now PASSING (+4)
-  - Branch: feature/issue-408 pushed, PR #409 ready for review
-  - SECURITY_FINDINGS_406.md — All findings LOW/Secure
-  - test_mind_palace_security.py with 8 security tests (all PASSING)
-  - No file I/O vulnerabilities, all data in database
-  - Branch: feature/issue-406 pushed, PR #407 ready for review
+- ✅ Phase 1-5 Security Audits (#398, #400, #402, #404, #406, #408) — Complete
 
 ## Code Review Summary (Phase 1-5 Backend)
 
@@ -115,55 +88,44 @@
 - SwiftUI build: Fails due to missing DocumentInspectorContentState and AttributedTextEditor types
 
 # In Progress
-- Phase 1 (#411): Automated Quality Gates — Blocked pending branch updates on PRs #399, #401, #403, #405, #407
+- None (Phase 0 complete, Phase 1 blocked pending branch updates)
 
 # Blocked
-- None
+- Phase 1 (#411): Blocked — PR branches #399, #401, #403, #405, #407 need rebase from 0.0.2
+- PR #409: Ready to proceed (only 8 commits behind, within threshold)
 
 # Next Session — Start Here
-**Phase 0: Pre-flight Checklist (#410) — COMPLETE — Branch feature/issue-410 pushed**
+**Unblock Phase 1: Rebase 5 Security PR Branches**
 
-### Pre-flight Results Summary
-| PR | Status | Behind 0.0.2 |
-|----|--------|--------------|
-| #409 | ✅ Ready for Phase 1 | 8 commits |
-| #399 | ⚠️ Needs rebase | 30 commits |
-| #401 | ⚠️ Needs rebase | 21 commits |
-| #403 | ⚠️ Needs rebase | 18 commits |
-| #405 | ⚠️ Needs rebase | 15 commits |
-| #407 | ⚠️ Needs rebase | 12 commits |
+### Current State
+| PR | Branch | Status | Behind 0.0.2 |
+|----|--------|--------|--------------|
+| #409 | feature/issue-408 | ✅ Ready for Phase 1 | 8 commits (OK) |
+| #399 | feature/issue-398 | ⚠️ Needs rebase | 30 commits |
+| #401 | feature/issue-400 | ⚠️ Needs rebase | 21 commits |
+| #403 | feature/issue-402 | ⚠️ Needs rebase | 18 commits |
+| #405 | feature/issue-404 | ⚠️ Needs rebase | 15 commits |
+| #407 | feature/issue-406 | ⚠️ Needs rebase | 12 commits |
 
-### Next Actions
-1. Rebase 5 PR branches from 0.0.2 (all >10 commits behind threshold)
-2. Proceed to Phase 1 (#411): Automated Quality Gates (ruff, tests)
-3. After Phase 1: Phase 2 (#412): Architecture Compliance
+### Next Actions (in order)
+1. **Rebase oldest first:** feature/issue-398 (30 commits behind)
+2. **Continue in order:** issue-400, issue-402, issue-404, issue-406
+3. **After all rebased:** Proceed to Phase 1 (#411): Automated Quality Gates
+4. **Note:** PR #409 can proceed to Phase 1 immediately if desired
 
-### Summary of Changes
-Implemented comprehensive SSRF protection in both:
-- `fichero-api/src/fichero/api/routes/research_agents.py` 
-- `fichero-api/src/fichero/workflows/tools/research.py`
+### Commands Needed
+```bash
+# For each branch (oldest first):
+git fetch origin
+git checkout feature/issue-398
+git rebase origin/0.0.2  # resolve any conflicts
+git push --force-with-lease
 
-### Security Fixes (48 of 53 tests now passing)
-| Vulnerability | Status | Tests |
-|--------------|--------|-------|
-| Internal IP blocking (RFC1918) | ✅ FIXED | 38/38 |
-| Cloud metadata endpoints | ✅ FIXED | 2/2 |
-| URL scheme validation | ✅ FIXED | 5/5 |
-| DNS resolution validation | ✅ FIXED | 3/3 |
-| Open redirects | ⚠️ Accepted Risk | 0/3 |
-| Query string bypass | ⚠️ Accepted Risk | 0/2 |
+# Repeat for: issue-400, issue-402, issue-404, issue-406
+```
 
-### Key Functions Added
-- `_is_internal_ip(hostname)` — Blocks RFC1918, loopback, link-local IPs
-- `_is_safe_url(url)` — Comprehensive validation with scheme/host/port checks
-- Applied to browser_navigate, document_fetch, web_search tools
-
-### Next Actions
-1. Review PR in GitHub — `feature/issue-398` branch
-2. Test in staging environment (if applicable)
-3. Consider future work: Open redirect chain validation (3 test failures remain)
-
-**Priority 2:** Phase 5 Integration Security Review — CORS, MCP authorization
+### Reference
+See PREFLIGHT_REPORT.md in feature/issue-410 for full details.
 
 ## Architecture Compliance Verification
 
@@ -190,125 +152,3 @@ Implemented comprehensive SSRF protection in both:
 - Environment variable support (FICHERO_FEATURE_TIER, FICHERO_PYTHON_BIN)
 - Bundle detection for production mode
 - Proper logging throughout
----
-
-## UPDATED: Systematic Code Review Plan (2026-04-10)
-
-**Status**: GitHub Issues updated with security review requirements
-
-### GitHub Issues Updated
-| Issue | Phase | Status | Security Priority |
-|-------|-------|--------|-------------------|
-| #387 | Knowledge Graph | PENDING REVIEW | High (PyKEEN, queries) |
-| #388 | Hermeneutics | PENDING REVIEW | Medium (LLM injection) |
-| #389 | Mind Palace | PENDING REVIEW | Medium (file paths) |
-| #390 | Agent Research | PENDING REVIEW | **CRITICAL** (SSRF) |
-| #391 | Integration | PENDING REVIEW | High (CORS, MCP) |
-
-### Review Methodology
-Each Phase requires review across 3 dimensions:
-
-1. **Functionality**: Does it work as specified?
-2. **Code Quality**: Is it maintainable and correct?
-3. **Security**: Is it safe?
-
-### Security Review Status
-
-| Issue | Phase | Status | Security Priority | Next Action |
-|-------|-------|--------|-------------------|-------------|
-| **#402** | **Knowledge Graph** | **✅ AUDIT COMPLETE** | **HIGH (PyKEEN)** | **PR Review** |
-  - PyKEEN pickle risk: ⚠️ Accepted (single-user)
-  - Entity access control: ❌ No check (OK single-user)
-  - Triple sensitivity: ❌ No filtering
-  - Validators: ✅ ReDoS-safe
-| #387 | Knowledge Graph | PENDING REVIEW | High (PyKEEN, queries) | Await Phase 4 completion |
-| #388 | Hermeneutics | PENDING REVIEW | Medium (LLM injection) | Await Phase 4 completion |
-| #389 | Mind Palace | PENDING REVIEW | Medium (file paths) | Await Phase 4 completion |
-| **#400** | **Integration** | **✅ AUDIT COMPLETE** | **HIGH (CORS)** | **PR Review** |
-  - CORS wildcard with credentials: ❌ Vulnerable
-  - MCP authorization: ❌ Missing
-  - Feature tier bypass: ❌ No validation
-  - Library path injection: ❌ No validation
-| #391 | Integration | PENDING REVIEW | High (CORS, MCP) | Security fixes needed
-
-### GitHub Issue #398 — Phase 4 SSRF Security (COMPLETE)
-
-**Status:** ✅ FIXES IMPLEMENTED — PR #399 Ready for Review
-
-**Fixes:**
-- Internal IP blocking: ✅ FIXED
-- Cloud metadata: ✅ BLOCKED  
-- Scheme validation: ✅ FIXED
-- DNS resolution: ✅ VALIDATED
-- Open redirects: ⚠️ Accepted risk
-- Query strings: ⚠️ Accepted risk
-
-**Summary: 48 of 53 security tests passing**
-
-### GitHub Issue #400 — Phase 5 Integration Security (AUDIT COMPLETE)
-
-**Created:** 2026-04-10
-**Updated:** 2026-04-10
-**Branch:** `feature/issue-400`
-**Status:** ✅ AUDIT COMPLETE — PR #401 Ready for Review
-
-**Vulnerabilities Found:**
-| Severity | Issue | Status | Tests |
-|----------|-------|--------|-------|
-| HIGH | CORS wildcard + credentials | ❌ CONFIRMED | 1/1 FAIL |
-| HIGH | MCP authorization | ❌ CONFIRMED | 1/1 FAIL |
-| MEDIUM | Feature tier bypass | ❌ CONFIRMED | 1/1 FAIL |
-| MEDIUM | Library path injection | ❌ CONFIRMED | 1/1 FAIL |
-
-**Summary: 4 of 13 security tests failing (vulnerabilities confirmed)**
-
-**Artifacts:**
-- `SECURITY_FINDINGS_400.md` — Complete vulnerability report
-- `fichero-api/tests/unit/test_integration_security.py` — 13 security tests (4 FAIL)
-- Commits: feature/issue-400 branch ready for PR
-
-
-### Known Test Gaps
-- Edge case testing (malformed inputs, boundary conditions)
-- Security vulnerability tests (injection attempts)
-- Load/stress testing (embedding batch limits)
-- Authorization testing (cross-user data access)
-- Integration testing (end-to-end workflows)
-
-### Execution Order
-- **Sprint 1**: Phase 4 (Agent Research) - SSRF highest risk
-- **Sprint 2**: Phase 5 (Integration) - Cross-cutting security
-- **Sprint 3**: Phase 1 (Knowledge Graph) - Foundation
-- **Sprint 4**: Phase 2 & 3 (Hermeneutics + Mind Palace)
-
-
-
----
-
-## 🎉 Phase 1-5 Security Audit Initiative — COMPLETE
-
-**Date:** 2026-04-10  
-**Status:** All Phase 1-5 security audits complete
-
-### Audit Summary
-
-| Phase | Issue | Status | Key Findings | Tests |
-|-------|-------|--------|--------------|-------|
-| Phase 1 | #402 | ✅ Complete | PyKEEN pickle risk (LOW, single-user OK) | 8 tests, 2 fail |
-| Phase 2 | #404 | ✅ Complete | LLM injection future risk (MEDIUM) | 5 tests, all pass |
-| Phase 3 | #406 | ✅ Complete | No vulnerabilities found | 8 tests, all pass |
-| Phase 4 | #398 | ✅ Complete | SSRF fixes implemented (48/53 pass) | 53 tests, 48 pass |
-| Phase 5 | #400 | ✅ Complete | CORS/MCP vulnerabilities (HIGH) | 13 tests, 4 fail |
-
-### Open PRs Awaiting Review
-- #399 — Phase 4 SSRF Security Fixes
-- #401 — Phase 5 Integration Security Audit
-- #403 — Phase 1 Knowledge Graph Audit
-- #405 — Phase 2 Hermeneutics Audit
-- #407 — Phase 3 Mind Palace Audit
-
-### Next Steps
-1. Daniel reviews all 5 security PRs
-2. Merge approved PRs
-3. Close issues #398, #400, #402, #404, #406
-4. Implement fixes for HIGH severity issues (CORS, MCP auth)
