@@ -1,9 +1,9 @@
 # Current Focus
-Phase 1-5 Code Review Complete — All backend implementation verified
+Phase 4 (Agent Research) SSRF Security Review — Vulnerabilities Documented, Fix Implementation Pending
 
 # Branch
 - Active branch: `0.0.2` (pushes to `origin/0.0.2`)
-- Last commit: PR #397 closed, Issue #391 closed
+- Last commit: Issue #398 — Security findings report and test suite created
 
 # Completed
 - ✅ Phase 1: Knowledge Graph Core (#387) — Complete, code reviewed
@@ -11,6 +11,10 @@ Phase 1-5 Code Review Complete — All backend implementation verified
 - ✅ Phase 3: Mind Palace + RealityKit (#389) — Complete, code reviewed
 - ✅ Phase 4: Agent Research (#390) — Complete, code reviewed, PR #397 closed
 - ✅ Phase 5: Integration & Polish (#391) — Complete, code reviewed, issue closed
+- ✅ **Phase 4 Security Audit (#398)** — SSRF vulnerabilities documented, 45 failing tests created
+  - SECURITY_FINDINGS_398.md with complete vulnerability report
+  - test_research_ssrf_security.py with 53 security test cases
+  - Branch: feature/issue-398 pushed to origin
 
 ## Code Review Summary (Phase 1-5 Backend)
 
@@ -85,17 +89,49 @@ Phase 1-5 Code Review Complete — All backend implementation verified
 - SwiftUI build: Fails due to missing DocumentInspectorContentState and AttributedTextEditor types
 
 # In Progress
-None — all 0.0.2 Phase work complete, code reviewed
+- Issue #398: Phase 4 Security Review — Vulnerabilities documented, awaiting fix implementation
 
 # Blocked
-- Next milestone selection (awaiting Daniel's direction)
+- None (security review audit complete, fix implementation is next priority)
 
 # Next Session — Start Here
-**Decision needed:** Confirm Phase 1-5 backend completion and select next work stream:
-1. **0.0.1 regression bugs** — SwiftUI app fixes for 0.0.1 release
-2. **Test isolation fixes** — Clean up 27 integration test failures
-3. **New milestone (0.1.0)** — Begin planning work for 0.1.0 features
-4. **Documentation** — API docs, user guides for existing functionality
+**Priority 1: Implement SSRF Security Fixes (#398)**
+
+The security audit found CRITICAL SSRF vulnerabilities (see SECURITY_FINDINGS_398.md in feature/issue-398 branch):
+
+### Security Issues Confirmed (45 failing tests):
+1. **CRITICAL**: Open redirect SSRF via `follow_redirects=True` — validation only on initial URL
+2. **CRITICAL**: No internal IP blocking — RFC1918, cloud metadata (169.254.169.254), localhost all accessible
+3. **HIGH**: Path traversal bypass vectors in URL scheme validation
+4. **HIGH**: DNS rebinding vulnerability — no DNS resolution validation
+5. **MEDIUM**: Resource exhaustion — no content size limits
+6. **MEDIUM**: Error message information disclosure
+
+### Fix Implementation Tasks:
+- [ ] Add IP-based validation (`fichero-api/src/fichero/workflows/tools/research.py`)
+  - Create `_is_internal_ip()` that resolves hostnames and checks against RFC1918
+  - Add `_is_safe_url()` with proper URL parsing (urlparse)
+  - Block all internal networks: 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16
+- [ ] Add redirect chain validation
+  - Either disable `follow_redirects=True` OR validate each redirect hop
+  - Re-apply security checks after each redirect
+- [ ] Add resource limits
+  - Maximum response size (e.g., 10MB)
+  - Content-Length validation
+- [ ] Error message sanitization
+  - Internal logging keeps details
+  - Public responses are generic
+- [ ] Update all tests to pass
+  - 45 currently failing security tests should become passing
+
+### Files to Modify:
+- `fichero-api/src/fichero/workflows/tools/research.py` — IP validation, redirect handling
+- `fichero-api/tests/unit/test_research_ssrf_security.py` — (update expectations after fixes)
+- `fichero-api/tests/unit/test_research_agents_api.py` — verify no regressions
+
+**Priority 2 (after fixes):** Phase 5 (Integration) Security Review — CORS, MCP authorization
+
+**Priority 3:** Other 0.0.1 regression bugs (SwiftUI) if security fixes delayed
 
 ## Architecture Compliance Verification
 
@@ -141,50 +177,39 @@ None — all 0.0.2 Phase work complete, code reviewed
 Each Phase requires review across 3 dimensions:
 
 1. **Functionality**: Does it work as specified?
-   - CRUD operations complete
-   - Business logic correct
-   - Edge cases handled
-   - Error handling appropriate
-
 2. **Code Quality**: Is it maintainable and correct?
-   - Pydantic model validation
-   - Type hints complete
-   - Docstrings present
-   - Async/await properly used
-   - Test coverage adequate
-
 3. **Security**: Is it safe?
-   - Input validation (SQL injection, XSS)
-   - Authorization checks
-   - Resource limits
-   - Error message sanitization
-   - External interaction safety (SSRF)
 
-### Security Priority Ranking
+### Security Review Status
 
-1. **Phase 4 (Agent Research)** — CRITICAL
-   - SSRF via document_fetch (file://, internal URLs)
-   - Web search query injection
-   - Browser navigation to malicious sites
-   - Sandbox escape via redirects
+| Issue | Phase | Status | Security Priority | Next Action |
+|-------|-------|--------|-------------------|-------------|
+| #387 | Knowledge Graph | PENDING REVIEW | High (PyKEEN, queries) | Await Phase 4 completion |
+| #388 | Hermeneutics | PENDING REVIEW | Medium (LLM injection) | Await Phase 4 completion |
+| #389 | Mind Palace | PENDING REVIEW | Medium (file paths) | Await Phase 4 completion |
+| **#390** | **Agent Research** | **✅ AUDIT COMPLETE** | **CRITICAL (SSRF)** | **Implement fixes (#398)** |
+| #391 | Integration | PENDING REVIEW | High (CORS, MCP) | Await Phase 4 completion |
 
-2. **Phase 5 (Integration)** — HIGH
-   - CORS wildcard in production
-   - Feature tier bypass
-   - MCP tool authorization
+### GitHub Issue #398 — Phase 4 SSRF Security Findings
 
-3. **Phase 1 (Knowledge Graph)** — HIGH
-   - SQL injection in entity/claim queries
-   - Path traversal in file operations
-   - DoS via large embedding requests
+**Created:** 2026-04-10
+**Branch:** `feature/issue-398`
+**Status:** Audit complete, fixes pending
 
-4. **Phase 2 (Hermeneutics)** — MEDIUM
-   - LLM prompt injection via framework descriptions
-   - Circular navigation infinite loops
+**Vulnerabilities Found:**
+| Severity | Issue | Location |
+|----------|-------|----------|
+| CRITICAL | Open redirect SSRF | `follow_redirects=True` without chain validation |
+| CRITICAL | No internal IP blocking | 127.x, 10.x, 172.16.x, 192.168.x, 169.254.x all accessible |
+| HIGH | Scheme case bypass | `FILE://` not caught (case-sensitive check) |
+| HIGH | DNS rebinding | No resolution-time IP validation |
+| MEDIUM | Resource exhaustion | No content size limits |
+| MEDIUM | Error disclosure | Full exceptions in responses |
 
-5. **Phase 3 (Mind Palace)** — MEDIUM
-   - Coordinate validation (NaN, infinity)
-   - Scene export file path safety
+**Artifacts:**
+- `SECURITY_FINDINGS_398.md` — Complete vulnerability report with CVSS scores
+- `fichero-api/tests/unit/test_research_ssrf_security.py` — 53 security tests (45 FAIL demonstrating vulnerabilities)
+
 
 ### Known Test Gaps
 - Edge case testing (malformed inputs, boundary conditions)
@@ -199,32 +224,4 @@ Each Phase requires review across 3 dimensions:
 - **Sprint 3**: Phase 1 (Knowledge Graph) - Foundation
 - **Sprint 4**: Phase 2 & 3 (Hermeneutics + Mind Palace)
 
----
 
-## NEXT SESSION ENTRY POINT
-
-**Action Required**: Start Phase 4 (Agent Research) Security Review Loop
-
-**Goal**: Complete SSRF vulnerability audit of research tools
-
-**Files to Review**:
-- `fichero-api/src/fichero/workflows/tools/research.py` (583 lines) — web_search, browser_navigate, document_fetch tools
-- `fichero-api/src/fichero/api/routes/research_agents.py` (864 lines) — CRUD endpoints
-- `fichero-api/tests/unit/test_research_agents_api.py` (514 lines, 20 tests) — expand for SSRF tests
-
-**Specific SSRF Gaps to Find**:
-1. `_is_sandbox_violation()` only checks starts_with — bypassable
-2. No internal IP blocking (localhost, 169.254.169.254, RFC1918 ranges)
-3. No redirect validation — safe URL → redirect to unsafe
-4. DNS rebinding attacks — hostname resolves to internal IP after initial check
-5. Browser tool (puppeteer) bypasses Python sandbox entirely
-
-**Deliverables**:
-- [ ] Security findings report (CRITICAL/HIGH/MEDIUM)
-- [ ] Failing test cases for each vulnerability
-- [ ] Fix PR with validation logic
-- [ ] Updated test_research_agents_api.py with SSRF security tests
-
-**Priority**: CRITICAL — blocks production deployment until fixed
-
-**Start Command**: Review research.py sandbox implementation, identify all bypass vectors

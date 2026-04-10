@@ -81,3 +81,13 @@
 - PR: https://github.com/dtubb/fichero/pull/397
 - Branch: feature/issue-390
 - Task completed in session
+
+## 2026-04-10 — Phase 4 Agent Research SSRF Security Audit Complete
+
+- **Issue #398**: Phase 4 (Agent Research) SSRF security review completed
+  - Created SECURITY_FINDINGS_398.md with complete vulnerability report
+  - Identified CRITICAL: Open redirect SSRF, internal IP blocking gaps
+  - Created test_research_ssrf_security.py with 53 security tests
+  - 45 tests FAIL (demonstrating current vulnerabilities)
+  - Branch: feature/issue-398 pushed to origin
+  - Next: Implement IP validation, redirect chain security, resource limits
