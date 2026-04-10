@@ -17,8 +17,17 @@ from fichero.db import Database
 from fichero.app_db import get_app_db, AppDatabase
 from fichero.api.main import get_library_database
 from fichero.models import Provider, Model, ProviderType
-from fichero.providers import get_provider_info, list_providers as list_catalog_providers
-from fichero.keychain import get_api_key, set_api_key, delete_api_key, has_api_key, is_available as keychain_available
+from fichero.providers import (
+    get_provider_info,
+    list_providers as list_catalog_providers,
+)
+from fichero.keychain import (
+    get_api_key,
+    set_api_key,
+    delete_api_key,
+    has_api_key,
+    is_available as keychain_available,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -26,12 +35,15 @@ router = APIRouter()
 
 def _safe_isoformat(value) -> str:
     """Return ISO string when value behaves like datetime, else current time."""
-    return value.isoformat() if hasattr(value, "isoformat") else datetime.now().isoformat()
+    return (
+        value.isoformat() if hasattr(value, "isoformat") else datetime.now().isoformat()
+    )
 
 
 # =============================================================================
 # Dependencies
 # =============================================================================
+
 
 def get_app_database() -> AppDatabase:
     """FastAPI dependency to get the app-wide database."""
@@ -41,6 +53,7 @@ def get_app_database() -> AppDatabase:
 # =============================================================================
 # Description Generator (from capabilities - no custom marketing text)
 # =============================================================================
+
 
 def generate_model_description(model_data: dict) -> str:
     """Generate a factual description from model capabilities.
@@ -164,8 +177,14 @@ RECOMMENDED_MODELS: dict[str, list[dict]] = {
         {"model_id": "llama-3.1-sonar-large-128k-chat"},
     ],
     "fireworks": [
-        {"model_id": "accounts/fireworks/models/llama-v3p1-70b-instruct", "is_recommended": True},
-        {"model_id": "accounts/fireworks/models/llama-v3p2-11b-vision-instruct", "is_recommended": True},
+        {
+            "model_id": "accounts/fireworks/models/llama-v3p1-70b-instruct",
+            "is_recommended": True,
+        },
+        {
+            "model_id": "accounts/fireworks/models/llama-v3p2-11b-vision-instruct",
+            "is_recommended": True,
+        },
         {"model_id": "accounts/fireworks/models/mixtral-8x22b-instruct"},
         {"model_id": "accounts/fireworks/models/qwen2-vl-72b-instruct"},
     ],
@@ -182,29 +201,32 @@ RECOMMENDED_MODELS: dict[str, list[dict]] = {
 # Response Models
 # =============================================================================
 
+
 class ProviderCatalogResponse(BaseModel):
     """Provider from the hardcoded catalog."""
+
     type: str
     name: str
     description: str
     api_key_env: Optional[str]
     api_key_url: Optional[str]
     is_local: bool
-    is_builtin: bool   # True if built into macOS (no config needed)
+    is_builtin: bool  # True if built into macOS (no config needed)
     supports_vision: bool
     supports_embeddings: bool
     supports_streaming: bool
     default_model: Optional[str]
     has_api_key: bool  # Whether user has stored key
     # UI metadata (for SwiftUI - no hardcoded values in frontend)
-    icon: str          # SF Symbol name (fallback)
+    icon: str  # SF Symbol name (fallback)
     logo_asset: Optional[str]  # Bundled image asset name (e.g., "Providers/OpenAI")
-    color: str         # Color name for SwiftUI
-    sort_order: int    # Display order (lower = first)
+    color: str  # Color name for SwiftUI
+    sort_order: int  # Display order (lower = first)
 
 
 class ProviderResponse(BaseModel):
     """User-configured provider."""
+
     id: str
     name: str
     provider_type: str
@@ -217,6 +239,7 @@ class ProviderResponse(BaseModel):
 
 class ModelResponse(BaseModel):
     """Rich model info from LiteLLM or local provider."""
+
     model_id: str
     full_name: str
     description: Optional[str] = None
@@ -228,7 +251,7 @@ class ModelResponse(BaseModel):
     output_cost_per_million: float = 0
     batch_input_cost_per_million: Optional[float] = None  # Batch API pricing
     batch_output_cost_per_million: Optional[float] = None
-    cache_read_cost_per_million: Optional[float] = None   # Prompt caching
+    cache_read_cost_per_million: Optional[float] = None  # Prompt caching
 
     # Context windows
     max_input_tokens: Optional[int] = None
@@ -255,6 +278,7 @@ class ModelResponse(BaseModel):
 
 class UserModelResponse(BaseModel):
     """User-configured model."""
+
     id: str
     provider_id: str
     name: str
@@ -270,8 +294,10 @@ class UserModelResponse(BaseModel):
 # Request Models
 # =============================================================================
 
+
 class ProviderCreate(BaseModel):
     """Create a new provider configuration."""
+
     provider_type: str  # e.g., "openai"
     name: Optional[str] = None  # Custom display name
     api_base: Optional[str] = None  # Custom endpoint
@@ -280,6 +306,7 @@ class ProviderCreate(BaseModel):
 
 class ProviderUpdate(BaseModel):
     """Update provider settings."""
+
     name: Optional[str] = None
     api_base: Optional[str] = None
     enabled: Optional[bool] = None
@@ -288,6 +315,7 @@ class ProviderUpdate(BaseModel):
 
 class ModelCreate(BaseModel):
     """Add a model to a provider."""
+
     provider_id: str
     model_id: str  # LiteLLM model ID
     name: Optional[str] = None  # Display name
@@ -298,29 +326,32 @@ class ModelCreate(BaseModel):
 # Catalog Routes (read-only info about available providers)
 # =============================================================================
 
+
 @router.get("/catalog")
 async def list_provider_catalog() -> list[ProviderCatalogResponse]:
     """List all available providers from the catalog, sorted by sort_order."""
     result = []
     for info in list_catalog_providers():
-        result.append(ProviderCatalogResponse(
-            type=info.type.value,
-            name=info.name,
-            description=info.description,
-            api_key_env=info.api_key_env,
-            api_key_url=info.api_key_url,
-            is_local=info.is_local,
-            is_builtin=info.is_builtin,
-            supports_vision=info.supports_vision,
-            supports_embeddings=info.supports_embeddings,
-            supports_streaming=info.supports_streaming,
-            default_model=info.default_model,
-            has_api_key=has_api_key(info.type.value) if not info.is_local else True,
-            icon=info.icon,
-            logo_asset=info.logo_asset,
-            color=info.color,
-            sort_order=info.sort_order,
-        ))
+        result.append(
+            ProviderCatalogResponse(
+                type=info.type.value,
+                name=info.name,
+                description=info.description,
+                api_key_env=info.api_key_env,
+                api_key_url=info.api_key_url,
+                is_local=info.is_local,
+                is_builtin=info.is_builtin,
+                supports_vision=info.supports_vision,
+                supports_embeddings=info.supports_embeddings,
+                supports_streaming=info.supports_streaming,
+                default_model=info.default_model,
+                has_api_key=has_api_key(info.type.value) if not info.is_local else True,
+                icon=info.icon,
+                logo_asset=info.logo_asset,
+                color=info.color,
+                sort_order=info.sort_order,
+            )
+        )
     # Sort by sort_order
     result.sort(key=lambda x: x.sort_order)
     return result
@@ -331,7 +362,9 @@ async def get_catalog_provider(provider_type: str) -> ProviderCatalogResponse:
     """Get info about a specific provider type."""
     info = get_provider_info(provider_type)
     if not info:
-        raise HTTPException(status_code=404, detail=f"Provider type not found: {provider_type}")
+        raise HTTPException(
+            status_code=404, detail=f"Provider type not found: {provider_type}"
+        )
 
     return ProviderCatalogResponse(
         type=info.type.value,
@@ -357,6 +390,7 @@ async def get_catalog_provider(provider_type: str) -> ProviderCatalogResponse:
 # Models Discovery (from LiteLLM registry)
 # =============================================================================
 
+
 @router.get("/models/{provider_type}")
 async def list_models_for_provider(
     provider_type: str,
@@ -372,7 +406,9 @@ async def list_models_for_provider(
     """
     info = get_provider_info(provider_type)
     if not info:
-        raise HTTPException(status_code=404, detail=f"Provider type not found: {provider_type}")
+        raise HTTPException(
+            status_code=404, detail=f"Provider type not found: {provider_type}"
+        )
 
     models = []
 
@@ -418,13 +454,15 @@ async def list_models_for_provider(
     elif provider_type == "ollama":
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get("http://localhost:11434/api/tags", timeout=5.0)
+                response = await client.get(
+                    "http://localhost:11434/api/tags", timeout=5.0
+                )
                 if response.status_code == 200:
                     data = response.json()
                     for m in data.get("models", []):
                         details = m.get("details", {})
                         families = details.get("families", [])
-                        size_gb = m.get("size", 0) / (1024 ** 3)
+                        size_gb = m.get("size", 0) / (1024**3)
                         param_size = details.get("parameter_size", "")
                         is_vision = "vision" in families or "clip" in families
                         # Build informative description
@@ -435,15 +473,17 @@ async def list_models_for_provider(
                         if is_vision:
                             desc_parts.append("supports images")
                         desc_parts.append("runs locally, free")
-                        models.append(ModelResponse(
-                            model_id=m["name"],
-                            full_name=m["name"],
-                            input_cost_per_million=0,
-                            output_cost_per_million=0,
-                            supports_vision=is_vision,
-                            description=", ".join(desc_parts),
-                            is_local=True,
-                        ))
+                        models.append(
+                            ModelResponse(
+                                model_id=m["name"],
+                                full_name=m["name"],
+                                input_cost_per_million=0,
+                                output_cost_per_million=0,
+                                supports_vision=is_vision,
+                                description=", ".join(desc_parts),
+                                is_local=True,
+                            )
+                        )
         except Exception as e:
             logger.warning(f"Failed to query Ollama: {e}")
 
@@ -451,12 +491,16 @@ async def list_models_for_provider(
     elif provider_type == "lmstudio":
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get("http://localhost:1234/v1/models", timeout=5.0)
+                response = await client.get(
+                    "http://localhost:1234/v1/models", timeout=5.0
+                )
                 if response.status_code == 200:
                     data = response.json()
                     for m in data.get("data", []):
                         model_id = m["id"]
-                        is_vision = "vl" in model_id.lower() or "vision" in model_id.lower()
+                        is_vision = (
+                            "vl" in model_id.lower() or "vision" in model_id.lower()
+                        )
                         is_embed = "embed" in model_id.lower()
                         # Detect model family/type from name
                         model_lower = model_id.lower()
@@ -485,15 +529,17 @@ async def list_models_for_provider(
                                 desc = "Google Gemma model - efficient open model. Runs locally, free."
                             else:
                                 desc = "Chat/instruction model. Runs locally, free."
-                        models.append(ModelResponse(
-                            model_id=model_id,
-                            full_name=model_id,
-                            input_cost_per_million=0,
-                            output_cost_per_million=0,
-                            supports_vision=is_vision,
-                            description=desc,
-                            is_local=True,
-                        ))
+                        models.append(
+                            ModelResponse(
+                                model_id=model_id,
+                                full_name=model_id,
+                                input_cost_per_million=0,
+                                output_cost_per_million=0,
+                                supports_vision=is_vision,
+                                description=desc,
+                                is_local=True,
+                            )
+                        )
         except Exception as e:
             logger.warning(f"Failed to query LM Studio: {e}")
 
@@ -528,31 +574,41 @@ async def list_models_for_provider(
         for m in RECOMMENDED_MODELS.get(provider_type, []):
             if m["model_id"] not in litellm_ids:
                 # Create minimal model response for curated model not in LiteLLM
-                models.append(ModelResponse(
-                    model_id=m["model_id"],
-                    full_name=m["model_id"],
-                    is_recommended=m.get("is_recommended", False),
-                ))
+                models.append(
+                    ModelResponse(
+                        model_id=m["model_id"],
+                        full_name=m["model_id"],
+                        is_recommended=m.get("is_recommended", False),
+                    )
+                )
 
     # Apply filters
     if search:
         search_lower = search.lower()
-        models = [m for m in models if search_lower in m.model_id.lower() or search_lower in m.full_name.lower()]
+        models = [
+            m
+            for m in models
+            if search_lower in m.model_id.lower() or search_lower in m.full_name.lower()
+        ]
 
     if vision_only:
         models = [m for m in models if m.supports_vision]
 
     # Apply sorting - recommended models always at top
     if sort_by == "cost":
-        models.sort(key=lambda m: (
-            0 if m.is_recommended else 1,  # Recommended first
-            (m.input_cost_per_million or 0) + (m.output_cost_per_million or 0)
-        ))
+        models.sort(
+            key=lambda m: (
+                0 if m.is_recommended else 1,  # Recommended first
+                (m.input_cost_per_million or 0) + (m.output_cost_per_million or 0),
+            )
+        )
     else:  # Default: name, but recommended first
-        models.sort(key=lambda m: (
-            0 if m.is_recommended else 1,  # Recommended first
-            m.model_id.lower()
-        ))
+        models.sort(
+            key=lambda m: (
+                0 if m.is_recommended else 1,  # Recommended first
+                m.model_id.lower(),
+            )
+        )
 
     return models
 
@@ -560,6 +616,7 @@ async def list_models_for_provider(
 # =============================================================================
 # User Provider Configuration
 # =============================================================================
+
 
 @router.get("")
 async def list_providers(
@@ -592,11 +649,15 @@ async def create_provider(
     try:
         ptype = ProviderType(request.provider_type)
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid provider type: {request.provider_type}")
+        raise HTTPException(
+            status_code=400, detail=f"Invalid provider type: {request.provider_type}"
+        )
 
     info = get_provider_info(ptype)
     if not info:
-        raise HTTPException(status_code=400, detail=f"Unknown provider type: {request.provider_type}")
+        raise HTTPException(
+            status_code=400, detail=f"Unknown provider type: {request.provider_type}"
+        )
 
     # Create provider record
     provider = Provider(
@@ -630,17 +691,20 @@ async def create_provider(
 
 class ProviderRefCreate(BaseModel):
     """Request to add a provider reference to a library."""
+
     provider_id: str
 
 
 class ProviderRefUpdate(BaseModel):
     """Request to update a provider reference."""
+
     enabled: bool | None = None
     sort_order: int | None = None
 
 
 class ProviderRefResponse(BaseModel):
     """Provider reference response with full provider details."""
+
     id: str
     provider_id: str
     provider_name: str
@@ -703,7 +767,9 @@ async def add_provider_ref(
     # Check if reference already exists
     existing_refs = db.query(ProviderRef, provider_id=request.provider_id)
     if existing_refs:
-        raise HTTPException(status_code=400, detail="Provider already referenced by this library")
+        raise HTTPException(
+            status_code=400, detail="Provider already referenced by this library"
+        )
 
     # Create new reference
     ref = ProviderRef(
@@ -865,8 +931,10 @@ async def delete_provider(
 # API Key Management
 # =============================================================================
 
+
 class APIKeyRequest(BaseModel):
     """Request body for setting API key."""
+
     api_key: str
 
 
@@ -878,10 +946,14 @@ async def set_provider_api_key(provider_type: str, request: APIKeyRequest):
 
     info = get_provider_info(provider_type)
     if not info:
-        raise HTTPException(status_code=404, detail=f"Provider type not found: {provider_type}")
+        raise HTTPException(
+            status_code=404, detail=f"Provider type not found: {provider_type}"
+        )
 
     if info.is_local:
-        raise HTTPException(status_code=400, detail="Local providers don't need API keys")
+        raise HTTPException(
+            status_code=400, detail="Local providers don't need API keys"
+        )
 
     logger.info(f"Saving API key for {provider_type}")
     success = set_api_key(provider_type, request.api_key)
@@ -908,7 +980,9 @@ async def check_api_key_status(provider_type: str):
     """Check if API key exists for a provider type."""
     info = get_provider_info(provider_type)
     if not info:
-        raise HTTPException(status_code=404, detail=f"Provider type not found: {provider_type}")
+        raise HTTPException(
+            status_code=404, detail=f"Provider type not found: {provider_type}"
+        )
 
     return {
         "provider_type": provider_type,
@@ -922,8 +996,10 @@ async def check_api_key_status(provider_type: str):
 # Connection Testing
 # =============================================================================
 
+
 class ConnectionTestResponse(BaseModel):
     """Result of a provider connection test."""
+
     success: bool
     provider_type: str
     message: str
@@ -945,7 +1021,9 @@ async def test_provider_connection(provider_type: str) -> ConnectionTestResponse
 
     info = get_provider_info(provider_type)
     if not info:
-        raise HTTPException(status_code=404, detail=f"Provider type not found: {provider_type}")
+        raise HTTPException(
+            status_code=404, detail=f"Provider type not found: {provider_type}"
+        )
 
     start_time = time.time()
 
@@ -963,8 +1041,9 @@ async def test_provider_connection(provider_type: str) -> ConnectionTestResponse
         elif provider_type == "apple_intelligence":
             # Apple Intelligence - check macOS version
             import platform
+
             version = platform.mac_ver()[0]
-            major = int(version.split('.')[0]) if version else 0
+            major = int(version.split(".")[0]) if version else 0
             if major >= 15:
                 return ConnectionTestResponse(
                     success=True,
@@ -982,7 +1061,9 @@ async def test_provider_connection(provider_type: str) -> ConnectionTestResponse
         elif provider_type == "ollama":
             # Test Ollama local server
             async with httpx.AsyncClient() as client:
-                response = await client.get("http://localhost:11434/api/tags", timeout=5.0)
+                response = await client.get(
+                    "http://localhost:11434/api/tags", timeout=5.0
+                )
                 latency = (time.time() - start_time) * 1000
                 if response.status_code == 200:
                     data = response.json()
@@ -1004,7 +1085,9 @@ async def test_provider_connection(provider_type: str) -> ConnectionTestResponse
         elif provider_type == "lmstudio":
             # Test LM Studio local server
             async with httpx.AsyncClient() as client:
-                response = await client.get("http://localhost:1234/v1/models", timeout=5.0)
+                response = await client.get(
+                    "http://localhost:1234/v1/models", timeout=5.0
+                )
                 latency = (time.time() - start_time) * 1000
                 if response.status_code == 200:
                     data = response.json()
@@ -1243,6 +1326,7 @@ async def test_provider_connection(provider_type: str) -> ConnectionTestResponse
 # User Model Configuration
 # =============================================================================
 
+
 @router.get("/{provider_id}/models")
 async def list_provider_models(
     provider_id: str,
@@ -1291,8 +1375,12 @@ async def add_model_to_provider(
         name=request.name or request.model_id,
         model_id=request.model_id,
         is_default=request.is_default,
-        input_cost=cost_info.get("input_cost_per_token") * 1_000_000 if cost_info else None,
-        output_cost=cost_info.get("output_cost_per_token") * 1_000_000 if cost_info else None,
+        input_cost=cost_info.get("input_cost_per_token") * 1_000_000
+        if cost_info
+        else None,
+        output_cost=cost_info.get("output_cost_per_token") * 1_000_000
+        if cost_info
+        else None,
     )
     app_db.save_model(model)
 
@@ -1325,4 +1413,3 @@ async def remove_model_from_provider(
 
     app_db.delete_model(model_id)
     return {"status": "deleted"}
-

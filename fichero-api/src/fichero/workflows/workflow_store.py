@@ -129,7 +129,9 @@ class WorkflowStore:
         # Sort by folder path, then sort_order, then name
         workflows.sort(key=lambda w: (w.folder_path, w.sort_order, w.name))
 
-        logger.debug(f"Listed {len(workflows)} workflows (folder: {folder_path or 'all'})")
+        logger.debug(
+            f"Listed {len(workflows)} workflows (folder: {folder_path or 'all'})"
+        )
         return workflows
 
     def list_templates(self) -> list[Workflow]:
@@ -172,10 +174,7 @@ class WorkflowStore:
 
         # Filter by tags (must have all specified tags)
         if tags:
-            workflows = [
-                w for w in workflows
-                if all(tag in w.tags for tag in tags)
-            ]
+            workflows = [w for w in workflows if all(tag in w.tags for tag in tags)]
 
         # Filter by provider
         if provider:
@@ -234,9 +233,7 @@ class WorkflowStore:
         workflow.folder_path = folder_path
         self.save(workflow)
 
-        logger.info(
-            f"Moved workflow: {workflow.name} from {old_path} to {folder_path}"
-        )
+        logger.info(f"Moved workflow: {workflow.name} from {old_path} to {folder_path}")
         return True
 
     def update_sort_order(self, workflow_id: str, sort_order: int) -> bool:
@@ -333,9 +330,7 @@ class WorkflowStore:
             raise ValueError(f"Invalid workflow data: {e}")
 
         self.save(workflow)
-        logger.info(
-            f"Imported workflow: {workflow.name} (new_id={new_id})"
-        )
+        logger.info(f"Imported workflow: {workflow.name} (new_id={new_id})")
         return workflow
 
     def export_to_file(self, workflow_id: str, file_path: str | Path) -> None:
@@ -455,8 +450,7 @@ class WorkflowStore:
                 continue
 
         logger.info(
-            f"Imported {len(imported)}/{len(data_list)} workflows "
-            f"(new_ids={new_ids})"
+            f"Imported {len(imported)}/{len(data_list)} workflows (new_ids={new_ids})"
         )
         return imported
 
@@ -470,5 +464,6 @@ def get_workflow_store() -> WorkflowStore:
         WorkflowStore instance
     """
     from fichero.db import Database
+
     db = Database()
     return WorkflowStore(db)

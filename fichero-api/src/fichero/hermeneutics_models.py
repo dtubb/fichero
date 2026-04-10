@@ -13,26 +13,29 @@ def _new_id() -> str:
 
 class FrameworkType(str, Enum):
     """Interpretive lens categories."""
-    historical = "historical"       # Diachronic analysis, change over time
-    disciplinary = "disciplinary"   # Field-specific methodology
-    thematic = "thematic"           # Recurring motifs and ideas
+
+    historical = "historical"  # Diachronic analysis, change over time
+    disciplinary = "disciplinary"  # Field-specific methodology
+    thematic = "thematic"  # Recurring motifs and ideas
     methodological = "methodological"  # Approach to inquiry
-    theoretical = "theoretical"     # Abstract frameworks
-    narrative = "narrative"         # Story structure and plot
+    theoretical = "theoretical"  # Abstract frameworks
+    narrative = "narrative"  # Story structure and plot
 
 
 class InterpretiveActType(str, Enum):
     """Types of interpretive operations."""
-    reading = "reading"             # Surface-level comprehension
-    translating = "translating"     # Converting between contexts
+
+    reading = "reading"  # Surface-level comprehension
+    translating = "translating"  # Converting between contexts
     contextualizing = "contextualizing"  # Placing in broader context
-    synthesizing = "synthesizing"    # Drawing together threads
-    critiquing = "critiquing"        # Evaluating strengths/weaknesses
-    applying = "applying"           # Using framework to interpret
+    synthesizing = "synthesizing"  # Drawing together threads
+    critiquing = "critiquing"  # Evaluating strengths/weaknesses
+    applying = "applying"  # Using framework to interpret
 
 
 class PatternStatus(str, Enum):
     """Lifecycle state of a recognized pattern."""
+
     tentative = "tentative"
     confirmed = "confirmed"
     superseded = "superseded"
@@ -40,6 +43,7 @@ class PatternStatus(str, Enum):
 
 class CircleNavigationDirection(str, Enum):
     """Movement through the hermeneutic circle."""
+
     part_to_whole = "part_to_whole"
     whole_to_part = "whole_to_part"
 
@@ -51,6 +55,7 @@ class InterpretiveFramework(BaseModel):
     Example: "Marxist historical materialism" as a framework for analyzing
     labor relations in historical documents.
     """
+
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
     id: str = Field(default_factory=_new_id)
@@ -75,6 +80,7 @@ class Interpretation(BaseModel):
     An interpretation is always about something (the claim or passage)
     and from the perspective of a specific framework.
     """
+
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
     id: str = Field(default_factory=_new_id)
@@ -86,8 +92,12 @@ class Interpretation(BaseModel):
     act: InterpretiveActType
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     key_insights: list[str] = Field(default_factory=list)
-    tensions: list[str] = Field(default_factory=list)  # Places where framework struggles
-    connections: list[str] = Field(default_factory=list)  # Links to other interpretations
+    tensions: list[str] = Field(
+        default_factory=list
+    )  # Places where framework struggles
+    connections: list[str] = Field(
+        default_factory=list
+    )  # Links to other interpretations
     metadata: dict = Field(default_factory=dict)
     created_by: str = "human"
     created_at: datetime = Field(default_factory=datetime.now)
@@ -101,6 +111,7 @@ class PatternInstance(BaseModel):
     in the evidence. Example: "cyclical theory of history" appearing
     across multiple historiographical claims.
     """
+
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
     id: str = Field(default_factory=_new_id)
@@ -126,6 +137,7 @@ class HermeneuticCircleState(BaseModel):
     understanding parts through wholes, and wholes through parts.
     This model tracks where the analyst is in that navigation.
     """
+
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
     id: str = Field(default_factory=_new_id)
@@ -145,6 +157,7 @@ class HermeneuticCircleState(BaseModel):
 
 class HermesSuggestionRequest(BaseModel):
     """Request for AI interpretation suggestions."""
+
     claim_ids: list[str]
     framework_ids: list[str] = Field(default_factory=list)
     context_claim_ids: list[str] = Field(default_factory=list)  # Surrounding claims
@@ -153,6 +166,7 @@ class HermesSuggestionRequest(BaseModel):
 
 class HermesSuggestion(BaseModel):
     """A single AI-generated interpretation suggestion."""
+
     framework_id: str
     framework_name: str
     interpretation_text: str

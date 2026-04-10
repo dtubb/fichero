@@ -54,6 +54,7 @@ def _get_litellm():
     global _litellm
     if _litellm is None:
         import litellm
+
         _litellm = litellm
         # Reduce litellm logging noise
         litellm.suppress_debug_info = True
@@ -64,9 +65,11 @@ def _get_litellm():
 # Configuration
 # =============================================================================
 
+
 @dataclass
 class LLMConfig:
     """Configuration for LLM calls."""
+
     provider: str
     model: str
     temperature: float = 0.7
@@ -90,6 +93,7 @@ class LLMConfig:
 # API Key Resolution
 # =============================================================================
 
+
 def get_api_key(provider: str) -> str | None:
     """Get API key for a provider.
 
@@ -108,6 +112,7 @@ def get_api_key(provider: str) -> str | None:
     # Try keychain first
     try:
         from fichero.keychain import get_api_key as _keychain_get
+
         key = _keychain_get(provider)
         if key:
             return key
@@ -132,6 +137,7 @@ def _resolve_api_key(config: LLMConfig) -> str | None:
 # =============================================================================
 # Chat
 # =============================================================================
+
 
 async def chat(
     prompt: str | list[dict[str, Any]],
@@ -202,6 +208,7 @@ def _convert_to_langchain_messages(messages: list[dict]) -> list:
 # Vision
 # =============================================================================
 
+
 async def vision(
     images: list[str],
     prompt: str,
@@ -225,10 +232,7 @@ async def vision(
     # Build multimodal message content (LangChain format)
     content = [{"type": "text", "text": prompt}]
     for img in images:
-        content.append({
-            "type": "image_url",
-            "image_url": {"url": img}
-        })
+        content.append({"type": "image_url", "image_url": {"url": img}})
 
     # Create multimodal message
     message = HumanMessage(content=content)
@@ -241,6 +245,7 @@ async def vision(
 # =============================================================================
 # Thinking Models (Reasoning/Chain-of-Thought)
 # =============================================================================
+
 
 def parse_thinking_response(text: str) -> tuple[str, str | None]:
     """Parse thinking model response that may contain reasoning traces.
@@ -266,8 +271,8 @@ def parse_thinking_response(text: str) -> tuple[str, str | None]:
     import re
 
     # Try to extract thinking and answer tags
-    think_match = re.search(r'<think>(.*?)</think>', text, re.DOTALL)
-    answer_match = re.search(r'<answer>(.*?)</answer>', text, re.DOTALL)
+    think_match = re.search(r"<think>(.*?)</think>", text, re.DOTALL)
+    answer_match = re.search(r"<answer>(.*?)</answer>", text, re.DOTALL)
 
     thinking = think_match.group(1).strip() if think_match else None
     answer = answer_match.group(1).strip() if answer_match else text.strip()
@@ -294,23 +299,28 @@ def is_thinking_model(model: str) -> bool:
 
     # Check for explicit thinking/reasoning keywords
     # Match as whole words or with hyphens
-    keywords = ['thinking', 'reasoning', 'reasoner']
+    keywords = ["thinking", "reasoning", "reasoner"]
     for keyword in keywords:
         # Match with hyphens (e.g., "model-thinking") or as standalone word
-        if f'-{keyword}' in model_lower or f'_{keyword}' in model_lower:
+        if f"-{keyword}" in model_lower or f"_{keyword}" in model_lower:
             return True
         # Match as word boundary (e.g., "reasoner-model")
-        if keyword in model_lower.split('/')[1] if '/' in model_lower else keyword in model_lower:
+        if (
+            keyword in model_lower.split("/")[1]
+            if "/" in model_lower
+            else keyword in model_lower
+        ):
             # Check it's a word, not part of another word (e.g., "rethinking")
             import re
-            if re.search(rf'\b{keyword}\b', model_lower):
+
+            if re.search(rf"\b{keyword}\b", model_lower):
                 return True
 
     # Known thinking model families
     thinking_prefixes = [
-        'numind/numarkdown',  # NuMarkdown series
-        'deepseek/deepseek-reasoner',  # DeepSeek reasoner
-        'qwen/qwq',  # Qwen with Questioning
+        "numind/numarkdown",  # NuMarkdown series
+        "deepseek/deepseek-reasoner",  # DeepSeek reasoner
+        "qwen/qwq",  # Qwen with Questioning
     ]
 
     return any(model_lower.startswith(prefix) for prefix in thinking_prefixes)
@@ -389,13 +399,15 @@ async def vision_inference_api(
     logger.info(f"HF Inference API call: {model} ({len(image_bytes)} bytes)")
 
     try:
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session:
+        async with aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=timeout)
+        ) as session:
             # For vision models, we need to send the image as part of the request
             # The exact format depends on the model, but for most vision models:
             # - Use multipart/form-data with image and text
             data = aiohttp.FormData()
-            data.add_field('inputs', prompt)
-            data.add_field('file', image_bytes, content_type='image/jpeg')
+            data.add_field("inputs", prompt)
+            data.add_field("file", image_bytes, content_type="image/jpeg")
 
             async with session.post(url, headers=headers, data=data) as response:
                 if response.status == 200:
@@ -460,7 +472,10 @@ async def vision_inference_api(
 # Embeddings
 # =============================================================================
 
-def _get_langchain_embeddings(model: str = "text-embedding-3-small", api_key: str | None = None):
+
+def _get_langchain_embeddings(
+    model: str = "text-embedding-3-small", api_key: str | None = None
+):
     """Get LangChain embeddings model.
 
     Args:
@@ -522,6 +537,7 @@ async def aembed(
 # Tools / Function Calling
 # =============================================================================
 
+
 async def chat_with_tools(
     prompt: str | list[dict[str, Any]],
     tools: list[dict[str, Any]],
@@ -556,7 +572,7 @@ async def chat_with_tools(
 
     # Extract tool calls from response
     tool_calls = []
-    if hasattr(response, 'tool_calls') and response.tool_calls:
+    if hasattr(response, "tool_calls") and response.tool_calls:
         tool_calls = response.tool_calls
 
     return {
@@ -568,6 +584,7 @@ async def chat_with_tools(
 # =============================================================================
 # Structured Output
 # =============================================================================
+
 
 async def structured_output(
     prompt: str,
@@ -601,6 +618,7 @@ async def structured_output(
 # =============================================================================
 # Model Info & Costs
 # =============================================================================
+
 
 def get_model_info(model: str) -> dict[str, Any] | None:
     """Get information about a model from LiteLLM's registry.
@@ -704,10 +722,24 @@ def list_models_for_provider(provider: str) -> list[dict[str, Any]]:
 
         # OpenAI direct models
         if provider == "openai":
-            return any(model_name.startswith(p) for p in [
-                "gpt-", "chatgpt-", "o1", "o3", "davinci", "curie", "babbage",
-                "ada", "ft:gpt", "text-embedding", "whisper", "tts", "dall-e"
-            ])
+            return any(
+                model_name.startswith(p)
+                for p in [
+                    "gpt-",
+                    "chatgpt-",
+                    "o1",
+                    "o3",
+                    "davinci",
+                    "curie",
+                    "babbage",
+                    "ada",
+                    "ft:gpt",
+                    "text-embedding",
+                    "whisper",
+                    "tts",
+                    "dall-e",
+                ]
+            )
 
         # Anthropic direct models
         if provider == "anthropic":
@@ -719,9 +751,16 @@ def list_models_for_provider(provider: str) -> list[dict[str, Any]]:
 
         # Mistral direct models
         if provider == "mistral":
-            return any(model_name.startswith(p) for p in [
-                "mistral-", "pixtral-", "codestral", "open-mistral", "open-mixtral"
-            ])
+            return any(
+                model_name.startswith(p)
+                for p in [
+                    "mistral-",
+                    "pixtral-",
+                    "codestral",
+                    "open-mistral",
+                    "open-mixtral",
+                ]
+            )
 
         # Cohere direct models
         if provider == "cohere":
@@ -733,47 +772,61 @@ def list_models_for_provider(provider: str) -> list[dict[str, Any]]:
         # Filter by provider
         if is_provider_model(model_name, provider):
             # Clean up model name
-            display_name = model_name.replace(f"{provider}/", "") if model_name.startswith(f"{provider}/") else model_name
+            display_name = (
+                model_name.replace(f"{provider}/", "")
+                if model_name.startswith(f"{provider}/")
+                else model_name
+            )
 
             # Get batch pricing if available
             batch_input = info.get("input_cost_per_token_batches")
             batch_output = info.get("output_cost_per_token_batches")
             cache_read = info.get("cache_read_input_token_cost")
 
-            models.append({
-                "model_id": display_name,
-                "full_name": model_name,
-                "description": None,  # Will be filled by curated list if available
-
-                # Pricing
-                "input_cost_per_million": info.get("input_cost_per_token", 0) * 1_000_000,
-                "output_cost_per_million": info.get("output_cost_per_token", 0) * 1_000_000,
-                "batch_input_cost_per_million": batch_input * 1_000_000 if batch_input else None,
-                "batch_output_cost_per_million": batch_output * 1_000_000 if batch_output else None,
-                "cache_read_cost_per_million": cache_read * 1_000_000 if cache_read else None,
-
-                # Context windows
-                "max_input_tokens": safe_int(info.get("max_input_tokens")),
-                "max_output_tokens": safe_int(info.get("max_output_tokens")) or safe_int(info.get("max_tokens")),
-
-                # Mode
-                "mode": info.get("mode", "chat"),
-
-                # Capabilities
-                "supports_vision": info.get("supports_vision", False),
-                "supports_function_calling": info.get("supports_function_calling", False),
-                "supports_audio_input": info.get("supports_audio_input", False),
-                "supports_audio_output": info.get("supports_audio_output", False),
-                "supports_pdf_input": info.get("supports_pdf_input", False),
-                "supports_prompt_caching": info.get("supports_prompt_caching", False),
-                "supports_reasoning": info.get("supports_reasoning", False),
-                "supports_web_search": info.get("supports_web_search", False),
-                "supports_streaming": True,  # Most models support streaming
-                "supports_batch_api": batch_input is not None,
-
-                # Provider info
-                "provider": info.get("litellm_provider", provider),
-            })
+            models.append(
+                {
+                    "model_id": display_name,
+                    "full_name": model_name,
+                    "description": None,  # Will be filled by curated list if available
+                    # Pricing
+                    "input_cost_per_million": info.get("input_cost_per_token", 0)
+                    * 1_000_000,
+                    "output_cost_per_million": info.get("output_cost_per_token", 0)
+                    * 1_000_000,
+                    "batch_input_cost_per_million": batch_input * 1_000_000
+                    if batch_input
+                    else None,
+                    "batch_output_cost_per_million": batch_output * 1_000_000
+                    if batch_output
+                    else None,
+                    "cache_read_cost_per_million": cache_read * 1_000_000
+                    if cache_read
+                    else None,
+                    # Context windows
+                    "max_input_tokens": safe_int(info.get("max_input_tokens")),
+                    "max_output_tokens": safe_int(info.get("max_output_tokens"))
+                    or safe_int(info.get("max_tokens")),
+                    # Mode
+                    "mode": info.get("mode", "chat"),
+                    # Capabilities
+                    "supports_vision": info.get("supports_vision", False),
+                    "supports_function_calling": info.get(
+                        "supports_function_calling", False
+                    ),
+                    "supports_audio_input": info.get("supports_audio_input", False),
+                    "supports_audio_output": info.get("supports_audio_output", False),
+                    "supports_pdf_input": info.get("supports_pdf_input", False),
+                    "supports_prompt_caching": info.get(
+                        "supports_prompt_caching", False
+                    ),
+                    "supports_reasoning": info.get("supports_reasoning", False),
+                    "supports_web_search": info.get("supports_web_search", False),
+                    "supports_streaming": True,  # Most models support streaming
+                    "supports_batch_api": batch_input is not None,
+                    # Provider info
+                    "provider": info.get("litellm_provider", provider),
+                }
+            )
 
     # Sort by name
     models.sort(key=lambda m: m["model_id"])
@@ -783,6 +836,7 @@ def list_models_for_provider(provider: str) -> list[dict[str, Any]]:
 # =============================================================================
 # LangChain Integration
 # =============================================================================
+
 
 def get_langchain_model(config: LLMConfig):
     """Create a LangChain ChatModel from Fichero LLMConfig.
@@ -835,6 +889,7 @@ def get_langchain_model(config: LLMConfig):
         )
     elif provider == "mistral":
         from langchain_mistralai import ChatMistralAI
+
         return ChatMistralAI(
             model=model_name,
             api_key=api_key,
@@ -842,6 +897,7 @@ def get_langchain_model(config: LLMConfig):
         )
     elif provider == "cohere":
         from langchain_cohere import ChatCohere
+
         return ChatCohere(
             model=model_name,
             cohere_api_key=api_key,
@@ -901,7 +957,8 @@ def get_langchain_model(config: LLMConfig):
         return ChatOpenAI(
             model=model_name,
             api_key=api_key,
-            base_url=config.api_base or "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+            base_url=config.api_base
+            or "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
             **common_params,
         )
     elif provider == "xai":
@@ -931,6 +988,7 @@ def get_langchain_model(config: LLMConfig):
     elif provider == "azure":
         # Azure OpenAI has special handling
         from langchain_openai import AzureChatOpenAI
+
         return AzureChatOpenAI(
             model=model_name,
             api_key=api_key,
@@ -941,6 +999,7 @@ def get_langchain_model(config: LLMConfig):
     elif provider == "bedrock":
         # AWS Bedrock
         from langchain_aws import ChatBedrock
+
         return ChatBedrock(
             model_id=model_name,
             region_name=config.extra.get("region", "us-east-1"),

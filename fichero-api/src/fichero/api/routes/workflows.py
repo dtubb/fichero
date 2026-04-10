@@ -39,8 +39,10 @@ router = APIRouter()
 # Response Models
 # =============================================================================
 
+
 class PortResponse(BaseModel):
     """Port definition for node editor."""
+
     id: str
     name: str
     port_type: str  # "input" or "output"
@@ -52,6 +54,7 @@ class PortResponse(BaseModel):
 
 class ToolResponse(BaseModel):
     """Tool definition with ports for node editor."""
+
     name: str
     display_name: str
     description: str
@@ -63,7 +66,9 @@ class ToolResponse(BaseModel):
     config_schema: dict = {}
     config_defaults: dict = {}  # Default config values for new nodes
     default_output_schema: dict = {}
-    default_prompt: str = ""  # Default prompt for LLM tools (shown in UI, empty if none)
+    default_prompt: str = (
+        ""  # Default prompt for LLM tools (shown in UI, empty if none)
+    )
     uses_llm: bool
     supports_batch: bool
     supports_streaming: bool
@@ -73,6 +78,7 @@ class ToolResponse(BaseModel):
 
 class CategoryToolsResponse(BaseModel):
     """Tools grouped by category."""
+
     category: str
     display_name: str
     tools: list[ToolResponse]
@@ -80,11 +86,13 @@ class CategoryToolsResponse(BaseModel):
 
 class ToolListResponse(BaseModel):
     """All tools by category."""
+
     categories: list[CategoryToolsResponse]
 
 
 class NodeResponse(BaseModel):
     """Node created from tool."""
+
     id: str
     tool: str
     label: str = ""
@@ -97,6 +105,7 @@ class NodeResponse(BaseModel):
 
 class WorkflowResponse(BaseModel):
     """Workflow definition response."""
+
     id: str
     name: str
     description: str
@@ -111,6 +120,7 @@ class WorkflowResponse(BaseModel):
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
 
 def _dict_to_node_def(node_dict: dict, enrich_ports: bool = True) -> NodeDef:
     """Convert a node dict from database to NodeDef.
@@ -180,7 +190,9 @@ def _port_to_response(port: PortDef) -> PortResponse:
         id=port.id,
         name=port.name,
         port_type=port.port_type,
-        data_type=port.data_type.value if isinstance(port.data_type, DataType) else str(port.data_type),
+        data_type=port.data_type.value
+        if isinstance(port.data_type, DataType)
+        else str(port.data_type),
         required=port.required,
         description=port.description,
         default=port.default,
@@ -229,6 +241,7 @@ def _category_display_name(category: str) -> str:
 # Tool Routes
 # =============================================================================
 
+
 @router.get("/tools")
 async def list_workflow_tools() -> list[ToolResponse]:
     """List all available workflow tools with port definitions."""
@@ -245,11 +258,13 @@ async def list_tools_grouped() -> ToolListResponse:
     for cat in categories:
         tools = list_tools_by_category(cat)
         if tools:
-            result.append(CategoryToolsResponse(
-                category=cat,
-                display_name=_category_display_name(cat),
-                tools=[_tool_to_response(t) for t in tools],
-            ))
+            result.append(
+                CategoryToolsResponse(
+                    category=cat,
+                    display_name=_category_display_name(cat),
+                    tools=[_tool_to_response(t) for t in tools],
+                )
+            )
 
     return ToolListResponse(categories=result)
 
@@ -266,11 +281,13 @@ async def get_tool(tool_name: str) -> ToolResponse:
 
 class PromptRequest(BaseModel):
     """Request to build a prompt with specific config."""
+
     config: dict = {}
 
 
 class PromptResponse(BaseModel):
     """Response with built prompt."""
+
     prompt: str = ""  # Empty string if no prompt
 
 
@@ -319,6 +336,7 @@ async def create_node(
 # =============================================================================
 # Workflow CRUD
 # =============================================================================
+
 
 @router.post("")
 async def create_workflow(
@@ -373,7 +391,9 @@ async def import_workflow(
 
         # Validate that workflow_data contains required structure
         if "nodes" not in workflow_data or "edges" not in workflow_data:
-            raise HTTPException(status_code=400, detail="Invalid workflow data: missing nodes or edges")
+            raise HTTPException(
+                status_code=400, detail="Invalid workflow data: missing nodes or edges"
+            )
 
         # Create a new workflow with provided data
         workflow_name = name or workflow_data.get("name", "Imported Workflow")
@@ -421,7 +441,9 @@ async def export_workflow(
 
         workflow = db.get(Workflow, workflow_id)
         if not workflow:
-            raise HTTPException(status_code=404, detail=f"Workflow not found: {workflow_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Workflow not found: {workflow_id}"
+            )
 
         # Return the workflow data as JSON for export
         return {
@@ -433,7 +455,7 @@ async def export_workflow(
             "format": workflow.format,
             "nodes": workflow.nodes,
             "edges": workflow.edges,
-            "exported_at": datetime.now().isoformat()
+            "exported_at": datetime.now().isoformat(),
         }
     except HTTPException:
         raise
@@ -450,10 +472,10 @@ async def list_workflows(
     """List saved workflows, optionally filtered by folder."""
     try:
         from fichero.models import Workflow
-        
+
         # Query workflows from database
         workflows = db.query(Workflow, folder_path=folder_path)
-        
+
         return [
             WorkflowResponse(
                 id=workflow.id,
@@ -481,11 +503,13 @@ async def get_workflow(
     """Get a saved workflow by ID."""
     try:
         from fichero.models import Workflow
-        
+
         workflow = db.get(Workflow, workflow_id)
         if not workflow:
-            raise HTTPException(status_code=404, detail=f"Workflow not found: {workflow_id}")
-        
+            raise HTTPException(
+                status_code=404, detail=f"Workflow not found: {workflow_id}"
+            )
+
         return WorkflowResponse(
             id=workflow.id,
             name=workflow.name,
@@ -516,15 +540,19 @@ async def update_workflow(
 
         # Debug: log what's being received and saved
         print(f"[UPDATE] workflow: id={workflow_id}")
-        print(f"[UPDATE]   received nodes: {len(workflow.nodes)}, edges: {len(workflow.edges)}")
+        print(
+            f"[UPDATE]   received nodes: {len(workflow.nodes)}, edges: {len(workflow.edges)}"
+        )
         for node in workflow.nodes[:3]:  # Log first 3 nodes
             print(f"[UPDATE]   node: tool={node.tool}, id={node.id[:8]}...")
 
         # Get existing workflow
         existing = db.get(Workflow, workflow_id)
         if not existing:
-            raise HTTPException(status_code=404, detail=f"Workflow not found: {workflow_id}")
-        
+            raise HTTPException(
+                status_code=404, detail=f"Workflow not found: {workflow_id}"
+            )
+
         # Update fields
         # Use model_dump_for_storage() to exclude ports (they come from registry)
         existing.name = workflow.name
@@ -535,12 +563,14 @@ async def update_workflow(
         existing.nodes = [node.model_dump_for_storage() for node in workflow.nodes]
         existing.edges = [edge.model_dump() for edge in workflow.edges]
         existing.updated_at = datetime.now()
-        
+
         # Save changes
         db.save(existing)
 
         # Debug: verify what was saved
-        print(f"[UPDATE]   saved nodes: {len(existing.nodes)}, edges: {len(existing.edges)}")
+        print(
+            f"[UPDATE]   saved nodes: {len(existing.nodes)}, edges: {len(existing.edges)}"
+        )
 
         return WorkflowResponse(
             id=existing.id,
@@ -565,6 +595,7 @@ class WorkflowPatchRequest(BaseModel):
 
     All fields are optional strings - send only the fields you want to update.
     """
+
     name: Optional[str] = None
     description: Optional[str] = None
     folder_path: Optional[str] = None
@@ -585,7 +616,9 @@ async def patch_workflow(
 
         workflow = db.get(Workflow, workflow_id)
         if not workflow:
-            raise HTTPException(status_code=404, detail=f"Workflow not found: {workflow_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Workflow not found: {workflow_id}"
+            )
 
         # Apply only the fields that were provided
         if patch.name is not None:
@@ -629,7 +662,9 @@ async def delete_workflow(
 
         workflow = db.get(Workflow, workflow_id)
         if not workflow:
-            raise HTTPException(status_code=404, detail=f"Workflow not found: {workflow_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Workflow not found: {workflow_id}"
+            )
 
         # Delete from database
         db.delete(workflow)
@@ -654,7 +689,9 @@ async def duplicate_workflow(
         # Get the original workflow
         original = db.get(Workflow, workflow_id)
         if not original:
-            raise HTTPException(status_code=404, detail=f"Workflow not found: {workflow_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Workflow not found: {workflow_id}"
+            )
 
         # Create a new workflow with same properties but new ID and modified name
         new_workflow = Workflow(
@@ -666,7 +703,7 @@ async def duplicate_workflow(
             nodes=original.nodes,
             edges=original.edges,
             folder_path=original.folder_path,  # Keep in same folder
-            sort_order=original.sort_order    # Preserve order preference
+            sort_order=original.sort_order,  # Preserve order preference
         )
 
         # Save to database (this will generate a new ID)
@@ -704,7 +741,9 @@ async def reorder_workflows(
         for i, workflow_id in enumerate(workflow_ids):
             workflow = db.get(Workflow, workflow_id)
             if not workflow:
-                raise HTTPException(status_code=404, detail=f"Workflow not found: {workflow_id}")
+                raise HTTPException(
+                    status_code=404, detail=f"Workflow not found: {workflow_id}"
+                )
 
             # Update sort order
             workflow.sort_order = i
@@ -716,5 +755,3 @@ async def reorder_workflows(
     except Exception as e:
         logger.exception("Failed to reorder workflows")
         raise HTTPException(status_code=500, detail=str(e))
-
-

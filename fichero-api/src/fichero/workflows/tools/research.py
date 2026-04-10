@@ -27,9 +27,14 @@ from fichero.llm import LLMConfig
 
 logger = logging.getLogger(__name__)
 
-_SANDBOX_BLOCKED_DOMAINS = frozenset([
-    "file://", "ftp://", "s3://", "smb://",
-])
+_SANDBOX_BLOCKED_DOMAINS = frozenset(
+    [
+        "file://",
+        "ftp://",
+        "s3://",
+        "smb://",
+    ]
+)
 
 
 def _is_sandbox_violation(url: str) -> bool:
@@ -44,11 +49,12 @@ def _is_sandbox_violation(url: str) -> bool:
 # Web Search Tool
 # =============================================================================
 
+
 @register_tool(
     name="research_web_search",
     display_name="Web Search",
     description="Search the web using DuckDuckGo HTML (sandboxed). "
-                "Returns title, URL, snippet, and relevance for each result.",
+    "Returns title, URL, snippet, and relevance for each result.",
     category="research",
     icon="magnifyingglass",
     color="blue",
@@ -65,14 +71,34 @@ def _is_sandbox_violation(url: str) -> bool:
         ),
     ],
     output_ports=[
-        PortDef(id="results", name="Results", port_type="output", data_type=DataType.JSON,
-                description="List of search results with title, url, snippet"),
-        PortDef(id="count", name="Count", port_type="output", data_type=DataType.NUMBER,
-                description="Number of results returned"),
-        PortDef(id="query_out", name="Query", port_type="output", data_type=DataType.TEXT,
-                description="The query that was executed"),
-        PortDef(id="execution_time_ms", name="Execution Time", port_type="output",
-                data_type=DataType.NUMBER, description="Time taken in milliseconds"),
+        PortDef(
+            id="results",
+            name="Results",
+            port_type="output",
+            data_type=DataType.JSON,
+            description="List of search results with title, url, snippet",
+        ),
+        PortDef(
+            id="count",
+            name="Count",
+            port_type="output",
+            data_type=DataType.NUMBER,
+            description="Number of results returned",
+        ),
+        PortDef(
+            id="query_out",
+            name="Query",
+            port_type="output",
+            data_type=DataType.TEXT,
+            description="The query that was executed",
+        ),
+        PortDef(
+            id="execution_time_ms",
+            name="Execution Time",
+            port_type="output",
+            data_type=DataType.NUMBER,
+            description="Time taken in milliseconds",
+        ),
     ],
     config_schema={
         "type": "object",
@@ -183,11 +209,13 @@ async def research_web_search(
         url = match.group(2).strip()
         snippet = re.sub(r"<[^>]+>", "", match.group(3)).strip()
         if url and not _is_sandbox_violation(url):
-            results.append({
-                "title": title[:500] if title else "",
-                "url": url,
-                "snippet": snippet[:1000] if snippet else "",
-            })
+            results.append(
+                {
+                    "title": title[:500] if title else "",
+                    "url": url,
+                    "snippet": snippet[:1000] if snippet else "",
+                }
+            )
 
     logger.info(f"Web search '{query}': {len(results)} results in {elapsed_ms}ms")
 
@@ -203,11 +231,12 @@ async def research_web_search(
 # Browser Navigate Tool
 # =============================================================================
 
+
 @register_tool(
     name="research_browser_navigate",
     display_name="Browser Navigate",
     description="Navigate to a URL and extract page content, title, and links. "
-                "Sandboxed — only http/https URLs allowed.",
+    "Sandboxed — only http/https URLs allowed.",
     category="research",
     icon="globe",
     color="blue",
@@ -224,17 +253,41 @@ async def research_web_search(
         ),
     ],
     output_ports=[
-        PortDef(id="url", name="URL", port_type="output", data_type=DataType.TEXT,
-                description="Final URL after redirects"),
-        PortDef(id="title", name="Title", port_type="output", data_type=DataType.TEXT,
-                description="Page title"),
-        PortDef(id="html_content", name="HTML", port_type="output", data_type=DataType.TEXT,
-                description="Extracted HTML content (truncated to 50k chars)"),
-        PortDef(id="extracted_links", name="Links", port_type="output",
-                data_type=DataType.JSON,
-                description="List of HTTP/HTTPS links found on the page"),
-        PortDef(id="execution_time_ms", name="Execution Time", port_type="output",
-                data_type=DataType.NUMBER, description="Time taken in milliseconds"),
+        PortDef(
+            id="url",
+            name="URL",
+            port_type="output",
+            data_type=DataType.TEXT,
+            description="Final URL after redirects",
+        ),
+        PortDef(
+            id="title",
+            name="Title",
+            port_type="output",
+            data_type=DataType.TEXT,
+            description="Page title",
+        ),
+        PortDef(
+            id="html_content",
+            name="HTML",
+            port_type="output",
+            data_type=DataType.TEXT,
+            description="Extracted HTML content (truncated to 50k chars)",
+        ),
+        PortDef(
+            id="extracted_links",
+            name="Links",
+            port_type="output",
+            data_type=DataType.JSON,
+            description="List of HTTP/HTTPS links found on the page",
+        ),
+        PortDef(
+            id="execution_time_ms",
+            name="Execution Time",
+            port_type="output",
+            data_type=DataType.NUMBER,
+            description="Time taken in milliseconds",
+        ),
     ],
     config_schema={
         "type": "object",
@@ -352,16 +405,16 @@ async def research_browser_navigate(
     title = re.sub(r"<[^>]+>", "", title or "").strip()
 
     # Extract href links
-    link_pattern = re.compile(
-        r'<a[^>]+href=["\']([^"\']+)["\'][^>]*>', re.IGNORECASE
-    )
+    link_pattern = re.compile(r'<a[^>]+href=["\']([^"\']+)["\'][^>]*>', re.IGNORECASE)
     links: list[str] = []
     for match in link_pattern.finditer(html_content):
         href = match.group(1)
         if href.startswith("http") and not _is_sandbox_violation(href):
             links.append(href)
 
-    logger.info(f"Browser navigate '{url}': title={title!r}, links={len(links)} in {elapsed_ms}ms")
+    logger.info(
+        f"Browser navigate '{url}': title={title!r}, links={len(links)} in {elapsed_ms}ms"
+    )
 
     return {
         "url": url,
@@ -376,11 +429,12 @@ async def research_browser_navigate(
 # Document Fetch Tool
 # =============================================================================
 
+
 @register_tool(
     name="research_document_fetch",
     display_name="Document Fetch",
     description="Fetch a document from a URL and optionally save as a Layer 1 Source "
-                "in the Fichero database. Sandboxed — only http/https URLs allowed.",
+    "in the Fichero database. Sandboxed — only http/https URLs allowed.",
     category="research",
     icon="doc.text",
     color="blue",
@@ -405,20 +459,55 @@ async def research_browser_navigate(
         ),
     ],
     output_ports=[
-        PortDef(id="url", name="URL", port_type="output", data_type=DataType.TEXT,
-                description="Document URL"),
-        PortDef(id="title", name="Title", port_type="output", data_type=DataType.TEXT,
-                description="Document title extracted from HTML or URL"),
-        PortDef(id="content", name="Content", port_type="output", data_type=DataType.TEXT,
-                description="Document content (truncated to 50k chars)"),
-        PortDef(id="content_type", name="Content Type", port_type="output",
-                data_type=DataType.TEXT, description="HTTP content-type header"),
-        PortDef(id="source_id", name="Source ID", port_type="output",
-                data_type=DataType.TEXT, description="Fichero Source ID if created"),
-        PortDef(id="success", name="Success", port_type="output",
-                data_type=DataType.BOOLEAN, description="Whether fetch succeeded"),
-        PortDef(id="error", name="Error", port_type="output",
-                data_type=DataType.TEXT, description="Error message if failed"),
+        PortDef(
+            id="url",
+            name="URL",
+            port_type="output",
+            data_type=DataType.TEXT,
+            description="Document URL",
+        ),
+        PortDef(
+            id="title",
+            name="Title",
+            port_type="output",
+            data_type=DataType.TEXT,
+            description="Document title extracted from HTML or URL",
+        ),
+        PortDef(
+            id="content",
+            name="Content",
+            port_type="output",
+            data_type=DataType.TEXT,
+            description="Document content (truncated to 50k chars)",
+        ),
+        PortDef(
+            id="content_type",
+            name="Content Type",
+            port_type="output",
+            data_type=DataType.TEXT,
+            description="HTTP content-type header",
+        ),
+        PortDef(
+            id="source_id",
+            name="Source ID",
+            port_type="output",
+            data_type=DataType.TEXT,
+            description="Fichero Source ID if created",
+        ),
+        PortDef(
+            id="success",
+            name="Success",
+            port_type="output",
+            data_type=DataType.BOOLEAN,
+            description="Whether fetch succeeded",
+        ),
+        PortDef(
+            id="error",
+            name="Error",
+            port_type="output",
+            data_type=DataType.TEXT,
+            description="Error message if failed",
+        ),
     ],
     config_schema={
         "type": "object",
@@ -490,8 +579,7 @@ async def research_document_fetch(
         ) as client:
             headers = {
                 "User-Agent": (
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36"
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
                 ),
             }
             resp = await client.get(url, headers=headers)

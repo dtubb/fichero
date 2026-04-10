@@ -71,6 +71,7 @@ class CaptureRegion(str, Enum):
 
 class SpatialRoom(BaseModel):
     """3D workspace room for organizing materials."""
+
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
     id: str = Field(default_factory=_new_id)
@@ -85,6 +86,7 @@ class SpatialRoom(BaseModel):
 
 class SpatialNode(BaseModel):
     """Item placed in 3D space (source, claim, note, entity, transcription)."""
+
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
     id: str = Field(default_factory=_new_id)
@@ -107,6 +109,7 @@ class SpatialNode(BaseModel):
 
 class SpatialConnection(BaseModel):
     """Visual link between nodes in a room."""
+
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
     id: str = Field(default_factory=_new_id)
@@ -122,6 +125,7 @@ class SpatialConnection(BaseModel):
 
 class SpatialStack(BaseModel):
     """Grouped nodes within a room."""
+
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
     id: str = Field(default_factory=_new_id)
@@ -137,6 +141,7 @@ class SpatialStack(BaseModel):
 
 class NativeNote(BaseModel):
     """First-class text note in Mind Palace workspace."""
+
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
     id: str = Field(default_factory=_new_id)
@@ -156,6 +161,7 @@ class NativeNote(BaseModel):
 
 class SpatialViewport(BaseModel):
     """Camera and focus state for a room."""
+
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
     id: str = Field(default_factory=_new_id)
@@ -173,6 +179,7 @@ class SpatialViewport(BaseModel):
 
 class RoomSceneSummary(BaseModel):
     """Compact scene state for a room."""
+
     room_id: str
     room_name: str
     node_count: int = 0

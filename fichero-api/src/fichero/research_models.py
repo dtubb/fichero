@@ -219,7 +219,9 @@ class ResearchChecklist(BaseModel):
 class WebSearchRequest(BaseModel):
     query: str
     max_results: int = Field(default=10, ge=1, le=50)
-    source_ids: list[str] = Field(default_factory=list)  # optional SearchSource filtering
+    source_ids: list[str] = Field(
+        default_factory=list
+    )  # optional SearchSource filtering
     language: str | None = None
     timeout_seconds: int = Field(default=30, ge=5, le=120)
 

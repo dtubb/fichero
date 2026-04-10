@@ -61,7 +61,9 @@ class UnifiedLoader:
             iiif_max_dimension: Max dimension for IIIF image downloads
         """
         self.loaders: list[MediaLoader] = [
-            IIIFLoader(max_dimension=iiif_max_dimension),  # Check IIIF first (URL-based)
+            IIIFLoader(
+                max_dimension=iiif_max_dimension
+            ),  # Check IIIF first (URL-based)
             PDFLoader(dpi=pdf_dpi),
             ImageLoader(),
         ]
@@ -92,7 +94,9 @@ class UnifiedLoader:
         if hint:
             loader = self._get_loader_by_hint(hint)
             if loader:
-                logger.info(f"Loading {source_str} with {loader.__class__.__name__} (hint)")
+                logger.info(
+                    f"Loading {source_str} with {loader.__class__.__name__} (hint)"
+                )
                 return await loader.load(source)
 
         # Auto-detect loader

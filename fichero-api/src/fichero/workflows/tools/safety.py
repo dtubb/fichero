@@ -56,6 +56,7 @@ SAFETY_CONFIG = {
 # Prompt Building
 # =============================================================================
 
+
 def _build_prompt(categories: list[str], threshold: str) -> str:
     """Build the safety classification prompt."""
     categories_str = ", ".join(categories)
@@ -91,7 +92,9 @@ Return ONLY valid JSON."""
 
 def build_safety_prompt(config: dict) -> str:
     """Build prompt from config (exposed to UI)."""
-    categories = config.get("categories", ["violence", "adult", "drugs", "hate", "self_harm"])
+    categories = config.get(
+        "categories", ["violence", "adult", "drugs", "hate", "self_harm"]
+    )
     threshold = config.get("threshold", "moderate")
     return _build_prompt(categories, threshold)
 
@@ -99,6 +102,7 @@ def build_safety_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="safety",
@@ -113,7 +117,9 @@ def build_safety_prompt(config: dict) -> str:
     input_ports=VISION_INPUT_PORTS,
     output_ports=BASE_OUTPUT_PORTS,
     config_schema=merge_config_schema(VISION_CONFIG_SCHEMA, SAFETY_CONFIG),
-    default_prompt=_build_prompt(["violence", "adult", "drugs", "hate", "self_harm"], "moderate"),
+    default_prompt=_build_prompt(
+        ["violence", "adult", "drugs", "hate", "self_harm"], "moderate"
+    ),
     prompt_builder=build_safety_prompt,
     sort_order=24,
 )
@@ -129,7 +135,9 @@ async def safety(
     context = inputs.get("context")
     input_metadata = inputs.get("metadata")
 
-    categories = inputs.get("categories", ["violence", "adult", "drugs", "hate", "self_harm"])
+    categories = inputs.get(
+        "categories", ["violence", "adult", "drugs", "hate", "self_harm"]
+    )
     threshold = inputs.get("threshold", "moderate")
 
     prompt = inputs.get("prompt") or _build_prompt(categories, threshold)

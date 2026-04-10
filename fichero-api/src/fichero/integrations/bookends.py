@@ -35,7 +35,7 @@ class BookendsIntegration(AppIntegration):
         if not self.is_available:
             return []
 
-        script = '''
+        script = """
         tell application "Bookends"
             set libList to {}
             repeat with lib in library windows
@@ -44,7 +44,7 @@ class BookendsIntegration(AppIntegration):
             end repeat
             return libList
         end tell
-        '''
+        """
 
         success, result = self.run_applescript(script)
         if not success:
@@ -57,7 +57,7 @@ class BookendsIntegration(AppIntegration):
         self,
         limit: int = 100,
         search: Optional[str] = None,
-        item_type: Optional[str] = None
+        item_type: Optional[str] = None,
     ) -> list[ImportedItem]:
         """
         List references from Bookends.
@@ -89,7 +89,7 @@ class BookendsIntegration(AppIntegration):
             '''
         else:
             # Get recent references
-            script = f'''
+            script = f"""
             tell application "Bookends"
                 set refIDs to «event ToySRFLD» "*" given «class TEFN»:"any"
                 set resultList to {{}}
@@ -102,7 +102,7 @@ class BookendsIntegration(AppIntegration):
                 end repeat
                 return resultList
             end tell
-            '''
+            """
 
         success, result = self.run_applescript(script)
         if not success:
@@ -118,20 +118,24 @@ class BookendsIntegration(AppIntegration):
                 title = record.get("title", "Untitled")
                 year = record.get("year", "")
 
-                display_name = f"{authors} ({year}) - {title}" if year else f"{authors} - {title}"
+                display_name = (
+                    f"{authors} ({year}) - {title}" if year else f"{authors} - {title}"
+                )
 
-                items.append(ImportedItem(
-                    external_id=record.get("id", ""),
-                    name=display_name,
-                    source_app="Bookends",
-                    item_type=f"reference:{record.get('type', 'unknown')}",
-                    metadata={
-                        "title": title,
-                        "authors": authors,
-                        "year": year,
-                        "reference_type": record.get("type", "unknown")
-                    }
-                ))
+                items.append(
+                    ImportedItem(
+                        external_id=record.get("id", ""),
+                        name=display_name,
+                        source_app="Bookends",
+                        item_type=f"reference:{record.get('type', 'unknown')}",
+                        metadata={
+                            "title": title,
+                            "authors": authors,
+                            "year": year,
+                            "reference_type": record.get("type", "unknown"),
+                        },
+                    )
+                )
         except Exception as e:
             logger.error(f"Error parsing Bookends items: {e}")
 
@@ -163,7 +167,9 @@ class BookendsIntegration(AppIntegration):
                 title = record.get("title", "Untitled")
                 year = record.get("year", "")
 
-                display_name = f"{authors} ({year}) - {title}" if year else f"{authors} - {title}"
+                display_name = (
+                    f"{authors} ({year}) - {title}" if year else f"{authors} - {title}"
+                )
 
                 # Parse attachment path if present
                 attachment_path = None
@@ -191,8 +197,8 @@ class BookendsIntegration(AppIntegration):
                         "volume": record.get("volume"),
                         "pages": record.get("pages"),
                         "doi": record.get("doi"),
-                        "abstract": record.get("abstract")
-                    }
+                        "abstract": record.get("abstract"),
+                    },
                 )
         except Exception as e:
             logger.error(f"Error parsing Bookends item: {e}")
@@ -200,9 +206,7 @@ class BookendsIntegration(AppIntegration):
         return None
 
     async def import_item(
-        self,
-        external_id: str,
-        target_path: Optional[Path] = None
+        self, external_id: str, target_path: Optional[Path] = None
     ) -> Optional[Path]:
         """
         Import a reference's attachment from Bookends.
@@ -220,6 +224,7 @@ class BookendsIntegration(AppIntegration):
         if item.file_path and item.file_path.exists():
             if target_path:
                 import shutil
+
                 shutil.copy2(item.file_path, target_path)
                 return target_path
             return item.file_path
@@ -239,6 +244,7 @@ class BookendsIntegration(AppIntegration):
             if source_path.exists():
                 if target_path:
                     import shutil
+
                     shutil.copy2(source_path, target_path)
                     return target_path
                 return source_path
@@ -246,9 +252,7 @@ class BookendsIntegration(AppIntegration):
         return None
 
     async def export_item(
-        self,
-        file_path: Path,
-        metadata: Optional[dict] = None
+        self, file_path: Path, metadata: Optional[dict] = None
     ) -> Optional[str]:
         """
         Export a file to Bookends as a new reference.

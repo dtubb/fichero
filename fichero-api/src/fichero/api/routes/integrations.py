@@ -22,6 +22,7 @@ router = APIRouter(prefix="/integrations", tags=["integrations"])
 # Response Models
 class IntegrationInfo(BaseModel):
     """Information about an integration."""
+
     name: str
     bundle_id: str
     status: str
@@ -32,6 +33,7 @@ class IntegrationInfo(BaseModel):
 
 class IntegrationItem(BaseModel):
     """An item from an integrated app."""
+
     external_id: str
     name: str
     source_app: str
@@ -46,6 +48,7 @@ class IntegrationItem(BaseModel):
 
 class ExportRequest(BaseModel):
     """Request to export a file to an app."""
+
     file_path: str
     metadata: Optional[dict] = None
     # App-specific options
@@ -57,6 +60,7 @@ class ExportRequest(BaseModel):
 
 class ExportResponse(BaseModel):
     """Response from export operation."""
+
     success: bool
     external_id: Optional[str] = None
     error: Optional[str] = None
@@ -64,12 +68,14 @@ class ExportResponse(BaseModel):
 
 class ImportRequest(BaseModel):
     """Request to import an item from an app."""
+
     external_id: str
     target_path: Optional[str] = None
 
 
 class ImportResponse(BaseModel):
     """Response from import operation."""
+
     success: bool
     file_path: Optional[str] = None
     error: Optional[str] = None
@@ -84,14 +90,16 @@ async def list_integrations():
 
     for integration in registry.list_all():
         info = integration.app_info
-        integrations.append(IntegrationInfo(
-            name=integration.name,
-            bundle_id=integration.bundle_id,
-            status=info.status.value,
-            version=info.version,
-            path=str(info.path) if info.path else None,
-            error=info.error_message
-        ))
+        integrations.append(
+            IntegrationInfo(
+                name=integration.name,
+                bundle_id=integration.bundle_id,
+                status=info.status.value,
+                version=info.version,
+                path=str(info.path) if info.path else None,
+                error=info.error_message,
+            )
+        )
 
     return integrations
 
@@ -104,14 +112,16 @@ async def list_available_integrations():
 
     for integration in registry.list_available():
         info = integration.app_info
-        integrations.append(IntegrationInfo(
-            name=integration.name,
-            bundle_id=integration.bundle_id,
-            status=info.status.value,
-            version=info.version,
-            path=str(info.path) if info.path else None,
-            error=info.error_message
-        ))
+        integrations.append(
+            IntegrationInfo(
+                name=integration.name,
+                bundle_id=integration.bundle_id,
+                status=info.status.value,
+                version=info.version,
+                path=str(info.path) if info.path else None,
+                error=info.error_message,
+            )
+        )
 
     return integrations
 
@@ -123,7 +133,9 @@ async def get_integration(app_name: str):
     integration = registry.get(app_name)
 
     if not integration:
-        raise HTTPException(status_code=404, detail=f"Integration '{app_name}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Integration '{app_name}' not found"
+        )
 
     info = integration.app_info
     return IntegrationInfo(
@@ -132,7 +144,7 @@ async def get_integration(app_name: str):
         status=info.status.value,
         version=info.version,
         path=str(info.path) if info.path else None,
-        error=info.error_message
+        error=info.error_message,
     )
 
 
@@ -143,7 +155,9 @@ async def refresh_integration(app_name: str):
     integration = registry.get(app_name)
 
     if not integration:
-        raise HTTPException(status_code=404, detail=f"Integration '{app_name}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Integration '{app_name}' not found"
+        )
 
     # Force re-check availability
     integration._app_info = None
@@ -156,7 +170,7 @@ async def refresh_integration(app_name: str):
         status=info.status.value,
         version=info.version,
         path=str(info.path) if info.path else None,
-        error=info.error_message
+        error=info.error_message,
     )
 
 
@@ -167,19 +181,21 @@ async def list_items(
     search: Optional[str] = None,
     item_type: Optional[str] = None,
     database: Optional[str] = None,  # DEVONthink
-    container: Optional[str] = None  # Tinderbox
+    container: Optional[str] = None,  # Tinderbox
 ):
     """List items from an integrated app."""
     registry = get_integration_registry()
     integration = registry.get(app_name)
 
     if not integration:
-        raise HTTPException(status_code=404, detail=f"Integration '{app_name}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Integration '{app_name}' not found"
+        )
 
     if not integration.is_available:
         raise HTTPException(
             status_code=503,
-            detail=f"{integration.name} is not available: {integration.app_info.error_message or 'App not found'}"
+            detail=f"{integration.name} is not available: {integration.app_info.error_message or 'App not found'}",
         )
 
     # Call list_items with app-specific parameters
@@ -204,7 +220,7 @@ async def list_items(
             content=item.content,
             metadata=item.metadata,
             created_at=item.created_at.isoformat() if item.created_at else None,
-            modified_at=item.modified_at.isoformat() if item.modified_at else None
+            modified_at=item.modified_at.isoformat() if item.modified_at else None,
         )
         for item in items
     ]
@@ -217,12 +233,13 @@ async def get_item(app_name: str, external_id: str):
     integration = registry.get(app_name)
 
     if not integration:
-        raise HTTPException(status_code=404, detail=f"Integration '{app_name}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Integration '{app_name}' not found"
+        )
 
     if not integration.is_available:
         raise HTTPException(
-            status_code=503,
-            detail=f"{integration.name} is not available"
+            status_code=503, detail=f"{integration.name} is not available"
         )
 
     item = await integration.get_item(external_id)
@@ -239,7 +256,7 @@ async def get_item(app_name: str, external_id: str):
         content=item.content,
         metadata=item.metadata,
         created_at=item.created_at.isoformat() if item.created_at else None,
-        modified_at=item.modified_at.isoformat() if item.modified_at else None
+        modified_at=item.modified_at.isoformat() if item.modified_at else None,
     )
 
 
@@ -250,12 +267,13 @@ async def import_item(app_name: str, request: ImportRequest):
     integration = registry.get(app_name)
 
     if not integration:
-        raise HTTPException(status_code=404, detail=f"Integration '{app_name}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Integration '{app_name}' not found"
+        )
 
     if not integration.is_available:
         raise HTTPException(
-            status_code=503,
-            detail=f"{integration.name} is not available"
+            status_code=503, detail=f"{integration.name} is not available"
         )
 
     target_path = Path(request.target_path) if request.target_path else None
@@ -277,17 +295,20 @@ async def export_item(app_name: str, request: ExportRequest):
     integration = registry.get(app_name)
 
     if not integration:
-        raise HTTPException(status_code=404, detail=f"Integration '{app_name}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Integration '{app_name}' not found"
+        )
 
     if not integration.is_available:
         raise HTTPException(
-            status_code=503,
-            detail=f"{integration.name} is not available"
+            status_code=503, detail=f"{integration.name} is not available"
         )
 
     file_path = Path(request.file_path)
     if not file_path.exists():
-        raise HTTPException(status_code=400, detail=f"File not found: {request.file_path}")
+        raise HTTPException(
+            status_code=400, detail=f"File not found: {request.file_path}"
+        )
 
     try:
         # Build kwargs based on app
@@ -322,17 +343,20 @@ async def open_item(app_name: str, external_id: str):
     integration = registry.get(app_name)
 
     if not integration:
-        raise HTTPException(status_code=404, detail=f"Integration '{app_name}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Integration '{app_name}' not found"
+        )
 
     if not integration.is_available:
         raise HTTPException(
-            status_code=503,
-            detail=f"{integration.name} is not available"
+            status_code=503, detail=f"{integration.name} is not available"
         )
 
     # Check if integration has open_item method
     if not hasattr(integration, "open_item"):
-        raise HTTPException(status_code=501, detail=f"{integration.name} does not support opening items")
+        raise HTTPException(
+            status_code=501, detail=f"{integration.name} does not support opening items"
+        )
 
     success = await integration.open_item(external_id)
     return {"success": success}
@@ -373,10 +397,7 @@ async def list_bookends_libraries():
 
 
 @router.get("/bookends/citation/{external_id}")
-async def get_bookends_citation(
-    external_id: str,
-    style: str = Query(default="APA")
-):
+async def get_bookends_citation(external_id: str, style: str = Query(default="APA")):
     """Get a formatted citation for a Bookends reference."""
     registry = get_integration_registry()
     integration = registry.get("bookends")
@@ -412,6 +433,7 @@ async def list_tinderbox_documents():
 
 class CreateNoteRequest(BaseModel):
     """Request to create a Tinderbox note."""
+
     name: str
     text: str = ""
     container: Optional[str] = None
@@ -436,7 +458,7 @@ async def create_tinderbox_note(request: CreateNoteRequest):
         text=request.text,
         container=request.container,
         prototype=request.prototype,
-        attributes=request.attributes
+        attributes=request.attributes,
     )
 
     if note_id:
@@ -446,13 +468,14 @@ async def create_tinderbox_note(request: CreateNoteRequest):
 
 class SetAttributesRequest(BaseModel):
     """Request to set Tinderbox note attributes."""
+
     attributes: dict
 
 
 @router.get("/tinderbox/notes/{external_id}/attributes")
 async def get_tinderbox_attributes(
     external_id: str,
-    attributes: str = Query(..., description="Comma-separated list of attribute names")
+    attributes: str = Query(..., description="Comma-separated list of attribute names"),
 ):
     """Get specific attributes of a Tinderbox note."""
     registry = get_integration_registry()

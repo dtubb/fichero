@@ -60,13 +60,30 @@ ENTITIES_CONFIG = {
 
 # Input ports for entities
 ENTITIES_INPUT_PORTS = merge_ports(
-    [PortDef(id="text", name="Text", port_type="input", data_type=DataType.TEXT, required=True, description="Text to extract entities from")],
+    [
+        PortDef(
+            id="text",
+            name="Text",
+            port_type="input",
+            data_type=DataType.TEXT,
+            required=True,
+            description="Text to extract entities from",
+        )
+    ],
     BASE_INPUT_PORTS,
 )
 
 # Output ports include entities-specific output
 ENTITIES_OUTPUT_PORTS = merge_ports(
-    [PortDef(id="entities", name="Entities", port_type="output", data_type=DataType.JSON, description="Extracted entities by category")],
+    [
+        PortDef(
+            id="entities",
+            name="Entities",
+            port_type="output",
+            data_type=DataType.JSON,
+            description="Extracted entities by category",
+        )
+    ],
     BASE_OUTPUT_PORTS,
 )
 
@@ -88,10 +105,9 @@ TYPE_DESCRIPTIONS = {
 
 def _build_extraction_prompt(entity_types: list[str], include_context: bool) -> str:
     """Build the entity extraction prompt."""
-    types_text = "\n".join([
-        f"- {t}: {TYPE_DESCRIPTIONS.get(t, t)}"
-        for t in entity_types
-    ])
+    types_text = "\n".join(
+        [f"- {t}: {TYPE_DESCRIPTIONS.get(t, t)}" for t in entity_types]
+    )
 
     context_instruction = ""
     if include_context:
@@ -121,7 +137,9 @@ Return only valid JSON, no other text."""
 
 def build_entities_prompt(config: dict) -> str:
     """Build prompt from config (exposed to UI)."""
-    entity_types = config.get("entity_types", ["people", "organizations", "locations", "dates"])
+    entity_types = config.get(
+        "entity_types", ["people", "organizations", "locations", "dates"]
+    )
     include_context = config.get("include_context", False)
     return _build_extraction_prompt(entity_types, include_context)
 
@@ -129,6 +147,7 @@ def build_entities_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="extract_entities",
@@ -143,7 +162,9 @@ def build_entities_prompt(config: dict) -> str:
     input_ports=ENTITIES_INPUT_PORTS,
     output_ports=ENTITIES_OUTPUT_PORTS,
     config_schema=merge_config_schema(BASE_CONFIG_SCHEMA, ENTITIES_CONFIG),
-    default_prompt=_build_extraction_prompt(["people", "organizations", "locations", "dates"], False),
+    default_prompt=_build_extraction_prompt(
+        ["people", "organizations", "locations", "dates"], False
+    ),
     prompt_builder=build_entities_prompt,
     sort_order=33,
 )
@@ -161,7 +182,9 @@ async def extract_entities(
     input_metadata = inputs.get("metadata")
 
     # Get entities-specific config
-    entity_types = inputs.get("entity_types", ["people", "organizations", "locations", "dates"])
+    entity_types = inputs.get(
+        "entity_types", ["people", "organizations", "locations", "dates"]
+    )
     include_context = inputs.get("include_context", False)
     deduplicate = inputs.get("deduplicate", True)
 
@@ -178,7 +201,9 @@ async def extract_entities(
         }
 
     # Build prompt
-    prompt = inputs.get("prompt") or _build_extraction_prompt(entity_types, include_context)
+    prompt = inputs.get("prompt") or _build_extraction_prompt(
+        entity_types, include_context
+    )
 
     # Process with shared logic - use json output format
     result = await process_text(

@@ -166,7 +166,7 @@ async def create_plan(
     return plan
 
 
-#仰制
+# 仰制
 
 
 @router.get("/projects/{project_id}/plans", response_model=list[ResearchPlan])
@@ -555,9 +555,7 @@ async def create_checklist(
     return checklist
 
 
-@router.get(
-    "/projects/{project_id}/checklists", response_model=list[ResearchChecklist]
-)
+@router.get("/projects/{project_id}/checklists", response_model=list[ResearchChecklist])
 async def list_checklists(
     project_id: str,
     db: Database = Depends(get_library_database),
@@ -576,7 +574,9 @@ async def toggle_checklist_item(
 ) -> ResearchChecklist:
     checklist = db.get(ResearchChecklist, checklist_id)
     if not checklist:
-        raise HTTPException(status_code=404, detail=f"Checklist not found: {checklist_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Checklist not found: {checklist_id}"
+        )
     for item in checklist.items:
         if item.id == item_id:
             item.checked = request.checked
@@ -595,9 +595,14 @@ async def toggle_checklist_item(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-_SANDBOX_BLOCKED_DOMAINS = frozenset([
-    "file://", "ftp://", "s3://", "smb://",
-])
+_SANDBOX_BLOCKED_DOMAINS = frozenset(
+    [
+        "file://",
+        "ftp://",
+        "s3://",
+        "smb://",
+    ]
+)
 
 
 def _is_sandbox_violation(url: str) -> bool:
@@ -638,7 +643,9 @@ async def execute_web_search(
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="Web search timed out")
     except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=502, detail=f"Search provider error: {e.response.status_code}")
+        raise HTTPException(
+            status_code=502, detail=f"Search provider error: {e.response.status_code}"
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Web search failed: {str(e)}")
 
@@ -659,9 +666,9 @@ async def execute_web_search(
     for i, match in enumerate(link_pattern.finditer(html)):
         if i >= request.max_results:
             break
-        title = re.sub(r'<[^>]+>', "", match.group(1)).strip()
+        title = re.sub(r"<[^>]+>", "", match.group(1)).strip()
         url = match.group(2).strip()
-        snippet = re.sub(r'<[^>]+>', "", match.group(3)).strip()
+        snippet = re.sub(r"<[^>]+>", "", match.group(3)).strip()
         if url and not _is_sandbox_violation(url):
             results.append(
                 WebSearchResult(
@@ -718,15 +725,22 @@ async def execute_browser_navigate(
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="Browser navigation timed out")
     except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=502, detail=f"Navigation error: {e.response.status_code}")
+        raise HTTPException(
+            status_code=502, detail=f"Navigation error: {e.response.status_code}"
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Browser navigation failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Browser navigation failed: {str(e)}"
+        )
 
     elapsed_ms = int((time.monotonic() - start) * 1000)
 
     # Extract title and links
     import re
-    title_match = re.search(r"<title[^>]*>(.*?)</title>", html_content, re.IGNORECASE | re.DOTALL)
+
+    title_match = re.search(
+        r"<title[^>]*>(.*?)</title>", html_content, re.IGNORECASE | re.DOTALL
+    )
     title = title_match.group(1).strip() if title_match else None
     title = re.sub(r"<[^>]+>", "", title or "").strip()
 
@@ -741,7 +755,9 @@ async def execute_browser_navigate(
     return BrowserNavigateResponse(
         url=request.url,
         title=title[:500] if title else None,
-        html_content=html_content[:50000] if html_content else None,  # truncate large pages
+        html_content=html_content[:50000]
+        if html_content
+        else None,  # truncate large pages
         screenshot_base64=None,  # screenshot not yet implemented
         extracted_links=links[:100],  # limit links
         execution_time_ms=elapsed_ms,
@@ -774,8 +790,7 @@ async def execute_document_fetch(
         ) as client:
             headers = {
                 "User-Agent": (
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36"
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
                 ),
             }
             resp = await client.get(request.url, headers=headers)
@@ -785,7 +800,10 @@ async def execute_document_fetch(
             # Extract title from HTML or use URL
             if "text/html" in content_type:
                 import re
-                title_match = re.search(r"<title[^>]*>(.*?)</title>", content, re.IGNORECASE | re.DOTALL)
+
+                title_match = re.search(
+                    r"<title[^>]*>(.*?)</title>", content, re.IGNORECASE | re.DOTALL
+                )
                 title = title_match.group(1).strip() if title_match else request.url
                 title = re.sub(r"<[^>]+>", "", title).strip()
             else:

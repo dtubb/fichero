@@ -60,6 +60,7 @@ TRANSCRIBE_CONFIG = {
 # Prompt Building
 # =============================================================================
 
+
 def _build_prompt(language: str, return_boxes: bool) -> str:
     """Build the transcription prompt."""
     prompt = f"""Extract and transcribe all text from this image.
@@ -101,6 +102,7 @@ def build_transcribe_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="transcribe",

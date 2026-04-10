@@ -33,30 +33,39 @@ router = APIRouter(prefix="/triggers", tags=["triggers"])
 
 # Request/Response Models
 
+
 class TriggerConfigRequest(BaseModel):
     """Trigger configuration request."""
+
     watch_path: str = Field(..., description="Directory to watch")
     recursive: bool = Field(True, description="Watch subdirectories")
     events: list[str] = Field(
         default=["created"],
-        description="Events to trigger on: created, modified, deleted, moved, any"
+        description="Events to trigger on: created, modified, deleted, moved, any",
     )
     filter_mode: str = Field("glob", description="Filter mode: glob, regex, extension")
-    filter_pattern: Optional[str] = Field(None, description="Pattern for glob/regex filter")
-    filter_extensions: list[str] = Field(default_factory=list, description="Extensions for extension filter")
-    exclude_patterns: list[str] = Field(default_factory=list, description="Patterns to exclude")
+    filter_pattern: Optional[str] = Field(
+        None, description="Pattern for glob/regex filter"
+    )
+    filter_extensions: list[str] = Field(
+        default_factory=list, description="Extensions for extension filter"
+    )
+    exclude_patterns: list[str] = Field(
+        default_factory=list, description="Patterns to exclude"
+    )
     debounce_seconds: float = Field(1.0, description="Debounce rapid events")
     batch_delay_seconds: float = Field(5.0, description="Wait before batching events")
 
 
 class CreateTriggerRequest(BaseModel):
     """Request to create a new file trigger."""
+
     name: str = Field(..., description="Display name for the trigger")
     workflow_id: str = Field(..., description="ID of workflow to execute")
     config: TriggerConfigRequest = Field(..., description="Trigger configuration")
     inputs_template: dict[str, Any] = Field(
         default_factory=lambda: {"file_path": "{file_path}"},
-        description="Template for workflow inputs with placeholders"
+        description="Template for workflow inputs with placeholders",
     )
     use_batch: bool = Field(True, description="Batch multiple files")
     max_concurrent: int = Field(5, description="Max concurrent batch items")
@@ -64,16 +73,24 @@ class CreateTriggerRequest(BaseModel):
 
 class UpdateTriggerRequest(BaseModel):
     """Request to update an existing file trigger."""
+
     name: Optional[str] = Field(None, description="Display name for the trigger")
     workflow_id: Optional[str] = Field(None, description="ID of workflow to execute")
-    config: Optional[TriggerConfigRequest] = Field(None, description="Trigger configuration")
-    inputs_template: Optional[dict[str, Any]] = Field(None, description="Template for workflow inputs")
+    config: Optional[TriggerConfigRequest] = Field(
+        None, description="Trigger configuration"
+    )
+    inputs_template: Optional[dict[str, Any]] = Field(
+        None, description="Template for workflow inputs"
+    )
     use_batch: Optional[bool] = Field(None, description="Batch multiple files")
-    max_concurrent: Optional[int] = Field(None, description="Max concurrent batch items")
+    max_concurrent: Optional[int] = Field(
+        None, description="Max concurrent batch items"
+    )
 
 
 class TriggerResponse(BaseModel):
     """Trigger response."""
+
     trigger_id: str
     name: str
     workflow_id: str
@@ -125,6 +142,7 @@ class TriggerResponse(BaseModel):
 
 class TriggerExecutionResponse(BaseModel):
     """Trigger execution response."""
+
     execution_id: str
     trigger_id: str
     triggered_at: datetime
@@ -153,25 +171,23 @@ _watchers: dict[str, FileWatcherManager] = {}
 
 
 async def get_library_database(
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path")
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
 ) -> Database:
     """Get database for current library."""
     if not x_fichero_library_path:
         raise HTTPException(
-            status_code=400,
-            detail="Missing X-Fichero-Library-Path header"
+            status_code=400, detail="Missing X-Fichero-Library-Path header"
         )
     try:
         return db_manager.get_database(x_fichero_library_path)
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to access library database: {str(e)}"
+            status_code=500, detail=f"Failed to access library database: {str(e)}"
         )
 
 
 async def get_file_watcher(
-    db: Database = Depends(get_library_database)
+    db: Database = Depends(get_library_database),
 ) -> FileWatcherManager:
     """Get or create file watcher for the current library."""
     db_path = str(db.path)
@@ -187,6 +203,7 @@ async def get_file_watcher(
 
 
 # Endpoints
+
 
 @router.post("", response_model=TriggerResponse)
 async def create_trigger(

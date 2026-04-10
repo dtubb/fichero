@@ -37,15 +37,20 @@ router = APIRouter(prefix="/chains", tags=["chains"])
 # Request/Response Models
 # =============================================================================
 
+
 class OutputMappingRequest(BaseModel):
     """Request model for output mapping."""
-    source_path: str = Field(..., description="Path to source data (e.g., '$.outputs.node_id.key')")
+
+    source_path: str = Field(
+        ..., description="Path to source data (e.g., '$.outputs.node_id.key')"
+    )
     target_key: str = Field(..., description="Input key name in next workflow")
     transform: str | None = None
 
 
 class ChainStepConditionRequest(BaseModel):
     """Request model for chain step condition."""
+
     expression: str = Field(..., description="Condition expression")
     true_step: str | None = None
     false_step: str | None = None
@@ -53,6 +58,7 @@ class ChainStepConditionRequest(BaseModel):
 
 class ChainStepRequest(BaseModel):
     """Request model for chain step."""
+
     id: str
     workflow_id: str
     name: str = ""
@@ -65,6 +71,7 @@ class ChainStepRequest(BaseModel):
 
 class CreateChainRequest(BaseModel):
     """Request to create a new workflow chain."""
+
     name: str = Field(..., min_length=1)
     description: str = ""
     steps: list[ChainStepRequest] = Field(default_factory=list)
@@ -74,6 +81,7 @@ class CreateChainRequest(BaseModel):
 
 class UpdateChainRequest(BaseModel):
     """Request to update an existing chain."""
+
     name: str | None = None
     description: str | None = None
     steps: list[ChainStepRequest] | None = None
@@ -83,12 +91,14 @@ class UpdateChainRequest(BaseModel):
 
 class ExecuteChainRequest(BaseModel):
     """Request to execute a workflow chain."""
+
     inputs: dict[str, Any] = Field(default_factory=dict)
     input_files: list[str] = Field(default_factory=list)
 
 
 class ChainResponse(BaseModel):
     """Response model for chain data."""
+
     id: str
     name: str
     description: str
@@ -101,12 +111,14 @@ class ChainResponse(BaseModel):
 
 class ChainListResponse(BaseModel):
     """Response model for chain list."""
+
     chains: list[ChainResponse]
     total: int
 
 
 class ChainExecutionResponse(BaseModel):
     """Response model for chain execution."""
+
     execution_id: str
     chain_id: str
     status: str
@@ -142,7 +154,9 @@ def _on_chain_event(event: ChainProgressEvent) -> None:
     _execution_events[execution_id].append(event)
     # Limit events per execution
     if len(_execution_events[execution_id]) > MAX_EVENTS_PER_EXECUTION:
-        _execution_events[execution_id] = _execution_events[execution_id][-MAX_EVENTS_PER_EXECUTION:]
+        _execution_events[execution_id] = _execution_events[execution_id][
+            -MAX_EVENTS_PER_EXECUTION:
+        ]
     logger.debug(f"Chain event: {event.event_type} - {event.message}")
 
 
@@ -155,6 +169,7 @@ def _create_workflow_loader(library_path: str) -> Callable[[str], WorkflowDef | 
     Returns:
         Function that loads workflows by ID
     """
+
     def loader(workflow_id: str) -> WorkflowDef | None:
         try:
             db = db_manager.get_database(library_path)
@@ -174,6 +189,7 @@ def _create_workflow_loader(library_path: str) -> Callable[[str], WorkflowDef | 
 # =============================================================================
 # Chain CRUD Endpoints
 # =============================================================================
+
 
 @router.post("", response_model=ChainResponse)
 async def create_chain(request: CreateChainRequest) -> ChainResponse:
@@ -196,16 +212,18 @@ async def create_chain(request: CreateChainRequest) -> ChainResponse:
                 true_step=step_req.condition.true_step,
                 false_step=step_req.condition.false_step,
             )
-        steps.append(ChainStep(
-            id=step_req.id,
-            workflow_id=step_req.workflow_id,
-            name=step_req.name,
-            input_mappings=mappings,
-            static_inputs=step_req.static_inputs,
-            condition=condition,
-            continue_on_error=step_req.continue_on_error,
-            timeout_seconds=step_req.timeout_seconds,
-        ))
+        steps.append(
+            ChainStep(
+                id=step_req.id,
+                workflow_id=step_req.workflow_id,
+                name=step_req.name,
+                input_mappings=mappings,
+                static_inputs=step_req.static_inputs,
+                condition=condition,
+                continue_on_error=step_req.continue_on_error,
+                timeout_seconds=step_req.timeout_seconds,
+            )
+        )
 
     chain = WorkflowChain(
         name=request.name,
@@ -272,16 +290,18 @@ async def update_chain(chain_id: str, request: UpdateChainRequest) -> ChainRespo
                     true_step=step_req.condition.true_step,
                     false_step=step_req.condition.false_step,
                 )
-            steps.append(ChainStep(
-                id=step_req.id,
-                workflow_id=step_req.workflow_id,
-                name=step_req.name,
-                input_mappings=mappings,
-                static_inputs=step_req.static_inputs,
-                condition=condition,
-                continue_on_error=step_req.continue_on_error,
-                timeout_seconds=step_req.timeout_seconds,
-            ))
+            steps.append(
+                ChainStep(
+                    id=step_req.id,
+                    workflow_id=step_req.workflow_id,
+                    name=step_req.name,
+                    input_mappings=mappings,
+                    static_inputs=step_req.static_inputs,
+                    condition=condition,
+                    continue_on_error=step_req.continue_on_error,
+                    timeout_seconds=step_req.timeout_seconds,
+                )
+            )
         chain.steps = steps
 
     saved = chain_store.save(chain)
@@ -299,6 +319,7 @@ async def delete_chain(chain_id: str) -> dict[str, Any]:
 # =============================================================================
 # Chain Execution Endpoints
 # =============================================================================
+
 
 @router.post("/{chain_id}/execute", response_model=ChainExecutionResponse)
 async def execute_chain(
@@ -372,7 +393,9 @@ async def execute_chain(
 async def get_chain_execution(execution_id: str) -> dict[str, Any]:
     """Get the status and result of a chain execution."""
     if execution_id not in _running_executions:
-        raise HTTPException(status_code=404, detail=f"Execution not found: {execution_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Execution not found: {execution_id}"
+        )
 
     result = _running_executions[execution_id]
     events = _execution_events.get(execution_id, [])
@@ -414,7 +437,9 @@ async def cancel_chain_execution(execution_id: str) -> dict[str, Any]:
     Note: May not immediately stop if a workflow step is in progress.
     """
     if execution_id not in _running_executions:
-        raise HTTPException(status_code=404, detail=f"Execution not found: {execution_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Execution not found: {execution_id}"
+        )
 
     # Mark as cancelled (executor checks this flag)
     result = _running_executions[execution_id]
@@ -434,6 +459,7 @@ async def cancel_chain_execution(execution_id: str) -> dict[str, Any]:
 # Helper Functions
 # =============================================================================
 
+
 def _chain_to_response(chain: WorkflowChain) -> ChainResponse:
     """Convert domain model to response model."""
     return ChainResponse(
@@ -446,7 +472,11 @@ def _chain_to_response(chain: WorkflowChain) -> ChainResponse:
                 "workflow_id": s.workflow_id,
                 "name": s.name,
                 "input_mappings": [
-                    {"source_path": m.source_path, "target_key": m.target_key, "transform": m.transform}
+                    {
+                        "source_path": m.source_path,
+                        "target_key": m.target_key,
+                        "transform": m.transform,
+                    }
                     for m in s.input_mappings
                 ],
                 "static_inputs": s.static_inputs,
@@ -454,7 +484,9 @@ def _chain_to_response(chain: WorkflowChain) -> ChainResponse:
                     "expression": s.condition.expression,
                     "true_step": s.condition.true_step,
                     "false_step": s.condition.false_step,
-                } if s.condition else None,
+                }
+                if s.condition
+                else None,
                 "continue_on_error": s.continue_on_error,
                 "timeout_seconds": s.timeout_seconds,
             }

@@ -71,6 +71,7 @@ class EntityAliasMapResponse(BaseModel):
 
 class EntityResolutionResponse(BaseModel):
     """Response from resolving a lookup value to an entity."""
+
     resolved: bool
     value: str
     entity_id: str | None = None
@@ -173,7 +174,9 @@ def _resolve_scope_document_ids(
     if scope_type == InclusionScopeType.library:
         return None
     if not target_id:
-        raise HTTPException(status_code=400, detail="target_id is required for non-library scopes")
+        raise HTTPException(
+            status_code=400, detail="target_id is required for non-library scopes"
+        )
 
     if scope_type == InclusionScopeType.document:
         return {target_id}
@@ -225,7 +228,9 @@ def _resolve_entity_ids(db: Database, values: list[str]) -> list[str]:
     return result
 
 
-def _passes_query_filter(claim: KnowledgeClaim, q: str | None, entity_map: dict[str, KnowledgeEntity]) -> bool:
+def _passes_query_filter(
+    claim: KnowledgeClaim, q: str | None, entity_map: dict[str, KnowledgeEntity]
+) -> bool:
     if not q:
         return True
     needle = _normalize_text(q)
@@ -299,8 +304,12 @@ class MutationLogResponse(BaseModel):
 
 
 class UndoRequest(BaseModel):
-    run_id: str | None = Field(default=None, description="Rollback all mutations in this AI run")
-    mutation_id: str | None = Field(default=None, description="Undo a specific mutation")
+    run_id: str | None = Field(
+        default=None, description="Rollback all mutations in this AI run"
+    )
+    mutation_id: str | None = Field(
+        default=None, description="Undo a specific mutation"
+    )
 
 
 @router.post("/knowledge-mutations/undo", response_model=list[MutationLogResponse])
@@ -314,13 +323,19 @@ async def undo_mutations(
     from an AI agent run as a group.
     """
     if not request.mutation_id and not request.run_id:
-        raise HTTPException(status_code=400, detail="Provide either mutation_id or run_id")
+        raise HTTPException(
+            status_code=400, detail="Provide either mutation_id or run_id"
+        )
 
     if request.mutation_id:
         logs = [db.get(MutationLog, request.mutation_id)]
     else:
         all_mlogs = db.all(MutationLog)
-        logs = [mlog for mlog in all_mlogs if mlog.run_id == request.run_id and mlog.reversal_id is None]
+        logs = [
+            mlog
+            for mlog in all_mlogs
+            if mlog.run_id == request.run_id and mlog.reversal_id is None
+        ]
         logs.sort(key=lambda mlog: mlog.created_at, reverse=True)
 
     undone: list[MutationLogResponse] = []
@@ -330,7 +345,9 @@ async def undo_mutations(
 
         entity_cls = _entity_class_for_type(log.entity_type)
         if entity_cls is None:
-            raise HTTPException(status_code=400, detail=f"Unknown entity type: {log.entity_type}")
+            raise HTTPException(
+                status_code=400, detail=f"Unknown entity type: {log.entity_type}"
+            )
 
         entity = db.get(entity_cls, log.entity_id)
         if entity is None:
@@ -351,11 +368,16 @@ async def undo_mutations(
             if key not in ("id", "created_at"):
                 setattr(entity, key, value)
         from datetime import datetime as dt
+
         entity.updated_at = dt.now()
         db.save(entity)
 
         # Create reversal log entry
-        after = {k: v for k, v in entity.model_dump().items() if k not in ("id", "created_at")}
+        after = {
+            k: v
+            for k, v in entity.model_dump().items()
+            if k not in ("id", "created_at")
+        }
         reverse = MutationLog(
             entity_type=log.entity_type,
             entity_id=log.entity_id,
@@ -374,20 +396,22 @@ async def undo_mutations(
         log.reversal_id = reverse.id
         db.save(log)
 
-        undone.append(MutationLogResponse(
-            id=reverse.id,
-            entity_type=reverse.entity_type,
-            entity_id=reverse.entity_id,
-            operation=reverse.operation,
-            before_state=reverse.before_state,
-            after_state=reverse.after_state,
-            changed_fields=reverse.changed_fields,
-            run_id=reverse.run_id,
-            agent_id=reverse.agent_id,
-            created_by=reverse.created_by,
-            reversal_id=reverse.reversal_id,
-            created_at=reverse.created_at,
-        ))
+        undone.append(
+            MutationLogResponse(
+                id=reverse.id,
+                entity_type=reverse.entity_type,
+                entity_id=reverse.entity_id,
+                operation=reverse.operation,
+                before_state=reverse.before_state,
+                after_state=reverse.after_state,
+                changed_fields=reverse.changed_fields,
+                run_id=reverse.run_id,
+                agent_id=reverse.agent_id,
+                created_by=reverse.created_by,
+                reversal_id=reverse.reversal_id,
+                created_at=reverse.created_at,
+            )
+        )
 
     return undone
 
@@ -488,8 +512,12 @@ async def add_entity_aliases(
 
 
 class EntityMergeRequest(BaseModel):
-    absorbing_entity_id: str = Field(description="Entity that absorbs the others (survivor)")
-    absorbed_entity_ids: list[str] = Field(description="Entities to be merged into the absorber")
+    absorbing_entity_id: str = Field(
+        description="Entity that absorbs the others (survivor)"
+    )
+    absorbed_entity_ids: list[str] = Field(
+        description="Entities to be merged into the absorber"
+    )
     merged_aliases: list[str] = Field(
         default_factory=list,
         description="Aliases from absorbed entities to add to the absorbing entity",
@@ -502,7 +530,9 @@ class EntityMergeRequest(BaseModel):
 
 class EntitySplitRequest(BaseModel):
     primary_entity_id: str = Field(description="Entity that retains canonical identity")
-    split_off_entity_ids: list[str] = Field(description="Entities to create from the split")
+    split_off_entity_ids: list[str] = Field(
+        description="Entities to create from the split"
+    )
     aliases_to_move: list[str] = Field(
         default_factory=list,
         description="Aliases from primary to move to the split-off entities",
@@ -532,13 +562,18 @@ async def merge_entities(
     """
     absorber = db.get(KnowledgeEntity, request.absorbing_entity_id)
     if absorber is None:
-        raise HTTPException(status_code=404, detail=f"Absorbing entity not found: {request.absorbing_entity_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Absorbing entity not found: {request.absorbing_entity_id}",
+        )
 
     absorbed_entities: list[KnowledgeEntity] = []
     for eid in request.absorbed_entity_ids:
         entity = db.get(KnowledgeEntity, eid)
         if entity is None:
-            raise HTTPException(status_code=404, detail=f"Absorbed entity not found: {eid}")
+            raise HTTPException(
+                status_code=404, detail=f"Absorbed entity not found: {eid}"
+            )
         if entity.merged_into_id is not None:
             raise HTTPException(
                 status_code=409,
@@ -623,7 +658,10 @@ async def split_entity(
     """
     primary = db.get(KnowledgeEntity, request.primary_entity_id)
     if primary is None:
-        raise HTTPException(status_code=404, detail=f"Primary entity not found: {request.primary_entity_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Primary entity not found: {request.primary_entity_id}",
+        )
 
     alias_changes: dict[str, list[str]] = {
         "restored_from": [],
@@ -645,7 +683,9 @@ async def split_entity(
     for split_off_id in request.split_off_entity_ids:
         split_off = db.get(KnowledgeEntity, split_off_id)
         if split_off is None:
-            raise HTTPException(status_code=404, detail=f"Split-off entity not found: {split_off_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Split-off entity not found: {split_off_id}"
+            )
         split_off.merged_into_id = None  # ensure it's active
         split_off.updated_at = datetime.now()
         db.save(split_off)
@@ -687,7 +727,9 @@ async def undo_entity_operation(
     """Undo a previous merge or split operation using its audit record."""
     audit = db.get(EntityMergeAudit, audit_id)
     if audit is None:
-        raise HTTPException(status_code=404, detail=f"Audit record not found: {audit_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Audit record not found: {audit_id}"
+        )
 
     if audit.reversal_id != audit.id:
         raise HTTPException(
@@ -700,7 +742,10 @@ async def undo_entity_operation(
         # Restore absorbed entities (un-merge)
         absorber = db.get(KnowledgeEntity, audit.target_entity_id)
         if absorber is None:
-            raise HTTPException(status_code=404, detail=f"Target entity not found: {audit.target_entity_id}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Target entity not found: {audit.target_entity_id}",
+            )
 
         alias_changes = audit.alias_changes
         restored_aliases: list[str] = []
@@ -708,7 +753,9 @@ async def undo_entity_operation(
         for entity_id in audit.source_entity_ids:
             entity = db.get(KnowledgeEntity, entity_id)
             if entity is None:
-                raise HTTPException(status_code=404, detail=f"Source entity not found: {entity_id}")
+                raise HTTPException(
+                    status_code=404, detail=f"Source entity not found: {entity_id}"
+                )
             entity.merged_into_id = None
             entity.updated_at = now
             db.save(entity)
@@ -760,7 +807,10 @@ async def undo_entity_operation(
         # Re-merge: reassign aliases back to primary entity
         primary = db.get(KnowledgeEntity, audit.target_entity_id)
         if primary is None:
-            raise HTTPException(status_code=404, detail=f"Primary entity not found: {audit.target_entity_id}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Primary entity not found: {audit.target_entity_id}",
+            )
 
         alias_changes = audit.alias_changes
         moved_aliases: list[str] = alias_changes.get("restored_from", [])
@@ -816,7 +866,8 @@ async def list_entity_audits(
     all_audits = db.all(EntityMergeAudit)
     if entity_id:
         all_audits = [
-            a for a in all_audits
+            a
+            for a in all_audits
             if a.target_entity_id == entity_id or entity_id in a.source_entity_ids
         ]
     all_audits.sort(key=lambda a: a.created_at, reverse=True)
@@ -842,7 +893,11 @@ async def list_entities(
     limit: int = Query(default=50, ge=1, le=500),
     db: Database = Depends(get_library_database),
 ) -> list[KnowledgeEntity]:
-    entities = db.query(KnowledgeEntity, entity_type=entity_type) if entity_type else db.all(KnowledgeEntity)
+    entities = (
+        db.query(KnowledgeEntity, entity_type=entity_type)
+        if entity_type
+        else db.all(KnowledgeEntity)
+    )
     needle = _normalize_text(q)
     if needle:
         entities = [
@@ -872,21 +927,25 @@ async def get_entity_alias_map(
         # Canonical name as an alias entry
         norm_canonical = _normalize_text(entity.canonical_name)
         if norm_canonical not in seen:
-            entries.append(EntityAliasMapEntry(
-                alias=entity.canonical_name,
-                entity_id=entity.id,
-                canonical_name=entity.canonical_name,
-            ))
+            entries.append(
+                EntityAliasMapEntry(
+                    alias=entity.canonical_name,
+                    entity_id=entity.id,
+                    canonical_name=entity.canonical_name,
+                )
+            )
             seen.add(norm_canonical)
         # Alias entries
         for alias in entity.aliases:
             norm_alias = _normalize_text(alias)
             if norm_alias not in seen:
-                entries.append(EntityAliasMapEntry(
-                    alias=alias,
-                    entity_id=entity.id,
-                    canonical_name=entity.canonical_name,
-                ))
+                entries.append(
+                    EntityAliasMapEntry(
+                        alias=alias,
+                        entity_id=entity.id,
+                        canonical_name=entity.canonical_name,
+                    )
+                )
                 seen.add(norm_alias)
     entries.sort(key=lambda e: e.alias.lower())
     return EntityAliasMapResponse(entries=entries)
@@ -920,7 +979,9 @@ async def resolve_entity(
                 entity_id=entity.id,
                 canonical_name=entity.canonical_name,
                 entity_type=entity.entity_type,
-                match_type="canonical_name" if _normalize_text(value) == _normalize_text(entity.canonical_name) else "alias",
+                match_type="canonical_name"
+                if _normalize_text(value) == _normalize_text(entity.canonical_name)
+                else "alias",
             )
     return EntityResolutionResponse(resolved=False, value=value, match_type=None)
 
@@ -934,11 +995,20 @@ async def create_claim(
 ) -> KnowledgeClaim:
     source_doc = db.get(Document, request.source_document_id)
     if source_doc is None:
-        raise HTTPException(status_code=404, detail=f"Source document not found: {request.source_document_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Source document not found: {request.source_document_id}",
+        )
 
-    missing_entities = [entity_id for entity_id in request.entity_ids if db.get(KnowledgeEntity, entity_id) is None]
+    missing_entities = [
+        entity_id
+        for entity_id in request.entity_ids
+        if db.get(KnowledgeEntity, entity_id) is None
+    ]
     if missing_entities:
-        raise HTTPException(status_code=404, detail=f"Unknown entities: {missing_entities}")
+        raise HTTPException(
+            status_code=404, detail=f"Unknown entities: {missing_entities}"
+        )
 
     now = datetime.now()
     claim = KnowledgeClaim(
@@ -975,7 +1045,9 @@ async def create_claim(
         entity_id=claim.id,
         operation=MutationOperationType.create,
         before_state=None,
-        after_state={k: v for k, v in claim.model_dump().items() if k not in ("id", "created_at")},
+        after_state={
+            k: v for k, v in claim.model_dump().items() if k not in ("id", "created_at")
+        },
         changed_fields=None,
         run_id=run_id,
         agent_id=agent_id,
@@ -999,15 +1071,20 @@ async def patch_claim(
 
     # Capture before state for mutation log
     before_state = {
-        k: v for k, v in claim.model_dump().items()
-        if k not in ("id", "created_at")
+        k: v for k, v in claim.model_dump().items() if k not in ("id", "created_at")
     }
 
     data = request.model_dump(exclude_unset=True)
     if "entity_ids" in data and data["entity_ids"] is not None:
-        missing_entities = [entity_id for entity_id in data["entity_ids"] if db.get(KnowledgeEntity, entity_id) is None]
+        missing_entities = [
+            entity_id
+            for entity_id in data["entity_ids"]
+            if db.get(KnowledgeEntity, entity_id) is None
+        ]
         if missing_entities:
-            raise HTTPException(status_code=404, detail=f"Unknown entities: {missing_entities}")
+            raise HTTPException(
+                status_code=404, detail=f"Unknown entities: {missing_entities}"
+            )
 
     changed_fields = list(data.keys())
     for key, value in data.items():
@@ -1017,8 +1094,7 @@ async def patch_claim(
 
     # Log the mutation
     after_state = {
-        k: v for k, v in claim.model_dump().items()
-        if k not in ("id", "created_at")
+        k: v for k, v in claim.model_dump().items() if k not in ("id", "created_at")
     }
     _log_mutation(
         db=db,
@@ -1073,7 +1149,7 @@ async def list_claims_filtered(
         included_only=included_only,
         curated_only=curated_only,
     )
-    return claims[offset:offset + limit]
+    return claims[offset : offset + limit]
 
 
 # Static /claims sub-paths MUST be defined BEFORE /{claim_id} to avoid
@@ -1109,7 +1185,12 @@ async def embed_claims(
     vectors = db._embed_texts(texts)  # type: ignore[attr-defined]
 
     records = [
-        {"id": c.id, "text": c.text, "vector": v, "claim_type": c.claim_type.value if c.claim_type else None}
+        {
+            "id": c.id,
+            "text": c.text,
+            "vector": v,
+            "claim_type": c.claim_type.value if c.claim_type else None,
+        }
         for c, v in zip(claims, vectors)
     ]
     db.save_vectors(KG_CLAIM_EMBEDDINGS_TABLE, records)
@@ -1145,7 +1226,8 @@ async def search_claims_semantic(
     # Load full claims and apply additional filters
     claims = {c.id: c for c in db.all(KnowledgeClaim) if c.id in claim_ids}
     filtered = [
-        claims[cid] for cid in claim_ids
+        claims[cid]
+        for cid in claim_ids
         if cid in claims
         and (claim_type is None or claims[cid].claim_type == claim_type)
         and (curation_state is None or claims[cid].curation_state == curation_state)
@@ -1161,7 +1243,9 @@ async def search_claims_semantic(
 
 # Wildcard /{claim_id} must come AFTER all static /claims sub-paths.
 @router.get("/claims/{claim_id}", response_model=KnowledgeClaim)
-async def get_claim(claim_id: str, db: Database = Depends(get_library_database)) -> KnowledgeClaim:
+async def get_claim(
+    claim_id: str, db: Database = Depends(get_library_database)
+) -> KnowledgeClaim:
     claim = db.get(KnowledgeClaim, claim_id)
     if claim is None:
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
@@ -1188,10 +1272,14 @@ async def find_similar_claims(
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Embedding failed: {e}")
 
-    results = db.search_vectors(KG_CLAIM_EMBEDDINGS_TABLE, query_vector, limit=limit + 1)
+    results = db.search_vectors(
+        KG_CLAIM_EMBEDDINGS_TABLE, query_vector, limit=limit + 1
+    )
     results = [r for r in results if r["id"] != claim_id]
 
-    claim_map = {c.id: c for c in db.all(KnowledgeClaim) if c.id in [r["id"] for r in results]}
+    claim_map = {
+        c.id: c for c in db.all(KnowledgeClaim) if c.id in [r["id"] for r in results]
+    }
     score_map = {r["id"]: r.get("_score", 0.0) for r in results}
 
     return [
@@ -1212,7 +1300,10 @@ async def create_claim_link(
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
     related_claim = db.get(KnowledgeClaim, request.related_claim_id)
     if related_claim is None:
-        raise HTTPException(status_code=404, detail=f"Related claim not found: {request.related_claim_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Related claim not found: {request.related_claim_id}",
+        )
 
     link = KnowledgeClaimLink(
         claim_id=claim_id,
@@ -1228,7 +1319,9 @@ async def create_claim_link(
 
 
 @router.get("/claims/{claim_id}/links", response_model=list[KnowledgeClaimLink])
-async def list_claim_links(claim_id: str, db: Database = Depends(get_library_database)) -> list[KnowledgeClaimLink]:
+async def list_claim_links(
+    claim_id: str, db: Database = Depends(get_library_database)
+) -> list[KnowledgeClaimLink]:
     links = db.query(KnowledgeClaimLink, claim_id=claim_id)
     reverse_links = db.query(KnowledgeClaimLink, related_claim_id=claim_id)
     merged = {link.id: link for link in [*links, *reverse_links]}
@@ -1344,7 +1437,7 @@ async def list_claims(
         target_id=target_id,
         included_only=included_only,
     )
-    return claims[offset:offset + limit]
+    return claims[offset : offset + limit]
 
 
 @router.post("/inclusion", response_model=KnowledgeGraphInclusion)
@@ -1384,7 +1477,9 @@ async def list_inclusion(
     db: Database = Depends(get_library_database),
 ) -> list[KnowledgeGraphInclusion]:
     if scope_type and target_id:
-        rows = db.query(KnowledgeGraphInclusion, scope_type=scope_type, target_id=target_id)
+        rows = db.query(
+            KnowledgeGraphInclusion, scope_type=scope_type, target_id=target_id
+        )
     elif scope_type:
         rows = db.query(KnowledgeGraphInclusion, scope_type=scope_type)
     elif target_id:
@@ -1415,13 +1510,25 @@ async def overview(
     )
     entities = db.all(KnowledgeEntity)
     claim_links = db.all(KnowledgeClaimLink)
-    curated = sum(1 for claim in claims if claim.curation_state == ClaimCurationState.curated)
-    shortlisted = sum(1 for claim in claims if claim.curation_state == ClaimCurationState.shortlisted)
-    rejected = sum(1 for claim in claims if claim.curation_state == ClaimCurationState.rejected)
-    unreviewed = sum(1 for claim in claims if claim.curation_state == ClaimCurationState.unreviewed)
+    curated = sum(
+        1 for claim in claims if claim.curation_state == ClaimCurationState.curated
+    )
+    shortlisted = sum(
+        1 for claim in claims if claim.curation_state == ClaimCurationState.shortlisted
+    )
+    rejected = sum(
+        1 for claim in claims if claim.curation_state == ClaimCurationState.rejected
+    )
+    unreviewed = sum(
+        1 for claim in claims if claim.curation_state == ClaimCurationState.unreviewed
+    )
     predicted = sum(1 for claim in claims if claim.predicted_by)
-    included_claims = sum(1 for claim in claims if _is_source_included(db, claim.source_document_id))
-    average_confidence = sum(claim.confidence for claim in claims) / len(claims) if claims else 0.0
+    included_claims = sum(
+        1 for claim in claims if _is_source_included(db, claim.source_document_id)
+    )
+    average_confidence = (
+        sum(claim.confidence for claim in claims) / len(claims) if claims else 0.0
+    )
 
     return {
         "counts": {
@@ -1449,6 +1556,7 @@ async def overview(
 # Semantic Search (Step 5)
 # =============================================================================
 
+
 @router.post("/entities/semantic/embed")
 async def embed_entities(
     request: _EmbedEntityRequest | None = None,
@@ -1464,7 +1572,10 @@ async def embed_entities(
     if not entities:
         return {"embedded": 0, "table": KG_ENTITY_EMBEDDINGS_TABLE}
 
-    texts = [e.canonical_name + (" " + " ".join(e.aliases) if e.aliases else "") for e in entities]
+    texts = [
+        e.canonical_name + (" " + " ".join(e.aliases) if e.aliases else "")
+        for e in entities
+    ]
     vectors = db._embed_texts(texts)  # type: ignore[attr-defined]
 
     records = [
@@ -1508,7 +1619,8 @@ async def search_entities_semantic(
 
     entities = {e.id: e for e in db.all(KnowledgeEntity) if e.id in entity_ids}
     filtered = [
-        entities[eid] for eid in entity_ids
+        entities[eid]
+        for eid in entity_ids
         if eid in entities
         and (entity_type is None or entities[eid].entity_type == entity_type)
     ]
@@ -1524,14 +1636,17 @@ async def search_entities_semantic(
 # PyKEEN Predictions (Step 4)
 # =============================================================================
 
+
 class PredictionGenerateHeuristicRequest(BaseModel):
     """Generate heuristic link predictions based on embedding similarity."""
+
     top_k: int = Field(default=10, ge=1, le=100)
     entity_id: str | None = None  # limit predictions for specific entity
 
 
 class PredictionGeneratePyKEENRequest(BaseModel):
     """Train a PyKEEN model and generate predictions."""
+
     model_type: PredictionModelType = PredictionModelType.transe
     training_epochs: int = Field(default=100, ge=1, le=1000)
     learning_rate: float = Field(default=0.001, ge=0.0001, le=1.0)
@@ -1552,7 +1667,7 @@ def _build_minimal_pykeen_triples(
 
         # Add simple co-occurrence edges so a model has typed relation structure.
         for index, left_entity_id in enumerate(entity_ids):
-            for right_entity_id in entity_ids[index + 1:]:
+            for right_entity_id in entity_ids[index + 1 :]:
                 triples.append((left_entity_id, "co_occurs_with", right_entity_id))
                 triples.append((right_entity_id, "co_occurs_with", left_entity_id))
 
@@ -1603,7 +1718,13 @@ def _build_claim_link_prediction_preview(
 
     claim_ids = [claim.id for claim in claims]
     candidate_relations = [
-        relation for relation in ("claim_supports", "claim_refines", "claim_contradicts", "mentions")
+        relation
+        for relation in (
+            "claim_supports",
+            "claim_refines",
+            "claim_contradicts",
+            "mentions",
+        )
         if relation in triples_factory.relation_to_id
     ]
     if not candidate_relations:
@@ -1648,11 +1769,17 @@ async def generate_pykeen_predictions(
     """Train or simulate a minimal PyKEEN pipeline and persist run metadata."""
     claims = db.all(KnowledgeClaim)
     if not claims:
-        raise HTTPException(status_code=400, detail="Cannot train predictions: no knowledge claims found.")
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot train predictions: no knowledge claims found.",
+        )
 
     entities = db.all(KnowledgeEntity)
     if not entities:
-        raise HTTPException(status_code=400, detail="Cannot train predictions: no knowledge entities found.")
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot train predictions: no knowledge entities found.",
+        )
 
     claim_links = db.all(KnowledgeClaimLink)
     triples = _build_minimal_pykeen_triples(claims, claim_links)
@@ -1684,12 +1811,19 @@ async def generate_pykeen_predictions(
             random_seed=42,
         )
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"PyKEEN training failed: {exc}") from exc
+        raise HTTPException(
+            status_code=503, detail=f"PyKEEN training failed: {exc}"
+        ) from exc
 
     metrics = _extract_pykeen_metrics(result)
-    prediction_preview = _build_claim_link_prediction_preview(result, triples_factory, claims, claim_links)
+    prediction_preview = _build_claim_link_prediction_preview(
+        result, triples_factory, claims, claim_links
+    )
 
-    artifact_dir = _prediction_artifacts_dir(db) / f"pykeen-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+    artifact_dir = (
+        _prediction_artifacts_dir(db)
+        / f"pykeen-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+    )
     result.save_to_directory(str(artifact_dir))
 
     run = KnowledgePredictionRun(
@@ -1734,7 +1868,10 @@ async def generate_heuristic_predictions(
     treating high similarity as a weak signal for link existence.
     """
     if KG_CLAIM_EMBEDDINGS_TABLE not in db._lance_tables():
-        raise HTTPException(status_code=503, detail="Claims not embedded. POST /claims/semantic/embed first.")
+        raise HTTPException(
+            status_code=503,
+            detail="Claims not embedded. POST /claims/semantic/embed first.",
+        )
 
     all_claims = db.all(KnowledgeClaim)
     existing_links = db.all(KnowledgeClaimLink)
@@ -1751,7 +1888,9 @@ async def generate_heuristic_predictions(
         except Exception:
             continue
 
-        similar = db.search_vectors(KG_CLAIM_EMBEDDINGS_TABLE, query_vector, limit=request.top_k + 1)
+        similar = db.search_vectors(
+            KG_CLAIM_EMBEDDINGS_TABLE, query_vector, limit=request.top_k + 1
+        )
         for result in similar:
             other_id = result["id"]
             if other_id == claim.id:
@@ -1762,12 +1901,14 @@ async def generate_heuristic_predictions(
                 other = db.get(KnowledgeClaim, other_id)
                 if not other or request.entity_id not in other.entity_ids:
                     continue
-            predictions.append({
-                "source_claim_id": claim.id,
-                "target_claim_id": other_id,
-                "similarity_score": result.get("_score", 0.0),
-                "method": "heuristic",
-            })
+            predictions.append(
+                {
+                    "source_claim_id": claim.id,
+                    "target_claim_id": other_id,
+                    "similarity_score": result.get("_score", 0.0),
+                    "method": "heuristic",
+                }
+            )
 
     predictions.sort(key=lambda p: p["similarity_score"], reverse=True)
     return {

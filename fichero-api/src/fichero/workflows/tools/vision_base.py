@@ -96,6 +96,7 @@ VISION_CONFIG_SCHEMA = merge_config_schema(
 # Vision Tool Configuration (extends LLMToolConfig)
 # =============================================================================
 
+
 @dataclass
 class VisionToolConfig(LLMToolConfig):
     """Configuration for a vision tool.
@@ -110,6 +111,7 @@ class VisionToolConfig(LLMToolConfig):
 # =============================================================================
 # Apple Vision OCR (macOS native)
 # =============================================================================
+
 
 def _render_pdf_page_to_cgimage(pdf_path: str, page_index: int = 0, dpi: int = 300):
     """Render a PDF page to a CGImage at the given DPI.
@@ -147,14 +149,20 @@ def _render_pdf_page_to_cgimage(pdf_path: str, page_index: int = 0, dpi: int = 3
 
     color_space = CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB)
     ctx = CGBitmapContextCreate(
-        None, width, height, 8, width * 4,
-        color_space, kCGImageAlphaPremultipliedLast,
+        None,
+        width,
+        height,
+        8,
+        width * 4,
+        color_space,
+        kCGImageAlphaPremultipliedLast,
     )
     if not ctx:
         raise ValueError(f"Failed to create bitmap context for PDF: {pdf_path}")
 
     # White background
     from Quartz import CGContextSetRGBFillColor, CGContextFillRect, CGRectMake
+
     CGContextSetRGBFillColor(ctx, 1.0, 1.0, 1.0, 1.0)
     CGContextFillRect(ctx, CGRectMake(0, 0, width, height))
 
@@ -193,7 +201,7 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
         # Check for iCloud/cloud storage dataless files
         try:
             stat_info = os.stat(image_path)
-            if hasattr(stat_info, 'st_flags') and (stat_info.st_flags & 0x40000000):
+            if hasattr(stat_info, "st_flags") and (stat_info.st_flags & 0x40000000):
                 raise ValueError(
                     f"File is stored in iCloud and not downloaded locally: {image_path}"
                 )
@@ -231,11 +239,15 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
             image_source = CGImageSourceCreateWithURL(url, None)
             if not image_source:
                 file_size = os.path.getsize(image_path)
-                raise ValueError(f"Could not load image (size: {file_size} bytes): {image_path}")
+                raise ValueError(
+                    f"Could not load image (size: {file_size} bytes): {image_path}"
+                )
 
             props = CGImageSourceCopyPropertiesAtIndex(image_source, 0, None)
             if props:
-                logger.debug(f"Image: {props.get('PixelWidth', '?')}x{props.get('PixelHeight', '?')}")
+                logger.debug(
+                    f"Image: {props.get('PixelWidth', '?')}x{props.get('PixelHeight', '?')}"
+                )
 
             cg_image = CGImageSourceCreateImageAtIndex(image_source, 0, None)
             if not cg_image:
@@ -258,10 +270,18 @@ def _vision_ocr_cgimage(cg_image, language: str = "en") -> str:
     request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
     request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
 
-    lang_map = {"en": "en-US", "es": "es-ES", "fr": "fr-FR", "de": "de-DE", "pt": "pt-BR"}
+    lang_map = {
+        "en": "en-US",
+        "es": "es-ES",
+        "fr": "fr-FR",
+        "de": "de-DE",
+        "pt": "pt-BR",
+    }
     request.setRecognitionLanguages_([lang_map.get(language, language)])
 
-    handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(cg_image, None)  # pylint: disable=no-member
+    handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(
+        cg_image, None
+    )  # pylint: disable=no-member
     success = handler.performRequests_error_([request], None)
 
     if not success:
@@ -273,7 +293,7 @@ def _vision_ocr_cgimage(cg_image, language: str = "en") -> str:
 
     lines = []
     for observation in results:
-        if hasattr(observation, 'topCandidates_'):
+        if hasattr(observation, "topCandidates_"):
             candidates = observation.topCandidates_(1)
             if candidates:
                 lines.append(candidates[0].string())
@@ -290,6 +310,7 @@ async def apple_vision_ocr_async(image_path: str, language: str = "en") -> str:
 # =============================================================================
 # Image Processing
 # =============================================================================
+
 
 def file_to_data_uri(file_path: str, max_dimension: int = 2048) -> str:
     """Convert image file to base64 data URI with optional resizing.
@@ -346,6 +367,7 @@ def file_to_data_uri(file_path: str, max_dimension: int = 2048) -> str:
 # Database Operations (wraps llm_base.save_artifact for file-based saving)
 # =============================================================================
 
+
 async def save_artifact(
     file_path: str,
     content: str,
@@ -379,6 +401,7 @@ async def save_artifact(
 # =============================================================================
 # Main Processing Function
 # =============================================================================
+
 
 async def process_vision(
     files: list[str],
@@ -451,7 +474,9 @@ async def process_vision(
     if temperature is not None or max_tokens is not None:
         effective_config = dataclasses.replace(
             llm_config,
-            temperature=temperature if temperature is not None else llm_config.temperature,
+            temperature=temperature
+            if temperature is not None
+            else llm_config.temperature,
             max_tokens=max_tokens if max_tokens is not None else llm_config.max_tokens,
         )
 
@@ -461,7 +486,9 @@ async def process_vision(
         for doc in documents:
             if isinstance(doc, dict) and doc.get("path"):
                 path_to_doc[doc["path"]] = doc.get("id")
-    logger.debug(f"process_vision: {len(files)} files, {len(documents)} documents, {len(path_to_doc)} path mappings")
+    logger.debug(
+        f"process_vision: {len(files)} files, {len(documents)} documents, {len(path_to_doc)} path mappings"
+    )
 
     # Build context section
     context_section = build_context_section(context, input_metadata)
@@ -476,7 +503,9 @@ async def process_vision(
     thinking_preamble = build_thinking_preamble(thinking_mode)
 
     # Combine prompt
-    final_prompt = f"{thinking_preamble}{context_section}{prompt}{ref_section}{output_constraint}"
+    final_prompt = (
+        f"{thinking_preamble}{context_section}{prompt}{ref_section}{output_constraint}"
+    )
 
     results = []
     texts = []
@@ -494,14 +523,22 @@ async def process_vision(
                 parsed = text
             else:
                 logger.info(f"LLM Vision: {Path(file_path).name}")
-                image_uri = file_to_data_uri(file_path, max_dimension=max_image_dimension)
+                image_uri = file_to_data_uri(
+                    file_path, max_dimension=max_image_dimension
+                )
 
                 # Check if we should use HF Inference API for thinking models
-                from fichero.llm import is_thinking_model, vision_inference_api, parse_thinking_response
+                from fichero.llm import (
+                    is_thinking_model,
+                    vision_inference_api,
+                    parse_thinking_response,
+                )
 
                 if is_thinking_model(effective_config.model):
                     # Use Inference API for thinking models
-                    logger.info(f"Using HF Inference API for thinking model: {effective_config.model}")
+                    logger.info(
+                        f"Using HF Inference API for thinking model: {effective_config.model}"
+                    )
                     try:
                         text = await vision_inference_api(
                             images=[image_uri],
@@ -547,6 +584,7 @@ async def process_vision(
                 save_config = effective_config
                 if vision_mode == "apple":
                     from fichero.llm import LLMConfig
+
                     save_config = LLMConfig(provider="Apple", model="Vision")
 
                 artifact_id = await save_artifact(
@@ -587,7 +625,9 @@ async def process_vision(
 
         except Exception as e:
             logger.error(f"Vision processing failed for {file_path}: {e}")
-            results.append({"file": file_path, "text": "", "value": None, "error": str(e)})
+            results.append(
+                {"file": file_path, "text": "", "value": None, "error": str(e)}
+            )
             texts.append("")
             values.append(None)
 

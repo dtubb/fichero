@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 class ActionCategory(str, Enum):
     """Categories for organizing actions."""
+
     TRANSFORM = "transform"
     ANALYZE = "analyze"
     GENERATE = "generate"
@@ -36,6 +37,7 @@ class ActionCategory(str, Enum):
 
 class ActionParameter(BaseModel):
     """Definition of an action parameter."""
+
     name: str
     type: str  # string, number, boolean, array, object
     description: str = ""
@@ -46,6 +48,7 @@ class ActionParameter(BaseModel):
 
 class ActionDefinition(BaseModel):
     """Definition of a reusable action."""
+
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     description: str = ""
@@ -70,9 +73,7 @@ class ActionDefinition(BaseModel):
     use_count: int = 0
 
     class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+        json_encoders = {datetime: lambda v: v.isoformat()}
 
 
 class ActionLibraryStore:
@@ -80,7 +81,9 @@ class ActionLibraryStore:
 
     def __init__(self, storage_path: Optional[Path] = None):
         if storage_path is None:
-            storage_path = Path.home() / "Library" / "Application Support" / "Fichero" / "actions"
+            storage_path = (
+                Path.home() / "Library" / "Application Support" / "Fichero" / "actions"
+            )
         self.storage_path = storage_path
         self.storage_path.mkdir(parents=True, exist_ok=True)
         self._actions: dict[str, ActionDefinition] = {}
@@ -163,7 +166,7 @@ class ActionLibraryStore:
         self,
         query: str = "",
         category: Optional[ActionCategory] = None,
-        tags: Optional[list[str]] = None
+        tags: Optional[list[str]] = None,
     ) -> list[ActionDefinition]:
         """Search actions by query, category, and tags."""
         results = list(self._actions.values())
@@ -180,7 +183,8 @@ class ActionLibraryStore:
         if query:
             query_lower = query.lower()
             results = [
-                a for a in results
+                a
+                for a in results
                 if query_lower in a.name.lower()
                 or query_lower in a.description.lower()
                 or any(query_lower in t.lower() for t in a.tags)
@@ -198,18 +202,14 @@ class ActionLibraryStore:
     def get_popular(self, limit: int = 10) -> list[ActionDefinition]:
         """Get most popular actions by use count."""
         sorted_actions = sorted(
-            self._actions.values(),
-            key=lambda a: a.use_count,
-            reverse=True
+            self._actions.values(), key=lambda a: a.use_count, reverse=True
         )
         return sorted_actions[:limit]
 
     def get_recent(self, limit: int = 10) -> list[ActionDefinition]:
         """Get most recently created/updated actions."""
         sorted_actions = sorted(
-            self._actions.values(),
-            key=lambda a: a.updated_at,
-            reverse=True
+            self._actions.values(), key=lambda a: a.updated_at, reverse=True
         )
         return sorted_actions[:limit]
 
@@ -259,25 +259,27 @@ BUILTIN_ACTIONS = [
         description="Generate a concise summary of text content",
         category=ActionCategory.ANALYZE,
         icon="doc.text.magnifyingglass",
-        nodes=[{
-            "id": "llm-summarize",
-            "type": "llm",
-            "data": {
-                "prompt": "Summarize the following text concisely:\n\n{input}",
-                "model": "default"
+        nodes=[
+            {
+                "id": "llm-summarize",
+                "type": "llm",
+                "data": {
+                    "prompt": "Summarize the following text concisely:\n\n{input}",
+                    "model": "default",
+                },
             }
-        }],
+        ],
         parameters=[
             ActionParameter(
                 name="length",
                 type="string",
                 description="Summary length",
                 default="medium",
-                options=["short", "medium", "long"]
+                options=["short", "medium", "long"],
             )
         ],
         author="Fichero",
-        tags=["text", "summary", "llm"]
+        tags=["text", "summary", "llm"],
     ),
     ActionDefinition(
         id="builtin-extract-keywords",
@@ -285,24 +287,26 @@ BUILTIN_ACTIONS = [
         description="Extract key terms and phrases from text",
         category=ActionCategory.EXTRACT,
         icon="tag",
-        nodes=[{
-            "id": "llm-keywords",
-            "type": "llm",
-            "data": {
-                "prompt": "Extract the main keywords and key phrases from this text. Return as a comma-separated list:\n\n{input}",
-                "model": "default"
+        nodes=[
+            {
+                "id": "llm-keywords",
+                "type": "llm",
+                "data": {
+                    "prompt": "Extract the main keywords and key phrases from this text. Return as a comma-separated list:\n\n{input}",
+                    "model": "default",
+                },
             }
-        }],
+        ],
         parameters=[
             ActionParameter(
                 name="max_keywords",
                 type="number",
                 description="Maximum number of keywords",
-                default=10
+                default=10,
             )
         ],
         author="Fichero",
-        tags=["text", "keywords", "extraction"]
+        tags=["text", "keywords", "extraction"],
     ),
     ActionDefinition(
         id="builtin-translate",
@@ -310,25 +314,34 @@ BUILTIN_ACTIONS = [
         description="Translate text to another language",
         category=ActionCategory.TRANSFORM,
         icon="globe",
-        nodes=[{
-            "id": "llm-translate",
-            "type": "llm",
-            "data": {
-                "prompt": "Translate the following text to {target_language}:\n\n{input}",
-                "model": "default"
+        nodes=[
+            {
+                "id": "llm-translate",
+                "type": "llm",
+                "data": {
+                    "prompt": "Translate the following text to {target_language}:\n\n{input}",
+                    "model": "default",
+                },
             }
-        }],
+        ],
         parameters=[
             ActionParameter(
                 name="target_language",
                 type="string",
                 description="Target language",
                 required=True,
-                options=["English", "Spanish", "French", "German", "Chinese", "Japanese"]
+                options=[
+                    "English",
+                    "Spanish",
+                    "French",
+                    "German",
+                    "Chinese",
+                    "Japanese",
+                ],
             )
         ],
         author="Fichero",
-        tags=["text", "translation", "language"]
+        tags=["text", "translation", "language"],
     ),
     ActionDefinition(
         id="builtin-sentiment-analysis",
@@ -336,17 +349,19 @@ BUILTIN_ACTIONS = [
         description="Analyze the sentiment of text content",
         category=ActionCategory.ANALYZE,
         icon="face.smiling",
-        nodes=[{
-            "id": "llm-sentiment",
-            "type": "llm",
-            "data": {
-                "prompt": "Analyze the sentiment of this text. Classify as positive, negative, or neutral, and explain why:\n\n{input}",
-                "model": "default"
+        nodes=[
+            {
+                "id": "llm-sentiment",
+                "type": "llm",
+                "data": {
+                    "prompt": "Analyze the sentiment of this text. Classify as positive, negative, or neutral, and explain why:\n\n{input}",
+                    "model": "default",
+                },
             }
-        }],
+        ],
         parameters=[],
         author="Fichero",
-        tags=["text", "sentiment", "analysis"]
+        tags=["text", "sentiment", "analysis"],
     ),
     ActionDefinition(
         id="builtin-generate-questions",
@@ -354,24 +369,26 @@ BUILTIN_ACTIONS = [
         description="Generate questions about the content",
         category=ActionCategory.GENERATE,
         icon="questionmark.circle",
-        nodes=[{
-            "id": "llm-questions",
-            "type": "llm",
-            "data": {
-                "prompt": "Generate {num_questions} thoughtful questions about this content:\n\n{input}",
-                "model": "default"
+        nodes=[
+            {
+                "id": "llm-questions",
+                "type": "llm",
+                "data": {
+                    "prompt": "Generate {num_questions} thoughtful questions about this content:\n\n{input}",
+                    "model": "default",
+                },
             }
-        }],
+        ],
         parameters=[
             ActionParameter(
                 name="num_questions",
                 type="number",
                 description="Number of questions to generate",
-                default=5
+                default=5,
             )
         ],
         author="Fichero",
-        tags=["text", "questions", "learning"]
+        tags=["text", "questions", "learning"],
     ),
     ActionDefinition(
         id="builtin-pdf-to-text",
@@ -379,17 +396,16 @@ BUILTIN_ACTIONS = [
         description="Extract text content from a PDF file",
         category=ActionCategory.CONVERT,
         icon="doc.richtext",
-        nodes=[{
-            "id": "extract-pdf",
-            "type": "tool",
-            "data": {
-                "tool": "extract_text",
-                "params": {"file_path": "{input}"}
+        nodes=[
+            {
+                "id": "extract-pdf",
+                "type": "tool",
+                "data": {"tool": "extract_text", "params": {"file_path": "{input}"}},
             }
-        }],
+        ],
         parameters=[],
         author="Fichero",
-        tags=["pdf", "text", "extraction"]
+        tags=["pdf", "text", "extraction"],
     ),
     ActionDefinition(
         id="builtin-web-search",
@@ -397,24 +413,23 @@ BUILTIN_ACTIONS = [
         description="Search the web for information",
         category=ActionCategory.SEARCH,
         icon="magnifyingglass",
-        nodes=[{
-            "id": "web-search",
-            "type": "tool",
-            "data": {
-                "tool": "web_search",
-                "params": {"query": "{input}"}
+        nodes=[
+            {
+                "id": "web-search",
+                "type": "tool",
+                "data": {"tool": "web_search", "params": {"query": "{input}"}},
             }
-        }],
+        ],
         parameters=[
             ActionParameter(
                 name="num_results",
                 type="number",
                 description="Number of results",
-                default=5
+                default=5,
             )
         ],
         author="Fichero",
-        tags=["web", "search", "research"]
+        tags=["web", "search", "research"],
     ),
     ActionDefinition(
         id="builtin-email-draft",
@@ -422,25 +437,27 @@ BUILTIN_ACTIONS = [
         description="Generate an email draft from notes",
         category=ActionCategory.COMMUNICATE,
         icon="envelope",
-        nodes=[{
-            "id": "llm-email",
-            "type": "llm",
-            "data": {
-                "prompt": "Write a {tone} email based on these notes:\n\n{input}",
-                "model": "default"
+        nodes=[
+            {
+                "id": "llm-email",
+                "type": "llm",
+                "data": {
+                    "prompt": "Write a {tone} email based on these notes:\n\n{input}",
+                    "model": "default",
+                },
             }
-        }],
+        ],
         parameters=[
             ActionParameter(
                 name="tone",
                 type="string",
                 description="Email tone",
                 default="professional",
-                options=["professional", "friendly", "formal", "casual"]
+                options=["professional", "friendly", "formal", "casual"],
             )
         ],
         author="Fichero",
-        tags=["email", "communication", "writing"]
+        tags=["email", "communication", "writing"],
     ),
 ]
 

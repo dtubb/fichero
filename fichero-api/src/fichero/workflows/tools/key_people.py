@@ -52,7 +52,16 @@ KEY_PEOPLE_CONFIG = {
 }
 
 KEY_PEOPLE_INPUT_PORTS = merge_ports(
-    [PortDef(id="text", name="Text", port_type="input", data_type=DataType.TEXT, required=True, description="Source text or entity data")],
+    [
+        PortDef(
+            id="text",
+            name="Text",
+            port_type="input",
+            data_type=DataType.TEXT,
+            required=True,
+            description="Source text or entity data",
+        )
+    ],
     BASE_INPUT_PORTS,
 )
 
@@ -60,6 +69,7 @@ KEY_PEOPLE_INPUT_PORTS = merge_ports(
 # =============================================================================
 # Prompt Building
 # =============================================================================
+
 
 def _build_prompt(max_people: int, include_context: bool) -> str:
     """Build the key people prompt."""
@@ -102,6 +112,7 @@ def build_key_people_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="key_people",

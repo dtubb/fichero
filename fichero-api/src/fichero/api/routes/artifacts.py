@@ -23,6 +23,7 @@ from fichero.api.main import get_library_database  # noqa: E402
 # Response models
 class ArtifactResponse(BaseModel):
     """Artifact response with formatted data."""
+
     id: str
     document_id: str
     artifact_type: str
@@ -38,11 +39,13 @@ class ArtifactResponse(BaseModel):
 
 class ArtifactListResponse(BaseModel):
     """Response for listing artifacts."""
+
     artifacts: list[ArtifactResponse]
     total: int
 
 
 # Routes
+
 
 @router.get("/document/{doc_id}")
 async def list_document_artifacts(
@@ -74,7 +77,7 @@ async def list_document_artifacts(
 
     # Apply pagination
     total = len(artifacts)
-    artifacts = artifacts[offset:offset + limit]
+    artifacts = artifacts[offset : offset + limit]
 
     # Convert to response format
     response_artifacts = [
@@ -105,7 +108,9 @@ async def get_artifact(
     """Get a specific artifact by ID."""
     artifact = db.get(Artifact, artifact_id)
     if not artifact:
-        raise HTTPException(status_code=404, detail=f"Artifact not found: {artifact_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Artifact not found: {artifact_id}"
+        )
 
     return ArtifactResponse(
         id=artifact.id,
@@ -139,14 +144,16 @@ async def list_all_artifacts(
         query_kwargs["artifact_type"] = artifact_type
 
     # Query artifacts
-    artifacts = db.query(Artifact, **query_kwargs) if query_kwargs else db.query(Artifact)
+    artifacts = (
+        db.query(Artifact, **query_kwargs) if query_kwargs else db.query(Artifact)
+    )
 
     # Sort by created_at descending
     artifacts.sort(key=lambda a: a.created_at, reverse=True)
 
     # Apply pagination
     total = len(artifacts)
-    artifacts = artifacts[offset:offset + limit]
+    artifacts = artifacts[offset : offset + limit]
 
     # Convert to response format
     response_artifacts = [
@@ -190,7 +197,9 @@ async def delete_artifact(
     """Delete an artifact."""
     artifact = db.get(Artifact, artifact_id)
     if not artifact:
-        raise HTTPException(status_code=404, detail=f"Artifact not found: {artifact_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Artifact not found: {artifact_id}"
+        )
 
     db.delete(Artifact, artifact_id)
     logger.info(f"Deleted artifact {artifact_id}")

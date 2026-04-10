@@ -37,9 +37,18 @@ TOOL_CONFIG = VisionToolConfig(
 )
 
 DEFAULT_STYLES = [
-    "photograph", "oil_painting", "watercolor", "drawing",
-    "digital_art", "print", "manuscript", "engraving",
-    "lithograph", "screen_capture", "diagram", "map",
+    "photograph",
+    "oil_painting",
+    "watercolor",
+    "drawing",
+    "digital_art",
+    "print",
+    "manuscript",
+    "engraving",
+    "lithograph",
+    "screen_capture",
+    "diagram",
+    "map",
 ]
 
 STYLE_CONFIG = {
@@ -60,6 +69,7 @@ STYLE_CONFIG = {
 # =============================================================================
 # Prompt Building
 # =============================================================================
+
 
 def _build_prompt(styles: list[str], include_details: bool) -> str:
     """Build the style classification prompt."""
@@ -104,6 +114,7 @@ def build_style_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="style",

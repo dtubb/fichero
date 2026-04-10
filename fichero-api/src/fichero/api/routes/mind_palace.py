@@ -131,6 +131,7 @@ class ArrangeRequest(BaseModel):
 
 class ViewportSaveRequest(BaseModel):
     """Viewport save — camera fields optional, room/user from path."""
+
     camera_x: float = 0.0
     camera_y: float = 0.0
     camera_z: float = 10.0
@@ -261,7 +262,9 @@ async def place_node(
 ) -> SpatialNode:
     room = db.get(SpatialRoom, request.room_id)
     if not room:
-        raise HTTPException(status_code=404, detail=f"Room not found: {request.room_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Room not found: {request.room_id}"
+        )
 
     now = datetime.now()
     node = SpatialNode(
@@ -358,15 +361,21 @@ async def create_connection(
 ) -> SpatialConnection:
     room = db.get(SpatialRoom, request.room_id)
     if not room:
-        raise HTTPException(status_code=404, detail=f"Room not found: {request.room_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Room not found: {request.room_id}"
+        )
 
     source_node = db.get(SpatialNode, request.source_node_id)
     if not source_node:
-        raise HTTPException(status_code=404, detail=f"Source node not found: {request.source_node_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Source node not found: {request.source_node_id}"
+        )
 
     target_node = db.get(SpatialNode, request.target_node_id)
     if not target_node:
-        raise HTTPException(status_code=404, detail=f"Target node not found: {request.target_node_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Target node not found: {request.target_node_id}"
+        )
 
     conn = SpatialConnection(
         room_id=request.room_id,
@@ -401,7 +410,9 @@ async def remove_connection(
 ) -> dict[str, str]:
     conn = db.get(SpatialConnection, connection_id)
     if not conn:
-        raise HTTPException(status_code=404, detail=f"Connection not found: {connection_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Connection not found: {connection_id}"
+        )
     db.delete(conn)
     return {"status": "deleted"}
 
@@ -418,7 +429,9 @@ async def create_stack(
 ) -> SpatialStack:
     room = db.get(SpatialRoom, request.room_id)
     if not room:
-        raise HTTPException(status_code=404, detail=f"Room not found: {request.room_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Room not found: {request.room_id}"
+        )
 
     now = datetime.now()
     stack = SpatialStack(
@@ -586,7 +599,8 @@ async def get_viewport(
     db: Database = Depends(get_library_database),
 ) -> SpatialViewport:
     rows = [
-        v for v in db.all(SpatialViewport)
+        v
+        for v in db.all(SpatialViewport)
         if v.room_id == room_id and v.user_id == user_id
     ]
     if rows:
@@ -604,7 +618,8 @@ async def save_viewport(
     db: Database = Depends(get_library_database),
 ) -> SpatialViewport:
     rows = [
-        v for v in db.all(SpatialViewport)
+        v
+        for v in db.all(SpatialViewport)
         if v.room_id == room_id and v.user_id == user_id
     ]
     if rows:
@@ -645,7 +660,8 @@ async def focus_node(
 ) -> SpatialViewport:
     """Set focus on a specific node in a room."""
     rows = [
-        v for v in db.all(SpatialViewport)
+        v
+        for v in db.all(SpatialViewport)
         if v.room_id == room_id and v.user_id == user_id
     ]
     if rows:
@@ -690,12 +706,15 @@ async def suggest_arrangement(
     nodes = [n for n in nodes if n is not None]
 
     if not nodes:
-        raise HTTPException(status_code=400, detail="No valid nodes found for arrangement")
+        raise HTTPException(
+            status_code=400, detail="No valid nodes found for arrangement"
+        )
 
     # Simple circular arrangement as placeholder
     count = len(nodes)
     for i, node in enumerate(nodes):
         import math
+
         angle = 2 * math.pi * i / count
         radius = 3.0
         node.position_x = radius * math.cos(angle)

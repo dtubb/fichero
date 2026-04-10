@@ -45,6 +45,7 @@ ANALYZE_CONFIG = {}  # Empty - all options inherited
 # Tool Registration
 # =============================================================================
 
+
 @register_tool(
     name="analyze",
     display_name="Analyze",

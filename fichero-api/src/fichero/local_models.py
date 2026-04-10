@@ -30,7 +30,9 @@ class ModelType(str, Enum):
 
 
 # Stable storage location (not ~/.cache which gets auto-cleaned by macOS)
-MODELS_BASE = Path.home() / "Library" / "Application Support" / "com.tubb.fichero" / "models"
+MODELS_BASE = (
+    Path.home() / "Library" / "Application Support" / "com.tubb.fichero" / "models"
+)
 
 
 # =============================================================================
@@ -78,6 +80,7 @@ EMBEDDINGS_MODELS: dict[str, dict] = {
 # Data Classes
 # =============================================================================
 
+
 @dataclass
 class LocalModelInfo:
     """Information about a local model."""
@@ -108,6 +111,7 @@ class LocalModelInfo:
 # =============================================================================
 # Local Model Manager
 # =============================================================================
+
 
 class LocalModelManager:
     """Manages locally-downloaded AI models.
@@ -141,16 +145,18 @@ class LocalModelManager:
             is_downloaded = model_file.exists()
             size = model_file.stat().st_size if is_downloaded else 0
 
-            results.append(LocalModelInfo(
-                model_id=name,
-                model_type=ModelType.WHISPER.value,
-                display_name=f"Whisper {name} ({info['params']} params)",
-                size_bytes=size,
-                is_downloaded=is_downloaded,
-                expected_size_mb=info["disk_mb"],
-                path=str(model_file) if is_downloaded else None,
-                metadata=info,
-            ))
+            results.append(
+                LocalModelInfo(
+                    model_id=name,
+                    model_type=ModelType.WHISPER.value,
+                    display_name=f"Whisper {name} ({info['params']} params)",
+                    size_bytes=size,
+                    is_downloaded=is_downloaded,
+                    expected_size_mb=info["disk_mb"],
+                    path=str(model_file) if is_downloaded else None,
+                    metadata=info,
+                )
+            )
         return results
 
     def download_whisper_model(self, model_size: str) -> None:
@@ -213,16 +219,20 @@ class LocalModelManager:
                 else 0
             )
 
-            results.append(LocalModelInfo(
-                model_id=model_id,
-                model_type=ModelType.EMBEDDINGS.value,
-                display_name=model_id.split("/")[-1] if "/" in model_id else model_id,
-                size_bytes=size,
-                is_downloaded=is_downloaded,
-                expected_size_mb=info["disk_mb"],
-                path=str(model_dir) if is_downloaded else None,
-                metadata=info,
-            ))
+            results.append(
+                LocalModelInfo(
+                    model_id=model_id,
+                    model_type=ModelType.EMBEDDINGS.value,
+                    display_name=model_id.split("/")[-1]
+                    if "/" in model_id
+                    else model_id,
+                    size_bytes=size,
+                    is_downloaded=is_downloaded,
+                    expected_size_mb=info["disk_mb"],
+                    path=str(model_dir) if is_downloaded else None,
+                    metadata=info,
+                )
+            )
         return results
 
     def download_embeddings_model(self, model_id: str) -> None:
@@ -241,8 +251,7 @@ class LocalModelManager:
             from fastembed import TextEmbedding
         except ImportError:
             raise ImportError(
-                "fastembed is not installed. "
-                "Install with: pip install fastembed"
+                "fastembed is not installed. Install with: pip install fastembed"
             )
 
         cache_dir = str(self.embeddings_path)

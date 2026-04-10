@@ -115,9 +115,15 @@ class AppDatabase:
         """)
 
         # Create indexes
-        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_providers_type ON providers(provider_type)")
-        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider_id)")
-        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(enabled)")
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_providers_type ON providers(provider_type)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider_id)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(enabled)"
+        )
 
         logger.info("App database schema initialized")
 
@@ -125,7 +131,8 @@ class AppDatabase:
         """Save or update a provider."""
         from datetime import datetime
 
-        self.conn.execute("""
+        self.conn.execute(
+            """
             INSERT INTO providers (id, name, provider_type, api_base, enabled, sort_order, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (id) DO UPDATE SET
@@ -135,15 +142,19 @@ class AppDatabase:
                 enabled = excluded.enabled,
                 sort_order = excluded.sort_order,
                 updated_at = excluded.updated_at
-        """, [
-            provider.id,
-            provider.name,
-            provider.provider_type.value if hasattr(provider.provider_type, 'value') else provider.provider_type,
-            provider.api_base,
-            provider.enabled,
-            provider.sort_order,
-            datetime.now()
-        ])
+        """,
+            [
+                provider.id,
+                provider.name,
+                provider.provider_type.value
+                if hasattr(provider.provider_type, "value")
+                else provider.provider_type,
+                provider.api_base,
+                provider.enabled,
+                provider.sort_order,
+                datetime.now(),
+            ],
+        )
         self.conn.commit()
         return provider
 
@@ -152,8 +163,7 @@ class AppDatabase:
         from fichero.models import ProviderType
 
         result = self.conn.execute(
-            "SELECT * FROM providers WHERE id = ?",
-            [provider_id]
+            "SELECT * FROM providers WHERE id = ?", [provider_id]
         ).fetchone()
 
         if not result:
@@ -167,14 +177,16 @@ class AppDatabase:
             enabled=result[4],
             sort_order=result[5],
             created_at=result[6],
-            updated_at=result[7]
+            updated_at=result[7],
         )
 
     def list_providers(self) -> list[Provider]:
         """List all providers."""
         from fichero.models import ProviderType
 
-        results = self.conn.execute("SELECT * FROM providers ORDER BY sort_order, created_at").fetchall()
+        results = self.conn.execute(
+            "SELECT * FROM providers ORDER BY sort_order, created_at"
+        ).fetchall()
 
         return [
             Provider(
@@ -185,7 +197,7 @@ class AppDatabase:
                 enabled=row[4],
                 sort_order=row[5],
                 created_at=row[6],
-                updated_at=row[7]
+                updated_at=row[7],
             )
             for row in results
         ]
@@ -203,9 +215,12 @@ class AppDatabase:
         from datetime import datetime
         import json
 
-        capabilities_json = json.dumps(model.capabilities) if model.capabilities else "[]"
+        capabilities_json = (
+            json.dumps(model.capabilities) if model.capabilities else "[]"
+        )
 
-        self.conn.execute("""
+        self.conn.execute(
+            """
             INSERT INTO models (
                 id, provider_id, name, model_id, capabilities,
                 is_default, enabled, sort_order, input_cost, output_cost, updated_at
@@ -222,19 +237,21 @@ class AppDatabase:
                 input_cost = excluded.input_cost,
                 output_cost = excluded.output_cost,
                 updated_at = excluded.updated_at
-        """, [
-            model.id,
-            model.provider_id,
-            model.name,
-            model.model_id,
-            capabilities_json,
-            model.is_default,
-            model.enabled,
-            model.sort_order,
-            model.input_cost,
-            model.output_cost,
-            datetime.now()
-        ])
+        """,
+            [
+                model.id,
+                model.provider_id,
+                model.name,
+                model.model_id,
+                capabilities_json,
+                model.is_default,
+                model.enabled,
+                model.sort_order,
+                model.input_cost,
+                model.output_cost,
+                datetime.now(),
+            ],
+        )
         self.conn.commit()
         return model
 
@@ -245,7 +262,7 @@ class AppDatabase:
         if provider_id:
             results = self.conn.execute(
                 "SELECT * FROM models WHERE provider_id = ? ORDER BY sort_order, name",
-                [provider_id]
+                [provider_id],
             ).fetchall()
         else:
             results = self.conn.execute(
@@ -265,7 +282,7 @@ class AppDatabase:
                 input_cost=row[8],
                 output_cost=row[9],
                 created_at=row[10],
-                updated_at=row[11]
+                updated_at=row[11],
             )
             for row in results
         ]
@@ -312,14 +329,18 @@ class AppDatabase:
     def set_setting(self, key: str, value: str):
         """Set a setting value (upsert)."""
         from datetime import datetime
+
         now = datetime.now()
-        self.conn.execute("""
+        self.conn.execute(
+            """
             INSERT INTO settings (key, value, updated_at)
             VALUES (?, ?, ?)
             ON CONFLICT (key) DO UPDATE SET
                 value = excluded.value,
                 updated_at = excluded.updated_at
-        """, [key, value, now])
+        """,
+            [key, value, now],
+        )
         self.conn.commit()
 
     def delete_setting(self, key: str):
@@ -330,12 +351,18 @@ class AppDatabase:
     def get_ai_defaults(self) -> dict[str, str]:
         """Get all AI default settings as a dict."""
         keys = [
-            "default_vision_provider", "default_vision_model",
-            "default_text_provider", "default_text_model",
-            "default_audio_provider", "default_audio_model",
-            "default_video_provider", "default_video_model",
-            "default_temperature", "default_max_tokens",
-            "default_prompt_prefix", "default_embeddings_model",
+            "default_vision_provider",
+            "default_vision_model",
+            "default_text_provider",
+            "default_text_model",
+            "default_audio_provider",
+            "default_audio_model",
+            "default_video_provider",
+            "default_video_model",
+            "default_temperature",
+            "default_max_tokens",
+            "default_prompt_prefix",
+            "default_embeddings_model",
         ]
         result = {}
         for key in keys:
@@ -356,7 +383,12 @@ class AppDatabase:
         Returns:
             Tuple of (provider_type, model_id) or None if not configured.
         """
-        cat_map = {"vision": "vision", "llm": "text", "audio": "audio", "video": "video"}
+        cat_map = {
+            "vision": "vision",
+            "llm": "text",
+            "audio": "audio",
+            "video": "video",
+        }
         prefix = cat_map.get(category)
         if not prefix:
             return None
@@ -369,12 +401,18 @@ class AppDatabase:
     def reset_ai_defaults(self):
         """Delete all AI default settings."""
         keys = [
-            "default_vision_provider", "default_vision_model",
-            "default_text_provider", "default_text_model",
-            "default_audio_provider", "default_audio_model",
-            "default_video_provider", "default_video_model",
-            "default_temperature", "default_max_tokens",
-            "default_prompt_prefix", "default_embeddings_model",
+            "default_vision_provider",
+            "default_vision_model",
+            "default_text_provider",
+            "default_text_model",
+            "default_audio_provider",
+            "default_audio_model",
+            "default_video_provider",
+            "default_video_model",
+            "default_temperature",
+            "default_max_tokens",
+            "default_prompt_prefix",
+            "default_embeddings_model",
         ]
         for key in keys:
             self.delete_setting(key)
@@ -389,7 +427,8 @@ class AppDatabase:
         from datetime import datetime
         import json
 
-        self.conn.execute("""
+        self.conn.execute(
+            """
             INSERT INTO mcp_servers (
                 id, name, description, transport, command, args, env,
                 url, headers, tool_name_prefix, enabled, updated_at
@@ -407,20 +446,22 @@ class AppDatabase:
                 tool_name_prefix = excluded.tool_name_prefix,
                 enabled = excluded.enabled,
                 updated_at = excluded.updated_at
-        """, [
-            server.id,
-            server.name,
-            server.description,
-            server.transport,
-            server.command,
-            json.dumps(server.args),
-            json.dumps(server.env),
-            server.url,
-            json.dumps(server.headers),
-            server.tool_name_prefix,
-            server.enabled,
-            datetime.now(),
-        ])
+        """,
+            [
+                server.id,
+                server.name,
+                server.description,
+                server.transport,
+                server.command,
+                json.dumps(server.args),
+                json.dumps(server.env),
+                server.url,
+                json.dumps(server.headers),
+                server.tool_name_prefix,
+                server.enabled,
+                datetime.now(),
+            ],
+        )
         self.conn.commit()
         return server
 
@@ -430,8 +471,7 @@ class AppDatabase:
         from fichero.models import MCPServer
 
         result = self.conn.execute(
-            "SELECT * FROM mcp_servers WHERE id = ?",
-            [server_id]
+            "SELECT * FROM mcp_servers WHERE id = ?", [server_id]
         ).fetchone()
 
         if not result:
@@ -468,27 +508,28 @@ class AppDatabase:
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
         results = self.conn.execute(
-            f"SELECT * FROM mcp_servers {where_sql} ORDER BY name",
-            params
+            f"SELECT * FROM mcp_servers {where_sql} ORDER BY name", params
         ).fetchall()
 
         servers = []
         for row in results:
-            servers.append(MCPServer(
-                id=row[0],
-                name=row[1],
-                description=row[2],
-                transport=row[3],
-                command=row[4],
-                args=json.loads(row[5]) if row[5] else [],
-                env=json.loads(row[6]) if row[6] else {},
-                url=row[7],
-                headers=json.loads(row[8]) if row[8] else {},
-                tool_name_prefix=row[9],
-                enabled=row[10],
-                created_at=row[11],
-                updated_at=row[12],
-            ))
+            servers.append(
+                MCPServer(
+                    id=row[0],
+                    name=row[1],
+                    description=row[2],
+                    transport=row[3],
+                    command=row[4],
+                    args=json.loads(row[5]) if row[5] else [],
+                    env=json.loads(row[6]) if row[6] else {},
+                    url=row[7],
+                    headers=json.loads(row[8]) if row[8] else {},
+                    tool_name_prefix=row[9],
+                    enabled=row[10],
+                    created_at=row[11],
+                    updated_at=row[12],
+                )
+            )
 
         return servers
 

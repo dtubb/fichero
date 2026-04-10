@@ -57,6 +57,7 @@ COLORS_CONFIG = {
 # Prompt Building
 # =============================================================================
 
+
 def _build_prompt(color_count: int, color_format: str) -> str:
     """Build the colors prompt."""
     format_instructions = {
@@ -91,6 +92,7 @@ def build_colors_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="colors",

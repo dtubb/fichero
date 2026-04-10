@@ -30,10 +30,10 @@ logger = logging.getLogger(__name__)
 
 TOOL_CONFIG = VisionToolConfig(
     artifact_type="description",
-    update_page_content=False,      # Descriptions aren't the doc's text
+    update_page_content=False,  # Descriptions aren't the doc's text
     trigger_embedding=False,
-    supports_apple_vision=False,    # Need LLM for descriptions
-    metadata_field="description",   # Store in metadata for quick access
+    supports_apple_vision=False,  # Need LLM for descriptions
+    metadata_field="description",  # Store in metadata for quick access
 )
 
 # Describe-specific config (added to VISION_CONFIG_SCHEMA)
@@ -54,6 +54,7 @@ DESCRIBE_CONFIG = {
 # =============================================================================
 # Prompt Building
 # =============================================================================
+
 
 def _build_prompt(detail_level: str, focus: str) -> str:
     """Build the description prompt."""
@@ -84,6 +85,7 @@ def build_describe_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="describe",

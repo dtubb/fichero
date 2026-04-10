@@ -62,6 +62,7 @@ COMPARE_CONFIG = {
 # Prompt Building
 # =============================================================================
 
+
 def _build_prompt(focus: str, aspects: list[str]) -> str:
     """Build the comparison prompt."""
     focus_instructions = {
@@ -92,6 +93,7 @@ def build_compare_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="compare",
@@ -157,7 +159,9 @@ async def compare(
     if temperature is not None or max_tokens is not None:
         effective_config = dataclasses.replace(
             llm_config,
-            temperature=temperature if temperature is not None else llm_config.temperature,
+            temperature=temperature
+            if temperature is not None
+            else llm_config.temperature,
             max_tokens=max_tokens if max_tokens is not None else llm_config.max_tokens,
         )
 

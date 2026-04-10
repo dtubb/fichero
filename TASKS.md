@@ -1,10 +1,9 @@
-# TASKS.md
+# Tasks
+## Backlog (Unclaimed)
+- [ ] Implement the PyKEEN prediction generation route (#387)
 
-Local task tracking is deprecated.
+## In Progress (Claimed)
+(None claimed yet for #387 in this session)
 
-Source of truth is GitHub:
-- Milestones: https://github.com/dtubb/fichero/milestones
-- Issues: https://github.com/dtubb/fichero/issues
-- Project board: https://github.com/users/dtubb/projects/5
-
-Keep `STATE.md` for local session handoff only.
+## Done (Completed)
+(None completed in this session)

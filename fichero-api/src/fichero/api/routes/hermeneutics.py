@@ -176,7 +176,9 @@ async def get_framework(
 ) -> InterpretiveFramework:
     framework = db.get(InterpretiveFramework, framework_id)
     if not framework:
-        raise HTTPException(status_code=404, detail=f"Framework not found: {framework_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Framework not found: {framework_id}"
+        )
     return framework
 
 
@@ -188,7 +190,9 @@ async def update_framework(
 ) -> InterpretiveFramework:
     framework = db.get(InterpretiveFramework, framework_id)
     if not framework:
-        raise HTTPException(status_code=404, detail=f"Framework not found: {framework_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Framework not found: {framework_id}"
+        )
 
     updates = request.model_dump(exclude_unset=True)
     for key, value in updates.items():
@@ -205,7 +209,9 @@ async def delete_framework(
 ) -> dict[str, str]:
     framework = db.get(InterpretiveFramework, framework_id)
     if not framework:
-        raise HTTPException(status_code=404, detail=f"Framework not found: {framework_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Framework not found: {framework_id}"
+        )
     # Soft-delete: deactivate
     framework.is_active = False
     framework.updated_at = datetime.now()
@@ -225,12 +231,17 @@ async def create_interpretation(
 ) -> Interpretation:
     framework = db.get(InterpretiveFramework, request.framework_id)
     if not framework:
-        raise HTTPException(status_code=404, detail=f"Framework not found: {request.framework_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Framework not found: {request.framework_id}"
+        )
     if not framework.is_active:
         raise HTTPException(status_code=400, detail="Framework is not active")
 
     if not request.claim_id and not request.document_id and not request.passage_text:
-        raise HTTPException(status_code=400, detail="One of claim_id, document_id, or passage_text is required")
+        raise HTTPException(
+            status_code=400,
+            detail="One of claim_id, document_id, or passage_text is required",
+        )
 
     now = datetime.now()
     interpretation = Interpretation(
@@ -280,7 +291,9 @@ async def get_interpretation(
 ) -> Interpretation:
     interpretation = db.get(Interpretation, interpretation_id)
     if not interpretation:
-        raise HTTPException(status_code=404, detail=f"Interpretation not found: {interpretation_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Interpretation not found: {interpretation_id}"
+        )
     return interpretation
 
 
@@ -292,7 +305,9 @@ async def update_interpretation(
 ) -> Interpretation:
     interpretation = db.get(Interpretation, interpretation_id)
     if not interpretation:
-        raise HTTPException(status_code=404, detail=f"Interpretation not found: {interpretation_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Interpretation not found: {interpretation_id}"
+        )
 
     updates = request.model_dump(exclude_unset=True)
     for key, value in updates.items():
@@ -440,7 +455,9 @@ async def get_circle_state(
 ) -> HermeneuticCircleState:
     state = db.get(HermeneuticCircleState, state_id)
     if not state:
-        raise HTTPException(status_code=404, detail=f"Circle state not found: {state_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Circle state not found: {state_id}"
+        )
     return state
 
 
@@ -452,13 +469,19 @@ async def navigate_circle(
 ) -> HermeneuticCircleState:
     state = db.get(HermeneuticCircleState, state_id)
     if not state:
-        raise HTTPException(status_code=404, detail=f"Circle state not found: {state_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Circle state not found: {state_id}"
+        )
 
     # Record prior state for backtracking
     prior_focus = state.focus_label
     state.prior_state_id = state_id
     # Navigate TO whole or part — direction tells us the destination
-    state.current_focus = "part" if request.direction == CircleNavigationDirection.whole_to_part else "whole"
+    state.current_focus = (
+        "part"
+        if request.direction == CircleNavigationDirection.whole_to_part
+        else "whole"
+    )
     state.focus_id = request.focus_id
     state.focus_label = request.focus_label
     state.direction = request.direction
@@ -471,21 +494,27 @@ async def navigate_circle(
     return state
 
 
-@router.post("/circle-state/{state_id}/backtrack", response_model=HermeneuticCircleState)
+@router.post(
+    "/circle-state/{state_id}/backtrack", response_model=HermeneuticCircleState
+)
 async def backtrack_circle(
     state_id: str,
     db: Database = Depends(get_library_database),
 ) -> HermeneuticCircleState:
     state = db.get(HermeneuticCircleState, state_id)
     if not state:
-        raise HTTPException(status_code=404, detail=f"Circle state not found: {state_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Circle state not found: {state_id}"
+        )
     if not state.prior_state_id:
         raise HTTPException(status_code=400, detail="No prior state to backtrack to")
 
     prior = db.get(HermeneuticCircleState, state.prior_state_id)
     if prior:
         state.circle_level -= 1
-        state.navigation_log = state.navigation_log + [f"Backtrack to level {state.circle_level}"]
+        state.navigation_log = state.navigation_log + [
+            f"Backtrack to level {state.circle_level}"
+        ]
         state.updated_at = datetime.now()
         db.save(state)
     return state
@@ -507,11 +536,15 @@ async def suggest_interpretations(
     be applied to the given claims. Returns ranked suggestions.
     """
     if request.num_suggestions < 1 or request.num_suggestions > 10:
-        raise HTTPException(status_code=400, detail="num_suggestions must be between 1 and 10")
+        raise HTTPException(
+            status_code=400, detail="num_suggestions must be between 1 and 10"
+        )
 
     # Load requested frameworks (or all active if none specified)
     if request.framework_ids:
-        frameworks = [db.get(InterpretiveFramework, fid) for fid in request.framework_ids]
+        frameworks = [
+            db.get(InterpretiveFramework, fid) for fid in request.framework_ids
+        ]
         frameworks = [f for f in frameworks if f and f.is_active]
     else:
         frameworks = [f for f in db.all(InterpretiveFramework) if f.is_active]

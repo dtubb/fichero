@@ -55,6 +55,7 @@ OBJECTS_CONFIG = {
 # Prompt Building
 # =============================================================================
 
+
 def _build_prompt(detail_level: str, include_positions: bool) -> str:
     """Build the object detection prompt."""
     position_text = ""
@@ -75,8 +76,12 @@ Return as JSON:
 
 For each object, provide:
 - type (what it is)
-- count (how many){'''
-- position (where in the image)''' if include_positions else ''}
+- count (how many){
+            '''
+- position (where in the image)'''
+            if include_positions
+            else ""
+        }
 
 Return as JSON:
 {{
@@ -91,13 +96,19 @@ For each object, provide:
 - type (what it is)
 - description (appearance, condition, notable features)
 - size (relative: small/medium/large)
-- count (how many){'''
-- position (where in the image)''' if include_positions else ''}
+- count (how many){
+            '''
+- position (where in the image)'''
+            if include_positions
+            else ""
+        }
 
 Return as JSON:
 {{
     "objects": [
-        {{"type": "<object type>", "description": "<details>", "size": "<small/medium/large>", "count": <number>{position_text}}}
+        {{"type": "<object type>", "description": "<details>", "size": "<small/medium/large>", "count": <number>{
+            position_text
+        }}}
     ],
     "total_objects": <number>,
     "scene_description": "<brief overall scene>"
@@ -118,6 +129,7 @@ def build_objects_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="objects",

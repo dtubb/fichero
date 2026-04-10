@@ -53,6 +53,7 @@ server = Server("fichero")
 # API Client
 # =============================================================================
 
+
 class FicheroAPIClient:
     """HTTP client for Fichero API."""
 
@@ -77,22 +78,32 @@ class FicheroAPIClient:
         async with httpx.AsyncClient(timeout=60.0) as client:
             try:
                 if method == "GET":
-                    response = await client.get(url, params=params, headers=self._get_headers())
+                    response = await client.get(
+                        url, params=params, headers=self._get_headers()
+                    )
                 elif method == "POST":
-                    response = await client.post(url, json=data, headers=self._get_headers())
+                    response = await client.post(
+                        url, json=data, headers=self._get_headers()
+                    )
                 elif method == "PUT":
-                    response = await client.put(url, json=data, headers=self._get_headers())
+                    response = await client.put(
+                        url, json=data, headers=self._get_headers()
+                    )
                 elif method == "DELETE":
                     response = await client.delete(url, headers=self._get_headers())
                 else:
                     return {"error": f"Unknown method: {method}"}
 
                 if response.status_code >= 400:
-                    return {"error": f"API error {response.status_code}: {response.text}"}
+                    return {
+                        "error": f"API error {response.status_code}: {response.text}"
+                    }
 
                 return response.json()
             except httpx.ConnectError:
-                return {"error": f"Cannot connect to Fichero API at {self.api_url}. Is the server running?"}
+                return {
+                    "error": f"Cannot connect to Fichero API at {self.api_url}. Is the server running?"
+                }
             except Exception as e:
                 return {"error": str(e)}
 
@@ -114,8 +125,16 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "folder_id": {"type": "string", "description": "Filter by folder ID"},
-                "limit": {"type": "integer", "description": "Max results (default 50)", "default": 50},
-                "offset": {"type": "integer", "description": "Pagination offset", "default": 0},
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results (default 50)",
+                    "default": 50,
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Pagination offset",
+                    "default": 0,
+                },
             },
         },
     ),
@@ -126,7 +145,11 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "query": {"type": "string", "description": "Search query"},
-                "limit": {"type": "integer", "description": "Max results (default 20)", "default": 20},
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results (default 20)",
+                    "default": 20,
+                },
             },
             "required": ["query"],
         },
@@ -149,7 +172,11 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "limit": {"type": "integer", "description": "Max results", "default": 50},
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results",
+                    "default": 50,
+                },
             },
         },
     ),
@@ -171,7 +198,10 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "Workflow name"},
-                "description": {"type": "string", "description": "Workflow description"},
+                "description": {
+                    "type": "string",
+                    "description": "Workflow description",
+                },
                 "nodes": {
                     "type": "array",
                     "description": "Workflow nodes with id, tool, inputs, config",
@@ -212,7 +242,10 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "thread_id": {"type": "string", "description": "Workflow thread ID from run_workflow"},
+                "thread_id": {
+                    "type": "string",
+                    "description": "Workflow thread ID from run_workflow",
+                },
             },
             "required": ["thread_id"],
         },
@@ -230,7 +263,11 @@ TOOLS = [
                     "items": {"type": "string"},
                     "description": "Files to process",
                 },
-                "concurrency": {"type": "integer", "description": "Parallel executions (default 4)", "default": 4},
+                "concurrency": {
+                    "type": "integer",
+                    "description": "Parallel executions (default 4)",
+                    "default": 4,
+                },
             },
             "required": ["workflow_id", "file_paths"],
         },
@@ -253,8 +290,15 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "status": {"type": "string", "description": "Filter: pending, running, completed, failed"},
-                "limit": {"type": "integer", "description": "Max results", "default": 20},
+                "status": {
+                    "type": "string",
+                    "description": "Filter: pending, running, completed, failed",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results",
+                    "default": 20,
+                },
             },
         },
     ),
@@ -265,7 +309,10 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "category": {"type": "string", "description": "Filter by category: ai, transform, extract, etc."},
+                "category": {
+                    "type": "string",
+                    "description": "Filter by category: ai, transform, extract, etc.",
+                },
             },
         },
     ),
@@ -276,7 +323,10 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "prompt": {"type": "string", "description": "Prompt to send to all models"},
+                "prompt": {
+                    "type": "string",
+                    "description": "Prompt to send to all models",
+                },
                 "models": {
                     "type": "array",
                     "items": {
@@ -288,7 +338,10 @@ TOOLS = [
                     },
                     "description": "Models to compare (default: gpt-4o and claude-3-5-sonnet)",
                 },
-                "system_prompt": {"type": "string", "description": "Optional system prompt"},
+                "system_prompt": {
+                    "type": "string",
+                    "description": "Optional system prompt",
+                },
             },
             "required": ["prompt"],
         },
@@ -300,7 +353,10 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "category": {"type": "string", "description": "Filter by category: llm, transform, agent, etc."},
+                "category": {
+                    "type": "string",
+                    "description": "Filter by category: llm, transform, agent, etc.",
+                },
             },
         },
     ),
@@ -317,7 +373,11 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "limit": {"type": "integer", "description": "Max results (default 50)", "default": 50},
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results (default 50)",
+                    "default": 50,
+                },
             },
         },
     ),
@@ -345,7 +405,10 @@ TOOLS = [
                     "description": "Chain steps with workflow_id and input_mappings",
                     "items": {"type": "object"},
                 },
-                "initial_inputs": {"type": "object", "description": "Default initial inputs"},
+                "initial_inputs": {
+                    "type": "object",
+                    "description": "Default initial inputs",
+                },
             },
             "required": ["name"],
         },
@@ -357,7 +420,10 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "chain_id": {"type": "string", "description": "Chain ID to execute"},
-                "inputs": {"type": "object", "description": "Initial inputs for the chain"},
+                "inputs": {
+                    "type": "object",
+                    "description": "Initial inputs for the chain",
+                },
                 "input_files": {
                     "type": "array",
                     "items": {"type": "string"},
@@ -373,7 +439,10 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "execution_id": {"type": "string", "description": "Execution ID from run_chain"},
+                "execution_id": {
+                    "type": "string",
+                    "description": "Execution ID from run_chain",
+                },
             },
             "required": ["execution_id"],
         },
@@ -386,14 +455,40 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "q": {"type": "string", "description": "Text search query"},
-                "claim_type": {"type": "string", "description": "Filter by claim type: fact, analysis, interpretation, argument, historiography, theory"},
-                "curation_state": {"type": "string", "description": "Filter by curation state: unreviewed, shortlisted, curated, rejected"},
-                "epistemic_status": {"type": "string", "description": "Filter by epistemic status: tentative, confirmed, rejected"},
-                "entity_id": {"type": "string", "description": "Filter by linked entity ID"},
-                "source_language": {"type": "string", "description": "Filter by source language code (e.g., 'en', 'es')"},
-                "source_type": {"type": "string", "description": "Filter by source type: document, claim, multiple, synthesis"},
-                "limit": {"type": "integer", "description": "Max results (default 200)", "default": 200},
-                "offset": {"type": "integer", "description": "Pagination offset", "default": 0},
+                "claim_type": {
+                    "type": "string",
+                    "description": "Filter by claim type: fact, analysis, interpretation, argument, historiography, theory",
+                },
+                "curation_state": {
+                    "type": "string",
+                    "description": "Filter by curation state: unreviewed, shortlisted, curated, rejected",
+                },
+                "epistemic_status": {
+                    "type": "string",
+                    "description": "Filter by epistemic status: tentative, confirmed, rejected",
+                },
+                "entity_id": {
+                    "type": "string",
+                    "description": "Filter by linked entity ID",
+                },
+                "source_language": {
+                    "type": "string",
+                    "description": "Filter by source language code (e.g., 'en', 'es')",
+                },
+                "source_type": {
+                    "type": "string",
+                    "description": "Filter by source type: document, claim, multiple, synthesis",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results (default 200)",
+                    "default": 200,
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Pagination offset",
+                    "default": 0,
+                },
             },
         },
     ),
@@ -404,16 +499,53 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "text": {"type": "string", "description": "Claim text (required)"},
-                "source_document_id": {"type": "string", "description": "Primary source document ID"},
-                "source_ids": {"type": "array", "items": {"type": "string"}, "description": "Additional source document IDs for multi-source claims"},
-                "source_page_labels": {"type": "array", "items": {"type": "string"}, "description": "Page labels per source"},
-                "source_languages": {"type": "array", "items": {"type": "string"}, "description": "Languages per source (e.g., ['en', 'es'])"},
-                "source_type": {"type": "string", "description": "Source type: document, claim, multiple, synthesis", "default": "document"},
-                "entity_ids": {"type": "array", "items": {"type": "string"}, "description": "Linked entity IDs"},
-                "claim_type": {"type": "string", "description": "Claim type: fact, analysis, interpretation, argument, historiography, theory"},
-                "epistemic_status": {"type": "string", "description": "Epistemic status: tentative, confirmed, rejected"},
-                "curation_state": {"type": "string", "description": "Curation state", "default": "unreviewed"},
-                "confidence": {"type": "number", "description": "Confidence 0.0-1.0", "default": 0.5},
+                "source_document_id": {
+                    "type": "string",
+                    "description": "Primary source document ID",
+                },
+                "source_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Additional source document IDs for multi-source claims",
+                },
+                "source_page_labels": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Page labels per source",
+                },
+                "source_languages": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Languages per source (e.g., ['en', 'es'])",
+                },
+                "source_type": {
+                    "type": "string",
+                    "description": "Source type: document, claim, multiple, synthesis",
+                    "default": "document",
+                },
+                "entity_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Linked entity IDs",
+                },
+                "claim_type": {
+                    "type": "string",
+                    "description": "Claim type: fact, analysis, interpretation, argument, historiography, theory",
+                },
+                "epistemic_status": {
+                    "type": "string",
+                    "description": "Epistemic status: tentative, confirmed, rejected",
+                },
+                "curation_state": {
+                    "type": "string",
+                    "description": "Curation state",
+                    "default": "unreviewed",
+                },
+                "confidence": {
+                    "type": "number",
+                    "description": "Confidence 0.0-1.0",
+                    "default": 0.5,
+                },
             },
             "required": ["text"],
         },
@@ -427,10 +559,23 @@ TOOLS = [
                 "claim_id": {"type": "string", "description": "Claim ID to update"},
                 "text": {"type": "string", "description": "New claim text"},
                 "claim_type": {"type": "string", "description": "New claim type"},
-                "epistemic_status": {"type": "string", "description": "New epistemic status"},
-                "curation_state": {"type": "string", "description": "New curation state"},
-                "confidence": {"type": "number", "description": "New confidence 0.0-1.0"},
-                "entity_ids": {"type": "array", "items": {"type": "string"}, "description": "New entity IDs"},
+                "epistemic_status": {
+                    "type": "string",
+                    "description": "New epistemic status",
+                },
+                "curation_state": {
+                    "type": "string",
+                    "description": "New curation state",
+                },
+                "confidence": {
+                    "type": "number",
+                    "description": "New confidence 0.0-1.0",
+                },
+                "entity_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "New entity IDs",
+                },
             },
             "required": ["claim_id"],
         },
@@ -441,9 +586,19 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "q": {"type": "string", "description": "Search query (matches canonical name or aliases)"},
-                "entity_type": {"type": "string", "description": "Filter by type: person, location, organization, event, concept, other"},
-                "limit": {"type": "integer", "description": "Max results", "default": 50},
+                "q": {
+                    "type": "string",
+                    "description": "Search query (matches canonical name or aliases)",
+                },
+                "entity_type": {
+                    "type": "string",
+                    "description": "Filter by type: person, location, organization, event, concept, other",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results",
+                    "default": 50,
+                },
             },
         },
     ),
@@ -453,10 +608,24 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "id": {"type": "string", "description": "Entity ID (omit to create new)"},
-                "canonical_name": {"type": "string", "description": "Primary name for the entity"},
-                "entity_type": {"type": "string", "description": "Entity type", "default": "other"},
-                "aliases": {"type": "array", "items": {"type": "string"}, "description": "Alternative names"},
+                "id": {
+                    "type": "string",
+                    "description": "Entity ID (omit to create new)",
+                },
+                "canonical_name": {
+                    "type": "string",
+                    "description": "Primary name for the entity",
+                },
+                "entity_type": {
+                    "type": "string",
+                    "description": "Entity type",
+                    "default": "other",
+                },
+                "aliases": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Alternative names",
+                },
                 "description": {"type": "string", "description": "Entity description"},
                 "language": {"type": "string", "description": "Primary language code"},
             },
@@ -469,7 +638,11 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "claim_ids": {"type": "array", "items": {"type": "string"}, "description": "Specific claim IDs to embed (omit to embed all)"},
+                "claim_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Specific claim IDs to embed (omit to embed all)",
+                },
             },
         },
     ),
@@ -479,10 +652,21 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "Natural language search query", "required": True},
+                "query": {
+                    "type": "string",
+                    "description": "Natural language search query",
+                    "required": True,
+                },
                 "claim_type": {"type": "string", "description": "Filter by claim type"},
-                "curation_state": {"type": "string", "description": "Filter by curation state"},
-                "limit": {"type": "integer", "description": "Max results", "default": 20},
+                "curation_state": {
+                    "type": "string",
+                    "description": "Filter by curation state",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results",
+                    "default": 20,
+                },
             },
             "required": ["query"],
         },
@@ -493,7 +677,11 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "entity_ids": {"type": "array", "items": {"type": "string"}, "description": "Specific entity IDs to embed (omit to embed all)"},
+                "entity_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Specific entity IDs to embed (omit to embed all)",
+                },
             },
         },
     ),
@@ -503,9 +691,20 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "Natural language query", "required": True},
-                "entity_type": {"type": "string", "description": "Filter by entity type"},
-                "limit": {"type": "integer", "description": "Max results", "default": 20},
+                "query": {
+                    "type": "string",
+                    "description": "Natural language query",
+                    "required": True,
+                },
+                "entity_type": {
+                    "type": "string",
+                    "description": "Filter by entity type",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results",
+                    "default": 20,
+                },
             },
             "required": ["query"],
         },
@@ -516,8 +715,14 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "scope_type": {"type": "string", "description": "Scope filter: library, folder, document"},
-                "target_id": {"type": "string", "description": "Target ID for scope filter"},
+                "scope_type": {
+                    "type": "string",
+                    "description": "Scope filter: library, folder, document",
+                },
+                "target_id": {
+                    "type": "string",
+                    "description": "Target ID for scope filter",
+                },
             },
         },
     ),
@@ -528,8 +733,15 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "top_k": {"type": "integer", "description": "Number of top similar claims to consider per claim (default 10, max 100)", "default": 10},
-                "entity_id": {"type": "string", "description": "Limit predictions to a specific entity ID"},
+                "top_k": {
+                    "type": "integer",
+                    "description": "Number of top similar claims to consider per claim (default 10, max 100)",
+                    "default": 10,
+                },
+                "entity_id": {
+                    "type": "string",
+                    "description": "Limit predictions to a specific entity ID",
+                },
             },
         },
     ),
@@ -539,7 +751,11 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "run_id": {"type": "string", "description": "Prediction run ID to apply", "required": True},
+                "run_id": {
+                    "type": "string",
+                    "description": "Prediction run ID to apply",
+                    "required": True,
+                },
             },
             "required": ["run_id"],
         },
@@ -552,10 +768,25 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "claim_id": {"type": "string", "description": "Claim ID to navigate"},
-                "current_focus": {"type": "string", "description": "Initial focus: 'part' or 'whole'", "required": True},
-                "focus_id": {"type": "string", "description": "ID of the initial focus element"},
-                "focus_label": {"type": "string", "description": "Human-readable label for the focus", "required": True},
-                "direction": {"type": "string", "description": "Navigation direction: whole_to_part or part_to_whole", "required": True},
+                "current_focus": {
+                    "type": "string",
+                    "description": "Initial focus: 'part' or 'whole'",
+                    "required": True,
+                },
+                "focus_id": {
+                    "type": "string",
+                    "description": "ID of the initial focus element",
+                },
+                "focus_label": {
+                    "type": "string",
+                    "description": "Human-readable label for the focus",
+                    "required": True,
+                },
+                "direction": {
+                    "type": "string",
+                    "description": "Navigation direction: whole_to_part or part_to_whole",
+                    "required": True,
+                },
                 "metadata": {"type": "object", "description": "Additional metadata"},
             },
             "required": ["current_focus", "focus_label", "direction"],
@@ -567,10 +798,26 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "state_id": {"type": "string", "description": "Circle state ID to navigate", "required": True},
-                "focus_id": {"type": "string", "description": "ID of the new focus element", "required": True},
-                "focus_label": {"type": "string", "description": "Human-readable label for the new focus", "required": True},
-                "direction": {"type": "string", "description": "Navigation direction: whole_to_part or part_to_whole", "required": True},
+                "state_id": {
+                    "type": "string",
+                    "description": "Circle state ID to navigate",
+                    "required": True,
+                },
+                "focus_id": {
+                    "type": "string",
+                    "description": "ID of the new focus element",
+                    "required": True,
+                },
+                "focus_label": {
+                    "type": "string",
+                    "description": "Human-readable label for the new focus",
+                    "required": True,
+                },
+                "direction": {
+                    "type": "string",
+                    "description": "Navigation direction: whole_to_part or part_to_whole",
+                    "required": True,
+                },
             },
             "required": ["state_id", "focus_id", "focus_label", "direction"],
         },
@@ -582,8 +829,14 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "framework_type": {"type": "string", "description": "Filter by type: historical, disciplinary, thematic, methodological, theoretical, narrative"},
-                "is_active": {"type": "boolean", "description": "Filter by active status"},
+                "framework_type": {
+                    "type": "string",
+                    "description": "Filter by type: historical, disciplinary, thematic, methodological, theoretical, narrative",
+                },
+                "is_active": {
+                    "type": "boolean",
+                    "description": "Filter by active status",
+                },
             },
         },
     ),
@@ -593,14 +846,40 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "framework_id": {"type": "string", "description": "Framework ID to apply", "required": True},
+                "framework_id": {
+                    "type": "string",
+                    "description": "Framework ID to apply",
+                    "required": True,
+                },
                 "claim_id": {"type": "string", "description": "Target claim ID"},
-                "document_id": {"type": "string", "description": "Or target document ID"},
-                "passage_text": {"type": "string", "description": "Or passage text directly"},
-                "interpretation_text": {"type": "string", "description": "What the framework reveals about the target", "required": True},
-                "act": {"type": "string", "description": "Interpretive act: reading, translating, contextualizing, synthesizing, critiquing, applying", "default": "contextualizing"},
-                "confidence": {"type": "number", "description": "Confidence 0.0-1.0", "default": 0.5},
-                "key_insights": {"type": "array", "items": {"type": "string"}, "description": "Key insights from this interpretation"},
+                "document_id": {
+                    "type": "string",
+                    "description": "Or target document ID",
+                },
+                "passage_text": {
+                    "type": "string",
+                    "description": "Or passage text directly",
+                },
+                "interpretation_text": {
+                    "type": "string",
+                    "description": "What the framework reveals about the target",
+                    "required": True,
+                },
+                "act": {
+                    "type": "string",
+                    "description": "Interpretive act: reading, translating, contextualizing, synthesizing, critiquing, applying",
+                    "default": "contextualizing",
+                },
+                "confidence": {
+                    "type": "number",
+                    "description": "Confidence 0.0-1.0",
+                    "default": 0.5,
+                },
+                "key_insights": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Key insights from this interpretation",
+                },
             },
             "required": ["framework_id", "interpretation_text"],
         },
@@ -611,11 +890,27 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "pattern_type": {"type": "string", "description": "Filter by pattern type: temporal, causal, structural, thematic"},
-                "framework_id": {"type": "string", "description": "Filter by framework that recognized the pattern"},
-                "status": {"type": "string", "description": "Filter by status: tentative, confirmed, superseded"},
-                "entity_id": {"type": "string", "description": "Find patterns involving an entity"},
-                "limit": {"type": "integer", "description": "Max results", "default": 50},
+                "pattern_type": {
+                    "type": "string",
+                    "description": "Filter by pattern type: temporal, causal, structural, thematic",
+                },
+                "framework_id": {
+                    "type": "string",
+                    "description": "Filter by framework that recognized the pattern",
+                },
+                "status": {
+                    "type": "string",
+                    "description": "Filter by status: tentative, confirmed, superseded",
+                },
+                "entity_id": {
+                    "type": "string",
+                    "description": "Find patterns involving an entity",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results",
+                    "default": 50,
+                },
             },
         },
     ),
@@ -625,9 +920,22 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "claim_ids": {"type": "array", "items": {"type": "string"}, "description": "Claim IDs to interpret", "required": True},
-                "framework_ids": {"type": "array", "items": {"type": "string"}, "description": "Specific frameworks to use (omit for all active)"},
-                "num_suggestions": {"type": "integer", "description": "Number of suggestions (1-10)", "default": 3},
+                "claim_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Claim IDs to interpret",
+                    "required": True,
+                },
+                "framework_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Specific frameworks to use (omit for all active)",
+                },
+                "num_suggestions": {
+                    "type": "integer",
+                    "description": "Number of suggestions (1-10)",
+                    "default": 3,
+                },
             },
             "required": ["claim_ids"],
         },
@@ -639,9 +947,17 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "name": {"type": "string", "description": "Room name", "required": True},
+                "name": {
+                    "type": "string",
+                    "description": "Room name",
+                    "required": True,
+                },
                 "description": {"type": "string", "description": "Room description"},
-                "room_type": {"type": "string", "description": "Type: research, synthesis, presentation", "default": "research"},
+                "room_type": {
+                    "type": "string",
+                    "description": "Type: research, synthesis, presentation",
+                    "default": "research",
+                },
             },
             "required": ["name"],
         },
@@ -663,13 +979,36 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "room_id": {"type": "string", "description": "Target room ID", "required": True},
-                "node_type": {"type": "string", "description": "Node type: source, claim, note, entity, transcription", "required": True},
-                "source_id": {"type": "string", "description": "ID of the underlying item"},
+                "room_id": {
+                    "type": "string",
+                    "description": "Target room ID",
+                    "required": True,
+                },
+                "node_type": {
+                    "type": "string",
+                    "description": "Node type: source, claim, note, entity, transcription",
+                    "required": True,
+                },
+                "source_id": {
+                    "type": "string",
+                    "description": "ID of the underlying item",
+                },
                 "label": {"type": "string", "description": "Display label"},
-                "position_x": {"type": "number", "description": "X position", "default": 0},
-                "position_y": {"type": "number", "description": "Y position", "default": 0},
-                "position_z": {"type": "number", "description": "Z position", "default": 0},
+                "position_x": {
+                    "type": "number",
+                    "description": "X position",
+                    "default": 0,
+                },
+                "position_y": {
+                    "type": "number",
+                    "description": "Y position",
+                    "default": 0,
+                },
+                "position_z": {
+                    "type": "number",
+                    "description": "Z position",
+                    "default": 0,
+                },
             },
             "required": ["room_id", "node_type"],
         },
@@ -680,10 +1019,26 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "node_id": {"type": "string", "description": "Node ID to move", "required": True},
-                "position_x": {"type": "number", "description": "New X position", "required": True},
-                "position_y": {"type": "number", "description": "New Y position", "required": True},
-                "position_z": {"type": "number", "description": "New Z position", "required": True},
+                "node_id": {
+                    "type": "string",
+                    "description": "Node ID to move",
+                    "required": True,
+                },
+                "position_x": {
+                    "type": "number",
+                    "description": "New X position",
+                    "required": True,
+                },
+                "position_y": {
+                    "type": "number",
+                    "description": "New Y position",
+                    "required": True,
+                },
+                "position_z": {
+                    "type": "number",
+                    "description": "New Z position",
+                    "required": True,
+                },
             },
             "required": ["node_id", "position_x", "position_y", "position_z"],
         },
@@ -694,13 +1049,37 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "room_id": {"type": "string", "description": "Room ID", "required": True},
-                "source_node_id": {"type": "string", "description": "Source node ID", "required": True},
-                "target_node_id": {"type": "string", "description": "Target node ID", "required": True},
-                "connection_type": {"type": "string", "description": "Connection type: evidentiary, semantic, ontological, hermeneutic, user_drawn", "required": True},
-                "link_subtype": {"type": "string", "description": "Link subtype: supports, contradicts, interprets, etc."},
+                "room_id": {
+                    "type": "string",
+                    "description": "Room ID",
+                    "required": True,
+                },
+                "source_node_id": {
+                    "type": "string",
+                    "description": "Source node ID",
+                    "required": True,
+                },
+                "target_node_id": {
+                    "type": "string",
+                    "description": "Target node ID",
+                    "required": True,
+                },
+                "connection_type": {
+                    "type": "string",
+                    "description": "Connection type: evidentiary, semantic, ontological, hermeneutic, user_drawn",
+                    "required": True,
+                },
+                "link_subtype": {
+                    "type": "string",
+                    "description": "Link subtype: supports, contradicts, interprets, etc.",
+                },
             },
-            "required": ["room_id", "source_node_id", "target_node_id", "connection_type"],
+            "required": [
+                "room_id",
+                "source_node_id",
+                "target_node_id",
+                "connection_type",
+            ],
         },
     ),
     types.Tool(
@@ -709,8 +1088,15 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "room_id": {"type": "string", "description": "Room ID", "required": True},
-                "node_id": {"type": "string", "description": "Node ID to focus on (omit to clear focus)"},
+                "room_id": {
+                    "type": "string",
+                    "description": "Room ID",
+                    "required": True,
+                },
+                "node_id": {
+                    "type": "string",
+                    "description": "Node ID to focus on (omit to clear focus)",
+                },
             },
             "required": ["room_id"],
         },
@@ -722,11 +1108,31 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "room_id": {"type": "string", "description": "Room ID"},
-                "content": {"type": "string", "description": "Note content", "required": True},
-                "note_type": {"type": "string", "description": "Note type: user, ai_workspace, ai_hypothesis, ai_summary, ai_relation, shared", "default": "user"},
-                "author_id": {"type": "string", "description": "Author ID", "default": "user"},
-                "linked_claim_ids": {"type": "array", "items": {"type": "string"}, "description": "Linked claim IDs"},
-                "linked_source_ids": {"type": "array", "items": {"type": "string"}, "description": "Linked source IDs"},
+                "content": {
+                    "type": "string",
+                    "description": "Note content",
+                    "required": True,
+                },
+                "note_type": {
+                    "type": "string",
+                    "description": "Note type: user, ai_workspace, ai_hypothesis, ai_summary, ai_relation, shared",
+                    "default": "user",
+                },
+                "author_id": {
+                    "type": "string",
+                    "description": "Author ID",
+                    "default": "user",
+                },
+                "linked_claim_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Linked claim IDs",
+                },
+                "linked_source_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Linked source IDs",
+                },
             },
             "required": ["content"],
         },
@@ -737,9 +1143,22 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "room_id": {"type": "string", "description": "Room ID", "required": True},
-                "node_ids": {"type": "array", "items": {"type": "string"}, "description": "Node IDs to arrange", "required": True},
-                "arrangement_type": {"type": "string", "description": "Strategy: semantic, chronological, thematic", "default": "semantic"},
+                "room_id": {
+                    "type": "string",
+                    "description": "Room ID",
+                    "required": True,
+                },
+                "node_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Node IDs to arrange",
+                    "required": True,
+                },
+                "arrangement_type": {
+                    "type": "string",
+                    "description": "Strategy: semantic, chronological, thematic",
+                    "default": "semantic",
+                },
             },
             "required": ["room_id", "node_ids"],
         },
@@ -750,7 +1169,11 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "room_id": {"type": "string", "description": "Room ID", "required": True},
+                "room_id": {
+                    "type": "string",
+                    "description": "Room ID",
+                    "required": True,
+                },
             },
             "required": ["room_id"],
         },
@@ -762,9 +1185,17 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "name": {"type": "string", "description": "Project name", "required": True},
+                "name": {
+                    "type": "string",
+                    "description": "Project name",
+                    "required": True,
+                },
                 "description": {"type": "string", "description": "Project description"},
-                "created_by": {"type": "string", "description": "Creator: 'human' or agent ID", "default": "human"},
+                "created_by": {
+                    "type": "string",
+                    "description": "Creator: 'human' or agent ID",
+                    "default": "human",
+                },
             },
             "required": ["name"],
         },
@@ -775,7 +1206,10 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "status": {"type": "string", "description": "Filter by status: active, paused, completed, archived"},
+                "status": {
+                    "type": "string",
+                    "description": "Filter by status: active, paused, completed, archived",
+                },
             },
         },
     ),
@@ -785,7 +1219,11 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "project_id": {"type": "string", "description": "Project ID", "required": True},
+                "project_id": {
+                    "type": "string",
+                    "description": "Project ID",
+                    "required": True,
+                },
             },
             "required": ["project_id"],
         },
@@ -796,10 +1234,22 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "project_id": {"type": "string", "description": "Parent project ID", "required": True},
-                "name": {"type": "string", "description": "Plan name", "required": True},
+                "project_id": {
+                    "type": "string",
+                    "description": "Parent project ID",
+                    "required": True,
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Plan name",
+                    "required": True,
+                },
                 "description": {"type": "string", "description": "Plan description"},
-                "order_index": {"type": "integer", "description": "Display order", "default": 0},
+                "order_index": {
+                    "type": "integer",
+                    "description": "Display order",
+                    "default": 0,
+                },
             },
             "required": ["project_id", "name"],
         },
@@ -810,7 +1260,11 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "project_id": {"type": "string", "description": "Project ID", "required": True},
+                "project_id": {
+                    "type": "string",
+                    "description": "Project ID",
+                    "required": True,
+                },
             },
             "required": ["project_id"],
         },
@@ -821,10 +1275,22 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "plan_id": {"type": "string", "description": "Parent plan ID", "required": True},
-                "name": {"type": "string", "description": "Task name", "required": True},
+                "plan_id": {
+                    "type": "string",
+                    "description": "Parent plan ID",
+                    "required": True,
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Task name",
+                    "required": True,
+                },
                 "description": {"type": "string", "description": "Task description"},
-                "priority": {"type": "integer", "description": "Priority (higher = more important)", "default": 0},
+                "priority": {
+                    "type": "integer",
+                    "description": "Priority (higher = more important)",
+                    "default": 0,
+                },
                 "assigned_to": {"type": "string", "description": "Agent ID to assign"},
             },
             "required": ["plan_id", "name"],
@@ -836,7 +1302,11 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "plan_id": {"type": "string", "description": "Plan ID", "required": True},
+                "plan_id": {
+                    "type": "string",
+                    "description": "Plan ID",
+                    "required": True,
+                },
             },
             "required": ["plan_id"],
         },
@@ -847,12 +1317,31 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Parent task ID", "required": True},
-                "tool": {"type": "string", "description": "Tool: web_search, browser_navigate, document_fetch, local_search", "required": True},
-                "label": {"type": "string", "description": "Step label", "required": True},
+                "task_id": {
+                    "type": "string",
+                    "description": "Parent task ID",
+                    "required": True,
+                },
+                "tool": {
+                    "type": "string",
+                    "description": "Tool: web_search, browser_navigate, document_fetch, local_search",
+                    "required": True,
+                },
+                "label": {
+                    "type": "string",
+                    "description": "Step label",
+                    "required": True,
+                },
                 "description": {"type": "string", "description": "Step description"},
-                "config": {"type": "object", "description": "Tool-specific config (e.g., {query: '...'})"},
-                "order_index": {"type": "integer", "description": "Display order", "default": 0},
+                "config": {
+                    "type": "object",
+                    "description": "Tool-specific config (e.g., {query: '...'})",
+                },
+                "order_index": {
+                    "type": "integer",
+                    "description": "Display order",
+                    "default": 0,
+                },
             },
             "required": ["task_id", "tool", "label"],
         },
@@ -863,8 +1352,15 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "step_id": {"type": "string", "description": "Step ID", "required": True},
-                "status": {"type": "string", "description": "Status: pending, completed, failed, skipped"},
+                "step_id": {
+                    "type": "string",
+                    "description": "Step ID",
+                    "required": True,
+                },
+                "status": {
+                    "type": "string",
+                    "description": "Status: pending, completed, failed, skipped",
+                },
                 "result": {"type": "object", "description": "Step execution result"},
                 "error": {"type": "string", "description": "Error message if failed"},
             },
@@ -877,10 +1373,25 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "Search query", "required": True},
-                "max_results": {"type": "integer", "description": "Max results to return", "default": 10},
-                "language": {"type": "string", "description": "Language code (e.g., 'en-us')"},
-                "timeout_seconds": {"type": "integer", "description": "Timeout in seconds", "default": 30},
+                "query": {
+                    "type": "string",
+                    "description": "Search query",
+                    "required": True,
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Max results to return",
+                    "default": 10,
+                },
+                "language": {
+                    "type": "string",
+                    "description": "Language code (e.g., 'en-us')",
+                },
+                "timeout_seconds": {
+                    "type": "integer",
+                    "description": "Timeout in seconds",
+                    "default": 30,
+                },
             },
             "required": ["query"],
         },
@@ -891,8 +1402,16 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "url": {"type": "string", "description": "URL to navigate to", "required": True},
-                "timeout_seconds": {"type": "integer", "description": "Timeout in seconds", "default": 30},
+                "url": {
+                    "type": "string",
+                    "description": "URL to navigate to",
+                    "required": True,
+                },
+                "timeout_seconds": {
+                    "type": "integer",
+                    "description": "Timeout in seconds",
+                    "default": 30,
+                },
             },
             "required": ["url"],
         },
@@ -903,9 +1422,20 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "url": {"type": "string", "description": "Document URL", "required": True},
-                "project_id": {"type": "string", "description": "Project ID for source attribution"},
-                "create_as_source": {"type": "boolean", "description": "Save as Layer 1 Source", "default": False},
+                "url": {
+                    "type": "string",
+                    "description": "Document URL",
+                    "required": True,
+                },
+                "project_id": {
+                    "type": "string",
+                    "description": "Project ID for source attribution",
+                },
+                "create_as_source": {
+                    "type": "boolean",
+                    "description": "Save as Layer 1 Source",
+                    "default": False,
+                },
                 "metadata": {"type": "object", "description": "Additional metadata"},
             },
             "required": ["url"],
@@ -917,14 +1447,38 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "project_id": {"type": "string", "description": "Project ID", "required": True},
+                "project_id": {
+                    "type": "string",
+                    "description": "Project ID",
+                    "required": True,
+                },
                 "task_id": {"type": "string", "description": "Optional task ID"},
                 "step_id": {"type": "string", "description": "Optional step ID"},
-                "note_type": {"type": "string", "description": "Type: observation, finding, question, hypothesis, synthesis", "default": "observation"},
-                "content": {"type": "string", "description": "Note content", "required": True},
-                "tags": {"type": "array", "items": {"type": "string"}, "description": "Tags"},
-                "linked_source_ids": {"type": "array", "items": {"type": "string"}, "description": "Linked source IDs"},
-                "linked_claim_ids": {"type": "array", "items": {"type": "string"}, "description": "Linked claim IDs"},
+                "note_type": {
+                    "type": "string",
+                    "description": "Type: observation, finding, question, hypothesis, synthesis",
+                    "default": "observation",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Note content",
+                    "required": True,
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Tags",
+                },
+                "linked_source_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Linked source IDs",
+                },
+                "linked_claim_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Linked claim IDs",
+                },
             },
             "required": ["project_id", "content"],
         },
@@ -935,7 +1489,11 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "project_id": {"type": "string", "description": "Project ID", "required": True},
+                "project_id": {
+                    "type": "string",
+                    "description": "Project ID",
+                    "required": True,
+                },
                 "task_id": {"type": "string", "description": "Optional task ID filter"},
             },
             "required": ["project_id"],
@@ -947,13 +1505,29 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "project_id": {"type": "string", "description": "Project ID", "required": True},
-                "source_type": {"type": "string", "description": "Type: url, folder, database, api", "required": True},
-                "label": {"type": "string", "description": "Source label", "required": True},
+                "project_id": {
+                    "type": "string",
+                    "description": "Project ID",
+                    "required": True,
+                },
+                "source_type": {
+                    "type": "string",
+                    "description": "Type: url, folder, database, api",
+                    "required": True,
+                },
+                "label": {
+                    "type": "string",
+                    "description": "Source label",
+                    "required": True,
+                },
                 "url": {"type": "string", "description": "URL (for url type)"},
                 "path": {"type": "string", "description": "Path (for folder type)"},
                 "description": {"type": "string", "description": "Source description"},
-                "reliability": {"type": "number", "description": "Reliability 0.0-1.0", "default": 0.5},
+                "reliability": {
+                    "type": "number",
+                    "description": "Reliability 0.0-1.0",
+                    "default": 0.5,
+                },
             },
             "required": ["project_id", "source_type", "label"],
         },
@@ -965,6 +1539,7 @@ TOOLS = [
 # Tool Handlers
 # =============================================================================
 
+
 @server.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
     """List available Fichero tools."""
@@ -972,11 +1547,17 @@ async def handle_list_tools() -> list[types.Tool]:
 
 
 @server.call_tool()
-async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextContent]:
+async def handle_call_tool(
+    name: str, arguments: dict[str, Any]
+) -> list[types.TextContent]:
     """Handle tool calls."""
     try:
         result = await _route_tool(name, arguments)
-        return [types.TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
+        return [
+            types.TextContent(
+                type="text", text=json.dumps(result, indent=2, default=str)
+            )
+        ]
     except Exception as e:
         logger.exception(f"Tool {name} failed: {e}")
         return [types.TextContent(type="text", text=json.dumps({"error": str(e)}))]
@@ -991,48 +1572,70 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
         return await api_client.request("GET", "/documents", params=params)
 
     elif name == "fichero_search_documents":
-        return await api_client.request("GET", "/search", params={
-            "query": args["query"],
-            "limit": args.get("limit", 20),
-        })
+        return await api_client.request(
+            "GET",
+            "/search",
+            params={
+                "query": args["query"],
+                "limit": args.get("limit", 20),
+            },
+        )
 
     elif name == "fichero_get_document":
         return await api_client.request("GET", f"/documents/{args['document_id']}")
 
     # Workflow tools
     elif name == "fichero_list_workflows":
-        return await api_client.request("GET", "/workflows", params={
-            "limit": args.get("limit", 50),
-        })
+        return await api_client.request(
+            "GET",
+            "/workflows",
+            params={
+                "limit": args.get("limit", 50),
+            },
+        )
 
     elif name == "fichero_get_workflow":
         return await api_client.request("GET", f"/workflows/{args['workflow_id']}")
 
     elif name == "fichero_create_workflow":
-        return await api_client.request("POST", "/workflows", data={
-            "name": args["name"],
-            "description": args.get("description", ""),
-            "nodes": args.get("nodes", []),
-            "edges": args.get("edges", []),
-        })
+        return await api_client.request(
+            "POST",
+            "/workflows",
+            data={
+                "name": args["name"],
+                "description": args.get("description", ""),
+                "nodes": args.get("nodes", []),
+                "edges": args.get("edges", []),
+            },
+        )
 
     elif name == "fichero_run_workflow":
-        return await api_client.request("POST", "/workflow-execution/execute", data={
-            "workflow_id": args["workflow_id"],
-            "input_files": args.get("input_files", []),
-            "inputs": args.get("inputs", {}),
-        })
+        return await api_client.request(
+            "POST",
+            "/workflow-execution/execute",
+            data={
+                "workflow_id": args["workflow_id"],
+                "input_files": args.get("input_files", []),
+                "inputs": args.get("inputs", {}),
+            },
+        )
 
     elif name == "fichero_workflow_status":
-        return await api_client.request("GET", f"/workflow-execution/status/{args['thread_id']}")
+        return await api_client.request(
+            "GET", f"/workflow-execution/status/{args['thread_id']}"
+        )
 
     # Batch tools
     elif name == "fichero_create_batch":
-        return await api_client.request("POST", "/batches", data={
-            "workflow_id": args["workflow_id"],
-            "file_paths": args["file_paths"],
-            "concurrency": args.get("concurrency", 4),
-        })
+        return await api_client.request(
+            "POST",
+            "/batches",
+            data={
+                "workflow_id": args["workflow_id"],
+                "file_paths": args["file_paths"],
+                "concurrency": args.get("concurrency", 4),
+            },
+        )
 
     elif name == "fichero_batch_status":
         return await api_client.request("GET", f"/batches/{args['batch_id']}")
@@ -1053,10 +1656,13 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
     elif name == "fichero_compare_models":
         data = {
             "prompt": args["prompt"],
-            "models": args.get("models", [
-                {"provider": "openai", "model": "gpt-4o"},
-                {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022"},
-            ]),
+            "models": args.get(
+                "models",
+                [
+                    {"provider": "openai", "model": "gpt-4o"},
+                    {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022"},
+                ],
+            ),
         }
         if args.get("system_prompt"):
             data["system_prompt"] = args["system_prompt"]
@@ -1066,7 +1672,9 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
     elif name == "fichero_list_tools":
         result = await api_client.request("GET", "/workflows/tools")
         if args.get("category") and "tools" in result:
-            result["tools"] = [t for t in result["tools"] if t.get("category") == args["category"]]
+            result["tools"] = [
+                t for t in result["tools"] if t.get("category") == args["category"]
+            ]
         return result
 
     # Health check
@@ -1075,29 +1683,43 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
 
     # Workflow chain tools
     elif name == "fichero_list_chains":
-        return await api_client.request("GET", "/chains", params={
-            "limit": args.get("limit", 50),
-        })
+        return await api_client.request(
+            "GET",
+            "/chains",
+            params={
+                "limit": args.get("limit", 50),
+            },
+        )
 
     elif name == "fichero_get_chain":
         return await api_client.request("GET", f"/chains/{args['chain_id']}")
 
     elif name == "fichero_create_chain":
-        return await api_client.request("POST", "/chains", data={
-            "name": args["name"],
-            "description": args.get("description", ""),
-            "steps": args.get("steps", []),
-            "initial_inputs": args.get("initial_inputs", {}),
-        })
+        return await api_client.request(
+            "POST",
+            "/chains",
+            data={
+                "name": args["name"],
+                "description": args.get("description", ""),
+                "steps": args.get("steps", []),
+                "initial_inputs": args.get("initial_inputs", {}),
+            },
+        )
 
     elif name == "fichero_run_chain":
-        return await api_client.request("POST", f"/chains/{args['chain_id']}/execute", data={
-            "inputs": args.get("inputs", {}),
-            "input_files": args.get("input_files", []),
-        })
+        return await api_client.request(
+            "POST",
+            f"/chains/{args['chain_id']}/execute",
+            data={
+                "inputs": args.get("inputs", {}),
+                "input_files": args.get("input_files", []),
+            },
+        )
 
     elif name == "fichero_chain_status":
-        return await api_client.request("GET", f"/chains/executions/{args['execution_id']}")
+        return await api_client.request(
+            "GET", f"/chains/executions/{args['execution_id']}"
+        )
 
     # Knowledge Graph tools
     elif name == "fichero_kg_list_claims":
@@ -1111,11 +1733,15 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
     elif name == "fichero_kg_patch_claim":
         claim_id = args["claim_id"]
         data = {k: v for k, v in args.items() if v is not None and k != "claim_id"}
-        return await api_client.request("PATCH", f"/knowledge-graph/claims/{claim_id}", data=data)
+        return await api_client.request(
+            "PATCH", f"/knowledge-graph/claims/{claim_id}", data=data
+        )
 
     elif name == "fichero_kg_list_entities":
         params = {k: v for k, v in args.items() if v is not None}
-        return await api_client.request("GET", "/knowledge-graph/entities", params=params)
+        return await api_client.request(
+            "GET", "/knowledge-graph/entities", params=params
+        )
 
     elif name == "fichero_kg_upsert_entity":
         data = {k: v for k, v in args.items() if v is not None}
@@ -1125,7 +1751,9 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
         data = {}
         if args.get("claim_ids"):
             data["claim_ids"] = args["claim_ids"]
-        return await api_client.request("POST", "/knowledge-graph/claims/semantic/embed", data=data)
+        return await api_client.request(
+            "POST", "/knowledge-graph/claims/semantic/embed", data=data
+        )
 
     elif name == "fichero_kg_semantic_search":
         params = {
@@ -1136,13 +1764,17 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
             params["claim_type"] = args["claim_type"]
         if args.get("curation_state"):
             params["curation_state"] = args["curation_state"]
-        return await api_client.request("GET", "/knowledge-graph/claims/semantic", params=params)
+        return await api_client.request(
+            "GET", "/knowledge-graph/claims/semantic", params=params
+        )
 
     elif name == "fichero_kg_embed_entities":
         data = {}
         if args.get("entity_ids"):
             data["entity_ids"] = args["entity_ids"]
-        return await api_client.request("POST", "/knowledge-graph/entities/semantic/embed", data=data)
+        return await api_client.request(
+            "POST", "/knowledge-graph/entities/semantic/embed", data=data
+        )
 
     elif name == "fichero_kg_semantic_entity_search":
         params = {
@@ -1151,7 +1783,9 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
         }
         if args.get("entity_type"):
             params["entity_type"] = args["entity_type"]
-        return await api_client.request("GET", "/knowledge-graph/entities/semantic", params=params)
+        return await api_client.request(
+            "GET", "/knowledge-graph/entities/semantic", params=params
+        )
 
     elif name == "fichero_kg_overview":
         params = {}
@@ -1159,21 +1793,34 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
             params["scope_type"] = args["scope_type"]
         if args.get("target_id"):
             params["target_id"] = args["target_id"]
-        return await api_client.request("GET", "/knowledge-graph/overview", params=params)
+        return await api_client.request(
+            "GET", "/knowledge-graph/overview", params=params
+        )
 
     # Knowledge Graph — Prediction tools
     elif name == "fichero_kg_generate_heuristic_predictions":
-        data = {k: v for k, v in args.items() if v is not None and k != "top_k" and k != "entity_id"}
+        data = {
+            k: v
+            for k, v in args.items()
+            if v is not None and k != "top_k" and k != "entity_id"
+        }
         params = {}
         if args.get("top_k"):
             params["top_k"] = args["top_k"]
         if args.get("entity_id"):
             params["entity_id"] = args["entity_id"]
-        return await api_client.request("POST", "/knowledge-graph/predictions/generate/heuristic", data=data, params=params)
+        return await api_client.request(
+            "POST",
+            "/knowledge-graph/predictions/generate/heuristic",
+            data=data,
+            params=params,
+        )
 
     elif name == "fichero_kg_apply_predictions":
         run_id = args["run_id"]
-        return await api_client.request("POST", f"/knowledge-graph/predictions/{run_id}/apply")
+        return await api_client.request(
+            "POST", f"/knowledge-graph/predictions/{run_id}/apply"
+        )
 
     # Hermeneutics — Circle navigation tools
     elif name == "fichero_hm_create_circle_state":
@@ -1183,16 +1830,22 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
     elif name == "fichero_hm_navigate_circle":
         state_id = args["state_id"]
         data = {k: v for k, v in args.items() if v is not None and k != "state_id"}
-        return await api_client.request("POST", f"/hermeneutics/circle-state/{state_id}/navigate", data=data)
+        return await api_client.request(
+            "POST", f"/hermeneutics/circle-state/{state_id}/navigate", data=data
+        )
 
     # Hermeneutics tools
     elif name == "fichero_hm_list_frameworks":
         params = {k: v for k, v in args.items() if v is not None}
-        return await api_client.request("GET", "/hermeneutics/frameworks", params=params)
+        return await api_client.request(
+            "GET", "/hermeneutics/frameworks", params=params
+        )
 
     elif name == "fichero_hm_apply_framework":
         data = {k: v for k, v in args.items() if v is not None}
-        return await api_client.request("POST", "/hermeneutics/interpretations", data=data)
+        return await api_client.request(
+            "POST", "/hermeneutics/interpretations", data=data
+        )
 
     elif name == "fichero_hm_find_patterns":
         params = {k: v for k, v in args.items() if v is not None}
@@ -1218,7 +1871,9 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
     elif name == "fichero_mp_move_node":
         node_id = args["node_id"]
         data = {k: v for k, v in args.items() if v is not None and k != "node_id"}
-        return await api_client.request("PATCH", f"/mind-palace/nodes/{node_id}", data=data)
+        return await api_client.request(
+            "PATCH", f"/mind-palace/nodes/{node_id}", data=data
+        )
 
     elif name == "fichero_mp_create_connection":
         data = {k: v for k, v in args.items() if v is not None}
@@ -1230,7 +1885,9 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
         params = {"room_id": room_id}
         if node_id:
             params["node_id"] = node_id
-        return await api_client.request("POST", f"/mind-palace/rooms/{room_id}/focus", params=params)
+        return await api_client.request(
+            "POST", f"/mind-palace/rooms/{room_id}/focus", params=params
+        )
 
     elif name == "fichero_mp_create_note":
         data = {k: v for k, v in args.items() if v is not None}
@@ -1239,7 +1896,9 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
     elif name == "fichero_mp_suggest_arrangement":
         room_id = args["room_id"]
         data = {k: v for k, v in args.items() if v is not None and k != "room_id"}
-        return await api_client.request("POST", f"/mind-palace/rooms/{room_id}/suggest-arrangement", data=data)
+        return await api_client.request(
+            "POST", f"/mind-palace/rooms/{room_id}/suggest-arrangement", data=data
+        )
 
     elif name == "fichero_mp_get_scene":
         room_id = args["room_id"]
@@ -1281,7 +1940,9 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
     elif name == "fichero_research_update_step":
         step_id = args["step_id"]
         data = {k: v for k, v in args.items() if v is not None and k != "step_id"}
-        return await api_client.request("PATCH", f"/research/steps/{step_id}", data=data)
+        return await api_client.request(
+            "PATCH", f"/research/steps/{step_id}", data=data
+        )
 
     elif name == "fichero_research_web_search":
         data = {k: v for k, v in args.items() if v is not None}
@@ -1289,11 +1950,15 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
 
     elif name == "fichero_research_browser_navigate":
         data = {k: v for k, v in args.items() if v is not None}
-        return await api_client.request("POST", "/research/tools/browser-navigate", data=data)
+        return await api_client.request(
+            "POST", "/research/tools/browser-navigate", data=data
+        )
 
     elif name == "fichero_research_document_fetch":
         data = {k: v for k, v in args.items() if v is not None}
-        return await api_client.request("POST", "/research/tools/document-fetch", data=data)
+        return await api_client.request(
+            "POST", "/research/tools/document-fetch", data=data
+        )
 
     elif name == "fichero_research_create_note":
         data = {k: v for k, v in args.items() if v is not None}
@@ -1303,7 +1968,9 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
         project_id = args["project_id"]
         params = {k: v for k, v in args.items() if v is not None and k != "project_id"}
         params["project_id"] = project_id
-        return await api_client.request("GET", f"/research/projects/{project_id}/notes", params=params)
+        return await api_client.request(
+            "GET", f"/research/projects/{project_id}/notes", params=params
+        )
 
     elif name == "fichero_research_add_source":
         data = {k: v for k, v in args.items() if v is not None}
@@ -1316,6 +1983,7 @@ async def _route_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
 # =============================================================================
 # Server Runner
 # =============================================================================
+
 
 async def run_server():
     """Run the MCP server using stdio transport."""

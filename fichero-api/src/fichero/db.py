@@ -43,11 +43,7 @@ import logging
 import re
 import duckdb
 from pydantic import BaseModel
-from fichero.errors import (
-    ErrorCategory,
-    handle_error,
-    retry_on_failure
-)
+from fichero.errors import ErrorCategory, handle_error, retry_on_failure
 
 logger = logging.getLogger(__name__)
 
@@ -61,20 +57,25 @@ MIN_CONTENT_LENGTH = 10
 DEFAULT_MODEL = "intfloat/multilingual-e5-large"
 
 # Valid identifier pattern for SQL column/table names
-_VALID_IDENTIFIER = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+_VALID_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 
 @dataclass
 class SearchResult:
     """Search result with score and document reference."""
+
     document_id: str
     score: float
     content_preview: str
     metadata: dict[str, Any]
     highlights: list[str] | None = None  # Highlighted text snippets
-    
+
     def __repr__(self) -> str:
-        preview = self.content_preview[:50] + "..." if len(self.content_preview) > 50 else self.content_preview
+        preview = (
+            self.content_preview[:50] + "..."
+            if len(self.content_preview) > 50
+            else self.content_preview
+        )
         return f"SearchResult(id={self.document_id}, score={self.score:.3f}, preview='{preview}')"
 
 
@@ -90,6 +91,7 @@ class Database:
         """
         if path is None:
             from fichero.storage import settings
+
             path = settings.db_path
         else:
             path = Path(path)
@@ -123,7 +125,11 @@ class Database:
 
         # Exclude computed fields (they're derived, not stored)
         model_cls = type(obj)
-        computed_keys = set(model_cls.model_computed_fields.keys()) if hasattr(model_cls, 'model_computed_fields') else set()
+        computed_keys = (
+            set(model_cls.model_computed_fields.keys())
+            if hasattr(model_cls, "model_computed_fields")
+            else set()
+        )
         data = obj.model_dump(exclude=computed_keys)
 
         # Convert dict/list/tuple/Path fields for DuckDB (recursively handle nested Pydantic models with datetimes)
@@ -154,11 +160,11 @@ class Database:
 
         self.conn.execute(
             f"INSERT OR REPLACE INTO {table} ({col_names}) VALUES ({placeholders})",
-            data
+            data,
         )
 
         # Auto-embed if requested and has content
-        if auto_embed and hasattr(obj, 'page_content') and obj.page_content:
+        if auto_embed and hasattr(obj, "page_content") and obj.page_content:
             self.embed(obj)
 
     def get(self, model: Type[T], id: str) -> T | None:
@@ -167,8 +173,7 @@ class Database:
         self._ensure_table(model)
 
         result = self.conn.execute(
-            f"SELECT * FROM {table} WHERE id = $id",
-            {"id": id}
+            f"SELECT * FROM {table} WHERE id = $id", {"id": id}
         ).fetchone()
 
         if result is None:
@@ -216,7 +221,7 @@ class Database:
             if v is None:
                 # Use IS NULL for None values
                 where_clauses.append(f"{k} IS NULL")
-            elif hasattr(v, 'value'):  # It's an enum
+            elif hasattr(v, "value"):  # It's an enum
                 query_filters[k] = v.value
                 where_clauses.append(f"{k} = ${k}")
             else:
@@ -225,8 +230,7 @@ class Database:
 
         where = " AND ".join(where_clauses)
         rows = self.conn.execute(
-            f"SELECT * FROM {table} WHERE {where}",
-            query_filters
+            f"SELECT * FROM {table} WHERE {where}", query_filters
         ).fetchall()
 
         if not rows:
@@ -243,10 +247,7 @@ class Database:
         table = self._table_name(obj)
         self._ensure_table(type(obj))
 
-        self.conn.execute(
-            f"DELETE FROM {table} WHERE id = $id",
-            {"id": obj.id}
-        )
+        self.conn.execute(f"DELETE FROM {table} WHERE id = $id", {"id": obj.id})
 
     def count(self, model: Type[T], **filters) -> int:
         """Count objects matching filters."""
@@ -263,8 +264,7 @@ class Database:
 
             where = " AND ".join(f"{k} = ${k}" for k in filters.keys())
             result = self.conn.execute(
-                f"SELECT COUNT(*) FROM {table} WHERE {where}",
-                filters
+                f"SELECT COUNT(*) FROM {table} WHERE {where}", filters
             ).fetchone()
 
         return result[0] if result else 0
@@ -278,13 +278,18 @@ class Database:
         """Lazy-load LanceDB connection."""
         if self._lance_db is None:
             import lancedb
+
             self._lance_path.mkdir(parents=True, exist_ok=True)
             self._lance_db = lancedb.connect(str(self._lance_path))
         return self._lance_db
 
     def _lance_tables(self) -> list[str]:
         """Return LanceDB table names across API versions."""
-        raw_tables = self.lance.list_tables() if hasattr(self.lance, "list_tables") else self.lance.table_names()
+        raw_tables = (
+            self.lance.list_tables()
+            if hasattr(self.lance, "list_tables")
+            else self.lance.table_names()
+        )
         if hasattr(raw_tables, "tables"):
             raw_tables = raw_tables.tables
         elif isinstance(raw_tables, dict):
@@ -308,10 +313,7 @@ class Database:
             self.lance.create_table(table_name, data)
 
     def search_vectors(
-        self,
-        table_name: str,
-        query_vector: list[float],
-        limit: int = 10
+        self, table_name: str, query_vector: list[float], limit: int = 10
     ) -> list[dict]:
         """Search LanceDB table by vector similarity."""
         if table_name not in self._lance_tables():
@@ -326,10 +328,7 @@ class Database:
     # =========================================================================
 
     def save_embedding(
-        self,
-        doc: BaseModel,
-        vector: list[float],
-        text: str | None = None
+        self, doc: BaseModel, vector: list[float], text: str | None = None
     ) -> None:
         """Save document embedding to LanceDB.
 
@@ -351,17 +350,18 @@ class Database:
             "vector": vector,
             # Store document metadata for search results display
             "name": getattr(doc, "name", None),
-            "doc_type": getattr(doc, "doc_type", None).value if hasattr(doc, "doc_type") and doc.doc_type else None,
-            "file_type": getattr(doc, "file_type", None).value if hasattr(doc, "file_type") and doc.file_type else None,
+            "doc_type": getattr(doc, "doc_type", None).value
+            if hasattr(doc, "doc_type") and doc.doc_type
+            else None,
+            "file_type": getattr(doc, "file_type", None).value
+            if hasattr(doc, "file_type") and doc.file_type
+            else None,
         }
 
         self.save_vectors("embeddings", [record])
 
     def search_similar(
-        self,
-        query_vector: list[float],
-        limit: int = 10,
-        model: Type[T] | None = None
+        self, query_vector: list[float], limit: int = 10, model: Type[T] | None = None
     ) -> list[dict] | list[T]:
         """Find similar documents by vector search.
 
@@ -396,7 +396,7 @@ class Database:
                 return False
 
             # Validate doc_id to prevent injection
-            if not doc_id or not _VALID_IDENTIFIER.match(doc_id.replace('-', '')):
+            if not doc_id or not _VALID_IDENTIFIER.match(doc_id.replace("-", "")):
                 # UUIDs contain hex chars and hyphens - just sanitize quotes
                 safe_id = doc_id.replace("'", "''")
             else:
@@ -410,7 +410,7 @@ class Database:
                 e,
                 default_message=f"Failed to delete embedding for document {doc_id}",
                 category=ErrorCategory.DATABASE,
-                context={"document_id": doc_id}
+                context={"document_id": doc_id},
             )
             logger.warning("Embedding deletion failed: %s", error.message)
             return False
@@ -504,7 +504,7 @@ class Database:
             Tuple of (results, total_count, search_stats)
         """
         import time
-        
+
         if not query or not query.strip():
             return [], 0, {"search_type": "none"}
 
@@ -521,10 +521,10 @@ class Database:
             # Initialize results storage
             semantic_results = []
             fulltext_results = []
-            
+
             # Check if embeddings table exists
             has_embeddings = "embeddings" in self._lance_tables()
-            
+
             # Perform semantic search if requested and available
             if search_type in ["semantic", "hybrid"] and has_embeddings:
                 try:
@@ -533,7 +533,9 @@ class Database:
 
                     # Search vectors
                     table = self.lance.open_table("embeddings")
-                    raw_results = table.search(query_vector).limit(limit * 2).to_list()  # Get more for hybrid
+                    raw_results = (
+                        table.search(query_vector).limit(limit * 2).to_list()
+                    )  # Get more for hybrid
 
                     # Convert to SearchResult, filter by score
                     for r in raw_results:
@@ -545,18 +547,20 @@ class Database:
                         if score < min_score:
                             continue
 
-                        semantic_results.append({
-                            "document_id": r.get("document_id") or r.get("id"),
-                            "score": score,
-                            "content": r.get("text", ""),
-                            "metadata": {
-                                "name": r.get("name"),
-                                "doc_type": r.get("doc_type"),
-                                "file_type": r.get("file_type"),
-                                "created_at": r.get("created_at"),
-                                "updated_at": r.get("updated_at"),
+                        semantic_results.append(
+                            {
+                                "document_id": r.get("document_id") or r.get("id"),
+                                "score": score,
+                                "content": r.get("text", ""),
+                                "metadata": {
+                                    "name": r.get("name"),
+                                    "doc_type": r.get("doc_type"),
+                                    "file_type": r.get("file_type"),
+                                    "created_at": r.get("created_at"),
+                                    "updated_at": r.get("updated_at"),
+                                },
                             }
-                        })
+                        )
                 except Exception as e:
                     logger.warning("Semantic search failed: %s", e)
 
@@ -568,30 +572,37 @@ class Database:
                         # Get all documents from embeddings table for full-text search
                         table = self.lance.open_table("embeddings")
                         all_docs = table.to_pandas()
-                        
+
                         # Filter by query text (simple full-text search)
                         if use_fuzzy_match:
                             # Simple fuzzy matching - could be enhanced with proper fuzzy search library
-                            mask = all_docs["text"].str.contains(query, case=False, regex=False)
+                            mask = all_docs["text"].str.contains(
+                                query, case=False, regex=False
+                            )
                         else:
-                            mask = all_docs["text"].str.contains(query, case=False, regex=False)
-                        
+                            mask = all_docs["text"].str.contains(
+                                query, case=False, regex=False
+                            )
+
                         fulltext_docs = all_docs[mask]
-                        
+
                         # Convert to results format
                         for _, row in fulltext_docs.iterrows():
-                            fulltext_results.append({
-                                "document_id": row.get("document_id") or row.get("id"),
-                                "score": 1.0,  # Full-text match gets high score
-                                "content": row.get("text", ""),
-                                "metadata": {
-                                    "name": row.get("name"),
-                                    "doc_type": row.get("doc_type"),
-                                    "file_type": row.get("file_type"),
-                                    "created_at": row.get("created_at"),
-                                    "updated_at": row.get("updated_at"),
+                            fulltext_results.append(
+                                {
+                                    "document_id": row.get("document_id")
+                                    or row.get("id"),
+                                    "score": 1.0,  # Full-text match gets high score
+                                    "content": row.get("text", ""),
+                                    "metadata": {
+                                        "name": row.get("name"),
+                                        "doc_type": row.get("doc_type"),
+                                        "file_type": row.get("file_type"),
+                                        "created_at": row.get("created_at"),
+                                        "updated_at": row.get("updated_at"),
+                                    },
                                 }
-                            })
+                            )
                 except Exception as e:
                     logger.warning("Full-text search failed: %s", e)
 
@@ -619,24 +630,33 @@ class Database:
                 for result in combined_results:
                     metadata = result["metadata"]
                     match = True
-                    
+
                     # Filter by doc_type
-                    if "doc_type" in filters and metadata.get("doc_type") != filters["doc_type"]:
+                    if (
+                        "doc_type" in filters
+                        and metadata.get("doc_type") != filters["doc_type"]
+                    ):
                         match = False
-                    
+
                     # Filter by file_type
-                    if "file_type" in filters and metadata.get("file_type") != filters["file_type"]:
+                    if (
+                        "file_type" in filters
+                        and metadata.get("file_type") != filters["file_type"]
+                    ):
                         match = False
-                    
+
                     # Filter by date range
                     if "date_from" in filters or "date_to" in filters:
                         created_at = metadata.get("created_at")
                         if created_at:
                             from datetime import datetime
+
                             try:
                                 created_date = datetime.fromisoformat(created_at)
                                 if "date_from" in filters:
-                                    from_date = datetime.fromisoformat(filters["date_from"])
+                                    from_date = datetime.fromisoformat(
+                                        filters["date_from"]
+                                    )
                                     if created_date < from_date:
                                         match = False
                                 if "date_to" in filters:
@@ -645,31 +665,42 @@ class Database:
                                         match = False
                             except (ValueError, TypeError):
                                 pass
-                    
+
                     if match:
                         filtered_results.append(result)
                 combined_results = filtered_results
 
             # Sort results
             if sort_by == "relevance":
-                combined_results.sort(key=lambda x: x["score"], reverse=(sort_order == "desc"))
-            elif sort_by == "date" and any(r["metadata"].get("created_at") for r in combined_results):
-                combined_results.sort(key=lambda x: x["metadata"].get("created_at", ""), reverse=(sort_order == "desc"))
+                combined_results.sort(
+                    key=lambda x: x["score"], reverse=(sort_order == "desc")
+                )
+            elif sort_by == "date" and any(
+                r["metadata"].get("created_at") for r in combined_results
+            ):
+                combined_results.sort(
+                    key=lambda x: x["metadata"].get("created_at", ""),
+                    reverse=(sort_order == "desc"),
+                )
             elif sort_by == "name":
-                combined_results.sort(key=lambda x: x["metadata"].get("name", ""), reverse=(sort_order == "desc"))
+                combined_results.sort(
+                    key=lambda x: x["metadata"].get("name", ""),
+                    reverse=(sort_order == "desc"),
+                )
 
             # Apply pagination
             total_count = len(combined_results)
-            paginated_results = combined_results[offset:offset + limit]
+            paginated_results = combined_results[offset : offset + limit]
 
             # Convert to SearchResult objects with highlighting
             for result in paginated_results:
                 content = result["content"]
                 highlights = None
-                
+
                 if highlight_results and query:
                     # Simple highlighting - find query in content
                     import re
+
                     # Escape special regex characters in query
                     escaped_query = re.escape(query)
                     # Find all occurrences (case insensitive)
@@ -680,16 +711,22 @@ class Database:
                         end = min(len(content), match.end() + 20)
                         snippet = content[start:end]
                         # Highlight the matched text
-                        highlighted = snippet.replace(match.group(), f"**{match.group()}**")
+                        highlighted = snippet.replace(
+                            match.group(), f"**{match.group()}**"
+                        )
                         highlights.append(highlighted)
 
-                results.append(SearchResult(
-                    document_id=result["document_id"],
-                    score=result["score"],
-                    content_preview=result["content"][:200] + "..." if len(result["content"]) > 200 else result["content"],
-                    metadata=result["metadata"],
-                    highlights=highlights
-                ))
+                results.append(
+                    SearchResult(
+                        document_id=result["document_id"],
+                        score=result["score"],
+                        content_preview=result["content"][:200] + "..."
+                        if len(result["content"]) > 200
+                        else result["content"],
+                        metadata=result["metadata"],
+                        highlights=highlights,
+                    )
+                )
 
             # Calculate execution time
             execution_time = time.time() - start_time
@@ -749,6 +786,7 @@ class Database:
         """Get configured embedding model, defaulting to multilingual-e5-large."""
         try:
             from fichero.app_db import get_app_db
+
             model = get_app_db().get_setting("default_embeddings_model")
             if model:
                 return model
@@ -766,6 +804,7 @@ class Database:
             try:
                 from fastembed import TextEmbedding
                 from fichero.local_models import MODELS_BASE
+
                 model_name = self._get_embedding_model_name()
                 cache_dir = MODELS_BASE / "embeddings"
                 cache_dir.mkdir(parents=True, exist_ok=True)
@@ -780,8 +819,7 @@ class Database:
                 )
             except ImportError:
                 raise ImportError(
-                    "fastembed not installed. "
-                    "Install with: pip install fastembed"
+                    "fastembed not installed. Install with: pip install fastembed"
                 )
 
     def _embed_text(self, text: str) -> list[float]:
@@ -847,9 +885,9 @@ class Database:
             path = Path(path)
             path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             for trace in traces:
-                f.write(trace.model_dump_json() + '\n')
+                f.write(trace.model_dump_json() + "\n")
 
         logger.debug("Exported %s traces to %s", len(traces), path)
         return path
@@ -938,8 +976,12 @@ class Database:
             inner_origin = get_origin(annotation)
 
             # If field expects dict/list and we got a string, parse it
-            if (annotation is dict or inner_origin is dict or
-                annotation is list or inner_origin is list):
+            if (
+                annotation is dict
+                or inner_origin is dict
+                or annotation is list
+                or inner_origin is list
+            ):
                 if isinstance(value, str):
                     try:
                         result[name] = json.loads(value)
@@ -952,7 +994,9 @@ class Database:
                 if isinstance(value, str):
                     try:
                         parsed = json.loads(value)
-                        result[name] = tuple(parsed) if isinstance(parsed, list) else value
+                        result[name] = (
+                            tuple(parsed) if isinstance(parsed, list) else value
+                        )
                     except (json.JSONDecodeError, TypeError):
                         result[name] = value
                 elif isinstance(value, list):
@@ -985,7 +1029,7 @@ class Database:
 
         self.conn.execute(f"""
             CREATE TABLE IF NOT EXISTS {table} (
-                {', '.join(columns)},
+                {", ".join(columns)},
                 PRIMARY KEY (id)
             )
         """)
@@ -1031,91 +1075,94 @@ class Database:
     def close(self) -> None:
         """Close database connection."""
         self.conn.close()
-    
+
     @retry_on_failure(max_attempts=2, delay_seconds=0.5)
     def _migrate_workflow_table(self) -> None:
         """Migrate workflows table to new schema if needed."""
         try:
             # First check if table exists
-            table_exists = self.conn.execute("""
+            table_exists = (
+                self.conn.execute("""
                 SELECT COUNT(*) FROM information_schema.tables 
                 WHERE table_name = 'workflows'
-            """).fetchone()[0] > 0
-            
+            """).fetchone()[0]
+                > 0
+            )
+
             if not table_exists:
                 # Table doesn't exist, no migration needed
                 logger.debug("Workflows table does not exist, skipping migration")
                 return
-            
+
             # Check current schema
             result = self.conn.execute("PRAGMA table_info('workflows')").fetchall()
             columns = [row[1] for row in result]
-            
+
             # If old schema (has 'steps' but not 'format'), migrate
-            if 'steps' in columns and 'format' not in columns:
+            if "steps" in columns and "format" not in columns:
                 logger.info("Migrating workflows table to new schema...")
-                
+
                 # Add new columns
                 self.conn.execute("""
                     ALTER TABLE workflows 
                     ADD COLUMN format VARCHAR DEFAULT 'steps'
                 """)
-                
+
                 self.conn.execute("""
                     ALTER TABLE workflows 
                     ADD COLUMN nodes JSON DEFAULT []
                 """)
-                
+
                 self.conn.execute("""
                     ALTER TABLE workflows 
                     ADD COLUMN edges JSON DEFAULT []
                 """)
-                
+
                 self.conn.execute("""
                     ALTER TABLE workflows 
                     ADD COLUMN folder_path VARCHAR DEFAULT '/'
                 """)
-                
+
                 self.conn.execute("""
                     ALTER TABLE workflows 
                     ADD COLUMN sort_order INTEGER DEFAULT 0
                 """)
-                
+
                 self.conn.execute("""
                     ALTER TABLE workflows 
                     ADD COLUMN is_template BOOLEAN DEFAULT FALSE
                 """)
-                
+
                 self.conn.execute("""
                     ALTER TABLE workflows 
                     ADD COLUMN tags JSON DEFAULT []
                 """)
-                
+
                 self.conn.execute("""
                     ALTER TABLE workflows 
                     ADD COLUMN provider VARCHAR DEFAULT ''
                 """)
-                
+
                 self.conn.execute("""
                     ALTER TABLE workflows 
                     ADD COLUMN model VARCHAR DEFAULT ''
                 """)
-                
+
                 # Migrate existing data: convert steps to placeholder nodes/edges
                 self.conn.execute("""
                     UPDATE workflows 
                     SET format = 'steps'
                     WHERE format IS NULL OR format = ''
                 """)
-                
+
                 logger.info("Workflows table migration completed")
-                
+
         except Exception as e:
             error = handle_error(
                 e,
                 default_message="Workflow table migration failed",
                 category=ErrorCategory.DATABASE,
-                context={"operation": "workflow_table_migration"}
+                context={"operation": "workflow_table_migration"},
             )
             logger.warning("Migration failed: %s", error.message)
             raise  # Re-raise to trigger retry
@@ -1124,10 +1171,13 @@ class Database:
         """Migrate saved_searches table to add missing columns."""
         try:
             # Check if table exists using DuckDB's information_schema
-            table_exists = self.conn.execute("""
+            table_exists = (
+                self.conn.execute("""
                 SELECT COUNT(*) FROM information_schema.tables
                 WHERE table_name = 'saved_searches'
-            """).fetchone()[0] > 0
+            """).fetchone()[0]
+                > 0
+            )
 
             if not table_exists:
                 # Table doesn't exist, nothing to migrate
@@ -1139,24 +1189,30 @@ class Database:
             columns = {row[1]: row for row in result}
 
             # Add folder_path if missing
-            if 'folder_path' not in columns:
-                logger.info("Migrating saved_searches table: adding folder_path column...")
+            if "folder_path" not in columns:
+                logger.info(
+                    "Migrating saved_searches table: adding folder_path column..."
+                )
                 self.conn.execute("""
                     ALTER TABLE saved_searches
                     ADD COLUMN folder_path VARCHAR DEFAULT '/'
                 """)
 
             # Add sort_order if missing
-            if 'sort_order' not in columns:
-                logger.info("Migrating saved_searches table: adding sort_order column...")
+            if "sort_order" not in columns:
+                logger.info(
+                    "Migrating saved_searches table: adding sort_order column..."
+                )
                 self.conn.execute("""
                     ALTER TABLE saved_searches
                     ADD COLUMN sort_order INTEGER DEFAULT 0
                 """)
 
             # Add sort_direction if missing
-            if 'sort_direction' not in columns:
-                logger.info("Migrating saved_searches table: adding sort_direction column...")
+            if "sort_direction" not in columns:
+                logger.info(
+                    "Migrating saved_searches table: adding sort_direction column..."
+                )
                 self.conn.execute("""
                     ALTER TABLE saved_searches
                     ADD COLUMN sort_direction VARCHAR DEFAULT 'desc'
@@ -1176,10 +1232,13 @@ class Database:
         """
         try:
             # Check if table exists
-            table_exists = self.conn.execute("""
+            table_exists = (
+                self.conn.execute("""
                 SELECT COUNT(*) FROM information_schema.tables
                 WHERE table_name = 'provider_refs'
-            """).fetchone()[0] > 0
+            """).fetchone()[0]
+                > 0
+            )
 
             if table_exists:
                 logger.debug("provider_refs table already exists")
@@ -1320,7 +1379,7 @@ class DatabaseManager:
 
     def __init__(self):
         self._databases: dict[str, Database] = {}
-        self._lock = __import__('threading').Lock()
+        self._lock = __import__("threading").Lock()
         logger.info("DatabaseManager initialized")
 
     def get_database(self, package_path: str | Path) -> Database:

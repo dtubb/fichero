@@ -8,7 +8,9 @@ from fichero.db import Database
 from fichero.knowledge_models import KnowledgeClaim, SourceType
 
 
-def migrate_claims_to_multi_source(db: Database, dry_run: bool = False) -> tuple[int, int]:
+def migrate_claims_to_multi_source(
+    db: Database, dry_run: bool = False
+) -> tuple[int, int]:
     """Migrate KnowledgeClaim records from single-source to multi-source schema.
 
     Idempotent: checks source_type to avoid double-migration.

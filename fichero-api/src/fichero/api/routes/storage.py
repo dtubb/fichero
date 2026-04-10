@@ -28,7 +28,9 @@ router = APIRouter()
 
 def _inline_content_disposition(filename: str) -> str:
     """Build a Content-Disposition header safe for non-ASCII filenames."""
-    ascii_fallback = filename.encode("ascii", "replace").decode("ascii").replace('"', "")
+    ascii_fallback = (
+        filename.encode("ascii", "replace").decode("ascii").replace('"', "")
+    )
     encoded_filename = quote(filename, safe="")
     return f"inline; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded_filename}"
 
@@ -123,7 +125,9 @@ async def get_source_file(
     source_path = resolve_source(doc)
 
     if not source_path:
-        logger.warning(f"resolve_source returned None for doc {doc_id}: path={doc.path}, has_bookmark={bool(doc.metadata.get('bookmark'))}")
+        logger.warning(
+            f"resolve_source returned None for doc {doc_id}: path={doc.path}, has_bookmark={bool(doc.metadata.get('bookmark'))}"
+        )
         raise HTTPException(status_code=404, detail="Source file not available")
 
     if not source_path.exists():
@@ -303,17 +307,25 @@ async def get_snapshots(
     return SnapshotListResponse(snapshots=snapshots, total=len(snapshots))
 
 
-@router.get("/snapshots/{snapshot_id}", response_model=LibrarySnapshot, tags=["snapshots"])
+@router.get(
+    "/snapshots/{snapshot_id}", response_model=LibrarySnapshot, tags=["snapshots"]
+)
 async def get_snapshot(snapshot_id: str) -> LibrarySnapshot:
     """Get a single snapshot by ID."""
     snapshots = list_snapshots(include_expired=True)
     snapshot = next((s for s in snapshots if s.id == snapshot_id), None)
     if not snapshot:
-        raise HTTPException(status_code=404, detail=f"Snapshot not found: {snapshot_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Snapshot not found: {snapshot_id}"
+        )
     return snapshot
 
 
-@router.post("/snapshots/{snapshot_id}/restore", response_model=SnapshotRestoreResponse, tags=["snapshots"])
+@router.post(
+    "/snapshots/{snapshot_id}/restore",
+    response_model=SnapshotRestoreResponse,
+    tags=["snapshots"],
+)
 async def restore_library_snapshot(snapshot_id: str) -> SnapshotRestoreResponse:
     """Restore a library from a snapshot.
 
@@ -330,16 +342,24 @@ async def restore_library_snapshot(snapshot_id: str) -> SnapshotRestoreResponse:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/snapshots/{snapshot_id}", response_model=SnapshotDeleteResponse, tags=["snapshots"])
+@router.delete(
+    "/snapshots/{snapshot_id}",
+    response_model=SnapshotDeleteResponse,
+    tags=["snapshots"],
+)
 async def remove_snapshot(snapshot_id: str) -> SnapshotDeleteResponse:
     """Delete a snapshot and its data files."""
     deleted = delete_snapshot(snapshot_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail=f"Snapshot not found: {snapshot_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Snapshot not found: {snapshot_id}"
+        )
     return SnapshotDeleteResponse(deleted=True, snapshot_id=snapshot_id)
 
 
-@router.patch("/snapshots/{snapshot_id}/pin", response_model=LibrarySnapshot, tags=["snapshots"])
+@router.patch(
+    "/snapshots/{snapshot_id}/pin", response_model=LibrarySnapshot, tags=["snapshots"]
+)
 async def pin_snapshot(
     snapshot_id: str,
     pinned: bool = True,
@@ -350,7 +370,9 @@ async def pin_snapshot(
     snapshots = _load_all_snapshot_records()
     snapshot = next((s for s in snapshots if s.id == snapshot_id), None)
     if not snapshot:
-        raise HTTPException(status_code=404, detail=f"Snapshot not found: {snapshot_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Snapshot not found: {snapshot_id}"
+        )
 
     snapshot.is_pinned = pinned
     _save_snapshot_record(snapshot)

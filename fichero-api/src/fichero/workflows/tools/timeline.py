@@ -53,7 +53,16 @@ TIMELINE_CONFIG = {
 }
 
 TIMELINE_INPUT_PORTS = merge_ports(
-    [PortDef(id="text", name="Text", port_type="input", data_type=DataType.TEXT, required=True, description="Source text or entity data")],
+    [
+        PortDef(
+            id="text",
+            name="Text",
+            port_type="input",
+            data_type=DataType.TEXT,
+            required=True,
+            description="Source text or entity data",
+        )
+    ],
     BASE_INPUT_PORTS,
 )
 
@@ -61,6 +70,7 @@ TIMELINE_INPUT_PORTS = merge_ports(
 # =============================================================================
 # Prompt Building
 # =============================================================================
+
 
 def _build_prompt(date_format: str, max_events: int) -> str:
     """Build the timeline prompt."""
@@ -108,6 +118,7 @@ def build_timeline_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="timeline",

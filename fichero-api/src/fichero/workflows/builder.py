@@ -58,6 +58,7 @@ MIN_FILES_FOR_ERROR_RATE = 10
 
 class WorkflowExecutionError(Exception):
     """Base exception for workflow execution errors."""
+
     pass
 
 
@@ -70,7 +71,10 @@ class SystemicErrorDetected(WorkflowExecutionError):
     - Service is unavailable
     - Rate limiting in effect
     """
-    def __init__(self, message: str, error_count: int, total_count: int, errors: list[dict]):
+
+    def __init__(
+        self, message: str, error_count: int, total_count: int, errors: list[dict]
+    ):
         super().__init__(message)
         self.error_count = error_count
         self.total_count = total_count
@@ -155,11 +159,13 @@ def build_graph(
     for edge in workflow.edges:
         if edge.target not in edges_by_target:
             edges_by_target[edge.target] = []
-        edges_by_target[edge.target].append({
-            "source": edge.source,
-            "source_port": edge.source_port,
-            "target_port": edge.target_port,
-        })
+        edges_by_target[edge.target].append(
+            {
+                "source": edge.source,
+                "source_port": edge.source_port,
+                "target_port": edge.target_port,
+            }
+        )
 
     # Identify parallel processing edges (source -> batch tool)
     parallel_edges = set()
@@ -171,7 +177,9 @@ def build_graph(
                 source_node = workflow.get_node(edge.source)
                 if source_node and source_node.tool in SOURCE_TOOLS:
                     parallel_edges.add((edge.source, edge.target))
-                    logger.info(f"Parallel edge detected: {edge.source} -> {edge.target}")
+                    logger.info(
+                        f"Parallel edge detected: {edge.source} -> {edge.target}"
+                    )
 
     # Add nodes using human-readable names
     for node_def in workflow.nodes:
@@ -184,8 +192,7 @@ def build_graph(
 
         # Check if this node receives parallel fan-out
         is_parallel_target = any(
-            (e["source"], node_def.id) in parallel_edges
-            for e in incoming_edges
+            (e["source"], node_def.id) in parallel_edges for e in incoming_edges
         )
 
         if is_parallel_target:
@@ -218,11 +225,7 @@ def build_graph(
         source_name = node_names[source_id]
         fan_out_fn = _make_fan_out_function(source_id, target_ids, node_names)
         target_process_names = [f"{node_names[t]}_process" for t in target_ids]
-        graph.add_conditional_edges(
-            source_name,
-            fan_out_fn,
-            target_process_names
-        )
+        graph.add_conditional_edges(source_name, fan_out_fn, target_process_names)
         # Connect each process node to its aggregate
         for target_id in target_ids:
             target_name = node_names[target_id]
@@ -239,9 +242,7 @@ def build_graph(
             # Conditional edge (for branching)
             condition_fn = _make_condition_function(edge.condition, workflow_config)
             graph.add_conditional_edges(
-                source_name,
-                condition_fn,
-                {True: target_name, False: END}
+                source_name, condition_fn, {True: target_name, False: END}
             )
         else:
             # Check if source was parallelized - connect from aggregate
@@ -316,21 +317,28 @@ def _make_node_function(
         if tool_def and tool_def.uses_llm:
             try:
                 from fichero.app_db import get_app_db
-                cat_default = get_app_db().get_default_model_for_category(tool_def.category)
+
+                cat_default = get_app_db().get_default_model_for_category(
+                    tool_def.category
+                )
                 if cat_default:
                     node_llm_config = LLMConfig(
                         provider=cat_default[0],
                         model=cat_default[1],
                     )
             except Exception as e:
-                logger.debug(f"Could not load category default for {tool_def.category}: {e}")
+                logger.debug(
+                    f"Could not load category default for {tool_def.category}: {e}"
+                )
 
     async def node_function(state: State) -> dict:
         """Execute the tool and update state."""
         node_id = node_def.id
         node_label = node_def.label or node_def.tool
 
-        logger.info(f"Running: {node_label} (tool: {node_def.tool}, provider: {node_llm_config.provider or 'NOT SET'})")
+        logger.info(
+            f"Running: {node_label} (tool: {node_def.tool}, provider: {node_llm_config.provider or 'NOT SET'})"
+        )
 
         try:
             # Convert input_mappings to inputs dict for resolver
@@ -345,12 +353,20 @@ def _make_node_function(
             if incoming_edges and not inputs_from_mappings:
                 for edge in incoming_edges:
                     source_node = edge.get("source") or edge.get("source_node_id")
-                    source_port = edge.get("source_port", "files")  # Default to "files" for source tools
-                    target_port = edge.get("target_port", "files")  # Default to "files" for input
+                    source_port = edge.get(
+                        "source_port", "files"
+                    )  # Default to "files" for source tools
+                    target_port = edge.get(
+                        "target_port", "files"
+                    )  # Default to "files" for input
                     if source_node:
                         # Create automatic path reference: $.nodes.{source_node}.{source_port}
-                        inputs_from_mappings[target_port] = f"$.nodes.{source_node}.{source_port}"
-                        logger.info(f"Auto-wired: {target_port} <- $.nodes.{source_node}.{source_port}")
+                        inputs_from_mappings[target_port] = (
+                            f"$.nodes.{source_node}.{source_port}"
+                        )
+                        logger.info(
+                            f"Auto-wired: {target_port} <- $.nodes.{source_node}.{source_port}"
+                        )
 
             # Merge: input_mappings take precedence over static inputs
             all_inputs = {**node_def.inputs, **inputs_from_mappings}
@@ -419,9 +435,7 @@ def _make_node_function(
 
 
 def _make_fan_out_function(
-    source_node_id: str,
-    target_node_ids: list[str],
-    node_names: dict[str, str]
+    source_node_id: str, target_node_ids: list[str], node_names: dict[str, str]
 ):
     """Create a function that fans out to parallel processing using Send API.
 
@@ -433,6 +447,7 @@ def _make_fan_out_function(
         target_node_ids: List of target node UUIDs
         node_names: Mapping from UUID to human-readable name
     """
+
     def fan_out(state: State) -> list[Send]:
         """Fan out to parallel file processing."""
         # Get files from source node output (still uses UUID as key in outputs)
@@ -463,21 +478,23 @@ def _make_fan_out_function(
                             doc = d
                             break
 
-                sends.append(Send(
-                    f"{target_name}_process",
-                    {
-                        # Pass single file info for this branch
-                        "parallel_file": file_path,
-                        "parallel_document": doc,
-                        "parallel_index": i,
-                        "parallel_total": total,
-                        # Preserve essential state
-                        "task_id": state.get("task_id", ""),
-                        "workflow_id": state.get("workflow_id", ""),
-                        "library_path": state.get("library_path", ""),
-                        "outputs": state.get("outputs", {}),
-                    }
-                ))
+                sends.append(
+                    Send(
+                        f"{target_name}_process",
+                        {
+                            # Pass single file info for this branch
+                            "parallel_file": file_path,
+                            "parallel_document": doc,
+                            "parallel_index": i,
+                            "parallel_total": total,
+                            # Preserve essential state
+                            "task_id": state.get("task_id", ""),
+                            "workflow_id": state.get("workflow_id", ""),
+                            "library_path": state.get("library_path", ""),
+                            "outputs": state.get("outputs", {}),
+                        },
+                    )
+                )
 
         return sends
 
@@ -514,14 +531,19 @@ def _make_parallel_node_function(
         if tool_def and tool_def.uses_llm:
             try:
                 from fichero.app_db import get_app_db
-                cat_default = get_app_db().get_default_model_for_category(tool_def.category)
+
+                cat_default = get_app_db().get_default_model_for_category(
+                    tool_def.category
+                )
                 if cat_default:
                     node_llm_config = LLMConfig(
                         provider=cat_default[0],
                         model=cat_default[1],
                     )
             except Exception as e:
-                logger.debug(f"Could not load category default for {tool_def.category}: {e}")
+                logger.debug(
+                    f"Could not load category default for {tool_def.category}: {e}"
+                )
 
     # Extract caching config
     workflow_id = workflow_config.get("workflow_id", "") if workflow_config else ""
@@ -547,6 +569,7 @@ def _make_parallel_node_function(
         if is_cacheable and library_path and not skip_cache:
             try:
                 from pathlib import Path
+
                 db_path = Path(library_path) / "fichero.duckdb"
                 if db_path.exists():
                     cache = get_node_cache(db_path)
@@ -563,33 +586,44 @@ def _make_parallel_node_function(
                     # Check cache
                     cached_result = cache.get(cache_key)
                     if cached_result is not None:
-                        print(f"[PARALLEL] [{index + 1}/{total}] CACHE HIT: {file_path}")
+                        print(
+                            f"[PARALLEL] [{index + 1}/{total}] CACHE HIT: {file_path}"
+                        )
                         logger.info(f"Cache hit for {file_path}")
 
                         # Emit file_complete event for cached result
                         if event_callback:
                             try:
-                                await event_callback("file_complete", {
-                                    "node_id": node_id,
-                                    "file_path": file_path,
-                                    "file_index": index,
-                                    "file_total": total,
-                                    "progress": float(index + 1) / max(total, 1),
-                                    "cached": True,
-                                })
+                                await event_callback(
+                                    "file_complete",
+                                    {
+                                        "node_id": node_id,
+                                        "file_path": file_path,
+                                        "file_index": index,
+                                        "file_total": total,
+                                        "progress": float(index + 1) / max(total, 1),
+                                        "cached": True,
+                                    },
+                                )
                             except Exception as cb_err:
-                                logger.warning(f"Failed to emit cached file_complete event: {cb_err}")
+                                logger.warning(
+                                    f"Failed to emit cached file_complete event: {cb_err}"
+                                )
 
                         # Return cached result
                         return {
-                            "parallel_results": {node_id: [{
-                                "file": file_path,
-                                "index": index,
-                                "total": total,
-                                "result": cached_result,
-                                "success": True,
-                                "cached": True,
-                            }]},
+                            "parallel_results": {
+                                node_id: [
+                                    {
+                                        "file": file_path,
+                                        "index": index,
+                                        "total": total,
+                                        "result": cached_result,
+                                        "success": True,
+                                        "cached": True,
+                                    }
+                                ]
+                            },
                         }
             except Exception as cache_err:
                 logger.warning(f"Cache check failed: {cache_err}")
@@ -597,13 +631,16 @@ def _make_parallel_node_function(
         # Emit file_start event via callback
         if event_callback:
             try:
-                await event_callback("file_start", {
-                    "node_id": node_id,
-                    "file_path": file_path,
-                    "file_index": index,
-                    "file_total": total,
-                    "progress": float(index) / max(total, 1),
-                })
+                await event_callback(
+                    "file_start",
+                    {
+                        "node_id": node_id,
+                        "file_path": file_path,
+                        "file_index": index,
+                        "file_total": total,
+                        "progress": float(index) / max(total, 1),
+                    },
+                )
             except Exception as e:
                 logger.warning(f"Failed to emit file_start event: {e}")
 
@@ -643,24 +680,31 @@ def _make_parallel_node_function(
                 # Emit file_error event
                 if event_callback:
                     try:
-                        await event_callback("file_error", {
-                            "node_id": node_id,
-                            "file_path": file_path,
-                            "file_index": index,
-                            "file_total": total,
-                            "error": error_msg,
-                            "progress": float(index + 1) / max(total, 1),
-                        })
+                        await event_callback(
+                            "file_error",
+                            {
+                                "node_id": node_id,
+                                "file_path": file_path,
+                                "file_index": index,
+                                "file_total": total,
+                                "error": error_msg,
+                                "progress": float(index + 1) / max(total, 1),
+                            },
+                        )
                     except Exception as cb_err:
                         logger.warning(f"Failed to emit file_error event: {cb_err}")
                 return {
-                    "parallel_results": {node_id: [{
-                        "file": file_path,
-                        "index": index,
-                        "total": total,  # Include total for SSE
-                        "error": error_msg,
-                        "success": False,
-                    }]},
+                    "parallel_results": {
+                        node_id: [
+                            {
+                                "file": file_path,
+                                "index": index,
+                                "total": total,  # Include total for SSE
+                                "error": error_msg,
+                                "success": False,
+                            }
+                        ]
+                    },
                 }
 
             print(f"[PARALLEL] [{index + 1}/{total}] Completed: {file_path}")
@@ -683,25 +727,32 @@ def _make_parallel_node_function(
             # Emit file_complete event
             if event_callback:
                 try:
-                    await event_callback("file_complete", {
-                        "node_id": node_id,
-                        "file_path": file_path,
-                        "file_index": index,
-                        "file_total": total,
-                        "progress": float(index + 1) / max(total, 1),
-                    })
+                    await event_callback(
+                        "file_complete",
+                        {
+                            "node_id": node_id,
+                            "file_path": file_path,
+                            "file_index": index,
+                            "file_total": total,
+                            "progress": float(index + 1) / max(total, 1),
+                        },
+                    )
                 except Exception as cb_err:
                     logger.warning(f"Failed to emit file_complete event: {cb_err}")
 
             # Return result for aggregation
             return {
-                "parallel_results": {node_id: [{
-                    "file": file_path,
-                    "index": index,
-                    "total": total,  # Include total for SSE
-                    "result": result,
-                    "success": True,
-                }]},
+                "parallel_results": {
+                    node_id: [
+                        {
+                            "file": file_path,
+                            "index": index,
+                            "total": total,  # Include total for SSE
+                            "result": result,
+                            "success": True,
+                        }
+                    ]
+                },
             }
 
         except Exception as e:
@@ -711,24 +762,31 @@ def _make_parallel_node_function(
             # Emit file_error event for exception
             if event_callback:
                 try:
-                    await event_callback("file_error", {
-                        "node_id": node_id,
-                        "file_path": file_path,
-                        "file_index": index,
-                        "file_total": total,
-                        "error": error_msg,
-                        "progress": float(index + 1) / max(total, 1),
-                    })
+                    await event_callback(
+                        "file_error",
+                        {
+                            "node_id": node_id,
+                            "file_path": file_path,
+                            "file_index": index,
+                            "file_total": total,
+                            "error": error_msg,
+                            "progress": float(index + 1) / max(total, 1),
+                        },
+                    )
                 except Exception as cb_err:
                     logger.warning(f"Failed to emit file_error event: {cb_err}")
             return {
-                "parallel_results": {node_id: [{
-                    "file": file_path,
-                    "index": index,
-                    "total": total,  # Include total for SSE
-                    "error": error_msg,
-                    "success": False,
-                }]},
+                "parallel_results": {
+                    node_id: [
+                        {
+                            "file": file_path,
+                            "index": index,
+                            "total": total,  # Include total for SSE
+                            "error": error_msg,
+                            "success": False,
+                        }
+                    ]
+                },
             }
 
     return parallel_node_function
@@ -741,6 +799,7 @@ def _make_aggregation_function(node_id: str):
     Detects systemic errors (consecutive failures or high error rate) and raises
     SystemicErrorDetected to abort the workflow early.
     """
+
     async def aggregate(state: State) -> dict:
         """Aggregate parallel processing results."""
         parallel_results = state.get("parallel_results", {}).get(node_id, [])
@@ -778,17 +837,23 @@ def _make_aggregation_function(node_id: str):
             else:
                 consecutive_errors += 1
                 max_consecutive_errors = max(max_consecutive_errors, consecutive_errors)
-                errors.append({
-                    "file": item.get("file"),
-                    "error": item.get("error"),
-                })
+                errors.append(
+                    {
+                        "file": item.get("file"),
+                        "error": item.get("error"),
+                    }
+                )
 
         total = len(sorted_results)
         error_count = len(errors)
         error_rate = error_count / total if total > 0 else 0
 
-        print(f"[AGGREGATE] {node_id}: {success_count}/{total} succeeded, {error_count} errors")
-        print(f"[AGGREGATE] Error rate: {error_rate:.1%}, Max consecutive errors: {max_consecutive_errors}")
+        print(
+            f"[AGGREGATE] {node_id}: {success_count}/{total} succeeded, {error_count} errors"
+        )
+        print(
+            f"[AGGREGATE] Error rate: {error_rate:.1%}, Max consecutive errors: {max_consecutive_errors}"
+        )
 
         # Check for systemic errors - these indicate fundamental issues that won't resolve
         # by continuing (e.g., invalid API key, network down, rate limiting)
@@ -851,7 +916,9 @@ def _make_aggregation_function(node_id: str):
     return aggregate
 
 
-def _make_condition_function(condition: str, workflow_config: dict[str, Any] | None = None):
+def _make_condition_function(
+    condition: str, workflow_config: dict[str, Any] | None = None
+):
     """Create a condition function from a path-based expression.
 
     Supports:
@@ -859,6 +926,7 @@ def _make_condition_function(condition: str, workflow_config: dict[str, Any] | N
     - $.nodes.x.count > 10
     - $.inputs.skip_step == true
     """
+
     def evaluate(state: State) -> bool:
         """Evaluate the condition expression."""
         return evaluate_condition(condition, state, workflow_config)
@@ -915,6 +983,8 @@ async def execute_workflow(
     if final_state.get("error"):
         logger.error(f"Workflow failed: {final_state['error']}")
     else:
-        logger.info(f"Workflow completed: {len(final_state.get('completed_nodes', []))} nodes")
+        logger.info(
+            f"Workflow completed: {len(final_state.get('completed_nodes', []))} nodes"
+        )
 
     return final_state

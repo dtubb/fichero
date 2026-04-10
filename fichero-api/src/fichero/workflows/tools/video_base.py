@@ -118,6 +118,7 @@ VIDEO_CONFIG_SCHEMA = merge_config_schema(
 # Video Tool Configuration (extends LLMToolConfig)
 # =============================================================================
 
+
 @dataclass
 class VideoToolConfig(LLMToolConfig):
     """Configuration for a video tool.
@@ -132,6 +133,7 @@ class VideoToolConfig(LLMToolConfig):
 # ffmpeg Utilities
 # =============================================================================
 
+
 def _check_ffmpeg() -> None:
     """Check that ffmpeg is available."""
     try:
@@ -142,8 +144,7 @@ def _check_ffmpeg() -> None:
         )
     except (FileNotFoundError, subprocess.CalledProcessError):
         raise RuntimeError(
-            "ffmpeg is not installed or not in PATH. "
-            "Install with: brew install ffmpeg"
+            "ffmpeg is not installed or not in PATH. Install with: brew install ffmpeg"
         )
 
 
@@ -162,12 +163,17 @@ def extract_audio_track_sync(video_path: str, output_path: str) -> str:
     logger.info(f"Extracting audio from: {Path(video_path).name}")
     subprocess.run(
         [
-            "ffmpeg", "-i", video_path,
-            "-vn",                    # No video
-            "-acodec", "pcm_s16le",   # PCM format for Whisper
-            "-ar", "16000",           # 16kHz sample rate
-            "-ac", "1",               # Mono
-            "-y",                     # Overwrite
+            "ffmpeg",
+            "-i",
+            video_path,
+            "-vn",  # No video
+            "-acodec",
+            "pcm_s16le",  # PCM format for Whisper
+            "-ar",
+            "16000",  # 16kHz sample rate
+            "-ac",
+            "1",  # Mono
+            "-y",  # Overwrite
             output_path,
         ],
         check=True,
@@ -207,24 +213,33 @@ def sample_frames_sync(
 
     frame_dir = tempfile.mkdtemp(prefix="fichero_frames_")
 
-    logger.info(f"Sampling frames from: {Path(video_path).name} (rate={rate}, max={max_frames})")
+    logger.info(
+        f"Sampling frames from: {Path(video_path).name} (rate={rate}, max={max_frames})"
+    )
     subprocess.run(
         [
-            "ffmpeg", "-i", video_path,
-            "-vf", f"fps={rate}",
-            "-frames:v", str(max_frames),
-            "-q:v", "2",              # High quality JPEG
+            "ffmpeg",
+            "-i",
+            video_path,
+            "-vf",
+            f"fps={rate}",
+            "-frames:v",
+            str(max_frames),
+            "-q:v",
+            "2",  # High quality JPEG
             os.path.join(frame_dir, "frame_%04d.jpg"),
         ],
         check=True,
         capture_output=True,
     )
 
-    frames = sorted([
-        os.path.join(frame_dir, f)
-        for f in os.listdir(frame_dir)
-        if f.startswith("frame_") and f.endswith(".jpg")
-    ])
+    frames = sorted(
+        [
+            os.path.join(frame_dir, f)
+            for f in os.listdir(frame_dir)
+            if f.startswith("frame_") and f.endswith(".jpg")
+        ]
+    )
 
     logger.info(f"Extracted {len(frames)} frames")
     return frames[:max_frames]
@@ -249,6 +264,7 @@ async def sample_frames(
 # =============================================================================
 # Frame Analysis with Vision LLM
 # =============================================================================
+
 
 async def describe_frames(
     frame_paths: list[str],
@@ -277,8 +293,7 @@ async def describe_frames(
 
     # Convert frames to data URIs
     image_uris = [
-        file_to_data_uri(fp, max_dimension=max_image_dimension)
-        for fp in frame_paths
+        file_to_data_uri(fp, max_dimension=max_image_dimension) for fp in frame_paths
     ]
 
     logger.info(f"Describing {len(image_uris)} frames with vision LLM")
@@ -302,6 +317,7 @@ Describe the video content based on these frames, noting any progression or chan
 # =============================================================================
 # Database Operations
 # =============================================================================
+
 
 async def save_artifact(
     file_path: str,
@@ -334,9 +350,11 @@ async def save_artifact(
 # Cleanup Utilities
 # =============================================================================
 
+
 def _cleanup_temp_files(*paths: str) -> None:
     """Remove temporary files and directories."""
     import shutil
+
     for path in paths:
         try:
             if os.path.isdir(path):
@@ -350,6 +368,7 @@ def _cleanup_temp_files(*paths: str) -> None:
 # =============================================================================
 # Main Processing Function
 # =============================================================================
+
 
 async def process_video(
     files: list[str],
@@ -439,7 +458,9 @@ async def process_video(
     if temperature is not None or max_tokens is not None:
         effective_config = dataclasses.replace(
             llm_config,
-            temperature=temperature if temperature is not None else llm_config.temperature,
+            temperature=temperature
+            if temperature is not None
+            else llm_config.temperature,
             max_tokens=max_tokens if max_tokens is not None else llm_config.max_tokens,
         )
 
@@ -570,7 +591,9 @@ async def process_video(
 
         except Exception as e:
             logger.error(f"Video processing failed for {file_path}: {e}")
-            results.append({"file": file_path, "text": "", "value": None, "error": str(e)})
+            results.append(
+                {"file": file_path, "text": "", "value": None, "error": str(e)}
+            )
             texts.append("")
             values.append(None)
 

@@ -62,6 +62,7 @@ SIMILARITY_CONFIG = {
 # Prompt Building
 # =============================================================================
 
+
 def _build_prompt(aspects: list[str], scale: str) -> str:
     """Build the similarity scoring prompt."""
     aspects_str = ", ".join(aspects)
@@ -106,6 +107,7 @@ def build_similarity_prompt(config: dict) -> str:
 # Tool Registration
 # =============================================================================
 
+
 @register_tool(
     name="similarity",
     display_name="Similarity",
@@ -119,7 +121,9 @@ def build_similarity_prompt(config: dict) -> str:
     input_ports=VISION_INPUT_PORTS,
     output_ports=BASE_OUTPUT_PORTS,
     config_schema=merge_config_schema(VISION_CONFIG_SCHEMA, SIMILARITY_CONFIG),
-    default_prompt=_build_prompt(["content", "composition", "color", "style"], "percentage"),
+    default_prompt=_build_prompt(
+        ["content", "composition", "color", "style"], "percentage"
+    ),
     prompt_builder=build_similarity_prompt,
     sort_order=29,
 )
@@ -165,12 +169,16 @@ async def similarity(
     if temperature is not None or max_tokens is not None:
         effective_config = dataclasses.replace(
             llm_config,
-            temperature=temperature if temperature is not None else llm_config.temperature,
+            temperature=temperature
+            if temperature is not None
+            else llm_config.temperature,
             max_tokens=max_tokens if max_tokens is not None else llm_config.max_tokens,
         )
 
     try:
-        image_uris = [file_to_data_uri(f, max_dimension=max_image_dimension) for f in files]
+        image_uris = [
+            file_to_data_uri(f, max_dimension=max_image_dimension) for f in files
+        ]
 
         response = await vision(
             images=image_uris,

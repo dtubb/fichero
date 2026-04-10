@@ -208,18 +208,18 @@ def _parse_xmp_regex(xmp_path: Path) -> dict[str, Any]:
 
         # Element form: <dc:title><rdf:Alt>...<rdf:li>value</rdf:li>...</rdf:Alt></dc:title>
         # Capture simple text content
-        elem_pattern = rf'<{re.escape(ns_prefix)}:{local_escaped}(?:\s[^>]*)?>([^<]*)</{re.escape(ns_prefix)}:{local_escaped}>'
+        elem_pattern = rf"<{re.escape(ns_prefix)}:{local_escaped}(?:\s[^>]*)?>([^<]*)</{re.escape(ns_prefix)}:{local_escaped}>"
         m = re.search(elem_pattern, content)
         if m:
             result[metadata_key] = m.group(1).strip()
             continue
 
         # Array form: <dc:subject><rdf:Bag><rdf:li>...</rdf:li>...</rdf:Bag></dc:subject>
-        arr_pattern = rf'<{re.escape(ns_prefix)}:{local_escaped}(?:\s[^>]*)?>.*?</{re.escape(ns_prefix)}:{local_escaped}>'
+        arr_pattern = rf"<{re.escape(ns_prefix)}:{local_escaped}(?:\s[^>]*)?>.*?</{re.escape(ns_prefix)}:{local_escaped}>"
         m = re.search(arr_pattern, content, re.DOTALL)
         if m:
             arr_content = m.group(0)
-            items = re.findall(r'<rdf:li[^>]*>([^<]*)</rdf:li>', arr_content)
+            items = re.findall(r"<rdf:li[^>]*>([^<]*)</rdf:li>", arr_content)
             if items:
                 result[metadata_key] = ", ".join(i.strip() for i in items if i.strip())
 

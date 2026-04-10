@@ -59,6 +59,7 @@ logger = logging.getLogger(__name__)
 # Configuration (Pydantic Settings)
 # =============================================================================
 
+
 class StorageSettings(BaseSettings):
     """Storage configuration.
 
@@ -71,7 +72,9 @@ class StorageSettings(BaseSettings):
     model_config = {"env_prefix": "FICHERO_"}
 
     # Base path - can be overridden for testing
-    base_path: Path = Path("~/Library/Application Support/com.tubb.fichero").expanduser()
+    base_path: Path = Path(
+        "~/Library/Application Support/com.tubb.fichero"
+    ).expanduser()
 
     # Thumbnail settings
     thumb_width: int = 200
@@ -138,6 +141,7 @@ settings = StorageSettings()
 # Path Helpers
 # =============================================================================
 
+
 def _thumb_path(doc_id: str, package_path: Path | None = None) -> Path:
     """Get sharded thumbnail path.
 
@@ -177,6 +181,7 @@ def _display_path(doc_id: str, package_path: Path | None = None) -> Path:
 # Source Resolution
 # =============================================================================
 
+
 def resolve_source(doc: "Document") -> Path | None:
     """Resolve the source file for a document.
 
@@ -197,6 +202,7 @@ def resolve_source(doc: "Document") -> Path | None:
     if bookmark_data := _get_bookmark(doc):
         try:
             from fichero.bookmarks import resolve_bookmark
+
             if path := resolve_bookmark(bookmark_data):
                 return path
         except ImportError:
@@ -236,7 +242,10 @@ def _get_bookmark(doc: "Document") -> bytes | None:
 # Thumbnail Generation
 # =============================================================================
 
-def ensure_thumbnail(doc: "Document", force: bool = False, package_path: Path | None = None) -> Path | None:
+
+def ensure_thumbnail(
+    doc: "Document", force: bool = False, package_path: Path | None = None
+) -> Path | None:
     """Generate thumbnail if needed.
 
     Args:
@@ -269,7 +278,9 @@ def ensure_thumbnail(doc: "Document", force: bool = False, package_path: Path | 
     return _generate_image(source, path, settings.thumb_size)
 
 
-def ensure_display(doc: "Document", force: bool = False, package_path: Path | None = None) -> Path | None:
+def ensure_display(
+    doc: "Document", force: bool = False, package_path: Path | None = None
+) -> Path | None:
     """Generate display-size image if needed.
 
     Args:
@@ -332,7 +343,10 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
         return dest
 
     except Exception as e:
-        logger.error(f"Image generation failed for {source.name} ({source.suffix}): {e}", exc_info=True)
+        logger.error(
+            f"Image generation failed for {source.name} ({source.suffix}): {e}",
+            exc_info=True,
+        )
         return None
 
 
@@ -351,8 +365,7 @@ def _get_executor() -> ThreadPoolExecutor:
     with _executor_lock:
         if _executor is None:
             _executor = ThreadPoolExecutor(
-                max_workers=settings.max_workers,
-                thread_name_prefix="thumb"
+                max_workers=settings.max_workers, thread_name_prefix="thumb"
             )
     return _executor
 
@@ -412,6 +425,7 @@ def ensure_displays(
 # =============================================================================
 # Cleanup
 # =============================================================================
+
 
 def cleanup_orphans(valid_doc_ids: set[str]) -> int:
     """Remove thumbnails for documents that no longer exist.
@@ -483,6 +497,7 @@ def clear_all() -> int:
 # Stats
 # =============================================================================
 
+
 def stats(package_path: Path | None = None) -> dict:
     """Get storage statistics.
 
@@ -541,7 +556,7 @@ async def save_uploaded_file(file) -> Path:
         content = await file.read()
 
         # Write to temp file
-        with open(fd, 'wb') as f:
+        with open(fd, "wb") as f:
             f.write(content)
 
         logger.debug(f"Saved upload to temp: {temp_path}")
@@ -568,6 +583,7 @@ def shutdown() -> None:
 # =============================================================================
 # Convenience - Document Path Properties
 # =============================================================================
+
 
 def expected_thumbnail_path(doc_id: str, package_path: Path | None = None) -> Path:
     """Get expected thumbnail path (may not exist yet).
@@ -712,6 +728,7 @@ def snapshot_library(
     if db_path.exists():
         try:
             import duckdb
+
             export_conn = duckdb.connect(str(db_path), read_only=True)
             # Get list of tables
             tables = export_conn.execute("SHOW TABLES").fetchall()
@@ -722,7 +739,9 @@ def snapshot_library(
                 )
                 duckdb_size += out_path.stat().st_size
             export_conn.close()
-            logger.info(f"Exported DuckDB ({duckdb_size / 1024 / 1024:.1f} MB) to {duckdb_export_dir}")
+            logger.info(
+                f"Exported DuckDB ({duckdb_size / 1024 / 1024:.1f} MB) to {duckdb_export_dir}"
+            )
         except Exception as e:
             raise RuntimeError(f"DuckDB export failed: {e}") from e
     else:
@@ -737,7 +756,9 @@ def snapshot_library(
             lance_size = sum(
                 f.stat().st_size for f in lance_copy_dir.rglob("*") if f.is_file()
             )
-            logger.info(f"Copied LanceDB ({lance_size / 1024 / 1024:.1f} MB) to {lance_copy_dir}")
+            logger.info(
+                f"Copied LanceDB ({lance_size / 1024 / 1024:.1f} MB) to {lance_copy_dir}"
+            )
         except Exception as e:
             raise RuntimeError(f"LanceDB copy failed: {e}") from e
     else:
@@ -774,7 +795,9 @@ def snapshot_library(
     # Enforce retention policy
     _enforce_retention(library_name)
 
-    logger.info(f"Created snapshot {snapshot_id} for {library_name}: {file_count} files")
+    logger.info(
+        f"Created snapshot {snapshot_id} for {library_name}: {file_count} files"
+    )
     return snapshot
 
 
@@ -843,6 +866,7 @@ def restore_snapshot(snapshot_id: str) -> dict:
         lib_path = Path(snapshot.library_path)
         restored_db_path = lib_path.parent / f"{lib_path.stem}.restored-{ts}.duckdb"
         import duckdb
+
         restore_conn = duckdb.connect(str(restored_db_path))
         for parquet_file in sorted(db_src.glob("*.parquet")):
             table_name = parquet_file.stem
@@ -865,7 +889,9 @@ def restore_snapshot(snapshot_id: str) -> dict:
         "snapshot_id": snapshot_id,
         "library_path": snapshot.library_path,
         "duckdb_restored_path": str(restored_db_path) if restored_db_path else None,
-        "lance_restored_path": str(restored_lance_path) if restored_lance_path else None,
+        "lance_restored_path": str(restored_lance_path)
+        if restored_lance_path
+        else None,
         "note": "Restored files are created alongside originals. Update X-Fichero-Library-Path to use restored library.",
     }
 

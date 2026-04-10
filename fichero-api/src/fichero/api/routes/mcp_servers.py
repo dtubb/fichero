@@ -21,8 +21,10 @@ router = APIRouter()
 # Request/Response Models
 # =============================================================================
 
+
 class CreateMCPServerRequest(BaseModel):
     """Request to create a new MCP server."""
+
     name: str
     description: str = ""
     transport: str  # "stdio", "sse", "http", or "websocket"
@@ -37,6 +39,7 @@ class CreateMCPServerRequest(BaseModel):
 
 class UpdateMCPServerRequest(BaseModel):
     """Request to update an existing MCP server."""
+
     name: str | None = None
     description: str | None = None
     transport: str | None = None
@@ -51,6 +54,7 @@ class UpdateMCPServerRequest(BaseModel):
 
 class MCPServerResponse(BaseModel):
     """Response containing MCP server details."""
+
     id: str
     name: str
     description: str
@@ -68,6 +72,7 @@ class MCPServerResponse(BaseModel):
 
 class MCPToolInfo(BaseModel):
     """Information about a tool from an MCP server."""
+
     name: str
     description: str
     server_name: str
@@ -76,6 +81,7 @@ class MCPToolInfo(BaseModel):
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
 
 def _server_to_response(server: MCPServer) -> MCPServerResponse:
     """Convert MCPServer model to API response."""
@@ -199,6 +205,7 @@ async def load_mcp_tools_into_workflow_registry():
 
         # Load MCP tools into workflow registry
         from fichero.workflows.tools.mcp import load_mcp_tools_into_registry
+
         tool_count = await load_mcp_tools_into_registry()
 
         logger.info(f"Loaded {tool_count} MCP tools into workflow registry")
@@ -230,6 +237,7 @@ async def reload_mcp_tools_in_workflow_registry():
 
         # Reload MCP tools
         from fichero.workflows.tools.mcp import reload_mcp_tools
+
         tool_count = await reload_mcp_tools()
 
         logger.info(f"Reloaded {tool_count} MCP tools in workflow registry")
@@ -251,7 +259,9 @@ async def get_mcp_server(server_id: str):
         app_db = get_app_db()
         server = app_db.get_mcp_server(server_id)
         if not server:
-            raise HTTPException(status_code=404, detail=f"Server not found: {server_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Server not found: {server_id}"
+            )
         return _server_to_response(server)
     except HTTPException:
         raise
@@ -271,7 +281,7 @@ async def create_mcp_server(request: CreateMCPServerRequest):
         if existing:
             raise HTTPException(
                 status_code=400,
-                detail=f"Server with name '{request.name}' already exists"
+                detail=f"Server with name '{request.name}' already exists",
             )
 
         # Create server model
@@ -315,7 +325,9 @@ async def update_mcp_server(server_id: str, request: UpdateMCPServerRequest):
         # Get existing server
         server = app_db.get_mcp_server(server_id)
         if not server:
-            raise HTTPException(status_code=404, detail=f"Server not found: {server_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Server not found: {server_id}"
+            )
 
         # Update fields
         if request.name is not None:
@@ -366,7 +378,9 @@ async def delete_mcp_server(server_id: str):
         # Get existing server
         server = app_db.get_mcp_server(server_id)
         if not server:
-            raise HTTPException(status_code=404, detail=f"Server not found: {server_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Server not found: {server_id}"
+            )
 
         server_name = server.name
 
@@ -401,12 +415,13 @@ async def load_server_tools(server_id: str, force_reload: bool = False):
         # Get server from database
         server = app_db.get_mcp_server(server_id)
         if not server:
-            raise HTTPException(status_code=404, detail=f"Server not found: {server_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Server not found: {server_id}"
+            )
 
         if not server.enabled:
             raise HTTPException(
-                status_code=400,
-                detail=f"Server '{server.name}' is disabled"
+                status_code=400, detail=f"Server '{server.name}' is disabled"
             )
 
         # Ensure server is in manager

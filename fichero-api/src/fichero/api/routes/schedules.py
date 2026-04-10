@@ -32,10 +32,14 @@ router = APIRouter(prefix="/schedules", tags=["schedules"])
 
 # Request/Response Models
 
+
 class ScheduleConfigRequest(BaseModel):
     """Schedule configuration request."""
+
     schedule_type: str = Field(..., description="Type: cron, interval, or once")
-    cron_expression: Optional[str] = Field(None, description="Cron expression (e.g., '0 9 * * 1')")
+    cron_expression: Optional[str] = Field(
+        None, description="Cron expression (e.g., '0 9 * * 1')"
+    )
     interval_seconds: Optional[int] = Field(None, description="Interval in seconds")
     run_at: Optional[datetime] = Field(None, description="One-time run datetime")
     timezone: str = Field("UTC", description="Timezone for schedule")
@@ -46,28 +50,39 @@ class ScheduleConfigRequest(BaseModel):
 
 class CreateScheduleRequest(BaseModel):
     """Request to create a new schedule."""
+
     name: str = Field(..., description="Display name for the schedule")
     workflow_id: str = Field(..., description="ID of workflow to execute")
     config: ScheduleConfigRequest = Field(..., description="Schedule configuration")
     inputs: dict[str, Any] = Field(default_factory=dict, description="Workflow inputs")
     use_batch: bool = Field(False, description="Use batch execution")
-    batch_items: list[dict[str, Any]] = Field(default_factory=list, description="Batch input items")
+    batch_items: list[dict[str, Any]] = Field(
+        default_factory=list, description="Batch input items"
+    )
     max_concurrent: int = Field(5, description="Max concurrent batch items")
 
 
 class UpdateScheduleRequest(BaseModel):
     """Request to update an existing schedule."""
+
     name: Optional[str] = Field(None, description="Display name for the schedule")
     workflow_id: Optional[str] = Field(None, description="ID of workflow to execute")
-    config: Optional[ScheduleConfigRequest] = Field(None, description="Schedule configuration")
+    config: Optional[ScheduleConfigRequest] = Field(
+        None, description="Schedule configuration"
+    )
     inputs: Optional[dict[str, Any]] = Field(None, description="Workflow inputs")
     use_batch: Optional[bool] = Field(None, description="Use batch execution")
-    batch_items: Optional[list[dict[str, Any]]] = Field(None, description="Batch input items")
-    max_concurrent: Optional[int] = Field(None, description="Max concurrent batch items")
+    batch_items: Optional[list[dict[str, Any]]] = Field(
+        None, description="Batch input items"
+    )
+    max_concurrent: Optional[int] = Field(
+        None, description="Max concurrent batch items"
+    )
 
 
 class ScheduleResponse(BaseModel):
     """Schedule response."""
+
     schedule_id: str
     name: str
     workflow_id: str
@@ -115,6 +130,7 @@ class ScheduleResponse(BaseModel):
 
 class ScheduleRunResponse(BaseModel):
     """Schedule run response."""
+
     run_id: str
     schedule_id: str
     started_at: datetime
@@ -141,25 +157,23 @@ _schedulers: dict[str, WorkflowScheduler] = {}
 
 
 async def get_library_database(
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path")
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
 ) -> Database:
     """Get database for current library."""
     if not x_fichero_library_path:
         raise HTTPException(
-            status_code=400,
-            detail="Missing X-Fichero-Library-Path header"
+            status_code=400, detail="Missing X-Fichero-Library-Path header"
         )
     try:
         return db_manager.get_database(x_fichero_library_path)
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to access library database: {str(e)}"
+            status_code=500, detail=f"Failed to access library database: {str(e)}"
         )
 
 
 async def get_scheduler(
-    db: Database = Depends(get_library_database)
+    db: Database = Depends(get_library_database),
 ) -> WorkflowScheduler:
     """Get or create scheduler for the current library."""
     db_path = str(db.path)
@@ -175,6 +189,7 @@ async def get_scheduler(
 
 
 # Endpoints
+
 
 @router.post("", response_model=ScheduleResponse)
 async def create_schedule(

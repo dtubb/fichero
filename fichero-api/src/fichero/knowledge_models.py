@@ -69,7 +69,9 @@ class SourceMetadata(BaseModel):
     doi: str | None = Field(default=None, description="Digital Object Identifier")
     isbn_13: str | None = Field(default=None, description="ISBN-13")
     isbn_10: str | None = Field(default=None, description="ISBN-10")
-    issn: str | None = Field(default=None, description="International Standard Serial Number")
+    issn: str | None = Field(
+        default=None, description="International Standard Serial Number"
+    )
     arxiv_id: str | None = Field(default=None, description="arXiv identifier")
     url: str | None = None
     url_accessed: str | None = Field(
@@ -78,7 +80,8 @@ class SourceMetadata(BaseModel):
 
     # --- Archive identifiers ---
     archive_name: str | None = Field(
-        default=None, description="Archive that holds the source (e.g., 'Internet Archive')"
+        default=None,
+        description="Archive that holds the source (e.g., 'Internet Archive')",
     )
     archive_identifier: str | None = Field(
         default=None, description="Identifier within the archive"
@@ -166,7 +169,9 @@ class SourceMetadata(BaseModel):
             return None
         v = v.replace("-", "").strip().upper()
         if not re.match(r"^\d{7}[\dXx]$", v):
-            raise ValueError(f"Invalid ISSN: {v!r}. Expected 8 digits with optional trailing X.")
+            raise ValueError(
+                f"Invalid ISSN: {v!r}. Expected 8 digits with optional trailing X."
+            )
         # Checksum: mod 11
         digits = [int(c) for c in v[:7]]
         checksum = sum((8 - i) * d for i, d in enumerate(digits)) % 11
@@ -196,7 +201,9 @@ class SourceMetadata(BaseModel):
             return None
         v = v.strip()
         if not v.startswith(("http://", "https://")):
-            raise ValueError(f"Invalid URL: {v!r}. Must start with http:// or https://.")
+            raise ValueError(
+                f"Invalid URL: {v!r}. Must start with http:// or https://."
+            )
         return v
 
     @field_validator("authors")
@@ -480,6 +487,7 @@ class KnowledgePredictionRun(BaseModel):
     Separate from individual claim predictions (which are stored in claim.prediction).
     This tracks which model was trained, on what data, and the resulting predictions.
     """
+
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
     id: str = Field(default_factory=_new_id)

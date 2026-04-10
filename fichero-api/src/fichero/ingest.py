@@ -64,8 +64,10 @@ _TEXT_EXTRACTABLE = {
 # Enums
 # =============================================================================
 
+
 class IngestMode(str, Enum):
     """How to handle file ingestion."""
+
     LINK = "link"  # Reference with macOS bookmark (file stays in place)
     COPY = "copy"  # Copy into library storage (file duplicated)
     MOVE = "move"  # Move into library storage (file relocated, original deleted)
@@ -141,13 +143,16 @@ def detect_file_type(path: Path) -> FileType:
     """
     suffix = path.suffix.lower()
     file_type = _FILE_TYPE_MAP.get(suffix, FileType.other)
-    logger.debug(f"Detected file type for {path.name}: suffix='{suffix}' -> type={file_type.value}")
+    logger.debug(
+        f"Detected file type for {path.name}: suffix='{suffix}' -> type={file_type.value}"
+    )
     return file_type
 
 
 # =============================================================================
 # Single File Ingestion
 # =============================================================================
+
 
 def _resolve_default_db():
     """
@@ -210,7 +215,11 @@ def ingest_file(
 
     if mode in (IngestMode.COPY, IngestMode.MOVE):
         # Copy file into library storage
-        dest = _copy_to_library(path) if package_path is None else _copy_to_library(path, package_path)
+        dest = (
+            _copy_to_library(path)
+            if package_path is None
+            else _copy_to_library(path, package_path)
+        )
         doc = Document(
             name=path.name,
             path=str(dest),
@@ -318,7 +327,7 @@ def _try_apfs_clone(source: Path, dest: Path) -> bool:
         result = libc.clonefile(
             str(source).encode(),
             str(dest).encode(),
-            0  # flags = 0
+            0,  # flags = 0
         )
         return result == 0
     except Exception:
@@ -392,7 +401,9 @@ def _extract_image_metadata(doc: Document, path: Path) -> None:
         xmp_data = parse_xmp_sidecar(path)
         if xmp_data:
             apply_xmp_to_document(doc, xmp_data)
-            logger.debug(f"Applied XMP sidecar for {path.name}: {list(xmp_data.keys())}")
+            logger.debug(
+                f"Applied XMP sidecar for {path.name}: {list(xmp_data.keys())}"
+            )
 
     except ImportError:
         logger.debug("Pillow not available for image metadata")
@@ -437,6 +448,7 @@ def _run_async(coro):
     if loop is not None:
         # Already in async context - use thread pool
         import concurrent.futures
+
         with concurrent.futures.ThreadPoolExecutor() as pool:
             future = pool.submit(asyncio.run, coro)
             return future.result()
@@ -447,6 +459,7 @@ def _run_async(coro):
 # =============================================================================
 # Folder Ingestion
 # =============================================================================
+
 
 def ingest_folder(
     folder: Path,
@@ -595,6 +608,7 @@ def _ensure_folder_hierarchy(
 # File Discovery
 # =============================================================================
 
+
 def discover_files(
     folder: Path,
     extensions: set[str] | None = None,
@@ -648,6 +662,7 @@ def count_files(
 # =============================================================================
 # Deduplication
 # =============================================================================
+
 
 def find_duplicates(documents: list[Document]) -> dict[str, list[Document]]:
     """Find duplicate documents by checksum.

@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 # Multi-Agent State Types
 # =============================================================================
 
+
 class MultiAgentState:
     """Extended state for multi-agent coordination."""
 
@@ -56,6 +57,7 @@ class MultiAgentState:
 # Supervisor Agent Pattern
 # =============================================================================
 
+
 @register_tool(
     name="supervisor_agent",
     display_name="Supervisor Agent",
@@ -72,7 +74,7 @@ class MultiAgentState:
             port_type="input",
             data_type=DataType.TEXT,
             required=True,
-            description="Task to delegate to worker agents"
+            description="Task to delegate to worker agents",
         ),
         PortDef(
             id="context",
@@ -80,7 +82,7 @@ class MultiAgentState:
             port_type="input",
             data_type=DataType.ANY,
             required=False,
-            description="Additional context for coordination"
+            description="Additional context for coordination",
         ),
     ],
     output_ports=[
@@ -89,21 +91,21 @@ class MultiAgentState:
             name="Result",
             port_type="output",
             data_type=DataType.TEXT,
-            description="Final aggregated result"
+            description="Final aggregated result",
         ),
         PortDef(
             id="worker_results",
             name="Worker Results",
             port_type="output",
             data_type=DataType.JSON,
-            description="Results from each worker agent"
+            description="Results from each worker agent",
         ),
         PortDef(
             id="execution_log",
             name="Execution Log",
             port_type="output",
             data_type=DataType.ARRAY,
-            description="Log of supervisor decisions and worker executions"
+            description="Log of supervisor decisions and worker executions",
         ),
     ],
     config_schema={
@@ -120,7 +122,7 @@ class MultiAgentState:
                 "required": ["name", "description"],
             },
             "default": [],
-            "description": "Worker agent configurations"
+            "description": "Worker agent configurations",
         },
         "supervisor_prompt": {
             "type": "string",
@@ -132,18 +134,18 @@ Available workers:
 {workers_description}
 
 Respond with your delegation decision and reasoning.""",
-            "description": "System prompt for supervisor"
+            "description": "System prompt for supervisor",
         },
         "max_iterations": {
             "type": "integer",
             "default": 5,
-            "description": "Maximum delegation rounds"
+            "description": "Maximum delegation rounds",
         },
         "aggregation_strategy": {
             "type": "string",
             "enum": ["sequential", "parallel", "best_of"],
             "default": "sequential",
-            "description": "How to combine worker results"
+            "description": "How to combine worker results",
         },
     },
 )
@@ -172,7 +174,7 @@ async def supervisor_agent(
             "result": "",
             "worker_results": {},
             "execution_log": [],
-            "error": "No task provided"
+            "error": "No task provided",
         }
 
     if not workers_config:
@@ -180,7 +182,7 @@ async def supervisor_agent(
             "result": "",
             "worker_results": {},
             "execution_log": [],
-            "error": "No workers configured"
+            "error": "No workers configured",
         }
 
     try:
@@ -188,19 +190,25 @@ async def supervisor_agent(
         worker_results = {}
 
         # Build workers description for supervisor prompt
-        workers_desc = "\n".join([
-            f"- {w['name']}: {w.get('description', 'No description')}"
-            for w in workers_config
-        ])
+        workers_desc = "\n".join(
+            [
+                f"- {w['name']}: {w.get('description', 'No description')}"
+                for w in workers_config
+            ]
+        )
 
         # Format supervisor prompt
-        formatted_prompt = supervisor_prompt.replace("{workers_description}", workers_desc)
+        formatted_prompt = supervisor_prompt.replace(
+            "{workers_description}", workers_desc
+        )
 
         # Get supervisor model
         model = get_langchain_model(llm_config)
 
         # Create supervisor decision function
-        async def get_supervisor_decision(task_text: str, context_dict: dict, previous_results: dict) -> dict:
+        async def get_supervisor_decision(
+            task_text: str, context_dict: dict, previous_results: dict
+        ) -> dict:
             """Get supervisor's delegation decision."""
             messages = [
                 SystemMessage(content=formatted_prompt),
@@ -213,10 +221,18 @@ async def supervisor_agent(
 
             # Add previous results if any
             if previous_results:
-                results_str = "\n".join(f"{k}: {v}" for k, v in previous_results.items())
-                messages.append(SystemMessage(content=f"Previous worker results:\n{results_str}"))
+                results_str = "\n".join(
+                    f"{k}: {v}" for k, v in previous_results.items()
+                )
+                messages.append(
+                    SystemMessage(content=f"Previous worker results:\n{results_str}")
+                )
 
-            messages.append(HumanMessage(content=f"Task: {task_text}\n\nDecide which worker(s) should handle this task."))
+            messages.append(
+                HumanMessage(
+                    content=f"Task: {task_text}\n\nDecide which worker(s) should handle this task."
+                )
+            )
 
             response = await model.ainvoke(messages)
 
@@ -234,13 +250,19 @@ async def supervisor_agent(
                     decision["workers"].append(worker["name"])
 
             # Check if supervisor indicates completion
-            if "final result" in content_lower or "complete" in content_lower or "done" in content_lower:
+            if (
+                "final result" in content_lower
+                or "complete" in content_lower
+                or "done" in content_lower
+            ):
                 decision["done"] = True
 
             return decision
 
         # Create worker agents
-        async def execute_worker(worker_config: dict, task_text: str, ctx: dict) -> dict:
+        async def execute_worker(
+            worker_config: dict, task_text: str, ctx: dict
+        ) -> dict:
             """Execute a single worker agent."""
             worker_tools = []
             for tool_name in worker_config.get("tools", []):
@@ -249,7 +271,10 @@ async def supervisor_agent(
                     wrapped = _wrap_workflow_tool(tool_name, tool_fn, llm_config)
                     worker_tools.append(wrapped)
 
-            worker_prompt = worker_config.get("system_prompt", f"You are the {worker_config['name']} agent. {worker_config.get('description', '')}")
+            worker_prompt = worker_config.get(
+                "system_prompt",
+                f"You are the {worker_config['name']} agent. {worker_config.get('description', '')}",
+            )
 
             worker_model = get_langchain_model(llm_config)
             worker_graph = create_react_agent(
@@ -287,13 +312,17 @@ async def supervisor_agent(
             iteration += 1
 
             # Get supervisor decision
-            decision = await get_supervisor_decision(current_task, context, worker_results)
+            decision = await get_supervisor_decision(
+                current_task, context, worker_results
+            )
 
-            execution_log.append({
-                "iteration": iteration,
-                "decision": decision["reasoning"],
-                "workers_selected": decision["workers"],
-            })
+            execution_log.append(
+                {
+                    "iteration": iteration,
+                    "decision": decision["reasoning"],
+                    "workers_selected": decision["workers"],
+                }
+            )
 
             if decision["done"] or not decision["workers"]:
                 break
@@ -302,24 +331,38 @@ async def supervisor_agent(
             if aggregation_strategy == "parallel":
                 # Execute all selected workers in parallel
                 import asyncio
-                worker_configs = [w for w in workers_config if w["name"] in decision["workers"]]
-                tasks = [execute_worker(w, current_task, context) for w in worker_configs]
+
+                worker_configs = [
+                    w for w in workers_config if w["name"] in decision["workers"]
+                ]
+                tasks = [
+                    execute_worker(w, current_task, context) for w in worker_configs
+                ]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
 
                 for r in results:
                     if isinstance(r, dict) and "worker" in r:
                         worker_results[r["worker"]] = r["result"]
-                        execution_log.append({
-                            "iteration": iteration,
-                            "worker": r["worker"],
-                            "result_preview": r["result"][:200] if r["result"] else "",
-                        })
+                        execution_log.append(
+                            {
+                                "iteration": iteration,
+                                "worker": r["worker"],
+                                "result_preview": r["result"][:200]
+                                if r["result"]
+                                else "",
+                            }
+                        )
 
             elif aggregation_strategy == "best_of":
                 # Execute all and pick best (by length as proxy for completeness)
                 import asyncio
-                worker_configs = [w for w in workers_config if w["name"] in decision["workers"]]
-                tasks = [execute_worker(w, current_task, context) for w in worker_configs]
+
+                worker_configs = [
+                    w for w in workers_config if w["name"] in decision["workers"]
+                ]
+                tasks = [
+                    execute_worker(w, current_task, context) for w in worker_configs
+                ]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
 
                 best_result = None
@@ -332,41 +375,62 @@ async def supervisor_agent(
                         worker_results[r["worker"]] = r["result"]
 
                 if best_result:
-                    execution_log.append({
-                        "iteration": iteration,
-                        "best_worker": best_result["worker"],
-                        "result_preview": best_result["result"][:200] if best_result["result"] else "",
-                    })
+                    execution_log.append(
+                        {
+                            "iteration": iteration,
+                            "best_worker": best_result["worker"],
+                            "result_preview": best_result["result"][:200]
+                            if best_result["result"]
+                            else "",
+                        }
+                    )
 
             else:  # sequential
                 # Execute workers one by one
                 for worker_name in decision["workers"]:
-                    worker_config = next((w for w in workers_config if w["name"] == worker_name), None)
+                    worker_config = next(
+                        (w for w in workers_config if w["name"] == worker_name), None
+                    )
                     if worker_config:
-                        result = await execute_worker(worker_config, current_task, context)
+                        result = await execute_worker(
+                            worker_config, current_task, context
+                        )
                         worker_results[result["worker"]] = result["result"]
 
-                        execution_log.append({
-                            "iteration": iteration,
-                            "worker": result["worker"],
-                            "result_preview": result["result"][:200] if result["result"] else "",
-                        })
+                        execution_log.append(
+                            {
+                                "iteration": iteration,
+                                "worker": result["worker"],
+                                "result_preview": result["result"][:200]
+                                if result["result"]
+                                else "",
+                            }
+                        )
 
                         # Update context for next worker
-                        context = {**context, f"previous_{result['worker']}_result": result["result"]}
+                        context = {
+                            **context,
+                            f"previous_{result['worker']}_result": result["result"],
+                        }
 
         # Generate final aggregated result
         if worker_results:
             # Create summary from all worker results
-            results_summary = "\n\n".join([
-                f"**{worker}**:\n{result}"
-                for worker, result in worker_results.items()
-            ])
+            results_summary = "\n\n".join(
+                [
+                    f"**{worker}**:\n{result}"
+                    for worker, result in worker_results.items()
+                ]
+            )
 
             # Get supervisor to synthesize final result
             final_messages = [
-                SystemMessage(content="Synthesize the worker results into a final comprehensive response."),
-                HumanMessage(content=f"Original task: {task}\n\nWorker results:\n{results_summary}"),
+                SystemMessage(
+                    content="Synthesize the worker results into a final comprehensive response."
+                ),
+                HumanMessage(
+                    content=f"Original task: {task}\n\nWorker results:\n{results_summary}"
+                ),
             ]
             final_response = await model.ainvoke(final_messages)
             final_result = final_response.content
@@ -394,6 +458,7 @@ async def supervisor_agent(
 # Swarm Agent Pattern
 # =============================================================================
 
+
 @register_tool(
     name="swarm_agent",
     display_name="Swarm Agent",
@@ -410,7 +475,7 @@ async def supervisor_agent(
             port_type="input",
             data_type=DataType.TEXT,
             required=True,
-            description="Task to process"
+            description="Task to process",
         ),
         PortDef(
             id="context",
@@ -418,7 +483,7 @@ async def supervisor_agent(
             port_type="input",
             data_type=DataType.ANY,
             required=False,
-            description="Shared context between agents"
+            description="Shared context between agents",
         ),
     ],
     output_ports=[
@@ -427,21 +492,21 @@ async def supervisor_agent(
             name="Result",
             port_type="output",
             data_type=DataType.TEXT,
-            description="Final result after agent chain"
+            description="Final result after agent chain",
         ),
         PortDef(
             id="handoff_chain",
             name="Handoff Chain",
             port_type="output",
             data_type=DataType.ARRAY,
-            description="Chain of agent handoffs"
+            description="Chain of agent handoffs",
         ),
         PortDef(
             id="shared_context",
             name="Shared Context",
             port_type="output",
             data_type=DataType.JSON,
-            description="Final shared context"
+            description="Final shared context",
         ),
     ],
     config_schema={
@@ -459,22 +524,22 @@ async def supervisor_agent(
                 "required": ["name", "description"],
             },
             "default": [],
-            "description": "Available agents in the swarm"
+            "description": "Available agents in the swarm",
         },
         "entry_agent": {
             "type": "string",
             "default": "",
-            "description": "Name of the starting agent"
+            "description": "Name of the starting agent",
         },
         "max_handoffs": {
             "type": "integer",
             "default": 10,
-            "description": "Maximum number of agent handoffs"
+            "description": "Maximum number of agent handoffs",
         },
         "handoff_keyword": {
             "type": "string",
             "default": "HANDOFF:",
-            "description": "Keyword agents use to initiate handoff"
+            "description": "Keyword agents use to initiate handoff",
         },
     },
 )
@@ -503,7 +568,7 @@ async def swarm_agent(
             "result": "",
             "handoff_chain": [],
             "shared_context": {},
-            "error": "No task provided"
+            "error": "No task provided",
         }
 
     if not agents_config:
@@ -511,13 +576,15 @@ async def swarm_agent(
             "result": "",
             "handoff_chain": [],
             "shared_context": {},
-            "error": "No agents configured"
+            "error": "No agents configured",
         }
 
     # Find entry agent
     entry_agent = None
     if entry_agent_name:
-        entry_agent = next((a for a in agents_config if a["name"] == entry_agent_name), None)
+        entry_agent = next(
+            (a for a in agents_config if a["name"] == entry_agent_name), None
+        )
     if not entry_agent:
         entry_agent = agents_config[0]  # Default to first agent
 
@@ -540,10 +607,12 @@ async def swarm_agent(
             available_handoffs = current_agent.get("can_handoff_to", [])
             handoff_instructions = ""
             if available_handoffs:
-                handoff_list = "\n".join([
-                    f"- {name}: {next((a.get('description', '') for a in agents_config if a['name'] == name), '')}"
-                    for name in available_handoffs
-                ])
+                handoff_list = "\n".join(
+                    [
+                        f"- {name}: {next((a.get('description', '') for a in agents_config if a['name'] == name), '')}"
+                        for name in available_handoffs
+                    ]
+                )
                 handoff_instructions = f"""
 If you cannot fully handle this task, you can hand off to another agent.
 To hand off, include "{handoff_keyword} <agent_name>" in your response.
@@ -552,7 +621,9 @@ Available agents to hand off to:
 {handoff_list}
 """
 
-            system_prompt = current_agent.get("system_prompt", f"You are the {current_agent['name']} agent.")
+            system_prompt = current_agent.get(
+                "system_prompt", f"You are the {current_agent['name']} agent."
+            )
             full_prompt = f"{system_prompt}\n{handoff_instructions}"
 
             # Create and run agent
@@ -581,33 +652,44 @@ Available agents to hand off to:
                     break
 
             # Record in handoff chain
-            handoff_chain.append({
-                "agent": current_agent["name"],
-                "task": current_task[:200],
-                "response_preview": response_text[:200] if response_text else "",
-            })
+            handoff_chain.append(
+                {
+                    "agent": current_agent["name"],
+                    "task": current_task[:200],
+                    "response_preview": response_text[:200] if response_text else "",
+                }
+            )
 
             # Check for handoff
             if handoff_keyword in response_text:
                 # Parse handoff target
                 handoff_idx = response_text.index(handoff_keyword)
-                after_keyword = response_text[handoff_idx + len(handoff_keyword):].strip()
+                after_keyword = response_text[
+                    handoff_idx + len(handoff_keyword) :
+                ].strip()
                 target_name = after_keyword.split()[0].strip() if after_keyword else ""
 
                 # Find target agent
                 target_agent = next(
-                    (a for a in agents_config
-                     if a["name"].lower() == target_name.lower()
-                     and a["name"] in available_handoffs),
-                    None
+                    (
+                        a
+                        for a in agents_config
+                        if a["name"].lower() == target_name.lower()
+                        and a["name"] in available_handoffs
+                    ),
+                    None,
                 )
 
                 if target_agent:
                     # Update context with current agent's work
-                    shared_context[f"{current_agent['name']}_output"] = response_text[:response_text.index(handoff_keyword)].strip()
+                    shared_context[f"{current_agent['name']}_output"] = response_text[
+                        : response_text.index(handoff_keyword)
+                    ].strip()
 
                     # Extract any task refinement before handoff
-                    task_refinement = response_text[handoff_idx + len(handoff_keyword) + len(target_name):].strip()
+                    task_refinement = response_text[
+                        handoff_idx + len(handoff_keyword) + len(target_name) :
+                    ].strip()
                     if task_refinement:
                         agent_name = current_agent["name"]
                         previous_output = shared_context.get(f"{agent_name}_output", "")
@@ -635,8 +717,8 @@ Available agents to hand off to:
         logger.exception(f"Swarm agent failed: {e}")
         return {
             "result": "",
-            "handoff_chain": handoff_chain if 'handoff_chain' in dir() else [],
-            "shared_context": shared_context if 'shared_context' in dir() else {},
+            "handoff_chain": handoff_chain if "handoff_chain" in dir() else [],
+            "shared_context": shared_context if "shared_context" in dir() else {},
             "error": str(e),
         }
 
@@ -644,6 +726,7 @@ Available agents to hand off to:
 # =============================================================================
 # Agent Coordinator (for parallel agent execution)
 # =============================================================================
+
 
 @register_tool(
     name="agent_coordinator",
@@ -661,7 +744,7 @@ Available agents to hand off to:
             port_type="input",
             data_type=DataType.TEXT,
             required=True,
-            description="Task for all agents"
+            description="Task for all agents",
         ),
         PortDef(
             id="context",
@@ -669,7 +752,7 @@ Available agents to hand off to:
             port_type="input",
             data_type=DataType.ANY,
             required=False,
-            description="Shared context"
+            description="Shared context",
         ),
     ],
     output_ports=[
@@ -678,21 +761,21 @@ Available agents to hand off to:
             name="Combined Result",
             port_type="output",
             data_type=DataType.TEXT,
-            description="Synthesized result from all agents"
+            description="Synthesized result from all agents",
         ),
         PortDef(
             id="agent_results",
             name="Agent Results",
             port_type="output",
             data_type=DataType.JSON,
-            description="Individual results from each agent"
+            description="Individual results from each agent",
         ),
         PortDef(
             id="agreement_score",
             name="Agreement Score",
             port_type="output",
             data_type=DataType.NUMBER,
-            description="How much agents agreed (0-1)"
+            description="How much agents agreed (0-1)",
         ),
     ],
     config_schema={
@@ -709,18 +792,18 @@ Available agents to hand off to:
                 "required": ["name"],
             },
             "default": [],
-            "description": "Agents to run in parallel"
+            "description": "Agents to run in parallel",
         },
         "combination_method": {
             "type": "string",
             "enum": ["synthesis", "voting", "weighted_average", "consensus"],
             "default": "synthesis",
-            "description": "How to combine agent results"
+            "description": "How to combine agent results",
         },
         "require_consensus": {
             "type": "boolean",
             "default": False,
-            "description": "Whether all agents must agree"
+            "description": "Whether all agents must agree",
         },
     },
 )
@@ -749,7 +832,7 @@ async def agent_coordinator(
             "combined_result": "",
             "agent_results": {},
             "agreement_score": 0,
-            "error": "No task provided"
+            "error": "No task provided",
         }
 
     if not agents_config:
@@ -757,10 +840,11 @@ async def agent_coordinator(
             "combined_result": "",
             "agent_results": {},
             "agreement_score": 0,
-            "error": "No agents configured"
+            "error": "No agents configured",
         }
 
     try:
+
         async def run_agent(agent_config: dict) -> dict:
             """Run a single agent."""
             agent_tools = []
@@ -770,7 +854,9 @@ async def agent_coordinator(
                     wrapped = _wrap_workflow_tool(tool_name, tool_fn, llm_config)
                     agent_tools.append(wrapped)
 
-            system_prompt = agent_config.get("system_prompt", f"You are agent {agent_config['name']}.")
+            system_prompt = agent_config.get(
+                "system_prompt", f"You are agent {agent_config['name']}."
+            )
 
             model = get_langchain_model(llm_config)
             agent_graph = create_react_agent(
@@ -780,7 +866,11 @@ async def agent_coordinator(
 
             messages = [SystemMessage(content=system_prompt)]
             if context:
-                ctx_str = "\n".join(f"{k}: {v}" for k, v in context.items()) if isinstance(context, dict) else str(context)
+                ctx_str = (
+                    "\n".join(f"{k}: {v}" for k, v in context.items())
+                    if isinstance(context, dict)
+                    else str(context)
+                )
                 messages.append(SystemMessage(content=f"Context:\n{ctx_str}"))
             messages.append(HumanMessage(content=task))
 
@@ -817,7 +907,7 @@ async def agent_coordinator(
                 "combined_result": "",
                 "agent_results": agent_results,
                 "agreement_score": 0,
-                "error": "All agents failed"
+                "error": "All agents failed",
             }
 
         # Calculate agreement score (simplified - based on response similarity)
@@ -827,7 +917,7 @@ async def agent_coordinator(
             lengths = [len(r["result"]) for r in successful_results]
             avg_length = sum(lengths) / len(lengths)
             variance = sum((ln - avg_length) ** 2 for ln in lengths) / len(lengths)
-            agreement_score = max(0, 1 - (variance / (avg_length ** 2 + 1)))
+            agreement_score = max(0, 1 - (variance / (avg_length**2 + 1)))
 
         # Combine results based on method
         if combination_method == "voting":
@@ -840,14 +930,20 @@ async def agent_coordinator(
             combined_parts = []
             for r in successful_results:
                 weight_pct = r["weight"] / total_weight * 100
-                combined_parts.append(f"[{r['name']} ({weight_pct:.0f}% weight)]:\n{r['result']}")
+                combined_parts.append(
+                    f"[{r['name']} ({weight_pct:.0f}% weight)]:\n{r['result']}"
+                )
             combined_result = "\n\n".join(combined_parts)
 
         elif combination_method == "consensus":
             # Check if all agents agree (within threshold)
             if require_consensus and agreement_score < 0.8:
-                combined_result = f"No consensus reached (agreement: {agreement_score:.2f}). Individual results:\n" + \
-                    "\n\n".join(f"**{r['name']}**: {r['result']}" for r in successful_results)
+                combined_result = (
+                    f"No consensus reached (agreement: {agreement_score:.2f}). Individual results:\n"
+                    + "\n\n".join(
+                        f"**{r['name']}**: {r['result']}" for r in successful_results
+                    )
+                )
             else:
                 combined_result = successful_results[0]["result"]
 
@@ -855,14 +951,17 @@ async def agent_coordinator(
             # Use LLM to synthesize all results
             model = get_langchain_model(llm_config)
 
-            results_str = "\n\n".join([
-                f"**{r['name']}**:\n{r['result']}"
-                for r in successful_results
-            ])
+            results_str = "\n\n".join(
+                [f"**{r['name']}**:\n{r['result']}" for r in successful_results]
+            )
 
             synthesis_messages = [
-                SystemMessage(content="Synthesize the following agent responses into a single comprehensive answer. Identify common themes and note any disagreements."),
-                HumanMessage(content=f"Original task: {task}\n\nAgent responses:\n{results_str}"),
+                SystemMessage(
+                    content="Synthesize the following agent responses into a single comprehensive answer. Identify common themes and note any disagreements."
+                ),
+                HumanMessage(
+                    content=f"Original task: {task}\n\nAgent responses:\n{results_str}"
+                ),
             ]
 
             synthesis_response = await model.ainvoke(synthesis_messages)

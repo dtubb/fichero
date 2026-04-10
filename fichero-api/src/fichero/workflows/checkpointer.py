@@ -200,9 +200,7 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
             }
         }
 
-    async def aget_tuple(
-        self, config: dict[str, Any]
-    ) -> CheckpointTuple | None:
+    async def aget_tuple(self, config: dict[str, Any]) -> CheckpointTuple | None:
         """
         Get the latest checkpoint for a thread asynchronously.
 
@@ -236,13 +234,13 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
             """
             params = [thread_id, checkpoint_ns]
 
-        result = await asyncio.to_thread(
-            self.conn.execute, query, params
-        )
+        result = await asyncio.to_thread(self.conn.execute, query, params)
         row = result.fetchone()
 
         if not row:
-            logger.debug(f"No checkpoint found: thread_id={thread_id}, ns={checkpoint_ns}")
+            logger.debug(
+                f"No checkpoint found: thread_id={thread_id}, ns={checkpoint_ns}"
+            )
             return None
 
         checkpoint_blob, metadata_blob, parent_id, checkpoint_id = row
@@ -331,9 +329,7 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
             query += " LIMIT ?"
             params.append(limit)
 
-        result = await asyncio.to_thread(
-            self.conn.execute, query, params
-        )
+        result = await asyncio.to_thread(self.conn.execute, query, params)
 
         for row in result.fetchall():
             checkpoint_blob, metadata_blob, parent_id, checkpoint_id = row
@@ -413,7 +409,15 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
                     channel = excluded.channel,
                     value = excluded.value
                 """,
-                [thread_id, checkpoint_ns, checkpoint_id, task_id, idx, channel, value_blob],
+                [
+                    thread_id,
+                    checkpoint_ns,
+                    checkpoint_id,
+                    task_id,
+                    idx,
+                    channel,
+                    value_blob,
+                ],
             )
 
         logger.debug(
@@ -443,4 +447,5 @@ def get_checkpointer() -> AsyncDuckDBCheckpointer:
         AsyncDuckDBCheckpointer instance
     """
     from fichero.storage import settings
+
     return AsyncDuckDBCheckpointer.from_db_path(settings.db_path)

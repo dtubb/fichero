@@ -71,12 +71,48 @@ BASE_INPUT_PORTS = [
 ]
 
 BASE_OUTPUT_PORTS = [
-    PortDef(id="text", name="Text", port_type="output", data_type=DataType.TEXT, description="Raw text response"),
-    PortDef(id="value", name="Value", port_type="output", data_type=DataType.ANY, description="Parsed value"),
-    PortDef(id="texts", name="Texts", port_type="output", data_type=DataType.ARRAY, description="Per-item texts"),
-    PortDef(id="values", name="Values", port_type="output", data_type=DataType.ARRAY, description="Per-item values"),
-    PortDef(id="results", name="Results", port_type="output", data_type=DataType.JSON, description="Full results"),
-    PortDef(id="artifacts", name="Artifacts", port_type="output", data_type=DataType.JSON, description="Artifact IDs"),
+    PortDef(
+        id="text",
+        name="Text",
+        port_type="output",
+        data_type=DataType.TEXT,
+        description="Raw text response",
+    ),
+    PortDef(
+        id="value",
+        name="Value",
+        port_type="output",
+        data_type=DataType.ANY,
+        description="Parsed value",
+    ),
+    PortDef(
+        id="texts",
+        name="Texts",
+        port_type="output",
+        data_type=DataType.ARRAY,
+        description="Per-item texts",
+    ),
+    PortDef(
+        id="values",
+        name="Values",
+        port_type="output",
+        data_type=DataType.ARRAY,
+        description="Per-item values",
+    ),
+    PortDef(
+        id="results",
+        name="Results",
+        port_type="output",
+        data_type=DataType.JSON,
+        description="Full results",
+    ),
+    PortDef(
+        id="artifacts",
+        name="Artifacts",
+        port_type="output",
+        data_type=DataType.JSON,
+        description="Artifact IDs",
+    ),
 ]
 
 
@@ -89,9 +125,20 @@ BASE_CONFIG_SCHEMA = {
     "provider_name": {
         "type": "string",
         "enum": [
-            "openai", "anthropic", "google", "ollama", "lmstudio",
-            "groq", "together", "deepseek", "mistral", "openrouter",
-            "dashscope", "xai", "perplexity", "fireworks",
+            "openai",
+            "anthropic",
+            "google",
+            "ollama",
+            "lmstudio",
+            "groq",
+            "together",
+            "deepseek",
+            "mistral",
+            "openrouter",
+            "dashscope",
+            "xai",
+            "perplexity",
+            "fireworks",
         ],
         "description": "LLM provider",
         "x-group": "primary",
@@ -195,6 +242,7 @@ BASE_CONFIG_SCHEMA = {
 # Schema Merge Helpers
 # =============================================================================
 
+
 def merge_config_schema(*schemas: dict) -> dict:
     """Merge multiple config schemas, later ones override earlier.
 
@@ -247,6 +295,7 @@ def extract_base_config(inputs: dict[str, Any]) -> dict[str, Any]:
 # Tool Configuration
 # =============================================================================
 
+
 @dataclass
 class LLMToolConfig:
     """Configuration for an LLM tool."""
@@ -267,6 +316,7 @@ class LLMToolConfig:
 # =============================================================================
 # Output Format Handling
 # =============================================================================
+
 
 def build_output_constraint(
     output_format: str,
@@ -319,7 +369,9 @@ def build_output_constraint(
     return ""
 
 
-def parse_output(text: str, output_format: str, output_options: dict | None = None) -> Any:
+def parse_output(
+    text: str, output_format: str, output_options: dict | None = None
+) -> Any:
     """Parse output according to format.
 
     Returns the appropriate Python type based on format.
@@ -381,6 +433,7 @@ def parse_output(text: str, output_format: str, output_options: dict | None = No
 # Reference Value Matching
 # =============================================================================
 
+
 def build_reference_section(
     reference_values: dict[str, list] | None = None,
     match_mode: str = "prefer",
@@ -412,9 +465,13 @@ def build_reference_section(
             values_str += f" (and {len(values) - 20} more)"
 
         if match_mode == "strict":
-            sections.append(f"For {field_name}, only use these exact values: {values_str}")
+            sections.append(
+                f"For {field_name}, only use these exact values: {values_str}"
+            )
         elif match_mode == "prefer":
-            sections.append(f"For {field_name}, prefer these known values if they match: {values_str}")
+            sections.append(
+                f"For {field_name}, prefer these known values if they match: {values_str}"
+            )
         else:  # inform
             sections.append(f"Known {field_name} for reference: {values_str}")
 
@@ -524,6 +581,7 @@ def apply_reference_matching(
 # Context Building
 # =============================================================================
 
+
 def build_thinking_preamble(thinking_mode: str = "off") -> str:
     """Build a thinking-mode instruction to prepend to the prompt.
 
@@ -598,6 +656,7 @@ def build_context_section(
 # Database Operations
 # =============================================================================
 
+
 async def save_artifact(
     document_id: str | None,
     file_path: str | None,
@@ -649,7 +708,11 @@ async def save_artifact(
                 doc = docs[0]
 
         if not doc:
-            logger.warning("Document not found for artifact save: id=%s path=%s", document_id, file_path)
+            logger.warning(
+                "Document not found for artifact save: id=%s path=%s",
+                document_id,
+                file_path,
+            )
             return None
 
         # Create Artifact
@@ -658,8 +721,8 @@ async def save_artifact(
             artifact_type=tool_config.artifact_type,
             content=content,
             data=data,
-            provider=llm_config.provider if hasattr(llm_config, 'provider') else None,
-            model=llm_config.model if hasattr(llm_config, 'model') else None,
+            provider=llm_config.provider if hasattr(llm_config, "provider") else None,
+            model=llm_config.model if hasattr(llm_config, "model") else None,
             run_id=task_id,
         )
         db.save(artifact)
@@ -775,6 +838,7 @@ async def save_to_file(
 # Error Handling
 # =============================================================================
 
+
 @dataclass
 class LLMResult:
     """Result from LLM processing with error handling."""
@@ -850,6 +914,7 @@ def validate_inputs(
 # Shared Text Processing
 # =============================================================================
 
+
 async def process_text(
     text: str,
     prompt: str,
@@ -899,7 +964,9 @@ async def process_text(
     if temperature is not None or max_tokens is not None:
         effective_config = dataclasses.replace(
             llm_config,
-            temperature=temperature if temperature is not None else llm_config.temperature,
+            temperature=temperature
+            if temperature is not None
+            else llm_config.temperature,
             max_tokens=max_tokens if max_tokens is not None else llm_config.max_tokens,
         )
 
@@ -916,7 +983,9 @@ async def process_text(
     thinking_preamble = build_thinking_preamble(thinking_mode)
 
     # Combine prompt
-    final_prompt = f"{thinking_preamble}{context_section}{prompt}{ref_section}{output_constraint}"
+    final_prompt = (
+        f"{thinking_preamble}{context_section}{prompt}{ref_section}{output_constraint}"
+    )
 
     # Add the input text
     full_prompt = f"{final_prompt}\n\nText:\n{text}"

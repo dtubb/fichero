@@ -117,17 +117,19 @@ def _new_id() -> str:
 # Port and Connection Types
 # =============================================================================
 
+
 class DataType(str, Enum):
     """Data types for port connections."""
-    ANY = "any"           # Any data type
-    FILES = "files"       # List of file paths
-    FILE = "file"         # Single file path
-    TEXT = "text"         # String text
-    JSON = "json"         # JSON object/dict
-    ARRAY = "array"       # List/array
-    IMAGE = "image"       # Image file or data
-    NUMBER = "number"     # Numeric value
-    BOOLEAN = "boolean"   # True/False
+
+    ANY = "any"  # Any data type
+    FILES = "files"  # List of file paths
+    FILE = "file"  # Single file path
+    TEXT = "text"  # String text
+    JSON = "json"  # JSON object/dict
+    ARRAY = "array"  # List/array
+    IMAGE = "image"  # Image file or data
+    NUMBER = "number"  # Numeric value
+    BOOLEAN = "boolean"  # True/False
 
 
 class PortDef(BaseModel):
@@ -136,9 +138,12 @@ class PortDef(BaseModel):
     Ports are the connection points where edges attach.
     Each port has a data type for validation.
     """
+
     id: str = Field(..., description="Unique port identifier within the node")
     name: str = Field(..., description="Display name for the port")
-    port_type: Literal["input", "output"] = Field(..., description="Whether this is an input or output port")
+    port_type: Literal["input", "output"] = Field(
+        ..., description="Whether this is an input or output port"
+    )
     data_type: DataType = Field(default=DataType.ANY, description="Expected data type")
     required: bool = Field(default=True, description="Whether this input is required")
     description: str = ""
@@ -157,9 +162,13 @@ class InputMapping(BaseModel):
         source_path="$.inputs.language"
         source_path="$.files"
     """
+
     port_id: str = Field(..., description="Target input port ID on this node")
     source_path: str = Field(..., description="Path expression to data source")
-    transform: str = Field(default="", description="Optional transform pipe (e.g., '| join:\", \"'), empty if none")
+    transform: str = Field(
+        default="",
+        description="Optional transform pipe (e.g., '| join:\", \"'), empty if none",
+    )
 
 
 class OutputSchema(BaseModel):
@@ -179,8 +188,13 @@ class OutputSchema(BaseModel):
         "required": ["people", "organizations", "dates"]
     }
     """
-    json_schema: dict[str, Any] = Field(..., description="JSON Schema definition", alias="schema")
-    description: str = Field(default="", description="Description for LLM prompt context")
+
+    json_schema: dict[str, Any] = Field(
+        ..., description="JSON Schema definition", alias="schema"
+    )
+    description: str = Field(
+        default="", description="Description for LLM prompt context"
+    )
 
     model_config = {"populate_by_name": True}
 
@@ -189,44 +203,59 @@ class OutputSchema(BaseModel):
 # Execution State
 # =============================================================================
 
+
 class State(TypedDict):
     """Workflow execution state passed between nodes.
 
     This is the shared state that flows through the LangGraph.
     Each node reads from and writes to this state.
     """
+
     # Execution metadata
-    task_id: str                    # Unique execution ID
-    workflow_id: str                # Workflow definition ID
+    task_id: str  # Unique execution ID
+    workflow_id: str  # Workflow definition ID
 
     # Library context (required for source tools)
-    library_path: str               # Path to .fichero library package
+    library_path: str  # Path to .fichero library package
 
     # Input/Output
-    inputs: dict[str, Any]          # Initial inputs to workflow
-    outputs: Annotated[dict[str, Any], _merge_outputs]  # Node outputs (keyed by node_id)
+    inputs: dict[str, Any]  # Initial inputs to workflow
+    outputs: Annotated[
+        dict[str, Any], _merge_outputs
+    ]  # Node outputs (keyed by node_id)
 
     # Execution tracking
-    current_node: Annotated[str, _last_value]  # Current node being executed (uses reducer for parallel)
-    completed_nodes: Annotated[list[str], _merge_completed_nodes]  # Nodes that have completed
-    error: str | None               # Error message if failed
+    current_node: Annotated[
+        str, _last_value
+    ]  # Current node being executed (uses reducer for parallel)
+    completed_nodes: Annotated[
+        list[str], _merge_completed_nodes
+    ]  # Nodes that have completed
+    error: str | None  # Error message if failed
 
     # File tracking
-    input_files: list[str]          # Input file paths
-    output_files: Annotated[list[str], _merge_output_files]  # Generated output file paths
+    input_files: list[str]  # Input file paths
+    output_files: Annotated[
+        list[str], _merge_output_files
+    ]  # Generated output file paths
 
     # Parallel execution tracking (for Send API fan-out)
     # Annotated with reducer to merge results from concurrent parallel branches
-    parallel_results: Annotated[dict[str, list[Any]], _merge_parallel_results]  # node_id -> list of results
-    parallel_index: int             # Current file index when in parallel branch
-    parallel_total: int             # Total files being processed in parallel
-    parallel_file: str              # Current file path in parallel branch
-    parallel_document: dict[str, Any] | None  # Current document metadata in parallel branch
+    parallel_results: Annotated[
+        dict[str, list[Any]], _merge_parallel_results
+    ]  # node_id -> list of results
+    parallel_index: int  # Current file index when in parallel branch
+    parallel_total: int  # Total files being processed in parallel
+    parallel_file: str  # Current file path in parallel branch
+    parallel_document: (
+        dict[str, Any] | None
+    )  # Current document metadata in parallel branch
 
 
 # =============================================================================
 # Workflow Definition
 # =============================================================================
+
 
 class NodeDef(BaseModel):
     """Definition of a single node in the workflow graph.
@@ -258,6 +287,7 @@ class NodeDef(BaseModel):
         For LLM nodes, `output_schema` defines the exact JSON structure
         the LLM must return (enforced via structured output mode).
     """
+
     id: str = Field(default_factory=_new_id, description="Unique node identifier")
     tool: str = Field(..., description="Tool function name from registry")
 
@@ -266,35 +296,33 @@ class NodeDef(BaseModel):
     # Do NOT store ports in the database - use enrich_node_with_ports() instead.
     input_ports: list[PortDef] = Field(
         default_factory=list,
-        description="Input connection ports (populated from registry, not stored)"
+        description="Input connection ports (populated from registry, not stored)",
     )
     output_ports: list[PortDef] = Field(
         default_factory=list,
-        description="Output connection ports (populated from registry, not stored)"
+        description="Output connection ports (populated from registry, not stored)",
     )
 
     # Input mapping - reference any previous node's output
     input_mappings: list[InputMapping] = Field(
         default_factory=list,
-        description="Maps input ports to data sources from previous nodes"
+        description="Maps input ports to data sources from previous nodes",
     )
 
     # Input values (can be literal values or path references)
     inputs: dict[str, Any] = Field(
         default_factory=dict,
-        description="Input values for the tool (supports path resolution)"
+        description="Input values for the tool (supports path resolution)",
     )
 
     # Static config (passed directly to tool, not resolved)
     config: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Static tool configuration (not resolved)"
+        default_factory=dict, description="Static tool configuration (not resolved)"
     )
 
     # Structured output schema for LLM nodes
     output_schema: OutputSchema | None = Field(
-        default=None,
-        description="JSON Schema for structured LLM output"
+        default=None, description="JSON Schema for structured LLM output"
     )
 
     # UI positioning (for node editor) - float for smooth dragging
@@ -302,29 +330,33 @@ class NodeDef(BaseModel):
     position_y: float = 0.0
 
     # Optional metadata
-    label: str = ""                 # Display label (defaults to tool name if empty)
-    description: str = ""           # Node description
-    enabled: bool = True            # Can be disabled without removing
+    label: str = ""  # Display label (defaults to tool name if empty)
+    description: str = ""  # Node description
+    enabled: bool = True  # Can be disabled without removing
 
     # Per-node LLM configuration (overrides workflow defaults)
-    provider_name: str = ""         # e.g., "openai", "anthropic" (empty for default)
-    model_name: str = ""            # e.g., "gpt-4o", "claude-3-5-sonnet-20241022" (empty for default)
-    uses_llm: bool = False          # Whether this node uses an LLM
+    provider_name: str = ""  # e.g., "openai", "anthropic" (empty for default)
+    model_name: str = (
+        ""  # e.g., "gpt-4o", "claude-3-5-sonnet-20241022" (empty for default)
+    )
+    uses_llm: bool = False  # Whether this node uses an LLM
 
     # Validators to handle null values from Swift/JSON
-    @field_validator('config', 'inputs', mode='before')
+    @field_validator("config", "inputs", mode="before")
     @classmethod
     def convert_none_to_empty_dict(cls, v):
         """Convert null to empty dict for dict fields."""
         return v if v is not None else {}
 
-    @field_validator('input_mappings', 'input_ports', 'output_ports', mode='before')
+    @field_validator("input_mappings", "input_ports", "output_ports", mode="before")
     @classmethod
     def convert_none_to_empty_list(cls, v):
         """Convert null to empty list for list fields."""
         return v if v is not None else []
 
-    @field_validator('label', 'description', 'provider_name', 'model_name', mode='before')
+    @field_validator(
+        "label", "description", "provider_name", "model_name", mode="before"
+    )
     @classmethod
     def convert_none_to_empty_string(cls, v):
         """Convert null to empty string for optional string fields."""
@@ -338,8 +370,8 @@ class NodeDef(BaseModel):
         """
         data = self.model_dump()
         # Remove ports - they'll be enriched from registry when loading
-        data.pop('input_ports', None)
-        data.pop('output_ports', None)
+        data.pop("input_ports", None)
+        data.pop("output_ports", None)
         return data
 
 
@@ -349,23 +381,30 @@ class EdgeDef(BaseModel):
     Edges define data flow between nodes. Each edge connects
     an output port on the source node to an input port on the target node.
     """
-    id: str = Field(default="", description="Unique edge identifier (auto-generated if empty)")
+
+    id: str = Field(
+        default="", description="Unique edge identifier (auto-generated if empty)"
+    )
     source: str = Field(..., description="Source node ID")
     target: str = Field(..., description="Target node ID")
 
     # Port connections (specific ports on each node)
-    source_port: str = Field(default="output", description="Output port ID on source node")
-    target_port: str = Field(default="input", description="Input port ID on target node")
+    source_port: str = Field(
+        default="output", description="Output port ID on source node"
+    )
+    target_port: str = Field(
+        default="input", description="Input port ID on target node"
+    )
 
     # Conditional routing (for IF/Switch nodes)
     condition: str | None = Field(
         default=None,
-        description="Condition expression (e.g., '$.nodes.classify.category == \"invoice\"'), empty for unconditional"
+        description="Condition expression (e.g., '$.nodes.classify.category == \"invoice\"'), empty for unconditional",
     )
 
     # Visual styling
-    animated: bool = False          # Show animated flow
-    label: str | None = None        # Label on edge (None for none)
+    animated: bool = False  # Show animated flow
+    label: str | None = None  # Label on edge (None for none)
 
 
 class WorkflowDef(BaseModel):
@@ -374,6 +413,7 @@ class WorkflowDef(BaseModel):
     This is the JSON-serializable representation of a workflow
     that can be saved, loaded, and executed.
     """
+
     id: str = Field(default_factory=_new_id, description="Unique workflow identifier")
     name: str = Field(..., description="Display name")
     description: str = ""
@@ -391,17 +431,17 @@ class WorkflowDef(BaseModel):
     input_source: Literal["collection", "current_selection"] = "collection"
 
     # Execution settings
-    timeout_seconds: int = 300      # Max execution time
-    max_retries: int = 3            # Retries per node on failure
+    timeout_seconds: int = 300  # Max execution time
+    max_retries: int = 3  # Retries per node on failure
 
     # Metadata
     version: str = "1.0"
     created_at: str | None = None
     updated_at: str | None = None
-    folder_path: str = "/"              # Folder organization path
-    sort_order: int = 0                 # Sort order within folder
+    folder_path: str = "/"  # Folder organization path
+    sort_order: int = 0  # Sort order within folder
 
-    @field_validator('description', mode='before')
+    @field_validator("description", mode="before")
     @classmethod
     def convert_none_to_empty_description(cls, v):
         """Convert null workflow descriptions to empty string."""
@@ -429,53 +469,53 @@ class WorkflowDef(BaseModel):
 # Tool Definition
 # =============================================================================
 
+
 class ToolDef(BaseModel):
     """Metadata about a registered tool.
 
     Used by the UI to display available tools and their parameters.
     When a node is created from this tool, the ports are copied to the node.
     """
+
     name: str = Field(..., description="Tool function name")
     display_name: str = Field(..., description="Human-readable name")
     description: str = ""
-    category: str = "general"       # vision, transform, convert, llm, logic, source, sink
+    category: str = "general"  # vision, transform, convert, llm, logic, source, sink
 
     # Visual styling for node editor
-    icon: str = "gearshape"         # SF Symbol name
-    color: str = "gray"             # Color name (blue, green, purple, etc.)
+    icon: str = "gearshape"  # SF Symbol name
+    color: str = "gray"  # Color name (blue, green, purple, etc.)
 
     # Port definitions - copied to nodes when created
     input_ports: list[PortDef] = Field(
         default_factory=list,
-        description="Default input ports for nodes using this tool"
+        description="Default input ports for nodes using this tool",
     )
     output_ports: list[PortDef] = Field(
         default_factory=list,
-        description="Default output ports for nodes using this tool"
+        description="Default output ports for nodes using this tool",
     )
 
     # Config schema (JSON Schema for tool-specific configuration)
     config_schema: dict[str, Any] = Field(
-        default_factory=dict,
-        description="JSON Schema for tool configuration options"
+        default_factory=dict, description="JSON Schema for tool configuration options"
     )
 
     # Config defaults (actual default values for new nodes)
     config_defaults: dict[str, Any] = Field(
         default_factory=dict,
-        description="Default config values to use when creating a new node"
+        description="Default config values to use when creating a new node",
     )
 
     # Output schema template (for LLM tools that support structured output)
     default_output_schema: dict[str, Any] | None = Field(
         default=None,
-        description="Default structured output schema (can be customized per node)"
+        description="Default structured output schema (can be customized per node)",
     )
 
     # Default prompt for LLM tools (shown in UI, user can customize)
     default_prompt: str | None = Field(
-        default=None,
-        description="Default prompt template for LLM tools"
+        default=None, description="Default prompt template for LLM tools"
     )
 
     # Callable to build dynamic prompt based on config
@@ -483,17 +523,17 @@ class ToolDef(BaseModel):
     prompt_builder: Any | None = Field(
         default=None,
         exclude=True,
-        description="Function to build prompt from config: (config: dict) -> str"
+        description="Function to build prompt from config: (config: dict) -> str",
     )
 
     # Capabilities
-    uses_llm: bool = False          # Requires LLM provider/model selection
-    supports_batch: bool = False    # Can process multiple files in parallel
-    supports_streaming: bool = False # Can stream progress updates
+    uses_llm: bool = False  # Requires LLM provider/model selection
+    supports_batch: bool = False  # Can process multiple files in parallel
+    supports_streaming: bool = False  # Can stream progress updates
     supports_structured_output: bool = False  # Can use JSON Schema output
 
     # Sort order for UI
-    sort_order: int = 100           # Lower = higher in list
+    sort_order: int = 100  # Lower = higher in list
 
     def get_prompt(self, config: dict[str, Any] | None = None) -> str | None:
         """Get the prompt for this tool, optionally customized by config.

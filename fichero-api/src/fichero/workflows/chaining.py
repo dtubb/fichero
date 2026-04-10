@@ -33,22 +33,24 @@ logger = logging.getLogger(__name__)
 # Chain Definition Models
 # =============================================================================
 
+
 class ChainStepCondition(BaseModel):
     """Conditional execution for a chain step.
 
     Allows branching based on the output of the previous workflow.
     """
+
     expression: str = Field(
         ...,
-        description="Python expression to evaluate (e.g., '$.outputs.category == \"invoice\"')"
+        description="Python expression to evaluate (e.g., '$.outputs.category == \"invoice\"')",
     )
     true_step: str | None = Field(
         default=None,
-        description="Step ID to execute if condition is true (None = continue to next)"
+        description="Step ID to execute if condition is true (None = continue to next)",
     )
     false_step: str | None = Field(
         default=None,
-        description="Step ID to execute if condition is false (None = skip to end)"
+        description="Step ID to execute if condition is false (None = skip to end)",
     )
 
 
@@ -60,22 +62,20 @@ class OutputMapping(BaseModel):
     - $.outputs              - All outputs
     - $.files                - Output files from previous workflow
     """
+
     source_path: str = Field(
-        ...,
-        description="Path expression for source data from previous workflow"
+        ..., description="Path expression for source data from previous workflow"
     )
-    target_key: str = Field(
-        ...,
-        description="Input key name in the next workflow"
-    )
+    target_key: str = Field(..., description="Input key name in the next workflow")
     transform: str | None = Field(
         default=None,
-        description="Optional transformation (e.g., 'json_extract:$.name')"
+        description="Optional transformation (e.g., 'json_extract:$.name')",
     )
 
 
 class ChainStep(BaseModel):
     """A single step in a workflow chain."""
+
     id: str = Field(..., description="Unique step identifier")
     workflow_id: str = Field(..., description="ID of workflow to execute")
     name: str = Field(default="", description="Display name for step")
@@ -83,31 +83,27 @@ class ChainStep(BaseModel):
     # Input mapping from previous step
     input_mappings: list[OutputMapping] = Field(
         default_factory=list,
-        description="Maps outputs from previous workflow to inputs"
+        description="Maps outputs from previous workflow to inputs",
     )
 
     # Static inputs (added to mapped inputs)
     static_inputs: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Additional static inputs for this step"
+        default_factory=dict, description="Additional static inputs for this step"
     )
 
     # Conditional execution
     condition: ChainStepCondition | None = Field(
-        default=None,
-        description="Condition for executing this step"
+        default=None, description="Condition for executing this step"
     )
 
     # Error handling
     continue_on_error: bool = Field(
-        default=False,
-        description="Continue chain even if this step fails"
+        default=False, description="Continue chain even if this step fails"
     )
 
     # Execution settings
     timeout_seconds: int = Field(
-        default=300,
-        description="Max execution time for this step"
+        default=300, description="Max execution time for this step"
     )
 
 
@@ -117,33 +113,31 @@ class WorkflowChain(BaseModel):
     Chains multiple workflows together, passing outputs from one
     as inputs to the next.
     """
+
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str = Field(..., description="Chain name")
     description: str = ""
 
     # Chain structure
     steps: list[ChainStep] = Field(
-        default_factory=list,
-        description="Ordered list of workflow steps"
+        default_factory=list, description="Ordered list of workflow steps"
     )
 
     # Entry point (first step to execute)
     entry_step: str | None = Field(
-        default=None,
-        description="ID of first step (defaults to first in list)"
+        default=None, description="ID of first step (defaults to first in list)"
     )
 
     # Initial inputs for the chain
     initial_inputs: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Default initial inputs for the chain"
+        default_factory=dict, description="Default initial inputs for the chain"
     )
 
     # Metadata
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
-    folder_path: str = "/"              # Folder organization path
-    sort_order: int = 0                 # Sort order within folder
+    folder_path: str = "/"  # Folder organization path
+    sort_order: int = 0  # Sort order within folder
 
     def get_step(self, step_id: str) -> ChainStep | None:
         """Get step by ID."""
@@ -166,8 +160,10 @@ class WorkflowChain(BaseModel):
 # Chain Execution State
 # =============================================================================
 
+
 class ChainStepStatus(str, Enum):
     """Status of a chain step execution."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -178,6 +174,7 @@ class ChainStepStatus(str, Enum):
 
 class ChainStepResult(BaseModel):
     """Result of executing a chain step."""
+
     step_id: str
     workflow_id: str
     status: ChainStepStatus
@@ -192,6 +189,7 @@ class ChainStepResult(BaseModel):
 
 class ChainExecutionResult(BaseModel):
     """Result of executing a complete chain."""
+
     chain_id: str
     execution_id: str
     status: ChainStepStatus
@@ -207,8 +205,10 @@ class ChainExecutionResult(BaseModel):
 # Chain Event Types
 # =============================================================================
 
+
 class ChainEventType(str, Enum):
     """Types of chain execution events."""
+
     CHAIN_STARTED = "chain_started"
     CHAIN_COMPLETED = "chain_completed"
     CHAIN_FAILED = "chain_failed"
@@ -221,6 +221,7 @@ class ChainEventType(str, Enum):
 
 class ChainProgressEvent(BaseModel):
     """Progress event for chain execution."""
+
     event_type: ChainEventType
     chain_id: str
     execution_id: str
@@ -236,6 +237,7 @@ class ChainProgressEvent(BaseModel):
 # =============================================================================
 # Output Resolver
 # =============================================================================
+
 
 def resolve_output_path(data: dict[str, Any], path: str) -> Any:
     """Resolve a path expression against workflow output data.
@@ -344,7 +346,7 @@ def evaluate_condition(condition: ChainStepCondition, data: dict[str, Any]) -> b
     expression = condition.expression
 
     # Replace path expressions with actual values
-    path_pattern = r'\$\.[a-zA-Z0-9_.]+'
+    path_pattern = r"\$\.[a-zA-Z0-9_.]+"
 
     def replace_path(match: re.Match) -> str:
         path = match.group(0)
@@ -400,13 +402,19 @@ def evaluate_condition(condition: ChainStepCondition, data: dict[str, Any]) -> b
             # Python 3.8+ uses ast.Constant for all literals
             return node.value
 
-        elif ast_num is not None and isinstance(node, ast_num):  # Python 3.7 compatibility
+        elif ast_num is not None and isinstance(
+            node, ast_num
+        ):  # Python 3.7 compatibility
             return node.n
 
-        elif ast_str is not None and isinstance(node, ast_str):  # Python 3.7 compatibility
+        elif ast_str is not None and isinstance(
+            node, ast_str
+        ):  # Python 3.7 compatibility
             return node.s
 
-        elif ast_name_constant is not None and isinstance(node, ast_name_constant):  # Python 3.7 compatibility
+        elif ast_name_constant is not None and isinstance(
+            node, ast_name_constant
+        ):  # Python 3.7 compatibility
             return node.value
 
         elif isinstance(node, ast.List):
@@ -420,7 +428,9 @@ def evaluate_condition(condition: ChainStepCondition, data: dict[str, Any]) -> b
             for op, comparator in zip(node.ops, node.comparators):
                 op_func = SAFE_OPERATORS.get(type(op))
                 if op_func is None:
-                    raise ValueError(f"Unsupported comparison operator: {type(op).__name__}")
+                    raise ValueError(
+                        f"Unsupported comparison operator: {type(op).__name__}"
+                    )
                 right = safe_eval_node(comparator)
                 if not op_func(left, right):
                     return False
@@ -430,7 +440,9 @@ def evaluate_condition(condition: ChainStepCondition, data: dict[str, Any]) -> b
         elif isinstance(node, ast.BoolOp):
             op_func = SAFE_OPERATORS.get(type(node.op))
             if op_func is None:
-                raise ValueError(f"Unsupported boolean operator: {type(node.op).__name__}")
+                raise ValueError(
+                    f"Unsupported boolean operator: {type(node.op).__name__}"
+                )
             result = safe_eval_node(node.values[0])
             for value in node.values[1:]:
                 result = op_func(result, safe_eval_node(value))
@@ -444,12 +456,16 @@ def evaluate_condition(condition: ChainStepCondition, data: dict[str, Any]) -> b
             elif isinstance(node.op, ast.UAdd):
                 return +safe_eval_node(node.operand)
             else:
-                raise ValueError(f"Unsupported unary operator: {type(node.op).__name__}")
+                raise ValueError(
+                    f"Unsupported unary operator: {type(node.op).__name__}"
+                )
 
         elif isinstance(node, ast.BinOp):
             op_func = SAFE_OPERATORS.get(type(node.op))
             if op_func is None:
-                raise ValueError(f"Unsupported binary operator: {type(node.op).__name__}")
+                raise ValueError(
+                    f"Unsupported binary operator: {type(node.op).__name__}"
+                )
             left = safe_eval_node(node.left)
             right = safe_eval_node(node.right)
             return op_func(left, right)
@@ -470,7 +486,7 @@ def evaluate_condition(condition: ChainStepCondition, data: dict[str, Any]) -> b
 
     try:
         # Parse and safely evaluate the expression
-        tree = ast.parse(resolved_expr, mode='eval')
+        tree = ast.parse(resolved_expr, mode="eval")
         result = safe_eval_node(tree)
         return bool(result)
     except SyntaxError as e:
@@ -487,6 +503,7 @@ def evaluate_condition(condition: ChainStepCondition, data: dict[str, Any]) -> b
 # =============================================================================
 # Chain Executor
 # =============================================================================
+
 
 class ChainExecutor:
     """Executes workflow chains with progress tracking."""
@@ -544,17 +561,21 @@ class ChainExecutor:
         )
 
         # Emit chain started event
-        await self._emit_event(ChainProgressEvent(
-            event_type=ChainEventType.CHAIN_STARTED,
-            chain_id=chain.id,
-            execution_id=execution_id,
-            total_steps=len(chain.steps),
-            message=f"Starting chain '{chain.name}' with {len(chain.steps)} steps",
-        ))
+        await self._emit_event(
+            ChainProgressEvent(
+                event_type=ChainEventType.CHAIN_STARTED,
+                chain_id=chain.id,
+                execution_id=execution_id,
+                total_steps=len(chain.steps),
+                message=f"Starting chain '{chain.name}' with {len(chain.steps)} steps",
+            )
+        )
 
         try:
             # Determine first step
-            current_step_id = chain.entry_step or (chain.steps[0].id if chain.steps else None)
+            current_step_id = chain.entry_step or (
+                chain.steps[0].id if chain.steps else None
+            )
             step_index = 0
 
             # Create initial "previous result" for first step
@@ -571,12 +592,14 @@ class ChainExecutor:
             while current_step_id:
                 if self._cancel_requested:
                     result.status = ChainStepStatus.CANCELLED
-                    await self._emit_event(ChainProgressEvent(
-                        event_type=ChainEventType.CHAIN_CANCELLED,
-                        chain_id=chain.id,
-                        execution_id=execution_id,
-                        message="Chain execution cancelled",
-                    ))
+                    await self._emit_event(
+                        ChainProgressEvent(
+                            event_type=ChainEventType.CHAIN_CANCELLED,
+                            chain_id=chain.id,
+                            execution_id=execution_id,
+                            message="Chain execution cancelled",
+                        )
+                    )
                     break
 
                 step = chain.get_step(current_step_id)
@@ -603,15 +626,17 @@ class ChainExecutor:
                         step_results.append(step_result)
                         result.step_results = step_results
 
-                        await self._emit_event(ChainProgressEvent(
-                            event_type=ChainEventType.STEP_SKIPPED,
-                            chain_id=chain.id,
-                            execution_id=execution_id,
-                            step_id=step.id,
-                            step_index=step_index,
-                            total_steps=len(chain.steps),
-                            message=f"Skipped step '{step.name or step.id}'",
-                        ))
+                        await self._emit_event(
+                            ChainProgressEvent(
+                                event_type=ChainEventType.STEP_SKIPPED,
+                                chain_id=chain.id,
+                                execution_id=execution_id,
+                                step_id=step.id,
+                                step_index=step_index,
+                                total_steps=len(chain.steps),
+                                message=f"Skipped step '{step.name or step.id}'",
+                            )
+                        )
 
                         # Determine next step based on condition
                         if step.condition.false_step:
@@ -638,14 +663,16 @@ class ChainExecutor:
                 if step_result.status == ChainStepStatus.FAILED:
                     if not step.continue_on_error:
                         result.status = ChainStepStatus.FAILED
-                        await self._emit_event(ChainProgressEvent(
-                            event_type=ChainEventType.CHAIN_FAILED,
-                            chain_id=chain.id,
-                            execution_id=execution_id,
-                            step_id=step.id,
-                            error=step_result.error,
-                            message=f"Chain failed at step '{step.name or step.id}'",
-                        ))
+                        await self._emit_event(
+                            ChainProgressEvent(
+                                event_type=ChainEventType.CHAIN_FAILED,
+                                chain_id=chain.id,
+                                execution_id=execution_id,
+                                step_id=step.id,
+                                error=step_result.error,
+                                message=f"Chain failed at step '{step.name or step.id}'",
+                            )
+                        )
                         break
 
                 # Update previous result for next step
@@ -666,17 +693,21 @@ class ChainExecutor:
                 result.final_outputs = previous_result.outputs
                 result.final_files = previous_result.output_files
 
-                await self._emit_event(ChainProgressEvent(
-                    event_type=ChainEventType.CHAIN_COMPLETED,
-                    chain_id=chain.id,
-                    execution_id=execution_id,
-                    total_steps=len(chain.steps),
-                    progress=1.0,
-                    message=f"Chain '{chain.name}' completed successfully",
-                ))
+                await self._emit_event(
+                    ChainProgressEvent(
+                        event_type=ChainEventType.CHAIN_COMPLETED,
+                        chain_id=chain.id,
+                        execution_id=execution_id,
+                        total_steps=len(chain.steps),
+                        progress=1.0,
+                        message=f"Chain '{chain.name}' completed successfully",
+                    )
+                )
 
             result.completed_at = datetime.now()
-            result.total_duration_ms = (result.completed_at - start_time).total_seconds() * 1000
+            result.total_duration_ms = (
+                result.completed_at - start_time
+            ).total_seconds() * 1000
 
             return result
 
@@ -685,13 +716,15 @@ class ChainExecutor:
             result.status = ChainStepStatus.FAILED
             result.completed_at = datetime.now()
 
-            await self._emit_event(ChainProgressEvent(
-                event_type=ChainEventType.CHAIN_FAILED,
-                chain_id=chain.id,
-                execution_id=execution_id,
-                error=str(e),
-                message=f"Chain failed with error: {e}",
-            ))
+            await self._emit_event(
+                ChainProgressEvent(
+                    event_type=ChainEventType.CHAIN_FAILED,
+                    chain_id=chain.id,
+                    execution_id=execution_id,
+                    error=str(e),
+                    message=f"Chain failed with error: {e}",
+                )
+            )
 
             return result
 
@@ -707,16 +740,18 @@ class ChainExecutor:
         start_time = datetime.now()
 
         # Emit step started event
-        await self._emit_event(ChainProgressEvent(
-            event_type=ChainEventType.STEP_STARTED,
-            chain_id=chain.id,
-            execution_id=execution_id,
-            step_id=step.id,
-            step_index=step_index,
-            total_steps=len(chain.steps),
-            progress=step_index / len(chain.steps),
-            message=f"Starting step '{step.name or step.id}'",
-        ))
+        await self._emit_event(
+            ChainProgressEvent(
+                event_type=ChainEventType.STEP_STARTED,
+                chain_id=chain.id,
+                execution_id=execution_id,
+                step_id=step.id,
+                step_index=step_index,
+                total_steps=len(chain.steps),
+                progress=step_index / len(chain.steps),
+                message=f"Starting step '{step.name or step.id}'",
+            )
+        )
 
         # Load workflow
         workflow = self.workflow_loader(step.workflow_id)
@@ -782,16 +817,18 @@ class ChainExecutor:
                 duration_ms=(completed_at - start_time).total_seconds() * 1000,
             )
 
-            await self._emit_event(ChainProgressEvent(
-                event_type=ChainEventType.STEP_COMPLETED,
-                chain_id=chain.id,
-                execution_id=execution_id,
-                step_id=step.id,
-                step_index=step_index,
-                total_steps=len(chain.steps),
-                progress=(step_index + 1) / len(chain.steps),
-                message=f"Completed step '{step.name or step.id}'",
-            ))
+            await self._emit_event(
+                ChainProgressEvent(
+                    event_type=ChainEventType.STEP_COMPLETED,
+                    chain_id=chain.id,
+                    execution_id=execution_id,
+                    step_id=step.id,
+                    step_index=step_index,
+                    total_steps=len(chain.steps),
+                    progress=(step_index + 1) / len(chain.steps),
+                    message=f"Completed step '{step.name or step.id}'",
+                )
+            )
 
             return result
 
@@ -810,15 +847,17 @@ class ChainExecutor:
         except Exception as e:
             logger.exception(f"Step execution failed: {e}")
 
-            await self._emit_event(ChainProgressEvent(
-                event_type=ChainEventType.STEP_FAILED,
-                chain_id=chain.id,
-                execution_id=execution_id,
-                step_id=step.id,
-                step_index=step_index,
-                error=str(e),
-                message=f"Step '{step.name or step.id}' failed: {e}",
-            ))
+            await self._emit_event(
+                ChainProgressEvent(
+                    event_type=ChainEventType.STEP_FAILED,
+                    chain_id=chain.id,
+                    execution_id=execution_id,
+                    step_id=step.id,
+                    step_index=step_index,
+                    error=str(e),
+                    message=f"Step '{step.name or step.id}' failed: {e}",
+                )
+            )
 
             return ChainStepResult(
                 step_id=step.id,
@@ -847,6 +886,7 @@ class ChainExecutor:
 # Chain Store (In-Memory for now)
 # =============================================================================
 
+
 class ChainStore:
     """Manages workflow chain definitions.
 
@@ -873,7 +913,7 @@ class ChainStore:
             key=lambda c: c.updated_at,
             reverse=True,
         )
-        return chains[offset:offset + limit]
+        return chains[offset : offset + limit]
 
     def delete(self, chain_id: str) -> bool:
         """Delete a chain by ID."""

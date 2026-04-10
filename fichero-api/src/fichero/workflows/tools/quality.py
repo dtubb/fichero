@@ -56,6 +56,7 @@ QUALITY_CONFIG = {
 # Prompt Building
 # =============================================================================
 
+
 def _build_prompt(aspects: list[str], scale: str) -> str:
     """Build the quality assessment prompt."""
     aspects_str = ", ".join(aspects)
@@ -88,7 +89,9 @@ Return ONLY valid JSON."""
 
 def build_quality_prompt(config: dict) -> str:
     """Build prompt from config (exposed to UI)."""
-    aspects = config.get("aspects", ["sharpness", "exposure", "noise", "composition", "color_balance"])
+    aspects = config.get(
+        "aspects", ["sharpness", "exposure", "noise", "composition", "color_balance"]
+    )
     scale = config.get("scale", "1-10")
     return _build_prompt(aspects, scale)
 
@@ -96,6 +99,7 @@ def build_quality_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="quality",
@@ -110,7 +114,9 @@ def build_quality_prompt(config: dict) -> str:
     input_ports=VISION_INPUT_PORTS,
     output_ports=BASE_OUTPUT_PORTS,
     config_schema=merge_config_schema(VISION_CONFIG_SCHEMA, QUALITY_CONFIG),
-    default_prompt=_build_prompt(["sharpness", "exposure", "noise", "composition", "color_balance"], "1-10"),
+    default_prompt=_build_prompt(
+        ["sharpness", "exposure", "noise", "composition", "color_balance"], "1-10"
+    ),
     prompt_builder=build_quality_prompt,
     sort_order=23,
 )
@@ -126,7 +132,9 @@ async def quality(
     context = inputs.get("context")
     input_metadata = inputs.get("metadata")
 
-    aspects = inputs.get("aspects", ["sharpness", "exposure", "noise", "composition", "color_balance"])
+    aspects = inputs.get(
+        "aspects", ["sharpness", "exposure", "noise", "composition", "color_balance"]
+    )
     scale = inputs.get("scale", "1-10")
 
     prompt = inputs.get("prompt") or _build_prompt(aspects, scale)

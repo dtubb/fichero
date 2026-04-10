@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 
 class TriggerEvent(str, Enum):
     """Types of file system events to trigger on."""
+
     CREATED = "created"
     MODIFIED = "modified"
     DELETED = "deleted"
@@ -47,6 +48,7 @@ class TriggerEvent(str, Enum):
 
 class TriggerStatus(str, Enum):
     """Status of a file trigger."""
+
     ACTIVE = "active"
     PAUSED = "paused"
     ERROR = "error"
@@ -54,6 +56,7 @@ class TriggerStatus(str, Enum):
 
 class FilterMode(str, Enum):
     """How to filter files."""
+
     GLOB = "glob"  # e.g., "*.pdf"
     REGEX = "regex"  # e.g., r".*\.pdf$"
     EXTENSION = "extension"  # e.g., ["pdf", "docx"]
@@ -62,12 +65,15 @@ class FilterMode(str, Enum):
 @dataclass
 class TriggerConfig:
     """Configuration for a file trigger."""
+
     watch_path: str  # Directory to watch
     recursive: bool = True  # Watch subdirectories
     events: list[TriggerEvent] = field(default_factory=lambda: [TriggerEvent.CREATED])
     filter_mode: FilterMode = FilterMode.GLOB
     filter_pattern: Optional[str] = None  # Pattern for glob/regex
-    filter_extensions: list[str] = field(default_factory=list)  # Extensions for extension mode
+    filter_extensions: list[str] = field(
+        default_factory=list
+    )  # Extensions for extension mode
     exclude_patterns: list[str] = field(default_factory=list)  # Patterns to exclude
     debounce_seconds: float = 1.0  # Debounce rapid events
     batch_delay_seconds: float = 5.0  # Wait before batching events
@@ -76,12 +82,15 @@ class TriggerConfig:
 @dataclass
 class FileTrigger:
     """Represents a file system trigger for workflow execution."""
+
     trigger_id: str
     name: str
     workflow_id: str
     config: TriggerConfig
     status: TriggerStatus
-    inputs_template: dict[str, Any] = field(default_factory=dict)  # Template with {file_path} placeholder
+    inputs_template: dict[str, Any] = field(
+        default_factory=dict
+    )  # Template with {file_path} placeholder
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
     last_triggered_at: Optional[datetime] = None
@@ -95,6 +104,7 @@ class FileTrigger:
 @dataclass
 class TriggerExecution:
     """Record of a trigger execution."""
+
     execution_id: str
     trigger_id: str
     triggered_at: datetime
@@ -155,7 +165,7 @@ class FileWatchHandler(FileSystemEventHandler):
 
         elif config.filter_mode == FilterMode.EXTENSION:
             if config.filter_extensions:
-                ext = file_path.suffix.lstrip('.').lower()
+                ext = file_path.suffix.lstrip(".").lower()
                 if ext not in [e.lower() for e in config.filter_extensions]:
                     return False
 
@@ -228,7 +238,9 @@ class FileWatcherManager:
         self._observer = Observer()
         self._triggers: dict[str, FileTrigger] = {}
         self._handlers: dict[str, FileWatchHandler] = {}
-        self._pending_events: dict[str, list[tuple[str, str]]] = {}  # trigger_id -> [(event_type, path)]
+        self._pending_events: dict[
+            str, list[tuple[str, str]]
+        ] = {}  # trigger_id -> [(event_type, path)]
         self._batch_tasks: dict[str, asyncio.Task] = {}
         self._pending_tasks: dict[str, list[asyncio.Task]] = {}
 
@@ -306,6 +318,7 @@ class FileWatcherManager:
 
     async def _load_triggers(self) -> None:
         """Load active triggers from database and set up watchers."""
+
         def _load():
             conn = duckdb.connect(self.db_path)
             try:
@@ -328,6 +341,7 @@ class FileWatcherManager:
     def _row_to_trigger(self, row) -> FileTrigger:
         """Convert database row to FileTrigger object."""
         import json
+
         events = json.loads(row[4]) if row[4] else ["created"]
 
         return FileTrigger(
@@ -451,7 +465,9 @@ class FileWatcherManager:
 
             else:
                 # Execute workflow for each file
-                asyncio.create_task(self._execute_single(execution, trigger, file_paths))
+                asyncio.create_task(
+                    self._execute_single(execution, trigger, file_paths)
+                )
 
             # Update trigger stats
             trigger.last_triggered_at = execution.triggered_at
@@ -469,14 +485,16 @@ class FileWatcherManager:
             trigger.error_message = str(e)
             await self._save_trigger(trigger)
 
-    def _resolve_inputs(self, template: dict[str, Any], file_path: str) -> dict[str, Any]:
+    def _resolve_inputs(
+        self, template: dict[str, Any], file_path: str
+    ) -> dict[str, Any]:
         """Resolve inputs template with file path."""
         path = Path(file_path)
         replacements = {
             "{file_path}": str(path),
             "{file_name}": path.name,
             "{file_stem}": path.stem,
-            "{file_ext}": path.suffix.lstrip('.'),
+            "{file_ext}": path.suffix.lstrip("."),
             "{parent_dir}": str(path.parent),
         }
 
@@ -602,12 +620,15 @@ class FileWatcherManager:
 
     async def _save_trigger(self, trigger: FileTrigger) -> None:
         """Save trigger to database."""
+
         def _save():
             import json
+
             conn = duckdb.connect(self.db_path)
             try:
                 events = [e.value for e in trigger.config.events]
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO file_triggers (
                         trigger_id, name, workflow_id, watch_path, recursive,
                         events, filter_mode, filter_pattern, filter_extensions,
@@ -616,29 +637,31 @@ class FileWatcherManager:
                         created_at, updated_at, last_triggered_at, trigger_count,
                         error_message
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, [
-                    trigger.trigger_id,
-                    trigger.name,
-                    trigger.workflow_id,
-                    trigger.config.watch_path,
-                    trigger.config.recursive,
-                    json.dumps(events),
-                    trigger.config.filter_mode.value,
-                    trigger.config.filter_pattern,
-                    json.dumps(trigger.config.filter_extensions),
-                    json.dumps(trigger.config.exclude_patterns),
-                    trigger.config.debounce_seconds,
-                    trigger.config.batch_delay_seconds,
-                    json.dumps(trigger.inputs_template),
-                    trigger.status.value,
-                    trigger.use_batch,
-                    trigger.max_concurrent,
-                    trigger.created_at,
-                    trigger.updated_at,
-                    trigger.last_triggered_at,
-                    trigger.trigger_count,
-                    trigger.error_message,
-                ])
+                """,
+                    [
+                        trigger.trigger_id,
+                        trigger.name,
+                        trigger.workflow_id,
+                        trigger.config.watch_path,
+                        trigger.config.recursive,
+                        json.dumps(events),
+                        trigger.config.filter_mode.value,
+                        trigger.config.filter_pattern,
+                        json.dumps(trigger.config.filter_extensions),
+                        json.dumps(trigger.config.exclude_patterns),
+                        trigger.config.debounce_seconds,
+                        trigger.config.batch_delay_seconds,
+                        json.dumps(trigger.inputs_template),
+                        trigger.status.value,
+                        trigger.use_batch,
+                        trigger.max_concurrent,
+                        trigger.created_at,
+                        trigger.updated_at,
+                        trigger.last_triggered_at,
+                        trigger.trigger_count,
+                        trigger.error_message,
+                    ],
+                )
             finally:
                 conn.close()
 
@@ -646,25 +669,30 @@ class FileWatcherManager:
 
     async def _save_execution(self, execution: TriggerExecution) -> None:
         """Save trigger execution to database."""
+
         def _save():
             import json
+
             conn = duckdb.connect(self.db_path)
             try:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO trigger_executions (
                         execution_id, trigger_id, triggered_at, file_paths,
                         batch_id, status, error, completed_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, [
-                    execution.execution_id,
-                    execution.trigger_id,
-                    execution.triggered_at,
-                    json.dumps(execution.file_paths),
-                    execution.batch_id,
-                    execution.status,
-                    execution.error,
-                    execution.completed_at,
-                ])
+                """,
+                    [
+                        execution.execution_id,
+                        execution.trigger_id,
+                        execution.triggered_at,
+                        json.dumps(execution.file_paths),
+                        execution.batch_id,
+                        execution.status,
+                        execution.error,
+                        execution.completed_at,
+                    ],
+                )
             finally:
                 conn.close()
 
@@ -679,8 +707,7 @@ class FileWatcherManager:
             conn = duckdb.connect(self.db_path)
             try:
                 result = conn.execute(
-                    "SELECT * FROM file_triggers WHERE trigger_id = ?",
-                    [trigger_id]
+                    "SELECT * FROM file_triggers WHERE trigger_id = ?", [trigger_id]
                 ).fetchone()
                 return result
             finally:
@@ -701,6 +728,7 @@ class FileWatcherManager:
         offset: int = 0,
     ) -> list[FileTrigger]:
         """List triggers with optional filtering."""
+
         def _list():
             conn = duckdb.connect(self.db_path)
             try:
@@ -837,12 +865,10 @@ class FileWatcherManager:
             conn = duckdb.connect(self.db_path)
             try:
                 conn.execute(
-                    "DELETE FROM trigger_executions WHERE trigger_id = ?",
-                    [trigger_id]
+                    "DELETE FROM trigger_executions WHERE trigger_id = ?", [trigger_id]
                 )
                 conn.execute(
-                    "DELETE FROM file_triggers WHERE trigger_id = ?",
-                    [trigger_id]
+                    "DELETE FROM file_triggers WHERE trigger_id = ?", [trigger_id]
                 )
             finally:
                 conn.close()
@@ -861,17 +887,21 @@ class FileWatcherManager:
         limit: int = 50,
     ) -> list[TriggerExecution]:
         """Get execution history for a trigger."""
+
         def _get_executions():
             conn = duckdb.connect(self.db_path)
             try:
-                results = conn.execute("""
+                results = conn.execute(
+                    """
                     SELECT execution_id, trigger_id, triggered_at, file_paths,
                            batch_id, status, error, completed_at
                     FROM trigger_executions
                     WHERE trigger_id = ?
                     ORDER BY triggered_at DESC
                     LIMIT ?
-                """, [trigger_id, limit]).fetchall()
+                """,
+                    [trigger_id, limit],
+                ).fetchall()
                 return results
             finally:
                 conn.close()

@@ -26,6 +26,7 @@ _tasks: dict[str, dict] = {}
 # Request/Response models
 class IngestFileRequest(BaseModel):
     """Request model for file ingestion."""
+
     path: str
     parent_id: Optional[str] = None
     copy_mode: bool = False  # Link (default) or copy into library
@@ -35,6 +36,7 @@ class IngestFileRequest(BaseModel):
 
 class IngestFolderRequest(BaseModel):
     """Request model for folder ingestion."""
+
     path: str
     parent_id: Optional[str] = None
     copy_mode: bool = False
@@ -45,6 +47,7 @@ class IngestFolderRequest(BaseModel):
 
 class IngestTaskResponse(BaseModel):
     """Response for async ingest task."""
+
     task_id: str
     status: str
     path: str
@@ -52,6 +55,7 @@ class IngestTaskResponse(BaseModel):
 
 class IngestTaskStatus(BaseModel):
     """Status of an ingest task."""
+
     task_id: str
     status: str  # pending, running, completed, failed
     path: str
@@ -63,6 +67,7 @@ class IngestTaskStatus(BaseModel):
 
 
 # Routes
+
 
 @router.post("/file")
 async def ingest_file(

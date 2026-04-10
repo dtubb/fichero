@@ -55,6 +55,7 @@ FACES_CONFIG = {
 # Prompt Building
 # =============================================================================
 
+
 def _build_prompt(detail: str, include_expressions: bool) -> str:
     """Build the faces detection prompt."""
     if detail == "count":
@@ -115,6 +116,7 @@ def build_faces_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="faces",

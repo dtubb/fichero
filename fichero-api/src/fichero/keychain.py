@@ -62,6 +62,7 @@ def _run_security(*args: str, input_data: str | None = None) -> tuple[int, str, 
 # Public API
 # =============================================================================
 
+
 def get_api_key(provider: str) -> str | None:
     """Get API key from Keychain.
 
@@ -81,8 +82,10 @@ def get_api_key(provider: str) -> str | None:
     # -w: print password only
     returncode, stdout, stderr = _run_security(
         "find-generic-password",
-        "-s", SERVICE,
-        "-a", provider,
+        "-s",
+        SERVICE,
+        "-a",
+        provider,
         "-w",  # Output password only
     )
 
@@ -127,10 +130,14 @@ def set_api_key(provider: str, key: str) -> bool:
     # -U: update if exists (but we deleted first, so shouldn't matter)
     returncode, stdout, stderr = _run_security(
         "add-generic-password",
-        "-s", SERVICE,
-        "-a", provider,
-        "-l", f"Fichero API key for {provider}",
-        "-w", key,
+        "-s",
+        SERVICE,
+        "-a",
+        provider,
+        "-l",
+        f"Fichero API key for {provider}",
+        "-w",
+        key,
         "-U",  # Update if exists
     )
 
@@ -157,8 +164,10 @@ def delete_api_key(provider: str) -> bool:
     # Use security delete-generic-password
     returncode, stdout, stderr = _run_security(
         "delete-generic-password",
-        "-s", SERVICE,
-        "-a", provider,
+        "-s",
+        SERVICE,
+        "-a",
+        provider,
     )
 
     # Success or item not found both count as successful delete

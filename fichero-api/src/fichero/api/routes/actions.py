@@ -24,8 +24,10 @@ router = APIRouter(prefix="/actions", tags=["actions"])
 # Request/Response Models
 # =========================================================================
 
+
 class ActionResponse(BaseModel):
     """Action response model."""
+
     id: str
     name: str
     description: str
@@ -46,6 +48,7 @@ class ActionResponse(BaseModel):
 
 class CreateActionRequest(BaseModel):
     """Request to create a new action."""
+
     name: str
     description: str = ""
     category: str = "custom"
@@ -59,6 +62,7 @@ class CreateActionRequest(BaseModel):
 
 class UpdateActionRequest(BaseModel):
     """Request to update an action."""
+
     name: str | None = None
     description: str | None = None
     category: str | None = None
@@ -71,12 +75,14 @@ class UpdateActionRequest(BaseModel):
 
 class ImportActionRequest(BaseModel):
     """Request to import an action."""
+
     json_data: str
     new_id: bool = True
 
 
 class CreateFromNodeRequest(BaseModel):
     """Request to create action from workflow node."""
+
     name: str
     node: dict[str, Any]
     description: str = ""
@@ -86,6 +92,7 @@ class CreateFromNodeRequest(BaseModel):
 
 class CreateCompositeRequest(BaseModel):
     """Request to create composite action."""
+
     name: str
     nodes: list[dict[str, Any]]
     edges: list[dict[str, Any]]
@@ -97,6 +104,7 @@ class CreateCompositeRequest(BaseModel):
 # =========================================================================
 # Helper Functions
 # =========================================================================
+
 
 def action_to_response(action: Action) -> ActionResponse:
     """Convert Action model to response."""
@@ -116,7 +124,7 @@ def action_to_response(action: Action) -> ActionResponse:
         use_count=action.use_count,
         last_used_at=action.last_used_at.isoformat() if action.last_used_at else None,
         created_at=action.created_at.isoformat(),
-        updated_at=action.updated_at.isoformat()
+        updated_at=action.updated_at.isoformat(),
     )
 
 
@@ -129,28 +137,23 @@ def get_action_store(db: Database = Depends(get_library_database)) -> ActionStor
 # List Endpoints
 # =========================================================================
 
+
 @router.get("", response_model=list[ActionResponse])
-async def list_actions(
-    store: ActionStore = Depends(get_action_store)
-):
+async def list_actions(store: ActionStore = Depends(get_action_store)):
     """List all actions."""
     actions = store.list_all()
     return [action_to_response(a) for a in actions]
 
 
 @router.get("/builtin", response_model=list[ActionResponse])
-async def list_builtin_actions(
-    store: ActionStore = Depends(get_action_store)
-):
+async def list_builtin_actions(store: ActionStore = Depends(get_action_store)):
     """List built-in actions only."""
     actions = store.list_builtin()
     return [action_to_response(a) for a in actions]
 
 
 @router.get("/custom", response_model=list[ActionResponse])
-async def list_custom_actions(
-    store: ActionStore = Depends(get_action_store)
-):
+async def list_custom_actions(store: ActionStore = Depends(get_action_store)):
     """List user-created actions only."""
     actions = store.list_custom()
     return [action_to_response(a) for a in actions]
@@ -159,7 +162,7 @@ async def list_custom_actions(
 @router.get("/recent", response_model=list[ActionResponse])
 async def list_recent_actions(
     limit: int = Query(default=10, ge=1, le=50),
-    store: ActionStore = Depends(get_action_store)
+    store: ActionStore = Depends(get_action_store),
 ):
     """List recently used actions."""
     actions = store.list_recent(limit=limit)
@@ -169,7 +172,7 @@ async def list_recent_actions(
 @router.get("/popular", response_model=list[ActionResponse])
 async def list_popular_actions(
     limit: int = Query(default=10, ge=1, le=50),
-    store: ActionStore = Depends(get_action_store)
+    store: ActionStore = Depends(get_action_store),
 ):
     """List most frequently used actions."""
     actions = store.list_popular(limit=limit)
@@ -177,9 +180,7 @@ async def list_popular_actions(
 
 
 @router.get("/categories")
-async def list_categories(
-    store: ActionStore = Depends(get_action_store)
-):
+async def list_categories(store: ActionStore = Depends(get_action_store)):
     """List all action categories."""
     categories = store.get_categories()
     return {"categories": categories}
@@ -187,8 +188,7 @@ async def list_categories(
 
 @router.get("/category/{category}", response_model=list[ActionResponse])
 async def list_actions_by_category(
-    category: str,
-    store: ActionStore = Depends(get_action_store)
+    category: str, store: ActionStore = Depends(get_action_store)
 ):
     """List actions in a specific category."""
     actions = store.list_by_category(category)
@@ -199,12 +199,13 @@ async def list_actions_by_category(
 # Search
 # =========================================================================
 
+
 @router.get("/search", response_model=list[ActionResponse])
 async def search_actions(
     query: str | None = None,
     category: str | None = None,
     tags: str | None = Query(default=None, description="Comma-separated tags"),
-    store: ActionStore = Depends(get_action_store)
+    store: ActionStore = Depends(get_action_store),
 ):
     """
     Search actions by criteria.
@@ -216,11 +217,7 @@ async def search_actions(
     """
     tag_list = [t.strip() for t in tags.split(",")] if tags else None
 
-    actions = store.search(
-        query=query,
-        category=category,
-        tags=tag_list
-    )
+    actions = store.search(query=query, category=category, tags=tag_list)
     return [action_to_response(a) for a in actions]
 
 
@@ -228,11 +225,9 @@ async def search_actions(
 # CRUD
 # =========================================================================
 
+
 @router.get("/{action_id}", response_model=ActionResponse)
-async def get_action(
-    action_id: str,
-    store: ActionStore = Depends(get_action_store)
-):
+async def get_action(action_id: str, store: ActionStore = Depends(get_action_store)):
     """Get an action by ID."""
     action = store.get(action_id)
     if not action:
@@ -242,8 +237,7 @@ async def get_action(
 
 @router.post("", response_model=ActionResponse)
 async def create_action(
-    request: CreateActionRequest,
-    store: ActionStore = Depends(get_action_store)
+    request: CreateActionRequest, store: ActionStore = Depends(get_action_store)
 ):
     """Create a new action."""
     action = Action(
@@ -255,7 +249,7 @@ async def create_action(
         node_template=request.node_template,
         nodes=request.nodes,
         edges=request.edges,
-        author=request.author
+        author=request.author,
     )
 
     store.save(action)
@@ -266,7 +260,7 @@ async def create_action(
 async def update_action(
     action_id: str,
     request: UpdateActionRequest,
-    store: ActionStore = Depends(get_action_store)
+    store: ActionStore = Depends(get_action_store),
 ):
     """Update an action."""
     action = store.get(action_id)
@@ -299,10 +293,7 @@ async def update_action(
 
 
 @router.delete("/{action_id}")
-async def delete_action(
-    action_id: str,
-    store: ActionStore = Depends(get_action_store)
-):
+async def delete_action(action_id: str, store: ActionStore = Depends(get_action_store)):
     """Delete an action."""
     action = store.get(action_id)
     if not action:
@@ -319,10 +310,10 @@ async def delete_action(
 # Usage Tracking
 # =========================================================================
 
+
 @router.post("/{action_id}/use")
 async def record_action_use(
-    action_id: str,
-    store: ActionStore = Depends(get_action_store)
+    action_id: str, store: ActionStore = Depends(get_action_store)
 ):
     """Record that an action was used."""
     action = store.get(action_id)
@@ -337,11 +328,9 @@ async def record_action_use(
 # Import/Export
 # =========================================================================
 
+
 @router.get("/{action_id}/export")
-async def export_action(
-    action_id: str,
-    store: ActionStore = Depends(get_action_store)
-):
+async def export_action(action_id: str, store: ActionStore = Depends(get_action_store)):
     """Export an action as JSON."""
     try:
         json_str = store.export_action(action_id)
@@ -352,15 +341,11 @@ async def export_action(
 
 @router.post("/import", response_model=ActionResponse)
 async def import_action(
-    request: ImportActionRequest,
-    store: ActionStore = Depends(get_action_store)
+    request: ImportActionRequest, store: ActionStore = Depends(get_action_store)
 ):
     """Import an action from JSON."""
     try:
-        action = store.import_action(
-            request.json_data,
-            new_id=request.new_id
-        )
+        action = store.import_action(request.json_data, new_id=request.new_id)
         return action_to_response(action)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -370,10 +355,10 @@ async def import_action(
 # Creation Helpers
 # =========================================================================
 
+
 @router.post("/from-node", response_model=ActionResponse)
 async def create_action_from_node(
-    request: CreateFromNodeRequest,
-    store: ActionStore = Depends(get_action_store)
+    request: CreateFromNodeRequest, store: ActionStore = Depends(get_action_store)
 ):
     """Create an action from a workflow node."""
     action = store.create_from_node(
@@ -381,15 +366,14 @@ async def create_action_from_node(
         node=request.node,
         description=request.description,
         category=request.category,
-        tags=request.tags
+        tags=request.tags,
     )
     return action_to_response(action)
 
 
 @router.post("/composite", response_model=ActionResponse)
 async def create_composite_action(
-    request: CreateCompositeRequest,
-    store: ActionStore = Depends(get_action_store)
+    request: CreateCompositeRequest, store: ActionStore = Depends(get_action_store)
 ):
     """Create a composite action from multiple nodes."""
     action = store.create_composite(
@@ -398,6 +382,6 @@ async def create_composite_action(
         edges=request.edges,
         description=request.description,
         category=request.category,
-        tags=request.tags
+        tags=request.tags,
     )
     return action_to_response(action)

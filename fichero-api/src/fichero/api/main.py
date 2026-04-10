@@ -86,6 +86,7 @@ async def lifespan(app: FastAPI):
     # Startup: initialize database manager
     logger.info("Fichero API starting up...")
     from fichero.db import db_manager
+
     logger.info("DatabaseManager initialized")
     yield
     # Shutdown: close all database connections
@@ -116,7 +117,7 @@ from fichero.db import Database, db_manager  # noqa: E402
 
 
 async def get_library_database(
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path")
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
 ) -> Database:
     """FastAPI dependency to get the database for the current library package.
 
@@ -135,7 +136,7 @@ async def get_library_database(
     if not x_fichero_library_path:
         raise HTTPException(
             status_code=400,
-            detail="Missing X-Fichero-Library-Path header. Please open a library document first."
+            detail="Missing X-Fichero-Library-Path header. Please open a library document first.",
         )
 
     try:
@@ -145,15 +146,14 @@ async def get_library_database(
     except Exception as e:
         logger.error(f"Failed to get database for {x_fichero_library_path}: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to access library database: {str(e)}"
+            status_code=500, detail=f"Failed to access library database: {str(e)}"
         )
 
 
 # Health check endpoint
 @app.get("/api/health")
 async def health_check(
-    x_fichero_library_path: str | None = Header(None, alias="X-Fichero-Library-Path")
+    x_fichero_library_path: str | None = Header(None, alias="X-Fichero-Library-Path"),
 ):
     """Health check endpoint.
 

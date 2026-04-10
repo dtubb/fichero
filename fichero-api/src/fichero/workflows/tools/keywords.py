@@ -52,7 +52,16 @@ KEYWORDS_CONFIG = {
 }
 
 KEYWORDS_INPUT_PORTS = merge_ports(
-    [PortDef(id="text", name="Text", port_type="input", data_type=DataType.TEXT, required=True, description="Text to extract keywords from")],
+    [
+        PortDef(
+            id="text",
+            name="Text",
+            port_type="input",
+            data_type=DataType.TEXT,
+            required=True,
+            description="Text to extract keywords from",
+        )
+    ],
     BASE_INPUT_PORTS,
 )
 
@@ -60,6 +69,7 @@ KEYWORDS_INPUT_PORTS = merge_ports(
 # =============================================================================
 # Prompt Building
 # =============================================================================
+
 
 def _build_prompt(max_keywords: int, scope: str) -> str:
     """Build the keyword extraction prompt."""
@@ -96,6 +106,7 @@ def build_keywords_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="keywords",

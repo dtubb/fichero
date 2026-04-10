@@ -18,15 +18,17 @@ logger = logging.getLogger(__name__)
 
 class IntegrationStatus(str, Enum):
     """Status of an app integration."""
-    AVAILABLE = "available"      # App is installed and accessible
+
+    AVAILABLE = "available"  # App is installed and accessible
     UNAVAILABLE = "unavailable"  # App is not installed
-    ERROR = "error"              # Error connecting to app
-    DISABLED = "disabled"        # Integration is disabled by user
+    ERROR = "error"  # Error connecting to app
+    DISABLED = "disabled"  # Integration is disabled by user
 
 
 @dataclass
 class AppInfo:
     """Information about an integrated application."""
+
     name: str
     bundle_id: str
     version: Optional[str] = None
@@ -39,10 +41,11 @@ class AppInfo:
 @dataclass
 class ImportedItem:
     """An item imported from an external app."""
-    external_id: str           # ID in the source app
-    name: str                  # Display name
-    source_app: str            # Source application name
-    item_type: str             # Type of item (document, reference, note, etc.)
+
+    external_id: str  # ID in the source app
+    name: str  # Display name
+    source_app: str  # Source application name
+    item_type: str  # Type of item (document, reference, note, etc.)
     file_path: Optional[Path] = None  # Path to associated file
     url: Optional[str] = None  # URL in source app
     metadata: dict = field(default_factory=dict)  # Additional metadata
@@ -90,7 +93,7 @@ class AppIntegration(ABC):
                 ["mdfind", f"kMDItemCFBundleIdentifier == '{self.bundle_id}'"],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
 
             paths = result.stdout.strip().split("\n")
@@ -106,7 +109,7 @@ class AppIntegration(ABC):
                     version=version,
                     path=Path(app_path),
                     status=IntegrationStatus.AVAILABLE,
-                    last_checked=datetime.now()
+                    last_checked=datetime.now(),
                 )
                 logger.info(f"{self.name} found at {app_path} (version {version})")
                 return True
@@ -115,7 +118,7 @@ class AppIntegration(ABC):
                     name=self.name,
                     bundle_id=self.bundle_id,
                     status=IntegrationStatus.UNAVAILABLE,
-                    last_checked=datetime.now()
+                    last_checked=datetime.now(),
                 )
                 logger.info(f"{self.name} not found")
                 return False
@@ -126,7 +129,7 @@ class AppIntegration(ABC):
                 bundle_id=self.bundle_id,
                 status=IntegrationStatus.ERROR,
                 error_message="Timeout checking app availability",
-                last_checked=datetime.now()
+                last_checked=datetime.now(),
             )
             return False
         except Exception as e:
@@ -135,7 +138,7 @@ class AppIntegration(ABC):
                 bundle_id=self.bundle_id,
                 status=IntegrationStatus.ERROR,
                 error_message=str(e),
-                last_checked=datetime.now()
+                last_checked=datetime.now(),
             )
             logger.error(f"Error checking {self.name} availability: {e}")
             return False
@@ -149,7 +152,7 @@ class AppIntegration(ABC):
                     ["defaults", "read", str(plist_path), "CFBundleShortVersionString"],
                     capture_output=True,
                     text=True,
-                    timeout=2
+                    timeout=2,
                 )
                 if result.returncode == 0:
                     return result.stdout.strip()
@@ -166,10 +169,7 @@ class AppIntegration(ABC):
         """
         try:
             result = subprocess.run(
-                ["osascript", "-e", script],
-                capture_output=True,
-                text=True,
-                timeout=30
+                ["osascript", "-e", script], capture_output=True, text=True, timeout=30
             )
 
             if result.returncode == 0:
@@ -191,7 +191,7 @@ class AppIntegration(ABC):
         self,
         limit: int = 100,
         search: Optional[str] = None,
-        item_type: Optional[str] = None
+        item_type: Optional[str] = None,
     ) -> list[ImportedItem]:
         """List items from the application."""
         pass
@@ -202,7 +202,9 @@ class AppIntegration(ABC):
         pass
 
     @abstractmethod
-    async def import_item(self, external_id: str, target_path: Optional[Path] = None) -> Optional[Path]:
+    async def import_item(
+        self, external_id: str, target_path: Optional[Path] = None
+    ) -> Optional[Path]:
         """
         Import an item from the application.
 
@@ -216,9 +218,7 @@ class AppIntegration(ABC):
         pass
 
     async def export_item(
-        self,
-        file_path: Path,
-        metadata: Optional[dict] = None
+        self, file_path: Path, metadata: Optional[dict] = None
     ) -> Optional[str]:
         """
         Export a file to the application.
@@ -289,9 +289,13 @@ class IntegrationRegistry:
             name: {
                 "status": integration.app_info.status.value,
                 "version": integration.app_info.version,
-                "path": str(integration.app_info.path) if integration.app_info.path else None,
-                "last_checked": integration.app_info.last_checked.isoformat() if integration.app_info.last_checked else None,
-                "error": integration.app_info.error_message
+                "path": str(integration.app_info.path)
+                if integration.app_info.path
+                else None,
+                "last_checked": integration.app_info.last_checked.isoformat()
+                if integration.app_info.last_checked
+                else None,
+                "error": integration.app_info.error_message,
             }
             for name, integration in self._integrations.items()
         }

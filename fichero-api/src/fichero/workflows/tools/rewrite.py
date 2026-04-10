@@ -40,7 +40,15 @@ TOOL_CONFIG = LLMToolConfig(
 REWRITE_CONFIG = {
     "style": {
         "type": "string",
-        "enum": ["formal", "casual", "academic", "concise", "expanded", "simplified", "technical"],
+        "enum": [
+            "formal",
+            "casual",
+            "academic",
+            "concise",
+            "expanded",
+            "simplified",
+            "technical",
+        ],
         "default": "concise",
         "description": "Writing style",
     },
@@ -52,7 +60,16 @@ REWRITE_CONFIG = {
 }
 
 REWRITE_INPUT_PORTS = merge_ports(
-    [PortDef(id="text", name="Text", port_type="input", data_type=DataType.TEXT, required=True, description="Text to rewrite")],
+    [
+        PortDef(
+            id="text",
+            name="Text",
+            port_type="input",
+            data_type=DataType.TEXT,
+            required=True,
+            description="Text to rewrite",
+        )
+    ],
     BASE_INPUT_PORTS,
 )
 
@@ -60,6 +77,7 @@ REWRITE_INPUT_PORTS = merge_ports(
 # =============================================================================
 # Prompt Building
 # =============================================================================
+
 
 def _build_prompt(style: str, target_language: str) -> str:
     """Build the rewrite prompt."""
@@ -97,6 +115,7 @@ def build_rewrite_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="rewrite",

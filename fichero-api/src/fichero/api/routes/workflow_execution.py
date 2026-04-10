@@ -13,7 +13,14 @@ from datetime import datetime, timezone
 from typing import Any, AsyncGenerator
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request, Response
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    Depends,
+    BackgroundTasks,
+    Request,
+    Response,
+)
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -39,20 +46,29 @@ router = APIRouter()
 # Request/Response Models
 # =============================================================================
 
+
 class ExecuteWorkflowRequest(BaseModel):
     """Request to execute a workflow."""
+
     workflow_id: str
     inputs: dict[str, Any] = Field(default_factory=dict)
     thread_id: str | None = None  # Optional - generated if not provided
     checkpoint_ns: str = ""  # Checkpoint namespace for sub-workflows
-    interrupt_before: list[str] = Field(default_factory=list)  # Node IDs to pause before
+    interrupt_before: list[str] = Field(
+        default_factory=list
+    )  # Node IDs to pause before
     interrupt_after: list[str] = Field(default_factory=list)  # Node IDs to pause after
-    force_new: bool = False  # If True, ignore provided thread_id and create a fresh execution
-    skip_cache: bool = False  # If True, bypass node result cache (still writes new results)
+    force_new: bool = (
+        False  # If True, ignore provided thread_id and create a fresh execution
+    )
+    skip_cache: bool = (
+        False  # If True, bypass node result cache (still writes new results)
+    )
 
 
 class ExecutionStatusResponse(BaseModel):
     """Response with workflow execution status."""
+
     thread_id: str
     workflow_id: str
     workflow_name: str
@@ -64,21 +80,25 @@ class ExecutionStatusResponse(BaseModel):
 
 class ResumeWorkflowRequest(BaseModel):
     """Request to resume a paused workflow."""
+
     inputs: dict[str, Any] | None = None  # Optional new inputs
 
 
 class CancelWorkflowRequest(BaseModel):
     """Request to cancel a running workflow."""
+
     pass  # No parameters needed
 
 
 class ThreadListResponse(BaseModel):
     """Response with list of execution threads."""
+
     threads: list[ExecutionStatusResponse]
 
 
 class ExecuteAcceptedResponse(BaseModel):
     """Response when workflow execution has been accepted (202)."""
+
     thread_id: str
     workflow_id: str
     workflow_name: str
@@ -88,6 +108,7 @@ class ExecuteAcceptedResponse(BaseModel):
 
 class CheckpointSnapshot(BaseModel):
     """A single checkpoint in the execution history."""
+
     checkpoint_id: str
     parent_checkpoint_id: str | None = None
     step: int
@@ -100,6 +121,7 @@ class CheckpointSnapshot(BaseModel):
 
 class CheckpointHistoryResponse(BaseModel):
     """Response with full checkpoint history for a thread."""
+
     thread_id: str
     workflow_id: str
     workflow_name: str
@@ -133,13 +155,16 @@ def _remove_workflow_state(thread_id: str) -> None:
 
 class SSEEvent(BaseModel):
     """Server-Sent Event for workflow execution updates."""
+
     # Events: "start", "node_begin", "node_end", "complete", "error", "pause"
     #         "parallel_start", "file_start", "file_complete", "file_error", "parallel_complete"
     event: str
     thread_id: str
     workflow_id: str
     data: dict[str, Any] = Field(default_factory=dict)
-    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
     # Parallel execution fields
     node_id: str | None = None
     file_path: str | None = None
@@ -151,6 +176,7 @@ class SSEEvent(BaseModel):
 # =============================================================================
 # SSE Streaming Support
 # =============================================================================
+
 
 def format_sse(event: SSEEvent) -> str:
     """Format an SSE event for streaming."""
@@ -164,6 +190,7 @@ def format_sse(event: SSEEvent) -> str:
 # =============================================================================
 # Background Execution
 # =============================================================================
+
 
 async def _run_workflow_in_background(
     thread_id: str,
@@ -191,7 +218,10 @@ async def _run_workflow_in_background(
     start_time = datetime.now(timezone.utc)
     node_start_times: dict[str, datetime] = {}
     execution_log_lines: list[str] = []  # Collect execution logs
-    progress_timeline: dict[str, Any] = {"nodes": {}, "steps": []}  # Capture progress for historical viewing
+    progress_timeline: dict[str, Any] = {
+        "nodes": {},
+        "steps": [],
+    }  # Capture progress for historical viewing
 
     async def log_execution(message: str) -> None:
         """Log a message to both console and execution log, and stream via SSE."""
@@ -200,12 +230,14 @@ async def _run_workflow_in_background(
         execution_log_lines.append(log_line)
         print(log_line)
         # Stream log line to frontend
-        await event_queue.put(SSEEvent(
-            event="log",
-            thread_id=thread_id,
-            workflow_id=workflow_id,
-            data={"line": log_line}
-        ))
+        await event_queue.put(
+            SSEEvent(
+                event="log",
+                thread_id=thread_id,
+                workflow_id=workflow_id,
+                data={"line": log_line},
+            )
+        )
 
     try:
         # Mark as running
@@ -222,12 +254,14 @@ async def _run_workflow_in_background(
         )
 
         # Send start event
-        await event_queue.put(SSEEvent(
-            event="start",
-            thread_id=thread_id,
-            workflow_id=workflow_id,
-            data={"workflow_name": workflow.name, "inputs": request.inputs}
-        ))
+        await event_queue.put(
+            SSEEvent(
+                event="start",
+                thread_id=thread_id,
+                workflow_id=workflow_id,
+                data={"workflow_name": workflow.name, "inputs": request.inputs},
+            )
+        )
 
         # Build workflow using the shared runtime conversion path.
         from fichero.workflows.builder import build_graph
@@ -246,10 +280,12 @@ async def _run_workflow_in_background(
                 for n in workflow.nodes
             ],
             "edges": [
-                {"source": e.get("source") or e.get("source_node_id", ""),
-                 "target": e.get("target") or e.get("target_node_id", "")}
+                {
+                    "source": e.get("source") or e.get("source_node_id", ""),
+                    "target": e.get("target") or e.get("target_node_id", ""),
+                }
                 for e in workflow.edges
-            ]
+            ],
         }
 
         # Build node name mapping (UUID → readable name)
@@ -273,7 +309,9 @@ async def _run_workflow_in_background(
         # Generate Mermaid diagram for historical viewing
         await log_execution("Generating workflow diagram")
         try:
-            app_preview = build_graph(workflow_def, enable_parallel=True, checkpointer=None)
+            app_preview = build_graph(
+                workflow_def, enable_parallel=True, checkpointer=None
+            )
             diagram_mermaid = app_preview.get_graph().draw_mermaid()
         except Exception as e:
             logger.warning(f"Could not generate diagram: {e}")
@@ -296,17 +334,19 @@ async def _run_workflow_in_background(
         async def emit_parallel_event(event_type: str, data: dict) -> None:
             """Callback to emit SSE events from parallel node processing."""
             # Emit SSE event (existing behavior)
-            await event_queue.put(SSEEvent(
-                event=event_type,
-                thread_id=thread_id,
-                workflow_id=workflow_id,
-                node_id=data.get("node_id", ""),
-                file_path=data.get("file_path"),
-                file_index=data.get("file_index"),
-                file_total=data.get("file_total"),
-                progress=data.get("progress"),
-                data={"error": data.get("error")} if data.get("error") else {},
-            ))
+            await event_queue.put(
+                SSEEvent(
+                    event=event_type,
+                    thread_id=thread_id,
+                    workflow_id=workflow_id,
+                    node_id=data.get("node_id", ""),
+                    file_path=data.get("file_path"),
+                    file_index=data.get("file_index"),
+                    file_total=data.get("file_total"),
+                    progress=data.get("progress"),
+                    data={"error": data.get("error")} if data.get("error") else {},
+                )
+            )
 
             # Capture file-level timeline for historical viewing and log to console
             if event_type == "file_start":
@@ -315,17 +355,21 @@ async def _run_workflow_in_background(
                 file_path = data.get("file_path", "")
                 # Extract just the filename for cleaner logging
                 file_name = file_path.split("/")[-1] if file_path else "unknown"
-                await log_execution(f"  Processing file {file_index}/{file_total}: {file_name}")
+                await log_execution(
+                    f"  Processing file {file_index}/{file_total}: {file_name}"
+                )
 
-                progress_timeline["steps"].append({
-                    "type": "file",
-                    "node_id": data.get("node_id", ""),
-                    "file_path": file_path,
-                    "file_index": file_index,
-                    "file_total": file_total,
-                    "started_at": datetime.now(timezone.utc).isoformat(),
-                    "status": "running"
-                })
+                progress_timeline["steps"].append(
+                    {
+                        "type": "file",
+                        "node_id": data.get("node_id", ""),
+                        "file_path": file_path,
+                        "file_index": file_index,
+                        "file_total": file_total,
+                        "started_at": datetime.now(timezone.utc).isoformat(),
+                        "status": "running",
+                    }
+                )
             elif event_type == "file_complete":
                 file_index = data.get("file_index", 0)
                 file_total = data.get("file_total", 0)
@@ -335,18 +379,24 @@ async def _run_workflow_in_background(
                 # Find and update the matching file entry
                 duration_ms = 0
                 for entry in reversed(progress_timeline["steps"]):
-                    if (entry.get("type") == "file" and
-                        entry.get("file_path") == file_path and
-                        entry.get("status") == "running"):
+                    if (
+                        entry.get("type") == "file"
+                        and entry.get("file_path") == file_path
+                        and entry.get("status") == "running"
+                    ):
                         entry["completed_at"] = datetime.now(timezone.utc).isoformat()
                         entry["status"] = "success"
                         # Calculate duration
                         start = datetime.fromisoformat(entry["started_at"])
-                        duration_ms = (datetime.now(timezone.utc) - start).total_seconds() * 1000
+                        duration_ms = (
+                            datetime.now(timezone.utc) - start
+                        ).total_seconds() * 1000
                         entry["duration_ms"] = duration_ms
                         break
 
-                await log_execution(f"  File {file_index}/{file_total} completed: {file_name} ({duration_ms:.0f}ms)")
+                await log_execution(
+                    f"  File {file_index}/{file_total} completed: {file_name} ({duration_ms:.0f}ms)"
+                )
             elif event_type == "file_error":
                 file_path = data.get("file_path", "")
                 file_name = file_path.split("/")[-1] if file_path else "unknown"
@@ -355,9 +405,11 @@ async def _run_workflow_in_background(
 
                 # Find and update the matching file entry
                 for entry in reversed(progress_timeline["steps"]):
-                    if (entry.get("type") == "file" and
-                        entry.get("file_path") == file_path and
-                        entry.get("status") == "running"):
+                    if (
+                        entry.get("type") == "file"
+                        and entry.get("file_path") == file_path
+                        and entry.get("status") == "running"
+                    ):
                         entry["completed_at"] = datetime.now(timezone.utc).isoformat()
                         entry["status"] = "error"
                         entry["error"] = error_msg
@@ -367,7 +419,7 @@ async def _run_workflow_in_background(
                 progress_timeline["nodes"][data.get("node_id", "")] = {
                     "total_files": data.get("total", 0),
                     "success_count": data.get("success_count", 0),
-                    "error_count": data.get("error_count", 0)
+                    "error_count": data.get("error_count", 0),
                 }
 
         # Build graph with shared runtime path (same engine used by batch execution).
@@ -395,7 +447,9 @@ async def _run_workflow_in_background(
 
         # Identify exit nodes (nodes with no outgoing edges) using raw IDs
         exit_node_ids = set()
-        all_source_nodes = {e.get("source") or e.get("source_node_id", "") for e in workflow.edges}
+        all_source_nodes = {
+            e.get("source") or e.get("source_node_id", "") for e in workflow.edges
+        }
         for node in workflow.nodes:
             node_id = node.get("id", "")
             if node_id and node_id not in all_source_nodes:
@@ -441,19 +495,23 @@ async def _run_workflow_in_background(
                     )
 
                     # Capture node start to progress timeline
-                    progress_timeline["steps"].append({
-                        "node_id": original_id,
-                        "started_at": datetime.now(timezone.utc).isoformat(),
-                        "status": "running"
-                    })
+                    progress_timeline["steps"].append(
+                        {
+                            "node_id": original_id,
+                            "started_at": datetime.now(timezone.utc).isoformat(),
+                            "status": "running",
+                        }
+                    )
 
-                    await event_queue.put(SSEEvent(
-                        event="node_begin",
-                        thread_id=thread_id,
-                        workflow_id=workflow_id,
-                        node_id=original_id,
-                        data={"node": original_id}
-                    ))
+                    await event_queue.put(
+                        SSEEvent(
+                            event="node_begin",
+                            thread_id=thread_id,
+                            workflow_id=workflow_id,
+                            node_id=original_id,
+                            data={"node": original_id},
+                        )
+                    )
 
             elif event_kind == "on_chain_end" and event.get("name"):
                 node_name = event.get("name", "")
@@ -467,9 +525,18 @@ async def _run_workflow_in_background(
                         continue
 
                     # Calculate node duration (use _process start time if this is _aggregate)
-                    process_name = f"{original_id}_process" if node_name.endswith("_aggregate") else node_name
-                    node_start = node_start_times.get(process_name, node_start_times.get(node_name, datetime.now(timezone.utc)))
-                    node_duration_ms = (datetime.now(timezone.utc) - node_start).total_seconds() * 1000
+                    process_name = (
+                        f"{original_id}_process"
+                        if node_name.endswith("_aggregate")
+                        else node_name
+                    )
+                    node_start = node_start_times.get(
+                        process_name,
+                        node_start_times.get(node_name, datetime.now(timezone.utc)),
+                    )
+                    node_duration_ms = (
+                        datetime.now(timezone.utc) - node_start
+                    ).total_seconds() * 1000
 
                     # Build activity metadata from output
                     activity_metadata = {}
@@ -478,19 +545,23 @@ async def _run_workflow_in_background(
                     if isinstance(output, dict) and "parallel_results" in output:
                         results = output.get("parallel_results", {})
                         for node_id, file_results in results.items():
-                            success_count = sum(1 for r in file_results if r.get("success"))
+                            success_count = sum(
+                                1 for r in file_results if r.get("success")
+                            )
                             error_count = len(file_results) - success_count
-                            await event_queue.put(SSEEvent(
-                                event="parallel_complete",
-                                thread_id=thread_id,
-                                workflow_id=workflow_id,
-                                node_id=node_id,
-                                data={
-                                    "success_count": success_count,
-                                    "error_count": error_count,
-                                    "total": len(file_results),
-                                }
-                            ))
+                            await event_queue.put(
+                                SSEEvent(
+                                    event="parallel_complete",
+                                    thread_id=thread_id,
+                                    workflow_id=workflow_id,
+                                    node_id=node_id,
+                                    data={
+                                        "success_count": success_count,
+                                        "error_count": error_count,
+                                        "total": len(file_results),
+                                    },
+                                )
+                            )
                             # Add to activity metadata
                             activity_metadata["success_count"] = success_count
                             activity_metadata["error_count"] = error_count
@@ -526,7 +597,9 @@ async def _run_workflow_in_background(
                         if "error" in output and output["error"]:
                             activity_metadata["error"] = str(output["error"])[:200]
 
-                    await log_execution(f"Node '{original_id}' completed in {node_duration_ms:.0f}ms")
+                    await log_execution(
+                        f"Node '{original_id}' completed in {node_duration_ms:.0f}ms"
+                    )
 
                     # Log activity: node completed
                     activity_tracker.node_completed(
@@ -540,31 +613,43 @@ async def _run_workflow_in_background(
 
                     # Update progress timeline with node completion
                     for entry in reversed(progress_timeline["steps"]):
-                        if (entry.get("node_id") == original_id and
-                            entry.get("status") == "running" and
-                            entry.get("type") is None):  # Only update node steps, not file steps
-                            entry["completed_at"] = datetime.now(timezone.utc).isoformat()
+                        if (
+                            entry.get("node_id") == original_id
+                            and entry.get("status") == "running"
+                            and entry.get("type") is None
+                        ):  # Only update node steps, not file steps
+                            entry["completed_at"] = datetime.now(
+                                timezone.utc
+                            ).isoformat()
                             entry["status"] = "success"
                             entry["duration_ms"] = node_duration_ms
                             # Add metadata
                             if "files_processed" in activity_metadata:
-                                entry["files_processed"] = activity_metadata["files_processed"]
+                                entry["files_processed"] = activity_metadata[
+                                    "files_processed"
+                                ]
                             if "artifacts_created" in activity_metadata:
-                                entry["artifacts_created"] = activity_metadata["artifacts_created"]
+                                entry["artifacts_created"] = activity_metadata[
+                                    "artifacts_created"
+                                ]
                             break
 
-                    await event_queue.put(SSEEvent(
-                        event="node_end",
-                        thread_id=thread_id,
-                        workflow_id=workflow_id,
-                        node_id=original_id,
-                        data={"node": original_id, "duration_ms": node_duration_ms}
-                    ))
+                    await event_queue.put(
+                        SSEEvent(
+                            event="node_end",
+                            thread_id=thread_id,
+                            workflow_id=workflow_id,
+                            node_id=original_id,
+                            data={"node": original_id, "duration_ms": node_duration_ms},
+                        )
+                    )
 
                     # Track exit node completion (using normalized ID)
                     if original_id in exit_node_ids:
                         completed_exit_nodes.add(original_id)
-                        logger.info(f"Exit node completed: {original_id}, {len(completed_exit_nodes)}/{len(exit_node_ids)}")
+                        logger.info(
+                            f"Exit node completed: {original_id}, {len(completed_exit_nodes)}/{len(exit_node_ids)}"
+                        )
 
                         # Check if all exit nodes are done
                         if exit_node_ids and completed_exit_nodes >= exit_node_ids:
@@ -573,14 +658,20 @@ async def _run_workflow_in_background(
 
         # Get final state
         checkpoint_tuple = await checkpointer.aget_tuple(config)
-        final_state = checkpoint_tuple.checkpoint.get("channel_values") if checkpoint_tuple else {}
+        final_state = (
+            checkpoint_tuple.checkpoint.get("channel_values")
+            if checkpoint_tuple
+            else {}
+        )
 
         # Store final state
         state["status"] = "completed"
         state["final_state"] = final_state
 
         # Calculate total duration
-        total_duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+        total_duration_ms = (
+            datetime.now(timezone.utc) - start_time
+        ).total_seconds() * 1000
 
         # Build completion metadata from final state
         completion_metadata = {
@@ -616,7 +707,9 @@ async def _run_workflow_in_background(
             **completion_metadata,
         )
 
-        await log_execution(f"Workflow completed successfully in {total_duration_ms:.0f}ms")
+        await log_execution(
+            f"Workflow completed successfully in {total_duration_ms:.0f}ms"
+        )
 
         # Save execution log and progress timeline to workflow run
         execution_log = "\n".join(execution_log_lines)
@@ -630,16 +723,20 @@ async def _run_workflow_in_background(
         )
 
         # Send complete event
-        await event_queue.put(SSEEvent(
-            event="complete",
-            thread_id=thread_id,
-            workflow_id=workflow_id,
-            data={
-                "checkpoint_id": checkpoint_tuple.checkpoint["id"] if checkpoint_tuple else None,
-                "final_state": final_state,
-                "duration_ms": total_duration_ms,
-            }
-        ))
+        await event_queue.put(
+            SSEEvent(
+                event="complete",
+                thread_id=thread_id,
+                workflow_id=workflow_id,
+                data={
+                    "checkpoint_id": checkpoint_tuple.checkpoint["id"]
+                    if checkpoint_tuple
+                    else None,
+                    "final_state": final_state,
+                    "duration_ms": total_duration_ms,
+                },
+            )
+        )
 
     except SystemicErrorDetected as e:
         logger.error(f"Systemic error in background workflow {workflow_id}: {e}")
@@ -647,9 +744,13 @@ async def _run_workflow_in_background(
         state["error"] = str(e)
 
         # Calculate duration
-        total_duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+        total_duration_ms = (
+            datetime.now(timezone.utc) - start_time
+        ).total_seconds() * 1000
 
-        await log_execution(f"SYSTEMIC ERROR: {e.error_count}/{e.total_count} consecutive failures")
+        await log_execution(
+            f"SYSTEMIC ERROR: {e.error_count}/{e.total_count} consecutive failures"
+        )
         await log_execution(f"Sample errors: {e.errors[:3] if e.errors else []}")
 
         # Log activity: workflow failed (systemic error)
@@ -673,17 +774,19 @@ async def _run_workflow_in_background(
             completed_at=datetime.now(timezone.utc),
         )
 
-        await event_queue.put(SSEEvent(
-            event="systemic_error",
-            thread_id=thread_id,
-            workflow_id=workflow_id,
-            data={
-                "error": str(e),
-                "error_count": e.error_count,
-                "total_count": e.total_count,
-                "sample_errors": e.errors[:5] if e.errors else [],
-            }
-        ))
+        await event_queue.put(
+            SSEEvent(
+                event="systemic_error",
+                thread_id=thread_id,
+                workflow_id=workflow_id,
+                data={
+                    "error": str(e),
+                    "error_count": e.error_count,
+                    "total_count": e.total_count,
+                    "sample_errors": e.errors[:5] if e.errors else [],
+                },
+            )
+        )
 
     except Exception as e:
         logger.exception(f"Background workflow error for {workflow_id}")
@@ -691,7 +794,9 @@ async def _run_workflow_in_background(
         state["error"] = str(e)
 
         # Calculate duration
-        total_duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+        total_duration_ms = (
+            datetime.now(timezone.utc) - start_time
+        ).total_seconds() * 1000
 
         await log_execution(f"ERROR: {str(e)}")
 
@@ -716,12 +821,14 @@ async def _run_workflow_in_background(
             completed_at=datetime.now(timezone.utc),
         )
 
-        await event_queue.put(SSEEvent(
-            event="error",
-            thread_id=thread_id,
-            workflow_id=workflow_id,
-            data={"error": str(e)}
-        ))
+        await event_queue.put(
+            SSEEvent(
+                event="error",
+                thread_id=thread_id,
+                workflow_id=workflow_id,
+                data={"error": str(e)},
+            )
+        )
 
     finally:
         # Signal end of stream
@@ -731,6 +838,7 @@ async def _run_workflow_in_background(
 # =============================================================================
 # Endpoints
 # =============================================================================
+
 
 @router.get("/stream/{thread_id}")
 async def stream_workflow_events(thread_id: str) -> StreamingResponse:
@@ -761,7 +869,7 @@ async def stream_workflow_events(thread_id: str) -> StreamingResponse:
     if not state:
         raise HTTPException(
             status_code=404,
-            detail=f"Workflow thread not found: {thread_id}. It may have already completed."
+            detail=f"Workflow thread not found: {thread_id}. It may have already completed.",
         )
 
     async def event_generator() -> AsyncGenerator[str, None]:
@@ -790,7 +898,7 @@ async def stream_workflow_events(thread_id: str) -> StreamingResponse:
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
-        }
+        },
     )
 
 
@@ -828,17 +936,20 @@ async def execute_workflow(
         workflow = store.get(request.workflow_id)
         if not workflow:
             raise HTTPException(
-                status_code=404,
-                detail=f"Workflow not found: {request.workflow_id}"
+                status_code=404, detail=f"Workflow not found: {request.workflow_id}"
             )
 
         # Debug: log workflow data being executed
         print(f"[EXECUTE] Workflow '{workflow.name}' (id={workflow.id})")
         print(f"[EXECUTE]   nodes: {len(workflow.nodes)}, edges: {len(workflow.edges)}")
         for i, node in enumerate(workflow.nodes[:3]):  # Log first 3 nodes
-            print(f"[EXECUTE]   node[{i}]: tool={node.get('tool', '?')}, id={node.get('id', '?')[:8]}...")
+            print(
+                f"[EXECUTE]   node[{i}]: tool={node.get('tool', '?')}, id={node.get('id', '?')[:8]}..."
+            )
         if not workflow.nodes:
-            print("[EXECUTE]   WARNING: Workflow has no nodes! Execution will complete instantly.")
+            print(
+                "[EXECUTE]   WARNING: Workflow has no nodes! Execution will complete instantly."
+            )
 
         # Generate thread ID if not provided or if force_new is True
         if request.force_new or not request.thread_id:
@@ -850,25 +961,30 @@ async def execute_workflow(
         event_queue: asyncio.Queue = asyncio.Queue()
 
         # Register workflow state
-        _set_workflow_state(thread_id, {
-            "workflow_id": request.workflow_id,
-            "workflow_name": workflow.name,
-            "status": "accepted",
-            "events": event_queue,
-            "error": None,
-            "final_state": None,
-        })
+        _set_workflow_state(
+            thread_id,
+            {
+                "workflow_id": request.workflow_id,
+                "workflow_name": workflow.name,
+                "status": "accepted",
+                "events": event_queue,
+                "error": None,
+                "final_state": None,
+            },
+        )
 
         # Start background execution
         # Note: We use asyncio.create_task instead of background_tasks.add_task
         # because background_tasks runs after the response is sent, but we need
         # the task to start immediately so events can begin flowing
-        asyncio.create_task(_run_workflow_in_background(
-            thread_id=thread_id,
-            workflow=workflow,
-            request=request,
-            db=db,
-        ))
+        asyncio.create_task(
+            _run_workflow_in_background(
+                thread_id=thread_id,
+                workflow=workflow,
+                request=request,
+                db=db,
+            )
+        )
 
         # Build stream URL
         base_url = str(http_request.base_url).rstrip("/")
@@ -923,8 +1039,7 @@ async def resume_workflow(
 
         if not checkpoint_tuple:
             raise HTTPException(
-                status_code=404,
-                detail=f"No checkpoint found for thread: {thread_id}"
+                status_code=404, detail=f"No checkpoint found for thread: {thread_id}"
             )
 
         # Extract workflow_id from checkpoint metadata
@@ -943,7 +1058,7 @@ async def resume_workflow(
             # Try to continue without rebuilding - this will work if the graph structure hasn't changed
             raise HTTPException(
                 status_code=404,
-                detail=f"Cannot resume - workflow not found: {workflow_id}"
+                detail=f"Cannot resume - workflow not found: {workflow_id}",
             )
 
         # Rebuild graph with checkpointer
@@ -961,7 +1076,9 @@ async def resume_workflow(
             workflow_id=workflow_id,
             workflow_name=workflow.name if workflow else "Unknown",
             status="completed",
-            checkpoint_id=checkpoint_tuple.checkpoint["id"] if checkpoint_tuple else None,
+            checkpoint_id=checkpoint_tuple.checkpoint["id"]
+            if checkpoint_tuple
+            else None,
             current_state=final_state,
             error=None,
         )
@@ -1002,8 +1119,7 @@ async def get_thread_status(
 
         if not checkpoint_tuple:
             raise HTTPException(
-                status_code=404,
-                detail=f"No checkpoint found for thread: {thread_id}"
+                status_code=404, detail=f"No checkpoint found for thread: {thread_id}"
             )
 
         # Extract workflow info from metadata
@@ -1019,7 +1135,9 @@ async def get_thread_status(
         has_pending_writes = len(checkpoint_tuple.pending_writes) > 0
 
         # Check for error in state
-        workflow_error = current_state.get("error") if isinstance(current_state, dict) else None
+        workflow_error = (
+            current_state.get("error") if isinstance(current_state, dict) else None
+        )
 
         if has_pending_writes:
             status = "paused"
@@ -1080,8 +1198,7 @@ async def get_thread_history(
 
         if not latest_tuple:
             raise HTTPException(
-                status_code=404,
-                detail=f"No checkpoint found for thread: {thread_id}"
+                status_code=404, detail=f"No checkpoint found for thread: {thread_id}"
             )
 
         # Get workflow info
@@ -1101,12 +1218,17 @@ async def get_thread_history(
             logger.info(f"Using saved node name mapping for thread {thread_id}")
         elif workflow:
             # Fallback: build from workflow definition
-            logger.info(f"Building node name mapping from workflow definition for thread {thread_id}")
+            logger.info(
+                f"Building node name mapping from workflow definition for thread {thread_id}"
+            )
             name_counts: dict[str, int] = {}
             for node in workflow.nodes:
                 node_id = node.get("id", "")
                 # Use label if available, otherwise capitalize tool name
-                base_name = node.get("label") or node.get("tool", "unknown").replace("_", " ").title()
+                base_name = (
+                    node.get("label")
+                    or node.get("tool", "unknown").replace("_", " ").title()
+                )
 
                 # Ensure uniqueness
                 if base_name in name_counts:
@@ -1151,7 +1273,9 @@ async def get_thread_history(
             # Get next nodes from checkpoint (nodes pending execution)
             next_nodes = []
             if checkpoint_tuple.pending_writes:
-                next_nodes = [w[1] for w in checkpoint_tuple.pending_writes if len(w) > 1]
+                next_nodes = [
+                    w[1] for w in checkpoint_tuple.pending_writes if len(w) > 1
+                ]
 
             # Extract node name from various sources
             source = metadata.get("source", "")
@@ -1160,8 +1284,11 @@ async def get_thread_history(
             # Try writes first (the node that wrote data)
             if writes:
                 # Filter out internal keys like '__pregel_tasks', 'parallel_results'
-                real_node_keys = [k for k in writes.keys()
-                                  if not k.startswith("__") and k not in ("parallel_results",)]
+                real_node_keys = [
+                    k
+                    for k in writes.keys()
+                    if not k.startswith("__") and k not in ("parallel_results",)
+                ]
                 if real_node_keys:
                     raw_node_name = real_node_keys[0]
 
@@ -1173,12 +1300,19 @@ async def get_thread_history(
             if not raw_node_name:
                 completed = channel_values.get("completed_nodes", [])
                 if completed:
-                    raw_node_name = completed[-1] if isinstance(completed, list) else str(completed)
+                    raw_node_name = (
+                        completed[-1] if isinstance(completed, list) else str(completed)
+                    )
 
             # Try metadata source (format: "loop:node_name")
             if not raw_node_name and source and ":" in source:
                 parts = source.split(":")
-                if len(parts) > 1 and parts[1] not in ("start", "__start__", "end", "__end__"):
+                if len(parts) > 1 and parts[1] not in (
+                    "start",
+                    "__start__",
+                    "end",
+                    "__end__",
+                ):
                     raw_node_name = parts[1]
 
             # Translate raw node name to human-readable name
@@ -1191,7 +1325,9 @@ async def get_thread_history(
                     contributing_nodes = list(parallel_data.keys())
                     if contributing_nodes:
                         # Translate each contributing node name
-                        translated = [_translate_node_name(n) or n for n in contributing_nodes[:3]]
+                        translated = [
+                            _translate_node_name(n) or n for n in contributing_nodes[:3]
+                        ]
                         node_name = f"Parallel: {', '.join(translated)}"
                         if len(contributing_nodes) > 3:
                             node_name += f" +{len(contributing_nodes) - 3}"
@@ -1201,8 +1337,11 @@ async def get_thread_history(
 
             snapshots = CheckpointSnapshot(
                 checkpoint_id=checkpoint.get("id", ""),
-                parent_checkpoint_id=checkpoint_tuple.parent_config["configurable"]["checkpoint_id"]
-                    if checkpoint_tuple.parent_config else None,
+                parent_checkpoint_id=checkpoint_tuple.parent_config["configurable"][
+                    "checkpoint_id"
+                ]
+                if checkpoint_tuple.parent_config
+                else None,
                 step=metadata.get("step", step),
                 timestamp=timestamp,
                 node_name=node_name,
@@ -1338,20 +1477,17 @@ async def delete_thread(
 
         if not checkpoint_tuple:
             raise HTTPException(
-                status_code=404,
-                detail=f"No checkpoint found for thread: {thread_id}"
+                status_code=404, detail=f"No checkpoint found for thread: {thread_id}"
             )
 
         # Delete all checkpoints for this thread
         checkpointer.conn.execute(
-            "DELETE FROM checkpoints WHERE thread_id = ?",
-            [thread_id]
+            "DELETE FROM checkpoints WHERE thread_id = ?", [thread_id]
         )
 
         # Delete all checkpoint writes for this thread
         checkpointer.conn.execute(
-            "DELETE FROM checkpoint_writes WHERE thread_id = ?",
-            [thread_id]
+            "DELETE FROM checkpoint_writes WHERE thread_id = ?", [thread_id]
         )
 
         logger.info(f"Deleted thread: {thread_id}")
@@ -1368,6 +1504,7 @@ async def delete_thread(
 # Helper Functions
 # =============================================================================
 
+
 def _build_workflow_with_checkpointer(
     workflow: Workflow,
     checkpointer: AsyncDuckDBCheckpointer,
@@ -1379,7 +1516,9 @@ def _build_workflow_with_checkpointer(
     Build a workflow with checkpointing using the shared runtime path.
     """
     if interrupt_before or interrupt_after:
-        logger.debug("Interrupt hooks are not currently applied in shared runtime builder")
+        logger.debug(
+            "Interrupt hooks are not currently applied in shared runtime builder"
+        )
 
     workflow_def = to_workflow_def(workflow)
     return create_compiled_app_with_checkpointer(
@@ -1393,8 +1532,10 @@ def _build_workflow_with_checkpointer(
 # Visualization & Code Export Endpoints
 # =============================================================================
 
+
 class WorkflowVisualizationResponse(BaseModel):
     """Response with workflow visualization data."""
+
     workflow_id: str
     workflow_name: str
     mermaid_code: str  # Mermaid diagram code
@@ -1404,6 +1545,7 @@ class WorkflowVisualizationResponse(BaseModel):
 
 class WorkflowCodeExportResponse(BaseModel):
     """Response with exported Python code for the workflow."""
+
     workflow_id: str
     workflow_name: str
     python_code: str
@@ -1434,8 +1576,7 @@ async def get_workflow_visualization(
         workflow = store.get(workflow_id)
         if not workflow:
             raise HTTPException(
-                status_code=404,
-                detail=f"Workflow not found: {workflow_id}"
+                status_code=404, detail=f"Workflow not found: {workflow_id}"
             )
 
         # Build graph (without checkpointer for visualization)
@@ -1489,8 +1630,7 @@ async def get_workflow_visualization_png(
         workflow = store.get(workflow_id)
         if not workflow:
             raise HTTPException(
-                status_code=404,
-                detail=f"Workflow not found: {workflow_id}"
+                status_code=404, detail=f"Workflow not found: {workflow_id}"
             )
 
         # Build graph
@@ -1508,9 +1648,7 @@ async def get_workflow_visualization_png(
         return Response(
             content=png_bytes,
             media_type="image/png",
-            headers={
-                "Content-Disposition": f'inline; filename="{workflow.name}.png"'
-            }
+            headers={"Content-Disposition": f'inline; filename="{workflow.name}.png"'},
         )
 
     except HTTPException:
@@ -1543,8 +1681,7 @@ async def get_workflow_code(
         workflow = store.get(workflow_id)
         if not workflow:
             raise HTTPException(
-                status_code=404,
-                detail=f"Workflow not found: {workflow_id}"
+                status_code=404, detail=f"Workflow not found: {workflow_id}"
             )
 
         # Generate Python code
@@ -1573,36 +1710,36 @@ def _generate_workflow_python_code(workflow: Workflow) -> str:
     # Build code
     lines = [
         '"""',
-        f'Workflow: {workflow.name}',
-        f'Description: {workflow.description or "No description"}',
-        f'Generated from Fichero workflow ID: {workflow.id}',
+        f"Workflow: {workflow.name}",
+        f"Description: {workflow.description or 'No description'}",
+        f"Generated from Fichero workflow ID: {workflow.id}",
         '"""',
-        '',
-        'from typing import Any, TypedDict',
-        'from langgraph.graph import StateGraph, START, END',
-        '',
-        '# Import Fichero tools (adjust imports for your environment)',
-        'from fichero.workflows.registry import get_tool',
-        'from fichero.llm import LLMConfig',
-        '',
-        '',
-        '# =============================================================================',
-        '# State Definition',
-        '# =============================================================================',
-        '',
-        'class State(TypedDict, total=False):',
+        "",
+        "from typing import Any, TypedDict",
+        "from langgraph.graph import StateGraph, START, END",
+        "",
+        "# Import Fichero tools (adjust imports for your environment)",
+        "from fichero.workflows.registry import get_tool",
+        "from fichero.llm import LLMConfig",
+        "",
+        "",
+        "# =============================================================================",
+        "# State Definition",
+        "# =============================================================================",
+        "",
+        "class State(TypedDict, total=False):",
         '    """Workflow state passed between nodes."""',
-        '    files: list[str]  # Input files',
-        '    results: list[Any]  # Processing results',
-        '    artifacts: list[dict]  # Generated artifacts',
-        '    errors: list[str]  # Error messages',
-        '    library_path: str  # Library database path',
-        '',
-        '',
-        '# =============================================================================',
-        '# Node Functions',
-        '# =============================================================================',
-        '',
+        "    files: list[str]  # Input files",
+        "    results: list[Any]  # Processing results",
+        "    artifacts: list[dict]  # Generated artifacts",
+        "    errors: list[str]  # Error messages",
+        "    library_path: str  # Library database path",
+        "",
+        "",
+        "# =============================================================================",
+        "# Node Functions",
+        "# =============================================================================",
+        "",
     ]
 
     # Generate node functions
@@ -1613,23 +1750,25 @@ def _generate_workflow_python_code(workflow: Workflow) -> str:
         config = node.get("config", {})
 
         # Create safe function name
-        func_name = f'node_{node_id.replace("-", "_")[:20]}'
+        func_name = f"node_{node_id.replace('-', '_')[:20]}"
 
-        lines.extend([
-            f'def {func_name}(state: State) -> dict[str, Any]:',
-            '    """',
-            f'    Node: {label}',
-            f'    Tool: {tool_name}',
-            '    """',
-            f'    tool_fn = get_tool("{tool_name}")',
-            '    if tool_fn is None:',
-            f'        return {{"errors": state.get("errors", []) + ["Tool not found: {tool_name}"]}}',
-            '    ',
-            '    # Get inputs from state',
-            '    inputs = {',
-            '        "files": state.get("files", []),',
-            '        "results": state.get("results", []),',
-        ])
+        lines.extend(
+            [
+                f"def {func_name}(state: State) -> dict[str, Any]:",
+                '    """',
+                f"    Node: {label}",
+                f"    Tool: {tool_name}",
+                '    """',
+                f'    tool_fn = get_tool("{tool_name}")',
+                "    if tool_fn is None:",
+                f'        return {{"errors": state.get("errors", []) + ["Tool not found: {tool_name}"]}}',
+                "    ",
+                "    # Get inputs from state",
+                "    inputs = {",
+                '        "files": state.get("files", []),',
+                '        "results": state.get("results", []),',
+            ]
+        )
 
         # Add config values
         for key, value in config.items():
@@ -1638,44 +1777,52 @@ def _generate_workflow_python_code(workflow: Workflow) -> str:
             else:
                 lines.append(f'        "{key}": {value!r},')
 
-        lines.extend([
-            '    }',
-            '    ',
-            '    # Execute tool',
-            '    try:',
-            '        result = tool_fn(inputs)',
-            '        return result',
-            '    except Exception as e:',
-            '        return {"errors": state.get("errors", []) + [str(e)]}',
-            '',
-            '',
-        ])
+        lines.extend(
+            [
+                "    }",
+                "    ",
+                "    # Execute tool",
+                "    try:",
+                "        result = tool_fn(inputs)",
+                "        return result",
+                "    except Exception as e:",
+                '        return {"errors": state.get("errors", []) + [str(e)]}',
+                "",
+                "",
+            ]
+        )
 
     # Build graph
-    lines.extend([
-        '# =============================================================================',
-        '# Build Graph',
-        '# =============================================================================',
-        '',
-        'def build_workflow() -> StateGraph:',
-        f'    """Build the {workflow.name} workflow graph."""',
-        '    graph = StateGraph(State)',
-        '    ',
-        '    # Add nodes',
-    ])
+    lines.extend(
+        [
+            "# =============================================================================",
+            "# Build Graph",
+            "# =============================================================================",
+            "",
+            "def build_workflow() -> StateGraph:",
+            f'    """Build the {workflow.name} workflow graph."""',
+            "    graph = StateGraph(State)",
+            "    ",
+            "    # Add nodes",
+        ]
+    )
 
     # Add nodes
     for node in workflow.nodes:
         node_id = node.get("id", "unknown")
-        func_name = f'node_{node_id.replace("-", "_")[:20]}'
+        func_name = f"node_{node_id.replace('-', '_')[:20]}"
         lines.append(f'    graph.add_node("{node_id}", {func_name})')
 
-    lines.append('    ')
-    lines.append('    # Add edges')
+    lines.append("    ")
+    lines.append("    # Add edges")
 
     # Determine entry nodes (nodes with no incoming edges)
-    target_nodes = set(e.get("target") or e.get("target_node_id", "") for e in workflow.edges)
-    source_nodes = set(e.get("source") or e.get("source_node_id", "") for e in workflow.edges)
+    target_nodes = set(
+        e.get("target") or e.get("target_node_id", "") for e in workflow.edges
+    )
+    source_nodes = set(
+        e.get("source") or e.get("source_node_id", "") for e in workflow.edges
+    )
     all_node_ids = set(n.get("id", "") for n in workflow.nodes)
     entry_nodes = all_node_ids - target_nodes
 
@@ -1699,48 +1846,52 @@ def _generate_workflow_python_code(workflow: Workflow) -> str:
         if exit_node:
             lines.append(f'    graph.add_edge("{exit_node}", END)')
 
-    lines.extend([
-        '    ',
-        '    return graph',
-        '',
-        '',
-        '# =============================================================================',
-        '# Main Execution',
-        '# =============================================================================',
-        '',
-        'if __name__ == "__main__":',
-        '    # Build and compile the graph',
-        '    graph = build_workflow()',
-        '    app = graph.compile()',
-        '    ',
-        '    # Example execution',
-        '    initial_state = {',
-        '        "files": [],  # Add your input files here',
-        '        "results": [],',
-        '        "artifacts": [],',
-        '        "errors": [],',
-        '        "library_path": "",  # Set your library path',
-        '    }',
-        '    ',
-        '    # Run the workflow',
-        '    final_state = app.invoke(initial_state)',
-        '    ',
-        '    # Print results',
-        '    print("Results:", final_state.get("results", []))',
-        '    print("Artifacts:", final_state.get("artifacts", []))',
-        '    if final_state.get("errors"):',
-        '        print("Errors:", final_state["errors"])',
-    ])
+    lines.extend(
+        [
+            "    ",
+            "    return graph",
+            "",
+            "",
+            "# =============================================================================",
+            "# Main Execution",
+            "# =============================================================================",
+            "",
+            'if __name__ == "__main__":',
+            "    # Build and compile the graph",
+            "    graph = build_workflow()",
+            "    app = graph.compile()",
+            "    ",
+            "    # Example execution",
+            "    initial_state = {",
+            '        "files": [],  # Add your input files here',
+            '        "results": [],',
+            '        "artifacts": [],',
+            '        "errors": [],',
+            '        "library_path": "",  # Set your library path',
+            "    }",
+            "    ",
+            "    # Run the workflow",
+            "    final_state = app.invoke(initial_state)",
+            "    ",
+            "    # Print results",
+            '    print("Results:", final_state.get("results", []))',
+            '    print("Artifacts:", final_state.get("artifacts", []))',
+            '    if final_state.get("errors"):',
+            '        print("Errors:", final_state["errors"])',
+        ]
+    )
 
-    return '\n'.join(lines)
+    return "\n".join(lines)
 
 
 # =============================================================================
 # Cache Management Endpoints
 # =============================================================================
 
+
 class CacheStatsResponse(BaseModel):
     """Response with cache statistics."""
+
     total_entries: int
     workflows_cached: int | None = None
     nodes_cached: int | None = None
@@ -1751,6 +1902,7 @@ class CacheStatsResponse(BaseModel):
 
 class CacheClearResponse(BaseModel):
     """Response after clearing cache."""
+
     entries_deleted: int
     message: str
 
@@ -1808,7 +1960,7 @@ async def clear_workflow_cache(
 
         return CacheClearResponse(
             entries_deleted=count,
-            message=f"Cleared {count} cached entries for workflow {workflow_id}"
+            message=f"Cleared {count} cached entries for workflow {workflow_id}",
         )
 
     except Exception as e:
@@ -1835,8 +1987,7 @@ async def clear_all_cache(
         count = cache.clear_all()
 
         return CacheClearResponse(
-            entries_deleted=count,
-            message=f"Cleared entire cache: {count} entries"
+            entries_deleted=count, message=f"Cleared entire cache: {count} entries"
         )
 
     except Exception as e:
@@ -1848,8 +1999,10 @@ async def clear_all_cache(
 # Workflow Run Data Endpoints
 # =============================================================================
 
+
 class WorkflowRunResponse(BaseModel):
     """Response with workflow run data (code, logs, etc.)."""
+
     thread_id: str
     workflow_id: str
     workflow_name: str
@@ -1894,7 +2047,7 @@ async def get_workflow_run(
         if not run:
             raise HTTPException(
                 status_code=404,
-                detail=f"Workflow run not found for thread: {thread_id}"
+                detail=f"Workflow run not found for thread: {thread_id}",
             )
 
         return WorkflowRunResponse(
@@ -1952,15 +2105,13 @@ async def get_thread_diagram_png(
 
         if not run:
             raise HTTPException(
-                status_code=404,
-                detail=f"Workflow run not found: {thread_id}"
+                status_code=404, detail=f"Workflow run not found: {thread_id}"
             )
 
         workflow_snapshot = run.get("workflow_snapshot")
         if not workflow_snapshot:
             raise HTTPException(
-                status_code=404,
-                detail="No workflow snapshot available for this run"
+                status_code=404, detail="No workflow snapshot available for this run"
             )
 
         # Rebuild workflow definition from snapshot
@@ -2000,7 +2151,7 @@ async def get_thread_diagram_png(
             media_type="image/png",
             headers={
                 "Content-Disposition": f'inline; filename="{run["workflow_name"]}.png"'
-            }
+            },
         )
 
     except HTTPException:

@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
             port_type="input",
             data_type=DataType.TEXT,
             required=True,
-            description="Task description or user query"
+            description="Task description or user query",
         ),
         PortDef(
             id="context",
@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
             port_type="input",
             data_type=DataType.ANY,
             required=False,
-            description="Additional context for the agent"
+            description="Additional context for the agent",
         ),
     ],
     output_ports=[
@@ -53,21 +53,21 @@ logger = logging.getLogger(__name__)
             name="Result",
             port_type="output",
             data_type=DataType.TEXT,
-            description="Agent's response"
+            description="Agent's response",
         ),
         PortDef(
             id="messages",
             name="Messages",
             port_type="output",
             data_type=DataType.ARRAY,
-            description="Full message history"
+            description="Full message history",
         ),
         PortDef(
             id="tool_calls",
             name="Tool Calls",
             port_type="output",
             data_type=DataType.ARRAY,
-            description="List of tool calls made by the agent"
+            description="List of tool calls made by the agent",
         ),
     ],
     config_schema={
@@ -75,17 +75,17 @@ logger = logging.getLogger(__name__)
             "type": "array",
             "items": {"type": "string"},
             "default": [],
-            "description": "List of tool names available to the agent"
+            "description": "List of tool names available to the agent",
         },
         "system_prompt": {
             "type": "string",
             "default": "You are a helpful AI assistant. Use the available tools to accomplish the task.",
-            "description": "System prompt for the agent"
+            "description": "System prompt for the agent",
         },
         "max_iterations": {
             "type": "integer",
             "default": 10,
-            "description": "Maximum number of tool-calling iterations"
+            "description": "Maximum number of tool-calling iterations",
         },
     },
 )
@@ -116,7 +116,10 @@ async def react_agent(
     task = inputs.get("task", "")
     context = inputs.get("context")
     tool_names = inputs.get("tools", [])
-    system_prompt = inputs.get("system_prompt", "You are a helpful AI assistant. Use the available tools to accomplish the task.")
+    system_prompt = inputs.get(
+        "system_prompt",
+        "You are a helpful AI assistant. Use the available tools to accomplish the task.",
+    )
     max_iterations = inputs.get("max_iterations", 10)
 
     if not task:
@@ -124,7 +127,7 @@ async def react_agent(
             "result": "",
             "messages": [],
             "tool_calls": [],
-            "error": "No task provided to agent"
+            "error": "No task provided to agent",
         }
 
     try:
@@ -162,7 +165,11 @@ async def react_agent(
         # Create ReAct agent
         # Note: create_react_agent doesn't support state_modifier in current version
         # System prompt needs to be added to messages instead
-        if system_prompt and system_prompt != "You are a helpful AI assistant. Use the available tools to accomplish the task.":
+        if (
+            system_prompt
+            and system_prompt
+            != "You are a helpful AI assistant. Use the available tools to accomplish the task."
+        ):
             # Prepend custom system prompt to messages
             messages.insert(0, SystemMessage(content=system_prompt))
 
@@ -181,7 +188,11 @@ async def react_agent(
 
             # Check if agent is done (no more tool calls)
             last_message = result["messages"][-1] if result["messages"] else None
-            if not last_message or not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
+            if (
+                not last_message
+                or not hasattr(last_message, "tool_calls")
+                or not last_message.tool_calls
+            ):
                 # Agent is done
                 agent_state = result
                 break
@@ -211,25 +222,31 @@ async def react_agent(
         for msg in final_messages:
             if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls"):
                 for tc in msg.tool_calls:
-                    tool_calls.append({
-                        "tool": tc.get("name", "unknown"),
-                        "args": tc.get("args", {}),
-                    })
+                    tool_calls.append(
+                        {
+                            "tool": tc.get("name", "unknown"),
+                            "args": tc.get("args", {}),
+                        }
+                    )
             elif isinstance(msg, dict) and "tool_calls" in msg:
                 for tc in msg["tool_calls"]:
-                    tool_calls.append({
-                        "tool": tc.get("name", "unknown"),
-                        "args": tc.get("args", {}),
-                    })
+                    tool_calls.append(
+                        {
+                            "tool": tc.get("name", "unknown"),
+                            "args": tc.get("args", {}),
+                        }
+                    )
 
         # Convert messages to serializable format
         serializable_messages = []
         for msg in final_messages:
             if isinstance(msg, (HumanMessage, AIMessage, SystemMessage)):
-                serializable_messages.append({
-                    "role": msg.type,
-                    "content": msg.content,
-                })
+                serializable_messages.append(
+                    {
+                        "role": msg.type,
+                        "content": msg.content,
+                    }
+                )
             elif isinstance(msg, dict):
                 # Already in dict format (from tests or other sources)
                 serializable_messages.append(msg)
@@ -251,7 +268,9 @@ async def react_agent(
         }
 
 
-def _wrap_workflow_tool(tool_name: str, tool_fn: callable, llm_config: LLMConfig) -> callable:
+def _wrap_workflow_tool(
+    tool_name: str, tool_fn: callable, llm_config: LLMConfig
+) -> callable:
     """Wrap a workflow tool for LangChain/LangGraph compatibility.
 
     LangChain tools expect a simple function signature with named parameters,

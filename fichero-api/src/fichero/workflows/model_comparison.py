@@ -27,9 +27,11 @@ logger = logging.getLogger(__name__)
 # Data Models
 # =============================================================================
 
+
 @dataclass
 class ModelResult:
     """Result from a single model execution."""
+
     provider: str
     model: str
     response: str
@@ -57,6 +59,7 @@ class ModelResult:
 @dataclass
 class ComparisonResult:
     """Result of comparing multiple models."""
+
     prompt: str
     models_compared: list[str]
     results: list[ModelResult]
@@ -83,6 +86,7 @@ class ComparisonResult:
 
 class ModelSpec(BaseModel):
     """Specification for a model to compare."""
+
     provider: str = Field(..., description="LLM provider (openai, anthropic, etc)")
     model: str = Field(..., description="Model name")
     temperature: float = Field(default=0.7, description="Temperature setting")
@@ -91,9 +95,12 @@ class ModelSpec(BaseModel):
 
 class ComparisonRequest(BaseModel):
     """Request to compare multiple models."""
+
     prompt: str = Field(..., description="Prompt to send to all models")
     models: list[ModelSpec] = Field(..., description="Models to compare")
-    system_prompt: str | None = Field(default=None, description="Optional system prompt")
+    system_prompt: str | None = Field(
+        default=None, description="Optional system prompt"
+    )
     timeout_seconds: int = Field(default=120, description="Timeout per model")
     include_cost_tracking: bool = Field(default=True, description="Track costs")
 
@@ -134,10 +141,11 @@ MODEL_PRICING = {
 
 class ModelTier(str, Enum):
     """Model performance/cost tiers."""
+
     FRONTIER = "frontier"  # Best quality, highest cost
-    MID = "mid"            # Good quality, moderate cost
-    BUDGET = "budget"      # Basic quality, low cost
-    LOCAL = "local"        # Free, runs locally
+    MID = "mid"  # Good quality, moderate cost
+    BUDGET = "budget"  # Basic quality, low cost
+    LOCAL = "local"  # Free, runs locally
 
 
 # Model tier assignments
@@ -205,13 +213,15 @@ def get_models_by_tier() -> dict[str, list[dict]]:
         elif model in ["llama3.2", "llama3.1", "codellama"]:
             provider = "ollama"
 
-        result[tier.value].append({
-            "provider": provider,
-            "model": model,
-            "input_price": pricing[0],
-            "output_price": pricing[1],
-            "tier": tier.value,
-        })
+        result[tier.value].append(
+            {
+                "provider": provider,
+                "model": model,
+                "input_price": pricing[0],
+                "output_price": pricing[1],
+                "tier": tier.value,
+            }
+        )
 
     return result
 
@@ -238,6 +248,7 @@ def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
 # Model Comparison Engine
 # =============================================================================
 
+
 class ModelComparisonEngine:
     """Engine for running comparisons across multiple models."""
 
@@ -254,13 +265,18 @@ class ModelComparisonEngine:
             ComparisonResult with all model responses and metrics
         """
         import uuid
+
         comparison_id = str(uuid.uuid4())[:8]
 
-        logger.info(f"Starting comparison {comparison_id} with {len(request.models)} models")
+        logger.info(
+            f"Starting comparison {comparison_id} with {len(request.models)} models"
+        )
 
         # Run all models in parallel
         tasks = [
-            self._run_model(spec, request.prompt, request.system_prompt, request.timeout_seconds)
+            self._run_model(
+                spec, request.prompt, request.system_prompt, request.timeout_seconds
+            )
             for spec in request.models
         ]
 
@@ -271,13 +287,15 @@ class ModelComparisonEngine:
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 spec = request.models[i]
-                model_results.append(ModelResult(
-                    provider=spec.provider,
-                    model=spec.model,
-                    response="",
-                    latency_ms=0,
-                    error=str(result),
-                ))
+                model_results.append(
+                    ModelResult(
+                        provider=spec.provider,
+                        model=spec.model,
+                        response="",
+                        latency_ms=0,
+                        error=str(result),
+                    )
+                )
             else:
                 model_results.append(result)
 
@@ -340,6 +358,7 @@ class ModelComparisonEngine:
 
             # Build messages
             from langchain_core.messages import HumanMessage, SystemMessage
+
             messages = []
             if system_prompt:
                 messages.append(SystemMessage(content=system_prompt))
@@ -361,12 +380,20 @@ class ModelComparisonEngine:
                 metadata = response.response_metadata
                 if "usage" in metadata:
                     usage = metadata["usage"]
-                    input_tokens = usage.get("input_tokens", usage.get("prompt_tokens", 0))
-                    output_tokens = usage.get("output_tokens", usage.get("completion_tokens", 0))
+                    input_tokens = usage.get(
+                        "input_tokens", usage.get("prompt_tokens", 0)
+                    )
+                    output_tokens = usage.get(
+                        "output_tokens", usage.get("completion_tokens", 0)
+                    )
                 elif "token_usage" in metadata:
                     usage = metadata["token_usage"]
-                    input_tokens = usage.get("input_tokens", usage.get("prompt_tokens", 0))
-                    output_tokens = usage.get("output_tokens", usage.get("completion_tokens", 0))
+                    input_tokens = usage.get(
+                        "input_tokens", usage.get("prompt_tokens", 0)
+                    )
+                    output_tokens = usage.get(
+                        "output_tokens", usage.get("completion_tokens", 0)
+                    )
 
             # Estimate tokens if not available
             if input_tokens == 0:
@@ -437,9 +464,12 @@ class ModelComparisonEngine:
             ComparisonResult with all model responses
         """
         import uuid
+
         comparison_id = str(uuid.uuid4())[:8]
 
-        logger.info(f"Starting vision comparison {comparison_id} with {len(models)} models, {len(images)} images")
+        logger.info(
+            f"Starting vision comparison {comparison_id} with {len(models)} models, {len(images)} images"
+        )
 
         tasks = [
             self._run_vision_model(spec, images, prompt, detail, timeout_seconds)
@@ -452,13 +482,15 @@ class ModelComparisonEngine:
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 spec = models[i]
-                model_results.append(ModelResult(
-                    provider=spec.provider,
-                    model=spec.model,
-                    response="",
-                    latency_ms=0,
-                    error=str(result),
-                ))
+                model_results.append(
+                    ModelResult(
+                        provider=spec.provider,
+                        model=spec.model,
+                        response="",
+                        latency_ms=0,
+                        error=str(result),
+                    )
+                )
             else:
                 model_results.append(result)
 
@@ -513,7 +545,9 @@ class ModelComparisonEngine:
             latency_ms = (time.time() - start_time) * 1000
 
             # Estimate tokens (vision is typically more expensive)
-            input_tokens = len(prompt) // 4 + (len(images) * 1000)  # ~1000 tokens per image
+            input_tokens = len(prompt) // 4 + (
+                len(images) * 1000
+            )  # ~1000 tokens per image
             output_tokens = len(response) // 4
             cost = estimate_cost(spec.model, input_tokens, output_tokens)
 
@@ -570,7 +604,9 @@ class ModelComparisonEngine:
 
         comparison_id = str(uuid.uuid4())[:8]
 
-        logger.info(f"Starting tool comparison {comparison_id}: {tool_name} with {len(models)} models")
+        logger.info(
+            f"Starting tool comparison {comparison_id}: {tool_name} with {len(models)} models"
+        )
 
         # Get the tool function
         tool_func = get_tool(tool_name)
@@ -578,7 +614,9 @@ class ModelComparisonEngine:
             raise ValueError(f"Unknown tool: {tool_name}")
 
         tasks = [
-            self._run_tool_with_model(tool_func, tool_name, spec, inputs, tool_config, timeout_seconds)
+            self._run_tool_with_model(
+                tool_func, tool_name, spec, inputs, tool_config, timeout_seconds
+            )
             for spec in models
         ]
 
@@ -588,13 +626,15 @@ class ModelComparisonEngine:
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 spec = models[i]
-                model_results.append(ModelResult(
-                    provider=spec.provider,
-                    model=spec.model,
-                    response="",
-                    latency_ms=0,
-                    error=str(result),
-                ))
+                model_results.append(
+                    ModelResult(
+                        provider=spec.provider,
+                        model=spec.model,
+                        response="",
+                        latency_ms=0,
+                        error=str(result),
+                    )
+                )
             else:
                 model_results.append(result)
 
@@ -634,6 +674,7 @@ class ModelComparisonEngine:
     ) -> ModelResult:
         """Run a workflow tool with a specific model."""
         from fichero.workflows.types import State
+
         start_time = time.time()
 
         try:
@@ -698,7 +739,9 @@ class ModelComparisonEngine:
                 error=f"Timeout after {timeout_seconds}s",
             )
         except Exception as e:
-            logger.exception(f"Tool {tool_name} with {spec.provider}/{spec.model} failed: {e}")
+            logger.exception(
+                f"Tool {tool_name} with {spec.provider}/{spec.model} failed: {e}"
+            )
             return ModelResult(
                 provider=spec.provider,
                 model=spec.model,
@@ -744,7 +787,7 @@ from fichero.workflows.registry import register_tool  # noqa: E402
             port_type="input",
             data_type=DataType.TEXT,
             required=True,
-            description="Prompt to send to all models"
+            description="Prompt to send to all models",
         ),
         PortDef(
             id="system_prompt",
@@ -752,7 +795,7 @@ from fichero.workflows.registry import register_tool  # noqa: E402
             port_type="input",
             data_type=DataType.TEXT,
             required=False,
-            description="Optional system prompt"
+            description="Optional system prompt",
         ),
     ],
     output_ports=[
@@ -761,28 +804,28 @@ from fichero.workflows.registry import register_tool  # noqa: E402
             name="Results",
             port_type="output",
             data_type=DataType.JSON,
-            description="Comparison results from all models"
+            description="Comparison results from all models",
         ),
         PortDef(
             id="fastest",
             name="Fastest Response",
             port_type="output",
             data_type=DataType.TEXT,
-            description="Response from fastest model"
+            description="Response from fastest model",
         ),
         PortDef(
             id="cheapest",
             name="Cheapest Response",
             port_type="output",
             data_type=DataType.TEXT,
-            description="Response from cheapest model"
+            description="Response from cheapest model",
         ),
         PortDef(
             id="summary",
             name="Summary",
             port_type="output",
             data_type=DataType.JSON,
-            description="Summary statistics"
+            description="Summary statistics",
         ),
     ],
     config_schema={
@@ -801,12 +844,12 @@ from fichero.workflows.registry import register_tool  # noqa: E402
                 {"provider": "openai", "model": "gpt-4o"},
                 {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022"},
             ],
-            "description": "Models to compare"
+            "description": "Models to compare",
         },
         "timeout_seconds": {
             "type": "integer",
             "default": 60,
-            "description": "Timeout per model in seconds"
+            "description": "Timeout per model in seconds",
         },
     },
 )
@@ -836,17 +879,19 @@ async def model_comparison(
             "fastest": "",
             "cheapest": "",
             "summary": {},
-            "error": "No prompt provided"
+            "error": "No prompt provided",
         }
 
     # Build model specs
     model_specs = []
     for m in models_config:
-        model_specs.append(ModelSpec(
-            provider=m.get("provider", "openai"),
-            model=m.get("model", "gpt-4o"),
-            temperature=m.get("temperature", 0.7),
-        ))
+        model_specs.append(
+            ModelSpec(
+                provider=m.get("provider", "openai"),
+                model=m.get("model", "gpt-4o"),
+                temperature=m.get("temperature", 0.7),
+            )
+        )
 
     # If no models specified, use default config
     if not model_specs:
@@ -880,7 +925,9 @@ async def model_comparison(
         "fastest_model": result.fastest_model,
         "cheapest_model": result.cheapest_model,
         "total_cost_usd": result.total_cost_usd,
-        "avg_latency_ms": result.total_latency_ms / len(result.results) if result.results else 0,
+        "avg_latency_ms": result.total_latency_ms / len(result.results)
+        if result.results
+        else 0,
     }
 
     return {

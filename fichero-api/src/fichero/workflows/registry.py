@@ -74,14 +74,21 @@ def register_tool(
         async def transcribe(state: State, config: dict) -> dict:
             ...
     """
+
     def decorator(func: Callable) -> Callable:
         # Store the function
         TOOLS[name] = func
 
         # Default ports only when omitted (None), not when explicitly empty.
         # Source tools intentionally pass [] to indicate no input ports.
-        default_input = [PortDef(id="input", name="Input", port_type="input", data_type=DataType.ANY)]
-        default_output = [PortDef(id="output", name="Output", port_type="output", data_type=DataType.ANY)]
+        default_input = [
+            PortDef(id="input", name="Input", port_type="input", data_type=DataType.ANY)
+        ]
+        default_output = [
+            PortDef(
+                id="output", name="Output", port_type="output", data_type=DataType.ANY
+            )
+        ]
 
         # Store metadata
         TOOL_DEFS[name] = ToolDef(
@@ -149,7 +156,18 @@ def get_categories() -> list[str]:
     """Get all unique tool categories."""
     categories = set(t.category for t in TOOL_DEFS.values())
     # Return in preferred order
-    order = ["source", "vision", "audio", "video", "transform", "llm", "convert", "logic", "sink", "utility"]
+    order = [
+        "source",
+        "vision",
+        "audio",
+        "video",
+        "transform",
+        "llm",
+        "convert",
+        "logic",
+        "sink",
+        "utility",
+    ]
     result = [c for c in order if c in categories]
     # Add any categories not in our preferred order
     for c in sorted(categories):
@@ -185,14 +203,18 @@ def enrich_node_with_ports(node: NodeDef) -> NodeDef:
 
     # Create a new node with ports from registry
     # Use model_copy to preserve all existing fields
-    return node.model_copy(update={
-        'input_ports': list(tool_def.input_ports),
-        'output_ports': list(tool_def.output_ports),
-        'uses_llm': tool_def.uses_llm,  # Also sync uses_llm from registry
-    })
+    return node.model_copy(
+        update={
+            "input_ports": list(tool_def.input_ports),
+            "output_ports": list(tool_def.output_ports),
+            "uses_llm": tool_def.uses_llm,  # Also sync uses_llm from registry
+        }
+    )
 
 
-def create_node_from_tool(tool_name: str, position_x: float = 0, position_y: float = 0) -> NodeDef | None:
+def create_node_from_tool(
+    tool_name: str, position_x: float = 0, position_y: float = 0
+) -> NodeDef | None:
     """Create a new node instance from a tool definition.
 
     Note: The returned node has ports populated for immediate use in the UI.
@@ -222,6 +244,7 @@ def create_node_from_tool(tool_name: str, position_x: float = 0, position_y: flo
 # Built-in Tool Definitions (registered without implementations for now)
 # =============================================================================
 
+
 def _register_builtin_tools():
     """Register all built-in tool definitions.
 
@@ -242,7 +265,9 @@ def _register_builtin_tools():
         color="green",
         input_ports=[],  # No inputs - this is a source
         output_ports=[
-            PortDef(id="files", name="Files", port_type="output", data_type=DataType.FILES),
+            PortDef(
+                id="files", name="Files", port_type="output", data_type=DataType.FILES
+            ),
         ],
         sort_order=1,
     )
@@ -256,12 +281,17 @@ def _register_builtin_tools():
         color="green",
         input_ports=[],
         output_ports=[
-            PortDef(id="files", name="Files", port_type="output", data_type=DataType.FILES),
+            PortDef(
+                id="files", name="Files", port_type="output", data_type=DataType.FILES
+            ),
         ],
         config_schema={
             "type": "object",
             "properties": {
-                "collection_id": {"type": "string", "description": "Collection to pull from"},
+                "collection_id": {
+                    "type": "string",
+                    "description": "Collection to pull from",
+                },
             },
         },
         sort_order=2,
@@ -276,7 +306,9 @@ def _register_builtin_tools():
         color="green",
         input_ports=[],
         output_ports=[
-            PortDef(id="files", name="Files", port_type="output", data_type=DataType.FILES),
+            PortDef(
+                id="files", name="Files", port_type="output", data_type=DataType.FILES
+            ),
         ],
         config_schema={
             "type": "object",
@@ -300,11 +332,20 @@ def _register_builtin_tools():
         icon="text.viewfinder",
         color="blue",
         input_ports=[
-            PortDef(id="files", name="Files", port_type="input", data_type=DataType.FILES),
+            PortDef(
+                id="files", name="Files", port_type="input", data_type=DataType.FILES
+            ),
         ],
         output_ports=[
-            PortDef(id="text", name="Text", port_type="output", data_type=DataType.TEXT),
-            PortDef(id="structured", name="Structured", port_type="output", data_type=DataType.JSON),
+            PortDef(
+                id="text", name="Text", port_type="output", data_type=DataType.TEXT
+            ),
+            PortDef(
+                id="structured",
+                name="Structured",
+                port_type="output",
+                data_type=DataType.JSON,
+            ),
         ],
         config_schema={
             "type": "object",
@@ -327,10 +368,17 @@ def _register_builtin_tools():
         icon="eye",
         color="blue",
         input_ports=[
-            PortDef(id="files", name="Files", port_type="input", data_type=DataType.FILES),
+            PortDef(
+                id="files", name="Files", port_type="input", data_type=DataType.FILES
+            ),
         ],
         output_ports=[
-            PortDef(id="descriptions", name="Descriptions", port_type="output", data_type=DataType.JSON),
+            PortDef(
+                id="descriptions",
+                name="Descriptions",
+                port_type="output",
+                data_type=DataType.JSON,
+            ),
         ],
         uses_llm=True,
         supports_batch=True,
@@ -345,10 +393,17 @@ def _register_builtin_tools():
         icon="doc.text.magnifyingglass",
         color="blue",
         input_ports=[
-            PortDef(id="files", name="Files", port_type="input", data_type=DataType.FILES),
+            PortDef(
+                id="files", name="Files", port_type="input", data_type=DataType.FILES
+            ),
         ],
         output_ports=[
-            PortDef(id="analysis", name="Analysis", port_type="output", data_type=DataType.JSON),
+            PortDef(
+                id="analysis",
+                name="Analysis",
+                port_type="output",
+                data_type=DataType.JSON,
+            ),
         ],
         uses_llm=True,
         supports_structured_output=True,
@@ -367,10 +422,14 @@ def _register_builtin_tools():
         icon="wand.and.stars",
         color="pink",
         input_ports=[
-            PortDef(id="files", name="Files", port_type="input", data_type=DataType.FILES),
+            PortDef(
+                id="files", name="Files", port_type="input", data_type=DataType.FILES
+            ),
         ],
         output_ports=[
-            PortDef(id="files", name="Files", port_type="output", data_type=DataType.FILES),
+            PortDef(
+                id="files", name="Files", port_type="output", data_type=DataType.FILES
+            ),
         ],
         config_schema={
             "type": "object",
@@ -392,15 +451,23 @@ def _register_builtin_tools():
         icon="crop",
         color="pink",
         input_ports=[
-            PortDef(id="files", name="Files", port_type="input", data_type=DataType.FILES),
+            PortDef(
+                id="files", name="Files", port_type="input", data_type=DataType.FILES
+            ),
         ],
         output_ports=[
-            PortDef(id="files", name="Files", port_type="output", data_type=DataType.FILES),
+            PortDef(
+                id="files", name="Files", port_type="output", data_type=DataType.FILES
+            ),
         ],
         config_schema={
             "type": "object",
             "properties": {
-                "auto_detect": {"type": "boolean", "default": True, "description": "Auto-detect content bounds"},
+                "auto_detect": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Auto-detect content bounds",
+                },
                 "x": {"type": "integer"},
                 "y": {"type": "integer"},
                 "width": {"type": "integer"},
@@ -419,10 +486,14 @@ def _register_builtin_tools():
         icon="rotate.right",
         color="pink",
         input_ports=[
-            PortDef(id="files", name="Files", port_type="input", data_type=DataType.FILES),
+            PortDef(
+                id="files", name="Files", port_type="input", data_type=DataType.FILES
+            ),
         ],
         output_ports=[
-            PortDef(id="files", name="Files", port_type="output", data_type=DataType.FILES),
+            PortDef(
+                id="files", name="Files", port_type="output", data_type=DataType.FILES
+            ),
         ],
         config_schema={
             "type": "object",
@@ -443,10 +514,17 @@ def _register_builtin_tools():
         icon="rectangle.split.3x1",
         color="pink",
         input_ports=[
-            PortDef(id="files", name="Files", port_type="input", data_type=DataType.FILES),
+            PortDef(
+                id="files", name="Files", port_type="input", data_type=DataType.FILES
+            ),
         ],
         output_ports=[
-            PortDef(id="segments", name="Segments", port_type="output", data_type=DataType.FILES),
+            PortDef(
+                id="segments",
+                name="Segments",
+                port_type="output",
+                data_type=DataType.FILES,
+            ),
         ],
         uses_llm=True,
         supports_batch=True,
@@ -468,13 +546,22 @@ def _register_builtin_tools():
             PortDef(id="text", name="Text", port_type="input", data_type=DataType.TEXT),
         ],
         output_ports=[
-            PortDef(id="summary", name="Summary", port_type="output", data_type=DataType.TEXT),
+            PortDef(
+                id="summary",
+                name="Summary",
+                port_type="output",
+                data_type=DataType.TEXT,
+            ),
         ],
         config_schema={
             "type": "object",
             "properties": {
                 "max_length": {"type": "integer", "default": 200},
-                "style": {"type": "string", "enum": ["brief", "detailed", "bullets"], "default": "brief"},
+                "style": {
+                    "type": "string",
+                    "enum": ["brief", "detailed", "bullets"],
+                    "default": "brief",
+                },
             },
         },
         uses_llm=True,
@@ -492,7 +579,12 @@ def _register_builtin_tools():
             PortDef(id="text", name="Text", port_type="input", data_type=DataType.TEXT),
         ],
         output_ports=[
-            PortDef(id="translated", name="Translated", port_type="output", data_type=DataType.TEXT),
+            PortDef(
+                id="translated",
+                name="Translated",
+                port_type="output",
+                data_type=DataType.TEXT,
+            ),
         ],
         config_schema={
             "type": "object",
@@ -516,7 +608,12 @@ def _register_builtin_tools():
             PortDef(id="text", name="Text", port_type="input", data_type=DataType.TEXT),
         ],
         output_ports=[
-            PortDef(id="entities", name="Entities", port_type="output", data_type=DataType.JSON),
+            PortDef(
+                id="entities",
+                name="Entities",
+                port_type="output",
+                data_type=DataType.JSON,
+            ),
         ],
         default_output_schema={
             "type": "object",
@@ -543,8 +640,18 @@ def _register_builtin_tools():
             PortDef(id="text", name="Text", port_type="input", data_type=DataType.TEXT),
         ],
         output_ports=[
-            PortDef(id="category", name="Category", port_type="output", data_type=DataType.TEXT),
-            PortDef(id="confidence", name="Confidence", port_type="output", data_type=DataType.NUMBER),
+            PortDef(
+                id="category",
+                name="Category",
+                port_type="output",
+                data_type=DataType.TEXT,
+            ),
+            PortDef(
+                id="confidence",
+                name="Confidence",
+                port_type="output",
+                data_type=DataType.NUMBER,
+            ),
         ],
         config_schema={
             "type": "object",
@@ -569,16 +676,23 @@ def _register_builtin_tools():
         icon="text.bubble",
         color="purple",
         input_ports=[
-            PortDef(id="input", name="Input", port_type="input", data_type=DataType.ANY),
+            PortDef(
+                id="input", name="Input", port_type="input", data_type=DataType.ANY
+            ),
         ],
         output_ports=[
-            PortDef(id="output", name="Output", port_type="output", data_type=DataType.ANY),
+            PortDef(
+                id="output", name="Output", port_type="output", data_type=DataType.ANY
+            ),
         ],
         config_schema={
             "type": "object",
             "properties": {
                 "prompt": {"type": "string", "description": "The prompt template"},
-                "output_schema": {"type": "object", "description": "JSON Schema for output"},
+                "output_schema": {
+                    "type": "object",
+                    "description": "JSON Schema for output",
+                },
             },
         },
         uses_llm=True,
@@ -598,11 +712,15 @@ def _register_builtin_tools():
         icon="arrow.triangle.branch",
         color="yellow",
         input_ports=[
-            PortDef(id="input", name="Input", port_type="input", data_type=DataType.ANY),
+            PortDef(
+                id="input", name="Input", port_type="input", data_type=DataType.ANY
+            ),
         ],
         output_ports=[
             PortDef(id="true", name="True", port_type="output", data_type=DataType.ANY),
-            PortDef(id="false", name="False", port_type="output", data_type=DataType.ANY),
+            PortDef(
+                id="false", name="False", port_type="output", data_type=DataType.ANY
+            ),
         ],
         config_schema={
             "type": "object",
@@ -625,14 +743,26 @@ def _register_builtin_tools():
         icon="arrow.triangle.swap",
         color="yellow",
         input_ports=[
-            PortDef(id="input", name="Input", port_type="input", data_type=DataType.ANY),
-            PortDef(id="value", name="Value", port_type="input", data_type=DataType.ANY),
+            PortDef(
+                id="input", name="Input", port_type="input", data_type=DataType.ANY
+            ),
+            PortDef(
+                id="value", name="Value", port_type="input", data_type=DataType.ANY
+            ),
         ],
         output_ports=[
-            PortDef(id="case_1", name="Case 1", port_type="output", data_type=DataType.ANY),
-            PortDef(id="case_2", name="Case 2", port_type="output", data_type=DataType.ANY),
-            PortDef(id="case_3", name="Case 3", port_type="output", data_type=DataType.ANY),
-            PortDef(id="default", name="Default", port_type="output", data_type=DataType.ANY),
+            PortDef(
+                id="case_1", name="Case 1", port_type="output", data_type=DataType.ANY
+            ),
+            PortDef(
+                id="case_2", name="Case 2", port_type="output", data_type=DataType.ANY
+            ),
+            PortDef(
+                id="case_3", name="Case 3", port_type="output", data_type=DataType.ANY
+            ),
+            PortDef(
+                id="default", name="Default", port_type="output", data_type=DataType.ANY
+            ),
         ],
         config_schema={
             "type": "object",
@@ -655,16 +785,24 @@ def _register_builtin_tools():
         icon="repeat",
         color="yellow",
         input_ports=[
-            PortDef(id="items", name="Items", port_type="input", data_type=DataType.ARRAY),
+            PortDef(
+                id="items", name="Items", port_type="input", data_type=DataType.ARRAY
+            ),
         ],
         output_ports=[
             PortDef(id="item", name="Item", port_type="output", data_type=DataType.ANY),
-            PortDef(id="done", name="Done", port_type="output", data_type=DataType.ARRAY),
+            PortDef(
+                id="done", name="Done", port_type="output", data_type=DataType.ARRAY
+            ),
         ],
         config_schema={
             "type": "object",
             "properties": {
-                "parallel": {"type": "integer", "default": 1, "description": "Max parallel iterations"},
+                "parallel": {
+                    "type": "integer",
+                    "default": 1,
+                    "description": "Max parallel iterations",
+                },
             },
         },
         sort_order=42,
@@ -678,16 +816,25 @@ def _register_builtin_tools():
         icon="line.3.horizontal.decrease.circle",
         color="yellow",
         input_ports=[
-            PortDef(id="items", name="Items", port_type="input", data_type=DataType.ARRAY),
+            PortDef(
+                id="items", name="Items", port_type="input", data_type=DataType.ARRAY
+            ),
         ],
         output_ports=[
-            PortDef(id="passed", name="Passed", port_type="output", data_type=DataType.ARRAY),
-            PortDef(id="failed", name="Failed", port_type="output", data_type=DataType.ARRAY),
+            PortDef(
+                id="passed", name="Passed", port_type="output", data_type=DataType.ARRAY
+            ),
+            PortDef(
+                id="failed", name="Failed", port_type="output", data_type=DataType.ARRAY
+            ),
         ],
         config_schema={
             "type": "object",
             "properties": {
-                "condition": {"type": "string", "description": "Filter condition per item"},
+                "condition": {
+                    "type": "string",
+                    "description": "Filter condition per item",
+                },
             },
         },
         sort_order=43,
@@ -701,12 +848,32 @@ def _register_builtin_tools():
         icon="arrow.triangle.merge",
         color="yellow",
         input_ports=[
-            PortDef(id="input_1", name="Input 1", port_type="input", data_type=DataType.ANY, required=False),
-            PortDef(id="input_2", name="Input 2", port_type="input", data_type=DataType.ANY, required=False),
-            PortDef(id="input_3", name="Input 3", port_type="input", data_type=DataType.ANY, required=False),
+            PortDef(
+                id="input_1",
+                name="Input 1",
+                port_type="input",
+                data_type=DataType.ANY,
+                required=False,
+            ),
+            PortDef(
+                id="input_2",
+                name="Input 2",
+                port_type="input",
+                data_type=DataType.ANY,
+                required=False,
+            ),
+            PortDef(
+                id="input_3",
+                name="Input 3",
+                port_type="input",
+                data_type=DataType.ANY,
+                required=False,
+            ),
         ],
         output_ports=[
-            PortDef(id="merged", name="Merged", port_type="output", data_type=DataType.ANY),
+            PortDef(
+                id="merged", name="Merged", port_type="output", data_type=DataType.ANY
+            ),
         ],
         config_schema={
             "type": "object",
@@ -734,16 +901,24 @@ def _register_builtin_tools():
         icon="doc.richtext",
         color="orange",
         input_ports=[
-            PortDef(id="content", name="Content", port_type="input", data_type=DataType.ANY),
+            PortDef(
+                id="content", name="Content", port_type="input", data_type=DataType.ANY
+            ),
         ],
         output_ports=[
-            PortDef(id="file", name="File", port_type="output", data_type=DataType.FILE),
+            PortDef(
+                id="file", name="File", port_type="output", data_type=DataType.FILE
+            ),
         ],
         config_schema={
             "type": "object",
             "properties": {
                 "include_images": {"type": "boolean", "default": True},
-                "page_size": {"type": "string", "enum": ["letter", "a4"], "default": "letter"},
+                "page_size": {
+                    "type": "string",
+                    "enum": ["letter", "a4"],
+                    "default": "letter",
+                },
             },
         },
         sort_order=50,
@@ -757,10 +932,14 @@ def _register_builtin_tools():
         icon="doc.text",
         color="orange",
         input_ports=[
-            PortDef(id="content", name="Content", port_type="input", data_type=DataType.ANY),
+            PortDef(
+                id="content", name="Content", port_type="input", data_type=DataType.ANY
+            ),
         ],
         output_ports=[
-            PortDef(id="file", name="File", port_type="output", data_type=DataType.FILE),
+            PortDef(
+                id="file", name="File", port_type="output", data_type=DataType.FILE
+            ),
         ],
         sort_order=51,
     )
@@ -776,7 +955,9 @@ def _register_builtin_tools():
             PortDef(id="data", name="Data", port_type="input", data_type=DataType.JSON),
         ],
         output_ports=[
-            PortDef(id="file", name="File", port_type="output", data_type=DataType.FILE),
+            PortDef(
+                id="file", name="File", port_type="output", data_type=DataType.FILE
+            ),
         ],
         sort_order=52,
     )
@@ -792,7 +973,9 @@ def _register_builtin_tools():
             PortDef(id="data", name="Data", port_type="input", data_type=DataType.ANY),
         ],
         output_ports=[
-            PortDef(id="file", name="File", port_type="output", data_type=DataType.FILE),
+            PortDef(
+                id="file", name="File", port_type="output", data_type=DataType.FILE
+            ),
         ],
         sort_order=53,
     )
@@ -809,7 +992,9 @@ def _register_builtin_tools():
         icon="square.and.arrow.down",
         color="red",
         input_ports=[
-            PortDef(id="files", name="Files", port_type="input", data_type=DataType.FILES),
+            PortDef(
+                id="files", name="Files", port_type="input", data_type=DataType.FILES
+            ),
         ],
         output_ports=[],  # No outputs - this is a sink
         config_schema={
@@ -829,14 +1014,20 @@ def _register_builtin_tools():
         icon="folder.badge.plus",
         color="red",
         input_ports=[
-            PortDef(id="files", name="Files", port_type="input", data_type=DataType.FILES),
+            PortDef(
+                id="files", name="Files", port_type="input", data_type=DataType.FILES
+            ),
         ],
         output_ports=[],
         config_schema={
             "type": "object",
             "properties": {
                 "folder": {"type": "string", "description": "Export folder path"},
-                "naming": {"type": "string", "enum": ["original", "sequential", "timestamp"], "default": "original"},
+                "naming": {
+                    "type": "string",
+                    "enum": ["original", "sequential", "timestamp"],
+                    "default": "original",
+                },
             },
         },
         sort_order=61,
@@ -849,6 +1040,7 @@ def _register_builtin_tools():
 # Import tool implementations
 # =============================================================================
 
+
 def _load_tool_implementations():
     """Load actual tool implementations.
 
@@ -859,6 +1051,7 @@ def _load_tool_implementations():
         # Import the entire tools module to trigger all @register_tool decorators
         # This ensures tools have their full config schemas (including prompt field)
         from fichero.workflows import tools  # noqa: F401
+
         logger.debug("Loaded tool implementations")
     except ImportError as e:
         logger.debug(f"Tool implementations not loaded: {e}")
