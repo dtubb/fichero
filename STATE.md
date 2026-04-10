@@ -1,11 +1,13 @@
 # Current Focus
-Milestone execution, specifically completing Issue #387 (wiring PyKEEN prediction generation route).
+Milestone execution — 0.0.2 Phase 2: Hermeneutics (Layer 5)
 
 # In Progress
-- Working on Issue #387: Implementing the routing and wiring for PyKEEN prediction generation.
+- Issue #387: Phase 1 Knowledge Graph Core + PyKEEN — COMPLETE
+- Issue #388: Phase 2 Hermeneutics (Layer 5) — starting
 
 # Blocked
-- None identified at this moment, assuming scope is clear upon receiving implementation tasks.
+- None identified
 
 # Next Session — Start Here
-- Review the project structure around `fichero_api/src/` to begin implementation for #387.
+- Review implementation state of #388 (Hermeneutics routes: 20 endpoints in hermeneutics.py)
+- Check what remains vs plan: frameworks CRUD, context application, pattern detection, circle navigation
