@@ -335,3 +335,9 @@
 - Draft PR with 153 commits of security fixes
 - URL: https://github.com/dtubb/fichero/pull/417
 - Ready for human review and merge
+
+## 2026-04-10 — Merge Conflicts Detected in PR #417
+
+- Commented on PR #417 about merge conflicts with main
+- 4 conflicting files in SwiftUI views and Python types
+- Needs conflict resolution before merge
