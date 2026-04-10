@@ -328,3 +328,10 @@
 - 153 commits ahead of main
 - Draft PR with all security fixes and audit documentation
 - URL: https://github.com/dtubb/fichero/pull/417
+
+## 2026-04-10 — Session End (PR #417 Created)
+
+- Created PR #417: Release 0.0.2 to main
+- Draft PR with 153 commits of security fixes
+- URL: https://github.com/dtubb/fichero/pull/417
+- Ready for human review and merge
