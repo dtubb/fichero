@@ -10,6 +10,8 @@ struct DocumentInspectorArtifactsTab: View {
     @State private var expandedArtifactTypes: Set<String> = []
 
     var body: some View {
+        let visibleArtifacts = artifacts.filter { !shouldHideArtifactType($0.artifactType) }
+
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Workflow Artifacts")
@@ -24,7 +26,7 @@ struct DocumentInspectorArtifactsTab: View {
                 }
             }
 
-            if artifacts.isEmpty && !isLoadingArtifacts {
+            if visibleArtifacts.isEmpty && !isLoadingArtifacts {
                 VStack(spacing: 8) {
                     Image(systemName: "sparkles")
                         .font(.title2)
@@ -41,7 +43,7 @@ struct DocumentInspectorArtifactsTab: View {
                 .padding(.vertical, 32)
             } else {
                 // Group artifacts by type
-                let groupedArtifacts = Dictionary(grouping: artifacts) { $0.artifactType }
+                let groupedArtifacts = Dictionary(grouping: visibleArtifacts) { $0.artifactType }
 
                 ForEach(groupedArtifacts.keys.sorted(), id: \.self) { artifactType in
                     if let typeArtifacts = groupedArtifacts[artifactType] {
@@ -214,6 +216,13 @@ struct DocumentInspectorArtifactsTab: View {
         case "description": return "Description"
         default: return type.replacingOccurrences(of: "_", with: " ").capitalized
         }
+    }
+
+    private func shouldHideArtifactType(_ type: String) -> Bool {
+        let normalized = type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized == "transcription"
+            || normalized == "page_content_rtf"
+            || normalized == "rtf"
     }
 
     // MARK: - Clipboard

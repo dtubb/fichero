@@ -46,7 +46,10 @@ struct DocumentInspectorMetadataTab: View {
 
     private let hiddenMetadataKeys: Set<String> = [
         "Checksum", "checksum", "hash", "md5", "sha256",
-        "Mime_Type", "mime_type", "MimeType", "content_type"
+        "Mime_Type", "mime_type", "MimeType", "content_type",
+        "Width", "Height", "width", "height",
+        "page_content", "page_content_rtf",
+        "transcription", "Transcription"
     ]
 
     private func formatMetadataKey(_ key: String) -> String {

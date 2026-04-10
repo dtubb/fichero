@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct LibraryView: View {
     let documents: [Document]
     let isLoading: Bool
+    let isConnected: Bool
     let errorMessage: String?
     let onRetry: () -> Void
     @Binding var selection: Set<String>
@@ -86,7 +87,9 @@ struct LibraryView: View {
                 }
 
                 // Main content
-                if isLoading {
+                if !isConnected {
+                    connectionErrorState
+                } else if isLoading {
                     loadingState
                 } else if let errorMessage {
                     errorState(message: errorMessage)
@@ -205,10 +208,30 @@ struct LibraryView: View {
             }
         }
     }
-}
+    private var connectionErrorState: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "wifi.slash")
+                .font(.system(size: 48))
+                .foregroundColor(.secondary)
 
-// Components extracted to LibraryViewComponents.swift:
-// - MailStyleRow, MapCard, MapGridBackground, ProgressCell, DocumentThumbnailView
+            Text("Backend Not Connected")
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            Text("The Fichero backend is not responding. Make sure the server is running on port 8765.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 400)
+
+            Button("Retry Connection") {
+                onRetry()
+            }
+            .keyboardShortcut("r", modifiers: .command)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
 
 // MARK: - Previews
 
@@ -216,6 +239,23 @@ struct LibraryView: View {
     LibraryView(
         documents: [],
         isLoading: false,
+        isConnected: true,
+        errorMessage: nil,
+        onRetry: {},
+        selection: .constant(Set<String>()),
+        detailDocument: .constant(nil),
+        viewMode: .constant(.icons),
+        displayMode: .icon,
+        folderId: nil
+    )
+    .frame(width: 600, height: 500)
+}
+
+#Preview("Disconnected") {
+    LibraryView(
+        documents: [],
+        isLoading: false,
+        isConnected: false,
         errorMessage: nil,
         onRetry: {},
         selection: .constant(Set<String>()),

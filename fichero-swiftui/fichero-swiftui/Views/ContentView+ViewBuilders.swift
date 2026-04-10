@@ -5,8 +5,8 @@ import SwiftUI
 // Responsibility: Complex view builders for sidebar, content, preview, inspector
 
 extension ContentView {
-    private var widescreenContentPaneWidth: CGFloat {
-        320
+    private var clampedWidescreenContentPaneWidth: CGFloat {
+        CGFloat(min(max(widescreenContentPaneWidth, 260), 900))
     }
 
     var effectiveCenterIdealWidth: Double {
@@ -145,9 +145,18 @@ extension ContentView {
                 contentWithOptionalModeRail
                     .overlay { paneFocusIndicator(for: .content) }
                     .frame(
-                        minWidth: widescreenContentPaneWidth,
-                        idealWidth: widescreenContentPaneWidth,
-                        maxWidth: widescreenContentPaneWidth
+                        minWidth: 260,
+                        idealWidth: clampedWidescreenContentPaneWidth,
+                        maxWidth: 900
+                    )
+                    .background(
+                        GeometryReader { geometry in
+                            Color.clear
+                                .preference(
+                                    key: WidescreenContentPaneWidthPreferenceKey.self,
+                                    value: geometry.size.width
+                                )
+                        }
                     )
                     .focusable()
                     .focused($focusedPane, equals: .content)
@@ -165,6 +174,11 @@ extension ContentView {
                 ideal: effectiveCenterIdealWidth,
                 max: ContentView.contentMaxWidth
             )
+            .onPreferenceChange(WidescreenContentPaneWidthPreferenceKey.self) { newWidth in
+                let clamped = min(max(newWidth, 260), 900)
+                guard abs(clamped - widescreenContentPaneWidth) > 1 else { return }
+                widescreenContentPaneWidth = clamped
+            }
         }
     }
 
@@ -272,6 +286,13 @@ extension ContentView {
             Text(doc.name)
                 .fontWeight(.medium)
         }
+    }
+}
+
+private struct WidescreenContentPaneWidthPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 320
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 

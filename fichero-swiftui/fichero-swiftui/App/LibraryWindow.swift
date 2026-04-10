@@ -27,32 +27,6 @@ struct LibraryWindow: View {
         _windowState = StateObject(wrappedValue: WindowState(libraryId: UUID()))
     }
 
-    private var windowTitle: String {
-        guard let library = windowState.library else {
-            return "Fichero"
-        }
-
-        let viewModeName: String
-        switch library.document.viewMode {
-        case .library: viewModeName = "Library"
-        case .workflow: viewModeName = "Workflow"
-        case .chat: viewModeName = "Chat"
-        case .search: viewModeName = "Search"
-        case .batches: viewModeName = "Activity"
-        case .automation: viewModeName = "Automation"
-        case .running: viewModeName = "Running"
-        case .history: viewModeName = "History"
-        case .issues: viewModeName = "Issues"
-        }
-
-        return "\(library.displayName) > \(viewModeName)"
-    }
-
-    private var windowSubtitle: String {
-        // Subtitle suppressed - toolbar already shows library name and view mode
-        return ""
-    }
-
     var body: some View {
         Group {
             if let library = windowState.library {
@@ -99,8 +73,9 @@ struct LibraryWindow: View {
         .focusedValue(\.newWindowAction) { handleNewWindow() }
         .focusedValue(\.newLibraryAction) { handleNewLibrary() }
         .focusedValue(\.saveLibraryAction) { handleSaveLibrary() }
-        .navigationTitle(windowTitle)
-        .navigationSubtitle(windowSubtitle)
+        // Keep titlebar chrome minimal; ContentView manages in-window context.
+        .navigationTitle("")
+        .navigationSubtitle("")
         // App-level sheets (providers, MCP servers) - must be here to work when no library is open
         .sheet(isPresented: Binding(
             get: { appState.showProvidersSettings },
