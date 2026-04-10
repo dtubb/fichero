@@ -16,8 +16,7 @@ import warnings
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -50,7 +49,7 @@ def main():
     """Start the Fichero API backend server."""
 
     # Disable tokenizers parallelism (avoids fork warnings)
-    os.environ.setdefault('TOKENIZERS_PARALLELISM', 'false')
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
     # Keep fatal thread dumps off by default; enable only when explicitly debugging crashes.
     fault_enabled = _env_flag("FICHERO_BACKEND_FAULTHANDLER", default=False)
@@ -122,7 +121,9 @@ def main():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         if sock.connect_ex(("127.0.0.1", 8765)) == 0:
-            logger.error("Port 8765 is already in use. Stop existing backend process and retry.")
+            logger.error(
+                "Port 8765 is already in use. Stop existing backend process and retry."
+            )
             return
 
     # Start server.
