@@ -1,12 +1,17 @@
 # Current Focus
-📝 Code Quality Review Initiative — Phase 1: Automated Quality Gates
+📝 Code Quality Review Initiative — Phase 1: Automated Quality Gates (#411)
 
 # Branch
 - Active branch: `0.0.2` (pushes to `origin/0.0.2`)
-- Last commit: Issue #410 — Phase 0 pre-flight complete
-- Next: Rebase 5 PR branches before Phase 1
+- Last commit: Branch rebase complete — all security PRs rebased from 0.0.2
 
 # Completed
+- ✅ Branch Rebase Complete — All 5 security PR branches rebased from 0.0.2
+  - #399 (feature/issue-398): 30 → 0 commits behind
+  - #401 (feature/issue-400): 21 → 0 commits behind
+  - #403 (feature/issue-402): 18 → 0 commits behind
+  - #405 (feature/issue-404): 15 → 0 commits behind
+  - #407 (feature/issue-406): 12 → 0 commits behind
 - ✅ Phase 0: Pre-flight Checklist (#410) — See HISTORY.md
 - ✅ Phase 1: Knowledge Graph Core (#387) — Complete, code reviewed
 - ✅ Phase 2: Hermeneutics (#388) — Complete, code reviewed
@@ -88,44 +93,45 @@
 - SwiftUI build: Fails due to missing DocumentInspectorContentState and AttributedTextEditor types
 
 # In Progress
-- None (Phase 0 complete, Phase 1 blocked pending branch updates)
+- Phase 1 (#411): Automated Quality Gates — READY (all PR branches rebased)
 
 # Blocked
-- Phase 1 (#411): Blocked — PR branches #399, #401, #403, #405, #407 need rebase from 0.0.2
-- PR #409: Ready to proceed (only 8 commits behind, within threshold)
+- None — all PR branches rebased from 0.0.2
 
 # Next Session — Start Here
-**Unblock Phase 1: Rebase 5 Security PR Branches**
+**Phase 1: Automated Quality Gates (#411) — UNBLOCKED**
 
-### Current State
-| PR | Branch | Status | Behind 0.0.2 |
-|----|--------|--------|--------------|
-| #409 | feature/issue-408 | ✅ Ready for Phase 1 | 8 commits (OK) |
-| #399 | feature/issue-398 | ⚠️ Needs rebase | 30 commits |
-| #401 | feature/issue-400 | ⚠️ Needs rebase | 21 commits |
-| #403 | feature/issue-402 | ⚠️ Needs rebase | 18 commits |
-| #405 | feature/issue-404 | ⚠️ Needs rebase | 15 commits |
-| #407 | feature/issue-406 | ⚠️ Needs rebase | 12 commits |
+### Ready for Quality Checks (All PRs rebased)
+| PR | Branch | Status |
+|----|--------|--------|
+| #399 | feature/issue-398 | ✅ Ready — Phase 4 SSRF Security |
+| #401 | feature/issue-400 | ✅ Ready — Phase 5 Integration Audit |
+| #403 | feature/issue-402 | ✅ Ready — Phase 1 Knowledge Graph Audit |
+| #405 | feature/issue-404 | ✅ Ready — Phase 2 Hermeneutics Audit |
+| #407 | feature/issue-406 | ✅ Ready — Phase 3 Mind Palace Audit |
+| #409 | feature/issue-408 | ✅ Ready — Phase 5 HIGH Severity Fixes |
 
-### Next Actions (in order)
-1. **Rebase oldest first:** feature/issue-398 (30 commits behind)
-2. **Continue in order:** issue-400, issue-402, issue-404, issue-406
-3. **After all rebased:** Proceed to Phase 1 (#411): Automated Quality Gates
-4. **Note:** PR #409 can proceed to Phase 1 immediately if desired
+### Phase 1 Checklist (Per PR)
+For each of the 6 PRs:
+- [ ] Run `ruff check fichero-api/src/` — must pass with 0 errors
+- [ ] Run `ruff check fichero-api/tests/` — must pass with 0 errors
+- [ ] Run Python unit tests — must pass (902 baseline)
+- [ ] Document results in issue #411
 
-### Commands Needed
+### Commands
 ```bash
-# For each branch (oldest first):
-git fetch origin
+# Check out each branch and run quality gates:
 git checkout feature/issue-398
-git rebase origin/0.0.2  # resolve any conflicts
-git push --force-with-lease
+cd fichero-api
+PYTHONPATH=src .venv/bin/ruff check src/ tests/
+PYTHONPATH=src .venv/bin/pytest tests/unit/ --ignore=tests/unit/_archived
 
-# Repeat for: issue-400, issue-402, issue-404, issue-406
+# Repeat for: issue-400, issue-402, issue-404, issue-406, issue-408
 ```
 
 ### Reference
-See PREFLIGHT_REPORT.md in feature/issue-410 for full details.
+- Issue #411: [CODE REVIEW] Phase 1: Automated Quality Gates (ruff, tests)
+- Issue #416: [TRACKING] Code Quality Review — All Security PRs for 0.0.2
 
 ## Architecture Compliance Verification
 
