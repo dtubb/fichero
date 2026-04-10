@@ -25,8 +25,10 @@ router = APIRouter()
 # Entity Type Enum
 # =============================================================================
 
+
 class EntityType(str, Enum):
     """Type of entity for folder operations."""
+
     workflow = "workflow"
     search = "search"
     conversation = "conversation"
@@ -37,7 +39,7 @@ def _get_model_for_entity(entity_type: EntityType):
     mapping = {
         EntityType.workflow: Workflow,
         EntityType.search: SavedSearch,
-        EntityType.conversation: Conversation
+        EntityType.conversation: Conversation,
     }
     return mapping[entity_type]
 
@@ -46,8 +48,10 @@ def _get_model_for_entity(entity_type: EntityType):
 # Request/Response Models
 # =============================================================================
 
+
 class FolderInfo(BaseModel):
     """Folder information."""
+
     path: str
     item_count: int
     parent_path: str
@@ -55,12 +59,14 @@ class FolderInfo(BaseModel):
 
 class MoveItemsRequest(BaseModel):
     """Request to move items to a folder."""
+
     item_ids: List[str]
     folder_path: str
 
 
 class RenameFolderRequest(BaseModel):
     """Request to rename a folder."""
+
     old_path: str
     new_path: str
 
@@ -68,6 +74,7 @@ class RenameFolderRequest(BaseModel):
 # =============================================================================
 # Folder Routes
 # =============================================================================
+
 
 @router.get("/{entity_type}/folders")
 async def list_folders(
@@ -93,10 +100,10 @@ async def list_folders(
         path = item.folder_path
         if path.startswith(parent_path) and path != parent_path:
             # Get immediate child folder
-            relative = path[len(parent_path):].lstrip('/')
-            if '/' in relative:
+            relative = path[len(parent_path) :].lstrip("/")
+            if "/" in relative:
                 # This is a subfolder - get the immediate child
-                child_folder = parent_path.rstrip('/') + '/' + relative.split('/')[0]
+                child_folder = parent_path.rstrip("/") + "/" + relative.split("/")[0]
             else:
                 # This is a direct child
                 child_folder = path
@@ -107,13 +114,9 @@ async def list_folders(
     for folder in sorted(folders):
         count = len([i for i in all_items if i.folder_path == folder])
         # Calculate parent path
-        parent = '/'.join(folder.rstrip('/').split('/')[:-1]) or '/'
+        parent = "/".join(folder.rstrip("/").split("/")[:-1]) or "/"
 
-        result.append(FolderInfo(
-            path=folder,
-            item_count=count,
-            parent_path=parent
-        ))
+        result.append(FolderInfo(path=folder, item_count=count, parent_path=parent))
 
     return result
 
@@ -136,25 +139,23 @@ async def create_folder(
     Returns:
         Folder information
     """
-    if not folder_path.startswith('/'):
+    if not folder_path.startswith("/"):
         raise HTTPException(status_code=400, detail="folder_path must start with '/'")
 
     # Validate path doesn't have trailing slash (except root)
-    if folder_path != '/' and folder_path.endswith('/'):
-        raise HTTPException(status_code=400, detail="folder_path must not end with '/' (except root)")
+    if folder_path != "/" and folder_path.endswith("/"):
+        raise HTTPException(
+            status_code=400, detail="folder_path must not end with '/' (except root)"
+        )
 
     # Count existing items in folder
     model = _get_model_for_entity(entity_type)
     items = db.query(model, folder_path=folder_path)
 
     # Calculate parent path
-    parent = '/'.join(folder_path.rstrip('/').split('/')[:-1]) or '/'
+    parent = "/".join(folder_path.rstrip("/").split("/")[:-1]) or "/"
 
-    return FolderInfo(
-        path=folder_path,
-        item_count=len(items),
-        parent_path=parent
-    )
+    return FolderInfo(path=folder_path, item_count=len(items), parent_path=parent)
 
 
 @router.put("/{entity_type}/folders")
@@ -178,20 +179,28 @@ async def rename_folder(
     all_items = db.all(model)
 
     # Validate new path
-    if not request.new_path.startswith('/'):
+    if not request.new_path.startswith("/"):
         raise HTTPException(status_code=400, detail="new_path must start with '/'")
 
     # Find all items in old path or its subfolders
     moved_count = 0
     for item in all_items:
-        if item.folder_path == request.old_path or item.folder_path.startswith(request.old_path + '/'):
+        if item.folder_path == request.old_path or item.folder_path.startswith(
+            request.old_path + "/"
+        ):
             # Update path - replace old prefix with new prefix
-            item.folder_path = request.new_path + item.folder_path[len(request.old_path):]
+            item.folder_path = (
+                request.new_path + item.folder_path[len(request.old_path) :]
+            )
             item.updated_at = datetime.now()
             db.save(item)
             moved_count += 1
 
-    return {"moved_count": moved_count, "old_path": request.old_path, "new_path": request.new_path}
+    return {
+        "moved_count": moved_count,
+        "old_path": request.old_path,
+        "new_path": request.new_path,
+    }
 
 
 @router.put("/{entity_type}/move")
@@ -212,7 +221,7 @@ async def move_items(
     model = _get_model_for_entity(entity_type)
 
     # Validate folder path
-    if not request.folder_path.startswith('/'):
+    if not request.folder_path.startswith("/"):
         raise HTTPException(status_code=400, detail="folder_path must start with '/'")
 
     moved_count = 0
@@ -254,9 +263,13 @@ async def delete_folder(
         return {"deleted_count": len(items), "moved_to_root": 0}
     else:
         # Move items to parent folder
-        parent_path = '/'.join(folder_path.rstrip('/').split('/')[:-1]) or '/'
+        parent_path = "/".join(folder_path.rstrip("/").split("/")[:-1]) or "/"
         for item in items:
             item.folder_path = parent_path
             item.updated_at = datetime.now()
             db.save(item)
-        return {"deleted_count": 0, "moved_to_root": len(items), "parent_path": parent_path}
+        return {
+            "deleted_count": 0,
+            "moved_to_root": len(items),
+            "parent_path": parent_path,
+        }

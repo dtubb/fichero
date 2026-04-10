@@ -9,22 +9,15 @@ Tests batch execution with multiple workflow items including:
 - Activity logging integration
 """
 
-import asyncio
-import json
 import uuid
 from datetime import datetime
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 # Test the batch module
 from fichero.workflows.batch import (
-    BatchExecution,
-    BatchItem,
     BatchItemStatus,
     BatchManager,
-    BatchProgress,
     BatchStatus,
 )
 from fichero.workflows.activity import (
@@ -412,7 +405,7 @@ class TestBatchActivityIntegration:
             items_inputs=[{"id": 1}, {"id": 2}],
         )
 
-        # Log batch creation directly to store
+        # Log batch creation directly to store (manager also creates BATCH_CREATED)
         activity = Activity(
             id=str(uuid.uuid4()),
             type=ActivityType.BATCH_CREATED,
@@ -429,8 +422,8 @@ class TestBatchActivityIntegration:
         filter = ActivityFilter(batch_id=batch.batch_id)
         activities = await activity_store.query(filter)
 
-        assert len(activities) == 1
-        assert activities[0].type == ActivityType.BATCH_CREATED
+        assert len(activities) == 2  # 1 from manager + 1 from test
+        assert any(a.type == ActivityType.BATCH_CREATED for a in activities)
 
     @pytest.mark.asyncio
     async def test_batch_item_completion_logging(self, activity_store):
@@ -544,4 +537,4 @@ class TestBatchActivityIntegration:
         filter = ActivityFilter(batch_id=batch.batch_id)
         activities = await activity_store.query(filter)
 
-        assert len(activities) == 5  # 1 start + 3 items + 1 completion
+        assert len(activities) == 6  # 1 created + 1 start + 3 items + 1 completion

@@ -14,7 +14,12 @@ from pydantic import BaseModel
 from fichero.db import Database
 from fichero.api.main import get_library_database
 from fichero.app_db import get_app_db, AppDatabase
-from fichero.models import Document, Provider as ProviderModel, Model as ModelModel, Conversation
+from fichero.models import (
+    Document,
+    Provider as ProviderModel,
+    Model as ModelModel,
+    Conversation,
+)
 from fichero.keychain import has_api_key
 from fichero.providers import get_provider_info
 
@@ -23,7 +28,9 @@ logger = logging.getLogger(__name__)
 
 def _safe_isoformat(value) -> str:
     """Return ISO string when value behaves like datetime, else now."""
-    return value.isoformat() if hasattr(value, "isoformat") else datetime.now().isoformat()
+    return (
+        value.isoformat() if hasattr(value, "isoformat") else datetime.now().isoformat()
+    )
 
 
 def _read_file_content(path: str | None, max_chars: int = 5000) -> str | None:
@@ -37,16 +44,26 @@ def _read_file_content(path: str | None, max_chars: int = 5000) -> str | None:
 
     try:
         from pathlib import Path
+
         p = Path(path)
         if not p.exists() or not p.is_file():
             return None
 
         # Only read text-like files
-        text_extensions = {'.md', '.txt', '.json', '.yaml', '.yml', '.xml', '.html', '.csv'}
+        text_extensions = {
+            ".md",
+            ".txt",
+            ".json",
+            ".yaml",
+            ".yml",
+            ".xml",
+            ".html",
+            ".csv",
+        }
         if p.suffix.lower() not in text_extensions:
             return None
 
-        content = p.read_text(encoding='utf-8', errors='ignore')
+        content = p.read_text(encoding="utf-8", errors="ignore")
         return content[:max_chars] if len(content) > max_chars else content
     except Exception as e:
         logger.debug(f"Could not read file {path}: {e}")
@@ -58,14 +75,17 @@ router = APIRouter()
 
 # Request/Response models
 
+
 class ChatMessage(BaseModel):
     """A single chat message."""
+
     role: str  # "user" or "assistant"
     content: str
 
 
 class DocumentSource(BaseModel):
     """Source document reference in a response."""
+
     document_id: str
     document_name: str
     excerpt: str
@@ -74,6 +94,7 @@ class DocumentSource(BaseModel):
 
 class ChatRequest(BaseModel):
     """Request model for chat."""
+
     message: str
     conversation_id: Optional[str] = None
     document_ids: Optional[List[str]] = None  # Scope to specific documents
@@ -87,14 +108,18 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     """Response model for chat."""
+
     message: str
     sources: List[DocumentSource]
     conversation_id: str
-    model_used: str = ""  # Which model actually handled the request (empty if not known)
+    model_used: str = (
+        ""  # Which model actually handled the request (empty if not known)
+    )
 
 
 class ProviderInfo(BaseModel):
     """Information about an LLM provider."""
+
     id: str
     name: str
     models: List[str]
@@ -104,6 +129,7 @@ class ProviderInfo(BaseModel):
 
 class ConversationHistory(BaseModel):
     """Conversation with message history."""
+
     id: str
     title: str
     messages: List[ChatMessage]
@@ -217,13 +243,15 @@ async def chat(
     else:
         # Create new conversation
         conv = Conversation(
-            title=request.message[:50] + "..." if len(request.message) > 50 else request.message,
+            title=request.message[:50] + "..."
+            if len(request.message) > 50
+            else request.message,
             messages=[],
             provider=request.provider,
             model=request.model,
             document_ids=request.document_ids or [],
             folder_path="/",
-            sort_order=0
+            sort_order=0,
         )
 
     # Add user message
@@ -237,21 +265,27 @@ async def chat(
     try:
         # If specific documents are requested, use those
         if request.document_ids:
-            for doc_id in request.document_ids[:request.max_sources]:
+            for doc_id in request.document_ids[: request.max_sources]:
                 doc = db.get(Document, doc_id)
                 if doc and doc.page_content:
-                    context_docs.append({
-                        "id": doc.id,
-                        "name": doc.name,
-                        "content": doc.page_content,
-                    })
+                    context_docs.append(
+                        {
+                            "id": doc.id,
+                            "name": doc.name,
+                            "content": doc.page_content,
+                        }
+                    )
                     if request.include_sources:
-                        sources.append(DocumentSource(
-                            document_id=doc.id,
-                            document_name=doc.name,
-                            excerpt=doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content,
-                            relevance_score=1.0,
-                        ))
+                        sources.append(
+                            DocumentSource(
+                                document_id=doc.id,
+                                document_name=doc.name,
+                                excerpt=doc.page_content[:200] + "..."
+                                if len(doc.page_content) > 200
+                                else doc.page_content,
+                                relevance_score=1.0,
+                            )
+                        )
         else:
             # Enhanced search for relevant documents
             search_results, _, _ = db.search(
@@ -267,18 +301,24 @@ async def chat(
                     # Use page_content if available, otherwise read from file
                     content = doc.page_content or _read_file_content(doc.path)
                     if content:
-                        context_docs.append({
-                            "id": doc.id,
-                            "name": doc.name,
-                            "content": content,
-                        })
+                        context_docs.append(
+                            {
+                                "id": doc.id,
+                                "name": doc.name,
+                                "content": content,
+                            }
+                        )
                         if request.include_sources:
-                            sources.append(DocumentSource(
-                                document_id=result.document_id,
-                                document_name=doc.name,
-                                excerpt=content[:200] + "..." if len(content) > 200 else content,
-                                relevance_score=result.score,
-                            ))
+                            sources.append(
+                                DocumentSource(
+                                    document_id=result.document_id,
+                                    document_name=doc.name,
+                                    excerpt=content[:200] + "..."
+                                    if len(content) > 200
+                                    else content,
+                                    relevance_score=result.score,
+                                )
+                            )
     except Exception as e:
         logger.warning(f"Search failed, proceeding without context: {e}")
 
@@ -331,15 +371,17 @@ async def list_conversations(
 
     result = []
     for conv in convs:
-        result.append({
-            "id": conv.id,
-            "title": conv.title,
-            "message_count": len(conv.messages),
-            "created_at": conv.created_at.isoformat(),
-            "updated_at": conv.updated_at.isoformat(),
-            "folder_path": conv.folder_path,
-            "sort_order": conv.sort_order
-        })
+        result.append(
+            {
+                "id": conv.id,
+                "title": conv.title,
+                "message_count": len(conv.messages),
+                "created_at": conv.created_at.isoformat(),
+                "updated_at": conv.updated_at.isoformat(),
+                "folder_path": conv.folder_path,
+                "sort_order": conv.sort_order,
+            }
+        )
 
     # Sort by sort_order, then by updated_at descending
     result.sort(key=lambda x: (x["sort_order"], x["updated_at"]), reverse=False)
@@ -364,12 +406,13 @@ async def get_conversation(
         created_at=conv.created_at.isoformat(),
         updated_at=conv.updated_at.isoformat(),
         folder_path=conv.folder_path,
-        sort_order=conv.sort_order
+        sort_order=conv.sort_order,
     )
 
 
 class ConversationUpdate(BaseModel):
     """Request to update conversation properties."""
+
     title: Optional[str] = None
     folder_path: Optional[str] = None
 
@@ -403,7 +446,7 @@ async def update_conversation(
         created_at=conv.created_at.isoformat(),
         updated_at=conv.updated_at.isoformat(),
         folder_path=conv.folder_path,
-        sort_order=conv.sort_order
+        sort_order=conv.sort_order,
     )
 
 
@@ -425,7 +468,7 @@ async def duplicate_conversation(
         model=original.model,
         document_ids=original.document_ids[:],
         folder_path=original.folder_path,
-        sort_order=original.sort_order
+        sort_order=original.sort_order,
     )
 
     db.save(new_conv)
@@ -437,7 +480,7 @@ async def duplicate_conversation(
         "created_at": _safe_isoformat(getattr(new_conv, "created_at", None)),
         "updated_at": _safe_isoformat(getattr(new_conv, "updated_at", None)),
         "folder_path": new_conv.folder_path,
-        "sort_order": new_conv.sort_order
+        "sort_order": new_conv.sort_order,
     }
 
 
@@ -465,13 +508,19 @@ async def reorder_conversations(
     for index, conversation_id in enumerate(conversation_ids):
         conv = db.get(Conversation, conversation_id)
         if not conv:
-            raise HTTPException(status_code=404, detail=f"Conversation not found: {conversation_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Conversation not found: {conversation_id}"
+            )
 
         conv.sort_order = index
         conv.updated_at = datetime.now()
         db.save(conv)
 
-    return {"status": "reordered", "count": len(conversation_ids), "folder_path": folder_path}
+    return {
+        "status": "reordered",
+        "count": len(conversation_ids),
+        "folder_path": folder_path,
+    }
 
 
 def get_app_database() -> AppDatabase:
@@ -522,13 +571,15 @@ async def list_providers(
         # Get vision support from catalog
         supports_vision = catalog_info.supports_vision if catalog_info else False
 
-        result.append(ProviderInfo(
-            id=provider_type,
-            name=provider.name,
-            models=model_ids,
-            available=available,
-            supports_vision=supports_vision,
-        ))
+        result.append(
+            ProviderInfo(
+                id=provider_type,
+                name=provider.name,
+                models=model_ids,
+                available=available,
+                supports_vision=supports_vision,
+            )
+        )
 
     return result
 
@@ -536,6 +587,7 @@ async def list_providers(
 # Text extraction endpoint
 class ExtractTextRequest(BaseModel):
     """Request to extract text from documents."""
+
     document_ids: Optional[List[str]] = None  # None means all documents
     force: bool = False  # Re-extract even if text already exists
 
@@ -544,6 +596,7 @@ class ExtractTextRequest(BaseModel):
 
 class ExtractTextResponse(BaseModel):
     """Response from text extraction."""
+
     extracted: int
     skipped: int
     failed: int

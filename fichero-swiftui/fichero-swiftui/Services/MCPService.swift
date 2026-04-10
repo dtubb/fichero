@@ -1,6 +1,6 @@
 import Foundation
-import SwiftUI
 import OSLog
+import SwiftUI
 
 private let logger = Logger(subsystem: "com.tubb.Fichero", category: "MCPService")
 

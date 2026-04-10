@@ -48,29 +48,33 @@ def _new_id() -> str:
 # Enums
 # =============================================================================
 
+
 class DocType(str, Enum):
     """Type of document node in the hierarchy."""
-    folder = "folder"          # Organizational grouping (can be nested at any level)
-    group = "group"            # Logical document (letter = multiple pages)
-    file = "file"              # Actual file (image, PDF, audio)
-    page = "page"              # Page within a multi-page document
-    chunk = "chunk"            # Region/segment within a page
+
+    folder = "folder"  # Organizational grouping (can be nested at any level)
+    group = "group"  # Logical document (letter = multiple pages)
+    file = "file"  # Actual file (image, PDF, audio)
+    page = "page"  # Page within a multi-page document
+    chunk = "chunk"  # Region/segment within a page
 
 
 class FileType(str, Enum):
     """Type of source file."""
-    image = "image"    # jpg, png, tiff, webp
-    pdf = "pdf"        # PDF documents
-    audio = "audio"    # mp3, wav, m4a
-    video = "video"    # mp4, mov
-    text = "text"      # txt, md
-    word = "word"      # docx
-    epub = "epub"      # ebooks
+
+    image = "image"  # jpg, png, tiff, webp
+    pdf = "pdf"  # PDF documents
+    audio = "audio"  # mp3, wav, m4a
+    video = "video"  # mp4, mov
+    text = "text"  # txt, md
+    word = "word"  # docx
+    epub = "epub"  # ebooks
     other = "other"
 
 
 class Status(str, Enum):
     """Processing status."""
+
     pending = "pending"
     processing = "processing"
     completed = "completed"
@@ -79,6 +83,7 @@ class Status(str, Enum):
 
 class RunStatus(str, Enum):
     """Workflow run status."""
+
     queued = "queued"
     running = "running"
     completed = "completed"
@@ -89,6 +94,7 @@ class RunStatus(str, Enum):
 # =============================================================================
 # Document - Source Material (LangChain compatible)
 # =============================================================================
+
 
 class Document(BaseModel):
     """
@@ -107,6 +113,7 @@ class Document(BaseModel):
 
     Compatible with LangChain's Document concept via page_content and metadata.
     """
+
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
     id: str = Field(default_factory=_new_id)
@@ -310,6 +317,7 @@ class Document(BaseModel):
     def to_langchain(self):
         """Convert to LangChain Document."""
         from langchain_core.documents import Document as LCDocument
+
         return LCDocument(
             page_content=self.page_content or "",
             metadata={
@@ -317,14 +325,15 @@ class Document(BaseModel):
                 "name": self.name,
                 "doc_type": self.doc_type.value,
                 "file_type": self.file_type.value if self.file_type else None,
-                **self.metadata
-            }
+                **self.metadata,
+            },
         )
 
 
 # =============================================================================
 # Artifact - Processing Output (ML Pipeline convention)
 # =============================================================================
+
 
 class Artifact(BaseModel):
     """
@@ -344,6 +353,7 @@ class Artifact(BaseModel):
     Structural artifacts (grouping, segmentation) suggest changes that
     become Document structure when user approves.
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: str = Field(default_factory=_new_id)
@@ -400,6 +410,7 @@ class Artifact(BaseModel):
 # Workflow - Pipeline Definition
 # =============================================================================
 
+
 class Workflow(BaseModel):
     """
     A processing pipeline/recipe definition.
@@ -412,6 +423,7 @@ class Workflow(BaseModel):
         - Legacy: [{"name": "transcribe", "tool": "transcribe", "provider": "qwen"}]
         - Visual: Nodes with ports connected by edges
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: str = Field(default_factory=_new_id)
@@ -420,7 +432,7 @@ class Workflow(BaseModel):
 
     # Organization
     folder_path: str = "/"  # Unix-style path: "/archive/letters"
-    sort_order: int = 0     # User-defined order within folder
+    sort_order: int = 0  # User-defined order within folder
     is_template: bool = False
     tags: list[str] = []
 
@@ -459,6 +471,7 @@ class Workflow(BaseModel):
 # Run - Workflow Execution
 # =============================================================================
 
+
 class Run(BaseModel):
     """
     An execution of a workflow on documents.
@@ -466,6 +479,7 @@ class Run(BaseModel):
     Tracks queue position, status, progress, retries, and costs.
     Each Run produces Artifacts and Traces.
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: str = Field(default_factory=_new_id)
@@ -505,6 +519,7 @@ class Run(BaseModel):
 # Trace - LangChain/LangGraph Debug Data
 # =============================================================================
 
+
 class Trace(BaseModel):
     """
     Debug data from LangChain/LangGraph execution.
@@ -517,6 +532,7 @@ class Trace(BaseModel):
 
     Used for debugging, cost tracking, and optimization.
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: str = Field(default_factory=_new_id)
@@ -557,6 +573,7 @@ class Trace(BaseModel):
 # Note - User Annotations
 # =============================================================================
 
+
 class Note(BaseModel):
     """
     User annotation on any object.
@@ -564,6 +581,7 @@ class Note(BaseModel):
     Can be attached to Documents or Artifacts.
     Can have a position (bbox) for image annotations.
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: str = Field(default_factory=_new_id)
@@ -588,6 +606,7 @@ class Note(BaseModel):
 # Event - Audit Trail and Undo
 # =============================================================================
 
+
 class Event(BaseModel):
     """
     Audit log entry for tracking changes.
@@ -595,6 +614,7 @@ class Event(BaseModel):
     Records what changed, before/after state, and context.
     Enables undo/redo and audit trails.
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: str = Field(default_factory=_new_id)
@@ -630,12 +650,13 @@ class Provider(BaseModel):
     Stores provider metadata and connection info.
     API keys are stored separately in macOS Keychain.
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: str = Field(default_factory=_new_id)
-    name: str                          # "OpenAI", "Qwen", "LM Studio"
-    provider_type: ProviderType        # How to connect
-    api_base: str | None = None        # Custom endpoint (for local/proxy)
+    name: str  # "OpenAI", "Qwen", "LM Studio"
+    provider_type: ProviderType  # How to connect
+    api_base: str | None = None  # Custom endpoint (for local/proxy)
     enabled: bool = True
     sort_order: int = 0
 
@@ -647,18 +668,20 @@ class Provider(BaseModel):
 # Model - AI Model within a Provider
 # =============================================================================
 
+
 class Model(BaseModel):
     """
     AI model within a provider.
 
     Tracks capabilities and default status.
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: str = Field(default_factory=_new_id)
-    provider_id: str                   # FK to Provider
-    name: str                          # "GPT-4o", "Qwen VL Max"
-    model_id: str                      # Actual API identifier: "gpt-4o"
+    provider_id: str  # FK to Provider
+    name: str  # "GPT-4o", "Qwen VL Max"
+    model_id: str  # Actual API identifier: "gpt-4o"
     capabilities: list[str] = Field(default_factory=list)  # ["vision", "transcription"]
     is_default: bool = False
     enabled: bool = True
@@ -676,6 +699,7 @@ class Model(BaseModel):
 # ProviderRef - Library's Reference to App-Wide Provider
 # =============================================================================
 
+
 class ProviderRef(BaseModel):
     """
     Library's reference to an app-wide provider.
@@ -683,12 +707,13 @@ class ProviderRef(BaseModel):
     Tracks which providers this library uses, without duplicating
     the provider configuration (which is stored app-wide in app.duckdb).
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: str = Field(default_factory=_new_id)
-    provider_id: str                   # FK to Provider in app.duckdb
-    enabled: bool = True               # Whether this provider is enabled for this library
-    sort_order: int = 0                # Display order in this library
+    provider_id: str  # FK to Provider in app.duckdb
+    enabled: bool = True  # Whether this provider is enabled for this library
+    sort_order: int = 0  # Display order in this library
 
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
@@ -698,6 +723,7 @@ class ProviderRef(BaseModel):
 # Tool - Processing Tool Definition
 # =============================================================================
 
+
 class Tool(BaseModel):
     """
     Processing tool definition.
@@ -705,13 +731,14 @@ class Tool(BaseModel):
     Tools are Python modules that process documents.
     This model stores metadata and default configuration.
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: str = Field(default_factory=_new_id)
-    name: str                          # "Transcribe"
-    description: str = ""              # "Extract text from images using OCR"
-    icon: str = "wrench"               # SF Symbol name
-    module_path: str                   # "fichero.tools.transcribe"
+    name: str  # "Transcribe"
+    description: str = ""  # "Extract text from images using OCR"
+    icon: str = "wrench"  # SF Symbol name
+    module_path: str  # "fichero.tools.transcribe"
     enabled: bool = True
     sort_order: int = 0
 
@@ -726,25 +753,27 @@ class Tool(BaseModel):
 # SavedSearch - User's Saved Search Query
 # =============================================================================
 
+
 class SavedSearch(BaseModel):
     """
     User's saved search query.
 
     Stores search parameters for quick access.
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: str = Field(default_factory=_new_id)
-    query: str                         # The search query text
-    is_smart_search: bool = True       # Whether to use semantic search
+    query: str  # The search query text
+    is_smart_search: bool = True  # Whether to use semantic search
     filters: dict[str, Any] | None = None  # Optional filter parameters
-    search_type: str = "hybrid"        # Type of search: semantic, fulltext, hybrid
-    sort_by: str = "relevance"         # Sort field
-    sort_direction: str = "desc"       # Sort direction: "asc" or "desc"
+    search_type: str = "hybrid"  # Type of search: semantic, fulltext, hybrid
+    sort_by: str = "relevance"  # Sort field
+    sort_direction: str = "desc"  # Sort direction: "asc" or "desc"
 
     # Organization
     folder_path: str = "/"  # Unix-style path for organization
-    sort_order: int = 0     # User-defined order within folder (position)
+    sort_order: int = 0  # User-defined order within folder (position)
 
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
@@ -754,25 +783,27 @@ class SavedSearch(BaseModel):
 # Conversation - Chat Conversation
 # =============================================================================
 
+
 class Conversation(BaseModel):
     """
     Chat conversation with message history.
 
     Stores chat conversation data for persistence.
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: str = Field(default_factory=_new_id)
-    title: str                          # Conversation title
+    title: str  # Conversation title
     messages: list[dict] = Field(default_factory=list)  # Chat message history
-    provider: str | None = None         # LLM provider used
-    model: str | None = None           # LLM model used
+    provider: str | None = None  # LLM provider used
+    model: str | None = None  # LLM model used
     document_ids: list[str] = Field(default_factory=list)  # Documents used in RAG
     metadata: dict[str, Any] = Field(default_factory=dict)  # Additional metadata
 
     # Organization
     folder_path: str = "/"  # Unix-style path for organization
-    sort_order: int = 0     # User-defined order within folder
+    sort_order: int = 0  # User-defined order within folder
 
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
@@ -782,12 +813,14 @@ class Conversation(BaseModel):
 # MCP Server - Model Context Protocol Integration
 # =============================================================================
 
+
 class MCPServer(BaseModel):
     """MCP (Model Context Protocol) server configuration.
 
     MCP servers provide tools that can be used in workflows.
     Supports multiple transport types: stdio, HTTP, SSE, WebSocket.
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: str = Field(default_factory=_new_id)
@@ -800,9 +833,13 @@ class MCPServer(BaseModel):
     # Transport-specific parameters (JSON-serialized)
     command: str | None = None  # For stdio: command to launch server
     args: list[str] = Field(default_factory=list)  # For stdio: command arguments
-    env: dict[str, str] = Field(default_factory=dict)  # For stdio: environment variables
+    env: dict[str, str] = Field(
+        default_factory=dict
+    )  # For stdio: environment variables
     url: str | None = None  # For http/sse/websocket: server URL
-    headers: dict[str, str] = Field(default_factory=dict)  # For http/sse/websocket: HTTP headers
+    headers: dict[str, str] = Field(
+        default_factory=dict
+    )  # For http/sse/websocket: HTTP headers
 
     # Tool configuration
     tool_name_prefix: bool = True  # Prefix tool names with server name
@@ -811,6 +848,58 @@ class MCPServer(BaseModel):
     # Metadata
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+
+# =============================================================================
+# Library Snapshot
+# =============================================================================
+
+
+class SnapshotInitiatorType(str, Enum):
+    """Who or what created the snapshot."""
+
+    user = "user"
+    ai = "ai"
+    system = "system"
+
+
+class LibrarySnapshot(BaseModel):
+    """A point-in-time snapshot of a library database and its vectors.
+
+    Snapshots are stored as Parquet exports of DuckDB tables plus a copy
+    of the LanceDB vector directory. They are named with a timestamp and
+    an optional reason, and can be restored to recover from bad AI runs
+    or schema changes.
+
+    Stored in:
+        ~/Library/Application Support/com.tubb.fichero/snapshots/{library_name}/
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    library_path: str  # Path to the .fichero package
+    library_name: str  # Display name of the library
+    reason: str = ""  # Human-readable reason (e.g. "pre-AI run")
+    initiator: SnapshotInitiatorType = SnapshotInitiatorType.user
+    initiator_id: str | None = None  # agent_id or user_id if applicable
+    run_id: str | None = None  # AI run_id if this was auto-created
+
+    # Storage info
+    snapshot_path: str  # Absolute path to snapshot directory
+    duckdb_path: str  # Relative path to .duckdb.export Parquet files
+    lance_path: str  # Relative path to LanceDB copy
+    file_count: int = 0  # Number of files in snapshot
+    duckdb_size_bytes: int = 0  # Size of DuckDB Parquet export
+    lance_size_bytes: int = 0  # Size of LanceDB vector copy
+
+    # Retention
+    is_pinned: bool = False  # Pinned snapshots are not auto-deleted
+    tags: list[str] = Field(default_factory=list)
+
+    # Metadata
+    created_at: datetime = Field(default_factory=datetime.now)
+    expires_at: datetime | None = None  # Auto-delete after this time
 
 
 # =============================================================================

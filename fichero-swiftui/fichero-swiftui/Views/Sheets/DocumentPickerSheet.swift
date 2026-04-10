@@ -22,7 +22,7 @@ struct DocumentPickerSheet: View {
         }
         return allDocuments.filter { document in
             document.name.localizedCaseInsensitiveContains(searchText) ||
-            (document.pageContent?.localizedCaseInsensitiveContains(searchText) ?? false)
+                (document.pageContent?.localizedCaseInsensitiveContains(searchText) ?? false)
         }
     }
 

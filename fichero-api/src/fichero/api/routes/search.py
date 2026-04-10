@@ -19,7 +19,9 @@ router = APIRouter()
 
 def _safe_isoformat(value) -> str:
     """Return ISO string when value behaves like datetime, else now."""
-    return value.isoformat() if hasattr(value, "isoformat") else datetime.now().isoformat()
+    return (
+        value.isoformat() if hasattr(value, "isoformat") else datetime.now().isoformat()
+    )
 
 
 # Import the get_library_database dependency
@@ -29,19 +31,22 @@ from fichero.api.main import get_library_database  # noqa: E402
 # Request/Response models
 class SearchRequest(BaseModel):
     """Request model for enhanced search."""
+
     query: str
     limit: int = 10
     min_score: float = 0.0
-    
+
     # Advanced search options
     search_type: str = "hybrid"  # "semantic", "fulltext", or "hybrid"
-    filters: dict | None = None  # Advanced filters (doc_type, file_type, date ranges, etc.)
+    filters: dict | None = (
+        None  # Advanced filters (doc_type, file_type, date ranges, etc.)
+    )
     sort_by: str = "relevance"  # "relevance", "date", "name", "size"
     sort_direction: str = "desc"  # "asc" or "desc"
-    
+
     # Pagination
     offset: int = 0
-    
+
     # Full-text search options
     use_fuzzy_match: bool = False
     highlight_results: bool = True
@@ -49,13 +54,14 @@ class SearchRequest(BaseModel):
 
 class SearchResponse(BaseModel):
     """Response model for enhanced search results."""
+
     query: str
     results: list[SearchResult]
     count: int
     total_results: int  # Total results before pagination
     search_type: str  # Type of search performed
     execution_time_ms: float  # Search execution time
-    
+
     # Search statistics
     has_more: bool = False  # Whether more results are available
     filters_applied: dict | None = None  # Filters that were applied
@@ -64,14 +70,18 @@ class SearchResponse(BaseModel):
 
 class ReindexResponse(BaseModel):
     """Response for reindex operation."""
+
     status: str
     indexed: int
 
 
 # Routes
 
+
 @router.post("")
-async def enhanced_search(request: SearchRequest, db: Database = Depends(get_library_database)) -> SearchResponse:
+async def enhanced_search(
+    request: SearchRequest, db: Database = Depends(get_library_database)
+) -> SearchResponse:
     """
     Perform enhanced search over documents.
 
@@ -82,14 +92,22 @@ async def enhanced_search(request: SearchRequest, db: Database = Depends(get_lib
 
     # Validate search type
     if request.search_type not in ["semantic", "fulltext", "hybrid"]:
-        raise HTTPException(status_code=400, detail="Invalid search_type. Must be 'semantic', 'fulltext', or 'hybrid'")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid search_type. Must be 'semantic', 'fulltext', or 'hybrid'",
+        )
 
     # Validate sort options
     if request.sort_by not in ["relevance", "date", "name", "size"]:
-        raise HTTPException(status_code=400, detail="Invalid sort_by. Must be 'relevance', 'date', 'name', or 'size'")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid sort_by. Must be 'relevance', 'date', 'name', or 'size'",
+        )
 
     if request.sort_direction not in ["asc", "desc"]:
-        raise HTTPException(status_code=400, detail="Invalid sort_direction. Must be 'asc' or 'desc'")
+        raise HTTPException(
+            status_code=400, detail="Invalid sort_direction. Must be 'asc' or 'desc'"
+        )
 
     # Perform enhanced search
     results, total_count, search_stats = db.search(
@@ -125,12 +143,15 @@ async def search_stats(db: Database = Depends(get_library_database)):
 
 
 @router.post("/reindex")
-async def reindex_all(background_tasks: BackgroundTasks, db: Database = Depends(get_library_database)):
+async def reindex_all(
+    background_tasks: BackgroundTasks, db: Database = Depends(get_library_database)
+):
     """
     Rebuild search index for all documents.
 
     This runs in the background - poll /stats to check progress.
     """
+
     def do_reindex():
         try:
             count = db.reindex_all()
@@ -174,6 +195,7 @@ from fichero.models import SavedSearch  # noqa: E402
 
 class SavedSearchCreate(BaseModel):
     """Request to save a search."""
+
     query: str
     is_smart_search: bool = True
     filters: Optional[dict] = None
@@ -186,6 +208,7 @@ class SavedSearchCreate(BaseModel):
 
 class SavedSearchResponse(BaseModel):
     """Saved search response."""
+
     id: str
     query: str
     is_smart_search: bool
@@ -199,7 +222,9 @@ class SavedSearchResponse(BaseModel):
 
 
 @router.post("/saved")
-async def save_search(request: SavedSearchCreate, db: Database = Depends(get_library_database)) -> SavedSearchResponse:
+async def save_search(
+    request: SavedSearchCreate, db: Database = Depends(get_library_database)
+) -> SavedSearchResponse:
     """Save a search for later."""
     saved = SavedSearch(
         query=request.query,
@@ -228,7 +253,9 @@ async def save_search(request: SavedSearchCreate, db: Database = Depends(get_lib
 
 
 @router.get("/saved")
-async def list_saved_searches(db: Database = Depends(get_library_database)) -> List[SavedSearchResponse]:
+async def list_saved_searches(
+    db: Database = Depends(get_library_database),
+) -> List[SavedSearchResponse]:
     """List all saved searches."""
     searches = db.all(SavedSearch)
     return [
@@ -250,6 +277,7 @@ async def list_saved_searches(db: Database = Depends(get_library_database)) -> L
 
 class SavedSearchUpdate(BaseModel):
     """Request to update saved search properties."""
+
     query: Optional[str] = None
     is_smart_search: Optional[bool] = None
     filters: Optional[dict] = None
@@ -265,7 +293,7 @@ class SavedSearchUpdate(BaseModel):
 async def update_saved_search(
     search_id: str,
     request: SavedSearchUpdate,
-    db: Database = Depends(get_library_database)
+    db: Database = Depends(get_library_database),
 ) -> SavedSearchResponse:
     """Update a saved search."""
     saved = db.get(SavedSearch, search_id)
@@ -306,7 +334,9 @@ async def update_saved_search(
 
 
 @router.post("/saved/{search_id}/duplicate")
-async def duplicate_saved_search(search_id: str, db: Database = Depends(get_library_database)) -> SavedSearchResponse:
+async def duplicate_saved_search(
+    search_id: str, db: Database = Depends(get_library_database)
+) -> SavedSearchResponse:
     """Duplicate a saved search with a new name."""
     original = db.get(SavedSearch, search_id)
     if not original:
@@ -342,7 +372,9 @@ async def duplicate_saved_search(search_id: str, db: Database = Depends(get_libr
 
 
 @router.delete("/saved/{search_id}")
-async def delete_saved_search(search_id: str, db: Database = Depends(get_library_database)):
+async def delete_saved_search(
+    search_id: str, db: Database = Depends(get_library_database)
+):
     """Delete a saved search."""
     saved = db.get(SavedSearch, search_id)
     if not saved:
@@ -353,13 +385,19 @@ async def delete_saved_search(search_id: str, db: Database = Depends(get_library
 
 
 @router.post("/saved/reorder")
-async def reorder_saved_searches(search_ids: list[str], folder_path: str = "/", db: Database = Depends(get_library_database)) -> dict:
+async def reorder_saved_searches(
+    search_ids: list[str],
+    folder_path: str = "/",
+    db: Database = Depends(get_library_database),
+) -> dict:
     """Reorder saved searches within a folder."""
     # Update sort_order for each saved search
     for i, search_id in enumerate(search_ids):
         saved = db.get(SavedSearch, search_id)
         if not saved:
-            raise HTTPException(status_code=404, detail=f"Saved search not found: {search_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Saved search not found: {search_id}"
+            )
 
         # Update sort order
         saved.sort_order = i

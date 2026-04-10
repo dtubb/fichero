@@ -66,6 +66,7 @@ DOCLING_OPTIONAL_FORMATS = {
 # Docling Loader
 # =============================================================================
 
+
 class DoclingLoader(MediaLoader):
     """Document loader using IBM Docling for structured extraction.
 
@@ -124,6 +125,7 @@ class DoclingLoader(MediaLoader):
         """Check if Docling is installed and available."""
         try:
             from docling.document_converter import DocumentConverter  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -133,6 +135,7 @@ class DoclingLoader(MediaLoader):
         if self._converter is None:
             try:
                 from docling.document_converter import DocumentConverter
+
                 self._converter = DocumentConverter()
             except ImportError:
                 raise ImportError(
@@ -301,6 +304,7 @@ class DoclingLoader(MediaLoader):
 # =============================================================================
 # Convenience Functions
 # =============================================================================
+
 
 async def load_with_docling(
     path: Path,

@@ -55,9 +55,14 @@ TABLE_CONFIG = {
 # Prompt Building
 # =============================================================================
 
+
 def _build_prompt(output_style: str, include_headers: bool) -> str:
     """Build the table extraction prompt."""
-    header_text = "The first row contains column headers." if include_headers else "There may not be a distinct header row."
+    header_text = (
+        "The first row contains column headers."
+        if include_headers
+        else "There may not be a distinct header row."
+    )
 
     style_instructions = {
         "json_rows": f"""Extract the table data from this image.
@@ -76,7 +81,6 @@ Return as JSON with row-based structure:
 }}
 
 Return ONLY valid JSON.""",
-
         "json_columns": f"""Extract the table data from this image.
 
 {header_text}
@@ -92,7 +96,6 @@ Return as JSON with column-based structure:
 }}
 
 Return ONLY valid JSON.""",
-
         "csv": f"""Extract the table data from this image as CSV format.
 
 {header_text}
@@ -104,7 +107,6 @@ Rules:
 - One row per line
 
 Return ONLY the CSV content, no code fences or explanations.""",
-
         "markdown": f"""Extract the table data from this image as a Markdown table.
 
 {header_text}
@@ -130,6 +132,7 @@ def build_table_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="table_extract",

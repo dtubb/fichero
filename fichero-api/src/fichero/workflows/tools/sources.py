@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 # Files Tool
 # =============================================================================
 
+
 @register_tool(
     name="files",
     display_name="Files",
@@ -39,9 +40,27 @@ logger = logging.getLogger(__name__)
     supports_batch=False,
     input_ports=[],
     output_ports=[
-        PortDef(id="files", name="Files", port_type="output", data_type=DataType.FILES, description="Input file paths"),
-        PortDef(id="documents", name="Documents", port_type="output", data_type=DataType.JSON, description="Input document metadata"),
-        PortDef(id="count", name="Count", port_type="output", data_type=DataType.NUMBER, description="Number of input files"),
+        PortDef(
+            id="files",
+            name="Files",
+            port_type="output",
+            data_type=DataType.FILES,
+            description="Input file paths",
+        ),
+        PortDef(
+            id="documents",
+            name="Documents",
+            port_type="output",
+            data_type=DataType.JSON,
+            description="Input document metadata",
+        ),
+        PortDef(
+            id="count",
+            name="Count",
+            port_type="output",
+            data_type=DataType.NUMBER,
+            description="Number of input files",
+        ),
     ],
     sort_order=1,
 )
@@ -83,6 +102,7 @@ async def files_tool(
 # Collection Tool
 # =============================================================================
 
+
 @register_tool(
     name="collection",
     display_name="Collection",
@@ -94,15 +114,46 @@ async def files_tool(
     supports_batch=False,
     input_ports=[],  # Source - no inputs
     output_ports=[
-        PortDef(id="files", name="Files", port_type="output", data_type=DataType.FILES, description="File paths from collection"),
-        PortDef(id="documents", name="Documents", port_type="output", data_type=DataType.JSON, description="Full document metadata"),
-        PortDef(id="count", name="Count", port_type="output", data_type=DataType.NUMBER, description="Number of files"),
+        PortDef(
+            id="files",
+            name="Files",
+            port_type="output",
+            data_type=DataType.FILES,
+            description="File paths from collection",
+        ),
+        PortDef(
+            id="documents",
+            name="Documents",
+            port_type="output",
+            data_type=DataType.JSON,
+            description="Full document metadata",
+        ),
+        PortDef(
+            id="count",
+            name="Count",
+            port_type="output",
+            data_type=DataType.NUMBER,
+            description="Number of files",
+        ),
     ],
     config_schema={
         "collection_id": {"type": "string", "description": "Collection"},
-        "recursive": {"type": "boolean", "default": True, "description": "Include subfolders"},
-        "file_types": {"type": "array", "items": {"type": "string"}, "description": "File types"},
-        "status_filter": {"type": "string", "enum": ["all", "pending", "completed"], "default": "all", "description": "Status"},
+        "recursive": {
+            "type": "boolean",
+            "default": True,
+            "description": "Include subfolders",
+        },
+        "file_types": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "File types",
+        },
+        "status_filter": {
+            "type": "string",
+            "enum": ["all", "pending", "completed"],
+            "default": "all",
+            "description": "Status",
+        },
         "limit": {"type": "integer", "default": 0, "description": "Max files"},
     },
     sort_order=2,
@@ -124,7 +175,12 @@ async def collection_tool(
     """
     collection_id = inputs.get("collection_id")
     if not collection_id:
-        return {"files": [], "documents": [], "count": 0, "error": "No collection_id provided"}
+        return {
+            "files": [],
+            "documents": [],
+            "count": 0,
+            "error": "No collection_id provided",
+        }
 
     recursive = inputs.get("recursive", True)
     file_types = inputs.get("file_types", [])
@@ -134,7 +190,12 @@ async def collection_tool(
     # Get library path from state or config
     library_path = state.get("library_path") or inputs.get("library_path")
     if not library_path:
-        return {"files": [], "documents": [], "count": 0, "error": "No library_path in state"}
+        return {
+            "files": [],
+            "documents": [],
+            "count": 0,
+            "error": "No library_path in state",
+        }
 
     try:
         db = db_manager.get_database(library_path)
@@ -170,6 +231,7 @@ async def collection_tool(
 # Folder Tool
 # =============================================================================
 
+
 @register_tool(
     name="folder",
     display_name="Folder",
@@ -181,16 +243,48 @@ async def collection_tool(
     supports_batch=False,
     input_ports=[],
     output_ports=[
-        PortDef(id="files", name="Files", port_type="output", data_type=DataType.FILES, description="File paths from folder"),
-        PortDef(id="documents", name="Documents", port_type="output", data_type=DataType.JSON, description="Full document metadata"),
-        PortDef(id="subfolders", name="Subfolders", port_type="output", data_type=DataType.JSON, description="Direct subfolder IDs"),
-        PortDef(id="count", name="Count", port_type="output", data_type=DataType.NUMBER, description="Number of files"),
+        PortDef(
+            id="files",
+            name="Files",
+            port_type="output",
+            data_type=DataType.FILES,
+            description="File paths from folder",
+        ),
+        PortDef(
+            id="documents",
+            name="Documents",
+            port_type="output",
+            data_type=DataType.JSON,
+            description="Full document metadata",
+        ),
+        PortDef(
+            id="subfolders",
+            name="Subfolders",
+            port_type="output",
+            data_type=DataType.JSON,
+            description="Direct subfolder IDs",
+        ),
+        PortDef(
+            id="count",
+            name="Count",
+            port_type="output",
+            data_type=DataType.NUMBER,
+            description="Number of files",
+        ),
     ],
     config_schema={
         "folder_id": {"type": "string", "description": "Folder ID"},
         "folder_path": {"type": "string", "description": "Folder path"},
-        "include_subfolders": {"type": "boolean", "default": False, "description": "Include subfolders"},
-        "file_types": {"type": "array", "items": {"type": "string"}, "description": "File types"},
+        "include_subfolders": {
+            "type": "boolean",
+            "default": False,
+            "description": "Include subfolders",
+        },
+        "file_types": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "File types",
+        },
         "limit": {"type": "integer", "default": 0, "description": "Max files"},
     },
     sort_order=3,
@@ -209,7 +303,13 @@ async def folder_tool(
     folder_path = inputs.get("folder_path")
 
     if not folder_id and not folder_path:
-        return {"files": [], "documents": [], "subfolders": [], "count": 0, "error": "No folder_id or folder_path provided"}
+        return {
+            "files": [],
+            "documents": [],
+            "subfolders": [],
+            "count": 0,
+            "error": "No folder_id or folder_path provided",
+        }
 
     include_subfolders = inputs.get("include_subfolders", False)
     file_types = inputs.get("file_types", [])
@@ -217,7 +317,13 @@ async def folder_tool(
 
     library_path = state.get("library_path") or inputs.get("library_path")
     if not library_path:
-        return {"files": [], "documents": [], "subfolders": [], "count": 0, "error": "No library_path in state"}
+        return {
+            "files": [],
+            "documents": [],
+            "subfolders": [],
+            "count": 0,
+            "error": "No library_path in state",
+        }
 
     try:
         db = db_manager.get_database(library_path)
@@ -225,11 +331,19 @@ async def folder_tool(
         # If folder_path provided, find the folder by path
         if not folder_id and folder_path:
             # Find folder by name/path - simplified for now
-            folders = db.query(Document, doc_type=DocType.folder, name=folder_path.split("/")[-1])
+            folders = db.query(
+                Document, doc_type=DocType.folder, name=folder_path.split("/")[-1]
+            )
             if folders:
                 folder_id = folders[0].id
             else:
-                return {"files": [], "documents": [], "subfolders": [], "count": 0, "error": f"Folder not found: {folder_path}"}
+                return {
+                    "files": [],
+                    "documents": [],
+                    "subfolders": [],
+                    "count": 0,
+                    "error": f"Folder not found: {folder_path}",
+                }
 
         # Get files
         files = _get_files_in_folder(
@@ -247,7 +361,9 @@ async def folder_tool(
         file_paths = [doc.path for doc in files if doc.path]
         doc_data = [doc.model_dump() for doc in files]
 
-        logger.info(f"Folder {folder_id}: found {len(files)} files, {len(subfolder_ids)} subfolders")
+        logger.info(
+            f"Folder {folder_id}: found {len(files)} files, {len(subfolder_ids)} subfolders"
+        )
 
         return {
             "files": file_paths,
@@ -258,12 +374,19 @@ async def folder_tool(
 
     except Exception as e:
         logger.error(f"Folder tool failed: {e}")
-        return {"files": [], "documents": [], "subfolders": [], "count": 0, "error": str(e)}
+        return {
+            "files": [],
+            "documents": [],
+            "subfolders": [],
+            "count": 0,
+            "error": str(e),
+        }
 
 
 # =============================================================================
 # Search Tool
 # =============================================================================
+
 
 @register_tool(
     name="search",
@@ -276,16 +399,48 @@ async def folder_tool(
     supports_batch=False,
     input_ports=[],
     output_ports=[
-        PortDef(id="files", name="Files", port_type="output", data_type=DataType.FILES, description="Matching file paths"),
-        PortDef(id="documents", name="Documents", port_type="output", data_type=DataType.JSON, description="Full document metadata with scores"),
-        PortDef(id="count", name="Count", port_type="output", data_type=DataType.NUMBER, description="Number of matches"),
+        PortDef(
+            id="files",
+            name="Files",
+            port_type="output",
+            data_type=DataType.FILES,
+            description="Matching file paths",
+        ),
+        PortDef(
+            id="documents",
+            name="Documents",
+            port_type="output",
+            data_type=DataType.JSON,
+            description="Full document metadata with scores",
+        ),
+        PortDef(
+            id="count",
+            name="Count",
+            port_type="output",
+            data_type=DataType.NUMBER,
+            description="Number of matches",
+        ),
     ],
     config_schema={
         "query": {"type": "string", "description": "Search query"},
-        "search_type": {"type": "string", "enum": ["hybrid", "semantic", "fulltext"], "default": "hybrid", "description": "Search type"},
+        "search_type": {
+            "type": "string",
+            "enum": ["hybrid", "semantic", "fulltext"],
+            "default": "hybrid",
+            "description": "Search type",
+        },
         "collection_id": {"type": "string", "description": "Collection"},
-        "file_types": {"type": "array", "items": {"type": "string"}, "description": "File types"},
-        "status_filter": {"type": "string", "enum": ["all", "pending", "completed"], "default": "all", "description": "Status"},
+        "file_types": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "File types",
+        },
+        "status_filter": {
+            "type": "string",
+            "enum": ["all", "pending", "completed"],
+            "default": "all",
+            "description": "Status",
+        },
         "min_score": {"type": "number", "default": 0.0, "description": "Min score"},
         "limit": {"type": "integer", "default": 100, "description": "Max results"},
     },
@@ -303,7 +458,12 @@ async def search_tool(
     """
     query = inputs.get("query")
     if not query:
-        return {"files": [], "documents": [], "count": 0, "error": "No search query provided"}
+        return {
+            "files": [],
+            "documents": [],
+            "count": 0,
+            "error": "No search query provided",
+        }
 
     search_type = inputs.get("search_type", "hybrid")
     collection_id = inputs.get("collection_id")
@@ -314,7 +474,12 @@ async def search_tool(
 
     library_path = state.get("library_path") or inputs.get("library_path")
     if not library_path:
-        return {"files": [], "documents": [], "count": 0, "error": "No library_path in state"}
+        return {
+            "files": [],
+            "documents": [],
+            "count": 0,
+            "error": "No library_path in state",
+        }
 
     try:
         db = db_manager.get_database(library_path)
@@ -372,6 +537,7 @@ async def search_tool(
 # Helper Functions
 # =============================================================================
 
+
 def _get_files_in_folder(
     db,
     folder_id: str,
@@ -402,7 +568,11 @@ def _get_files_in_folder(
         # If it's a file, add it
         if child.doc_type == DocType.file:
             # Apply filters
-            if file_types and child.file_type and child.file_type.value not in file_types:
+            if (
+                file_types
+                and child.file_type
+                and child.file_type.value not in file_types
+            ):
                 continue
             if status_filter == "pending" and child.status.value != "pending":
                 continue

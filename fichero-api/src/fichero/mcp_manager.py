@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 # Server Configuration
 # =============================================================================
 
+
 @dataclass
 class MCPServerConfig:
     """Configuration for an MCP server connection.
@@ -55,11 +56,17 @@ class MCPServerConfig:
     tool_name_prefix: bool = True  # Prefix tool names with server name
     enabled: bool = True  # Server enabled/disabled
 
-    def to_connection(self) -> StdioConnection | SSEConnection | StreamableHttpConnection | WebsocketConnection:
+    def to_connection(
+        self,
+    ) -> (
+        StdioConnection | SSEConnection | StreamableHttpConnection | WebsocketConnection
+    ):
         """Convert config to a connection dictionary (TypedDict)."""
         if self.transport == "stdio":
             if not self.command:
-                raise ValueError(f"Server {self.name}: command required for stdio transport")
+                raise ValueError(
+                    f"Server {self.name}: command required for stdio transport"
+                )
             return {
                 "transport": "stdio",
                 "command": self.command,
@@ -84,19 +91,24 @@ class MCPServerConfig:
             }
         elif self.transport == "websocket":
             if not self.url:
-                raise ValueError(f"Server {self.name}: url required for WebSocket transport")
+                raise ValueError(
+                    f"Server {self.name}: url required for WebSocket transport"
+                )
             return {
                 "transport": "websocket",
                 "url": self.url,
                 "headers": self.headers or {},
             }
         else:
-            raise ValueError(f"Server {self.name}: unknown transport '{self.transport}'")
+            raise ValueError(
+                f"Server {self.name}: unknown transport '{self.transport}'"
+            )
 
 
 # =============================================================================
 # MCP Manager
 # =============================================================================
+
 
 class MCPManager:
     """Manages MCP server connections and tool loading.
@@ -170,7 +182,9 @@ class MCPManager:
         return list(self.servers.values())
 
     @asynccontextmanager
-    async def _connect_server(self, config: MCPServerConfig) -> AsyncIterator[ClientSession]:
+    async def _connect_server(
+        self, config: MCPServerConfig
+    ) -> AsyncIterator[ClientSession]:
         """Connect to an MCP server.
 
         Args:
@@ -186,7 +200,9 @@ class MCPManager:
             logger.info(f"Connected to MCP server: {config.name}")
             yield session
 
-    async def load_server_tools(self, server_name: str, force_reload: bool = False) -> list[BaseTool]:
+    async def load_server_tools(
+        self, server_name: str, force_reload: bool = False
+    ) -> list[BaseTool]:
         """Load tools from a specific server.
 
         Args:
@@ -240,12 +256,16 @@ class MCPManager:
 
         for server_name in self.servers:
             try:
-                tools = await self.load_server_tools(server_name, force_reload=force_reload)
+                tools = await self.load_server_tools(
+                    server_name, force_reload=force_reload
+                )
                 all_tools.extend(tools)
             except Exception as e:
                 logger.error(f"Failed to load tools from server {server_name}: {e}")
 
-        logger.info(f"Loaded total {len(all_tools)} tools from {len(self.servers)} servers")
+        logger.info(
+            f"Loaded total {len(all_tools)} tools from {len(self.servers)} servers"
+        )
         return all_tools
 
     def clear_cache(self, server_name: str | None = None) -> None:

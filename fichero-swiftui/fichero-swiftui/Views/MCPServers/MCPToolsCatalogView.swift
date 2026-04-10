@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 private let logger = Logger(subsystem: "com.tubb.Fichero", category: "MCPToolsCatalogView")
 
@@ -172,7 +172,7 @@ struct MCPToolsCatalogView: View {
         if !searchText.isEmpty {
             result = result.filter { tool in
                 tool.name.localizedCaseInsensitiveContains(searchText) ||
-                tool.description.localizedCaseInsensitiveContains(searchText)
+                    tool.description.localizedCaseInsensitiveContains(searchText)
             }
         }
 

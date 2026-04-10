@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 # Try to import Rubicon ObjC for macOS APIs
 try:
     from rubicon.objc import ObjCClass
+
     NSURL = ObjCClass("NSURL")
     NSData = ObjCClass("NSData")
     _HAS_RUBICON = True
@@ -46,16 +47,23 @@ except ImportError:
 # =============================================================================
 
 # NSURLBookmarkCreationOptions - flags for bookmarkDataWithOptions:
-_BOOKMARK_CREATION_WITH_SECURITY_SCOPE = 1 << 11  # NSURLBookmarkCreationWithSecurityScope
-_BOOKMARK_CREATION_SECURITY_SCOPE_ALLOW_ONLY_READ_ACCESS = 1 << 12  # NSURLBookmarkCreationSecurityScopeAllowOnlyReadAccess
+_BOOKMARK_CREATION_WITH_SECURITY_SCOPE = (
+    1 << 11
+)  # NSURLBookmarkCreationWithSecurityScope
+_BOOKMARK_CREATION_SECURITY_SCOPE_ALLOW_ONLY_READ_ACCESS = (
+    1 << 12
+)  # NSURLBookmarkCreationSecurityScopeAllowOnlyReadAccess
 
 # NSURLBookmarkResolutionOptions - flags for URLByResolvingBookmarkData:
-_BOOKMARK_RESOLUTION_WITH_SECURITY_SCOPE = 1 << 10  # NSURLBookmarkResolutionWithSecurityScope
+_BOOKMARK_RESOLUTION_WITH_SECURITY_SCOPE = (
+    1 << 10
+)  # NSURLBookmarkResolutionWithSecurityScope
 
 
 # =============================================================================
 # Bookmark Functions
 # =============================================================================
+
 
 def create_bookmark(path: Path, read_only: bool = False) -> bytes | None:
     """Create a security-scoped bookmark for a file.
@@ -93,7 +101,7 @@ def create_bookmark(path: Path, read_only: bool = False) -> bytes | None:
             options,
             None,  # No resource keys
             None,  # Not relative
-            None   # No error pointer
+            None,  # No error pointer
         )
 
         if bookmark_data:
@@ -152,7 +160,7 @@ def resolve_bookmark(bookmark_data: bytes) -> Path | None:
             _BOOKMARK_RESOLUTION_WITH_SECURITY_SCOPE,
             None,  # Not relative
             None,  # is_stale out parameter
-            None   # error out parameter
+            None,  # error out parameter
         )
 
         # Rubicon returns the URL directly (other params are out params)
@@ -231,11 +239,7 @@ def is_bookmark_stale(bookmark_data: bytes) -> bool:
         # Create a boolean pointer to receive is_stale
         # In Rubicon, we need to check differently - by attempting to resolve
         result = NSURL.URLByResolvingBookmarkData_options_relativeToURL_bookmarkDataIsStale_error_(
-            data,
-            _BOOKMARK_RESOLUTION_WITH_SECURITY_SCOPE,
-            None,
-            None,
-            None
+            data, _BOOKMARK_RESOLUTION_WITH_SECURITY_SCOPE, None, None, None
         )
 
         # If resolution fails, consider it stale
@@ -263,6 +267,7 @@ def refresh_bookmark(path: Path, old_bookmark: bytes | None = None) -> bytes | N
 # =============================================================================
 # Context Manager
 # =============================================================================
+
 
 class BookmarkAccess:
     """Context manager for security-scoped bookmark access.
@@ -292,6 +297,7 @@ class BookmarkAccess:
 # =============================================================================
 # Convenience
 # =============================================================================
+
 
 def is_available() -> bool:
     """Check if bookmark functionality is available.

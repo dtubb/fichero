@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 class BatchStatus(str, Enum):
     """Status of a batch execution."""
+
     PENDING = "pending"
     RUNNING = "running"
     PAUSED = "paused"
@@ -39,6 +40,7 @@ class BatchStatus(str, Enum):
 
 class BatchItemStatus(str, Enum):
     """Status of an individual item in a batch."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -49,6 +51,7 @@ class BatchItemStatus(str, Enum):
 @dataclass
 class BatchItem:
     """Represents a single item in a batch execution."""
+
     thread_id: str
     item_index: int
     inputs: dict[str, Any]
@@ -61,6 +64,7 @@ class BatchItem:
 @dataclass
 class BatchProgress:
     """Progress information for a batch execution."""
+
     batch_id: str
     total_items: int
     completed_items: int
@@ -75,6 +79,7 @@ class BatchProgress:
 @dataclass
 class BatchExecution:
     """Represents a batch of workflow executions."""
+
     batch_id: str
     workflow_id: str
     status: BatchStatus
@@ -114,7 +119,9 @@ class BatchExecution:
         # Calculate average duration from completed items
         completed_items = [i for i in self.items if i.completed_at and i.started_at]
         if completed_items:
-            durations = [(i.completed_at - i.started_at).total_seconds() for i in completed_items]
+            durations = [
+                (i.completed_at - i.started_at).total_seconds() for i in completed_items
+            ]
             avg_duration = sum(durations) / len(durations)
             remaining = self.pending_items + self.running_items
             estimated_remaining = avg_duration * remaining / max(self.max_concurrent, 1)
@@ -138,6 +145,7 @@ class BatchExecution:
 @dataclass
 class BatchEvent:
     """Event emitted during batch execution."""
+
     batch_id: str
     event_type: str  # batch_started, item_started, item_completed, item_failed, batch_completed, batch_failed
     thread_id: Optional[str] = None
@@ -268,42 +276,50 @@ class BatchManager:
 
     async def _save_batch(self, batch: BatchExecution) -> None:
         """Save batch state to database."""
+
         def _save():
             conn = duckdb.connect(self.db_path)
             try:
                 # Save batch
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO batches
                     (batch_id, workflow_id, status, max_concurrent, created_at, started_at, completed_at, error_message)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, [
-                    batch.batch_id,
-                    batch.workflow_id,
-                    batch.status.value,
-                    batch.max_concurrent,
-                    batch.created_at,
-                    batch.started_at,
-                    batch.completed_at,
-                    batch.error_message,
-                ])
+                """,
+                    [
+                        batch.batch_id,
+                        batch.workflow_id,
+                        batch.status.value,
+                        batch.max_concurrent,
+                        batch.created_at,
+                        batch.started_at,
+                        batch.completed_at,
+                        batch.error_message,
+                    ],
+                )
 
                 # Save items
                 for item in batch.items:
                     import json
-                    conn.execute("""
+
+                    conn.execute(
+                        """
                         INSERT OR REPLACE INTO batch_items
                         (batch_id, thread_id, item_index, inputs, status, error, started_at, completed_at)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, [
-                        batch.batch_id,
-                        item.thread_id,
-                        item.item_index,
-                        json.dumps(item.inputs),
-                        item.status.value,
-                        item.error,
-                        item.started_at,
-                        item.completed_at,
-                    ])
+                    """,
+                        [
+                            batch.batch_id,
+                            item.thread_id,
+                            item.item_index,
+                            json.dumps(item.inputs),
+                            item.status.value,
+                            item.error,
+                            item.started_at,
+                            item.completed_at,
+                        ],
+                    )
             finally:
                 conn.close()
 
@@ -320,29 +336,45 @@ class BatchManager:
 
     async def _load_batch(self, batch_id: str) -> Optional[BatchExecution]:
         """Load batch from database."""
+
         def _load():
             conn = duckdb.connect(self.db_path)
             try:
                 # Load batch
-                result = conn.execute("""
+                result = conn.execute(
+                    """
                     SELECT workflow_id, status, max_concurrent, created_at,
                            started_at, completed_at, error_message
                     FROM batches WHERE batch_id = ?
-                """, [batch_id]).fetchone()
+                """,
+                    [batch_id],
+                ).fetchone()
 
                 if not result:
                     return None
 
-                workflow_id, status, max_concurrent, created_at, started_at, completed_at, error_message = result
+                (
+                    workflow_id,
+                    status,
+                    max_concurrent,
+                    created_at,
+                    started_at,
+                    completed_at,
+                    error_message,
+                ) = result
 
                 # Load items
-                items_result = conn.execute("""
+                items_result = conn.execute(
+                    """
                     SELECT thread_id, item_index, inputs, status, error, started_at, completed_at
                     FROM batch_items WHERE batch_id = ?
                     ORDER BY item_index
-                """, [batch_id]).fetchall()
+                """,
+                    [batch_id],
+                ).fetchall()
 
                 import json
+
                 items = [
                     BatchItem(
                         thread_id=row[0],
@@ -382,22 +414,29 @@ class BatchManager:
         offset: int = 0,
     ) -> list[BatchExecution]:
         """List batches with optional filtering."""
+
         def _list():
             conn = duckdb.connect(self.db_path)
             try:
                 if status:
-                    result = conn.execute("""
+                    result = conn.execute(
+                        """
                         SELECT batch_id FROM batches
                         WHERE status = ?
                         ORDER BY created_at DESC
                         LIMIT ? OFFSET ?
-                    """, [status.value, limit, offset]).fetchall()
+                    """,
+                        [status.value, limit, offset],
+                    ).fetchall()
                 else:
-                    result = conn.execute("""
+                    result = conn.execute(
+                        """
                         SELECT batch_id FROM batches
                         ORDER BY created_at DESC
                         LIMIT ? OFFSET ?
-                    """, [limit, offset]).fetchall()
+                    """,
+                        [limit, offset],
+                    ).fetchall()
                 return [row[0] for row in result]
             finally:
                 conn.close()
@@ -430,7 +469,9 @@ class BatchManager:
             raise ValueError(f"Batch {batch_id} not found")
 
         if batch.status not in [BatchStatus.PENDING, BatchStatus.PAUSED]:
-            raise ValueError(f"Batch {batch_id} cannot be started (status: {batch.status})")
+            raise ValueError(
+                f"Batch {batch_id} cannot be started (status: {batch.status})"
+            )
 
         # Initialize control events
         self._cancel_events[batch_id] = asyncio.Event()
@@ -531,19 +572,23 @@ class BatchManager:
                 item_index=item.item_index,
                 workflow_id=batch.workflow_id,
             )
-            await event_queue.put(BatchEvent(
-                batch_id=batch_id,
-                event_type="item_started",
-                thread_id=item.thread_id,
-                item_index=item.item_index,
-            ))
+            await event_queue.put(
+                BatchEvent(
+                    batch_id=batch_id,
+                    event_type="item_started",
+                    thread_id=item.thread_id,
+                    item_index=item.item_index,
+                )
+            )
 
             await execute_item(item)
 
             if item.status == BatchItemStatus.COMPLETED:
                 duration_ms = None
                 if item.started_at and item.completed_at:
-                    duration_ms = (item.completed_at - item.started_at).total_seconds() * 1000
+                    duration_ms = (
+                        item.completed_at - item.started_at
+                    ).total_seconds() * 1000
                 self.activity_tracker.batch_item_completed(
                     batch_id=batch_id,
                     thread_id=item.thread_id,
@@ -551,13 +596,15 @@ class BatchManager:
                     duration_ms=duration_ms or 0,
                     workflow_id=batch.workflow_id,
                 )
-                await event_queue.put(BatchEvent(
-                    batch_id=batch_id,
-                    event_type="item_completed",
-                    thread_id=item.thread_id,
-                    item_index=item.item_index,
-                    progress=batch.get_progress(),
-                ))
+                await event_queue.put(
+                    BatchEvent(
+                        batch_id=batch_id,
+                        event_type="item_completed",
+                        thread_id=item.thread_id,
+                        item_index=item.item_index,
+                        progress=batch.get_progress(),
+                    )
+                )
             elif item.status == BatchItemStatus.FAILED:
                 self.activity_tracker.batch_item_failed(
                     batch_id=batch_id,
@@ -566,17 +613,21 @@ class BatchManager:
                     error=item.error or "Unknown batch item failure",
                     workflow_id=batch.workflow_id,
                 )
-                await event_queue.put(BatchEvent(
-                    batch_id=batch_id,
-                    event_type="item_failed",
-                    thread_id=item.thread_id,
-                    item_index=item.item_index,
-                    error=item.error,
-                    progress=batch.get_progress(),
-                ))
+                await event_queue.put(
+                    BatchEvent(
+                        batch_id=batch_id,
+                        event_type="item_failed",
+                        thread_id=item.thread_id,
+                        item_index=item.item_index,
+                        error=item.error,
+                        progress=batch.get_progress(),
+                    )
+                )
 
         # Start all item tasks
-        tasks = [asyncio.create_task(execute_with_events(item)) for item in pending_items]
+        tasks = [
+            asyncio.create_task(execute_with_events(item)) for item in pending_items
+        ]
 
         # Yield events as they come
         completed_tasks = 0
@@ -649,7 +700,9 @@ class BatchManager:
 
         yield BatchEvent(
             batch_id=batch_id,
-            event_type="batch_completed" if batch.status == BatchStatus.COMPLETED else "batch_finished",
+            event_type="batch_completed"
+            if batch.status == BatchStatus.COMPLETED
+            else "batch_finished",
             progress=batch.get_progress(),
         )
 
@@ -707,7 +760,11 @@ class BatchManager:
         if not batch:
             raise ValueError(f"Batch {batch_id} not found")
 
-        if batch.status not in [BatchStatus.RUNNING, BatchStatus.PAUSED, BatchStatus.PENDING]:
+        if batch.status not in [
+            BatchStatus.RUNNING,
+            BatchStatus.PAUSED,
+            BatchStatus.PENDING,
+        ]:
             raise ValueError(f"Cannot cancel batch with status {batch.status}")
 
         if batch_id in self._cancel_events:
@@ -761,11 +818,15 @@ class BatchManager:
 
     async def delete_batch(self, batch_id: str) -> None:
         """Delete a batch and its items."""
+
         def _delete():
             conn = duckdb.connect(self.db_path)
             try:
                 conn.execute("DELETE FROM batch_items WHERE batch_id = ?", [batch_id])
-                conn.execute("DELETE FROM batch_progress_snapshots WHERE batch_id = ?", [batch_id])
+                conn.execute(
+                    "DELETE FROM batch_progress_snapshots WHERE batch_id = ?",
+                    [batch_id],
+                )
                 conn.execute("DELETE FROM batches WHERE batch_id = ?", [batch_id])
             finally:
                 conn.close()

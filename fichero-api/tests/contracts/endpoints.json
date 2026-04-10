@@ -433,118 +433,297 @@
         "query_params": [],
         "request_model": null,
         "response_model": null
-      }
-    ],
-    "chat": [
-      {
-        "method": "POST",
-        "path": "/chat",
-        "operation_id": "chat_api_chat_post",
-        "summary": "Chat",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "ChatRequest",
-        "response_model": "ChatResponse"
       },
       {
-        "method": "GET",
-        "path": "/chat/conversations",
-        "operation_id": "list_conversations_api_chat_conversations_get",
-        "summary": "List Conversations",
+        "method": "POST",
+        "path": "/storage/snapshots",
+        "operation_id": "create_snapshot_api_storage_snapshots_post",
+        "summary": "Create Snapshot",
         "path_params": [],
         "query_params": [
           {
-            "name": "folder_path",
+            "name": "library_path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "reason",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "initiator",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "initiator_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "run_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "auto_expire_days",
+            "required": false,
+            "type": "integer"
           }
         ],
         "request_model": null,
-        "response_model": null
+        "response_model": "LibrarySnapshot"
       },
       {
         "method": "GET",
-        "path": "/chat/conversations/{conversation_id}",
-        "operation_id": "get_conversation_api_chat_conversations__conversation_id__get",
-        "summary": "Get Conversation",
+        "path": "/storage/snapshots",
+        "operation_id": "get_snapshots_api_storage_snapshots_get",
+        "summary": "Get Snapshots",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "library_name",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "include_expired",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "SnapshotListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/storage/snapshots/{snapshot_id}",
+        "operation_id": "get_snapshot_api_storage_snapshots__snapshot_id__get",
+        "summary": "Get Snapshot",
         "path_params": [
-          "conversation_id"
+          "snapshot_id"
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "ConversationHistory"
-      },
-      {
-        "method": "PUT",
-        "path": "/chat/conversations/{conversation_id}",
-        "operation_id": "update_conversation_api_chat_conversations__conversation_id__put",
-        "summary": "Update Conversation",
-        "path_params": [
-          "conversation_id"
-        ],
-        "query_params": [],
-        "request_model": "ConversationUpdate",
-        "response_model": "ConversationHistory"
+        "response_model": "LibrarySnapshot"
       },
       {
         "method": "DELETE",
-        "path": "/chat/conversations/{conversation_id}",
-        "operation_id": "delete_conversation_api_chat_conversations__conversation_id__delete",
-        "summary": "Delete Conversation",
+        "path": "/storage/snapshots/{snapshot_id}",
+        "operation_id": "remove_snapshot_api_storage_snapshots__snapshot_id__delete",
+        "summary": "Remove Snapshot",
         "path_params": [
-          "conversation_id"
+          "snapshot_id"
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "SnapshotDeleteResponse"
       },
       {
         "method": "POST",
-        "path": "/chat/conversations/{conversation_id}/duplicate",
-        "operation_id": "duplicate_conversation_api_chat_conversations__conversation_id__duplicate_post",
-        "summary": "Duplicate Conversation",
+        "path": "/storage/snapshots/{snapshot_id}/restore",
+        "operation_id": "restore_library_snapshot_api_storage_snapshots__snapshot_id__restore_post",
+        "summary": "Restore Library Snapshot",
         "path_params": [
-          "conversation_id"
+          "snapshot_id"
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "SnapshotRestoreResponse"
+      },
+      {
+        "method": "PATCH",
+        "path": "/storage/snapshots/{snapshot_id}/pin",
+        "operation_id": "pin_snapshot_api_storage_snapshots__snapshot_id__pin_patch",
+        "summary": "Pin Snapshot",
+        "path_params": [
+          "snapshot_id"
+        ],
+        "query_params": [
+          {
+            "name": "pinned",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "LibrarySnapshot"
+      }
+    ],
+    "folders": [
+      {
+        "method": "GET",
+        "path": "/folders/{entity_type}/folders",
+        "operation_id": "list_folders_api_folders__entity_type__folders_get",
+        "summary": "List Folders",
+        "path_params": [
+          "entity_type"
+        ],
+        "query_params": [
+          {
+            "name": "parent_path",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[FolderInfo]"
       },
       {
         "method": "POST",
-        "path": "/chat/conversations/reorder",
-        "operation_id": "reorder_conversations_api_chat_conversations_reorder_post",
-        "summary": "Reorder Conversations",
-        "path_params": [],
+        "path": "/folders/{entity_type}/folders",
+        "operation_id": "create_folder_api_folders__entity_type__folders_post",
+        "summary": "Create Folder",
+        "path_params": [
+          "entity_type"
+        ],
         "query_params": [
           {
             "name": "folder_path",
-            "required": false,
+            "required": true,
             "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "FolderInfo"
+      },
+      {
+        "method": "PUT",
+        "path": "/folders/{entity_type}/folders",
+        "operation_id": "rename_folder_api_folders__entity_type__folders_put",
+        "summary": "Rename Folder",
+        "path_params": [
+          "entity_type"
+        ],
+        "query_params": [],
+        "request_model": "RenameFolderRequest",
+        "response_model": null
+      },
+      {
+        "method": "DELETE",
+        "path": "/folders/{entity_type}/folders",
+        "operation_id": "delete_folder_api_folders__entity_type__folders_delete",
+        "summary": "Delete Folder",
+        "path_params": [
+          "entity_type"
+        ],
+        "query_params": [
+          {
+            "name": "folder_path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "delete_contents",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "request_model": null,
         "response_model": null
       },
       {
+        "method": "PUT",
+        "path": "/folders/{entity_type}/move",
+        "operation_id": "move_items_api_folders__entity_type__move_put",
+        "summary": "Move Items",
+        "path_params": [
+          "entity_type"
+        ],
+        "query_params": [],
+        "request_model": "MoveItemsRequest",
+        "response_model": null
+      }
+    ],
+    "artifacts": [
+      {
         "method": "GET",
-        "path": "/chat/providers",
-        "operation_id": "list_providers_api_chat_providers_get",
-        "summary": "List Providers",
+        "path": "/artifacts/document/{doc_id}",
+        "operation_id": "list_document_artifacts_api_artifacts_document__doc_id__get",
+        "summary": "List Document Artifacts",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [
+          {
+            "name": "artifact_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ArtifactListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/artifacts/{artifact_id}",
+        "operation_id": "get_artifact_api_artifacts__artifact_id__get",
+        "summary": "Get Artifact",
+        "path_params": [
+          "artifact_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ArtifactResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/artifacts/{artifact_id}",
+        "operation_id": "delete_artifact_api_artifacts__artifact_id__delete",
+        "summary": "Delete Artifact",
+        "path_params": [
+          "artifact_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/artifacts/",
+        "operation_id": "list_all_artifacts_api_artifacts__get",
+        "summary": "List All Artifacts",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "artifact_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ArtifactListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/artifacts/types",
+        "operation_id": "list_artifact_types_api_artifacts_types_get",
+        "summary": "List Artifact Types",
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[ProviderInfo]"
-      },
-      {
-        "method": "POST",
-        "path": "/chat/extract-text",
-        "operation_id": "extract_text_api_chat_extract_text_post",
-        "summary": "Extract Text",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "ExtractTextRequest",
-        "response_model": "ExtractTextResponse"
+        "response_model": null
       }
     ],
     "providers": [
@@ -782,6 +961,71 @@
         "query_params": [],
         "request_model": null,
         "response_model": null
+      }
+    ],
+    "models": [
+      {
+        "method": "GET",
+        "path": "/models/huggingface/tasks",
+        "operation_id": "list_hf_tasks_api_models_huggingface_tasks_get",
+        "summary": "List Hf Tasks",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[HFTaskCategory]"
+      },
+      {
+        "method": "GET",
+        "path": "/models/huggingface",
+        "operation_id": "search_hf_models_api_models_huggingface_get",
+        "summary": "Search Hf Models",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "task",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "search",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "library",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ModelSearchResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/models/huggingface/{model_id}",
+        "operation_id": "get_hf_model_api_models_huggingface__model_id__get",
+        "summary": "Get Hf Model",
+        "path_params": [
+          "model_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HFModelInfo"
       }
     ],
     "workflows": [
@@ -1198,262 +1442,6 @@
         "response_model": "CacheStatsResponse"
       }
     ],
-    "models": [
-      {
-        "method": "GET",
-        "path": "/models/huggingface/tasks",
-        "operation_id": "list_hf_tasks_api_models_huggingface_tasks_get",
-        "summary": "List Hf Tasks",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "[HFTaskCategory]"
-      },
-      {
-        "method": "GET",
-        "path": "/models/huggingface",
-        "operation_id": "search_hf_models_api_models_huggingface_get",
-        "summary": "Search Hf Models",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "task",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "search",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "sort",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "name": "offset",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "name": "library",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "request_model": null,
-        "response_model": "ModelSearchResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/models/huggingface/{model_id}",
-        "operation_id": "get_hf_model_api_models_huggingface__model_id__get",
-        "summary": "Get Hf Model",
-        "path_params": [
-          "model_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "HFModelInfo"
-      }
-    ],
-    "folders": [
-      {
-        "method": "GET",
-        "path": "/folders/{entity_type}/folders",
-        "operation_id": "list_folders_api_folders__entity_type__folders_get",
-        "summary": "List Folders",
-        "path_params": [
-          "entity_type"
-        ],
-        "query_params": [
-          {
-            "name": "parent_path",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "request_model": null,
-        "response_model": "[FolderInfo]"
-      },
-      {
-        "method": "POST",
-        "path": "/folders/{entity_type}/folders",
-        "operation_id": "create_folder_api_folders__entity_type__folders_post",
-        "summary": "Create Folder",
-        "path_params": [
-          "entity_type"
-        ],
-        "query_params": [
-          {
-            "name": "folder_path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "request_model": null,
-        "response_model": "FolderInfo"
-      },
-      {
-        "method": "PUT",
-        "path": "/folders/{entity_type}/folders",
-        "operation_id": "rename_folder_api_folders__entity_type__folders_put",
-        "summary": "Rename Folder",
-        "path_params": [
-          "entity_type"
-        ],
-        "query_params": [],
-        "request_model": "RenameFolderRequest",
-        "response_model": null
-      },
-      {
-        "method": "DELETE",
-        "path": "/folders/{entity_type}/folders",
-        "operation_id": "delete_folder_api_folders__entity_type__folders_delete",
-        "summary": "Delete Folder",
-        "path_params": [
-          "entity_type"
-        ],
-        "query_params": [
-          {
-            "name": "folder_path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "delete_contents",
-            "required": false,
-            "type": "boolean"
-          }
-        ],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "PUT",
-        "path": "/folders/{entity_type}/move",
-        "operation_id": "move_items_api_folders__entity_type__move_put",
-        "summary": "Move Items",
-        "path_params": [
-          "entity_type"
-        ],
-        "query_params": [],
-        "request_model": "MoveItemsRequest",
-        "response_model": null
-      }
-    ],
-    "mcp-servers": [
-      {
-        "method": "GET",
-        "path": "/mcp-servers",
-        "operation_id": "list_mcp_servers_api_mcp_servers_get",
-        "summary": "List Mcp Servers",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "[MCPServerResponse]"
-      },
-      {
-        "method": "POST",
-        "path": "/mcp-servers",
-        "operation_id": "create_mcp_server_api_mcp_servers_post",
-        "summary": "Create Mcp Server",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "CreateMCPServerRequest",
-        "response_model": "MCPServerResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/mcp-servers/tools/all",
-        "operation_id": "get_all_mcp_tools_api_mcp_servers_tools_all_get",
-        "summary": "Get All Mcp Tools",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "POST",
-        "path": "/mcp-servers/tools/load-into-workflow-registry",
-        "operation_id": "load_mcp_tools_into_workflow_registry_api_mcp_servers_tools_load_into_workflow_registry_post",
-        "summary": "Load Mcp Tools Into Workflow Registry",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "POST",
-        "path": "/mcp-servers/tools/reload-workflow-registry",
-        "operation_id": "reload_mcp_tools_in_workflow_registry_api_mcp_servers_tools_reload_workflow_registry_post",
-        "summary": "Reload Mcp Tools In Workflow Registry",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/mcp-servers/{server_id}",
-        "operation_id": "get_mcp_server_api_mcp_servers__server_id__get",
-        "summary": "Get Mcp Server",
-        "path_params": [
-          "server_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "MCPServerResponse"
-      },
-      {
-        "method": "PUT",
-        "path": "/mcp-servers/{server_id}",
-        "operation_id": "update_mcp_server_api_mcp_servers__server_id__put",
-        "summary": "Update Mcp Server",
-        "path_params": [
-          "server_id"
-        ],
-        "query_params": [],
-        "request_model": "UpdateMCPServerRequest",
-        "response_model": "MCPServerResponse"
-      },
-      {
-        "method": "DELETE",
-        "path": "/mcp-servers/{server_id}",
-        "operation_id": "delete_mcp_server_api_mcp_servers__server_id__delete",
-        "summary": "Delete Mcp Server",
-        "path_params": [
-          "server_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "POST",
-        "path": "/mcp-servers/{server_id}/load-tools",
-        "operation_id": "load_server_tools_api_mcp_servers__server_id__load_tools_post",
-        "summary": "Load Server Tools",
-        "path_params": [
-          "server_id"
-        ],
-        "query_params": [
-          {
-            "name": "force_reload",
-            "required": false,
-            "type": "boolean"
-          }
-        ],
-        "request_model": null,
-        "response_model": null
-      }
-    ],
     "batches": [
       {
         "method": "POST",
@@ -1772,424 +1760,90 @@
         "response_model": null
       }
     ],
-    "schedules": [
+    "chat": [
       {
         "method": "POST",
-        "path": "/schedules",
-        "operation_id": "create_schedule_api_schedules_post",
-        "summary": "Create Schedule",
+        "path": "/chat",
+        "operation_id": "chat_api_chat_post",
+        "summary": "Chat",
         "path_params": [],
         "query_params": [],
-        "request_model": "CreateScheduleRequest",
-        "response_model": "ScheduleResponse"
+        "request_model": "ChatRequest",
+        "response_model": "ChatResponse"
       },
       {
         "method": "GET",
-        "path": "/schedules",
-        "operation_id": "list_schedules_api_schedules_get",
-        "summary": "List Schedules",
+        "path": "/chat/conversations",
+        "operation_id": "list_conversations_api_chat_conversations_get",
+        "summary": "List Conversations",
         "path_params": [],
         "query_params": [
           {
-            "name": "status",
+            "name": "folder_path",
             "required": false,
             "type": "string"
-          },
-          {
-            "name": "workflow_id",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "name": "offset",
-            "required": false,
-            "type": "integer"
           }
         ],
         "request_model": null,
-        "response_model": "[ScheduleResponse]"
+        "response_model": null
       },
       {
         "method": "GET",
-        "path": "/schedules/{schedule_id}",
-        "operation_id": "get_schedule_api_schedules__schedule_id__get",
-        "summary": "Get Schedule",
+        "path": "/chat/conversations/{conversation_id}",
+        "operation_id": "get_conversation_api_chat_conversations__conversation_id__get",
+        "summary": "Get Conversation",
         "path_params": [
-          "schedule_id"
+          "conversation_id"
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "ScheduleResponse"
-      },
-      {
-        "method": "DELETE",
-        "path": "/schedules/{schedule_id}",
-        "operation_id": "delete_schedule_api_schedules__schedule_id__delete",
-        "summary": "Delete Schedule",
-        "path_params": [
-          "schedule_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
+        "response_model": "ConversationHistory"
       },
       {
         "method": "PUT",
-        "path": "/schedules/{schedule_id}",
-        "operation_id": "update_schedule_api_schedules__schedule_id__put",
-        "summary": "Update Schedule",
+        "path": "/chat/conversations/{conversation_id}",
+        "operation_id": "update_conversation_api_chat_conversations__conversation_id__put",
+        "summary": "Update Conversation",
         "path_params": [
-          "schedule_id"
+          "conversation_id"
         ],
         "query_params": [],
-        "request_model": "UpdateScheduleRequest",
-        "response_model": "ScheduleResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/schedules/{schedule_id}/pause",
-        "operation_id": "pause_schedule_api_schedules__schedule_id__pause_post",
-        "summary": "Pause Schedule",
-        "path_params": [
-          "schedule_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "ScheduleResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/schedules/{schedule_id}/resume",
-        "operation_id": "resume_schedule_api_schedules__schedule_id__resume_post",
-        "summary": "Resume Schedule",
-        "path_params": [
-          "schedule_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "ScheduleResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/schedules/{schedule_id}/trigger",
-        "operation_id": "trigger_schedule_api_schedules__schedule_id__trigger_post",
-        "summary": "Trigger Schedule",
-        "path_params": [
-          "schedule_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "ScheduleRunResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/schedules/{schedule_id}/runs",
-        "operation_id": "get_schedule_runs_api_schedules__schedule_id__runs_get",
-        "summary": "Get Schedule Runs",
-        "path_params": [
-          "schedule_id"
-        ],
-        "query_params": [
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "[ScheduleRunResponse]"
-      }
-    ],
-    "triggers": [
-      {
-        "method": "POST",
-        "path": "/triggers",
-        "operation_id": "create_trigger_api_triggers_post",
-        "summary": "Create Trigger",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "CreateTriggerRequest",
-        "response_model": "TriggerResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/triggers",
-        "operation_id": "list_triggers_api_triggers_get",
-        "summary": "List Triggers",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "status",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "workflow_id",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "name": "offset",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "[TriggerResponse]"
-      },
-      {
-        "method": "GET",
-        "path": "/triggers/{trigger_id}",
-        "operation_id": "get_trigger_api_triggers__trigger_id__get",
-        "summary": "Get Trigger",
-        "path_params": [
-          "trigger_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "TriggerResponse"
+        "request_model": "ConversationUpdate",
+        "response_model": "ConversationHistory"
       },
       {
         "method": "DELETE",
-        "path": "/triggers/{trigger_id}",
-        "operation_id": "delete_trigger_api_triggers__trigger_id__delete",
-        "summary": "Delete Trigger",
+        "path": "/chat/conversations/{conversation_id}",
+        "operation_id": "delete_conversation_api_chat_conversations__conversation_id__delete",
+        "summary": "Delete Conversation",
         "path_params": [
-          "trigger_id"
+          "conversation_id"
         ],
         "query_params": [],
         "request_model": null,
         "response_model": null
       },
       {
-        "method": "PUT",
-        "path": "/triggers/{trigger_id}",
-        "operation_id": "update_trigger_api_triggers__trigger_id__put",
-        "summary": "Update Trigger",
-        "path_params": [
-          "trigger_id"
-        ],
-        "query_params": [],
-        "request_model": "UpdateTriggerRequest",
-        "response_model": "TriggerResponse"
-      },
-      {
         "method": "POST",
-        "path": "/triggers/{trigger_id}/pause",
-        "operation_id": "pause_trigger_api_triggers__trigger_id__pause_post",
-        "summary": "Pause Trigger",
+        "path": "/chat/conversations/{conversation_id}/duplicate",
+        "operation_id": "duplicate_conversation_api_chat_conversations__conversation_id__duplicate_post",
+        "summary": "Duplicate Conversation",
         "path_params": [
-          "trigger_id"
+          "conversation_id"
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "TriggerResponse"
+        "response_model": null
       },
       {
         "method": "POST",
-        "path": "/triggers/{trigger_id}/resume",
-        "operation_id": "resume_trigger_api_triggers__trigger_id__resume_post",
-        "summary": "Resume Trigger",
-        "path_params": [
-          "trigger_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "TriggerResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/triggers/{trigger_id}/executions",
-        "operation_id": "get_trigger_executions_api_triggers__trigger_id__executions_get",
-        "summary": "Get Trigger Executions",
-        "path_params": [
-          "trigger_id"
-        ],
+        "path": "/chat/conversations/reorder",
+        "operation_id": "reorder_conversations_api_chat_conversations_reorder_post",
+        "summary": "Reorder Conversations",
+        "path_params": [],
         "query_params": [
           {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "[TriggerExecutionResponse]"
-      }
-    ],
-    "integrations": [
-      {
-        "method": "GET",
-        "path": "/integrations",
-        "operation_id": "list_integrations_api_integrations_get",
-        "summary": "List Integrations",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "[IntegrationInfo]"
-      },
-      {
-        "method": "GET",
-        "path": "/integrations/available",
-        "operation_id": "list_available_integrations_api_integrations_available_get",
-        "summary": "List Available Integrations",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "[IntegrationInfo]"
-      },
-      {
-        "method": "GET",
-        "path": "/integrations/{app_name}",
-        "operation_id": "get_integration_api_integrations__app_name__get",
-        "summary": "Get Integration",
-        "path_params": [
-          "app_name"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "IntegrationInfo"
-      },
-      {
-        "method": "POST",
-        "path": "/integrations/{app_name}/refresh",
-        "operation_id": "refresh_integration_api_integrations__app_name__refresh_post",
-        "summary": "Refresh Integration",
-        "path_params": [
-          "app_name"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "IntegrationInfo"
-      },
-      {
-        "method": "GET",
-        "path": "/integrations/{app_name}/items",
-        "operation_id": "list_items_api_integrations__app_name__items_get",
-        "summary": "List Items",
-        "path_params": [
-          "app_name"
-        ],
-        "query_params": [
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "name": "search",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "item_type",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "database",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "container",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "request_model": null,
-        "response_model": "[IntegrationItem]"
-      },
-      {
-        "method": "GET",
-        "path": "/integrations/{app_name}/items/{external_id}",
-        "operation_id": "get_item_api_integrations__app_name__items__external_id__get",
-        "summary": "Get Item",
-        "path_params": [
-          "app_name",
-          "external_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "IntegrationItem"
-      },
-      {
-        "method": "POST",
-        "path": "/integrations/{app_name}/import",
-        "operation_id": "import_item_api_integrations__app_name__import_post",
-        "summary": "Import Item",
-        "path_params": [
-          "app_name"
-        ],
-        "query_params": [],
-        "request_model": "ImportRequest",
-        "response_model": "ImportResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/integrations/{app_name}/export",
-        "operation_id": "export_item_api_integrations__app_name__export_post",
-        "summary": "Export Item",
-        "path_params": [
-          "app_name"
-        ],
-        "query_params": [],
-        "request_model": "ExportRequest",
-        "response_model": "ExportResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/integrations/{app_name}/open/{external_id}",
-        "operation_id": "open_item_api_integrations__app_name__open__external_id__post",
-        "summary": "Open Item",
-        "path_params": [
-          "app_name",
-          "external_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/integrations/devonthink/databases",
-        "operation_id": "list_devonthink_databases_api_integrations_devonthink_databases_get",
-        "summary": "List Devonthink Databases",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/integrations/bookends/libraries",
-        "operation_id": "list_bookends_libraries_api_integrations_bookends_libraries_get",
-        "summary": "List Bookends Libraries",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/integrations/bookends/citation/{external_id}",
-        "operation_id": "get_bookends_citation_api_integrations_bookends_citation__external_id__get",
-        "summary": "Get Bookends Citation",
-        "path_params": [
-          "external_id"
-        ],
-        "query_params": [
-          {
-            "name": "style",
+            "name": "folder_path",
             "required": false,
             "type": "string"
           }
@@ -2199,570 +1853,23 @@
       },
       {
         "method": "GET",
-        "path": "/integrations/tinderbox/documents",
-        "operation_id": "list_tinderbox_documents_api_integrations_tinderbox_documents_get",
-        "summary": "List Tinderbox Documents",
+        "path": "/chat/providers",
+        "operation_id": "list_providers_api_chat_providers_get",
+        "summary": "List Providers",
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "[ProviderInfo]"
       },
       {
         "method": "POST",
-        "path": "/integrations/tinderbox/notes",
-        "operation_id": "create_tinderbox_note_api_integrations_tinderbox_notes_post",
-        "summary": "Create Tinderbox Note",
+        "path": "/chat/extract-text",
+        "operation_id": "extract_text_api_chat_extract_text_post",
+        "summary": "Extract Text",
         "path_params": [],
         "query_params": [],
-        "request_model": "CreateNoteRequest",
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/integrations/tinderbox/notes/{external_id}/attributes",
-        "operation_id": "get_tinderbox_attributes_api_integrations_tinderbox_notes__external_id__attributes_get",
-        "summary": "Get Tinderbox Attributes",
-        "path_params": [
-          "external_id"
-        ],
-        "query_params": [
-          {
-            "name": "attributes",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "PUT",
-        "path": "/integrations/tinderbox/notes/{external_id}/attributes",
-        "operation_id": "set_tinderbox_attributes_api_integrations_tinderbox_notes__external_id__attributes_put",
-        "summary": "Set Tinderbox Attributes",
-        "path_params": [
-          "external_id"
-        ],
-        "query_params": [],
-        "request_model": "SetAttributesRequest",
-        "response_model": null
-      }
-    ],
-    "actions": [
-      {
-        "method": "GET",
-        "path": "/actions",
-        "operation_id": "list_actions_api_actions_get",
-        "summary": "List Actions",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "[ActionResponse]"
-      },
-      {
-        "method": "POST",
-        "path": "/actions",
-        "operation_id": "create_action_api_actions_post",
-        "summary": "Create Action",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "CreateActionRequest",
-        "response_model": "ActionResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/actions/builtin",
-        "operation_id": "list_builtin_actions_api_actions_builtin_get",
-        "summary": "List Builtin Actions",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "[ActionResponse]"
-      },
-      {
-        "method": "GET",
-        "path": "/actions/custom",
-        "operation_id": "list_custom_actions_api_actions_custom_get",
-        "summary": "List Custom Actions",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "[ActionResponse]"
-      },
-      {
-        "method": "GET",
-        "path": "/actions/recent",
-        "operation_id": "list_recent_actions_api_actions_recent_get",
-        "summary": "List Recent Actions",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "[ActionResponse]"
-      },
-      {
-        "method": "GET",
-        "path": "/actions/popular",
-        "operation_id": "list_popular_actions_api_actions_popular_get",
-        "summary": "List Popular Actions",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "[ActionResponse]"
-      },
-      {
-        "method": "GET",
-        "path": "/actions/categories",
-        "operation_id": "list_categories_api_actions_categories_get",
-        "summary": "List Categories",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/actions/category/{category}",
-        "operation_id": "list_actions_by_category_api_actions_category__category__get",
-        "summary": "List Actions By Category",
-        "path_params": [
-          "category"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "[ActionResponse]"
-      },
-      {
-        "method": "GET",
-        "path": "/actions/search",
-        "operation_id": "search_actions_api_actions_search_get",
-        "summary": "Search Actions",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "category",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "tags",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "request_model": null,
-        "response_model": "[ActionResponse]"
-      },
-      {
-        "method": "GET",
-        "path": "/actions/{action_id}",
-        "operation_id": "get_action_api_actions__action_id__get",
-        "summary": "Get Action",
-        "path_params": [
-          "action_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "ActionResponse"
-      },
-      {
-        "method": "PUT",
-        "path": "/actions/{action_id}",
-        "operation_id": "update_action_api_actions__action_id__put",
-        "summary": "Update Action",
-        "path_params": [
-          "action_id"
-        ],
-        "query_params": [],
-        "request_model": "UpdateActionRequest",
-        "response_model": "ActionResponse"
-      },
-      {
-        "method": "DELETE",
-        "path": "/actions/{action_id}",
-        "operation_id": "delete_action_api_actions__action_id__delete",
-        "summary": "Delete Action",
-        "path_params": [
-          "action_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "POST",
-        "path": "/actions/{action_id}/use",
-        "operation_id": "record_action_use_api_actions__action_id__use_post",
-        "summary": "Record Action Use",
-        "path_params": [
-          "action_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/actions/{action_id}/export",
-        "operation_id": "export_action_api_actions__action_id__export_get",
-        "summary": "Export Action",
-        "path_params": [
-          "action_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "POST",
-        "path": "/actions/import",
-        "operation_id": "import_action_api_actions_import_post",
-        "summary": "Import Action",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "ImportActionRequest",
-        "response_model": "ActionResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/actions/from-node",
-        "operation_id": "create_action_from_node_api_actions_from_node_post",
-        "summary": "Create Action From Node",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "CreateFromNodeRequest",
-        "response_model": "ActionResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/actions/composite",
-        "operation_id": "create_composite_action_api_actions_composite_post",
-        "summary": "Create Composite Action",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "CreateCompositeRequest",
-        "response_model": "ActionResponse"
-      }
-    ],
-    "model-comparison": [
-      {
-        "method": "POST",
-        "path": "/model-comparison/compare",
-        "operation_id": "compare_models_api_model_comparison_compare_post",
-        "summary": "Compare Models",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "CompareRequest",
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/model-comparison/history",
-        "operation_id": "get_comparison_history_api_model_comparison_history_get",
-        "summary": "Get Comparison History",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/model-comparison/comparison/{comparison_id}",
-        "operation_id": "get_comparison_api_model_comparison_comparison__comparison_id__get",
-        "summary": "Get Comparison",
-        "path_params": [
-          "comparison_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/model-comparison/models",
-        "operation_id": "list_available_models_api_model_comparison_models_get",
-        "summary": "List Available Models",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "POST",
-        "path": "/model-comparison/estimate-cost",
-        "operation_id": "estimate_comparison_cost_api_model_comparison_estimate_cost_post",
-        "summary": "Estimate Comparison Cost",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "CompareRequest",
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/model-comparison/presets",
-        "operation_id": "get_comparison_presets_api_model_comparison_presets_get",
-        "summary": "Get Comparison Presets",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/model-comparison/models-by-tier",
-        "operation_id": "get_models_grouped_by_tier_api_model_comparison_models_by_tier_get",
-        "summary": "Get Models Grouped By Tier",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "POST",
-        "path": "/model-comparison/compare-vision",
-        "operation_id": "compare_vision_models_api_model_comparison_compare_vision_post",
-        "summary": "Compare Vision Models",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "VisionCompareRequest",
-        "response_model": null
-      },
-      {
-        "method": "POST",
-        "path": "/model-comparison/compare-tool",
-        "operation_id": "compare_tool_across_models_api_model_comparison_compare_tool_post",
-        "summary": "Compare Tool Across Models",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "ToolCompareRequest",
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/model-comparison/tools",
-        "operation_id": "list_available_tools_api_model_comparison_tools_get",
-        "summary": "List Available Tools",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      }
-    ],
-    "chains": [
-      {
-        "method": "POST",
-        "path": "/chains",
-        "operation_id": "create_chain_api_chains_post",
-        "summary": "Create Chain",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "CreateChainRequest",
-        "response_model": "ChainResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/chains",
-        "operation_id": "list_chains_api_chains_get",
-        "summary": "List Chains",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "name": "offset",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "ChainListResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/chains/{chain_id}",
-        "operation_id": "get_chain_api_chains__chain_id__get",
-        "summary": "Get Chain",
-        "path_params": [
-          "chain_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "ChainResponse"
-      },
-      {
-        "method": "PUT",
-        "path": "/chains/{chain_id}",
-        "operation_id": "update_chain_api_chains__chain_id__put",
-        "summary": "Update Chain",
-        "path_params": [
-          "chain_id"
-        ],
-        "query_params": [],
-        "request_model": "UpdateChainRequest",
-        "response_model": "ChainResponse"
-      },
-      {
-        "method": "DELETE",
-        "path": "/chains/{chain_id}",
-        "operation_id": "delete_chain_api_chains__chain_id__delete",
-        "summary": "Delete Chain",
-        "path_params": [
-          "chain_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "POST",
-        "path": "/chains/{chain_id}/execute",
-        "operation_id": "execute_chain_api_chains__chain_id__execute_post",
-        "summary": "Execute Chain",
-        "path_params": [
-          "chain_id"
-        ],
-        "query_params": [],
-        "request_model": "ExecuteChainRequest",
-        "response_model": "ChainExecutionResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/chains/executions/{execution_id}",
-        "operation_id": "get_chain_execution_api_chains_executions__execution_id__get",
-        "summary": "Get Chain Execution",
-        "path_params": [
-          "execution_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "DELETE",
-        "path": "/chains/executions/{execution_id}",
-        "operation_id": "cancel_chain_execution_api_chains_executions__execution_id__delete",
-        "summary": "Cancel Chain Execution",
-        "path_params": [
-          "execution_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      }
-    ],
-    "artifacts": [
-      {
-        "method": "GET",
-        "path": "/artifacts/document/{doc_id}",
-        "operation_id": "list_document_artifacts_api_artifacts_document__doc_id__get",
-        "summary": "List Document Artifacts",
-        "path_params": [
-          "doc_id"
-        ],
-        "query_params": [
-          {
-            "name": "artifact_type",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "name": "offset",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "ArtifactListResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/artifacts/{artifact_id}",
-        "operation_id": "get_artifact_api_artifacts__artifact_id__get",
-        "summary": "Get Artifact",
-        "path_params": [
-          "artifact_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "ArtifactResponse"
-      },
-      {
-        "method": "DELETE",
-        "path": "/artifacts/{artifact_id}",
-        "operation_id": "delete_artifact_api_artifacts__artifact_id__delete",
-        "summary": "Delete Artifact",
-        "path_params": [
-          "artifact_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/artifacts/",
-        "operation_id": "list_all_artifacts_api_artifacts__get",
-        "summary": "List All Artifacts",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "artifact_type",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "name": "offset",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "ArtifactListResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/artifacts/types",
-        "operation_id": "list_artifact_types_api_artifacts_types_get",
-        "summary": "List Artifact Types",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
+        "request_model": "ExtractTextRequest",
+        "response_model": "ExtractTextResponse"
       }
     ],
     "settings": [
@@ -2797,16 +1904,527 @@
         "response_model": null
       }
     ],
-    "local-models": [
+    "knowledge-graph": [
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/knowledge-mutations/undo",
+        "operation_id": "undo_mutations_api_knowledge_graph_knowledge_mutations_undo_post",
+        "summary": "Undo Mutations",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "UndoRequest",
+        "response_model": "[MutationLogResponse]"
+      },
       {
         "method": "GET",
-        "path": "/local-models",
-        "operation_id": "list_local_models_api_local_models_get",
-        "summary": "List Local Models",
+        "path": "/knowledge-graph/knowledge-mutations",
+        "operation_id": "list_mutations_api_knowledge_graph_knowledge_mutations_get",
+        "summary": "List Mutations",
         "path_params": [],
         "query_params": [
           {
-            "name": "model_type",
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "entity_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "run_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "created_by",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[MutationLogResponse]"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/entities",
+        "operation_id": "upsert_entity_api_knowledge_graph_entities_post",
+        "summary": "Upsert Entity",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EntityUpsertRequest",
+        "response_model": "KnowledgeEntity"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/entities",
+        "operation_id": "list_entities_api_knowledge_graph_entities_get",
+        "summary": "List Entities",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[KnowledgeEntity]"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/entities/{entity_id}/aliases",
+        "operation_id": "add_entity_aliases_api_knowledge_graph_entities__entity_id__aliases_post",
+        "summary": "Add Entity Aliases",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [],
+        "request_model": "EntityAliasRequest",
+        "response_model": "KnowledgeEntity"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/entities/merge",
+        "operation_id": "merge_entities_api_knowledge_graph_entities_merge_post",
+        "summary": "Merge Entities",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EntityMergeRequest",
+        "response_model": "EntityAuditResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/entities/split",
+        "operation_id": "split_entity_api_knowledge_graph_entities_split_post",
+        "summary": "Split Entity",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EntitySplitRequest",
+        "response_model": "EntityAuditResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/entities/audit/{audit_id}/undo",
+        "operation_id": "undo_entity_operation_api_knowledge_graph_entities_audit__audit_id__undo_post",
+        "summary": "Undo Entity Operation",
+        "path_params": [
+          "audit_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EntityAuditResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/entities/audit",
+        "operation_id": "list_entity_audits_api_knowledge_graph_entities_audit_get",
+        "summary": "List Entity Audits",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "entity_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[EntityAuditResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/entities/alias-map",
+        "operation_id": "get_entity_alias_map_api_knowledge_graph_entities_alias_map_get",
+        "summary": "Get Entity Alias Map",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EntityAliasMapResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/entities/resolve/{value}",
+        "operation_id": "resolve_entity_api_knowledge_graph_entities_resolve__value__get",
+        "summary": "Resolve Entity",
+        "path_params": [
+          "value"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EntityResolutionResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/claims",
+        "operation_id": "create_claim_api_knowledge_graph_claims_post",
+        "summary": "Create Claim",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "run_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "agent_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": "ClaimCreateRequest",
+        "response_model": "KnowledgeClaim"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/claims",
+        "operation_id": "list_claims_api_knowledge_graph_claims_get",
+        "summary": "List Claims",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "entity_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "entity",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "curation_state",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "curated_only",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "claim_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "epistemic_status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "source_document_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "source_language",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "source_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "scope_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "target_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "included_only",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[KnowledgeClaim]"
+      },
+      {
+        "method": "PATCH",
+        "path": "/knowledge-graph/claims/{claim_id}",
+        "operation_id": "patch_claim_api_knowledge_graph_claims__claim_id__patch",
+        "summary": "Patch Claim",
+        "path_params": [
+          "claim_id"
+        ],
+        "query_params": [
+          {
+            "name": "run_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "agent_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": "ClaimPatchRequest",
+        "response_model": "KnowledgeClaim"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/claims/{claim_id}",
+        "operation_id": "get_claim_api_knowledge_graph_claims__claim_id__get",
+        "summary": "Get Claim",
+        "path_params": [
+          "claim_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "KnowledgeClaim"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/claims/filtered",
+        "operation_id": "list_claims_filtered_api_knowledge_graph_claims_filtered_get",
+        "summary": "List Claims Filtered",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "claim_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "curation_state",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "epistemic_status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "entity_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "source_language",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "source_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "scope_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "target_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "included_only",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "curated_only",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[KnowledgeClaim]"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/claims/semantic/embed",
+        "operation_id": "embed_claims_api_knowledge_graph_claims_semantic_embed_post",
+        "summary": "Embed Claims",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "_EmbedClaimRequest",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/claims/semantic",
+        "operation_id": "search_claims_semantic_api_knowledge_graph_claims_semantic_get",
+        "summary": "Search Claims Semantic",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "claim_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "curation_state",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/claims/{claim_id}/similar",
+        "operation_id": "find_similar_claims_api_knowledge_graph_claims__claim_id__similar_get",
+        "summary": "Find Similar Claims",
+        "path_params": [
+          "claim_id"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/claims/{claim_id}/links",
+        "operation_id": "create_claim_link_api_knowledge_graph_claims__claim_id__links_post",
+        "summary": "Create Claim Link",
+        "path_params": [
+          "claim_id"
+        ],
+        "query_params": [],
+        "request_model": "ClaimLinkCreateRequest",
+        "response_model": "KnowledgeClaimLink"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/claims/{claim_id}/links",
+        "operation_id": "list_claim_links_api_knowledge_graph_claims__claim_id__links_get",
+        "summary": "List Claim Links",
+        "path_params": [
+          "claim_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[KnowledgeClaimLink]"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/inclusion",
+        "operation_id": "upsert_inclusion_api_knowledge_graph_inclusion_post",
+        "summary": "Upsert Inclusion",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "InclusionUpsertRequest",
+        "response_model": "KnowledgeGraphInclusion"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/inclusion",
+        "operation_id": "list_inclusion_api_knowledge_graph_inclusion_get",
+        "summary": "List Inclusion",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "scope_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "target_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[KnowledgeGraphInclusion]"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/overview",
+        "operation_id": "overview_api_knowledge_graph_overview_get",
+        "summary": "Overview",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "scope_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "target_id",
             "required": false,
             "type": "string"
           }
@@ -2815,40 +2433,1159 @@
         "response_model": null
       },
       {
-        "method": "GET",
-        "path": "/local-models/disk-usage",
-        "operation_id": "disk_usage_api_local_models_disk_usage_get",
-        "summary": "Disk Usage",
+        "method": "POST",
+        "path": "/knowledge-graph/entities/semantic/embed",
+        "operation_id": "embed_entities_api_knowledge_graph_entities_semantic_embed_post",
+        "summary": "Embed Entities",
         "path_params": [],
+        "query_params": [],
+        "request_model": "_EmbedEntityRequest",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/entities/semantic",
+        "operation_id": "search_entities_semantic_api_knowledge_graph_entities_semantic_get",
+        "summary": "Search Entities Semantic",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/predictions/generate/pykeen",
+        "operation_id": "generate_pykeen_predictions_api_knowledge_graph_predictions_generate_pykeen_post",
+        "summary": "Generate Pykeen Predictions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "PredictionGeneratePyKEENRequest",
+        "response_model": "KnowledgePredictionRun"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/predictions/generate/heuristic",
+        "operation_id": "generate_heuristic_predictions_api_knowledge_graph_predictions_generate_heuristic_post",
+        "summary": "Generate Heuristic Predictions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "PredictionGenerateHeuristicRequest",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/predictions",
+        "operation_id": "list_predictions_api_knowledge_graph_predictions_get",
+        "summary": "List Predictions",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[KnowledgePredictionRun]"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/predictions/{run_id}/apply",
+        "operation_id": "apply_prediction_api_knowledge_graph_predictions__run_id__apply_post",
+        "summary": "Apply Prediction",
+        "path_params": [
+          "run_id"
+        ],
+        "query_params": [
+          {
+            "name": "min_confidence",
+            "required": false,
+            "type": "number"
+          },
+          {
+            "name": "max_links",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
+    "hermeneutics": [
+      {
+        "method": "POST",
+        "path": "/hermeneutics/frameworks",
+        "operation_id": "create_framework_api_hermeneutics_frameworks_post",
+        "summary": "Create Framework",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "FrameworkCreateRequest",
+        "response_model": "InterpretiveFramework"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/frameworks",
+        "operation_id": "list_frameworks_api_hermeneutics_frameworks_get",
+        "summary": "List Frameworks",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "framework_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "is_active",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[InterpretiveFramework]"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/frameworks/{framework_id}",
+        "operation_id": "get_framework_api_hermeneutics_frameworks__framework_id__get",
+        "summary": "Get Framework",
+        "path_params": [
+          "framework_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "InterpretiveFramework"
+      },
+      {
+        "method": "PATCH",
+        "path": "/hermeneutics/frameworks/{framework_id}",
+        "operation_id": "update_framework_api_hermeneutics_frameworks__framework_id__patch",
+        "summary": "Update Framework",
+        "path_params": [
+          "framework_id"
+        ],
+        "query_params": [],
+        "request_model": "FrameworkUpdateRequest",
+        "response_model": "InterpretiveFramework"
+      },
+      {
+        "method": "DELETE",
+        "path": "/hermeneutics/frameworks/{framework_id}",
+        "operation_id": "delete_framework_api_hermeneutics_frameworks__framework_id__delete",
+        "summary": "Delete Framework",
+        "path_params": [
+          "framework_id"
+        ],
         "query_params": [],
         "request_model": null,
         "response_model": null
       },
       {
         "method": "POST",
-        "path": "/local-models/download/{model_type}/{model_id}",
-        "operation_id": "download_model_api_local_models_download__model_type___model_id__post",
-        "summary": "Download Model",
+        "path": "/hermeneutics/interpretations",
+        "operation_id": "create_interpretation_api_hermeneutics_interpretations_post",
+        "summary": "Create Interpretation",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "InterpretationCreateRequest",
+        "response_model": "Interpretation"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/interpretations",
+        "operation_id": "list_interpretations_api_hermeneutics_interpretations_get",
+        "summary": "List Interpretations",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "framework_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "claim_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "document_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "act",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[Interpretation]"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/interpretations/{interpretation_id}",
+        "operation_id": "get_interpretation_api_hermeneutics_interpretations__interpretation_id__get",
+        "summary": "Get Interpretation",
         "path_params": [
-          "model_type",
-          "model_id"
+          "interpretation_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "Interpretation"
+      },
+      {
+        "method": "PATCH",
+        "path": "/hermeneutics/interpretations/{interpretation_id}",
+        "operation_id": "update_interpretation_api_hermeneutics_interpretations__interpretation_id__patch",
+        "summary": "Update Interpretation",
+        "path_params": [
+          "interpretation_id"
+        ],
+        "query_params": [],
+        "request_model": "InterpretationUpdateRequest",
+        "response_model": "Interpretation"
+      },
+      {
+        "method": "POST",
+        "path": "/hermeneutics/patterns",
+        "operation_id": "create_pattern_api_hermeneutics_patterns_post",
+        "summary": "Create Pattern",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "PatternCreateRequest",
+        "response_model": "PatternInstance"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/patterns",
+        "operation_id": "list_patterns_api_hermeneutics_patterns_get",
+        "summary": "List Patterns",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "pattern_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "framework_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[PatternInstance]"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/patterns/{pattern_id}",
+        "operation_id": "get_pattern_api_hermeneutics_patterns__pattern_id__get",
+        "summary": "Get Pattern",
+        "path_params": [
+          "pattern_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PatternInstance"
+      },
+      {
+        "method": "PATCH",
+        "path": "/hermeneutics/patterns/{pattern_id}",
+        "operation_id": "update_pattern_api_hermeneutics_patterns__pattern_id__patch",
+        "summary": "Update Pattern",
+        "path_params": [
+          "pattern_id"
+        ],
+        "query_params": [],
+        "request_model": "PatternUpdateRequest",
+        "response_model": "PatternInstance"
+      },
+      {
+        "method": "POST",
+        "path": "/hermeneutics/patterns/{pattern_id}/claims/{claim_id}",
+        "operation_id": "add_claim_to_pattern_api_hermeneutics_patterns__pattern_id__claims__claim_id__post",
+        "summary": "Add Claim To Pattern",
+        "path_params": [
+          "pattern_id",
+          "claim_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PatternInstance"
+      },
+      {
+        "method": "POST",
+        "path": "/hermeneutics/circle-state",
+        "operation_id": "create_circle_state_api_hermeneutics_circle_state_post",
+        "summary": "Create Circle State",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CircleStateCreateRequest",
+        "response_model": "HermeneuticCircleState"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/circle-state",
+        "operation_id": "list_circle_states_api_hermeneutics_circle_state_get",
+        "summary": "List Circle States",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "claim_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[HermeneuticCircleState]"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/circle-state/{state_id}",
+        "operation_id": "get_circle_state_api_hermeneutics_circle_state__state_id__get",
+        "summary": "Get Circle State",
+        "path_params": [
+          "state_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HermeneuticCircleState"
+      },
+      {
+        "method": "POST",
+        "path": "/hermeneutics/circle-state/{state_id}/navigate",
+        "operation_id": "navigate_circle_api_hermeneutics_circle_state__state_id__navigate_post",
+        "summary": "Navigate Circle",
+        "path_params": [
+          "state_id"
+        ],
+        "query_params": [],
+        "request_model": "CircleStateNavigateRequest",
+        "response_model": "HermeneuticCircleState"
+      },
+      {
+        "method": "POST",
+        "path": "/hermeneutics/circle-state/{state_id}/backtrack",
+        "operation_id": "backtrack_circle_api_hermeneutics_circle_state__state_id__backtrack_post",
+        "summary": "Backtrack Circle",
+        "path_params": [
+          "state_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HermeneuticCircleState"
+      },
+      {
+        "method": "POST",
+        "path": "/hermeneutics/suggestions",
+        "operation_id": "suggest_interpretations_api_hermeneutics_suggestions_post",
+        "summary": "Suggest Interpretations",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "HermesSuggestionRequest",
+        "response_model": "[HermesSuggestion]"
+      }
+    ],
+    "mind-palace": [
+      {
+        "method": "POST",
+        "path": "/mind-palace/rooms",
+        "operation_id": "create_room_api_mind_palace_rooms_post",
+        "summary": "Create Room",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "RoomCreateRequest",
+        "response_model": "SpatialRoom"
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/rooms",
+        "operation_id": "list_rooms_api_mind_palace_rooms_get",
+        "summary": "List Rooms",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "room_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "owner_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[SpatialRoom]"
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/rooms/{room_id}",
+        "operation_id": "get_room_api_mind_palace_rooms__room_id__get",
+        "summary": "Get Room",
+        "path_params": [
+          "room_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SpatialRoom"
+      },
+      {
+        "method": "PATCH",
+        "path": "/mind-palace/rooms/{room_id}",
+        "operation_id": "update_room_api_mind_palace_rooms__room_id__patch",
+        "summary": "Update Room",
+        "path_params": [
+          "room_id"
+        ],
+        "query_params": [],
+        "request_model": "RoomUpdateRequest",
+        "response_model": "SpatialRoom"
+      },
+      {
+        "method": "DELETE",
+        "path": "/mind-palace/rooms/{room_id}",
+        "operation_id": "delete_room_api_mind_palace_rooms__room_id__delete",
+        "summary": "Delete Room",
+        "path_params": [
+          "room_id"
         ],
         "query_params": [],
         "request_model": null,
         "response_model": null
       },
       {
-        "method": "DELETE",
-        "path": "/local-models/{model_type}/{model_id}",
-        "operation_id": "delete_model_api_local_models__model_type___model_id__delete",
-        "summary": "Delete Model",
+        "method": "GET",
+        "path": "/mind-palace/rooms/{room_id}/scene",
+        "operation_id": "get_scene_summary_api_mind_palace_rooms__room_id__scene_get",
+        "summary": "Get Scene Summary",
         "path_params": [
-          "model_type",
-          "model_id"
+          "room_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RoomSceneSummary"
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/nodes",
+        "operation_id": "place_node_api_mind_palace_nodes_post",
+        "summary": "Place Node",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "NodeCreateRequest",
+        "response_model": "SpatialNode"
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/nodes",
+        "operation_id": "list_nodes_api_mind_palace_nodes_get",
+        "summary": "List Nodes",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "room_id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "node_type",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[SpatialNode]"
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/nodes/{node_id}",
+        "operation_id": "get_node_api_mind_palace_nodes__node_id__get",
+        "summary": "Get Node",
+        "path_params": [
+          "node_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SpatialNode"
+      },
+      {
+        "method": "PATCH",
+        "path": "/mind-palace/nodes/{node_id}",
+        "operation_id": "move_node_api_mind_palace_nodes__node_id__patch",
+        "summary": "Move Node",
+        "path_params": [
+          "node_id"
+        ],
+        "query_params": [],
+        "request_model": "NodeMoveRequest",
+        "response_model": "SpatialNode"
+      },
+      {
+        "method": "DELETE",
+        "path": "/mind-palace/nodes/{node_id}",
+        "operation_id": "remove_node_api_mind_palace_nodes__node_id__delete",
+        "summary": "Remove Node",
+        "path_params": [
+          "node_id"
         ],
         "query_params": [],
         "request_model": null,
         "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/connections",
+        "operation_id": "create_connection_api_mind_palace_connections_post",
+        "summary": "Create Connection",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ConnectionCreateRequest",
+        "response_model": "SpatialConnection"
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/connections",
+        "operation_id": "list_connections_api_mind_palace_connections_get",
+        "summary": "List Connections",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "room_id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "connection_type",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[SpatialConnection]"
+      },
+      {
+        "method": "DELETE",
+        "path": "/mind-palace/connections/{connection_id}",
+        "operation_id": "remove_connection_api_mind_palace_connections__connection_id__delete",
+        "summary": "Remove Connection",
+        "path_params": [
+          "connection_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/stacks",
+        "operation_id": "create_stack_api_mind_palace_stacks_post",
+        "summary": "Create Stack",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "StackCreateRequest",
+        "response_model": "SpatialStack"
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/stacks",
+        "operation_id": "list_stacks_api_mind_palace_stacks_get",
+        "summary": "List Stacks",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "room_id",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[SpatialStack]"
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/stacks/{stack_id}",
+        "operation_id": "get_stack_api_mind_palace_stacks__stack_id__get",
+        "summary": "Get Stack",
+        "path_params": [
+          "stack_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SpatialStack"
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/stacks/{stack_id}/nodes/{node_id}",
+        "operation_id": "add_to_stack_api_mind_palace_stacks__stack_id__nodes__node_id__post",
+        "summary": "Add To Stack",
+        "path_params": [
+          "stack_id",
+          "node_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SpatialStack"
+      },
+      {
+        "method": "DELETE",
+        "path": "/mind-palace/stacks/{stack_id}/nodes/{node_id}",
+        "operation_id": "remove_from_stack_api_mind_palace_stacks__stack_id__nodes__node_id__delete",
+        "summary": "Remove From Stack",
+        "path_params": [
+          "stack_id",
+          "node_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SpatialStack"
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/notes",
+        "operation_id": "create_note_api_mind_palace_notes_post",
+        "summary": "Create Note",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "fichero__api__routes__mind_palace__NoteCreateRequest",
+        "response_model": "NativeNote"
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/notes",
+        "operation_id": "list_notes_api_mind_palace_notes_get",
+        "summary": "List Notes",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "room_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "note_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "author_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[NativeNote]"
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/notes/{note_id}",
+        "operation_id": "get_note_api_mind_palace_notes__note_id__get",
+        "summary": "Get Note",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "NativeNote"
+      },
+      {
+        "method": "PATCH",
+        "path": "/mind-palace/notes/{note_id}",
+        "operation_id": "update_note_api_mind_palace_notes__note_id__patch",
+        "summary": "Update Note",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": "fichero__api__routes__mind_palace__NoteUpdateRequest",
+        "response_model": "NativeNote"
+      },
+      {
+        "method": "DELETE",
+        "path": "/mind-palace/notes/{note_id}",
+        "operation_id": "delete_note_api_mind_palace_notes__note_id__delete",
+        "summary": "Delete Note",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/mind-palace/rooms/{room_id}/viewport/{user_id}",
+        "operation_id": "get_viewport_api_mind_palace_rooms__room_id__viewport__user_id__get",
+        "summary": "Get Viewport",
+        "path_params": [
+          "room_id",
+          "user_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SpatialViewport"
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/rooms/{room_id}/viewport/{user_id}",
+        "operation_id": "save_viewport_api_mind_palace_rooms__room_id__viewport__user_id__post",
+        "summary": "Save Viewport",
+        "path_params": [
+          "room_id",
+          "user_id"
+        ],
+        "query_params": [],
+        "request_model": "ViewportSaveRequest",
+        "response_model": "SpatialViewport"
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/rooms/{room_id}/focus",
+        "operation_id": "focus_node_api_mind_palace_rooms__room_id__focus_post",
+        "summary": "Focus Node",
+        "path_params": [
+          "room_id"
+        ],
+        "query_params": [
+          {
+            "name": "user_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "node_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "SpatialViewport"
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/rooms/{room_id}/suggest-arrangement",
+        "operation_id": "suggest_arrangement_api_mind_palace_rooms__room_id__suggest_arrangement_post",
+        "summary": "Suggest Arrangement",
+        "path_params": [
+          "room_id"
+        ],
+        "query_params": [],
+        "request_model": "ArrangeRequest",
+        "response_model": "[SpatialNode]"
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/rooms/{room_id}/capture",
+        "operation_id": "capture_viewport_api_mind_palace_rooms__room_id__capture_post",
+        "summary": "Capture Viewport",
+        "path_params": [
+          "room_id"
+        ],
+        "query_params": [],
+        "request_model": "CaptureRequest",
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/export/tinderbox",
+        "operation_id": "export_to_tinderbox_api_mind_palace_export_tinderbox_post",
+        "summary": "Export To Tinderbox",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "room_id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "tinderbox_note_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/import/tinderbox",
+        "operation_id": "import_from_tinderbox_api_mind_palace_import_tinderbox_post",
+        "summary": "Import From Tinderbox",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "tinderbox_note_id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "room_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[NativeNote]"
+      }
+    ],
+    "research": [
+      {
+        "method": "POST",
+        "path": "/research/projects",
+        "operation_id": "create_project_api_research_projects_post",
+        "summary": "Create Project",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ProjectCreateRequest",
+        "response_model": "ResearchProject"
+      },
+      {
+        "method": "GET",
+        "path": "/research/projects",
+        "operation_id": "list_projects_api_research_projects_get",
+        "summary": "List Projects",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "status",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ResearchProject]"
+      },
+      {
+        "method": "GET",
+        "path": "/research/projects/{project_id}",
+        "operation_id": "get_project_api_research_projects__project_id__get",
+        "summary": "Get Project",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ResearchProject"
+      },
+      {
+        "method": "PATCH",
+        "path": "/research/projects/{project_id}",
+        "operation_id": "update_project_api_research_projects__project_id__patch",
+        "summary": "Update Project",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [],
+        "request_model": "ProjectUpdateRequest",
+        "response_model": "ResearchProject"
+      },
+      {
+        "method": "DELETE",
+        "path": "/research/projects/{project_id}",
+        "operation_id": "delete_project_api_research_projects__project_id__delete",
+        "summary": "Delete Project",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/research/plans",
+        "operation_id": "create_plan_api_research_plans_post",
+        "summary": "Create Plan",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "PlanCreateRequest",
+        "response_model": "ResearchPlan"
+      },
+      {
+        "method": "GET",
+        "path": "/research/projects/{project_id}/plans",
+        "operation_id": "list_plans_api_research_projects__project_id__plans_get",
+        "summary": "List Plans",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ResearchPlan]"
+      },
+      {
+        "method": "GET",
+        "path": "/research/plans/{plan_id}",
+        "operation_id": "get_plan_api_research_plans__plan_id__get",
+        "summary": "Get Plan",
+        "path_params": [
+          "plan_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ResearchPlan"
+      },
+      {
+        "method": "PATCH",
+        "path": "/research/plans/{plan_id}",
+        "operation_id": "update_plan_api_research_plans__plan_id__patch",
+        "summary": "Update Plan",
+        "path_params": [
+          "plan_id"
+        ],
+        "query_params": [],
+        "request_model": "PlanUpdateRequest",
+        "response_model": "ResearchPlan"
+      },
+      {
+        "method": "POST",
+        "path": "/research/tasks",
+        "operation_id": "create_task_api_research_tasks_post",
+        "summary": "Create Task",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "TaskCreateRequest",
+        "response_model": "ResearchTask"
+      },
+      {
+        "method": "GET",
+        "path": "/research/plans/{plan_id}/tasks",
+        "operation_id": "list_tasks_api_research_plans__plan_id__tasks_get",
+        "summary": "List Tasks",
+        "path_params": [
+          "plan_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ResearchTask]"
+      },
+      {
+        "method": "GET",
+        "path": "/research/tasks/{task_id}",
+        "operation_id": "get_task_api_research_tasks__task_id__get",
+        "summary": "Get Task",
+        "path_params": [
+          "task_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ResearchTask"
+      },
+      {
+        "method": "PATCH",
+        "path": "/research/tasks/{task_id}",
+        "operation_id": "update_task_api_research_tasks__task_id__patch",
+        "summary": "Update Task",
+        "path_params": [
+          "task_id"
+        ],
+        "query_params": [],
+        "request_model": "TaskUpdateRequest",
+        "response_model": "ResearchTask"
+      },
+      {
+        "method": "POST",
+        "path": "/research/steps",
+        "operation_id": "create_step_api_research_steps_post",
+        "summary": "Create Step",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "StepCreateRequest",
+        "response_model": "ResearchStep"
+      },
+      {
+        "method": "GET",
+        "path": "/research/tasks/{task_id}/steps",
+        "operation_id": "list_steps_api_research_tasks__task_id__steps_get",
+        "summary": "List Steps",
+        "path_params": [
+          "task_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ResearchStep]"
+      },
+      {
+        "method": "PATCH",
+        "path": "/research/steps/{step_id}",
+        "operation_id": "update_step_api_research_steps__step_id__patch",
+        "summary": "Update Step",
+        "path_params": [
+          "step_id"
+        ],
+        "query_params": [],
+        "request_model": "StepUpdateRequest",
+        "response_model": "ResearchStep"
+      },
+      {
+        "method": "POST",
+        "path": "/research/sources",
+        "operation_id": "create_search_source_api_research_sources_post",
+        "summary": "Create Search Source",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SearchSourceCreateRequest",
+        "response_model": "SearchSource"
+      },
+      {
+        "method": "GET",
+        "path": "/research/projects/{project_id}/sources",
+        "operation_id": "list_search_sources_api_research_projects__project_id__sources_get",
+        "summary": "List Search Sources",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[SearchSource]"
+      },
+      {
+        "method": "POST",
+        "path": "/research/notes",
+        "operation_id": "create_note_api_research_notes_post",
+        "summary": "Create Note",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "fichero__api__routes__research_agents__NoteCreateRequest",
+        "response_model": "ResearchNote"
+      },
+      {
+        "method": "GET",
+        "path": "/research/projects/{project_id}/notes",
+        "operation_id": "list_notes_api_research_projects__project_id__notes_get",
+        "summary": "List Notes",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [
+          {
+            "name": "task_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ResearchNote]"
+      },
+      {
+        "method": "GET",
+        "path": "/research/notes/{note_id}",
+        "operation_id": "get_note_api_research_notes__note_id__get",
+        "summary": "Get Note",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ResearchNote"
+      },
+      {
+        "method": "PATCH",
+        "path": "/research/notes/{note_id}",
+        "operation_id": "update_note_api_research_notes__note_id__patch",
+        "summary": "Update Note",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": "fichero__api__routes__research_agents__NoteUpdateRequest",
+        "response_model": "ResearchNote"
+      },
+      {
+        "method": "POST",
+        "path": "/research/checklists",
+        "operation_id": "create_checklist_api_research_checklists_post",
+        "summary": "Create Checklist",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ChecklistCreateRequest",
+        "response_model": "ResearchChecklist"
+      },
+      {
+        "method": "GET",
+        "path": "/research/projects/{project_id}/checklists",
+        "operation_id": "list_checklists_api_research_projects__project_id__checklists_get",
+        "summary": "List Checklists",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ResearchChecklist]"
+      },
+      {
+        "method": "PATCH",
+        "path": "/research/checklists/{checklist_id}/items/{item_id}",
+        "operation_id": "toggle_checklist_item_api_research_checklists__checklist_id__items__item_id__patch",
+        "summary": "Toggle Checklist Item",
+        "path_params": [
+          "checklist_id",
+          "item_id"
+        ],
+        "query_params": [],
+        "request_model": "ChecklistItemToggleRequest",
+        "response_model": "ResearchChecklist"
+      },
+      {
+        "method": "POST",
+        "path": "/research/tools/web-search",
+        "operation_id": "execute_web_search_api_research_tools_web_search_post",
+        "summary": "Execute Web Search",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "WebSearchRequest",
+        "response_model": "WebSearchResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/research/tools/browser-navigate",
+        "operation_id": "execute_browser_navigate_api_research_tools_browser_navigate_post",
+        "summary": "Execute Browser Navigate",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "BrowserNavigateRequest",
+        "response_model": "BrowserNavigateResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/research/tools/document-fetch",
+        "operation_id": "execute_document_fetch_api_research_tools_document_fetch_post",
+        "summary": "Execute Document Fetch",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "DocumentFetchRequest",
+        "response_model": "DocumentFetchResponse"
       }
     ]
   }

@@ -15,7 +15,15 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -39,6 +47,7 @@ router = APIRouter(prefix="/activity", tags=["activity"])
 
 class ActivityResponse(BaseModel):
     """Response model for an activity event."""
+
     id: str
     type: str
     level: str
@@ -55,7 +64,9 @@ class ActivityResponse(BaseModel):
     @classmethod
     def from_activity(cls, activity: Activity) -> "ActivityResponse":
         # Convert metadata values to strings for Swift client compatibility
-        string_metadata = {k: str(v) if v is not None else None for k, v in activity.metadata.items()}
+        string_metadata = {
+            k: str(v) if v is not None else None for k, v in activity.metadata.items()
+        }
         return cls(
             id=activity.id,
             type=activity.type.value,
@@ -74,6 +85,7 @@ class ActivityResponse(BaseModel):
 
 class ActivityStatsResponse(BaseModel):
     """Response model for activity statistics."""
+
     total_activities: int
     activities_by_type: dict[str, int]
     activities_by_level: dict[str, int]
@@ -106,7 +118,9 @@ class ActivityStatsResponse(BaseModel):
 async def list_activities(
     db: Database = Depends(get_library_database),
     types: Optional[str] = Query(None, description="Comma-separated activity types"),
-    levels: Optional[str] = Query(None, description="Comma-separated levels (info,warning,error)"),
+    levels: Optional[str] = Query(
+        None, description="Comma-separated levels (info,warning,error)"
+    ),
     workflow_id: Optional[str] = None,
     batch_id: Optional[str] = None,
     thread_id: Optional[str] = None,
@@ -148,12 +162,16 @@ async def list_activities(
             # Replace Z with +00:00 for fromisoformat compatibility
             since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid 'since' datetime format")
+            raise HTTPException(
+                status_code=400, detail="Invalid 'since' datetime format"
+            )
     if until:
         try:
             until_dt = datetime.fromisoformat(until.replace("Z", "+00:00"))
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid 'until' datetime format")
+            raise HTTPException(
+                status_code=400, detail="Invalid 'until' datetime format"
+            )
 
     filter = ActivityFilter(
         types=type_list,
@@ -285,6 +303,7 @@ async def websocket_activity_stream(
 
     # Get database for library
     from fichero.db import db_manager
+
     db = db_manager.get_database(x_fichero_library_path)
     tracker = get_activity_tracker(str(db.path))
     sub_id = tracker.subscribe()
@@ -297,6 +316,7 @@ async def websocket_activity_stream(
                 await websocket.send_json(response.model_dump())
 
         import asyncio
+
         send_task = asyncio.create_task(send_activities())
 
         # Listen for client messages (filter updates, ping, etc.)
@@ -360,7 +380,9 @@ async def get_batch_activity(
 @router.delete("/cleanup")
 async def cleanup_old_activities(
     db: Database = Depends(get_library_database),
-    days: int = Query(30, ge=1, le=365, description="Delete activities older than N days"),
+    days: int = Query(
+        30, ge=1, le=365, description="Delete activities older than N days"
+    ),
 ) -> dict[str, Any]:
     """
     Delete old activities to manage database size.

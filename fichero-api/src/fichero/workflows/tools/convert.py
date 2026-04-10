@@ -59,7 +59,10 @@ CONVERT_CONFIG = {
 # Prompt Building
 # =============================================================================
 
-def _build_prompt(target_format: str, preserve_layout: bool, include_styles: bool) -> str:
+
+def _build_prompt(
+    target_format: str, preserve_layout: bool, include_styles: bool
+) -> str:
     """Build the conversion prompt."""
     layout_instruction = ""
     if preserve_layout:
@@ -76,7 +79,6 @@ def _build_prompt(target_format: str, preserve_layout: bool, include_styles: boo
 - Use lists for enumerated items
 - Use code blocks for code/technical content
 - Use > for quotes or callouts{layout_instruction}{style_text}""",
-
         "html": f"""Convert this image to semantic HTML that reproduces the original layout.
 - Use proper heading tags (h1-h6)
 - Use <table> for tabular data
@@ -84,7 +86,6 @@ def _build_prompt(target_format: str, preserve_layout: bool, include_styles: boo
 - Use <figure> for images/diagrams
 - Use <blockquote> for quotes
 - Use CSS positioning/flexbox to match the spatial layout{layout_instruction}{style_text}""",
-
         "svg": f"""Recreate this image as SVG (Scalable Vector Graphics).
 - Reproduce the exact visual layout and positioning
 - Use appropriate SVG elements (rect, circle, path, text, g, etc.)
@@ -92,14 +93,12 @@ def _build_prompt(target_format: str, preserve_layout: bool, include_styles: boo
 - Use colors and fonts that match the original
 - Position elements to match their exact locations in the original
 - Represent text as <text> elements at correct positions{layout_instruction}{style_text}""",
-
         "latex": f"""Convert this image to LaTeX format.
 - Use proper document structure
 - Use \\section, \\subsection for headings
 - Use tabular environment for tables
 - Use itemize/enumerate for lists
 - Use math mode for equations{layout_instruction}""",
-
         "csv": """Extract tabular data from this image as CSV.
 - Use comma as separator
 - Quote fields containing commas
@@ -107,7 +106,9 @@ def _build_prompt(target_format: str, preserve_layout: bool, include_styles: boo
 - One row per line""",
     }
 
-    base_prompt = format_instructions.get(target_format, format_instructions["markdown"])
+    base_prompt = format_instructions.get(
+        target_format, format_instructions["markdown"]
+    )
 
     return f"""{base_prompt}
 
@@ -125,6 +126,7 @@ def build_convert_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="convert",
@@ -162,7 +164,9 @@ async def convert(
     include_styles = inputs.get("include_styles", False)
 
     # Build prompt
-    prompt = inputs.get("prompt") or _build_prompt(target_format, preserve_layout, include_styles)
+    prompt = inputs.get("prompt") or _build_prompt(
+        target_format, preserve_layout, include_styles
+    )
 
     return await process_vision(
         files=files,
@@ -174,7 +178,9 @@ async def convert(
         tool_config=TOOL_CONFIG,
         # Vision-specific
         vision_mode="llm",
-        max_image_dimension=inputs.get("max_image_dimension", 2048),  # Full res for conversion
+        max_image_dimension=inputs.get(
+            "max_image_dimension", 2048
+        ),  # Full res for conversion
         # Inherited from BASE_CONFIG
         temperature=inputs.get("temperature", 0.2),  # Low temp for accuracy
         max_tokens=inputs.get("max_tokens", 4096),  # Conversions can be long

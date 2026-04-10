@@ -1,5 +1,5 @@
-import Foundation
 import AppKit
+import Foundation
 import OSLog
 
 private let logger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowExporter")

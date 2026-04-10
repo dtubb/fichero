@@ -26,17 +26,20 @@ from fichero.workflows.types import State as BaseState
 # State Management Types
 # =============================================================================
 
+
 class DocumentStatus(str, Enum):
     """Status of a document in workflow execution."""
-    PENDING = "pending"      # Not yet processed
+
+    PENDING = "pending"  # Not yet processed
     PROCESSING = "processing"  # Currently being processed
     COMPLETED = "completed"  # Successfully processed
-    FAILED = "failed"       # Processing failed
-    SKIPPED = "skipped"      # Skipped due to conditions
+    FAILED = "failed"  # Processing failed
+    SKIPPED = "skipped"  # Skipped due to conditions
 
 
 class DocumentState(TypedDict):
     """State of an individual document in workflow execution."""
+
     document_id: str
     original_path: str
     status: DocumentStatus
@@ -50,6 +53,7 @@ class DocumentState(TypedDict):
 
 class ExecutionHistoryItem(TypedDict):
     """Item in execution history/audit trail."""
+
     timestamp: float
     event_type: str
     node_id: str | None
@@ -62,33 +66,34 @@ class ExecutionHistoryItem(TypedDict):
 # Extended Workflow State
 # =============================================================================
 
+
 class WorkflowExecutionState(BaseState):
     """Extended workflow execution state with document tracking."""
-    
+
     # Document management
     documents: list[DocumentState]
     current_document_index: int
     total_documents: int
-    
+
     # Execution history
     history: list[ExecutionHistoryItem]
-    
+
     # Performance metrics
     start_time: float
     node_execution_times: dict[str, float]
-    
+
     # Resource management
     active_connections: int
     max_connections: int
-    
+
     # Error handling
     error_count: int
     warning_count: int
-    
+
     # Execution control
     paused: bool
     cancelled: bool
-    
+
     def __init__(
         self,
         workflow_id: str,
@@ -108,7 +113,7 @@ class WorkflowExecutionState(BaseState):
             "input_files": documents or [],
             "output_files": [],
         }
-        
+
         # Initialize extended state
         self.documents = self._initialize_documents(documents or [])
         self.current_document_index = 0
@@ -122,11 +127,11 @@ class WorkflowExecutionState(BaseState):
         self.warning_count = 0
         self.paused = False
         self.cancelled = False
-        
+
         # Copy base state attributes
         for key, value in base_state.items():
             setattr(self, key, value)
-    
+
     def _initialize_documents(self, document_paths: list[str]) -> list[DocumentState]:
         """Initialize document state for all documents."""
         return [
@@ -143,7 +148,7 @@ class WorkflowExecutionState(BaseState):
             }
             for path in document_paths
         ]
-    
+
     def add_history_item(
         self,
         event_type: str,
@@ -162,7 +167,7 @@ class WorkflowExecutionState(BaseState):
             "data": data or {},
         }
         self.history.append(item)
-    
+
     def start_document_processing(self, document_id: str, node_id: str) -> None:
         """Mark a document as starting processing."""
         for doc in self.documents:
@@ -177,7 +182,7 @@ class WorkflowExecutionState(BaseState):
                     document_id=document_id,
                 )
                 break
-    
+
     def complete_document_processing(self, document_id: str, node_id: str) -> None:
         """Mark a document as completed processing."""
         for doc in self.documents:
@@ -193,8 +198,10 @@ class WorkflowExecutionState(BaseState):
                     document_id=document_id,
                 )
                 break
-    
-    def fail_document_processing(self, document_id: str, node_id: str, error: str) -> None:
+
+    def fail_document_processing(
+        self, document_id: str, node_id: str, error: str
+    ) -> None:
         """Mark a document as failed processing."""
         for doc in self.documents:
             if doc["document_id"] == document_id:
@@ -211,7 +218,7 @@ class WorkflowExecutionState(BaseState):
                     data={"error": error},
                 )
                 break
-    
+
     def skip_document(self, document_id: str, reason: str) -> None:
         """Mark a document as skipped."""
         for doc in self.documents:
@@ -226,7 +233,7 @@ class WorkflowExecutionState(BaseState):
                     data={"reason": reason},
                 )
                 break
-    
+
     def start_node_execution(self, node_id: str) -> None:
         """Mark the start of node execution."""
         self.current_node = node_id
@@ -236,24 +243,24 @@ class WorkflowExecutionState(BaseState):
             f"Node {node_id} execution started",
             node_id=node_id,
         )
-    
+
     def complete_node_execution(self, node_id: str) -> None:
         """Mark the completion of node execution."""
         if node_id in self.node_execution_times:
             start_time = self.node_execution_times[node_id]
             duration = time.time() - start_time
             self.node_execution_times[node_id] = duration
-        
+
         if node_id not in self.completed_nodes:
             self.completed_nodes.append(node_id)
-        
+
         self.add_history_item(
             "node_completed",
             f"Node {node_id} execution completed in {duration:.2f}s",
             node_id=node_id,
             data={"duration": duration},
         )
-    
+
     def fail_node_execution(self, node_id: str, error: str) -> None:
         """Mark the failure of node execution."""
         self.error = error
@@ -264,7 +271,7 @@ class WorkflowExecutionState(BaseState):
             node_id=node_id,
             data={"error": error},
         )
-    
+
     def add_output_file(self, file_path: str) -> None:
         """Add an output file to the state."""
         self.output_files.append(file_path)
@@ -273,19 +280,21 @@ class WorkflowExecutionState(BaseState):
             f"Output file created: {file_path}",
             data={"file_path": file_path},
         )
-    
+
     def get_execution_duration(self) -> float:
         """Get the total execution duration in seconds."""
         return time.time() - self.start_time
-    
+
     def get_completion_percentage(self) -> float:
         """Get the completion percentage (0.0 to 1.0)."""
         if self.total_documents == 0:
             return 0.0
-        
-        completed = sum(1 for doc in self.documents if doc["status"] == DocumentStatus.COMPLETED)
+
+        completed = sum(
+            1 for doc in self.documents if doc["status"] == DocumentStatus.COMPLETED
+        )
         return completed / self.total_documents
-    
+
     def get_document_status_counts(self) -> dict[DocumentStatus, int]:
         """Get counts of documents by status."""
         counts: dict[DocumentStatus, int] = {
@@ -295,28 +304,30 @@ class WorkflowExecutionState(BaseState):
             DocumentStatus.FAILED: 0,
             DocumentStatus.SKIPPED: 0,
         }
-        
+
         for doc in self.documents:
             counts[doc["status"]] += 1
-        
+
         return counts
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert state to dictionary for serialization."""
-        base_attrs = {k: v for k, v in vars(self).items() if not k.startswith('_')}
-        
+        base_attrs = {k: v for k, v in vars(self).items() if not k.startswith("_")}
+
         # Convert TypedDict objects to regular dicts
         result = {}
         for key, value in base_attrs.items():
-            if hasattr(value, 'items'):  # It's a dict-like object
+            if hasattr(value, "items"):  # It's a dict-like object
                 result[key] = dict(value)
             elif isinstance(value, list):
-                result[key] = [dict(item) if hasattr(item, 'items') else item for item in value]
+                result[key] = [
+                    dict(item) if hasattr(item, "items") else item for item in value
+                ]
             else:
                 result[key] = value
-        
+
         return result
-    
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> WorkflowExecutionState:
         """Create state from dictionary."""
@@ -327,19 +338,19 @@ class WorkflowExecutionState(BaseState):
             inputs=data.get("inputs", {}),
             max_connections=data.get("max_connections", 4),
         )
-        
+
         # Restore as much state as possible
         for key, value in data.items():
             if hasattr(state, key):
                 setattr(state, key, value)
-        
+
         return state
-    
+
     def get_summary(self) -> dict[str, Any]:
         """Get a summary of the execution state."""
         duration = self.get_execution_duration()
         status_counts = self.get_document_status_counts()
-        
+
         return {
             "workflow_id": self.workflow_id,
             "task_id": self.task_id,
@@ -360,6 +371,7 @@ class WorkflowExecutionState(BaseState):
 # State Utilities
 # =============================================================================
 
+
 def create_initial_state(
     workflow_id: str,
     inputs: dict[str, Any],
@@ -375,13 +387,15 @@ def create_initial_state(
     )
 
 
-def merge_states(base_state: BaseState, extended_state: WorkflowExecutionState) -> WorkflowExecutionState:
+def merge_states(
+    base_state: BaseState, extended_state: WorkflowExecutionState
+) -> WorkflowExecutionState:
     """Merge base state with extended state."""
     # Copy base state attributes to extended state
     for key, value in base_state.items():
         if hasattr(extended_state, key):
             setattr(extended_state, key, value)
-    
+
     return extended_state
 
 
@@ -390,23 +404,27 @@ def validate_state(state: WorkflowExecutionState) -> bool:
     # Basic validation
     if not state.workflow_id:
         return False
-    
+
     if len(state.documents) != state.total_documents:
         return False
-    
+
     if state.current_document_index >= len(state.documents):
         return False
-    
+
     # Check document status consistency
     for doc in state.documents:
         if doc["status"] == DocumentStatus.PROCESSING:
             if not doc["current_node"]:
                 return False  # Processing but no current node
-        
-        if doc["status"] in [DocumentStatus.COMPLETED, DocumentStatus.FAILED, DocumentStatus.SKIPPED]:
+
+        if doc["status"] in [
+            DocumentStatus.COMPLETED,
+            DocumentStatus.FAILED,
+            DocumentStatus.SKIPPED,
+        ]:
             if doc["current_node"]:
                 return False  # Completed but still has current node
-    
+
     return True
 
 
@@ -414,9 +432,11 @@ def validate_state(state: WorkflowExecutionState) -> bool:
 # State Serialization
 # =============================================================================
 
+
 def serialize_state(state: WorkflowExecutionState) -> str:
     """Serialize state to JSON string."""
     import json
+
     state_dict = state.to_dict()
     return json.dumps(state_dict, indent=2)
 
@@ -424,6 +444,7 @@ def serialize_state(state: WorkflowExecutionState) -> str:
 def deserialize_state(json_str: str) -> WorkflowExecutionState:
     """Deserialize state from JSON string."""
     import json
+
     data = json.loads(json_str)
     return WorkflowExecutionState.from_dict(data)
 
@@ -431,6 +452,7 @@ def deserialize_state(json_str: str) -> WorkflowExecutionState:
 # =============================================================================
 # Testing
 # =============================================================================
+
 
 async def test_state_management() -> bool:
     """Test the state management functionality."""
@@ -441,25 +463,25 @@ async def test_state_management() -> bool:
             inputs={"test_input": "value"},
             document_paths=["/path/to/doc1.pdf", "/path/to/doc2.pdf"],
         )
-        
+
         # Test document management
         doc1_id = state.documents[0]["document_id"]
         state.start_document_processing(doc1_id, "node1")
         state.complete_document_processing(doc1_id, "node1")
-        
+
         # Test node execution
         state.start_node_execution("node1")
         state.complete_node_execution("node1")
-        
+
         # Test serialization
         serialized = serialize_state(state)
         deserialize_state(serialized)
-        
+
         # Test summary
         state.get_summary()
-        
+
         return True
-        
+
     except Exception as e:
         print(f"State management test failed: {e}")
         return False
@@ -467,7 +489,7 @@ async def test_state_management() -> bool:
 
 if __name__ == "__main__":
     import asyncio
-    
+
     # Run tests
     result = asyncio.run(test_state_management())
     if result:

@@ -80,15 +80,15 @@ struct ProvidersView: View {
     var sortedProviders: [Components.Schemas.ProviderResponse] {
         providers
             .sorted { provider1, provider2 in
-            let orderA = sortOrder(provider1.providerType)
-            let orderB = sortOrder(provider2.providerType)
-            if orderA < 100 && orderB < 100 {
-                return orderA < orderB
+                let orderA = sortOrder(provider1.providerType)
+                let orderB = sortOrder(provider2.providerType)
+                if orderA < 100 && orderB < 100 {
+                    return orderA < orderB
+                }
+                if orderA < 100 { return true }
+                if orderB < 100 { return false }
+                return provider1.name.localizedCaseInsensitiveCompare(provider2.name) == .orderedAscending
             }
-            if orderA < 100 { return true }
-            if orderB < 100 { return false }
-            return provider1.name.localizedCaseInsensitiveCompare(provider2.name) == .orderedAscending
-        }
     }
 
     func sortOrder(_ type: String) -> Int {

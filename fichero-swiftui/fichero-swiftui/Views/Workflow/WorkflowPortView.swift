@@ -128,23 +128,23 @@ struct DraggableWorkflowPortView: View {
             nodeColor: nodeColor,
             showDataTypeIcon: showDataTypeIcon
         )
-            .frame(width: 18, height: 18)
-            .contentShape(Circle())
-            .highPriorityGesture(
-                DragGesture(minimumDistance: 3)
-                    .onChanged { value in
-                        if !isDragging {
-                            isDragging = true
-                            onDragStarted(port, nodeId)
-                        }
-                        onDragChanged(value.translation)
+        .frame(width: 18, height: 18)
+        .contentShape(Circle())
+        .highPriorityGesture(
+            DragGesture(minimumDistance: 3)
+                .onChanged { value in
+                    if !isDragging {
+                        isDragging = true
+                        onDragStarted(port, nodeId)
                     }
-                    .onEnded { _ in
-                        isDragging = false
-                        onDragEnded()
-                    }
-            )
-            .opacity(isDragging ? 0.5 : 1.0)
+                    onDragChanged(value.translation)
+                }
+                .onEnded { _ in
+                    isDragging = false
+                    onDragEnded()
+                }
+        )
+        .opacity(isDragging ? 0.5 : 1.0)
     }
 }
 
@@ -169,30 +169,30 @@ struct DroppableWorkflowPortView: View {
             nodeColor: nodeColor,
             showDataTypeIcon: showDataTypeIcon
         )
-            .frame(width: 18, height: 18)
-            .contentShape(Circle())
-            // Show hover state when edge drag is in progress
-            .scaleEffect(isHovered && canAcceptDrop ? 1.2 : 1.0)
-            .animation(.spring(response: 0.2), value: isHovered && canAcceptDrop)
-            .onHover { hovering in
-                isHovered = hovering
-            }
-            // Allow dragging from connected input to detach and reconnect
-            .gesture(
-                isConnected ?
+        .frame(width: 18, height: 18)
+        .contentShape(Circle())
+        // Show hover state when edge drag is in progress
+        .scaleEffect(isHovered && canAcceptDrop ? 1.2 : 1.0)
+        .animation(.spring(response: 0.2), value: isHovered && canAcceptDrop)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        // Allow dragging from connected input to detach and reconnect
+        .gesture(
+            isConnected ?
                 DragGesture(minimumDistance: 5)
-                    .onChanged { _ in
-                        if !isDragging {
-                            isDragging = true
-                            onDetachDrag?(port, nodeId)
-                        }
+                .onChanged { _ in
+                    if !isDragging {
+                        isDragging = true
+                        onDetachDrag?(port, nodeId)
                     }
-                    .onEnded { _ in
-                        isDragging = false
-                    }
+                }
+                .onEnded { _ in
+                    isDragging = false
+                }
                 : nil
-            )
-            .opacity(isDragging ? 0.5 : 1.0)
+        )
+        .opacity(isDragging ? 0.5 : 1.0)
     }
 }
 

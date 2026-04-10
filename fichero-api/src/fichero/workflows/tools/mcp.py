@@ -91,7 +91,7 @@ def _create_mcp_tool_wrapper(tool: BaseTool, tool_name: str):
             logger.debug(f"Executing MCP tool {tool_name} with input: {tool_input}")
             result = await asyncio.wait_for(
                 tool.ainvoke(tool_input),
-                timeout=30.0  # 30 second timeout for MCP tools
+                timeout=30.0,  # 30 second timeout for MCP tools
             )
 
             logger.debug(f"MCP tool {tool_name} result: {result}")
@@ -124,7 +124,7 @@ def _register_mcp_tool(tool: BaseTool) -> None:
             port_type="input",
             data_type=DataType.ANY,
             required=True,
-            description="Tool input parameters (dict or single value)"
+            description="Tool input parameters (dict or single value)",
         ),
     ]
 
@@ -134,7 +134,7 @@ def _register_mcp_tool(tool: BaseTool) -> None:
             name="Output",
             port_type="output",
             data_type=DataType.ANY,
-            description="Tool output result"
+            description="Tool output result",
         ),
     ]
 
@@ -190,8 +190,7 @@ def get_mcp_tool_names() -> list[str]:
         List of MCP tool names
     """
     return [
-        name for name in TOOL_DEFS.keys()
-        if TOOL_DEFS[name].category.startswith("mcp")
+        name for name in TOOL_DEFS.keys() if TOOL_DEFS[name].category.startswith("mcp")
     ]
 
 
@@ -205,10 +204,7 @@ def get_mcp_tools_by_server(server_name: str) -> list[str]:
         List of tool names from that server
     """
     category = f"mcp_{server_name}"
-    return [
-        name for name in TOOL_DEFS.keys()
-        if TOOL_DEFS[name].category == category
-    ]
+    return [name for name in TOOL_DEFS.keys() if TOOL_DEFS[name].category == category]
 
 
 async def reload_mcp_tools() -> int:

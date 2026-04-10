@@ -36,7 +36,7 @@ class TinderboxIntegration(AppIntegration):
         if not self.is_available:
             return []
 
-        script = '''
+        script = """
         tell application "Tinderbox 9"
             set docList to {}
             repeat with doc in documents
@@ -45,7 +45,7 @@ class TinderboxIntegration(AppIntegration):
             end repeat
             return docList
         end tell
-        '''
+        """
 
         success, result = self.run_applescript(script)
         if not success:
@@ -59,7 +59,7 @@ class TinderboxIntegration(AppIntegration):
         limit: int = 100,
         search: Optional[str] = None,
         item_type: Optional[str] = None,
-        container: Optional[str] = None
+        container: Optional[str] = None,
     ) -> list[ImportedItem]:
         """
         List notes from Tinderbox.
@@ -114,7 +114,7 @@ class TinderboxIntegration(AppIntegration):
             '''
         else:
             # List all notes from front document
-            script = f'''
+            script = f"""
             tell application "Tinderbox 9"
                 set resultList to {{}}
                 set counter to 0
@@ -127,7 +127,7 @@ class TinderboxIntegration(AppIntegration):
                 end repeat
                 return resultList
             end tell
-            '''
+            """
 
         success, result = self.run_applescript(script)
         if not success:
@@ -141,18 +141,20 @@ class TinderboxIntegration(AppIntegration):
                 prototype = record.get("prototype", "")
                 item_type_str = f"note:{prototype}" if prototype else "note"
 
-                items.append(ImportedItem(
-                    external_id=record.get("id", ""),
-                    name=record.get("name", "Untitled"),
-                    source_app="Tinderbox",
-                    item_type=item_type_str,
-                    metadata={
-                        "path": record.get("path", ""),
-                        "prototype": prototype
-                    },
-                    created_at=self._parse_date(record.get("created")),
-                    modified_at=self._parse_date(record.get("modified"))
-                ))
+                items.append(
+                    ImportedItem(
+                        external_id=record.get("id", ""),
+                        name=record.get("name", "Untitled"),
+                        source_app="Tinderbox",
+                        item_type=item_type_str,
+                        metadata={
+                            "path": record.get("path", ""),
+                            "prototype": prototype,
+                        },
+                        created_at=self._parse_date(record.get("created")),
+                        modified_at=self._parse_date(record.get("modified")),
+                    )
+                )
         except Exception as e:
             logger.error(f"Error parsing Tinderbox items: {e}")
 
@@ -195,10 +197,10 @@ class TinderboxIntegration(AppIntegration):
                     metadata={
                         "path": record.get("path", ""),
                         "prototype": prototype,
-                        "color": record.get("color")
+                        "color": record.get("color"),
                     },
                     created_at=self._parse_date(record.get("created")),
-                    modified_at=self._parse_date(record.get("modified"))
+                    modified_at=self._parse_date(record.get("modified")),
                 )
         except Exception as e:
             logger.error(f"Error parsing Tinderbox item: {e}")
@@ -206,9 +208,7 @@ class TinderboxIntegration(AppIntegration):
         return None
 
     async def import_item(
-        self,
-        external_id: str,
-        target_path: Optional[Path] = None
+        self, external_id: str, target_path: Optional[Path] = None
     ) -> Optional[Path]:
         """
         Import a note from Tinderbox.
@@ -224,7 +224,9 @@ class TinderboxIntegration(AppIntegration):
 
         # If no target path, create one based on note name
         if not target_path:
-            safe_name = "".join(c if c.isalnum() or c in "._- " else "_" for c in item.name)
+            safe_name = "".join(
+                c if c.isalnum() or c in "._- " else "_" for c in item.name
+            )
             target_path = Path.cwd() / f"{safe_name}.md"
 
         # Write content to file
@@ -235,10 +237,10 @@ class TinderboxIntegration(AppIntegration):
 title: {item.name}
 source: Tinderbox
 external_id: {external_id}
-prototype: {item.metadata.get('prototype', '')}
-path: {item.metadata.get('path', '')}
-created: {item.created_at.isoformat() if item.created_at else ''}
-modified: {item.modified_at.isoformat() if item.modified_at else ''}
+prototype: {item.metadata.get("prototype", "")}
+path: {item.metadata.get("path", "")}
+created: {item.created_at.isoformat() if item.created_at else ""}
+modified: {item.modified_at.isoformat() if item.modified_at else ""}
 ---
 
 {content}
@@ -257,7 +259,7 @@ modified: {item.modified_at.isoformat() if item.modified_at else ''}
         file_path: Path,
         metadata: Optional[dict] = None,
         container: Optional[str] = None,
-        prototype: Optional[str] = None
+        prototype: Optional[str] = None,
     ) -> Optional[str]:
         """
         Export a file to Tinderbox as a new note.
@@ -288,7 +290,9 @@ modified: {item.modified_at.isoformat() if item.modified_at else ''}
         name = metadata.get("name", file_path.stem) if metadata else file_path.stem
 
         # Escape content for AppleScript
-        content_escaped = content.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+        content_escaped = (
+            content.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+        )
         name_escaped = name.replace('"', '\\"')
 
         # Build script based on options
@@ -306,7 +310,9 @@ modified: {item.modified_at.isoformat() if item.modified_at else ''}
 
         prototype_clause = ""
         if prototype:
-            prototype_clause = f'set prototype of newNote to prototype "{prototype}" of frontDoc'
+            prototype_clause = (
+                f'set prototype of newNote to prototype "{prototype}" of frontDoc'
+            )
 
         script = f'''
         tell application "Tinderbox 9"
@@ -333,7 +339,7 @@ modified: {item.modified_at.isoformat() if item.modified_at else ''}
         text: str = "",
         container: Optional[str] = None,
         prototype: Optional[str] = None,
-        attributes: Optional[dict] = None
+        attributes: Optional[dict] = None,
     ) -> Optional[str]:
         """
         Create a new note in Tinderbox.
@@ -352,7 +358,9 @@ modified: {item.modified_at.isoformat() if item.modified_at else ''}
             return None
 
         name_escaped = name.replace('"', '\\"')
-        text_escaped = text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+        text_escaped = (
+            text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+        )
 
         if container:
             container_clause = f'''
@@ -368,14 +376,18 @@ modified: {item.modified_at.isoformat() if item.modified_at else ''}
 
         prototype_clause = ""
         if prototype:
-            prototype_clause = f'set prototype of newNote to prototype "{prototype}" of frontDoc'
+            prototype_clause = (
+                f'set prototype of newNote to prototype "{prototype}" of frontDoc'
+            )
 
         # Build attribute setting commands
         attr_commands = []
         if attributes:
             for key, value in attributes.items():
                 value_escaped = str(value).replace('"', '\\"')
-                attr_commands.append(f'set value of attribute "{key}" of newNote to "{value_escaped}"')
+                attr_commands.append(
+                    f'set value of attribute "{key}" of newNote to "{value_escaped}"'
+                )
 
         attr_clause = "\n".join(attr_commands)
 
@@ -419,13 +431,17 @@ modified: {item.modified_at.isoformat() if item.modified_at else ''}
         success, result = self.run_applescript(script)
         return success and result == "success"
 
-    async def get_attributes(self, external_id: str, attribute_names: list[str]) -> dict:
+    async def get_attributes(
+        self, external_id: str, attribute_names: list[str]
+    ) -> dict:
         """Get specific attribute values for a note."""
         if not self.is_available:
             return {}
 
         # Build attribute query
-        attr_list = ", ".join(f'|{a}|:value of attribute "{a}" of n' for a in attribute_names)
+        attr_list = ", ".join(
+            f'|{a}|:value of attribute "{a}" of n' for a in attribute_names
+        )
 
         script = f'''
         tell application "Tinderbox 9"
@@ -460,7 +476,9 @@ modified: {item.modified_at.isoformat() if item.modified_at else ''}
         attr_commands = []
         for key, value in attributes.items():
             value_escaped = str(value).replace('"', '\\"')
-            attr_commands.append(f'set value of attribute "{key}" of n to "{value_escaped}"')
+            attr_commands.append(
+                f'set value of attribute "{key}" of n to "{value_escaped}"'
+            )
 
         attr_clause = "\n".join(attr_commands)
 

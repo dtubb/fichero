@@ -54,7 +54,16 @@ CATALOGUE_CONFIG = {
 }
 
 CATALOGUE_INPUT_PORTS = merge_ports(
-    [PortDef(id="text", name="Text", port_type="input", data_type=DataType.TEXT, required=True, description="Source text, transcription, or accumulated context")],
+    [
+        PortDef(
+            id="text",
+            name="Text",
+            port_type="input",
+            data_type=DataType.TEXT,
+            required=True,
+            description="Source text, transcription, or accumulated context",
+        )
+    ],
     BASE_INPUT_PORTS,
 )
 
@@ -62,6 +71,7 @@ CATALOGUE_INPUT_PORTS = merge_ports(
 # =============================================================================
 # Prompt Building
 # =============================================================================
+
 
 def _build_prompt(standard: str, output_language: str) -> str:
     """Build the catalogue entry prompt."""
@@ -75,7 +85,6 @@ def _build_prompt(standard: str, output_language: str) -> str:
 - organizations: List of organizations mentioned
 - date_coverage: Date range (start/end in YYYY-MM-DD or YYYY)
 - document_type: Type of documents (correspondence, legal, reports, etc.)""",
-
         "isad_g": """Create a catalogue entry following ISAD(G) archival description standard:
 - reference_code: Leave blank (to be assigned)
 - title: Formal archival title
@@ -86,7 +95,6 @@ def _build_prompt(standard: str, output_language: str) -> str:
 - scope_and_content: What the records contain
 - conditions_of_access: Leave as "Open" unless stated otherwise
 - language: Language(s) of materials""",
-
         "dublin_core": """Create a catalogue entry following Dublin Core metadata standard:
 - dc_title: Resource title
 - dc_creator: Creator/author
@@ -97,7 +105,6 @@ def _build_prompt(standard: str, output_language: str) -> str:
 - dc_format: Physical format
 - dc_language: Language
 - dc_coverage: Spatial/temporal coverage""",
-
         "marc": """Create a catalogue entry with MARC-like fields:
 - title_245: Main title
 - author_100: Main author/creator
@@ -132,6 +139,7 @@ def build_catalogue_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="catalogue",

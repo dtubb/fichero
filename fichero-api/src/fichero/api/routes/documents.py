@@ -24,6 +24,7 @@ from fichero.api.main import get_library_database  # noqa: E402
 # Request/Response models
 class DocumentCreate(BaseModel):
     """Request model for creating a document."""
+
     name: str
     parent_id: Optional[str] = None
     doc_type: DocType = DocType.file
@@ -37,6 +38,7 @@ class DocumentCreate(BaseModel):
 
 class DocumentUpdate(BaseModel):
     """Request model for updating a document."""
+
     name: Optional[str] = None
     parent_id: Optional[str] = None
     doc_type: Optional[DocType] = None
@@ -51,13 +53,16 @@ class DocumentUpdate(BaseModel):
 
 # Routes
 
+
 @router.get("")
 async def list_documents(
     parent_id: Optional[str] = Query(None, description="Filter by parent ID"),
     doc_type: Optional[DocType] = Query(None, description="Filter by document type"),
     file_type: Optional[FileType] = Query(None, description="Filter by file type"),
     status: Optional[Status] = Query(None, description="Filter by status"),
-    limit: Optional[int] = Query(None, ge=1, description="Max results (no limit if not specified)"),
+    limit: Optional[int] = Query(
+        None, ge=1, description="Max results (no limit if not specified)"
+    ),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     db: Database = Depends(get_library_database),
 ) -> list[Document]:
@@ -87,7 +92,9 @@ async def list_documents(
 
 
 @router.get("/collections")
-async def list_collections(db: Database = Depends(get_library_database)) -> list[Document]:
+async def list_collections(
+    db: Database = Depends(get_library_database),
+) -> list[Document]:
     """List all root-level items (documents without parents)."""
     return list(db.query(Document, parent_id=None))
 
@@ -99,7 +106,9 @@ async def list_roots(db: Database = Depends(get_library_database)) -> list[Docum
 
 
 @router.get("/{doc_id}")
-async def get_document(doc_id: str, db: Database = Depends(get_library_database)) -> Document:
+async def get_document(
+    doc_id: str, db: Database = Depends(get_library_database)
+) -> Document:
     """Get a single document by ID."""
     doc = db.get(Document, doc_id)
     if not doc:
@@ -110,7 +119,9 @@ async def get_document(doc_id: str, db: Database = Depends(get_library_database)
 @router.get("/{doc_id}/children")
 async def get_children(
     doc_id: str,
-    limit: Optional[int] = Query(None, ge=1, description="Max results (no limit if not specified)"),
+    limit: Optional[int] = Query(
+        None, ge=1, description="Max results (no limit if not specified)"
+    ),
     db: Database = Depends(get_library_database),
 ) -> list[Document]:
     """Get child documents."""
@@ -127,7 +138,9 @@ async def get_children(
 
 
 @router.get("/{doc_id}/ancestors")
-async def get_ancestors(doc_id: str, db: Database = Depends(get_library_database)) -> list[Document]:
+async def get_ancestors(
+    doc_id: str, db: Database = Depends(get_library_database)
+) -> list[Document]:
     """Get all ancestors (parent chain) of a document."""
     ancestors = []
     current = db.get(Document, doc_id)
@@ -147,7 +160,9 @@ async def get_ancestors(doc_id: str, db: Database = Depends(get_library_database
 
 
 @router.post("", status_code=201)
-async def create_document(doc: DocumentCreate, db: Database = Depends(get_library_database)) -> Document:
+async def create_document(
+    doc: DocumentCreate, db: Database = Depends(get_library_database)
+) -> Document:
     """Create a new document."""
     # Create document from request
     new_doc = Document(
@@ -164,7 +179,9 @@ async def create_document(doc: DocumentCreate, db: Database = Depends(get_librar
     if doc.parent_id:
         parent = db.get(Document, doc.parent_id)
         if not parent:
-            raise HTTPException(status_code=400, detail=f"Parent not found: {doc.parent_id}")
+            raise HTTPException(
+                status_code=400, detail=f"Parent not found: {doc.parent_id}"
+            )
 
     db.save(new_doc)
     logger.info(f"Created document: {new_doc.id} ({new_doc.name})")
@@ -172,7 +189,9 @@ async def create_document(doc: DocumentCreate, db: Database = Depends(get_librar
 
 
 @router.put("/{doc_id}")
-async def update_document(doc_id: str, update: DocumentUpdate, db: Database = Depends(get_library_database)) -> Document:
+async def update_document(
+    doc_id: str, update: DocumentUpdate, db: Database = Depends(get_library_database)
+) -> Document:
     """Update an existing document."""
     doc = db.get(Document, doc_id)
     if not doc:
@@ -187,7 +206,10 @@ async def update_document(doc_id: str, update: DocumentUpdate, db: Database = De
         if update_data["parent_id"] is not None:
             parent = db.get(Document, update_data["parent_id"])
             if not parent:
-                raise HTTPException(status_code=400, detail=f"Parent not found: {update_data['parent_id']}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Parent not found: {update_data['parent_id']}",
+                )
         # parent_id=None is allowed (moves to root)
 
     for field, value in update_data.items():
@@ -195,6 +217,7 @@ async def update_document(doc_id: str, update: DocumentUpdate, db: Database = De
 
     # Update timestamp
     from datetime import datetime
+
     doc.updated_at = datetime.now()
 
     db.save(doc)
@@ -242,7 +265,11 @@ async def delete_document(doc_id: str, db: Database = Depends(get_library_databa
 
 
 @router.post("/reorder")
-async def reorder_documents(doc_ids: list[str], folder_path: str = "/", db: Database = Depends(get_library_database)) -> dict:
+async def reorder_documents(
+    doc_ids: list[str],
+    folder_path: str = "/",
+    db: Database = Depends(get_library_database),
+) -> dict:
     """Reorder documents within a folder."""
     # Update sort_order for each document
     for i, doc_id in enumerate(doc_ids):
@@ -284,9 +311,9 @@ async def import_file(
             mode=IngestMode.COPY,  # Copy file into library
             parent_id=parent_id,
             extract_metadata=True,  # Extract file metadata
-            extract_text=True,      # Extract text for search
-            save=True,              # Save to database
-            db=db,                  # Database instance
+            extract_text=True,  # Extract text for search
+            save=True,  # Save to database
+            db=db,  # Database instance
             package_path=package_path,  # Library package path
         )
 
@@ -303,6 +330,7 @@ async def import_file(
 
 class MoveRequest(BaseModel):
     """Request model for moving a document."""
+
     parent_id: Optional[str] = None
 
     model_config = {"extra": "allow"}
@@ -326,13 +354,16 @@ async def move_document(
     if parent_id:
         parent = db.get(Document, parent_id)
         if not parent:
-            raise HTTPException(status_code=400, detail=f"Parent not found: {parent_id}")
+            raise HTTPException(
+                status_code=400, detail=f"Parent not found: {parent_id}"
+            )
 
     # Update parent
     doc.parent_id = parent_id
 
     # Update timestamp
     from datetime import datetime
+
     doc.updated_at = datetime.now()
 
     db.save(doc)
@@ -342,7 +373,9 @@ async def move_document(
 
 
 @router.post("/cleanup-orphans")
-async def cleanup_orphan_documents(db: Database = Depends(get_library_database)) -> dict:
+async def cleanup_orphan_documents(
+    db: Database = Depends(get_library_database),
+) -> dict:
     """Remove unreachable/orphan document rows.
 
     A document is considered orphaned when it is not reachable from any root

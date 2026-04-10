@@ -8,22 +8,22 @@ import Sparkle
 final class SparkleUpdater {
     static let shared = SparkleUpdater()
 
-#if canImport(Sparkle)
+    #if canImport(Sparkle)
     private let updaterController: SPUStandardUpdaterController
-#endif
+    #endif
 
     private init() {
-#if canImport(Sparkle)
+        #if canImport(Sparkle)
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
             updaterDelegate: nil,
             userDriverDelegate: nil
         )
-#endif
+        #endif
     }
 
     func checkForUpdates() {
-#if canImport(Sparkle)
+        #if canImport(Sparkle)
         guard let feedURLString = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String else {
             showMissingConfigurationAlert()
             return
@@ -45,17 +45,17 @@ final class SparkleUpdater {
         }
 
         updaterController.checkForUpdates(nil)
-#else
+        #else
         showMissingFrameworkAlert()
-#endif
+        #endif
     }
 
     private var requiresSignedUpdates: Bool {
-#if DEBUG
+        #if DEBUG
         return false
-#else
+        #else
         return true
-#endif
+        #endif
     }
 
     private func showMissingConfigurationAlert() {

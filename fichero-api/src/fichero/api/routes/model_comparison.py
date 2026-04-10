@@ -22,52 +22,69 @@ router = APIRouter(prefix="/model-comparison", tags=["model-comparison"])
 # Request/Response Models
 # =============================================================================
 
+
 class CompareRequest(BaseModel):
     """Request to compare models."""
+
     prompt: str = Field(..., description="Prompt to send to all models")
     models: list[dict] = Field(
         default=[
             {"provider": "openai", "model": "gpt-4o"},
             {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022"},
         ],
-        description="Models to compare"
+        description="Models to compare",
     )
-    system_prompt: str | None = Field(default=None, description="Optional system prompt")
+    system_prompt: str | None = Field(
+        default=None, description="Optional system prompt"
+    )
     timeout_seconds: int = Field(default=60, description="Timeout per model")
 
 
 class VisionCompareRequest(BaseModel):
     """Request to compare vision models."""
+
     images: list[str] = Field(..., description="Image URLs or base64 data URIs")
-    prompt: str = Field(default="Describe this image in detail", description="Prompt for vision analysis")
+    prompt: str = Field(
+        default="Describe this image in detail",
+        description="Prompt for vision analysis",
+    )
     models: list[dict] = Field(
         default=[
             {"provider": "openai", "model": "gpt-4o"},
             {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022"},
         ],
-        description="Vision-capable models to compare"
+        description="Vision-capable models to compare",
     )
-    detail: str = Field(default="auto", description="Image detail level: auto, low, high")
+    detail: str = Field(
+        default="auto", description="Image detail level: auto, low, high"
+    )
     timeout_seconds: int = Field(default=120, description="Timeout per model")
 
 
 class ToolCompareRequest(BaseModel):
     """Request to compare models running a workflow tool."""
-    tool_name: str = Field(..., description="Name of the workflow tool (describe, summarize, classify, etc.)")
+
+    tool_name: str = Field(
+        ...,
+        description="Name of the workflow tool (describe, summarize, classify, etc.)",
+    )
     inputs: dict = Field(..., description="Tool-specific inputs (files, text, etc.)")
     models: list[dict] = Field(
         default=[
             {"provider": "openai", "model": "gpt-4o"},
             {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022"},
         ],
-        description="Models to compare"
+        description="Models to compare",
     )
-    tool_config: dict | None = Field(default=None, description="Optional tool configuration overrides")
+    tool_config: dict | None = Field(
+        default=None, description="Optional tool configuration overrides"
+    )
     timeout_seconds: int = Field(default=120, description="Timeout per model")
 
 
 class ModelInfo(BaseModel):
     """Information about a model."""
+
     provider: str
     model: str
     input_price_per_million: float
@@ -77,6 +94,7 @@ class ModelInfo(BaseModel):
 # =============================================================================
 # API Endpoints
 # =============================================================================
+
 
 @router.post("/compare")
 async def compare_models(request: CompareRequest):
@@ -141,12 +159,14 @@ async def list_available_models():
         else:
             provider = "local"
 
-        models.append({
-            "provider": provider,
-            "model": model_name,
-            "input_price_per_million": input_price,
-            "output_price_per_million": output_price,
-        })
+        models.append(
+            {
+                "provider": provider,
+                "model": model_name,
+                "input_price_per_million": input_price,
+                "output_price_per_million": output_price,
+            }
+        )
 
     return {"models": models}
 
@@ -172,12 +192,16 @@ async def estimate_comparison_cost(request: CompareRequest):
 
     for m in request.models:
         model_name = m.get("model", "gpt-4o")
-        cost = estimate_cost(model_name, estimated_input_tokens, estimated_output_tokens)
-        estimates.append({
-            "provider": m.get("provider", "openai"),
-            "model": model_name,
-            "estimated_cost_usd": cost,
-        })
+        cost = estimate_cost(
+            model_name, estimated_input_tokens, estimated_output_tokens
+        )
+        estimates.append(
+            {
+                "provider": m.get("provider", "openai"),
+                "model": model_name,
+                "estimated_cost_usd": cost,
+            }
+        )
         total_estimated_cost += cost
 
     return {
@@ -328,15 +352,17 @@ async def list_available_tools():
     tools = []
     for tool_def in list_tools():
         if tool_def.uses_llm:
-            tools.append({
-                "name": tool_def.name,
-                "display_name": tool_def.display_name,
-                "description": tool_def.description,
-                "category": tool_def.category,
-                "input_ports": [
-                    {"id": p.id, "name": p.name, "required": p.required}
-                    for p in tool_def.input_ports
-                ],
-            })
+            tools.append(
+                {
+                    "name": tool_def.name,
+                    "display_name": tool_def.display_name,
+                    "description": tool_def.description,
+                    "category": tool_def.category,
+                    "input_ports": [
+                        {"id": p.id, "name": p.name, "required": p.required}
+                        for p in tool_def.input_ports
+                    ],
+                }
+            )
 
     return {"tools": tools}

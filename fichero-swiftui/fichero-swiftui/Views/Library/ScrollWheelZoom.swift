@@ -1,5 +1,5 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 // MARK: - Scroll Wheel Zoom (AppKit bridge for scroll wheel)
 

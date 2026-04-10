@@ -53,6 +53,7 @@ def get_workflow_store() -> WorkflowStore:
 
 class BatchItemResponse(BaseModel):
     """Response model for a batch item."""
+
     thread_id: str
     item_index: int
     inputs: dict[str, Any]
@@ -76,6 +77,7 @@ class BatchItemResponse(BaseModel):
 
 class BatchProgressResponse(BaseModel):
     """Response model for batch progress."""
+
     batch_id: str
     total_items: int
     completed_items: int
@@ -103,6 +105,7 @@ class BatchProgressResponse(BaseModel):
 
 class BatchResponse(BaseModel):
     """Response model for a batch execution."""
+
     batch_id: str
     workflow_id: str
     status: str
@@ -117,7 +120,9 @@ class BatchResponse(BaseModel):
     items: list[BatchItemResponse] = Field(default_factory=list)
 
     @classmethod
-    def from_batch(cls, batch: BatchExecution, include_items: bool = False) -> "BatchResponse":
+    def from_batch(
+        cls, batch: BatchExecution, include_items: bool = False
+    ) -> "BatchResponse":
         return cls(
             batch_id=batch.batch_id,
             workflow_id=batch.workflow_id,
@@ -130,19 +135,27 @@ class BatchResponse(BaseModel):
             started_at=batch.started_at.isoformat() if batch.started_at else None,
             completed_at=batch.completed_at.isoformat() if batch.completed_at else None,
             error_message=batch.error_message,
-            items=[BatchItemResponse.from_item(i) for i in batch.items] if include_items else [],
+            items=[BatchItemResponse.from_item(i) for i in batch.items]
+            if include_items
+            else [],
         )
 
 
 class CreateBatchRequest(BaseModel):
     """Request model for creating a batch."""
+
     workflow_id: str
-    items: list[dict[str, Any]] = Field(..., description="List of input dictionaries, one per item")
-    max_concurrent: int = Field(default=5, ge=1, le=50, description="Maximum concurrent executions")
+    items: list[dict[str, Any]] = Field(
+        ..., description="List of input dictionaries, one per item"
+    )
+    max_concurrent: int = Field(
+        default=5, ge=1, le=50, description="Maximum concurrent executions"
+    )
 
 
 class BatchEventResponse(BaseModel):
     """Response model for a batch event."""
+
     batch_id: str
     event_type: str
     thread_id: Optional[str] = None
@@ -158,7 +171,9 @@ class BatchEventResponse(BaseModel):
             event_type=event.event_type,
             thread_id=event.thread_id,
             item_index=event.item_index,
-            progress=BatchProgressResponse.from_progress(event.progress) if event.progress else None,
+            progress=BatchProgressResponse.from_progress(event.progress)
+            if event.progress
+            else None,
             error=event.error,
             timestamp=event.timestamp.isoformat(),
         )
@@ -200,7 +215,9 @@ async def list_batches(
     manager = get_batch_manager()
 
     filter_status = BatchStatus(status) if status else None
-    batches = await manager.list_batches(status=filter_status, limit=limit, offset=offset)
+    batches = await manager.list_batches(
+        status=filter_status, limit=limit, offset=offset
+    )
 
     return [BatchResponse.from_batch(b, include_items=False) for b in batches]
 

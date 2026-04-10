@@ -25,9 +25,11 @@ CACHE_TTL = timedelta(minutes=15)
 # Response Models
 # =============================================================================
 
+
 class HFModelInfo(BaseModel):
     """Hugging Face model information."""
-    id: str                      # e.g., "meta-llama/Llama-3.1-8B-Instruct"
+
+    id: str  # e.g., "meta-llama/Llama-3.1-8B-Instruct"
     downloads: int
     likes: int
     pipeline_tag: Optional[str]  # Task type
@@ -38,12 +40,14 @@ class HFModelInfo(BaseModel):
 
 class HFTaskCategory(BaseModel):
     """Hugging Face task/pipeline category."""
-    id: str       # e.g., "text-generation"
-    label: str    # e.g., "Text Generation"
+
+    id: str  # e.g., "text-generation"
+    label: str  # e.g., "Text Generation"
 
 
 class ModelSearchResponse(BaseModel):
     """Paginated model search results."""
+
     models: list[HFModelInfo]
     total: int
     has_more: bool
@@ -52,6 +56,7 @@ class ModelSearchResponse(BaseModel):
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
 
 def _get_cache(key: str) -> Optional[list]:
     """Get cached response if not expired."""
@@ -107,7 +112,9 @@ async def _fetch_hf_models(
             return data
         except httpx.HTTPError as e:
             logger.error(f"HuggingFace API error: {e}")
-            raise HTTPException(status_code=502, detail=f"HuggingFace API error: {str(e)}")
+            raise HTTPException(
+                status_code=502, detail=f"HuggingFace API error: {str(e)}"
+            )
 
 
 async def _fetch_hf_tasks() -> list[dict]:
@@ -130,31 +137,37 @@ async def _fetch_hf_tasks() -> list[dict]:
             return tasks
         except httpx.HTTPError as e:
             logger.error(f"HuggingFace API error: {e}")
-            raise HTTPException(status_code=502, detail=f"HuggingFace API error: {str(e)}")
+            raise HTTPException(
+                status_code=502, detail=f"HuggingFace API error: {str(e)}"
+            )
 
 
 # =============================================================================
 # Routes
 # =============================================================================
 
+
 @router.get("/huggingface/tasks")
 async def list_hf_tasks() -> list[HFTaskCategory]:
     """List available Hugging Face task categories for filtering."""
     tasks = await _fetch_hf_tasks()
-    return [
-        HFTaskCategory(id=t["id"], label=t.get("label", t["id"]))
-        for t in tasks
-    ]
+    return [HFTaskCategory(id=t["id"], label=t.get("label", t["id"])) for t in tasks]
 
 
 @router.get("/huggingface")
 async def search_hf_models(
-    task: Optional[str] = Query(None, description="Filter by task (e.g., text-generation)"),
+    task: Optional[str] = Query(
+        None, description="Filter by task (e.g., text-generation)"
+    ),
     search: Optional[str] = Query(None, description="Search query"),
-    sort: str = Query("downloads", description="Sort by: downloads, likes, trending, lastModified"),
+    sort: str = Query(
+        "downloads", description="Sort by: downloads, likes, trending, lastModified"
+    ),
     limit: int = Query(20, ge=1, le=100, description="Results per page"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
-    library: Optional[str] = Query(None, description="Filter by library (e.g., transformers, gguf)"),
+    library: Optional[str] = Query(
+        None, description="Filter by library (e.g., transformers, gguf)"
+    ),
 ) -> ModelSearchResponse:
     """
     Search Hugging Face models.
@@ -216,7 +229,9 @@ async def get_hf_model(model_id: str) -> HFModelInfo:
                 _set_cache(cache_key, cached)
             except httpx.HTTPError as e:
                 logger.error(f"HuggingFace API error: {e}")
-                raise HTTPException(status_code=502, detail=f"HuggingFace API error: {str(e)}")
+                raise HTTPException(
+                    status_code=502, detail=f"HuggingFace API error: {str(e)}"
+                )
 
     m = cached[0]
     return HFModelInfo(

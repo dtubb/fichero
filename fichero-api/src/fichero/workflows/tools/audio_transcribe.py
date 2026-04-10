@@ -52,6 +52,7 @@ TRANSCRIBE_CONFIG = {
 # Prompt Building
 # =============================================================================
 
+
 def _build_prompt(language: str) -> str:
     """Build the transcription prompt."""
     return f"Transcribe this audio accurately in {language}. Preserve formatting and punctuation."
@@ -66,6 +67,7 @@ def build_audio_transcribe_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="audio_transcribe",

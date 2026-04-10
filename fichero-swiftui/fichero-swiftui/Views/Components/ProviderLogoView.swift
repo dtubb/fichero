@@ -1,5 +1,5 @@
-import SwiftUI
 import FicheroAPIClient
+import SwiftUI
 
 /// Displays provider logo - uses bundled image if available, SF Symbol as fallback
 struct ProviderLogoView: View {

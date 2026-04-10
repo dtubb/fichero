@@ -39,12 +39,14 @@ from fichero.workflows.types import State
 logger = logging.getLogger(__name__)
 
 # Path patterns
-NODE_PATH = re.compile(r"^\$\.nodes\.([^.]+)\.(.+)$")      # $.nodes.{id}.{key}
-INPUT_PATH = re.compile(r"^\$\.inputs\.(.+)$")             # $.inputs.{key}
-FILES_PATH = re.compile(r"^\$\.files(?:\[(-?\d+|\*)\])?$") # $.files, $.files[n], $.files[*]
-CONFIG_PATH = re.compile(r"^\$\.config\.(.+)$")            # $.config.{key}
-STATE_PATH = re.compile(r"^\$\.state\.(.+)$")              # $.state.{key} (raw state access)
-TRANSFORM_SPLIT = re.compile(r"\s*\|\s*")                  # Split on pipe for transforms
+NODE_PATH = re.compile(r"^\$\.nodes\.([^.]+)\.(.+)$")  # $.nodes.{id}.{key}
+INPUT_PATH = re.compile(r"^\$\.inputs\.(.+)$")  # $.inputs.{key}
+FILES_PATH = re.compile(
+    r"^\$\.files(?:\[(-?\d+|\*)\])?$"
+)  # $.files, $.files[n], $.files[*]
+CONFIG_PATH = re.compile(r"^\$\.config\.(.+)$")  # $.config.{key}
+STATE_PATH = re.compile(r"^\$\.state\.(.+)$")  # $.state.{key} (raw state access)
+TRANSFORM_SPLIT = re.compile(r"\s*\|\s*")  # Split on pipe for transforms
 
 
 def resolve_inputs(
@@ -301,8 +303,8 @@ def _parse_json(value: Any, repair: bool = False) -> Any:
     repaired = text
 
     # Remove JavaScript-style comments
-    repaired = re.sub(r'//.*?$', '', repaired, flags=re.MULTILINE)
-    repaired = re.sub(r'/\*.*?\*/', '', repaired, flags=re.DOTALL)
+    repaired = re.sub(r"//.*?$", "", repaired, flags=re.MULTILINE)
+    repaired = re.sub(r"/\*.*?\*/", "", repaired, flags=re.DOTALL)
 
     # Replace single quotes with double quotes (careful with nested quotes)
     # Only do this if there are no double quotes at all
@@ -310,7 +312,7 @@ def _parse_json(value: Any, repair: bool = False) -> Any:
         repaired = repaired.replace("'", '"')
 
     # Remove trailing commas before } or ]
-    repaired = re.sub(r',\s*([}\]])', r'\1', repaired)
+    repaired = re.sub(r",\s*([}\]])", r"\1", repaired)
 
     # Try again
     try:
@@ -319,7 +321,7 @@ def _parse_json(value: Any, repair: bool = False) -> Any:
         pass
 
     # Try to fix unquoted keys: {key: value} -> {"key": value}
-    repaired = re.sub(r'(\{|\,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', repaired)
+    repaired = re.sub(r"(\{|\,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:", r'\1"\2":', repaired)
 
     try:
         return json.loads(repaired)
@@ -340,7 +342,7 @@ def _extract_json(value: Any) -> Any:
         return value
 
     # Try to find JSON object {...}
-    obj_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', value, re.DOTALL)
+    obj_match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", value, re.DOTALL)
     if obj_match:
         try:
             return json.loads(obj_match.group())
@@ -348,7 +350,7 @@ def _extract_json(value: Any) -> Any:
             pass
 
     # Try to find JSON array [...]
-    arr_match = re.search(r'\[[^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*\]', value, re.DOTALL)
+    arr_match = re.search(r"\[[^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*\]", value, re.DOTALL)
     if arr_match:
         try:
             return json.loads(arr_match.group())
@@ -356,7 +358,7 @@ def _extract_json(value: Any) -> Any:
             pass
 
     # Try code block extraction ```json ... ```
-    code_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', value)
+    code_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", value)
     if code_match:
         return _parse_json(code_match.group(1), repair=True)
 
@@ -385,7 +387,7 @@ def _get_nested(obj: dict | list, path: str) -> Any:
             # Wildcard: extract from all items
             if isinstance(current, list):
                 # Get remaining path after [*]
-                remaining_parts = parts[i + 1:]
+                remaining_parts = parts[i + 1 :]
                 if remaining_parts:
                     # Extract nested value from each item
                     remaining_path = _parts_to_path(remaining_parts)
@@ -412,7 +414,10 @@ def _get_nested(obj: dict | list, path: str) -> Any:
                 current = current.get(part)
             elif isinstance(current, list):
                 # If we have a list but need a dict key, extract from all items
-                current = [item.get(part) if isinstance(item, dict) else None for item in current]
+                current = [
+                    item.get(part) if isinstance(item, dict) else None
+                    for item in current
+                ]
             else:
                 return None
 
@@ -499,6 +504,7 @@ def evaluate_condition(
     Returns:
         Boolean result
     """
+
     # Replace paths with resolved values
     def replace_path(match: re.Match) -> str:
         path = match.group(0)
@@ -526,5 +532,10 @@ def evaluate_condition(
         result = eval(resolved_condition, {"__builtins__": {}}, {})
         return bool(result)
     except Exception as e:
-        logger.warning("Condition evaluation failed: %s -> %s: %s", condition, resolved_condition, e)
+        logger.warning(
+            "Condition evaluation failed: %s -> %s: %s",
+            condition,
+            resolved_condition,
+            e,
+        )
         return False

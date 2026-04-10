@@ -16,7 +16,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from langchain_core.messages import AIMessage
 
 from fichero.db import Database
 from fichero.workflows.workflow_store import WorkflowStore
@@ -24,7 +23,7 @@ from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
 from fichero.workflows.builder import build_graph
 from fichero.llm import LLMConfig
 from fichero.models import Workflow
-from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
+from fichero.workflows.types import WorkflowDef, NodeDef
 
 
 # =============================================================================
@@ -176,11 +175,10 @@ class TestAgentWorkflowExecution:
 
         final_state = await app.ainvoke(initial_state, config=config)
 
-        # Verify error was handled
-        assert "outputs" in final_state
-        assert "agent1" in final_state["outputs"]
-        assert "error" in final_state["outputs"]["agent1"]
-        assert "No task provided" in final_state["outputs"]["agent1"]["error"]
+        # Verify error was handled at top level
+        assert "error" in final_state
+        assert "No task provided" in final_state["error"]
+        assert final_state["current_node"] == "agent1"
 
 
     @pytest.mark.asyncio

@@ -55,6 +55,7 @@ LAYOUT_CONFIG = {
 # Prompt Building
 # =============================================================================
 
+
 def _build_prompt(elements: list[str], include_hierarchy: bool) -> str:
     """Build the layout analysis prompt."""
     elements_str = ", ".join(elements)
@@ -87,7 +88,9 @@ Return ONLY valid JSON."""
 
 def build_layout_prompt(config: dict) -> str:
     """Build prompt from config (exposed to UI)."""
-    elements = config.get("elements", ["headers", "paragraphs", "tables", "images", "lists"])
+    elements = config.get(
+        "elements", ["headers", "paragraphs", "tables", "images", "lists"]
+    )
     include_hierarchy = config.get("include_hierarchy", True)
     return _build_prompt(elements, include_hierarchy)
 
@@ -95,6 +98,7 @@ def build_layout_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="layout",
@@ -109,7 +113,9 @@ def build_layout_prompt(config: dict) -> str:
     input_ports=VISION_INPUT_PORTS,
     output_ports=BASE_OUTPUT_PORTS,
     config_schema=merge_config_schema(VISION_CONFIG_SCHEMA, LAYOUT_CONFIG),
-    default_prompt=_build_prompt(["headers", "paragraphs", "tables", "images", "lists"], True),
+    default_prompt=_build_prompt(
+        ["headers", "paragraphs", "tables", "images", "lists"], True
+    ),
     prompt_builder=build_layout_prompt,
     sort_order=18,
 )
@@ -127,7 +133,9 @@ async def layout(
     input_metadata = inputs.get("metadata")
 
     # Get layout-specific config
-    elements = inputs.get("elements", ["headers", "paragraphs", "tables", "images", "lists"])
+    elements = inputs.get(
+        "elements", ["headers", "paragraphs", "tables", "images", "lists"]
+    )
     include_hierarchy = inputs.get("include_hierarchy", True)
 
     # Build prompt

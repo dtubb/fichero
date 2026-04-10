@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 private let logger = Logger(subsystem: "com.tubb.Fichero", category: "AIModelSelectionView")
 
@@ -55,7 +55,7 @@ struct AIModelSelectionView: View {
         if !searchText.isEmpty {
             result = result.filter {
                 $0.modelId.localizedCaseInsensitiveContains(searchText) ||
-                $0.fullName.localizedCaseInsensitiveContains(searchText)
+                    $0.fullName.localizedCaseInsensitiveContains(searchText)
             }
         }
 

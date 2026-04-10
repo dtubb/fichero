@@ -52,7 +52,16 @@ SENTIMENT_CONFIG = {
 }
 
 SENTIMENT_INPUT_PORTS = merge_ports(
-    [PortDef(id="text", name="Text", port_type="input", data_type=DataType.TEXT, required=True, description="Text to analyze")],
+    [
+        PortDef(
+            id="text",
+            name="Text",
+            port_type="input",
+            data_type=DataType.TEXT,
+            required=True,
+            description="Text to analyze",
+        )
+    ],
     BASE_INPUT_PORTS,
 )
 
@@ -60,6 +69,7 @@ SENTIMENT_INPUT_PORTS = merge_ports(
 # =============================================================================
 # Prompt Building
 # =============================================================================
+
 
 def _build_prompt(granularity: str, include_emotions: bool) -> str:
     """Build the sentiment analysis prompt."""
@@ -95,7 +105,13 @@ Return ONLY valid JSON."""
         choices = {
             "binary": ["positive", "negative"],
             "ternary": ["positive", "neutral", "negative"],
-            "five_point": ["very_positive", "positive", "neutral", "negative", "very_negative"],
+            "five_point": [
+                "very_positive",
+                "positive",
+                "neutral",
+                "negative",
+                "very_negative",
+            ],
         }
         options = ", ".join(choices.get(granularity, choices["ternary"]))
         return f"""Analyze the sentiment of this text.
@@ -115,6 +131,7 @@ def build_sentiment_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="sentiment",
@@ -151,7 +168,9 @@ async def sentiment(
     prompt = inputs.get("prompt") or _build_prompt(granularity, include_emotions)
 
     # Use json for detailed, choice for simple
-    default_format = "json" if (granularity == "detailed" or include_emotions) else "choice"
+    default_format = (
+        "json" if (granularity == "detailed" or include_emotions) else "choice"
+    )
 
     # Build reference values for choice mode
     ref_values = None
@@ -159,7 +178,13 @@ async def sentiment(
         choices = {
             "binary": ["positive", "negative"],
             "ternary": ["positive", "neutral", "negative"],
-            "five_point": ["very_positive", "positive", "neutral", "negative", "very_negative"],
+            "five_point": [
+                "very_positive",
+                "positive",
+                "neutral",
+                "negative",
+                "very_negative",
+            ],
         }
         ref_values = {"sentiment": choices.get(granularity, choices["ternary"])}
 

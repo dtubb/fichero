@@ -36,7 +36,7 @@ class DEVONthinkIntegration(AppIntegration):
         if not self.is_available:
             return []
 
-        script = '''
+        script = """
         tell application "DEVONthink 3"
             set dbList to {}
             repeat with db in databases
@@ -45,7 +45,7 @@ class DEVONthinkIntegration(AppIntegration):
             end repeat
             return dbList
         end tell
-        '''
+        """
 
         success, result = self.run_applescript(script)
         if not success:
@@ -69,7 +69,7 @@ class DEVONthinkIntegration(AppIntegration):
         limit: int = 100,
         search: Optional[str] = None,
         item_type: Optional[str] = None,
-        database: Optional[str] = None
+        database: Optional[str] = None,
     ) -> list[ImportedItem]:
         """
         List documents from DEVONthink.
@@ -102,7 +102,7 @@ class DEVONthinkIntegration(AppIntegration):
         else:
             # List recent items
             db_clause = f'database "{database}"' if database else "current database"
-            script = f'''
+            script = f"""
             tell application "DEVONthink 3"
                 set docs to contents of {db_clause}
                 set resultList to {{}}
@@ -115,7 +115,7 @@ class DEVONthinkIntegration(AppIntegration):
                 end repeat
                 return resultList
             end tell
-            '''
+            """
 
         success, result = self.run_applescript(script)
         if not success:
@@ -126,15 +126,17 @@ class DEVONthinkIntegration(AppIntegration):
         try:
             records = self._parse_applescript_records(result)
             for record in records:
-                items.append(ImportedItem(
-                    external_id=record.get("uuid", ""),
-                    name=record.get("name", "Untitled"),
-                    source_app="DEVONthink",
-                    item_type=record.get("type", "unknown"),
-                    file_path=Path(record["path"]) if record.get("path") else None,
-                    url=record.get("url"),
-                    metadata={"devonthink_type": record.get("type")}
-                ))
+                items.append(
+                    ImportedItem(
+                        external_id=record.get("uuid", ""),
+                        name=record.get("name", "Untitled"),
+                        source_app="DEVONthink",
+                        item_type=record.get("type", "unknown"),
+                        file_path=Path(record["path"]) if record.get("path") else None,
+                        url=record.get("url"),
+                        metadata={"devonthink_type": record.get("type")},
+                    )
+                )
         except Exception as e:
             logger.error(f"Error parsing DEVONthink items: {e}")
 
@@ -173,7 +175,7 @@ class DEVONthinkIntegration(AppIntegration):
                     content=record.get("content"),
                     metadata={"devonthink_type": record.get("type")},
                     created_at=self._parse_date(record.get("created")),
-                    modified_at=self._parse_date(record.get("modified"))
+                    modified_at=self._parse_date(record.get("modified")),
                 )
         except Exception as e:
             logger.error(f"Error parsing DEVONthink item: {e}")
@@ -181,9 +183,7 @@ class DEVONthinkIntegration(AppIntegration):
         return None
 
     async def import_item(
-        self,
-        external_id: str,
-        target_path: Optional[Path] = None
+        self, external_id: str, target_path: Optional[Path] = None
     ) -> Optional[Path]:
         """
         Import a document from DEVONthink.
@@ -201,6 +201,7 @@ class DEVONthinkIntegration(AppIntegration):
         if item.file_path and item.file_path.exists():
             if target_path:
                 import shutil
+
                 shutil.copy2(item.file_path, target_path)
                 return target_path
             return item.file_path
@@ -228,7 +229,7 @@ class DEVONthinkIntegration(AppIntegration):
         file_path: Path,
         metadata: Optional[dict] = None,
         database: Optional[str] = None,
-        group: Optional[str] = None
+        group: Optional[str] = None,
     ) -> Optional[str]:
         """
         Export a file to DEVONthink.
@@ -253,9 +254,9 @@ class DEVONthinkIntegration(AppIntegration):
         db_clause = f'database "{database}"' if database else "current database"
         group_clause = ""
         if group:
-            group_clause = f'to incoming group of {db_clause}'
+            group_clause = f"to incoming group of {db_clause}"
         else:
-            group_clause = f'to incoming group of {db_clause}'
+            group_clause = f"to incoming group of {db_clause}"
 
         name = metadata.get("name", file_path.name) if metadata else file_path.name
 

@@ -1,6 +1,6 @@
+import Combine
 import Foundation
 import os.log
-import Combine
 import QuartzCore
 
 /// Performance monitoring and benchmarking service

@@ -24,8 +24,12 @@ def test_release_tier_exposes_001_routes():
     assert "/api/workflow-execution" in prefixes
 
 
-def test_dev_tier_matches_release_until_dev_routes_added():
-    assert _route_prefixes_for("dev") == _route_prefixes_for("release")
+def test_dev_tier_adds_knowledge_graph_routes():
+    dev_prefixes = _route_prefixes_for("dev")
+    release_prefixes = _route_prefixes_for("release")
+
+    assert "/api/knowledge-graph" in dev_prefixes
+    assert "/api/knowledge-graph" not in release_prefixes
 
 
 def test_invalid_tier_defaults_to_release(monkeypatch):

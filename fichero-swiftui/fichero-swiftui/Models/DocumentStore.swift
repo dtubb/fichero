@@ -1,7 +1,7 @@
-import Foundation
-import SwiftUI
 import Combine
+import Foundation
 import OSLog
+import SwiftUI
 
 let documentStoreLogger = Logger(subsystem: "com.tubb.Fichero", category: "DocumentStore")
 

@@ -31,6 +31,7 @@ from dataclasses import dataclass
 
 class ProviderType(str, Enum):
     """Supported LLM provider types."""
+
     # On-device (Apple)
     apple = "apple"
     # Local servers
@@ -38,7 +39,7 @@ class ProviderType(str, Enum):
     lmstudio = "lmstudio"
     # Open source / aggregators
     huggingface = "huggingface"
-    openrouter = "openrouter"    # Multi-provider aggregator
+    openrouter = "openrouter"  # Multi-provider aggregator
     # Cloud providers
     openai = "openai"
     anthropic = "anthropic"
@@ -49,33 +50,34 @@ class ProviderType(str, Enum):
     mistral = "mistral"
     cohere = "cohere"
     # Additional LiteLLM providers
-    dashscope = "dashscope"      # Alibaba Qwen (great for OCR)
-    xai = "xai"                  # Grok
-    perplexity = "perplexity"    # Search-augmented
-    fireworks = "fireworks"      # Fast inference
-    azure = "azure"              # Azure OpenAI
-    bedrock = "bedrock"          # AWS Bedrock
+    dashscope = "dashscope"  # Alibaba Qwen (great for OCR)
+    xai = "xai"  # Grok
+    perplexity = "perplexity"  # Search-augmented
+    fireworks = "fireworks"  # Fast inference
+    azure = "azure"  # Azure OpenAI
+    bedrock = "bedrock"  # AWS Bedrock
 
 
 @dataclass(frozen=True)
 class ProviderInfo:
     """Static provider metadata."""
+
     type: ProviderType
     name: str
     description: str
     api_key_env: str | None  # Environment variable name for API key
     api_key_url: str | None  # Where to get API key
-    is_local: bool = False   # True if runs locally (no API key needed)
-    is_builtin: bool = False # True if built into macOS (no config needed at all)
+    is_local: bool = False  # True if runs locally (no API key needed)
+    is_builtin: bool = False  # True if built into macOS (no config needed at all)
     supports_vision: bool = False
     supports_embeddings: bool = False
     supports_streaming: bool = True
     default_model: str | None = None
     # UI metadata (for SwiftUI - no hardcoded values in frontend)
-    icon: str = "cpu"        # SF Symbol name (fallback)
+    icon: str = "cpu"  # SF Symbol name (fallback)
     logo_asset: str | None = None  # Bundled image asset name (e.g., "Providers/OpenAI")
-    color: str = "blue"      # Color name for SwiftUI
-    sort_order: int = 100    # Display order (lower = first)
+    color: str = "blue"  # Color name for SwiftUI
+    sort_order: int = 100  # Display order (lower = first)
 
 
 # =============================================================================
@@ -374,6 +376,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
 
 def get_provider_info(provider_type: ProviderType | str) -> ProviderInfo | None:
     """Get provider info by type.

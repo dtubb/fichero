@@ -58,6 +58,7 @@ VIDEO_DESCRIBE_CONFIG = {
 # Prompt Building
 # =============================================================================
 
+
 def _build_prompt(detail_level: str, focus: str) -> str:
     """Build the video description prompt."""
     detail_instructions = {
@@ -87,6 +88,7 @@ def build_video_describe_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="video_describe",

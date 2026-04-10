@@ -51,9 +51,15 @@ EXTRACT_CONFIG = {
         "items": {
             "type": "object",
             "properties": {
-                "name": {"type": "string", "description": "Field name (e.g., doc_type, tags)"},
+                "name": {
+                    "type": "string",
+                    "description": "Field name (e.g., doc_type, tags)",
+                },
                 "prompt": {"type": "string", "description": "What to extract"},
-                "type": {"type": "string", "enum": ["string", "array", "boolean", "number"]},
+                "type": {
+                    "type": "string",
+                    "enum": ["string", "array", "boolean", "number"],
+                },
             },
         },
         "description": "Fields to extract",
@@ -67,7 +73,13 @@ EXTRACT_CONFIG = {
 # Custom output ports for extract (includes data port)
 EXTRACT_OUTPUT_PORTS = merge_ports(
     [
-        PortDef(id="data", name="Data", port_type="output", data_type=DataType.JSON, description="Parsed extraction"),
+        PortDef(
+            id="data",
+            name="Data",
+            port_type="output",
+            data_type=DataType.JSON,
+            description="Parsed extraction",
+        ),
     ],
     BASE_OUTPUT_PORTS,
 )
@@ -77,7 +89,10 @@ EXTRACT_OUTPUT_PORTS = merge_ports(
 # Prompt Building
 # =============================================================================
 
-def _build_extraction_prompt(fields: list[dict], context: str | None, input_metadata: dict | None) -> str:
+
+def _build_extraction_prompt(
+    fields: list[dict], context: str | None, input_metadata: dict | None
+) -> str:
     """Build a prompt that extracts multiple fields in one call."""
 
     # Build context section
@@ -143,6 +158,7 @@ def _parse_json_response(response: str) -> dict:
 # Tool Registration
 # =============================================================================
 
+
 @register_tool(
     name="extract",
     display_name="Extract",
@@ -172,10 +188,13 @@ async def extract(
     input_metadata = inputs.get("metadata")
 
     # Get extract-specific config
-    fields = inputs.get("fields", [
-        {"name": "description", "prompt": "Brief description", "type": "string"},
-        {"name": "tags", "prompt": "5-10 keyword tags", "type": "array"},
-    ])
+    fields = inputs.get(
+        "fields",
+        [
+            {"name": "description", "prompt": "Brief description", "type": "string"},
+            {"name": "tags", "prompt": "5-10 keyword tags", "type": "array"},
+        ],
+    )
     save_to_db = inputs.get("save_to_db", True)
     max_image_dimension = inputs.get("max_image_dimension", 2048)
     temperature = inputs.get("temperature")
@@ -185,17 +204,35 @@ async def extract(
         files = [files]
 
     if not files:
-        return {"text": "", "data": {}, "value": None, "values": [], "results": [], "artifacts": [], "error": "No input files provided"}
+        return {
+            "text": "",
+            "data": {},
+            "value": None,
+            "values": [],
+            "results": [],
+            "artifacts": [],
+            "error": "No input files provided",
+        }
 
     if not fields:
-        return {"text": "", "data": {}, "value": None, "values": [], "results": [], "artifacts": [], "error": "No fields configured"}
+        return {
+            "text": "",
+            "data": {},
+            "value": None,
+            "values": [],
+            "results": [],
+            "artifacts": [],
+            "error": "No fields configured",
+        }
 
     # Override LLMConfig with user values if provided
     effective_config = llm_config
     if temperature is not None or max_tokens is not None:
         effective_config = dataclasses.replace(
             llm_config,
-            temperature=temperature if temperature is not None else llm_config.temperature,
+            temperature=temperature
+            if temperature is not None
+            else llm_config.temperature,
             max_tokens=max_tokens if max_tokens is not None else llm_config.max_tokens,
         )
 
@@ -260,7 +297,9 @@ async def extract(
 
         except Exception as e:
             logger.error(f"Extraction failed for {file_path}: {e}")
-            results.append({"file": file_path, "text": "", "value": {}, "error": str(e)})
+            results.append(
+                {"file": file_path, "text": "", "value": {}, "error": str(e)}
+            )
             all_data.append({})
             texts.append("")
 

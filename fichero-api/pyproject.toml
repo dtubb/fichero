@@ -79,6 +79,7 @@ requires = [
     "watchdog",
     "kreuzberg",
     "fastembed",
+    "pykeen",
     # Document Processing
     "PyMuPDF",
     "Pillow",
@@ -156,6 +157,7 @@ dependencies = [
     "watchdog",
     "kreuzberg",
     "fastembed",
+    "pykeen",
     "PyMuPDF",
     "Pillow",
 ]

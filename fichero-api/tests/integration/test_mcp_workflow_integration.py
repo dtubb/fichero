@@ -10,7 +10,6 @@ Tests the complete flow:
 
 import pytest
 from unittest.mock import AsyncMock, Mock, patch
-from contextlib import asynccontextmanager
 
 from langchain_core.tools import BaseTool
 
@@ -177,11 +176,10 @@ class TestMCPWorkflowExecution:
 
             final_state = await app.ainvoke(initial_state, config=config)
 
-            # Verify error was captured
-            assert "outputs" in final_state
-            assert "failing_node" in final_state["outputs"]
-            assert "error" in final_state["outputs"]["failing_node"]
-            assert "MCP tool failed" in final_state["outputs"]["failing_node"]["error"]
+            # Verify error was captured at top level
+            assert "error" in final_state
+            assert "MCP tool failed" in final_state["error"]
+            assert final_state["current_node"] == "failing_node"
 
     @pytest.mark.asyncio
     async def test_multiple_mcp_tools_in_workflow(self):
@@ -279,8 +277,8 @@ class TestMCPWorkflowExecution:
             # First tool output should be uppercase
             assert final_state["outputs"]["uppercase_node"]["output"] == "HELLO"
 
-            # Second tool output should be reversed
-            assert final_state["outputs"]["reverse_node"]["output"] == "dlrow"
+            # Second tool output should be reversed (HELLO -> OLLEH)
+            assert final_state["outputs"]["reverse_node"]["output"] == "OLLEH"
 
     @pytest.mark.asyncio
     async def test_mcp_tool_with_complex_input(self):

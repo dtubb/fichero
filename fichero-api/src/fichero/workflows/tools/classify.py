@@ -37,9 +37,21 @@ TOOL_CONFIG = VisionToolConfig(
 )
 
 DEFAULT_CATEGORIES = [
-    "photograph", "letter", "receipt", "invoice", "diagram",
-    "map", "handwriting", "screenshot", "artwork", "form",
-    "certificate", "newspaper", "book_page", "presentation", "other",
+    "photograph",
+    "letter",
+    "receipt",
+    "invoice",
+    "diagram",
+    "map",
+    "handwriting",
+    "screenshot",
+    "artwork",
+    "form",
+    "certificate",
+    "newspaper",
+    "book_page",
+    "presentation",
+    "other",
 ]
 
 CLASSIFY_CONFIG = {
@@ -60,6 +72,7 @@ CLASSIFY_CONFIG = {
 # =============================================================================
 # Prompt Building
 # =============================================================================
+
 
 def _build_prompt(categories: list[str], multi_label: bool) -> str:
     """Build the classification prompt."""
@@ -89,6 +102,7 @@ def build_classify_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="classify",

@@ -86,6 +86,7 @@ async def lifespan(app: FastAPI):
     # Startup: initialize database manager
     logger.info("Fichero API starting up...")
     from fichero.db import db_manager
+
     logger.info("DatabaseManager initialized")
     yield
     # Shutdown: close all database connections
@@ -100,13 +101,43 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS - allow all for local SwiftUI app
+# CORS configuration
+# Production: Restrict origins to specific domains
+# Development: Allow localhost origins
+def _get_cors_origins() -> list[str]:
+    """Get allowed CORS origins based on environment."""
+    env = os.environ.get("FICHERO_ENV", "development").lower().strip()
+    
+    if env == "production":
+        # Production: Only specific origins (configure via env var)
+        allowed = os.environ.get("FICHERO_CORS_ORIGINS", "")
+        if allowed:
+            return [origin.strip() for origin in allowed.split(",")]
+        # Default: no cross-origin in production if not configured
+        return []
+    
+    # Development: Allow common local development origins
+    return [
+        "http://localhost:*",
+        "http://127.0.0.1:*",
+        "https://localhost:*",
+        "https://127.0.0.1:*",
+        "app://localhost",  # Electron/Tauri apps
+    ]
+
+
+cors_origins = _get_cors_origins()
+
+# Security: Never allow credentials with wildcard origins
+# Credentials are only allowed when specific origins are configured
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=cors_origins,
+    allow_credentials=len(cors_origins) > 0 and cors_origins != ["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Fichero-Library-Path", "X-API-Key"],
+    expose_headers=["X-Request-ID"],
+    max_age=600,
 )
 
 
@@ -116,7 +147,7 @@ from fichero.db import Database, db_manager  # noqa: E402
 
 
 async def get_library_database(
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path")
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
 ) -> Database:
     """FastAPI dependency to get the database for the current library package.
 
@@ -135,7 +166,7 @@ async def get_library_database(
     if not x_fichero_library_path:
         raise HTTPException(
             status_code=400,
-            detail="Missing X-Fichero-Library-Path header. Please open a library document first."
+            detail="Missing X-Fichero-Library-Path header. Please open a library document first.",
         )
 
     try:
@@ -145,15 +176,14 @@ async def get_library_database(
     except Exception as e:
         logger.error(f"Failed to get database for {x_fichero_library_path}: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to access library database: {str(e)}"
+            status_code=500, detail=f"Failed to access library database: {str(e)}"
         )
 
 
 # Health check endpoint
 @app.get("/api/health")
 async def health_check(
-    x_fichero_library_path: str | None = Header(None, alias="X-Fichero-Library-Path")
+    x_fichero_library_path: str | None = Header(None, alias="X-Fichero-Library-Path"),
 ):
     """Health check endpoint.
 
@@ -216,6 +246,10 @@ from fichero.api.routes import (  # noqa: E402
     activity,
     chat,
     settings,
+    knowledge_graph,
+    hermeneutics,
+    mind_palace,
+    research_agents,
 )
 
 RouteSpec = tuple[object, str, list[str]]
@@ -237,7 +271,12 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (settings.router, "", ["settings"]),
 ]
 
-_DEV_ROUTE_SPECS: list[RouteSpec] = []
+_DEV_ROUTE_SPECS: list[RouteSpec] = [
+    (knowledge_graph.router, "/api/knowledge-graph", ["knowledge-graph"]),
+    (hermeneutics.router, "/api/hermeneutics", ["hermeneutics"]),
+    (mind_palace.router, "/api/mind-palace", ["mind-palace"]),
+    (research_agents.router, "/api/research", ["research"]),
+]
 
 
 def resolve_feature_tier() -> str:

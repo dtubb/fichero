@@ -13,6 +13,7 @@ Categories:
         rewrite, sentiment, keywords, questions, classify_text)
 - agent: AI agents (react_agent, supervisor, swarm)
 - mcp: Tools from MCP servers
+- research: Sandboxed research agent tools (web search, browser navigate, document fetch)
 """
 
 # Import tools to register them
@@ -65,6 +66,9 @@ from fichero.workflows.tools import agent
 from fichero.workflows.tools import multi_agent
 from fichero.workflows.tools import mcp
 
+# Research tools
+from fichero.workflows.tools import research
+
 __all__ = [
     # Source
     "sources",
@@ -109,4 +113,6 @@ __all__ = [
     "agent",
     "multi_agent",
     "mcp",
+    # Research
+    "research",
 ]

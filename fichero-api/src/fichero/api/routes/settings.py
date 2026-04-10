@@ -12,6 +12,7 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 class AIDefaults(BaseModel):
     """Default AI model configuration per category."""
+
     vision_provider: str = ""
     vision_model: str = ""
     text_provider: str = ""

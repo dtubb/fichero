@@ -58,7 +58,16 @@ SUMMARIZE_CONFIG = {
 
 # Input ports for summarize_file
 SUMMARIZE_INPUT_PORTS = merge_ports(
-    [PortDef(id="text", name="Text", port_type="input", data_type=DataType.TEXT, required=True, description="Text to summarize")],
+    [
+        PortDef(
+            id="text",
+            name="Text",
+            port_type="input",
+            data_type=DataType.TEXT,
+            required=True,
+            description="Text to summarize",
+        )
+    ],
     BASE_INPUT_PORTS,
 )
 
@@ -66,6 +75,7 @@ SUMMARIZE_INPUT_PORTS = merge_ports(
 # =============================================================================
 # Prompt Building
 # =============================================================================
+
 
 def _get_style_instructions(style: str, max_length: int) -> str:
     """Get style-specific instructions."""
@@ -94,6 +104,7 @@ def build_summarize_prompt(config: dict) -> str:
 # =============================================================================
 # Summarize File (single document)
 # =============================================================================
+
 
 @register_tool(
     name="summarize_file",
@@ -206,8 +217,22 @@ FOLDER_CONFIG = {
 
 FOLDER_INPUT_PORTS = merge_ports(
     [
-        PortDef(id="texts", name="Texts", port_type="input", data_type=DataType.ARRAY, required=True, description="Array of text contents"),
-        PortDef(id="folder_id", name="Folder ID", port_type="input", data_type=DataType.TEXT, required=False, description="Folder document ID"),
+        PortDef(
+            id="texts",
+            name="Texts",
+            port_type="input",
+            data_type=DataType.ARRAY,
+            required=True,
+            description="Array of text contents",
+        ),
+        PortDef(
+            id="folder_id",
+            name="Folder ID",
+            port_type="input",
+            data_type=DataType.TEXT,
+            required=False,
+            description="Folder document ID",
+        ),
     ],
     BASE_INPUT_PORTS,
 )
@@ -339,9 +364,30 @@ COLLECTION_CONFIG = {
 
 COLLECTION_INPUT_PORTS = merge_ports(
     [
-        PortDef(id="folder_summaries", name="Folder Summaries", port_type="input", data_type=DataType.ARRAY, required=False, description="Summaries from folders"),
-        PortDef(id="texts", name="Texts", port_type="input", data_type=DataType.ARRAY, required=False, description="Or raw texts"),
-        PortDef(id="collection_id", name="Collection ID", port_type="input", data_type=DataType.TEXT, required=False, description="Collection document ID"),
+        PortDef(
+            id="folder_summaries",
+            name="Folder Summaries",
+            port_type="input",
+            data_type=DataType.ARRAY,
+            required=False,
+            description="Summaries from folders",
+        ),
+        PortDef(
+            id="texts",
+            name="Texts",
+            port_type="input",
+            data_type=DataType.ARRAY,
+            required=False,
+            description="Or raw texts",
+        ),
+        PortDef(
+            id="collection_id",
+            name="Collection ID",
+            port_type="input",
+            data_type=DataType.TEXT,
+            required=False,
+            description="Collection document ID",
+        ),
     ],
     BASE_INPUT_PORTS,
 )

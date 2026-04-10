@@ -114,8 +114,7 @@ class NodeCache:
         """
         try:
             result = self.conn.execute(
-                "SELECT result_json FROM node_cache WHERE cache_key = ?",
-                [cache_key]
+                "SELECT result_json FROM node_cache WHERE cache_key = ?", [cache_key]
             ).fetchone()
 
             if result:
@@ -152,19 +151,22 @@ class NodeCache:
         try:
             result_json = json.dumps(result)
 
-            self.conn.execute("""
+            self.conn.execute(
+                """
                 INSERT OR REPLACE INTO node_cache
                 (cache_key, workflow_id, node_id, tool, file_path, created_at, result_json)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, [
-                cache_key,
-                workflow_id,
-                node_id,
-                tool,
-                file_path,
-                datetime.now(timezone.utc),
-                result_json,
-            ])
+            """,
+                [
+                    cache_key,
+                    workflow_id,
+                    node_id,
+                    tool,
+                    file_path,
+                    datetime.now(timezone.utc),
+                    result_json,
+                ],
+            )
 
             logger.debug(f"Cache set: {cache_key[:16]}... for {tool}")
 
@@ -183,7 +185,7 @@ class NodeCache:
         """
         result = self.conn.execute(
             "DELETE FROM node_cache WHERE workflow_id = ? RETURNING cache_key",
-            [workflow_id]
+            [workflow_id],
         ).fetchall()
 
         count = len(result)
@@ -203,7 +205,7 @@ class NodeCache:
         """
         result = self.conn.execute(
             "DELETE FROM node_cache WHERE workflow_id = ? AND node_id = ? RETURNING cache_key",
-            [workflow_id, node_id]
+            [workflow_id, node_id],
         ).fetchall()
 
         count = len(result)
@@ -236,7 +238,8 @@ class NodeCache:
             Dict with cache statistics
         """
         if workflow_id:
-            result = self.conn.execute("""
+            result = self.conn.execute(
+                """
                 SELECT
                     COUNT(*) as total_entries,
                     COUNT(DISTINCT node_id) as nodes_cached,
@@ -245,7 +248,9 @@ class NodeCache:
                     MAX(created_at) as newest_entry
                 FROM node_cache
                 WHERE workflow_id = ?
-            """, [workflow_id]).fetchone()
+            """,
+                [workflow_id],
+            ).fetchone()
         else:
             result = self.conn.execute("""
                 SELECT
@@ -308,15 +313,17 @@ def compute_cache_key(
     config_str = json.dumps(config, sort_keys=True, default=str)
 
     # Combine all parts
-    key_parts = "|".join([
-        workflow_id,
-        node_id,
-        tool,
-        config_str,
-        provider or "",
-        model or "",
-        file_identity,
-    ])
+    key_parts = "|".join(
+        [
+            workflow_id,
+            node_id,
+            tool,
+            config_str,
+            provider or "",
+            model or "",
+            file_identity,
+        ]
+    )
 
     # Hash to fixed-length key
     return hashlib.sha256(key_parts.encode()).hexdigest()[:32]

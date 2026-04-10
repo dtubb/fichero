@@ -1,7 +1,7 @@
-import Foundation
-import SwiftUI
 import FicheroAPIClient
+import Foundation
 import OpenAPIRuntime
+import SwiftUI
 
 // MARK: - Generated Type Extensions
 // These add convenience methods to generated types without creating conflicting type aliases.
@@ -93,17 +93,9 @@ extension Components.Schemas.WorkflowResponse: @retroactive Identifiable {
 
 // MARK: - Other Identifiable Conformances
 
-extension Components.Schemas.MCPServerResponse: @retroactive Identifiable {}
-
-extension Components.Schemas.ScheduleResponse: @retroactive Identifiable {
-    public var id: String { scheduleId }
-}
-
-extension Components.Schemas.TriggerResponse: @retroactive Identifiable {
-    public var id: String { triggerId }
-}
-
-extension Components.Schemas.ActionResponse: @retroactive Identifiable {}
+// NOTE: ScheduleResponse, TriggerResponse, ActionResponse, MCPServerResponse are not
+// in the OpenAPI schema — corresponding routes exist in the backend but are not
+// registered in main.py (schedules.py and triggers.py are orphaned).
 
 extension Components.Schemas.ProviderResponse: @retroactive Identifiable {}
 

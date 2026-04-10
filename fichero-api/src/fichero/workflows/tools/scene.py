@@ -37,8 +37,15 @@ TOOL_CONFIG = VisionToolConfig(
 )
 
 DEFAULT_SCENES = [
-    "indoor", "outdoor_urban", "outdoor_nature", "studio",
-    "aerial", "underwater", "abstract", "document", "screenshot",
+    "indoor",
+    "outdoor_urban",
+    "outdoor_nature",
+    "studio",
+    "aerial",
+    "underwater",
+    "abstract",
+    "document",
+    "screenshot",
 ]
 
 SCENE_CONFIG = {
@@ -59,6 +66,7 @@ SCENE_CONFIG = {
 # =============================================================================
 # Prompt Building
 # =============================================================================
+
 
 def _build_prompt(scenes: list[str], include_details: bool) -> str:
     """Build the scene classification prompt."""
@@ -103,6 +111,7 @@ def build_scene_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="scene",

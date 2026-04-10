@@ -1,6 +1,6 @@
-import SwiftUI
 import AppKit
 import OSLog
+import SwiftUI
 
 /// Manages folder access permissions using security-scoped bookmarks
 ///

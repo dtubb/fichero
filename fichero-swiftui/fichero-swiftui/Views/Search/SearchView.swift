@@ -18,27 +18,27 @@ struct SearchView: View {
 
     var body: some View {
         resultsPanel
-        .onAppear {
-            if let search = savedSearch {
+            .onAppear {
+                if let search = savedSearch {
+                    queryText = search.query
+                    performSearch()
+                }
+            }
+            .onChange(of: savedSearch?.id) { _, _ in
+                guard let search = savedSearch else {
+                    return
+                }
                 queryText = search.query
                 performSearch()
             }
-        }
-        .onChange(of: savedSearch?.id) { _, _ in
-            guard let search = savedSearch else {
-                return
+            .onChange(of: selection) { _, newSelection in
+                // Load document when selection changes (single click)
+                if let selectedId = newSelection.first {
+                    loadDocument(selectedId)
+                } else {
+                    detailDocument = nil
+                }
             }
-            queryText = search.query
-            performSearch()
-        }
-        .onChange(of: selection) { _, newSelection in
-            // Load document when selection changes (single click)
-            if let selectedId = newSelection.first {
-                loadDocument(selectedId)
-            } else {
-                detailDocument = nil
-            }
-        }
     }
 }
 

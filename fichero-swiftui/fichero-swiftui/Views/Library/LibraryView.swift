@@ -167,7 +167,7 @@ struct LibraryView: View {
                         filterFieldFocused = true
                     } label: {
                         Image(systemName: showFilterBar ? "line.3.horizontal.decrease.circle.fill"
-                                                        : "line.3.horizontal.decrease.circle")
+                                : "line.3.horizontal.decrease.circle")
                     }
                     .help("Filter (⌘F)")
                 }

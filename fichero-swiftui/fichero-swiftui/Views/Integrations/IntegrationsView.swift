@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 // Main view for app integrations (DEVONthink, Bookends, Tinderbox)
 // swiftlint:disable:next type_body_length

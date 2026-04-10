@@ -51,7 +51,11 @@ def download_model(
         model_type: "whisper" or "embeddings"
         model_id: Model identifier (e.g., "base" for Whisper, "intfloat/multilingual-e5-large" for embeddings)
     """
-    from fichero.local_models import LocalModelManager, WHISPER_MODELS, EMBEDDINGS_MODELS
+    from fichero.local_models import (
+        LocalModelManager,
+        WHISPER_MODELS,
+        EMBEDDINGS_MODELS,
+    )
 
     # Validate model exists
     if model_type == "whisper":

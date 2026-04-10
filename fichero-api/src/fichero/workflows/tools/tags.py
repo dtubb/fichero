@@ -33,7 +33,7 @@ TOOL_CONFIG = VisionToolConfig(
     update_page_content=False,
     trigger_embedding=False,
     supports_apple_vision=False,
-    metadata_field="tags",          # Store tags in metadata
+    metadata_field="tags",  # Store tags in metadata
 )
 
 # Tags-specific config (added to VISION_CONFIG_SCHEMA)
@@ -95,6 +95,7 @@ def build_tags_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="tags",

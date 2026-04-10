@@ -41,11 +41,20 @@ HANDWRITING_CONFIG = {
     "script": {
         "type": "string",
         "enum": [
-            "latin_modern", "latin_colonial", "latin_medieval",
-            "secretary_hand", "copperplate", "gothic",
-            "arabic", "hebrew", "cyrillic",
-            "cjk", "devanagari", "greek",
-            "mixed", "unknown",
+            "latin_modern",
+            "latin_colonial",
+            "latin_medieval",
+            "secretary_hand",
+            "copperplate",
+            "gothic",
+            "arabic",
+            "hebrew",
+            "cyrillic",
+            "cjk",
+            "devanagari",
+            "greek",
+            "mixed",
+            "unknown",
         ],
         "default": "unknown",
         "description": "Script type",
@@ -53,9 +62,14 @@ HANDWRITING_CONFIG = {
     "era": {
         "type": "string",
         "enum": [
-            "medieval", "renaissance", "colonial",
-            "18th_century", "19th_century", "early_20th_century",
-            "modern", "unknown",
+            "medieval",
+            "renaissance",
+            "colonial",
+            "18th_century",
+            "19th_century",
+            "early_20th_century",
+            "modern",
+            "unknown",
         ],
         "default": "unknown",
         "description": "Historical era",
@@ -81,7 +95,6 @@ SCRIPT_GUIDANCE = {
     "latin_modern": """Modern Latin script (post-1900):
 - Standard letterforms with minor personal variations
 - Watch for hastily written letters that blur together""",
-
     "latin_colonial": """Colonial-era Latin script (Spanish/Portuguese/French colonial, 16th-19th century):
 - Long 's' (ſ) common in earlier documents
 - Abbreviations: q̃ (que), qⁿ (quien), dho (dicho), ntro (nuestro)
@@ -89,32 +102,27 @@ SCRIPT_GUIDANCE = {
 - Connected letterforms, especially in rapid writing
 - Numbers often written with roman numerals
 - Watch for: ñ vs n with tilde, doubled letters, archaic spellings""",
-
     "latin_medieval": """Medieval Latin script:
 - Highly abbreviated text (suspensions, contractions, nomina sacra)
 - Common abbreviations: ꝑ (per/par), ꝓ (pro), ꝙ (quod), ꝫ (et/con)
 - Ligatures: æ, œ, ct, st
 - Insular and continental letterform variants
 - Rubrication and decorated initials""",
-
     "secretary_hand": """Secretary hand (English, 15th-17th century):
 - Distinctive letter forms: e (looks like reversed 3), r (2-stroke), s (long/short forms)
 - Heavy use of abbreviations and superscript letters
 - Connected writing with looped ascenders/descenders
 - Common confusions: c/t, n/u, m/in, h/b""",
-
     "copperplate": """Copperplate/roundhand script (18th-19th century):
 - Elegant slanted writing with thick/thin strokes
 - Clearly formed letters but decorative flourishes
 - Capital letters often heavily ornamented
 - Watch for: flourished initial letters obscuring the actual letter""",
-
     "gothic": """Gothic/Blackletter script:
 - Angular letterforms with minimal curves
 - Many letters look similar (i, m, n, u appear as vertical strokes)
 - Heavy use of abbreviation marks
 - Distinction between textura, rotunda, and bastarda forms""",
-
     "arabic": """Arabic script:
 - Right-to-left reading direction
 - Letters change form based on position (initial, medial, final, isolated)
@@ -122,32 +130,27 @@ SCRIPT_GUIDANCE = {
 - Vowel marks (harakat) may be partially or fully omitted
 - Common ligatures and calligraphic variations
 - Watch for: missing dots, ambiguous letter forms without context""",
-
     "hebrew": """Hebrew script:
 - Right-to-left reading direction
 - No standard cursive connections between letters
 - Vowel points (nikkud) may be absent
 - Similar-looking letters: ב/כ, ד/ר, ו/ז, ח/ה
 - Final forms for some letters (ך, ם, ן, ף, ץ)""",
-
     "cyrillic": """Cyrillic script:
 - Similar to Latin with additional characters
 - Pre-reform Russian includes: ъ (hard sign), ѣ (yat), і, ѳ
 - Handwritten forms differ significantly from printed
 - Watch for: cursive forms where т looks like m, д looks like g""",
-
     "cjk": """CJK (Chinese/Japanese/Korean) characters:
 - Complex multi-stroke characters
 - Stroke order and direction matters for identification
 - Cursive/running script may significantly alter character appearance
 - Historical forms may differ from modern standard""",
-
     "devanagari": """Devanagari script:
 - Headline (shirorekha) connecting characters
 - Vowel marks (matras) above, below, and around consonants
 - Conjunct consonants (half-forms)
 - Historical variations in letterforms""",
-
     "greek": """Greek script:
 - Both capital and minuscule forms
 - Diacritical marks: acute (´), grave (`), circumflex (ˆ), rough/smooth breathing
@@ -168,6 +171,7 @@ ERA_GUIDANCE = {
 # =============================================================================
 # Prompt Building
 # =============================================================================
+
 
 def _build_prompt(script: str, era: str, language: str, handle_diacritics: bool) -> str:
     """Build the paleography transcription prompt."""
@@ -240,6 +244,7 @@ def build_handwriting_prompt(config: dict) -> str:
 # Tool Registration
 # =============================================================================
 
+
 @register_tool(
     name="handwriting",
     display_name="Handwriting",
@@ -274,7 +279,9 @@ async def handwriting(
     language = inputs.get("language", "auto")
     handle_diacritics = inputs.get("handle_diacritics", True)
 
-    prompt = inputs.get("prompt") or _build_prompt(script, era, language, handle_diacritics)
+    prompt = inputs.get("prompt") or _build_prompt(
+        script, era, language, handle_diacritics
+    )
 
     return await process_vision(
         files=files,

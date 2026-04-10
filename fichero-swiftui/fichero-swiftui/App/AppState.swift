@@ -1,7 +1,7 @@
-import SwiftUI
+import FicheroAPIClient
 import Foundation
 import OSLog
-import FicheroAPIClient
+import SwiftUI
 
 /// Global app state including backend connection and provider management
 @MainActor

@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 class ActivityType(str, Enum):
     """Types of activity events."""
+
     # Workflow events
     WORKFLOW_STARTED = "workflow_started"
     WORKFLOW_COMPLETED = "workflow_completed"
@@ -59,6 +60,7 @@ class ActivityType(str, Enum):
 
 class ActivityLevel(str, Enum):
     """Severity level of activity."""
+
     DEBUG = "debug"
     INFO = "info"
     WARNING = "warning"
@@ -69,6 +71,7 @@ class ActivityLevel(str, Enum):
 @dataclass
 class Activity:
     """Represents a single activity event."""
+
     id: str
     type: ActivityType
     level: ActivityLevel
@@ -85,7 +88,9 @@ class Activity:
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         # Convert all metadata values to strings for Swift client compatibility
-        string_metadata = {k: str(v) if v is not None else None for k, v in self.metadata.items()}
+        string_metadata = {
+            k: str(v) if v is not None else None for k, v in self.metadata.items()
+        }
         return {
             "id": self.id,
             "type": self.type.value,
@@ -123,6 +128,7 @@ class Activity:
 @dataclass
 class ActivityStats:
     """Aggregated activity statistics."""
+
     total_activities: int
     activities_by_type: dict[str, int]
     activities_by_level: dict[str, int]
@@ -214,7 +220,9 @@ class ActivityStore:
             # Add new columns for workflow snapshot, node mapping, progress, and diagram
             # These allow historical runs to be visualized even if workflow is deleted
             try:
-                conn.execute("ALTER TABLE workflow_runs ADD COLUMN workflow_snapshot JSON")
+                conn.execute(
+                    "ALTER TABLE workflow_runs ADD COLUMN workflow_snapshot JSON"
+                )
             except Exception:
                 pass  # Column already exists
 
@@ -224,12 +232,16 @@ class ActivityStore:
                 pass  # Column already exists
 
             try:
-                conn.execute("ALTER TABLE workflow_runs ADD COLUMN progress_timeline JSON")
+                conn.execute(
+                    "ALTER TABLE workflow_runs ADD COLUMN progress_timeline JSON"
+                )
             except Exception:
                 pass  # Column already exists
 
             try:
-                conn.execute("ALTER TABLE workflow_runs ADD COLUMN diagram_mermaid TEXT")
+                conn.execute(
+                    "ALTER TABLE workflow_runs ADD COLUMN diagram_mermaid TEXT"
+                )
             except Exception:
                 pass  # Column already exists
 
@@ -267,29 +279,33 @@ class ActivityStore:
 
     async def save(self, activity: Activity) -> None:
         """Save an activity to the database."""
+
         def _save():
             logger.info(f"ActivityStore.save: connecting to {self.db_path}")
             conn = duckdb.connect(self.db_path)
             try:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO activities
                     (id, type, level, timestamp, message, workflow_id, batch_id,
                      thread_id, node_id, metadata, duration_ms, error)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, [
-                    activity.id,
-                    activity.type.value,
-                    activity.level.value,
-                    activity.timestamp,
-                    activity.message,
-                    activity.workflow_id,
-                    activity.batch_id,
-                    activity.thread_id,
-                    activity.node_id,
-                    json.dumps(activity.metadata) if activity.metadata else None,
-                    activity.duration_ms,
-                    activity.error,
-                ])
+                """,
+                    [
+                        activity.id,
+                        activity.type.value,
+                        activity.level.value,
+                        activity.timestamp,
+                        activity.message,
+                        activity.workflow_id,
+                        activity.batch_id,
+                        activity.thread_id,
+                        activity.node_id,
+                        json.dumps(activity.metadata) if activity.metadata else None,
+                        activity.duration_ms,
+                        activity.error,
+                    ],
+                )
                 logger.info(f"ActivityStore.save: INSERT successful for {activity.id}")
             except Exception as e:
                 logger.error(f"ActivityStore.save: INSERT failed: {e}")
@@ -301,6 +317,7 @@ class ActivityStore:
 
     async def query(self, filter: ActivityFilter) -> list[Activity]:
         """Query activities with filtering."""
+
         def _query():
             conn = duckdb.connect(self.db_path)
             try:
@@ -357,20 +374,22 @@ class ActivityStore:
 
                 activities = []
                 for row in result:
-                    activities.append(Activity(
-                        id=row[0],
-                        type=ActivityType(row[1]),
-                        level=ActivityLevel(row[2]),
-                        timestamp=row[3],
-                        message=row[4],
-                        workflow_id=row[5],
-                        batch_id=row[6],
-                        thread_id=row[7],
-                        node_id=row[8],
-                        metadata=json.loads(row[9]) if row[9] else {},
-                        duration_ms=row[10],
-                        error=row[11],
-                    ))
+                    activities.append(
+                        Activity(
+                            id=row[0],
+                            type=ActivityType(row[1]),
+                            level=ActivityLevel(row[2]),
+                            timestamp=row[3],
+                            message=row[4],
+                            workflow_id=row[5],
+                            batch_id=row[6],
+                            thread_id=row[7],
+                            node_id=row[8],
+                            metadata=json.loads(row[9]) if row[9] else {},
+                            duration_ms=row[10],
+                            error=row[11],
+                        )
+                    )
                 return activities
             finally:
                 conn.close()
@@ -392,57 +411,80 @@ class ActivityStore:
             conn = duckdb.connect(self.db_path)
             try:
                 # Count by type
-                type_counts = conn.execute("""
+                type_counts = conn.execute(
+                    """
                     SELECT type, COUNT(*) as count
                     FROM activities
                     WHERE timestamp >= ? AND timestamp <= ?
                     GROUP BY type
-                """, [since, until]).fetchall()
+                """,
+                    [since, until],
+                ).fetchall()
 
                 # Count by level
-                level_counts = conn.execute("""
+                level_counts = conn.execute(
+                    """
                     SELECT level, COUNT(*) as count
                     FROM activities
                     WHERE timestamp >= ? AND timestamp <= ?
                     GROUP BY level
-                """, [since, until]).fetchall()
+                """,
+                    [since, until],
+                ).fetchall()
 
                 # Average workflow duration
-                avg_duration = conn.execute("""
+                avg_duration = conn.execute(
+                    """
                     SELECT AVG(duration_ms)
                     FROM activities
                     WHERE type = 'workflow_completed'
                     AND timestamp >= ? AND timestamp <= ?
                     AND duration_ms IS NOT NULL
-                """, [since, until]).fetchone()[0]
+                """,
+                    [since, until],
+                ).fetchone()[0]
 
                 # Success rate (completed vs failed workflows)
-                workflow_counts = conn.execute("""
+                workflow_counts = conn.execute(
+                    """
                     SELECT type, COUNT(*) as count
                     FROM activities
                     WHERE type IN ('workflow_completed', 'workflow_failed')
                     AND timestamp >= ? AND timestamp <= ?
                     GROUP BY type
-                """, [since, until]).fetchall()
+                """,
+                    [since, until],
+                ).fetchall()
 
-                completed = sum(c[1] for c in workflow_counts if c[0] == 'workflow_completed')
-                failed = sum(c[1] for c in workflow_counts if c[0] == 'workflow_failed')
+                completed = sum(
+                    c[1] for c in workflow_counts if c[0] == "workflow_completed"
+                )
+                failed = sum(c[1] for c in workflow_counts if c[0] == "workflow_failed")
                 total_workflows = completed + failed
-                success_rate = (completed / total_workflows * 100) if total_workflows > 0 else 100.0
+                success_rate = (
+                    (completed / total_workflows * 100)
+                    if total_workflows > 0
+                    else 100.0
+                )
 
                 # Total count
-                total = conn.execute("""
+                total = conn.execute(
+                    """
                     SELECT COUNT(*)
                     FROM activities
                     WHERE timestamp >= ? AND timestamp <= ?
-                """, [since, until]).fetchone()[0]
+                """,
+                    [since, until],
+                ).fetchone()[0]
 
                 return ActivityStats(
                     total_activities=total,
                     activities_by_type={t[0]: t[1] for t in type_counts},
                     activities_by_level={lc[0]: lc[1] for lc in level_counts},
-                    error_count=sum(lc[1] for lc in level_counts if lc[0] == 'error'),
-                    warning_count=sum(lc[1] for lc in level_counts if lc[0] == 'warning'),
+                    error_count=sum(lc[1] for lc in level_counts if lc[0] == "error"),
+                    warning_count=sum(
+                        lc[1] for lc in level_counts if lc[0] == "warning"
+                    ),
                     avg_workflow_duration_ms=avg_duration,
                     success_rate=success_rate,
                     period_start=since,
@@ -455,13 +497,17 @@ class ActivityStore:
 
     async def delete_old(self, older_than: datetime) -> int:
         """Delete activities older than specified date."""
+
         def _delete():
             conn = duckdb.connect(self.db_path)
             try:
-                result = conn.execute("""
+                result = conn.execute(
+                    """
                     DELETE FROM activities
                     WHERE timestamp < ?
-                """, [older_than])
+                """,
+                    [older_than],
+                )
                 return result.fetchone()[0] if result else 0
             finally:
                 conn.close()
@@ -484,14 +530,20 @@ class ActivityStore:
         started_at: Optional[datetime] = None,
     ) -> None:
         """Save a new workflow run record."""
+
         def _save():
             conn = duckdb.connect(self.db_path)
             try:
                 # Convert dicts to JSON strings
-                workflow_snapshot_json = json.dumps(workflow_snapshot) if workflow_snapshot else None
-                node_name_map_json = json.dumps(node_name_map) if node_name_map else None
+                workflow_snapshot_json = (
+                    json.dumps(workflow_snapshot) if workflow_snapshot else None
+                )
+                node_name_map_json = (
+                    json.dumps(node_name_map) if node_name_map else None
+                )
 
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO workflow_runs
                     (thread_id, workflow_id, workflow_name, python_code, workflow_snapshot,
                      node_name_map, diagram_mermaid, status, started_at)
@@ -502,16 +554,18 @@ class ActivityStore:
                         node_name_map = COALESCE(EXCLUDED.node_name_map, workflow_runs.node_name_map),
                         diagram_mermaid = COALESCE(EXCLUDED.diagram_mermaid, workflow_runs.diagram_mermaid),
                         workflow_name = EXCLUDED.workflow_name
-                """, [
-                    thread_id,
-                    workflow_id,
-                    workflow_name,
-                    python_code,
-                    workflow_snapshot_json,
-                    node_name_map_json,
-                    diagram_mermaid,
-                    started_at or datetime.now(timezone.utc),
-                ])
+                """,
+                    [
+                        thread_id,
+                        workflow_id,
+                        workflow_name,
+                        python_code,
+                        workflow_snapshot_json,
+                        node_name_map_json,
+                        diagram_mermaid,
+                        started_at or datetime.now(timezone.utc),
+                    ],
+                )
             finally:
                 conn.close()
 
@@ -528,6 +582,7 @@ class ActivityStore:
         completed_at: Optional[datetime] = None,
     ) -> None:
         """Update an existing workflow run record."""
+
         def _update():
             conn = duckdb.connect(self.db_path)
             try:
@@ -555,11 +610,14 @@ class ActivityStore:
 
                 if updates:
                     params.append(thread_id)
-                    conn.execute(f"""
+                    conn.execute(
+                        f"""
                         UPDATE workflow_runs
-                        SET {', '.join(updates)}
+                        SET {", ".join(updates)}
                         WHERE thread_id = ?
-                    """, params)
+                    """,
+                        params,
+                    )
             finally:
                 conn.close()
 
@@ -567,14 +625,18 @@ class ActivityStore:
 
     async def append_execution_log(self, thread_id: str, log_line: str) -> None:
         """Append a line to the execution log."""
+
         def _append():
             conn = duckdb.connect(self.db_path)
             try:
-                conn.execute("""
+                conn.execute(
+                    """
                     UPDATE workflow_runs
                     SET execution_log = COALESCE(execution_log, '') || ? || '\n'
                     WHERE thread_id = ?
-                """, [log_line, thread_id])
+                """,
+                    [log_line, thread_id],
+                )
             finally:
                 conn.close()
 
@@ -582,17 +644,21 @@ class ActivityStore:
 
     async def get_workflow_run(self, thread_id: str) -> Optional[dict[str, Any]]:
         """Get a workflow run by thread_id."""
+
         def _get():
             conn = duckdb.connect(self.db_path)
             try:
-                result = conn.execute("""
+                result = conn.execute(
+                    """
                     SELECT thread_id, workflow_id, workflow_name, python_code,
                            execution_log, status, started_at, completed_at,
                            duration_ms, error, workflow_snapshot, node_name_map,
                            progress_timeline, diagram_mermaid
                     FROM workflow_runs
                     WHERE thread_id = ?
-                """, [thread_id]).fetchone()
+                """,
+                    [thread_id],
+                ).fetchone()
 
                 if result:
                     # Parse JSON fields
@@ -628,26 +694,33 @@ class ActivityStore:
         limit: int = 50,
     ) -> list[dict[str, Any]]:
         """List workflow runs, optionally filtered by workflow_id."""
+
         def _list():
             conn = duckdb.connect(self.db_path)
             try:
                 if workflow_id:
-                    result = conn.execute("""
+                    result = conn.execute(
+                        """
                         SELECT thread_id, workflow_id, workflow_name, status,
                                started_at, completed_at, duration_ms, error
                         FROM workflow_runs
                         WHERE workflow_id = ?
                         ORDER BY started_at DESC
                         LIMIT ?
-                    """, [workflow_id, limit]).fetchall()
+                    """,
+                        [workflow_id, limit],
+                    ).fetchall()
                 else:
-                    result = conn.execute("""
+                    result = conn.execute(
+                        """
                         SELECT thread_id, workflow_id, workflow_name, status,
                                started_at, completed_at, duration_ms, error
                         FROM workflow_runs
                         ORDER BY started_at DESC
                         LIMIT ?
-                    """, [limit]).fetchall()
+                    """,
+                        [limit],
+                    ).fetchall()
 
                 return [
                     {
@@ -739,7 +812,9 @@ class ActivityTracker:
     async def _save_activity(self, activity: Activity) -> None:
         """Save activity to persistent storage."""
         try:
-            logger.info(f"Saving activity to DB: {activity.type.value} - {activity.message[:50]}")
+            logger.info(
+                f"Saving activity to DB: {activity.type.value} - {activity.message[:50]}"
+            )
             await self.store.save(activity)
             logger.info(f"Activity saved successfully: {activity.id}")
         except Exception as e:
@@ -798,7 +873,10 @@ class ActivityTracker:
                         continue
                     if filter.levels and activity.level not in filter.levels:
                         continue
-                    if filter.workflow_id and activity.workflow_id != filter.workflow_id:
+                    if (
+                        filter.workflow_id
+                        and activity.workflow_id != filter.workflow_id
+                    ):
                         continue
                     if filter.batch_id and activity.batch_id != filter.batch_id:
                         continue
@@ -1120,7 +1198,7 @@ class ActivityTracker:
 # Per-library activity tracker instances
 # Key: database path string, Value: ActivityTracker instance
 _activity_trackers: dict[str, ActivityTracker] = {}
-_tracker_lock = __import__('threading').Lock()
+_tracker_lock = __import__("threading").Lock()
 
 
 def get_activity_tracker(db_path: Optional[str] = None) -> ActivityTracker:
@@ -1140,6 +1218,7 @@ def get_activity_tracker(db_path: Optional[str] = None) -> ActivityTracker:
     if db_path is None:
         # Fallback to app database - not ideal but maintains backward compatibility
         from fichero.app_db import get_db_path
+
         db_path = get_db_path()
         logger.warning(
             "get_activity_tracker() called without db_path - using app database. "

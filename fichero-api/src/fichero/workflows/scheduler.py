@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 class ScheduleType(str, Enum):
     """Type of schedule trigger."""
+
     CRON = "cron"  # Cron expression (e.g., "0 9 * * 1" for every Monday at 9am)
     INTERVAL = "interval"  # Every N seconds/minutes/hours
     ONCE = "once"  # One-time execution at a specific datetime
@@ -40,6 +41,7 @@ class ScheduleType(str, Enum):
 
 class ScheduleStatus(str, Enum):
     """Status of a schedule."""
+
     ACTIVE = "active"
     PAUSED = "paused"
     COMPLETED = "completed"  # For one-time schedules that have run
@@ -49,6 +51,7 @@ class ScheduleStatus(str, Enum):
 @dataclass
 class ScheduleConfig:
     """Configuration for a schedule."""
+
     schedule_type: ScheduleType
     # For cron schedules
     cron_expression: Optional[str] = None
@@ -66,6 +69,7 @@ class ScheduleConfig:
 @dataclass
 class Schedule:
     """Represents a scheduled workflow execution."""
+
     schedule_id: str
     name: str
     workflow_id: str
@@ -87,6 +91,7 @@ class Schedule:
 @dataclass
 class ScheduleRun:
     """Record of a schedule execution."""
+
     run_id: str
     schedule_id: str
     started_at: datetime
@@ -208,6 +213,7 @@ class WorkflowScheduler:
 
     async def _load_schedules(self) -> None:
         """Load active schedules from database and register with APScheduler."""
+
         def _load():
             conn = duckdb.connect(self.db_path)
             try:
@@ -230,6 +236,7 @@ class WorkflowScheduler:
     def _row_to_schedule(self, row) -> Schedule:
         """Convert database row to Schedule object."""
         import json
+
         return Schedule(
             schedule_id=row[0],
             name=row[1],
@@ -380,7 +387,9 @@ class WorkflowScheduler:
 
         # Check max runs
         if schedule.config.max_runs and schedule.run_count >= schedule.config.max_runs:
-            logger.info(f"Schedule {schedule_id} reached max runs ({schedule.config.max_runs})")
+            logger.info(
+                f"Schedule {schedule_id} reached max runs ({schedule.config.max_runs})"
+            )
             schedule.status = ScheduleStatus.COMPLETED
             await self._save_schedule(schedule)
             return
@@ -483,11 +492,14 @@ class WorkflowScheduler:
 
     async def _save_schedule(self, schedule: Schedule) -> None:
         """Save schedule to database."""
+
         def _save():
             import json
+
             conn = duckdb.connect(self.db_path)
             try:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO schedules (
                         schedule_id, name, workflow_id, schedule_type,
                         cron_expression, interval_seconds, run_at, timezone,
@@ -496,30 +508,32 @@ class WorkflowScheduler:
                         created_at, updated_at, last_run_at, next_run_at,
                         run_count, error_message
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, [
-                    schedule.schedule_id,
-                    schedule.name,
-                    schedule.workflow_id,
-                    schedule.config.schedule_type.value,
-                    schedule.config.cron_expression,
-                    schedule.config.interval_seconds,
-                    schedule.config.run_at,
-                    schedule.config.timezone,
-                    schedule.config.start_date,
-                    schedule.config.end_date,
-                    schedule.config.max_runs,
-                    json.dumps(schedule.inputs),
-                    schedule.status.value,
-                    schedule.use_batch,
-                    json.dumps(schedule.batch_items),
-                    schedule.max_concurrent,
-                    schedule.created_at,
-                    schedule.updated_at,
-                    schedule.last_run_at,
-                    schedule.next_run_at,
-                    schedule.run_count,
-                    schedule.error_message,
-                ])
+                """,
+                    [
+                        schedule.schedule_id,
+                        schedule.name,
+                        schedule.workflow_id,
+                        schedule.config.schedule_type.value,
+                        schedule.config.cron_expression,
+                        schedule.config.interval_seconds,
+                        schedule.config.run_at,
+                        schedule.config.timezone,
+                        schedule.config.start_date,
+                        schedule.config.end_date,
+                        schedule.config.max_runs,
+                        json.dumps(schedule.inputs),
+                        schedule.status.value,
+                        schedule.use_batch,
+                        json.dumps(schedule.batch_items),
+                        schedule.max_concurrent,
+                        schedule.created_at,
+                        schedule.updated_at,
+                        schedule.last_run_at,
+                        schedule.next_run_at,
+                        schedule.run_count,
+                        schedule.error_message,
+                    ],
+                )
             finally:
                 conn.close()
 
@@ -527,23 +541,27 @@ class WorkflowScheduler:
 
     async def _save_run(self, run: ScheduleRun) -> None:
         """Save schedule run to database."""
+
         def _save():
             conn = duckdb.connect(self.db_path)
             try:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO schedule_runs (
                         run_id, schedule_id, started_at, completed_at,
                         status, batch_id, error
                     ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, [
-                    run.run_id,
-                    run.schedule_id,
-                    run.started_at,
-                    run.completed_at,
-                    run.status,
-                    run.batch_id,
-                    run.error,
-                ])
+                """,
+                    [
+                        run.run_id,
+                        run.schedule_id,
+                        run.started_at,
+                        run.completed_at,
+                        run.status,
+                        run.batch_id,
+                        run.error,
+                    ],
+                )
             finally:
                 conn.close()
 
@@ -558,8 +576,7 @@ class WorkflowScheduler:
             conn = duckdb.connect(self.db_path)
             try:
                 result = conn.execute(
-                    "SELECT * FROM schedules WHERE schedule_id = ?",
-                    [schedule_id]
+                    "SELECT * FROM schedules WHERE schedule_id = ?", [schedule_id]
                 ).fetchone()
                 return result
             finally:
@@ -580,6 +597,7 @@ class WorkflowScheduler:
         offset: int = 0,
     ) -> list[Schedule]:
         """List schedules with optional filtering."""
+
         def _list():
             conn = duckdb.connect(self.db_path)
             try:
@@ -715,12 +733,10 @@ class WorkflowScheduler:
             conn = duckdb.connect(self.db_path)
             try:
                 conn.execute(
-                    "DELETE FROM schedule_runs WHERE schedule_id = ?",
-                    [schedule_id]
+                    "DELETE FROM schedule_runs WHERE schedule_id = ?", [schedule_id]
                 )
                 conn.execute(
-                    "DELETE FROM schedules WHERE schedule_id = ?",
-                    [schedule_id]
+                    "DELETE FROM schedules WHERE schedule_id = ?", [schedule_id]
                 )
             finally:
                 conn.close()
@@ -739,17 +755,21 @@ class WorkflowScheduler:
         limit: int = 50,
     ) -> list[ScheduleRun]:
         """Get run history for a schedule."""
+
         def _get_runs():
             conn = duckdb.connect(self.db_path)
             try:
-                results = conn.execute("""
+                results = conn.execute(
+                    """
                     SELECT run_id, schedule_id, started_at, completed_at,
                            status, batch_id, error
                     FROM schedule_runs
                     WHERE schedule_id = ?
                     ORDER BY started_at DESC
                     LIMIT ?
-                """, [schedule_id, limit]).fetchall()
+                """,
+                    [schedule_id, limit],
+                ).fetchall()
                 return results
             finally:
                 conn.close()

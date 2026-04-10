@@ -94,11 +94,11 @@ class ImageLoader(MediaLoader):
         """Load HEIC/HEIF image using heif-convert system tool."""
         if not shutil.which("heif-convert"):
             raise RuntimeError(
-                "HEIC support requires heif-convert. "
-                "Install with: brew install libheif"
+                "HEIC support requires heif-convert. Install with: brew install libheif"
             )
 
         import tempfile
+
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
             temp_png = Path(tmp.name)
 
@@ -122,11 +122,11 @@ class ImageLoader(MediaLoader):
                     return img.copy()
             except Exception:
                 raise RuntimeError(
-                    "JPEG XL support requires djxl. "
-                    "Install with: brew install jpeg-xl"
+                    "JPEG XL support requires djxl. Install with: brew install jpeg-xl"
                 )
 
         import tempfile
+
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
             temp_png = Path(tmp.name)
 
@@ -147,8 +147,7 @@ class ImageLoader(MediaLoader):
             import rawpy
         except ImportError:
             raise RuntimeError(
-                "RAW format support requires rawpy. "
-                "Install with: pip install rawpy"
+                "RAW format support requires rawpy. Install with: pip install rawpy"
             )
 
         with rawpy.imread(str(path)) as raw:

@@ -39,7 +39,14 @@ TOOL_CONFIG = VisionToolConfig(
 DIAGRAM_CONFIG = {
     "diagram_type": {
         "type": "string",
-        "enum": ["flowchart", "org_chart", "network", "timeline", "mind_map", "generic"],
+        "enum": [
+            "flowchart",
+            "org_chart",
+            "network",
+            "timeline",
+            "mind_map",
+            "generic",
+        ],
         "default": "generic",
         "description": "Diagram type",
     },
@@ -55,6 +62,7 @@ DIAGRAM_CONFIG = {
 # Prompt Building
 # =============================================================================
 
+
 def _build_prompt(diagram_type: str, include_labels: bool) -> str:
     """Build the diagram parsing prompt."""
     type_instructions = {
@@ -63,31 +71,26 @@ Identify:
 - Nodes (steps, decisions, start/end points)
 - Connections (arrows, flow direction)
 - Decision branches (yes/no, conditions)""",
-
         "org_chart": """Parse this organizational/hierarchy chart.
 Identify:
 - Nodes (people, roles, departments)
 - Parent-child relationships
 - Hierarchy levels""",
-
         "network": """Parse this network/relationship diagram.
 Identify:
 - Nodes (entities, servers, components)
 - Connections (links, relationships)
 - Connection types (bidirectional, one-way)""",
-
         "timeline": """Parse this timeline/sequence diagram.
 Identify:
 - Events (with dates/times if shown)
 - Sequential order
 - Duration/spans if indicated""",
-
         "mind_map": """Parse this mind map/concept diagram.
 Identify:
 - Central topic
 - Branches and sub-branches
 - Relationships between concepts""",
-
         "generic": """Parse this diagram.
 Identify:
 - All nodes/elements
@@ -96,7 +99,9 @@ Identify:
     }
 
     base = type_instructions.get(diagram_type, type_instructions["generic"])
-    labels_text = "\n- Extract all text labels exactly as written" if include_labels else ""
+    labels_text = (
+        "\n- Extract all text labels exactly as written" if include_labels else ""
+    )
 
     return f"""{base}{labels_text}
 
@@ -125,6 +130,7 @@ def build_diagram_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="diagram",

@@ -1,5 +1,5 @@
-import SwiftUI
 import OSLog
+import SwiftUI
 
 let scheduleEditorLogger = Logger(subsystem: "com.tubb.Fichero", category: "ScheduleEditorView")
 
@@ -137,5 +137,5 @@ struct ScheduleEditorView: View {
     ScheduleEditorView(existingSchedule: nil)
         .environmentObject(library.automationService)
         .environmentObject(library.workflowStore)
-    .frame(width: 600, height: 500)
+        .frame(width: 600, height: 500)
 }

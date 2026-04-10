@@ -52,7 +52,16 @@ QUESTIONS_CONFIG = {
 }
 
 QUESTIONS_INPUT_PORTS = merge_ports(
-    [PortDef(id="text", name="Text", port_type="input", data_type=DataType.TEXT, required=True, description="Source text")],
+    [
+        PortDef(
+            id="text",
+            name="Text",
+            port_type="input",
+            data_type=DataType.TEXT,
+            required=True,
+            description="Source text",
+        )
+    ],
     BASE_INPUT_PORTS,
 )
 
@@ -60,6 +69,7 @@ QUESTIONS_INPUT_PORTS = merge_ports(
 # =============================================================================
 # Prompt Building
 # =============================================================================
+
 
 def _build_prompt(question_type: str, count: int) -> str:
     """Build the question generation prompt."""
@@ -107,6 +117,7 @@ def build_questions_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="questions",

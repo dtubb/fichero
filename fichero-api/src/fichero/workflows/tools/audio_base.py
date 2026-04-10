@@ -43,7 +43,9 @@ logger = logging.getLogger(__name__)
 
 
 # Stable storage for local models (not ~/.cache which gets auto-cleaned)
-MODELS_BASE = Path.home() / "Library" / "Application Support" / "com.tubb.fichero" / "models"
+MODELS_BASE = (
+    Path.home() / "Library" / "Application Support" / "com.tubb.fichero" / "models"
+)
 
 
 # =============================================================================
@@ -97,6 +99,7 @@ AUDIO_CONFIG_SCHEMA = merge_config_schema(
 # Audio Tool Configuration (extends LLMToolConfig)
 # =============================================================================
 
+
 @dataclass
 class AudioToolConfig(LLMToolConfig):
     """Configuration for an audio tool.
@@ -111,6 +114,7 @@ class AudioToolConfig(LLMToolConfig):
 # =============================================================================
 # Local Whisper Transcription
 # =============================================================================
+
 
 def transcribe_with_whisper_sync(
     file_path: str,
@@ -134,8 +138,7 @@ def transcribe_with_whisper_sync(
         import whisper
     except ImportError:
         raise ImportError(
-            "openai-whisper is not installed. "
-            "Install with: pip install openai-whisper"
+            "openai-whisper is not installed. Install with: pip install openai-whisper"
         )
 
     download_root = str(MODELS_BASE / "whisper")
@@ -173,6 +176,7 @@ async def transcribe_with_whisper(
 # Apple Speech Recognition (macOS)
 # =============================================================================
 
+
 def apple_speech_recognize_sync(file_path: str, language: str = "en") -> str:
     """Transcribe audio using macOS SFSpeechRecognizer.
 
@@ -195,6 +199,7 @@ def apple_speech_recognize_sync(file_path: str, language: str = "en") -> str:
         )
 
     import os
+
     if not os.path.exists(file_path):
         raise ValueError(f"Audio file not found: {file_path}")
 
@@ -226,6 +231,7 @@ def apple_speech_recognize_sync(file_path: str, language: str = "en") -> str:
 
     # Perform recognition synchronously using a semaphore
     import threading
+
     result_text = ""
     error_msg = None
     done_event = threading.Event()
@@ -261,6 +267,7 @@ async def transcribe_with_apple_speech(file_path: str, language: str = "en") -> 
 # =============================================================================
 # Remote LLM Transcription
 # =============================================================================
+
 
 async def transcribe_with_llm(
     file_path: str,
@@ -304,6 +311,7 @@ async def transcribe_with_llm(
 # Database Operations
 # =============================================================================
 
+
 async def save_artifact(
     file_path: str,
     content: str,
@@ -337,6 +345,7 @@ async def save_artifact(
 # =============================================================================
 # Main Processing Function
 # =============================================================================
+
 
 async def process_audio(
     files: list[str],
@@ -437,7 +446,9 @@ async def process_audio(
         try:
             # Dispatch to appropriate engine
             if audio_mode == "local_whisper" and tool_config.supports_local_whisper:
-                logger.info(f"Local Whisper ({whisper_model_size}): {Path(file_path).name}")
+                logger.info(
+                    f"Local Whisper ({whisper_model_size}): {Path(file_path).name}"
+                )
                 text = await transcribe_with_whisper(
                     file_path, whisper_model_size, language
                 )
@@ -461,9 +472,13 @@ async def process_audio(
                 # Set proper provider/model labels for local processing
                 save_config = llm_config
                 if audio_mode == "local_whisper":
-                    save_config = LLMConfig(provider="Local", model=f"Whisper-{whisper_model_size}")
+                    save_config = LLMConfig(
+                        provider="Local", model=f"Whisper-{whisper_model_size}"
+                    )
                 elif audio_mode == "apple_speech":
-                    save_config = LLMConfig(provider="Apple", model="Speech Recognition")
+                    save_config = LLMConfig(
+                        provider="Apple", model="Speech Recognition"
+                    )
 
                 artifact_id = await save_artifact(
                     file_path=file_path,
@@ -501,7 +516,9 @@ async def process_audio(
 
         except Exception as e:
             logger.error(f"Audio processing failed for {file_path}: {e}")
-            results.append({"file": file_path, "text": "", "value": None, "error": str(e)})
+            results.append(
+                {"file": file_path, "text": "", "value": None, "error": str(e)}
+            )
             texts.append("")
             values.append(None)
 

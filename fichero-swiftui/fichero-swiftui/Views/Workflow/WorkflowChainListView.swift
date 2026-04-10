@@ -98,7 +98,7 @@ struct WorkflowChainListView: View {
         }
         return chainService.chains.filter { chain in
             chain.name.localizedCaseInsensitiveContains(searchText) ||
-            chain.description.localizedCaseInsensitiveContains(searchText)
+                chain.description.localizedCaseInsensitiveContains(searchText)
         }
     }
 

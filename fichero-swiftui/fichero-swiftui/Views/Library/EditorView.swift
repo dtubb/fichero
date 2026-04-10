@@ -1,6 +1,6 @@
-import SwiftUI
-import Quartz
 import PDFKit
+import Quartz
+import SwiftUI
 
 /// Document preview/editor view
 struct EditorView: View {

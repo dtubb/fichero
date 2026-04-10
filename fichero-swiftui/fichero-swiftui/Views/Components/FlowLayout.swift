@@ -14,7 +14,7 @@ struct FlowLayout: Layout {
         for (index, subview) in subviews.enumerated() {
             subview.place(at: CGPoint(x: bounds.minX + result.positions[index].x,
                                       y: bounds.minY + result.positions[index].y),
-                         proposal: .unspecified)
+                          proposal: .unspecified)
         }
     }
 

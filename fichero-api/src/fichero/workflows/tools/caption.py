@@ -55,6 +55,7 @@ CAPTION_CONFIG = {
 # Prompt Building
 # =============================================================================
 
+
 def _build_prompt(style: str, max_length: int) -> str:
     """Build the caption prompt."""
     style_instructions = {
@@ -81,6 +82,7 @@ def build_caption_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="caption",

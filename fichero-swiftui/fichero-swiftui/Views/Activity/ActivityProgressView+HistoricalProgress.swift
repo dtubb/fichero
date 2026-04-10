@@ -102,9 +102,9 @@ extension ActivityProgressView {
     func nodeExecutionRow(_ step: ExecutionStep) -> some View {
         HStack(spacing: 12) {
             Image(systemName: step.status == "success" ? "checkmark.circle.fill" :
-                              step.status == "error" ? "xmark.circle.fill" : "circle")
+                    step.status == "error" ? "xmark.circle.fill" : "circle")
                 .foregroundStyle(step.status == "success" ? .green :
-                                step.status == "error" ? .red : .secondary)
+                                    step.status == "error" ? .red : .secondary)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Node: \(step.nodeId.prefix(8))...")
@@ -138,9 +138,9 @@ extension ActivityProgressView {
         HStack(spacing: 12) {
             // Status icon
             Image(systemName: step.status == "success" ? "checkmark.circle.fill" :
-                              step.status == "error" ? "xmark.circle.fill" : "circle")
+                    step.status == "error" ? "xmark.circle.fill" : "circle")
                 .foregroundStyle(step.status == "success" ? .green :
-                                step.status == "error" ? .red : .secondary)
+                                    step.status == "error" ? .red : .secondary)
                 .font(.caption)
 
             VStack(alignment: .leading, spacing: 4) {

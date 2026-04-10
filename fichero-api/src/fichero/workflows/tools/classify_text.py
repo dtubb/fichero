@@ -38,9 +38,18 @@ TOOL_CONFIG = LLMToolConfig(
 )
 
 DEFAULT_CATEGORIES = [
-    "correspondence", "legal", "financial", "report",
-    "memo", "minutes", "newspaper", "personal",
-    "technical", "academic", "creative", "other",
+    "correspondence",
+    "legal",
+    "financial",
+    "report",
+    "memo",
+    "minutes",
+    "newspaper",
+    "personal",
+    "technical",
+    "academic",
+    "creative",
+    "other",
 ]
 
 CLASSIFY_TEXT_CONFIG = {
@@ -58,7 +67,16 @@ CLASSIFY_TEXT_CONFIG = {
 }
 
 CLASSIFY_TEXT_INPUT_PORTS = merge_ports(
-    [PortDef(id="text", name="Text", port_type="input", data_type=DataType.TEXT, required=True, description="Text to classify")],
+    [
+        PortDef(
+            id="text",
+            name="Text",
+            port_type="input",
+            data_type=DataType.TEXT,
+            required=True,
+            description="Text to classify",
+        )
+    ],
     BASE_INPUT_PORTS,
 )
 
@@ -66,6 +84,7 @@ CLASSIFY_TEXT_INPUT_PORTS = merge_ports(
 # =============================================================================
 # Prompt Building
 # =============================================================================
+
 
 def _build_prompt(categories: list[str], multi_label: bool) -> str:
     """Build the text classification prompt."""
@@ -106,6 +125,7 @@ def build_classify_text_prompt(config: dict) -> str:
 # =============================================================================
 # Tool Registration
 # =============================================================================
+
 
 @register_tool(
     name="classify_text",

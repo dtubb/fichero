@@ -8,12 +8,19 @@ import logging
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi import APIRouter, HTTPException, Depends, Header, Query
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from fichero.db import Database
 from fichero.api.main import get_library_database
-from fichero.models import Document
+from fichero.models import Document, LibrarySnapshot, SnapshotInitiatorType
+from fichero.storage import (
+    snapshot_library,
+    list_snapshots,
+    restore_snapshot,
+    delete_snapshot,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -21,7 +28,9 @@ router = APIRouter()
 
 def _inline_content_disposition(filename: str) -> str:
     """Build a Content-Disposition header safe for non-ASCII filenames."""
-    ascii_fallback = filename.encode("ascii", "replace").decode("ascii").replace('"', "")
+    ascii_fallback = (
+        filename.encode("ascii", "replace").decode("ascii").replace('"', "")
+    )
     encoded_filename = quote(filename, safe="")
     return f"inline; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded_filename}"
 
@@ -116,7 +125,9 @@ async def get_source_file(
     source_path = resolve_source(doc)
 
     if not source_path:
-        logger.warning(f"resolve_source returned None for doc {doc_id}: path={doc.path}, has_bookmark={bool(doc.metadata.get('bookmark'))}")
+        logger.warning(
+            f"resolve_source returned None for doc {doc_id}: path={doc.path}, has_bookmark={bool(doc.metadata.get('bookmark'))}"
+        )
         raise HTTPException(status_code=404, detail="Source file not available")
 
     if not source_path.exists():
@@ -222,3 +233,147 @@ async def debug_document_paths(
         "cwd": os.getcwd(),
         "metadata": doc.metadata,
     }
+
+
+# =============================================================================
+# Library Snapshots
+# =============================================================================
+
+
+class SnapshotCreateResponse(BaseModel):
+    snapshot: LibrarySnapshot
+
+
+class SnapshotRestoreResponse(BaseModel):
+    snapshot_id: str
+    library_path: str
+    duckdb_restored_path: str | None
+    lance_restored_path: str | None
+    note: str
+
+
+class SnapshotDeleteResponse(BaseModel):
+    deleted: bool
+    snapshot_id: str
+
+
+class SnapshotListResponse(BaseModel):
+    snapshots: list[LibrarySnapshot]
+    total: int
+
+
+@router.post("/snapshots", response_model=LibrarySnapshot, tags=["snapshots"])
+async def create_snapshot(
+    library_path: str = Query(..., description="Path to the .fichero package"),
+    reason: str = Query(default="", description="Reason for the snapshot"),
+    initiator: SnapshotInitiatorType = Query(default=SnapshotInitiatorType.user),
+    initiator_id: str | None = Query(default=None),
+    run_id: str | None = Query(default=None),
+    auto_expire_days: int | None = Query(default=None),
+) -> LibrarySnapshot:
+    """Create a point-in-time snapshot of a library.
+
+    Exports the DuckDB database to Parquet files and copies the LanceDB
+    vector directory. Snapshot data is stored in:
+        ~/Library/Application Support/com.tubb.fichero/snapshots/{library_name}/{snapshot_id}/
+
+    Use after bulk AI operations or before schema changes.
+    """
+    try:
+        return snapshot_library(
+            library_path=library_path,
+            reason=reason,
+            initiator=initiator.value,
+            initiator_id=initiator_id,
+            run_id=run_id,
+            auto_expire_days=auto_expire_days,
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/snapshots", response_model=SnapshotListResponse, tags=["snapshots"])
+async def get_snapshots(
+    library_name: str | None = Query(default=None),
+    include_expired: bool = Query(default=False),
+) -> SnapshotListResponse:
+    """List snapshots, newest first. Expired snapshots excluded by default."""
+    snapshots = list_snapshots(
+        library_name=library_name,
+        include_expired=include_expired,
+    )
+    return SnapshotListResponse(snapshots=snapshots, total=len(snapshots))
+
+
+@router.get(
+    "/snapshots/{snapshot_id}", response_model=LibrarySnapshot, tags=["snapshots"]
+)
+async def get_snapshot(snapshot_id: str) -> LibrarySnapshot:
+    """Get a single snapshot by ID."""
+    snapshots = list_snapshots(include_expired=True)
+    snapshot = next((s for s in snapshots if s.id == snapshot_id), None)
+    if not snapshot:
+        raise HTTPException(
+            status_code=404, detail=f"Snapshot not found: {snapshot_id}"
+        )
+    return snapshot
+
+
+@router.post(
+    "/snapshots/{snapshot_id}/restore",
+    response_model=SnapshotRestoreResponse,
+    tags=["snapshots"],
+)
+async def restore_library_snapshot(snapshot_id: str) -> SnapshotRestoreResponse:
+    """Restore a library from a snapshot.
+
+    Restoration creates NEW database and vector files alongside the originals.
+    The current library is NOT modified. After restoration, update
+    X-Fichero-Library-Path to point to the restored library to use it.
+    """
+    try:
+        result = restore_snapshot(snapshot_id)
+        return SnapshotRestoreResponse(**result)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete(
+    "/snapshots/{snapshot_id}",
+    response_model=SnapshotDeleteResponse,
+    tags=["snapshots"],
+)
+async def remove_snapshot(snapshot_id: str) -> SnapshotDeleteResponse:
+    """Delete a snapshot and its data files."""
+    deleted = delete_snapshot(snapshot_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=404, detail=f"Snapshot not found: {snapshot_id}"
+        )
+    return SnapshotDeleteResponse(deleted=True, snapshot_id=snapshot_id)
+
+
+@router.patch(
+    "/snapshots/{snapshot_id}/pin", response_model=LibrarySnapshot, tags=["snapshots"]
+)
+async def pin_snapshot(
+    snapshot_id: str,
+    pinned: bool = True,
+) -> LibrarySnapshot:
+    """Toggle pinned status. Pinned snapshots are not auto-deleted."""
+    from fichero.storage import _load_all_snapshot_records, _save_snapshot_record
+
+    snapshots = _load_all_snapshot_records()
+    snapshot = next((s for s in snapshots if s.id == snapshot_id), None)
+    if not snapshot:
+        raise HTTPException(
+            status_code=404, detail=f"Snapshot not found: {snapshot_id}"
+        )
+
+    snapshot.is_pinned = pinned
+    _save_snapshot_record(snapshot)
+    return snapshot
