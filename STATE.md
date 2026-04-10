@@ -1,10 +1,10 @@
 # Current Focus
-Phase 4 (Agent Research) SSRF Security Review — ✅ FIXES IMPLEMENTED, PR #399 Ready for Review
+Phase 5 (Integration) Security Review — ✅ AUDIT COMPLETE, PR #401 Ready for Review
 
 # Branch
 - Active branch: `0.0.2` (pushes to `origin/0.0.2`)
-- Last commit: Issue #398 — SSRF security fixes implemented and committed
-- PR: #399 — Security: Implement SSRF protection for Phase 4 research tools
+- Last commit: Issue #400 — Phase 5 Integration security audit findings
+- PR: #401 — Security: Phase 5 Integration audit findings (#400)
 
 # Completed
 - ✅ Phase 1: Knowledge Graph Core (#387) — Complete, code reviewed
@@ -17,6 +17,10 @@ Phase 4 (Agent Research) SSRF Security Review — ✅ FIXES IMPLEMENTED, PR #399
   - test_research_ssrf_security.py with 53 security test cases (48 PASSING)
   - Implemented `_is_internal_ip()` and `_is_safe_url()` validation
   - Branch: feature/issue-398 pushed to origin, ready for PR
+- ✅ **Phase 5 Integration Security Audit (#400)** — CORS/MCP security review complete  
+  - SECURITY_FINDINGS_400.md with vulnerability findings (HIGH CORS, MCP auth)
+  - test_integration_security.py with 13 security tests (4 FAILING)
+  - Branch: feature/issue-400 pushed, PR #401 ready for review
 
 ## Code Review Summary (Phase 1-5 Backend)
 
@@ -180,38 +184,48 @@ Each Phase requires review across 3 dimensions:
 | #387 | Knowledge Graph | PENDING REVIEW | High (PyKEEN, queries) | Await Phase 4 completion |
 | #388 | Hermeneutics | PENDING REVIEW | Medium (LLM injection) | Await Phase 4 completion |
 | #389 | Mind Palace | PENDING REVIEW | Medium (file paths) | Await Phase 4 completion |
-| **#398** | **Agent Research** | **✅ FIXES IMPLEMENTED** | **CRITICAL (SSRF)** | **PR Review** |
-  - Internal IP blocking: 38/38 tests passing ✅
-  - Cloud metadata: blocked ✅
-  - Scheme validation: case-insensitive ✅
-  - DNS resolution: validated ✅
-  - Open redirects: accepted risk (3 failures)
-  - Query strings: accepted risk (2 failures)
-| #391 | Integration | PENDING REVIEW | High (CORS, MCP) | Await Phase 4 completion |
+| **#400** | **Integration** | **✅ AUDIT COMPLETE** | **HIGH (CORS)** | **PR Review** |
+  - CORS wildcard with credentials: ❌ Vulnerable
+  - MCP authorization: ❌ Missing
+  - Feature tier bypass: ❌ No validation
+  - Library path injection: ❌ No validation
+| #391 | Integration | PENDING REVIEW | High (CORS, MCP) | Security fixes needed
 
-### GitHub Issue #398 — Phase 4 SSRF Security Findings
+### GitHub Issue #398 — Phase 4 SSRF Security (COMPLETE)
+
+**Status:** ✅ FIXES IMPLEMENTED — PR #399 Ready for Review
+
+**Fixes:**
+- Internal IP blocking: ✅ FIXED
+- Cloud metadata: ✅ BLOCKED  
+- Scheme validation: ✅ FIXED
+- DNS resolution: ✅ VALIDATED
+- Open redirects: ⚠️ Accepted risk
+- Query strings: ⚠️ Accepted risk
+
+**Summary: 48 of 53 security tests passing**
+
+### GitHub Issue #400 — Phase 5 Integration Security (AUDIT COMPLETE)
 
 **Created:** 2026-04-10
 **Updated:** 2026-04-10
-**Branch:** `feature/issue-398`
-**Status:** ✅ FIXES IMPLEMENTED — Ready for PR Review
+**Branch:** `feature/issue-400`
+**Status:** ✅ AUDIT COMPLETE — PR #401 Ready for Review
 
-**Fixes Implemented:**
+**Vulnerabilities Found:**
 | Severity | Issue | Status | Tests |
 |----------|-------|--------|-------|
-| CRITICAL | Open redirect SSRF | ⚠️ Accepted Risk | 0/3 |
-| CRITICAL | No internal IP blocking | ✅ FIXED | 38/38 |
-| HIGH | Scheme case bypass | ✅ FIXED | 5/5 |
-| HIGH | DNS rebinding | ✅ FIXED | 3/3 |
-| MEDIUM | Resource exhaustion | ⚠️ Accepted Risk | 2/2 |
-| MEDIUM | Error disclosure | ✅ FIXED | All existing tests pass |
+| HIGH | CORS wildcard + credentials | ❌ CONFIRMED | 1/1 FAIL |
+| HIGH | MCP authorization | ❌ CONFIRMED | 1/1 FAIL |
+| MEDIUM | Feature tier bypass | ❌ CONFIRMED | 1/1 FAIL |
+| MEDIUM | Library path injection | ❌ CONFIRMED | 1/1 FAIL |
 
-**Summary: 48 of 53 security tests now passing**
+**Summary: 4 of 13 security tests failing (vulnerabilities confirmed)**
 
 **Artifacts:**
-- `SECURITY_FINDINGS_398.md` — Complete vulnerability report with CVSS scores
-- `fichero-api/tests/unit/test_research_ssrf_security.py` — 53 security tests (48 PASS)
-- Commits: feature/issue-398 branch ready for PR
+- `SECURITY_FINDINGS_400.md` — Complete vulnerability report
+- `fichero-api/tests/unit/test_integration_security.py` — 13 security tests (4 FAIL)
+- Commits: feature/issue-400 branch ready for PR
 
 
 ### Known Test Gaps
