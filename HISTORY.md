@@ -115,3 +115,13 @@
   - All linting clean (ruff)
 - **Issue #398**: Ready to close after PR review/merge
 - **Next**: Daniel reviews PR #399
+
+## 2026-04-10 — Phase 5 Integration Security Audit Complete (#400)
+
+- **Issue #400**: Phase 5 Integration security review completed
+  - SECURITY_FINDINGS_400.md with CORS and MCP vulnerabilities
+  - test_integration_security.py with 13 tests (4 FAILING)
+  - HIGH: CORS wildcard + credentials enabled
+  - HIGH: MCP server missing authorization
+  - Branch: feature/issue-400 pushed, PR #401 created
+- **PRs**: #399 (Phase 4 fixes), #401 (Phase 5 findings) both awaiting review
