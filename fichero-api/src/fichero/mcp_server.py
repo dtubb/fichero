@@ -55,16 +55,31 @@ server = Server("fichero")
 
 
 class FicheroAPIClient:
-    """HTTP client for Fichero API."""
+    """HTTP client for Fichero API with authentication."""
 
-    def __init__(self, api_url: str = DEFAULT_API_URL, library_path: str | None = None):
+    def __init__(
+        self,
+        api_url: str = DEFAULT_API_URL,
+        library_path: str | None = None,
+        api_key: str | None = None,
+    ):
         self.api_url = api_url.rstrip("/")
         self.library_path = library_path or os.environ.get("FICHERO_LIBRARY_PATH")
+        self.api_key = api_key or os.environ.get("FICHERO_API_KEY")
+        
+        # Security: Warn if no API key configured
+        if not self.api_key:
+            logger.warning(
+                "FICHERO_API_KEY not set. API calls may be rejected in production."
+            )
 
     def _get_headers(self) -> dict[str, str]:
         headers = {"Content-Type": "application/json"}
         if self.library_path:
             headers["X-Fichero-Library-Path"] = self.library_path
+        # Add API key authentication
+        if self.api_key:
+            headers["X-API-Key"] = self.api_key
         return headers
 
     async def request(

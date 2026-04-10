@@ -101,13 +101,43 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS - allow all for local SwiftUI app
+# CORS configuration
+# Production: Restrict origins to specific domains
+# Development: Allow localhost origins
+def _get_cors_origins() -> list[str]:
+    """Get allowed CORS origins based on environment."""
+    env = os.environ.get("FICHERO_ENV", "development").lower().strip()
+    
+    if env == "production":
+        # Production: Only specific origins (configure via env var)
+        allowed = os.environ.get("FICHERO_CORS_ORIGINS", "")
+        if allowed:
+            return [origin.strip() for origin in allowed.split(",")]
+        # Default: no cross-origin in production if not configured
+        return []
+    
+    # Development: Allow common local development origins
+    return [
+        "http://localhost:*",
+        "http://127.0.0.1:*",
+        "https://localhost:*",
+        "https://127.0.0.1:*",
+        "app://localhost",  # Electron/Tauri apps
+    ]
+
+
+cors_origins = _get_cors_origins()
+
+# Security: Never allow credentials with wildcard origins
+# Credentials are only allowed when specific origins are configured
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=cors_origins,
+    allow_credentials=len(cors_origins) > 0 and cors_origins != ["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Fichero-Library-Path", "X-API-Key"],
+    expose_headers=["X-Request-ID"],
+    max_age=600,
 )
 
 
