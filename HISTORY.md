@@ -381,3 +381,15 @@
 
 ## 2026-04-10 — Session Summary
 
+
+
+## 2026-04-10 — Session
+
+- **#419 Migration Framework (0.0.3)**: Implemented core MigrationRunner class
+  - Dry-run mode for validation without side effects
+  - Rollback support with before/after state capture
+  - Audit trail via MutationLog for all migrations
+  - Batch processing with progress callbacks
+  - Three operation types: migrate_claims_to_multi_source, backfill_claim_source_metadata, repair_orphaned_claim_links
+  - Safety validation checks before execution
+  - Branch: feature/issue-419-migration
