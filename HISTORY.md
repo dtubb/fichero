@@ -161,3 +161,18 @@
   - 95 total security tests created across all phases
   - Findings range from LOW to HIGH severity
 - **Open PRs**: All 5 security PRs awaiting Daniel's review
+
+## 2026-04-10 — HIGH Severity Security Fixes Implemented (#408)
+
+- **Issue #408**: Phase 5 HIGH severity security fixes implemented
+  - CORS: Replaced wildcard origins with environment-based configuration
+  - MCP: Added API key authentication (FICHERO_API_KEY)
+  - Test results: 10/13 integration tests now PASSING (was 6/13)
+  - CORS tests: 3/3 PASS ✅
+  - MCP tests: 3/3 PASS ✅
+  - Branch: feature/issue-408 pushed, PR #409 created
+- **Environment Variables Added:**
+  - FICHERO_ENV=development|production
+  - FICHERO_CORS_ORIGINS=https://app.example.com
+  - FICHERO_API_KEY=secret-key
+- **Security Audit Complete:** All HIGH severity findings now have fixes
