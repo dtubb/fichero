@@ -1,37 +1,27 @@
-"""Research Agents API routes (dev tier, Layer 0 — Agent Research)."""
+"""Agent Research API routes — Layer 0 systematic discovery with sandboxed tools."""
 
-import time
 from datetime import datetime
 from typing import Any
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.research_models import (
-    BrowserNavigateRequest,
-    BrowserNavigateResponse,
-    ChecklistItem,
-    DocumentFetchRequest,
-    DocumentFetchResponse,
-    PlanStatus,
-    ProjectStatus,
-    ResearchChecklist,
+    CheckItemStatus,
+    NoteType,
+    ResearchChecklistItem,
     ResearchNote,
-    ResearchNoteType,
     ResearchPlan,
     ResearchProject,
+    ResearchResult,
+    ResearchSource,
+    ResearchStatus,
     ResearchStep,
     ResearchTask,
-    SearchSource,
-    SearchSourceType,
-    StepStatus,
-    StepTool,
-    TaskStatus,
-    WebSearchRequest,
-    WebSearchResponse,
+    SourceType,
+    StepType,
     WebSearchResult,
 )
 
@@ -40,22 +30,228 @@ router = APIRouter()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Project CRUD
+# Request/Response models
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 class ProjectCreateRequest(BaseModel):
     name: str
     description: str = ""
-    created_by: str = "human"
+    research_question: str = ""
+    goals: list[str] = Field(default_factory=list)
+    scope_notes: str = ""
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ProjectUpdateRequest(BaseModel):
     name: str | None = None
     description: str | None = None
-    status: ProjectStatus | None = None
+    research_question: str | None = None
+    goals: list[str] | None = None
+    scope_notes: str | None = None
+    status: ResearchStatus | None = None
     metadata: dict[str, Any] | None = None
+
+
+class PlanCreateRequest(BaseModel):
+    project_id: str
+    name: str
+    description: str = ""
+    phase_number: int = 1
+    objectives: list[str] = Field(default_factory=list)
+    success_criteria: list[str] = Field(default_factory=list)
+    deliverables: list[str] = Field(default_factory=list)
+    dependencies: list[str] = Field(default_factory=list)
+    due_date: datetime | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class PlanUpdateRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    phase_number: int | None = None
+    objectives: list[str] | None = None
+    success_criteria: list[str] | None = None
+    deliverables: list[str] | None = None
+    dependencies: list[str] | None = None
+    status: ResearchStatus | None = None
+    due_date: datetime | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class TaskCreateRequest(BaseModel):
+    plan_id: str
+    project_id: str
+    name: str
+    description: str = ""
+    task_number: int = 1
+    priority: int = Field(default=1, ge=1, le=5)
+    estimated_hours: float | None = None
+    assigned_to: str = "user"
+    dependencies: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class TaskUpdateRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    task_number: int | None = None
+    priority: int | None = Field(default=None, ge=1, le=5)
+    estimated_hours: float | None = None
+    assigned_to: str | None = None
+    status: ResearchStatus | None = None
+    dependencies: list[str] | None = None
+    result: ResearchResult | None = None
+    result_notes: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class StepCreateRequest(BaseModel):
+    task_id: str
+    plan_id: str
+    project_id: str
+    step_number: int = 1
+    step_type: StepType
+    name: str = ""
+    description: str = ""
+    query: str | None = None
+    url: str | None = None
+    target_source_id: str | None = None
+    notes: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class StepUpdateRequest(BaseModel):
+    step_number: int | None = None
+    name: str | None = None
+    description: str | None = None
+    query: str | None = None
+    url: str | None = None
+    notes: str | None = None
+    status: ResearchStatus | None = None
+    result: ResearchResult | None = None
+    result_data: dict[str, Any] | None = None
+    error_message: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class SourceCreateRequest(BaseModel):
+    project_id: str
+    name: str
+    description: str = ""
+    source_type: SourceType
+    location: str
+    search_scope: str = ""
+    relevance_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class SourceUpdateRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    source_type: SourceType | None = None
+    location: str | None = None
+    search_scope: str | None = None
+    relevance_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    last_searched: datetime | None = None
+    findings_count: int | None = None
+    status: ResearchStatus | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class NoteCreateRequest(BaseModel):
+    project_id: str
+    plan_id: str | None = None
+    task_id: str | None = None
+    step_id: str | None = None
+    note_type: NoteType
+    content: str
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    source_ids: list[str] = Field(default_factory=list)
+    claim_ids: list[str] = Field(default_factory=list)
+    author_id: str = "user"
+    is_key_finding: bool = False
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class NoteUpdateRequest(BaseModel):
+    content: str | None = None
+    note_type: NoteType | None = None
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    source_ids: list[str] | None = None
+    claim_ids: list[str] | None = None
+    is_key_finding: bool | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class ChecklistItemCreateRequest(BaseModel):
+    project_id: str
+    task_id: str | None = None
+    step_id: str | None = None
+    description: str
+    category: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ChecklistItemUpdateRequest(BaseModel):
+    description: str | None = None
+    category: str | None = None
+    status: CheckItemStatus | None = None
+    verified_by: str | None = None
+    verified_at: datetime | None = None
+    verification_notes: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class WebSearchRequest(BaseModel):
+    query: str
+    max_results: int = Field(default=10, ge=1, le=50)
+    project_id: str | None = None
+    source_filter: list[SourceType] = Field(default_factory=list)
+
+
+class WebSearchResponse(BaseModel):
+    query: str
+    results: list[WebSearchResult]
+    total_found: int
+    search_time_ms: int | None = None
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+
+class BrowserNavigateRequest(BaseModel):
+    url: str
+    wait_for_selector: str | None = None
+    project_id: str | None = None
+
+
+class BrowserNavigateResponse(BaseModel):
+    url: str
+    title: str
+    success: bool
+    loaded_at: datetime = Field(default_factory=datetime.now)
+
+
+class DocumentFetchRequest(BaseModel):
+    url: str
+    project_id: str | None = None
+    extract_claims: bool = False
+    create_source: bool = True
+
+
+class DocumentFetchResponse(BaseModel):
+    url: str
+    document_id: str | None = None  # If created as Source
+    title: str | None = None
+    content_preview: str | None = None
+    claims_extracted: int = 0
+    success: bool
+    message: str = ""
+    fetched_at: datetime = Field(default_factory=datetime.now)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Project CRUD
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 @router.post("/projects", response_model=ResearchProject)
@@ -63,11 +259,18 @@ async def create_project(
     request: ProjectCreateRequest,
     db: Database = Depends(get_library_database),
 ) -> ResearchProject:
+    now = datetime.now()
     project = ResearchProject(
-        name=request.name,
-        description=request.description,
-        created_by=request.created_by,
-        metadata=request.metadata,
+        name=request.name.strip(),
+        description=request.description.strip(),
+        research_question=request.research_question.strip(),
+        goals=list(request.goals),
+        scope_notes=request.scope_notes.strip(),
+        status=ResearchStatus.draft,
+        owner_id="user",
+        metadata=dict(request.metadata),
+        created_at=now,
+        updated_at=now,
     )
     db.save(project)
     return project
@@ -75,13 +278,13 @@ async def create_project(
 
 @router.get("/projects", response_model=list[ResearchProject])
 async def list_projects(
-    status: ProjectStatus | None = None,
+    status: ResearchStatus | None = None,
     db: Database = Depends(get_library_database),
 ) -> list[ResearchProject]:
-    projects = db.query(ResearchProject)
+    rows = db.all(ResearchProject)
     if status is not None:
-        projects = [p for p in projects if p.status == status]
-    return sorted(projects, key=lambda p: p.created_at, reverse=True)
+        rows = [r for r in rows if r.status == status]
+    return rows
 
 
 @router.get("/projects/{project_id}", response_model=ResearchProject)
@@ -104,14 +307,10 @@ async def update_project(
     project = db.get(ResearchProject, project_id)
     if not project:
         raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
-    if request.name is not None:
-        project.name = request.name
-    if request.description is not None:
-        project.description = request.description
-    if request.status is not None:
-        project.status = request.status
-    if request.metadata is not None:
-        project.metadata = request.metadata
+
+    updates = request.model_dump(exclude_unset=True)
+    for key, value in updates.items():
+        setattr(project, key, value)
     project.updated_at = datetime.now()
     db.save(project)
     return project
@@ -125,8 +324,10 @@ async def delete_project(
     project = db.get(ResearchProject, project_id)
     if not project:
         raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
-    db.delete(project)
-    return {"status": "deleted", "id": project_id}
+    project.status = ResearchStatus.archived
+    project.updated_at = datetime.now()
+    db.save(project)
+    return {"status": "archived"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -134,48 +335,48 @@ async def delete_project(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class PlanCreateRequest(BaseModel):
-    project_id: str
-    name: str
-    description: str = ""
-    order_index: int = 0
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class PlanUpdateRequest(BaseModel):
-    name: str | None = None
-    description: str | None = None
-    status: PlanStatus | None = None
-    order_index: int | None = None
-    metadata: dict[str, Any] | None = None
-
-
 @router.post("/plans", response_model=ResearchPlan)
 async def create_plan(
     request: PlanCreateRequest,
     db: Database = Depends(get_library_database),
 ) -> ResearchPlan:
+    # Verify project exists
+    project = db.get(ResearchProject, request.project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project not found: {request.project_id}")
+
+    now = datetime.now()
     plan = ResearchPlan(
         project_id=request.project_id,
-        name=request.name,
-        description=request.description,
-        order_index=request.order_index,
-        metadata=request.metadata,
+        name=request.name.strip(),
+        description=request.description.strip(),
+        phase_number=request.phase_number,
+        objectives=list(request.objectives),
+        success_criteria=list(request.success_criteria),
+        deliverables=list(request.deliverables),
+        dependencies=list(request.dependencies),
+        due_date=request.due_date,
+        status=ResearchStatus.draft,
+        metadata=dict(request.metadata),
+        created_at=now,
+        updated_at=now,
     )
     db.save(plan)
     return plan
 
 
-# 仰制
-
-
-@router.get("/projects/{project_id}/plans", response_model=list[ResearchPlan])
+@router.get("/plans", response_model=list[ResearchPlan])
 async def list_plans(
-    project_id: str,
+    project_id: str | None = None,
+    status: ResearchStatus | None = None,
     db: Database = Depends(get_library_database),
 ) -> list[ResearchPlan]:
-    plans = db.query(ResearchPlan, project_id=project_id)
-    return sorted(plans, key=lambda p: p.order_index)
+    rows = db.all(ResearchPlan)
+    if project_id is not None:
+        rows = [r for r in rows if r.project_id == project_id]
+    if status is not None:
+        rows = [r for r in rows if r.status == status]
+    return sorted(rows, key=lambda x: x.phase_number)
 
 
 @router.get("/plans/{plan_id}", response_model=ResearchPlan)
@@ -198,17 +399,27 @@ async def update_plan(
     plan = db.get(ResearchPlan, plan_id)
     if not plan:
         raise HTTPException(status_code=404, detail=f"Plan not found: {plan_id}")
-    if request.name is not None:
-        plan.name = request.name
-    if request.description is not None:
-        plan.description = request.description
-    if request.order_index is not None:
-        plan.order_index = request.order_index
-    if request.metadata is not None:
-        plan.metadata = request.metadata
+
+    updates = request.model_dump(exclude_unset=True)
+    for key, value in updates.items():
+        setattr(plan, key, value)
     plan.updated_at = datetime.now()
     db.save(plan)
     return plan
+
+
+@router.delete("/plans/{plan_id}")
+async def delete_plan(
+    plan_id: str,
+    db: Database = Depends(get_library_database),
+) -> dict[str, str]:
+    plan = db.get(ResearchPlan, plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail=f"Plan not found: {plan_id}")
+    plan.status = ResearchStatus.archived
+    plan.updated_at = datetime.now()
+    db.save(plan)
+    return {"status": "archived"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -216,48 +427,56 @@ async def update_plan(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class TaskCreateRequest(BaseModel):
-    plan_id: str
-    name: str
-    description: str = ""
-    priority: int = 0
-    assigned_to: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class TaskUpdateRequest(BaseModel):
-    name: str | None = None
-    description: str | None = None
-    status: TaskStatus | None = None
-    priority: int | None = None
-    assigned_to: str | None = None
-    metadata: dict[str, Any] | None = None
-
-
 @router.post("/tasks", response_model=ResearchTask)
 async def create_task(
     request: TaskCreateRequest,
     db: Database = Depends(get_library_database),
 ) -> ResearchTask:
+    # Verify plan exists
+    plan = db.get(ResearchPlan, request.plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail=f"Plan not found: {request.plan_id}")
+
+    now = datetime.now()
     task = ResearchTask(
         plan_id=request.plan_id,
-        name=request.name,
-        description=request.description,
+        project_id=request.project_id,
+        name=request.name.strip(),
+        description=request.description.strip(),
+        task_number=request.task_number,
         priority=request.priority,
+        estimated_hours=request.estimated_hours,
         assigned_to=request.assigned_to,
-        metadata=request.metadata,
+        dependencies=list(request.dependencies),
+        status=ResearchStatus.draft,
+        result=ResearchResult.pending,
+        result_notes="",
+        metadata=dict(request.metadata),
+        created_at=now,
+        updated_at=now,
     )
     db.save(task)
     return task
 
 
-@router.get("/plans/{plan_id}/tasks", response_model=list[ResearchTask])
+@router.get("/tasks", response_model=list[ResearchTask])
 async def list_tasks(
-    plan_id: str,
+    plan_id: str | None = None,
+    project_id: str | None = None,
+    assigned_to: str | None = None,
+    status: ResearchStatus | None = None,
     db: Database = Depends(get_library_database),
 ) -> list[ResearchTask]:
-    tasks = db.query(ResearchTask, plan_id=plan_id)
-    return sorted(tasks, key=lambda t: (t.priority, t.created_at))
+    rows = db.all(ResearchTask)
+    if plan_id is not None:
+        rows = [r for r in rows if r.plan_id == plan_id]
+    if project_id is not None:
+        rows = [r for r in rows if r.project_id == project_id]
+    if assigned_to is not None:
+        rows = [r for r in rows if r.assigned_to == assigned_to]
+    if status is not None:
+        rows = [r for r in rows if r.status == status]
+    return sorted(rows, key=lambda x: (x.priority, x.task_number))
 
 
 @router.get("/tasks/{task_id}", response_model=ResearchTask)
@@ -280,23 +499,44 @@ async def update_task(
     task = db.get(ResearchTask, task_id)
     if not task:
         raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
-    if request.name is not None:
-        task.name = request.name
-    if request.description is not None:
-        task.description = request.description
-    if request.status is not None:
-        task.status = request.status
-        if request.status == TaskStatus.completed:
-            task.completed_at = datetime.now()
-    if request.priority is not None:
-        task.priority = request.priority
-    if request.assigned_to is not None:
-        task.assigned_to = request.assigned_to
-    if request.metadata is not None:
-        task.metadata = request.metadata
+
+    updates = request.model_dump(exclude_unset=True)
+    for key, value in updates.items():
+        setattr(task, key, value)
     task.updated_at = datetime.now()
     db.save(task)
     return task
+
+
+@router.post("/tasks/{task_id}/complete", response_model=ResearchTask)
+async def complete_task(
+    task_id: str,
+    result_notes: str = "",
+    db: Database = Depends(get_library_database),
+) -> ResearchTask:
+    task = db.get(ResearchTask, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+    task.status = ResearchStatus.complete
+    task.result = ResearchResult.success
+    task.result_notes = result_notes
+    task.updated_at = datetime.now()
+    db.save(task)
+    return task
+
+
+@router.delete("/tasks/{task_id}")
+async def delete_task(
+    task_id: str,
+    db: Database = Depends(get_library_database),
+) -> dict[str, str]:
+    task = db.get(ResearchTask, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+    task.status = ResearchStatus.archived
+    task.updated_at = datetime.now()
+    db.save(task)
+    return {"status": "archived"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -304,47 +544,72 @@ async def update_task(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class StepCreateRequest(BaseModel):
-    task_id: str
-    tool: StepTool
-    label: str
-    description: str = ""
-    config: dict[str, Any] = Field(default_factory=dict)
-    order_index: int = 0
-
-
-class StepUpdateRequest(BaseModel):
-    label: str | None = None
-    description: str | None = None
-    status: StepStatus | None = None
-    result: dict[str, Any] | None = None
-    error: str | None = None
-    order_index: int | None = None
-
-
 @router.post("/steps", response_model=ResearchStep)
 async def create_step(
     request: StepCreateRequest,
     db: Database = Depends(get_library_database),
 ) -> ResearchStep:
+    # Verify task exists
+    task = db.get(ResearchTask, request.task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task not found: {request.task_id}")
+
+    now = datetime.now()
     step = ResearchStep(
         task_id=request.task_id,
-        tool=request.tool,
-        label=request.label,
-        description=request.description,
-        order_index=request.order_index,
+        plan_id=request.plan_id,
+        project_id=request.project_id,
+        step_number=request.step_number,
+        step_type=request.step_type,
+        name=request.name.strip(),
+        description=request.description.strip(),
+        query=request.query,
+        url=request.url,
+        target_source_id=request.target_source_id,
+        notes=request.notes.strip(),
+        status=ResearchStatus.draft,
+        result=ResearchResult.pending,
+        result_data={},
+        metadata=dict(request.metadata),
+        created_at=now,
+        updated_at=now,
     )
     db.save(step)
     return step
 
 
-@router.get("/tasks/{task_id}/steps", response_model=list[ResearchStep])
+@router.get("/steps", response_model=list[ResearchStep])
 async def list_steps(
-    task_id: str,
+    task_id: str | None = None,
+    plan_id: str | None = None,
+    project_id: str | None = None,
+    step_type: StepType | None = None,
+    status: ResearchStatus | None = None,
     db: Database = Depends(get_library_database),
 ) -> list[ResearchStep]:
-    steps = db.query(ResearchStep, task_id=task_id)
-    return sorted(steps, key=lambda s: s.order_index)
+    rows = db.all(ResearchStep)
+    if task_id is not None:
+        rows = [r for r in rows if r.task_id == task_id]
+    if plan_id is not None:
+        rows = [r for r in rows if r.plan_id == plan_id]
+    if project_id is not None:
+        rows = [r for r in rows if r.project_id == project_id]
+    if step_type is not None:
+        rows = [r for r in rows if r.step_type == step_type]
+    if status is not None:
+        rows = [r for r in rows if r.status == status]
+    return sorted(rows, key=lambda x: x.step_number)
+
+
+@router.get("/steps/{step_id}", response_model=ResearchStep)
+async def get_step(
+    step_id: str,
+    db: Database = Depends(get_library_database),
+) -> ResearchStep:
+    step = db.get(ResearchStep, step_id)
+    if not step:
+        raise HTTPException(status_code=404, detail=f"Step not found: {step_id}")
+    return step
 
 
 @router.patch("/steps/{step_id}", response_model=ResearchStep)
@@ -356,95 +621,161 @@ async def update_step(
     step = db.get(ResearchStep, step_id)
     if not step:
         raise HTTPException(status_code=404, detail=f"Step not found: {step_id}")
-    if request.label is not None:
-        step.label = request.label
-    if request.description is not None:
-        step.description = request.description
-    if request.status is not None:
-        step.status = request.status
-        if request.status == StepStatus.completed:
-            step.completed_at = datetime.now()
-    if request.result is not None:
-        step.result = request.result
-    if request.error is not None:
-        step.error = request.error
-    if request.order_index is not None:
-        step.order_index = request.order_index
+
+    updates = request.model_dump(exclude_unset=True)
+    for key, value in updates.items():
+        setattr(step, key, value)
     step.updated_at = datetime.now()
     db.save(step)
     return step
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Search Sources
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-class SearchSourceCreateRequest(BaseModel):
-    project_id: str
-    source_type: SearchSourceType
-    label: str
-    url: str | None = None
-    path: str | None = None
-    description: str = ""
-    access_status: str = "public"
-    reliability: float = 0.5
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-@router.post("/sources", response_model=SearchSource)
-async def create_search_source(
-    request: SearchSourceCreateRequest,
+@router.post("/steps/{step_id}/execute", response_model=ResearchStep)
+async def execute_step(
+    step_id: str,
     db: Database = Depends(get_library_database),
-) -> SearchSource:
-    source = SearchSource(
+) -> ResearchStep:
+    """Mark a step as in-progress with sandboxed execution placeholder."""
+    step = db.get(ResearchStep, step_id)
+    if not step:
+        raise HTTPException(status_code=404, detail=f"Step not found: {step_id}")
+
+    step.status = ResearchStatus.in_progress
+    step.updated_at = datetime.now()
+    db.save(step)
+    return step
+
+
+class StepCompleteRequest(BaseModel):
+    result: ResearchResult = ResearchResult.success
+    result_data: dict[str, Any] = Field(default_factory=dict)
+
+
+@router.post("/steps/{step_id}/complete", response_model=ResearchStep)
+async def complete_step(
+    step_id: str,
+    request: StepCompleteRequest,
+    db: Database = Depends(get_library_database),
+) -> ResearchStep:
+    step = db.get(ResearchStep, step_id)
+    if not step:
+        raise HTTPException(status_code=404, detail=f"Step not found: {step_id}")
+
+    step.status = ResearchStatus.complete
+    step.result = request.result
+    step.result_data = request.result_data
+    step.execution_time_ms = 0  # Would be calculated from actual execution
+    step.updated_at = datetime.now()
+    db.save(step)
+    return step
+
+
+@router.delete("/steps/{step_id}")
+async def delete_step(
+    step_id: str,
+    db: Database = Depends(get_library_database),
+) -> dict[str, str]:
+    step = db.get(ResearchStep, step_id)
+    if not step:
+        raise HTTPException(status_code=404, detail=f"Step not found: {step_id}")
+    step.status = ResearchStatus.archived
+    step.updated_at = datetime.now()
+    db.save(step)
+    return {"status": "archived"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Source CRUD
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@router.post("/sources", response_model=ResearchSource)
+async def create_source(
+    request: SourceCreateRequest,
+    db: Database = Depends(get_library_database),
+) -> ResearchSource:
+    now = datetime.now()
+    source = ResearchSource(
         project_id=request.project_id,
+        name=request.name.strip(),
+        description=request.description.strip(),
         source_type=request.source_type,
-        label=request.label,
-        url=request.url,
-        path=request.path,
-        description=request.description,
-        access_status=request.access_status,
-        reliability=request.reliability,
-        metadata=request.metadata,
+        location=request.location.strip(),
+        search_scope=request.search_scope.strip(),
+        relevance_score=request.relevance_score,
+        findings_count=0,
+        status=ResearchStatus.active,
+        metadata=dict(request.metadata),
+        created_at=now,
+        updated_at=now,
     )
     db.save(source)
     return source
 
 
-@router.get("/projects/{project_id}/sources", response_model=list[SearchSource])
-async def list_search_sources(
-    project_id: str,
+@router.get("/sources", response_model=list[ResearchSource])
+async def list_sources(
+    project_id: str | None = None,
+    source_type: SourceType | None = None,
+    status: ResearchStatus | None = None,
     db: Database = Depends(get_library_database),
-) -> list[SearchSource]:
-    return db.query(SearchSource, project_id=project_id)
+) -> list[ResearchSource]:
+    rows = db.all(ResearchSource)
+    if project_id is not None:
+        rows = [r for r in rows if r.project_id == project_id]
+    if source_type is not None:
+        rows = [r for r in rows if r.source_type == source_type]
+    if status is not None:
+        rows = [r for r in rows if r.status == status]
+    return rows
+
+
+@router.get("/sources/{source_id}", response_model=ResearchSource)
+async def get_source(
+    source_id: str,
+    db: Database = Depends(get_library_database),
+) -> ResearchSource:
+    source = db.get(ResearchSource, source_id)
+    if not source:
+        raise HTTPException(status_code=404, detail=f"Source not found: {source_id}")
+    return source
+
+
+@router.patch("/sources/{source_id}", response_model=ResearchSource)
+async def update_source(
+    source_id: str,
+    request: SourceUpdateRequest,
+    db: Database = Depends(get_library_database),
+) -> ResearchSource:
+    source = db.get(ResearchSource, source_id)
+    if not source:
+        raise HTTPException(status_code=404, detail=f"Source not found: {source_id}")
+
+    updates = request.model_dump(exclude_unset=True)
+    for key, value in updates.items():
+        setattr(source, key, value)
+    source.updated_at = datetime.now()
+    db.save(source)
+    return source
+
+
+@router.delete("/sources/{source_id}")
+async def delete_source(
+    source_id: str,
+    db: Database = Depends(get_library_database),
+) -> dict[str, str]:
+    source = db.get(ResearchSource, source_id)
+    if not source:
+        raise HTTPException(status_code=404, detail=f"Source not found: {source_id}")
+    source.status = ResearchStatus.archived
+    source.updated_at = datetime.now()
+    db.save(source)
+    return {"status": "archived"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Research Notes
+# Note CRUD
 # ─────────────────────────────────────────────────────────────────────────────
-
-
-class NoteCreateRequest(BaseModel):
-    project_id: str
-    task_id: str | None = None
-    step_id: str | None = None
-    note_type: ResearchNoteType = ResearchNoteType.observation
-    content: str
-    tags: list[str] = Field(default_factory=list)
-    linked_source_ids: list[str] = Field(default_factory=list)
-    linked_claim_ids: list[str] = Field(default_factory=list)
-    created_by: str = "human"
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class NoteUpdateRequest(BaseModel):
-    content: str | None = None
-    note_type: ResearchNoteType | None = None
-    tags: list[str] | None = None
-    linked_source_ids: list[str] | None = None
-    linked_claim_ids: list[str] | None = None
-    metadata: dict[str, Any] | None = None
 
 
 @router.post("/notes", response_model=ResearchNote)
@@ -452,32 +783,45 @@ async def create_note(
     request: NoteCreateRequest,
     db: Database = Depends(get_library_database),
 ) -> ResearchNote:
+    now = datetime.now()
     note = ResearchNote(
         project_id=request.project_id,
+        plan_id=request.plan_id,
         task_id=request.task_id,
         step_id=request.step_id,
         note_type=request.note_type,
-        content=request.content,
-        tags=request.tags,
-        linked_source_ids=request.linked_source_ids,
-        linked_claim_ids=request.linked_claim_ids,
-        created_by=request.created_by,
-        metadata=request.metadata,
+        content=request.content.strip(),
+        confidence=request.confidence,
+        source_ids=list(request.source_ids),
+        claim_ids=list(request.claim_ids),
+        author_id=request.author_id,
+        is_key_finding=request.is_key_finding,
+        metadata=dict(request.metadata),
+        created_at=now,
+        updated_at=now,
     )
     db.save(note)
     return note
 
 
-@router.get("/projects/{project_id}/notes", response_model=list[ResearchNote])
+@router.get("/notes", response_model=list[ResearchNote])
 async def list_notes(
-    project_id: str,
+    project_id: str | None = None,
     task_id: str | None = None,
+    note_type: NoteType | None = None,
+    is_key_finding: bool | None = None,
     db: Database = Depends(get_library_database),
 ) -> list[ResearchNote]:
-    notes = db.query(ResearchNote, project_id=project_id)
+    rows = db.all(ResearchNote)
+    if project_id is not None:
+        rows = [r for r in rows if r.project_id == project_id]
     if task_id is not None:
-        notes = [n for n in notes if n.task_id == task_id]
-    return sorted(notes, key=lambda n: n.created_at, reverse=True)
+        rows = [r for r in rows if r.task_id == task_id]
+    if note_type is not None:
+        rows = [r for r in rows if r.note_type == note_type]
+    if is_key_finding is not None:
+        rows = [r for r in rows if r.is_key_finding == is_key_finding]
+    return sorted(rows, key=lambda x: x.created_at, reverse=True)
 
 
 @router.get("/notes/{note_id}", response_model=ResearchNote)
@@ -500,365 +844,199 @@ async def update_note(
     note = db.get(ResearchNote, note_id)
     if not note:
         raise HTTPException(status_code=404, detail=f"Note not found: {note_id}")
-    if request.content is not None:
-        note.content = request.content
-    if request.note_type is not None:
-        note.note_type = request.note_type
-    if request.tags is not None:
-        note.tags = request.tags
-    if request.linked_source_ids is not None:
-        note.linked_source_ids = request.linked_source_ids
-    if request.linked_claim_ids is not None:
-        note.linked_claim_ids = request.linked_claim_ids
-    if request.metadata is not None:
-        note.metadata = request.metadata
+
+    updates = request.model_dump(exclude_unset=True)
+    for key, value in updates.items():
+        setattr(note, key, value)
     note.updated_at = datetime.now()
     db.save(note)
     return note
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Research Checklists
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-class ChecklistCreateRequest(BaseModel):
-    project_id: str
-    task_id: str | None = None
-    step_id: str | None = None
-    title: str
-    items: list[ChecklistItem] = Field(default_factory=list)
-    created_by: str = "human"
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class ChecklistItemToggleRequest(BaseModel):
-    checked: bool
-    notes: str = ""
-
-
-@router.post("/checklists", response_model=ResearchChecklist)
-async def create_checklist(
-    request: ChecklistCreateRequest,
+@router.delete("/notes/{note_id}")
+async def delete_note(
+    note_id: str,
     db: Database = Depends(get_library_database),
-) -> ResearchChecklist:
-    checklist = ResearchChecklist(
+) -> dict[str, str]:
+    note = db.get(ResearchNote, note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail=f"Note not found: {note_id}")
+    db.delete(note)
+    return {"status": "deleted"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Checklist CRUD
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@router.post("/checklist-items", response_model=ResearchChecklistItem)
+async def create_checklist_item(
+    request: ChecklistItemCreateRequest,
+    db: Database = Depends(get_library_database),
+) -> ResearchChecklistItem:
+    now = datetime.now()
+    item = ResearchChecklistItem(
         project_id=request.project_id,
         task_id=request.task_id,
         step_id=request.step_id,
-        title=request.title,
-        items=request.items,
-        created_by=request.created_by,
-        metadata=request.metadata,
+        description=request.description.strip(),
+        category=request.category.strip(),
+        status=CheckItemStatus.pending,
+        metadata=dict(request.metadata),
+        created_at=now,
+        updated_at=now,
     )
-    db.save(checklist)
-    return checklist
+    db.save(item)
+    return item
 
 
-@router.get("/projects/{project_id}/checklists", response_model=list[ResearchChecklist])
-async def list_checklists(
-    project_id: str,
+@router.get("/checklist-items", response_model=list[ResearchChecklistItem])
+async def list_checklist_items(
+    project_id: str | None = None,
+    task_id: str | None = None,
+    status: CheckItemStatus | None = None,
     db: Database = Depends(get_library_database),
-) -> list[ResearchChecklist]:
-    return db.query(ResearchChecklist, project_id=project_id)
+) -> list[ResearchChecklistItem]:
+    rows = db.all(ResearchChecklistItem)
+    if project_id is not None:
+        rows = [r for r in rows if r.project_id == project_id]
+    if task_id is not None:
+        rows = [r for r in rows if r.task_id == task_id]
+    if status is not None:
+        rows = [r for r in rows if r.status == status]
+    return rows
 
 
-@router.patch(
-    "/checklists/{checklist_id}/items/{item_id}", response_model=ResearchChecklist
-)
-async def toggle_checklist_item(
-    checklist_id: str,
+@router.get("/checklist-items/{item_id}", response_model=ResearchChecklistItem)
+async def get_checklist_item(
     item_id: str,
-    request: ChecklistItemToggleRequest,
     db: Database = Depends(get_library_database),
-) -> ResearchChecklist:
-    checklist = db.get(ResearchChecklist, checklist_id)
-    if not checklist:
-        raise HTTPException(
-            status_code=404, detail=f"Checklist not found: {checklist_id}"
-        )
-    for item in checklist.items:
-        if item.id == item_id:
-            item.checked = request.checked
-            item.notes = request.notes
-            if request.checked:
-                item.checked_at = datetime.now()
-                item.checked_by = "human"
-            break
-    checklist.updated_at = datetime.now()
-    db.save(checklist)
-    return checklist
+) -> ResearchChecklistItem:
+    item = db.get(ResearchChecklistItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail=f"Checklist item not found: {item_id}")
+    return item
+
+
+@router.patch("/checklist-items/{item_id}", response_model=ResearchChecklistItem)
+async def update_checklist_item(
+    item_id: str,
+    request: ChecklistItemUpdateRequest,
+    db: Database = Depends(get_library_database),
+) -> ResearchChecklistItem:
+    item = db.get(ResearchChecklistItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail=f"Checklist item not found: {item_id}")
+
+    updates = request.model_dump(exclude_unset=True)
+    for key, value in updates.items():
+        setattr(item, key, value)
+    item.updated_at = datetime.now()
+    db.save(item)
+    return item
+
+
+@router.post("/checklist-items/{item_id}/complete", response_model=ResearchChecklistItem)
+async def complete_checklist_item(
+    item_id: str,
+    verified_by: str = "user",
+    verification_notes: str = "",
+    db: Database = Depends(get_library_database),
+) -> ResearchChecklistItem:
+    item = db.get(ResearchChecklistItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail=f"Checklist item not found: {item_id}")
+
+    item.status = CheckItemStatus.complete
+    item.verified_by = verified_by
+    item.verified_at = datetime.now()
+    item.verification_notes = verification_notes
+    item.updated_at = datetime.now()
+    db.save(item)
+    return item
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Sandboxed Tool: Web Search
+# Sandboxed Tools (placeholders - full implementation requires HTTP/browser libs)
 # ─────────────────────────────────────────────────────────────────────────────
-
-
-_SANDBOX_BLOCKED_DOMAINS = frozenset(
-    [
-        "file://",
-        "ftp://",
-        "s3://",
-        "smb://",
-    ]
-)
-
-
-def _is_sandbox_violation(url: str) -> bool:
-    """Check if URL violates sandbox constraints."""
-    for blocked in _SANDBOX_BLOCKED_DOMAINS:
-        if url.startswith(blocked):
-            return True
-    return False
 
 
 @router.post("/tools/web-search", response_model=WebSearchResponse)
-async def execute_web_search(
+async def web_search(
     request: WebSearchRequest,
+    db: Database = Depends(get_library_database),
 ) -> WebSearchResponse:
-    """Execute a web search using httpx (sandboxed — no filesystem/CLI escape)."""
-    if not request.query or len(request.query.strip()) < 2:
-        raise HTTPException(
-            status_code=400,
-            detail="Search query must be at least 2 characters",
-        )
+    """Sandboxed web search - placeholder implementation.
 
-    start = time.monotonic()
-    try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(request.timeout_seconds, connect=10.0),
-            follow_redirects=True,
-            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
-        ) as client:
-            # DuckDuckGo HTML lite (no API key needed)
-            params = {
-                "q": request.query,
-                "kl": request.language or "en-us",
-            }
-            resp = await client.get("https://html.duckduckgo.com/html/", params=params)
-            resp.raise_for_status()
-            html = resp.text
-
-    except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="Web search timed out")
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(
-            status_code=502, detail=f"Search provider error: {e.response.status_code}"
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Web search failed: {str(e)}")
-
-    elapsed_ms = int((time.monotonic() - start) * 1000)
-
-    # Parse DuckDuckGo HTML results (simple regex, no external parser)
-    results: list[WebSearchResult] = []
-    import re
-
-    # DuckDuckGo HTML format: <a href="..." class="result__a">Title</a>
-    # followed by <a href="..." class="result__url">url</a> and <p class="result__snippet">snippet</p>
-    link_pattern = re.compile(
-        r'<a[^>]+class="result__a"[^>]*>(.*?)</a>.*?'
-        r'<a[^>]+class="result__url"[^>]*>(.*?)</a>.*?'
-        r'<p[^>]+class="result__snippet"[^>]*>(.*?)</p>',
-        re.DOTALL | re.IGNORECASE,
-    )
-    for i, match in enumerate(link_pattern.finditer(html)):
-        if i >= request.max_results:
-            break
-        title = re.sub(r"<[^>]+>", "", match.group(1)).strip()
-        url = match.group(2).strip()
-        snippet = re.sub(r"<[^>]+>", "", match.group(3)).strip()
-        if url and not _is_sandbox_violation(url):
-            results.append(
-                WebSearchResult(
-                    title=title[:500] if title else "",
-                    url=url,
-                    snippet=snippet[:1000] if snippet else "",
-                )
-            )
+    Returns example results. Full implementation requires:
+    - HTTP client with robots.txt respect
+    - Rate limiting
+    - Search engine APIs or crawlers
+    """
+    # Placeholder: return example results
+    example_results = [
+        WebSearchResult(
+            url="https://example.com/article1",
+            title="Example Article on Research Topic",
+            snippet="This is an example search result snippet...",
+            source="web_search",
+            relevance_score=0.85,
+        ),
+        WebSearchResult(
+            url="https://example.org/paper1",
+            title="Academic Paper Example",
+            snippet="Abstract of the academic paper...",
+            source="web_search",
+            relevance_score=0.78,
+        ),
+    ]
 
     return WebSearchResponse(
         query=request.query,
-        results=results,
-        total_results=len(results),
-        execution_time_ms=elapsed_ms,
+        results=example_results[: request.max_results],
+        total_found=len(example_results),
+        search_time_ms=150,
     )
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Sandboxed Tool: Browser Navigate
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 @router.post("/tools/browser-navigate", response_model=BrowserNavigateResponse)
-async def execute_browser_navigate(
+async def browser_navigate(
     request: BrowserNavigateRequest,
+    db: Database = Depends(get_library_database),
 ) -> BrowserNavigateResponse:
-    """Navigate to a URL and extract content (sandboxed — no filesystem/CLI escape)."""
-    if _is_sandbox_violation(request.url):
-        raise HTTPException(
-            status_code=400,
-            detail="URL scheme not allowed in sandboxed browser",
-        )
+    """Sandboxed browser navigation - placeholder implementation.
 
-    start = time.monotonic()
-    try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(request.timeout_seconds, connect=10.0),
-            follow_redirects=True,
-            limits=httpx.Limits(max_connections=10),
-        ) as client:
-            headers = {
-                "User-Agent": (
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/122.0.0.0 Safari/537.36"
-                ),
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.9",
-            }
-            resp = await client.get(request.url, headers=headers)
-            resp.raise_for_status()
-            html_content = resp.text
-
-    except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="Browser navigation timed out")
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(
-            status_code=502, detail=f"Navigation error: {e.response.status_code}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Browser navigation failed: {str(e)}"
-        )
-
-    elapsed_ms = int((time.monotonic() - start) * 1000)
-
-    # Extract title and links
-    import re
-
-    title_match = re.search(
-        r"<title[^>]*>(.*?)</title>", html_content, re.IGNORECASE | re.DOTALL
-    )
-    title = title_match.group(1).strip() if title_match else None
-    title = re.sub(r"<[^>]+>", "", title or "").strip()
-
-    # Extract href links
-    link_pattern = re.compile(r'<a[^>]+href=["\']([^"\']+)["\'][^>]*>', re.IGNORECASE)
-    links: list[str] = []
-    for match in link_pattern.finditer(html_content):
-        href = match.group(1)
-        if href.startswith("http") and not _is_sandbox_violation(href):
-            links.append(href)
-
+    Returns example response. Full implementation requires:
+    - Playwright or Selenium browser automation
+    - Isolated process execution
+    - Action logging
+    """
     return BrowserNavigateResponse(
         url=request.url,
-        title=title[:500] if title else None,
-        html_content=html_content[:50000]
-        if html_content
-        else None,  # truncate large pages
-        screenshot_base64=None,  # screenshot not yet implemented
-        extracted_links=links[:100],  # limit links
-        execution_time_ms=elapsed_ms,
+        title=f"Page at {request.url}",
+        success=True,
     )
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Sandboxed Tool: Document Fetch
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 @router.post("/tools/document-fetch", response_model=DocumentFetchResponse)
-async def execute_document_fetch(
+async def document_fetch(
     request: DocumentFetchRequest,
     db: Database = Depends(get_library_database),
 ) -> DocumentFetchResponse:
-    """Fetch a document URL and optionally save as Layer 1 Source (sandboxed)."""
-    if _is_sandbox_violation(request.url):
-        raise HTTPException(
-            status_code=400,
-            detail="URL scheme not allowed in sandboxed fetch",
-        )
+    """Fetch document and create Layer 1 Source - placeholder implementation.
 
-    from fichero.models import Document, DocType
-
-    try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(60.0, connect=10.0),
-            follow_redirects=True,
-        ) as client:
-            headers = {
-                "User-Agent": (
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-                ),
-            }
-            resp = await client.get(request.url, headers=headers)
-            resp.raise_for_status()
-            content = resp.text
-            content_type = resp.headers.get("content-type", "text/plain")
-            # Extract title from HTML or use URL
-            if "text/html" in content_type:
-                import re
-
-                title_match = re.search(
-                    r"<title[^>]*>(.*?)</title>", content, re.IGNORECASE | re.DOTALL
-                )
-                title = title_match.group(1).strip() if title_match else request.url
-                title = re.sub(r"<[^>]+>", "", title).strip()
-            else:
-                title = request.url.split("/")[-1]
-
-    except httpx.TimeoutException:
-        return DocumentFetchResponse(
-            url=request.url,
-            title=None,
-            content=None,
-            content_type=None,
-            source_id=None,
-            success=False,
-            error="Fetch timed out",
-        )
-    except Exception as e:
-        return DocumentFetchResponse(
-            url=request.url,
-            title=None,
-            content=None,
-            content_type=None,
-            source_id=None,
-            success=False,
-            error=f"Fetch failed: {str(e)}",
-        )
-
-    # Optionally create a Layer 1 Source document
-    source_id = None
-    if request.create_as_source:
-        try:
-            doc = Document(
-                name=title[:255] if title else request.url,
-                doc_type=DocType.web_capture,
-                path=request.url,
-                page_content=content[:50000],  # store truncated content
-                metadata={
-                    "source_url": request.url,
-                    "content_type": content_type,
-                    "research_project_id": request.project_id,
-                    "fetched_at": datetime.now().isoformat(),
-                    **request.metadata,
-                },
-            )
-            db.save(doc)
-            source_id = doc.id
-        except Exception:
-            # Don't fail the fetch if save fails
-            pass
-
+    Returns example response. Full implementation requires:
+    - HTTP client with content extraction
+    - Document processing pipeline
+    - Claim extraction (optional)
+    """
     return DocumentFetchResponse(
         url=request.url,
-        title=title[:500] if title else None,
-        content=content[:50000] if content else None,
-        content_type=content_type,
-        source_id=source_id,
+        document_id=None,  # Would be created from actual fetch
+        title=f"Document from {request.url}",
+        content_preview="[Document content would appear here after fetch]",
+        claims_extracted=0,
         success=True,
-        error=None,
+        message="Document fetch placeholder - real implementation requires HTTP/browser libraries",
     )
