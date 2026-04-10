@@ -1,10 +1,10 @@
 # Current Focus
-Phase 5 (Integration) Security Review — ✅ AUDIT COMPLETE, PR #401 Ready for Review
+Phase 1 (Knowledge Graph) Security Review — ✅ AUDIT COMPLETE, PR #403 Ready for Review
 
 # Branch
 - Active branch: `0.0.2` (pushes to `origin/0.0.2`)
-- Last commit: Issue #400 — Phase 5 Integration security audit findings
-- PR: #401 — Security: Phase 5 Integration audit findings (#400)
+- Last commit: Issue #402 — Phase 1 Knowledge Graph security audit findings
+- PR: #403 — Security: Phase 1 Knowledge Graph audit findings (#402)
 
 # Completed
 - ✅ Phase 1: Knowledge Graph Core (#387) — Complete, code reviewed
@@ -17,10 +17,10 @@ Phase 5 (Integration) Security Review — ✅ AUDIT COMPLETE, PR #401 Ready for 
   - test_research_ssrf_security.py with 53 security test cases (48 PASSING)
   - Implemented `_is_internal_ip()` and `_is_safe_url()` validation
   - Branch: feature/issue-398 pushed to origin, ready for PR
-- ✅ **Phase 5 Integration Security Audit (#400)** — CORS/MCP security review complete  
-  - SECURITY_FINDINGS_400.md with vulnerability findings (HIGH CORS, MCP auth)
-  - test_integration_security.py with 13 security tests (4 FAILING)
-  - Branch: feature/issue-400 pushed, PR #401 ready for review
+- ✅ **Phase 1 Knowledge Graph Security Audit (#402)** — PyKEEN/entity access review complete
+  - SECURITY_FINDINGS_402.md with vulnerability findings (PyKEEN pickle risk)
+  - test_knowledge_graph_security.py with 8 security tests (2 FAILING)
+  - Branch: feature/issue-400 pushed, PR #403 ready for review
 
 ## Code Review Summary (Phase 1-5 Backend)
 
@@ -181,6 +181,11 @@ Each Phase requires review across 3 dimensions:
 
 | Issue | Phase | Status | Security Priority | Next Action |
 |-------|-------|--------|-------------------|-------------|
+| **#402** | **Knowledge Graph** | **✅ AUDIT COMPLETE** | **HIGH (PyKEEN)** | **PR Review** |
+  - PyKEEN pickle risk: ⚠️ Accepted (single-user)
+  - Entity access control: ❌ No check (OK single-user)
+  - Triple sensitivity: ❌ No filtering
+  - Validators: ✅ ReDoS-safe
 | #387 | Knowledge Graph | PENDING REVIEW | High (PyKEEN, queries) | Await Phase 4 completion |
 | #388 | Hermeneutics | PENDING REVIEW | Medium (LLM injection) | Await Phase 4 completion |
 | #389 | Mind Palace | PENDING REVIEW | Medium (file paths) | Await Phase 4 completion |
