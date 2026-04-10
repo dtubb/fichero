@@ -122,3 +122,79 @@ None — all 0.0.2 Phase work complete, code reviewed
 - Environment variable support (FICHERO_FEATURE_TIER, FICHERO_PYTHON_BIN)
 - Bundle detection for production mode
 - Proper logging throughout
+---
+
+## UPDATED: Systematic Code Review Plan (2026-04-10)
+
+**Status**: GitHub Issues updated with security review requirements
+
+### GitHub Issues Updated
+| Issue | Phase | Status | Security Priority |
+|-------|-------|--------|-------------------|
+| #387 | Knowledge Graph | PENDING REVIEW | High (PyKEEN, queries) |
+| #388 | Hermeneutics | PENDING REVIEW | Medium (LLM injection) |
+| #389 | Mind Palace | PENDING REVIEW | Medium (file paths) |
+| #390 | Agent Research | PENDING REVIEW | **CRITICAL** (SSRF) |
+| #391 | Integration | PENDING REVIEW | High (CORS, MCP) |
+
+### Review Methodology
+Each Phase requires review across 3 dimensions:
+
+1. **Functionality**: Does it work as specified?
+   - CRUD operations complete
+   - Business logic correct
+   - Edge cases handled
+   - Error handling appropriate
+
+2. **Code Quality**: Is it maintainable and correct?
+   - Pydantic model validation
+   - Type hints complete
+   - Docstrings present
+   - Async/await properly used
+   - Test coverage adequate
+
+3. **Security**: Is it safe?
+   - Input validation (SQL injection, XSS)
+   - Authorization checks
+   - Resource limits
+   - Error message sanitization
+   - External interaction safety (SSRF)
+
+### Security Priority Ranking
+
+1. **Phase 4 (Agent Research)** — CRITICAL
+   - SSRF via document_fetch (file://, internal URLs)
+   - Web search query injection
+   - Browser navigation to malicious sites
+   - Sandbox escape via redirects
+
+2. **Phase 5 (Integration)** — HIGH
+   - CORS wildcard in production
+   - Feature tier bypass
+   - MCP tool authorization
+
+3. **Phase 1 (Knowledge Graph)** — HIGH
+   - SQL injection in entity/claim queries
+   - Path traversal in file operations
+   - DoS via large embedding requests
+
+4. **Phase 2 (Hermeneutics)** — MEDIUM
+   - LLM prompt injection via framework descriptions
+   - Circular navigation infinite loops
+
+5. **Phase 3 (Mind Palace)** — MEDIUM
+   - Coordinate validation (NaN, infinity)
+   - Scene export file path safety
+
+### Known Test Gaps
+- Edge case testing (malformed inputs, boundary conditions)
+- Security vulnerability tests (injection attempts)
+- Load/stress testing (embedding batch limits)
+- Authorization testing (cross-user data access)
+- Integration testing (end-to-end workflows)
+
+### Execution Order
+- **Sprint 1**: Phase 4 (Agent Research) - SSRF highest risk
+- **Sprint 2**: Phase 5 (Integration) - Cross-cutting security
+- **Sprint 3**: Phase 1 (Knowledge Graph) - Foundation
+- **Sprint 4**: Phase 2 & 3 (Hermeneutics + Mind Palace)
