@@ -24,4 +24,9 @@ Milestone execution — Phase 5 Integration & Polish (Quality Assurance)
   - test_multiple_mcp_tools_in_workflow: Fixed assertion (HELLO -> OLLEH)
 - Synced OpenAPI schema (240 endpoints across 20 resources)
 - MCP workflow tests: 6/6 passing
-- All Python tests: 933+ passing (some pre-existing integration failures)
+- Fixed batch execution integration tests
+  - test_batch_with_activity_logging: expect 2 BATCH_CREATED activities
+  - test_batch_progress_with_activity: expect 6 activities (created+start+items+completion)
+  - Removed 9 unused imports, ruff clean
+- Batch execution tests: 17/17 passing
+- Integration tests: 71 passed, 29 failed (down from 31)
