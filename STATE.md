@@ -18,7 +18,7 @@ Milestone execution — Phase 5 Integration & Polish (Quality Assurance)
 - Review SwiftUI build status with xcodebuild
 - Run full lint/test sweep before any new work
 
-## Session Log — Apr 10 2026
+## Session Log — Apr 10 2026 (continued)
 - Fixed MCP workflow integration tests (2 test fixes)
   - test_mcp_workflow_with_error: Updated to check error at top-level state
   - test_multiple_mcp_tools_in_workflow: Fixed assertion (HELLO -> OLLEH)
