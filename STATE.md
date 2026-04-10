@@ -1,20 +1,21 @@
 # Current Focus
-✅ Release 0.0.2 COMPLETE — Merged to main
+0.0.2 Complete — Next: 0.0.1 Milestone
 
 # Branch
 - Active branch: `0.0.2`
 
 # Completed
-- PR #417 merged to main
-- 6 security PRs delivered
-- All security tracking issues closed
+- Release 0.0.2 merged to main
+- All security PRs delivered
 
 # Next Session — Start Here
-**Options:**
-1. Check other open issues
-2. Work on 0.0.1 issues (#383-386)
-3. Start 0.0.3 milestone
+**0.0.1 Milestone Bugs:**
+- #383: Drag/drop import reliability
+- #384: Image import reliability
+- #385: Window state restoration
+- #386: Transcribe/workflow reliability
+- #382: Regression Gate (tracking)
 
 ### Reference
-- PR #417: https://github.com/dtubb/fichero/pull/417
-- Merged: 2026-04-10
+- PR #417 merged
+- Open issues: #382-386 (0.0.1)
