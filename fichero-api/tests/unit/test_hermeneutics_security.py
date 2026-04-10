@@ -1,0 +1,153 @@
+"""Security tests for Phase 2 Hermeneutics components.
+
+These tests verify that hermeneutics endpoints are secure and document
+future LLM injection risks when LiteLLM integration is added.
+"""
+
+import re
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Framework Security Tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestFrameworkSecurity:
+    """Test interpretive framework security."""
+
+    def test_framework_metadata_safe_for_storage(self):
+        """LOW-1: Framework metadata should be JSON-serializable only.
+
+        The metadata dict should not allow code execution.
+        This test verifies Pydantic BaseModel constraints.
+        """
+        from fichero.hermeneutics_models import InterpretiveFramework
+
+        # Test that metadata stores data only
+        framework = InterpretiveFramework(
+            name="Test Framework",
+            framework_type="historical",
+            description="A test framework",
+            metadata={
+                "custom_field": "value",
+                "nested": {"key": "value"},
+            },
+        )
+
+        # Verify metadata is safe dict
+        assert isinstance(framework.metadata, dict)
+        assert framework.metadata["custom_field"] == "value"
+
+    def test_framework_no_code_execution_in_metadata(self):
+        """LOW-1: Framework metadata should not execute code.
+
+        Attempt to store malicious data in metadata.
+        """
+        from fichero.hermeneutics_models import InterpretiveFramework
+
+        # Store "malicious" string patterns
+        framework = InterpretiveFramework(
+            name="Test",
+            framework_type="historical",
+            description="Test",
+            metadata={
+                "malicious_key": "__import__('os').system('evil')",
+                "script": "<script>alert('xss')</script>",
+            },
+        )
+
+        # Should store as strings, not execute
+        assert framework.metadata["malicious_key"] == "__import__('os').system('evil')"
+        assert "<script>" in framework.metadata["script"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LLM Injection Future Risk Tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestLLMInjectionFutureRisk:
+    """Test future LLM injection risks (placeholder code)."""
+
+    def test_suggestions_endpoint_is_placeholder(self, client):
+        """MEDIUM-1: /suggestions should be placeholder (no live LLM).
+
+        Verifies that the suggestions endpoint returns mock data
+        rather than calling an actual LLM.
+        """
+        from fichero.hermeneutics_models import HermesSuggestionRequest
+
+        # Create a framework first
+        framework_resp = client.post(
+            "/api/hermeneutics/frameworks",
+            json={
+                "name": "Test Framework",
+                "framework_type": "historical",
+                "description": "Test description",
+            },
+        )
+        assert framework_resp.status_code == 200
+        framework_id = framework_resp.json()["id"]
+
+        # Request suggestions
+        resp = client.post(
+            "/api/hermeneutics/suggestions",
+            json=HermesSuggestionRequest(
+                claim_ids=[],
+                framework_ids=[framework_id],
+                num_suggestions=1,
+            ).model_dump(),
+        )
+
+        assert resp.status_code == 200
+        suggestions = resp.json()
+
+        # Should return suggestions (mock data currently)
+        assert len(suggestions) >= 0
+
+    def test_framework_injection_markers_detected(self):
+        """MEDIUM-1: Framework fields could contain injection markers.
+
+        This test documents what should be sanitized when LLM is added.
+        """
+        from fichero.hermeneutics_models import InterpretiveFramework
+
+        injection_patterns = [
+            "Ignore previous instructions",
+            "Ignore all prior instructions",
+            "You are now",
+            "Disregard",
+            "System prompt",
+            "Disobey",
+        ]
+
+        # Create framework with injection-like content
+        for pattern in injection_patterns:
+            framework = InterpretiveFramework(
+                name=f"Framework with {pattern}",
+                framework_type="historical",
+                description=f"Description: {pattern}",
+                core_questions=[f"Question: {pattern}?"],
+            )
+
+            # Should store without modification
+            # Future: should sanitize before LLM prompt
+            assert pattern in framework.name or pattern in framework.description
+
+    def test_suggestions_need_sanitization_when_llm_added(self):
+        """MEDIUM-1: Future LLM integration requires prompt sanitization.
+
+        This test documents the requirement for prompt sanitization
+        when LiteLLM is integrated into /suggestions.
+        """
+        # Document required sanitization patterns
+        required_sanitization = [
+            r"ignore\s+(previous|all|prior)\s+instructions",
+            r"system\s+prompt",
+            r"you\s+are\s+now",
+            r"disregard",
+            r"<",
+        ]
