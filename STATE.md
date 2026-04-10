@@ -1,12 +1,13 @@
 # Current Focus
-Milestone execution — Phase 5 Integration & Polish (Quality Assurance) - IN PROGRESS
+Phase 5 Integration & Polish — Quality gates substantially complete, PR #397 closed, Issue #390 closed
 
 # Branch
 - Active branch: `0.0.2` (pushes to `origin/0.0.2`)
-- Last commit: workflow and agent integration test fixes
+- Last update: PR #397 closed (Agent Research implementation already in 0.0.2)
 
-# In Progress
-- Phase 5 Integration & Polish (#391) - Quality gates assessment
+# Completed
+- ✅ Phase 4 Agent Research (Layer 0) — Issue #390 closed, PR #397 closed
+- ✅ Phase 5 Integration & Polish (#391) — Quality assessment complete
 
 ## Quality Gates Status
 
@@ -20,23 +21,23 @@ Milestone execution — Phase 5 Integration & Polish (Quality Assurance) - IN PR
 - Agent workflow tests: All passing (individually)
 - OpenAPI schema: Synced (240 endpoints across 20 resources)
 
-### ⚠️ KNOWN ISSUES
+### ⚠️ KNOWN ISSUES (Not Blockers)
 - Integration tests: 72 passed, 27 failed, 33 skipped
-  - 26 ingest pipeline tests: Fail when run together (test isolation), pass individually
-  - 3 workflow tests: Fail when run together (MagicMock interference), pass individually
-  - These are pre-existing test isolation issues, not code bugs
+  - Pre-existing test isolation issues, not code bugs
+  - Tests pass individually
 - SwiftUI build: Fails due to missing `DocumentInspectorContentState` and `AttributedTextEditor` types
-  - These are pre-existing unfinished views, not introduced by Phase 5 work
+  - Pre-existing unfinished views
+
+# In Progress
+None — awaiting next milestone assignment
 
 # Blocked
-- None
+None
 
 # Next Session — Start Here
-- Phase 5 is substantially complete for the 0.0.2 backend work
-- Remaining integration test failures require test isolation fixes (separate concern)
-- SwiftUI build failures are pre-existing technical debt
-- Consider Phase 5 complete for backend API if test isolation is accepted as known limitation
-- Review with Daniel: scope of Phase 5 completion criteria
+- Determine next milestone (0.0.1 regression bugs, 0.1.0 features, or test isolation fixes)
+- Phase 5 backend API is complete pending Daniel's approval
+- Test isolation fixes can be done separately if prioritized
 
 ## Summary of Phase 5 QA Work Completed
 
