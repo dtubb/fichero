@@ -433,6 +433,122 @@
         "query_params": [],
         "request_model": null,
         "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/storage/snapshots",
+        "operation_id": "create_snapshot_api_storage_snapshots_post",
+        "summary": "Create Snapshot",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "library_path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "reason",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "initiator",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "initiator_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "run_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "auto_expire_days",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "LibrarySnapshot"
+      },
+      {
+        "method": "GET",
+        "path": "/storage/snapshots",
+        "operation_id": "get_snapshots_api_storage_snapshots_get",
+        "summary": "Get Snapshots",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "library_name",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "include_expired",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "SnapshotListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/storage/snapshots/{snapshot_id}",
+        "operation_id": "get_snapshot_api_storage_snapshots__snapshot_id__get",
+        "summary": "Get Snapshot",
+        "path_params": [
+          "snapshot_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LibrarySnapshot"
+      },
+      {
+        "method": "DELETE",
+        "path": "/storage/snapshots/{snapshot_id}",
+        "operation_id": "remove_snapshot_api_storage_snapshots__snapshot_id__delete",
+        "summary": "Remove Snapshot",
+        "path_params": [
+          "snapshot_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SnapshotDeleteResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/storage/snapshots/{snapshot_id}/restore",
+        "operation_id": "restore_library_snapshot_api_storage_snapshots__snapshot_id__restore_post",
+        "summary": "Restore Library Snapshot",
+        "path_params": [
+          "snapshot_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SnapshotRestoreResponse"
+      },
+      {
+        "method": "PATCH",
+        "path": "/storage/snapshots/{snapshot_id}/pin",
+        "operation_id": "pin_snapshot_api_storage_snapshots__snapshot_id__pin_patch",
+        "summary": "Pin Snapshot",
+        "path_params": [
+          "snapshot_id"
+        ],
+        "query_params": [
+          {
+            "name": "pinned",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "LibrarySnapshot"
       }
     ],
     "folders": [
@@ -1791,6 +1907,52 @@
     "knowledge-graph": [
       {
         "method": "POST",
+        "path": "/knowledge-graph/knowledge-mutations/undo",
+        "operation_id": "undo_mutations_api_knowledge_graph_knowledge_mutations_undo_post",
+        "summary": "Undo Mutations",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "UndoRequest",
+        "response_model": "[MutationLogResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/knowledge-mutations",
+        "operation_id": "list_mutations_api_knowledge_graph_knowledge_mutations_get",
+        "summary": "List Mutations",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "entity_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "run_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "created_by",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[MutationLogResponse]"
+      },
+      {
+        "method": "POST",
         "path": "/knowledge-graph/entities",
         "operation_id": "upsert_entity_api_knowledge_graph_entities_post",
         "summary": "Upsert Entity",
@@ -1838,6 +2000,59 @@
         "response_model": "KnowledgeEntity"
       },
       {
+        "method": "POST",
+        "path": "/knowledge-graph/entities/merge",
+        "operation_id": "merge_entities_api_knowledge_graph_entities_merge_post",
+        "summary": "Merge Entities",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EntityMergeRequest",
+        "response_model": "EntityAuditResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/entities/split",
+        "operation_id": "split_entity_api_knowledge_graph_entities_split_post",
+        "summary": "Split Entity",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EntitySplitRequest",
+        "response_model": "EntityAuditResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/entities/audit/{audit_id}/undo",
+        "operation_id": "undo_entity_operation_api_knowledge_graph_entities_audit__audit_id__undo_post",
+        "summary": "Undo Entity Operation",
+        "path_params": [
+          "audit_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EntityAuditResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/entities/audit",
+        "operation_id": "list_entity_audits_api_knowledge_graph_entities_audit_get",
+        "summary": "List Entity Audits",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "entity_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[EntityAuditResponse]"
+      },
+      {
         "method": "GET",
         "path": "/knowledge-graph/entities/alias-map",
         "operation_id": "get_entity_alias_map_api_knowledge_graph_entities_alias_map_get",
@@ -1865,7 +2080,18 @@
         "operation_id": "create_claim_api_knowledge_graph_claims_post",
         "summary": "Create Claim",
         "path_params": [],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "run_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "agent_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
         "request_model": "ClaimCreateRequest",
         "response_model": "KnowledgeClaim"
       },
@@ -1968,7 +2194,18 @@
         "path_params": [
           "claim_id"
         ],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "run_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "agent_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
         "request_model": "ClaimPatchRequest",
         "response_model": "KnowledgeClaim"
       },
@@ -2233,6 +2470,16 @@
       },
       {
         "method": "POST",
+        "path": "/knowledge-graph/predictions/generate/pykeen",
+        "operation_id": "generate_pykeen_predictions_api_knowledge_graph_predictions_generate_pykeen_post",
+        "summary": "Generate Pykeen Predictions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "PredictionGeneratePyKEENRequest",
+        "response_model": "KnowledgePredictionRun"
+      },
+      {
+        "method": "POST",
         "path": "/knowledge-graph/predictions/generate/heuristic",
         "operation_id": "generate_heuristic_predictions_api_knowledge_graph_predictions_generate_heuristic_post",
         "summary": "Generate Heuristic Predictions",
@@ -2270,7 +2517,18 @@
         "path_params": [
           "run_id"
         ],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "min_confidence",
+            "required": false,
+            "type": "number"
+          },
+          {
+            "name": "max_links",
+            "required": false,
+            "type": "integer"
+          }
+        ],
         "request_model": null,
         "response_model": null
       }

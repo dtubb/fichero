@@ -1772,6 +1772,340 @@
         }
       }
     },
+    "/api/storage/snapshots": {
+      "post": {
+        "tags": [
+          "storage",
+          "snapshots"
+        ],
+        "summary": "Create Snapshot",
+        "description": "Create a point-in-time snapshot of a library.\n\nExports the DuckDB database to Parquet files and copies the LanceDB\nvector directory. Snapshot data is stored in:\n    ~/Library/Application Support/com.tubb.fichero/snapshots/{library_name}/{snapshot_id}/\n\nUse after bulk AI operations or before schema changes.",
+        "operationId": "create_snapshot_api_storage_snapshots_post",
+        "parameters": [
+          {
+            "name": "library_path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Path to the .fichero package",
+              "title": "Library Path"
+            },
+            "description": "Path to the .fichero package"
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Reason for the snapshot",
+              "default": "",
+              "title": "Reason"
+            },
+            "description": "Reason for the snapshot"
+          },
+          {
+            "name": "initiator",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SnapshotInitiatorType",
+              "default": "user"
+            }
+          },
+          {
+            "name": "initiator_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Initiator Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "auto_expire_days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "title": "Auto Expire Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibrarySnapshot"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "storage",
+          "snapshots"
+        ],
+        "summary": "Get Snapshots",
+        "description": "List snapshots, newest first. Expired snapshots excluded by default.",
+        "operationId": "get_snapshots_api_storage_snapshots_get",
+        "parameters": [
+          {
+            "name": "library_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Library Name"
+            }
+          },
+          {
+            "name": "include_expired",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Expired"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/storage/snapshots/{snapshot_id}": {
+      "get": {
+        "tags": [
+          "storage",
+          "snapshots"
+        ],
+        "summary": "Get Snapshot",
+        "description": "Get a single snapshot by ID.",
+        "operationId": "get_snapshot_api_storage_snapshots__snapshot_id__get",
+        "parameters": [
+          {
+            "name": "snapshot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Snapshot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibrarySnapshot"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "storage",
+          "snapshots"
+        ],
+        "summary": "Remove Snapshot",
+        "description": "Delete a snapshot and its data files.",
+        "operationId": "remove_snapshot_api_storage_snapshots__snapshot_id__delete",
+        "parameters": [
+          {
+            "name": "snapshot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Snapshot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotDeleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/storage/snapshots/{snapshot_id}/restore": {
+      "post": {
+        "tags": [
+          "storage",
+          "snapshots"
+        ],
+        "summary": "Restore Library Snapshot",
+        "description": "Restore a library from a snapshot.\n\nRestoration creates NEW database and vector files alongside the originals.\nThe current library is NOT modified. After restoration, update\nX-Fichero-Library-Path to point to the restored library to use it.",
+        "operationId": "restore_library_snapshot_api_storage_snapshots__snapshot_id__restore_post",
+        "parameters": [
+          {
+            "name": "snapshot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Snapshot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotRestoreResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/storage/snapshots/{snapshot_id}/pin": {
+      "patch": {
+        "tags": [
+          "storage",
+          "snapshots"
+        ],
+        "summary": "Pin Snapshot",
+        "description": "Toggle pinned status. Pinned snapshots are not auto-deleted.",
+        "operationId": "pin_snapshot_api_storage_snapshots__snapshot_id__pin_patch",
+        "parameters": [
+          {
+            "name": "snapshot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Snapshot Id"
+            }
+          },
+          {
+            "name": "pinned",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Pinned"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibrarySnapshot"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/folders/{entity_type}/folders": {
       "get": {
         "tags": [
@@ -6687,6 +7021,162 @@
         }
       }
     },
+    "/api/knowledge-graph/knowledge-mutations/undo": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Undo Mutations",
+        "description": "Undo specific mutation(s) by replaying before_state.\n\nEither provide a mutation_id to undo one, or a run_id to undo all mutations\nfrom an AI agent run as a group.",
+        "operationId": "undo_mutations_api_knowledge_graph_knowledge_mutations_undo_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UndoRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MutationLogResponse"
+                  },
+                  "title": "Response Undo Mutations Api Knowledge Graph Knowledge Mutations Undo Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge-graph/knowledge-mutations": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "List Mutations",
+        "description": "List mutation log entries, optionally filtered.",
+        "operationId": "list_mutations_api_knowledge_graph_knowledge_mutations_get",
+        "parameters": [
+          {
+            "name": "entity_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Entity Type"
+            }
+          },
+          {
+            "name": "entity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "created_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Created By"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MutationLogResponse"
+                  },
+                  "title": "Response List Mutations Api Knowledge Graph Knowledge Mutations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/knowledge-graph/entities": {
       "post": {
         "tags": [
@@ -6876,6 +7366,233 @@
         }
       }
     },
+    "/api/knowledge-graph/entities/merge": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Merge Entities",
+        "description": "Merge multiple entities into a single absorbing entity.\n\nThe absorbing entity survives and gains all aliases from absorbed entities.\nAbsorbed entities are marked with merged_into_id so queries redirect properly.",
+        "operationId": "merge_entities_api_knowledge_graph_entities_merge_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityMergeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityAuditResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge-graph/entities/split": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Split Entity",
+        "description": "Split one entity into a primary + new split-off entities.\n\nThe primary entity keeps some aliases; split-off entities get the rest.",
+        "operationId": "split_entity_api_knowledge_graph_entities_split_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntitySplitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityAuditResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge-graph/entities/audit/{audit_id}/undo": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Undo Entity Operation",
+        "description": "Undo a previous merge or split operation using its audit record.",
+        "operationId": "undo_entity_operation_api_knowledge_graph_entities_audit__audit_id__undo_post",
+        "parameters": [
+          {
+            "name": "audit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Audit Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityAuditResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge-graph/entities/audit": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "List Entity Audits",
+        "description": "List entity merge/split audit records, optionally filtered by entity.",
+        "operationId": "list_entity_audits_api_knowledge_graph_entities_audit_get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EntityAuditResponse"
+                  },
+                  "title": "Response List Entity Audits Api Knowledge Graph Entities Audit Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/knowledge-graph/entities/alias-map": {
       "get": {
         "tags": [
@@ -6979,6 +7696,26 @@
         "summary": "Create Claim",
         "operationId": "create_claim_api_knowledge_graph_claims_post",
         "parameters": [
+          {
+            "name": "run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Agent Id"
+            }
+          },
           {
             "name": "X-Fichero-Library-Path",
             "in": "header",
@@ -7245,6 +7982,26 @@
             "schema": {
               "type": "string",
               "title": "Claim Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Agent Id"
             }
           },
           {
@@ -8167,6 +8924,59 @@
         }
       }
     },
+    "/api/knowledge-graph/predictions/generate/pykeen": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Generate Pykeen Predictions",
+        "description": "Train or simulate a minimal PyKEEN pipeline and persist run metadata.",
+        "operationId": "generate_pykeen_predictions_api_knowledge_graph_predictions_generate_pykeen_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PredictionGeneratePyKEENRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgePredictionRun"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/knowledge-graph/predictions/generate/heuristic": {
       "post": {
         "tags": [
@@ -8297,7 +9107,7 @@
           "knowledge-graph"
         ],
         "summary": "Apply Prediction",
-        "description": "Apply a prediction run's top-scoring predictions as claim links.\n\nCreates KnowledgeClaimLink records for high-confidence predictions\nfrom a PyKEEN run (heuristic or trained model).",
+        "description": "Apply a prediction run's top-scoring predictions as claim links.\n\nLoads the trained PyKEEN model from disk and generates link predictions,\ncreating KnowledgeClaimLink records for high-confidence predictions.",
         "operationId": "apply_prediction_api_knowledge_graph_predictions__run_id__apply_post",
         "parameters": [
           {
@@ -8307,6 +9117,30 @@
             "schema": {
               "type": "string",
               "title": "Run Id"
+            }
+          },
+          {
+            "name": "min_confidence",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "default": 0.7,
+              "title": "Min Confidence"
+            }
+          },
+          {
+            "name": "max_links",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 100,
+              "title": "Max Links"
             }
           },
           {
@@ -14808,6 +15642,106 @@
         ],
         "title": "EntityAliasRequest"
       },
+      "EntityAuditResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "operation_type": {
+            "$ref": "#/components/schemas/EntityMergeOperationType"
+          },
+          "source_entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Entity Ids"
+          },
+          "target_entity_id": {
+            "type": "string",
+            "title": "Target Entity Id"
+          },
+          "alias_changes": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Alias Changes"
+          },
+          "reversal_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reversal Id"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "operation_type",
+          "source_entity_ids",
+          "target_entity_id",
+          "alias_changes",
+          "reversal_id",
+          "created_by",
+          "created_at"
+        ],
+        "title": "EntityAuditResponse"
+      },
+      "EntityMergeOperationType": {
+        "type": "string",
+        "enum": [
+          "merge",
+          "split",
+          "undo_merge",
+          "undo_split"
+        ],
+        "title": "EntityMergeOperationType"
+      },
+      "EntityMergeRequest": {
+        "properties": {
+          "absorbing_entity_id": {
+            "type": "string",
+            "title": "Absorbing Entity Id",
+            "description": "Entity that absorbs the others (survivor)"
+          },
+          "absorbed_entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Absorbed Entity Ids",
+            "description": "Entities to be merged into the absorber"
+          },
+          "merged_aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Merged Aliases",
+            "description": "Aliases from absorbed entities to add to the absorbing entity"
+          },
+          "merged_description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Merged Description",
+            "description": "Optional override description for the absorbing entity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "absorbing_entity_id",
+          "absorbed_entity_ids"
+        ],
+        "title": "EntityMergeRequest"
+      },
       "EntityResolutionResponse": {
         "properties": {
           "resolved": {
@@ -14845,6 +15779,37 @@
         ],
         "title": "EntityResolutionResponse",
         "description": "Response from resolving a lookup value to an entity."
+      },
+      "EntitySplitRequest": {
+        "properties": {
+          "primary_entity_id": {
+            "type": "string",
+            "title": "Primary Entity Id",
+            "description": "Entity that retains canonical identity"
+          },
+          "split_off_entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Split Off Entity Ids",
+            "description": "Entities to create from the split"
+          },
+          "aliases_to_move": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases To Move",
+            "description": "Aliases from primary to move to the split-off entities"
+          }
+        },
+        "type": "object",
+        "required": [
+          "primary_entity_id",
+          "split_off_entity_ids"
+        ],
+        "title": "EntitySplitRequest"
       },
       "EntityType-Output": {
         "type": "string",
@@ -16421,6 +17386,101 @@
         "title": "KnowledgePredictionRun",
         "description": "Stores a PyKEEN model training run and its output predictions.\n\nSeparate from individual claim predictions (which are stored in claim.prediction).\nThis tracks which model was trained, on what data, and the resulting predictions."
       },
+      "LibrarySnapshot": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "library_path": {
+            "type": "string",
+            "title": "Library Path"
+          },
+          "library_name": {
+            "type": "string",
+            "title": "Library Name"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": ""
+          },
+          "initiator": {
+            "$ref": "#/components/schemas/SnapshotInitiatorType",
+            "default": "user"
+          },
+          "initiator_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Initiator Id"
+          },
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id"
+          },
+          "snapshot_path": {
+            "type": "string",
+            "title": "Snapshot Path"
+          },
+          "duckdb_path": {
+            "type": "string",
+            "title": "Duckdb Path"
+          },
+          "lance_path": {
+            "type": "string",
+            "title": "Lance Path"
+          },
+          "file_count": {
+            "type": "integer",
+            "title": "File Count",
+            "default": 0
+          },
+          "duckdb_size_bytes": {
+            "type": "integer",
+            "title": "Duckdb Size Bytes",
+            "default": 0
+          },
+          "lance_size_bytes": {
+            "type": "integer",
+            "title": "Lance Size Bytes",
+            "default": 0
+          },
+          "is_pinned": {
+            "type": "boolean",
+            "title": "Is Pinned",
+            "default": false
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "library_path",
+          "library_name",
+          "snapshot_path",
+          "duckdb_path",
+          "lance_path"
+        ],
+        "title": "LibrarySnapshot",
+        "description": "A point-in-time snapshot of a library database and its vectors.\n\nSnapshots are stored as Parquet exports of DuckDB tables plus a copy\nof the LanceDB vector directory. They are named with a timestamp and\nan optional reason, and can be restored to recover from bad AI runs\nor schema changes.\n\nStored in:\n    ~/Library/Application Support/com.tubb.fichero/snapshots/{library_name}/"
+      },
       "ModelCreate": {
         "properties": {
           "provider_id": {
@@ -16627,6 +17687,95 @@
         ],
         "title": "MoveItemsRequest",
         "description": "Request to move items to a folder."
+      },
+      "MutationLogResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type"
+          },
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "operation": {
+            "$ref": "#/components/schemas/MutationOperationType"
+          },
+          "before_state": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Before State"
+          },
+          "after_state": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "After State"
+          },
+          "changed_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Changed Fields"
+          },
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id"
+          },
+          "agent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Agent Id"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "reversal_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reversal Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "entity_type",
+          "entity_id",
+          "operation",
+          "before_state",
+          "after_state",
+          "changed_fields",
+          "run_id",
+          "agent_id",
+          "created_by",
+          "reversal_id",
+          "created_at"
+        ],
+        "title": "MutationLogResponse"
+      },
+      "MutationOperationType": {
+        "type": "string",
+        "enum": [
+          "create",
+          "update",
+          "delete",
+          "restore"
+        ],
+        "title": "MutationOperationType"
       },
       "NativeNote": {
         "properties": {
@@ -17582,6 +18731,38 @@
         "type": "object",
         "title": "PredictionGenerateHeuristicRequest",
         "description": "Generate heuristic link predictions based on embedding similarity."
+      },
+      "PredictionGeneratePyKEENRequest": {
+        "properties": {
+          "model_type": {
+            "$ref": "#/components/schemas/PredictionModelType",
+            "default": "transe"
+          },
+          "training_epochs": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Training Epochs",
+            "default": 100
+          },
+          "learning_rate": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0001,
+            "title": "Learning Rate",
+            "default": 0.001
+          },
+          "batch_size": {
+            "type": "integer",
+            "maximum": 1024.0,
+            "minimum": 8.0,
+            "title": "Batch Size",
+            "default": 256
+          }
+        },
+        "type": "object",
+        "title": "PredictionGeneratePyKEENRequest",
+        "description": "Train a PyKEEN model and generate predictions."
       },
       "PredictionLink": {
         "properties": {
@@ -19092,6 +20273,90 @@
         ],
         "title": "SearchSourceType"
       },
+      "SnapshotDeleteResponse": {
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "title": "Deleted"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted",
+          "snapshot_id"
+        ],
+        "title": "SnapshotDeleteResponse"
+      },
+      "SnapshotInitiatorType": {
+        "type": "string",
+        "enum": [
+          "user",
+          "ai",
+          "system"
+        ],
+        "title": "SnapshotInitiatorType",
+        "description": "Who or what created the snapshot."
+      },
+      "SnapshotListResponse": {
+        "properties": {
+          "snapshots": {
+            "items": {
+              "$ref": "#/components/schemas/LibrarySnapshot"
+            },
+            "type": "array",
+            "title": "Snapshots"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "snapshots",
+          "total"
+        ],
+        "title": "SnapshotListResponse"
+      },
+      "SnapshotRestoreResponse": {
+        "properties": {
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "library_path": {
+            "type": "string",
+            "title": "Library Path"
+          },
+          "duckdb_restored_path": {
+            "type": "string",
+            "nullable": true,
+            "title": "Duckdb Restored Path"
+          },
+          "lance_restored_path": {
+            "type": "string",
+            "nullable": true,
+            "title": "Lance Restored Path"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "snapshot_id",
+          "library_path",
+          "duckdb_restored_path",
+          "lance_restored_path",
+          "note"
+        ],
+        "title": "SnapshotRestoreResponse"
+      },
       "SourceMetadata": {
         "properties": {
           "title": {
@@ -19933,6 +21198,24 @@
         ],
         "title": "ToolResponse",
         "description": "Tool definition with ports for node editor."
+      },
+      "UndoRequest": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id",
+            "description": "Rollback all mutations in this AI run"
+          },
+          "mutation_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Mutation Id",
+            "description": "Undo a specific mutation"
+          }
+        },
+        "type": "object",
+        "title": "UndoRequest"
       },
       "UserModelResponse": {
         "properties": {
