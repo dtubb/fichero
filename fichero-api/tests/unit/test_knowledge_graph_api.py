@@ -585,10 +585,10 @@ def test_generate_pykeen_predictions_requires_graph_data(client, db):
     assert "no knowledge claims" in run_resp.json()["detail"].lower()
 
 
-def test_apply_prediction_returns_501_without_trained_model(client, db):
-    """Apply prediction is not implemented until full PyKEEN model training exists."""
-    resp = client.post("/api/knowledge-graph/predictions/some-run-id/apply")
-    assert resp.status_code == 501
+def test_apply_prediction_returns_404_for_unknown_run(client, db):
+    """Apply prediction returns 404 for non-existent prediction run."""
+    resp = client.post("/api/knowledge-graph/predictions/nonexistent-run/apply")
+    assert resp.status_code == 404
 
 
 def test_entity_resolve_by_id(client, db):

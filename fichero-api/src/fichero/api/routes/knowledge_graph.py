@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from pykeen.pipeline import pipeline
 from pykeen.predict import predict_target
 from pykeen.triples import TriplesFactory
+import pykeen
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -1935,16 +1936,119 @@ async def list_predictions(
 @router.post("/predictions/{run_id}/apply")
 async def apply_prediction(
     run_id: str,
+    min_confidence: float = Query(default=0.7, ge=0.0, le=1.0),
+    max_links: int = Query(default=100, ge=1, le=1000),
     db: Database = Depends(get_library_database),
 ) -> dict[str, Any]:
     """Apply a prediction run's top-scoring predictions as claim links.
 
-    Creates KnowledgeClaimLink records for high-confidence predictions
-    from a PyKEEN run (heuristic or trained model).
+    Loads the trained PyKEEN model from disk and generates link predictions,
+    creating KnowledgeClaimLink records for high-confidence predictions.
     """
-    # For now, apply heuristic predictions that were stored in metadata
-    # Full PyKEEN model training + application is Phase 2
-    raise HTTPException(
-        status_code=501,
-        detail="Full PyKEEN apply requires trained model storage. Use heuristic predictions for now.",
-    )
+    run = db.get(KnowledgePredictionRun, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail=f"Prediction run not found: {run_id}")
+
+    if run.status != "trained" or not run.model_path:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Run {run_id} is not ready for application (status: {run.status})",
+        )
+
+    model_path = Path(run.model_path)
+    if not model_path.exists():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Model artifact not found at {run.model_path}. Retrain the model.",
+        )
+
+    try:
+        trained_model = pykeen.models.Model.load_directory(str(model_path))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to load PyKEEN model: {exc}"
+        ) from exc
+
+    all_claims = db.all(KnowledgeClaim)
+    claim_ids = [c.id for c in all_claims]
+    existing_links = db.all(KnowledgeClaimLink)
+    linked_pairs: set[tuple[str, str]] = {
+        tuple(sorted((link.claim_id, link.related_claim_id))) for link in existing_links
+    }
+
+    # Get relation types from the trained model
+    candidate_relations = [
+        rel for rel in ("claim_supports", "claim_refines", "claim_contradicts", "mentions")
+        if rel in trained_model.triples_factory.relation_to_id
+    ]
+    if not candidate_relations:
+        raise HTTPException(
+            status_code=400,
+            detail="No valid relations found in trained model.",
+        )
+
+    new_links: list[KnowledgeClaimLink] = []
+    seen_pairs: set[tuple[str, str]] = set()
+
+    for claim in all_claims:
+        if len(new_links) >= max_links:
+            break
+
+        for relation in candidate_relations:
+            if len(new_links) >= max_links:
+                break
+
+            try:
+                predictions = predict_target(
+                    trained_model,
+                    head=claim.id,
+                    relation=relation,
+                    targets=claim_ids,
+                    triples_factory=trained_model.triples_factory,
+                )
+            except Exception:
+                continue
+
+            for row in predictions.df.itertuples(index=False):
+                target_id = row.tail_label
+                if target_id == claim.id:
+                    continue
+                pair = tuple(sorted((claim.id, target_id)))
+                if pair in seen_pairs or pair in linked_pairs:
+                    continue
+                score = float(row.score)
+                if score < min_confidence:
+                    continue
+
+                seen_pairs.add(pair)
+                relation_type_map = {
+                    "claim_supports": ClaimRelationType.supports,
+                    "claim_refines": ClaimRelationType.refines,
+                    "claim_contradicts": ClaimRelationType.contradicts,
+                    "mentions": ClaimRelationType.related_to,
+                }
+                new_links.append(
+                    KnowledgeClaimLink(
+                        claim_id=claim.id,
+                        related_claim_id=target_id,
+                        relation_type=relation_type_map.get(relation, ClaimRelationType.related_to),
+                        link_quality=round(score, 4),
+                        metadata={
+                            "source": "pykeen_prediction",
+                            "run_id": run_id,
+                            "predicted_relation": relation,
+                            "pykeen_score": score,
+                        },
+                    )
+                )
+
+    # Batch save new links
+    for link in new_links:
+        db.save(link)
+
+    return {
+        "applied": len(new_links),
+        "total_predictions_evaluated": len(all_claims) * len(candidate_relations),
+        "min_confidence_threshold": min_confidence,
+        "relation_types": candidate_relations,
+    }
