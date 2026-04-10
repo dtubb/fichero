@@ -1,8 +1,12 @@
 """Research Agents API routes (dev tier, Layer 0 — Agent Research)."""
 
+import ipaddress
+import re
+import socket
 import time
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -594,23 +598,123 @@ async def toggle_checklist_item(
 # Sandboxed Tool: Web Search
 # ─────────────────────────────────────────────────────────────────────────────
 
-
-_SANDBOX_BLOCKED_DOMAINS = frozenset(
+# URL schemes that are never allowed in sandboxed requests
+_SANDBOX_BLOCKED_SCHEMES = frozenset(
     [
-        "file://",
-        "ftp://",
-        "s3://",
-        "smb://",
+        "file",
+        "ftp",
+        "ftps",
+        "s3",
+        "smb",
+        "ssh",
+        "telnet",
+        "gopher",
+        "ldap",
+        "ldaps",
+    ]
+)
+
+# Internal/private IP networks that should be blocked
+_BLOCKED_NETWORKS = [
+    ipaddress.ip_network("127.0.0.0/8"),      # loopback
+    ipaddress.ip_network("10.0.0.0/8"),       # private A
+    ipaddress.ip_network("172.16.0.0/12"),    # private B
+    ipaddress.ip_network("192.168.0.0/16"),   # private C
+    ipaddress.ip_network("169.254.0.0/16"),   # link-local (cloud metadata)
+    ipaddress.ip_network("0.0.0.0/8"),        # current network
+    ipaddress.ip_network("::1/128"),          # IPv6 loopback
+    ipaddress.ip_network("::ffff:0:0/96"),   # IPv4-mapped IPv6
+    ipaddress.ip_network("fc00::/7"),         # IPv6 unique local
+    ipaddress.ip_network("fe80::/10"),       # IPv6 link-local
+]
+
+# Cloud metadata endpoints
+_CLOUD_METADATA_HOSTS = frozenset(
+    [
+        "169.254.169.254",
+        "metadata.google.internal",
+        "metadata.googleapis.com",
+        "169.254.170.2",
+        "169.254.170.1",
     ]
 )
 
 
+def _is_internal_ip(hostname: str | None) -> bool:
+    """Check if a hostname or IP is internal/private."""
+    if not hostname:
+        return False
+    
+    if hostname.lower() in _CLOUD_METADATA_HOSTS:
+        return True
+    
+    try:
+        addr = ipaddress.ip_address(hostname)
+        for network in _BLOCKED_NETWORKS:
+            if addr in network:
+                return True
+        return False
+    except ValueError:
+        pass
+    
+    try:
+        addrs = socket.getaddrinfo(hostname, None)
+        for addr_info in addrs:
+            ip_str = addr_info[4][0]
+            try:
+                ip = ipaddress.ip_address(ip_str)
+                for network in _BLOCKED_NETWORKS:
+                    if ip in network:
+                        return True
+            except ValueError:
+                continue
+    except (socket.gaierror, socket.herror):
+        pass
+    
+    return False
+
+
+def _is_safe_url(url: str, allow_userinfo: bool = False) -> tuple[bool, str]:
+    """Comprehensive URL safety check for sandboxed requests."""
+    if not url:
+        return False, "URL is empty"
+    
+    try:
+        parsed = urlparse(url)
+    except Exception as e:
+        return False, f"Invalid URL format: {e}"
+    
+    scheme = parsed.scheme.lower()
+    if not scheme:
+        return False, "URL must have a scheme (http:// or https://)"
+    
+    if scheme in _SANDBOX_BLOCKED_SCHEMES:
+        return False, f"URL scheme '{parsed.scheme}' is not allowed"
+    
+    if scheme not in ("http", "https"):
+        return False, f"URL scheme '{parsed.scheme}' is not allowed (only http/https)"
+    
+    if not allow_userinfo and (parsed.username or parsed.password):
+        return False, "URLs with embedded credentials are not allowed"
+    
+    hostname = parsed.hostname
+    if not hostname:
+        return False, "URL must have a hostname"
+    
+    if _is_internal_ip(hostname):
+        return False, f"Internal addresses are not allowed: {hostname}"
+    
+    if re.match(r"^0[xX][0-9a-fA-F]+", hostname) or re.match(r"^\d+$", hostname):
+        if _is_internal_ip(hostname):
+            return False, "Numeric IP addresses are not allowed"
+    
+    return True, ""
+
+
 def _is_sandbox_violation(url: str) -> bool:
     """Check if URL violates sandbox constraints."""
-    for blocked in _SANDBOX_BLOCKED_DOMAINS:
-        if url.startswith(blocked):
-            return True
-    return False
+    is_safe, _ = _is_safe_url(url)
+    return not is_safe
 
 
 @router.post("/tools/web-search", response_model=WebSearchResponse)
@@ -669,14 +773,17 @@ async def execute_web_search(
         title = re.sub(r"<[^>]+>", "", match.group(1)).strip()
         url = match.group(2).strip()
         snippet = re.sub(r"<[^>]+>", "", match.group(3)).strip()
-        if url and not _is_sandbox_violation(url):
-            results.append(
-                WebSearchResult(
-                    title=title[:500] if title else "",
-                    url=url,
-                    snippet=snippet[:1000] if snippet else "",
+        # Validate search results using comprehensive security check
+        if url:
+            is_safe, _ = _is_safe_url(url)
+            if is_safe:
+                results.append(
+                    WebSearchResult(
+                        title=title[:500] if title else "",
+                        url=url,
+                        snippet=snippet[:1000] if snippet else "",
+                    )
                 )
-            )
 
     return WebSearchResponse(
         query=request.query,
@@ -701,6 +808,11 @@ async def execute_browser_navigate(
             status_code=400,
             detail="URL scheme not allowed in sandboxed browser",
         )
+    
+    # Comprehensive URL validation (SSRF protection)
+    is_safe, error_msg = _is_safe_url(request.url)
+    if not is_safe:
+        raise HTTPException(status_code=400, detail=f"URL not allowed: {error_msg}")
 
     start = time.monotonic()
     try:
@@ -749,8 +861,11 @@ async def execute_browser_navigate(
     links: list[str] = []
     for match in link_pattern.finditer(html_content):
         href = match.group(1)
-        if href.startswith("http") and not _is_sandbox_violation(href):
-            links.append(href)
+        # Validate extracted links using comprehensive security check
+        if href.startswith("http"):
+            is_safe, _ = _is_safe_url(href)
+            if is_safe:
+                links.append(href)
 
     return BrowserNavigateResponse(
         url=request.url,
@@ -780,6 +895,11 @@ async def execute_document_fetch(
             status_code=400,
             detail="URL scheme not allowed in sandboxed fetch",
         )
+    
+    # Comprehensive URL validation (SSRF protection)
+    is_safe, error_msg = _is_safe_url(request.url)
+    if not is_safe:
+        raise HTTPException(status_code=400, detail=f"URL not allowed: {error_msg}")
 
     from fichero.models import Document, DocType
 
