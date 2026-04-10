@@ -1,27 +1,28 @@
 # Current Focus
-Milestone execution — 0.0.2 Phase 2: Hermeneutics (Layer 5)
+Milestone execution — 0.0.2 Phase 4 complete (PR #397 under review)
 
 # Branch
 - Active branch: `0.0.2` (pushes to `origin/0.0.2`)
-- This worktree: `/Users/danieltubb/code/fichero-0.0.2`
+- PR #397 ready: `feature/issue-390` → https://github.com/dtubb/fichero/pull/397
 
 # In Progress
-- Issue #388: Phase 2 Hermeneutics (Layer 5) — implementation exists with 20 endpoints
+- PR #397: Phase 4 Agent Research (Layer 0) — pending Daniel's review
 
 # Blocked
 - None
 
 # Next Session — Start Here
-- Branch is correct: `0.0.2` — no switch needed
-- Review #388 implementation: 20 endpoints in `fichero-api/src/fichero/api/routes/hermeneutics.py`
-- Skills relocated from `.agents/skills/` → `plugins/fs_session/skills/` — scripts use `SCRIPT_ROOT` resolver
-- Run `/session-start-auto-solo` to pick and execute one task
+- Review PR #397 feedback (if any)
+- When #390 merged, proceed to Phase 5: Integration & Polish (#391)
+- Check remaining 0.0.2 milestone issues for next task
+- Run tests: `PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/`
 
 ## Session Log — Apr 10 2026
-- All 5 in-progress issues (#387-391) have backend route implementations present
-- Hermeneutics: 20 endpoints across 5 categories (frameworks, interpretations, patterns, circle-state, suggestions)
-- Knowledge Graph: Implementation marked complete with PyKEEN integration
-- Mind Palace: 27KB route file exists
-- Agent Research: 30KB route file exists
-- Integration & Polish (#391): Cross-layer integration and QA pending
-- Next step: Determine which milestone task to work on next or test existing implementations
+- Completed Phase 4 Agent Research backend implementation:
+  - 350 lines research_models.py with full research workflow hierarchy
+  - 793 lines research_agents.py with CRUD endpoints
+  - 12 unit tests all passing (892 total tests)
+  - Sandboxed tool placeholders for future HTTP/browser implementation
+- PR #397 created and pushed to GitHub
+- Issues #387-#390 all have working backend implementations
+- Next: Phase 5 Integration & Polish (#391) or merge pending PRs

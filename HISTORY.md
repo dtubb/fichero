@@ -1,4 +1,14 @@
 
+## 2026-04-10 — Autonomous Loop Session
+
+- **#390 Phase 4 Agent Research (Layer 0)**: Implemented complete backend for systematic discovery
+  - `research_models.py`: Project, Plan, Task, Step, Source, Note, ChecklistItem models
+  - `research_agents.py`: 793-line FastAPI route module with full CRUD
+  - `test_research_agents_api.py`: 12 comprehensive unit tests (all passing)
+  - Sandboxed tool placeholders: web-search, browser-navigate, document-fetch
+  - All writes go to Fichero database (no filesystem escape)
+  - PR #397 created: https://github.com/dtubb/fichero/pull/397
+
 ## 2026-04-07 — Autonomous Loop Session
 
 - **#387 Phase 1 assessment**: Assessed 0.0.2 phase implementation status across all 5 phases
@@ -65,3 +75,9 @@
 - **Session Start Assessment**: Reviewed #388 (Hermeneutics Phase 2) state — work was stopped at user request
 - **Git State Observation**: codex/0.0.2-planning branch, skills relocated to plugins, .venv untracked
 - **Planning branch issue**: Active work should happen on main or feature branch, not planning branch
+
+## 2026-04-10 — #390 0.0.2 Phase 4: Agent Research (Layer 0)
+
+- PR: https://github.com/dtubb/fichero/pull/397
+- Branch: feature/issue-390
+- Task completed in session
