@@ -341,3 +341,9 @@
 - Commented on PR #417 about merge conflicts with main
 - 4 conflicting files in SwiftUI views and Python types
 - Needs conflict resolution before merge
+
+## 2026-04-10 — Session End (Merge Conflicts Detected)
+
+- Detected merge conflicts in PR #417
+- Commented conflict details on GitHub
+- Conflicts need resolution before merge
