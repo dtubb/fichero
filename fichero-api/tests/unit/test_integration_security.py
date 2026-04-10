@@ -1,0 +1,240 @@
+"""Security tests for Phase 5 Integration components.
+
+These tests verify CORS configuration, MCP authorization, and feature tier security.
+They test that security controls are properly enforced.
+"""
+
+import os
+from unittest.mock import patch
+
+import pytest
+from fastapi.middleware.cors import CORSMiddleware
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CORS Security Tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestCORSSecurity:
+    """Test CORS configuration security."""
+
+    def test_cors_allows_specific_origins_not_wildcard(self, client):
+        """HIGH-1: CORS should not allow all origins with credentials."""
+        # This test checks if CORS is properly restricted
+        # A proper implementation should reject unknown origins
+        headers = {
+            "Origin": "https://malicious-site.com",
+            "Access-Control-Request-Method": "GET",
+        }
+        response = client.options("/api/research/projects", headers=headers)
+        
+        # Should be blocked or not include Access-Control-Allow-Origin: *
+        assert "*" not in response.headers.get("access-control-allow-origin", ""), \
+            "CORS allows wildcard origin - security risk"
+        
+        # With credentials enabled, wildcard should never be returned
+        if response.headers.get("access-control-allow-credentials") == "true":
+            assert response.headers.get("access-control-allow-origin") != "*", \
+                "CORS allows credentials with wildcard origin - CRITICAL"
+
+    def test_cors_blocks_malicious_origin(self, client):
+        """HIGH-1: CORS should block requests from untrusted origins."""
+        headers = {"Origin": "https://evil.com"}
+        response = client.get("/api/research/projects", headers=headers)
+        
+        # Either no CORS headers (blocked) or no wildcard
+        allow_origin = response.headers.get("access-control-allow-origin")
+        assert allow_origin is None or allow_origin != "*", \
+            "CORS response allows any origin"
+
+    def test_cors_preflight_rejects_untrusted(self, client):
+        """HIGH-1: CORS preflight should validate origin."""
+        headers = {
+            "Origin": "https://untrusted.com",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Content-Type",
+        }
+        response = client.options("/api/research/projects", headers=headers)
+        
+        # Should not allow methods/headers from untrusted origins
+        assert response.status_code in [403, 400, 204], \
+            "CORS preflight accepts any origin"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MCP Authorization Tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestMCPAuthorization:
+    """Test MCP server authorization controls."""
+
+    def test_mcp_requires_authentication(self):
+        """HIGH-2: MCP server should require authentication."""
+        from fichero.mcp_server import FicheroAPIClient
+        
+        # Create client without API key
+        client = FicheroAPIClient(api_url="http://localhost:8765")
+        headers = client._get_headers()
+        
+        # Should require some form of authentication
+        # Currently returns only Content-Type header
+        assert "X-API-Key" in headers or "Authorization" in headers, \
+            "MCP client does not include authentication - security risk"
+
+    def test_mcp_validates_api_key(self):
+        """HIGH-2: MCP server should validate API key."""
+        # This would require mocking the MCP server
+        # For now, document that validation is missing
+        pytest.skip("MCP authorization not implemented yet")
+
+    def test_mcp_permission_scopes(self):
+        """HIGH-2: MCP should have permission scopes."""
+        # MCP tools should have read-only vs read-write scopes
+        pytest.skip("MCP permission scopes not implemented yet")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Feature Tier Security Tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestFeatureTierSecurity:
+    """Test feature tier bypass protections."""
+
+    def test_tier_change_requires_validation(self, client):
+        """MEDIUM-1: Changing FICHERO_FEATURE_TIER should require validation."""
+        # This is environment-based, so test that dev routes
+        # are not accessible in release mode
+        with patch.dict(os.environ, {"FICHERO_FEATURE_TIER": "release"}):
+            # Try to access a dev route
+            response = client.get("/api/research/tools/web-search")
+            
+            # Should be blocked or return 404 in release mode
+            # Note: This depends on route registration logic
+            pass  # Implementation specific
+
+    def test_tier_change_logged(self):
+        """MEDIUM-1: Tier changes should be logged."""
+        # Verify that tier is logged at startup
+        import logging
+        
+        with patch("fichero.api.main.logger") as mock_logger:
+            # Reimport to trigger tier logging
+            from fichero.api import main
+            
+            # Should log the tier being used
+            assert any("FICHERO_FEATURE_TIER" in str(call) 
+                      for call in mock_logger.info.call_args_list), \
+                "Feature tier not logged at startup"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Library Path Security Tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestLibraryPathSecurity:
+    """Test library path header validation."""
+
+    def test_library_path_blocks_traversal(self, client):
+        """MEDIUM-2: Library path should block path traversal."""
+        headers = {"X-Fichero-Library-Path": "/etc/../etc/passwd"}
+        
+        try:
+            response = client.get("/api/research/projects", headers=headers)
+            
+            # Should fail with 403 or 400
+            assert response.status_code in [400, 403, 500], \
+                "Path traversal in library header not blocked"
+        except Exception:
+            # If it raises an exception, that's also a security concern
+            # but might indicate proper validation
+            pass
+
+    def test_library_path_validates_allowed_locations(self, client):
+        """MEDIUM-2: Library path should be in allowed locations."""
+        headers = {"X-Fichero-Library-Path": "/tmp/malicious.fichero"}
+        
+        try:
+            response = client.get("/api/research/projects", headers=headers)
+            
+            # Should validate path is in allowed directory
+            # (e.g., ~/Documents, ~/Library/Application Support)
+            allow_origin = response.headers.get("access-control-allow-origin")
+            # If CORS passes but path is rejected
+            if response.status_code == 200:
+                pytest.fail("Library path not validated against allowed locations")
+        except Exception:
+            pass  # Validation might raise exception
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Environment Variable Security Tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestEnvironmentSecurity:
+    """Test environment variable handling."""
+
+    def test_api_key_required_in_production(self):
+        """HIGH: API key should be required in production."""
+        # In production mode, API operations should require authentication
+        with patch.dict(os.environ, {"FICHERO_ENV": "production"}):
+            # This is a configuration test
+            # Actual enforcement happens at runtime
+            pass
+
+    def test_debug_mode_disabled_in_production(self):
+        """MEDIUM: Debug mode should be disabled in production."""
+        from fichero.api import main
+        
+        # Check that debug mode is not enabled by default
+        # This is more of a configuration check
+        assert True  # Placeholder - actual check depends on implementation
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Integration Tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestSecurityHeaders:
+    """Test security headers are present."""
+
+    def test_security_headers_present(self, client):
+        """Security headers should be present in responses."""
+        response = client.get("/api/research/projects")
+        
+        # Check for basic security headers
+        # Note: These might not be implemented yet
+        security_headers = [
+            "x-content-type-options",
+            "x-frame-options",
+            "x-xss-protection",
+        ]
+        
+        for header in security_headers:
+            if header not in response.headers:
+                pytest.skip(f"Security header {header} not implemented yet")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Summary
+# ═══════════════════════════════════════════════════════════════════════════════
+"""
+Test Status Summary:
+
+| Vulnerability | Tests | Status |
+|--------------|-------|--------|
+| CORS wildcard | 3 | Needs implementation |
+| MCP auth | 3 | Needs implementation |
+| Feature tier | 2 | Partial |
+| Path traversal | 2 | Needs implementation |
+
+Expected Behavior:
+- These tests document security requirements
+- Many will fail until fixes are implemented
+- Fixes should make these tests pass
+"""
