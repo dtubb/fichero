@@ -1,0 +1,406 @@
+---
+issues:
+  # 0.0.3 Milestone - Backend Issues
+  - title: "0.0.3 — Knowledge Migration / Backfill Tooling with Dry-Run + Rollback"
+    body: |
+      ## Backend Work
+
+      - Create migration/backfill tooling scripts in `scripts/migrate_*.py`
+      - Implement dry-run validation against production data
+      - Implement rollback safety verification
+      - Test with realistic library data
+      - Add migration logging and audit trail
+
+      ## Acceptance
+
+      - [ ] Dry-run mode validates migration safety
+      - [ ] Rollback mode reverts changes with audit trail
+      - [ ] Migration scripts run on production-like data without errors
+      - [ ] Test suite for migration paths passes
+
+      ## Labels
+
+      `area:backend-api`, `type:task`, `0.0.3`, `area:migration`
+    labels:
+      - area:backend-api
+      - type:task
+      - "0.0.3"
+      - area:migration
+
+  - title: "0.0.3 — Reindex / Repair Jobs and Metrics Recomputation Workers"
+    body: |
+      ## Backend Work
+
+      - Create scheduled reindex job workers
+      - Implement metrics recomputation workers
+      - Add background task scheduling system (APScheduler or celery)
+      - Integrate with LanceDB for vector reindexing
+      - Add reindex/repair job queue and status endpoints
+
+      ## Acceptance
+
+      - [ ] `/api/tasks/reindex` endpoint creates reindex jobs
+      - [ ] `/api/tasks/metrics` endpoint triggers metrics recomputation
+      - [ ] Background workers process jobs and update status
+      - [ ] Job queue persists across restarts
+      - [ ] Swift UI can query job status (backend + Swift)
+
+      ## Labels
+
+      `area:backend-api`, `area:operations`, `type:task`, `0.0.3`
+    labels:
+      - area:backend-api
+      - area:operations
+      - type:task
+      - "0.0.3"
+
+  - title: "0.0.3 — Multilingual Baseline for Claims / Entities and Cross-Language Retrieval"
+    body: |
+      ## Backend Work
+
+      - Add language-aware fields to `KnowledgeEntity` and `KnowledgeClaim` models
+      - Implement transliteration-aware alias linking (e.g., "iPhone" → "아이폰")
+      - Create cross-language retrieval API endpoints
+      - Integrate ICU or cld3 for language detection
+      - Add language-specific stemming/normalization
+
+      ## Acceptance
+
+      - [ ] `KnowledgeEntity` model has `language` field (ISO 639-1)
+      - [ ] `KnowledgeClaim` model has `source_languages` list field
+      - [ ] `/api/entities/search` supports cross-language queries
+      - [ ] `/api/claims?source_language=ja` filters by language
+      - [ ] Transliteration test suite passes (e.g., "Tokyo" → "東京")
+
+      ## Labels
+
+      `area:backend-api`, `area:nlp`, `type:task`, `0.0.3`
+    labels:
+      - area:backend-api
+      - area:nlp
+      - type:task
+      - "0.0.3"
+
+  - title: "0.0.3 — Thin MCP Adapters for Canonical Knowledge APIs"
+    body: |
+      ## Backend Work
+
+      - Create MCP tool adapters mapped 1:1 to FastAPI contracts
+      - Implement `/api/mcp/tools/knowledge-*` endpoints
+      - Conformance tests match HTTP fixtures
+      - No business-logic divergence between MCP and HTTP paths
+
+      ## Acceptance
+
+      - [ ] MCP tools call canonical backend APIs only
+      - [ ] `/api/mcp/tools/knowledge/entities/upsert` endpoint
+      - [ ] `/api/mcp/tools/knowledge/claims/create` endpoint
+      - [ ] Conformance tests pass for all MCP tool adapters
+      - [ ] MCP client integration tests pass
+
+      ## Labels
+
+      `area:backend-api`, `area:mcp`, `type:task`, `0.0.3`
+    labels:
+      - area:backend-api
+      - area:mcp
+      - type:task
+      - "0.0.3"
+
+  # 0.0.4 Milestone - Backend Issues
+  - title: "0.0.4 — Interpretations Workspace v1 Linked to Claims"
+    body: |
+      ## Backend Work
+
+      - Implement interpretation CRUD endpoints (`/api/interpretations`)
+      - Link interpretations to claims and sources
+      - Add method taxonomy tagging API
+      - Implement interpretation detail endpoint with citation lineage
+
+      ## Acceptance
+
+      - [ ] `/api/interpretations` list endpoint
+      - [ ] `/api/interpretations/{id}` detail endpoint with citations
+      - [ ] Interpretation cannot be saved without linked claims
+      - [ ] Method taxonomy taggable in API
+      - [ ] Interpretation links to sources via provenance records
+
+      ## Labels
+
+      `area:backend-api`, `type:task`, `0.0.4`
+    labels:
+      - area:backend-api
+      - type:task
+      - "0.0.4"
+
+  - title: "0.0.4 — Search Explanation and Metrics Visibility Panel"
+    body: |
+      ## Backend Work
+
+      - Implement search explanation API
+      - Create metrics visibility endpoints (RAG mode controls)
+      - Add search metrics generation
+      - Implement search explanation data structure
+
+      ## Acceptance
+
+      - [ ] `/api/search/explain/{query}` returns search explanation
+      - [ ] `/api/search/metrics` returns RAG metrics
+      - [ ] Search explanation includes source attribution
+      - [ ] RAG mode controls API (`/api/search/modes`) endpoint
+      - [ ] Metrics test suite passes
+
+      ## Labels
+
+      `area:backend-api`, `type:task`, `0.0.4`
+    labels:
+      - area:backend-api
+      - type:task
+      - "0.0.4"
+
+  # 0.0.5 Milestone - Backend Issues
+  - title: "0.0.5 — Activity Stream Enhancements"
+    body: |
+      ## Backend Work
+
+      - Create activity stream aggregation endpoints
+      - Implement activity filtering by entity type
+      - Add activity metrics (count, trends, top entities)
+      - Activity streaming via WebSockets (optional)
+
+      ## Acceptance
+
+      - [ ] `/api/activity/stream` returns activity feed
+      - [ ] `/api/activity/stats` returns activity metrics
+      - [ ] Activity filtering by entity type works
+      - [ ] Activity timestamp indexing optimized
+
+      ## Labels
+
+      `area:backend-api`, `type:task`, `0.0.5`
+    labels:
+      - area:backend-api
+      - type:task
+      - "0.0.5"
+
+  # 0.1.0 Milestone - Backend Issues
+  - title: "0.1.0 — Human-in-the-Loop Orchestration Policy for Agent Writes"
+    body: |
+      ## Backend Work
+
+      - Implement agent write policy engine
+      - Create orchestration workflow rules
+      - Add approval workflow for AI writes
+      - Policy enforcement endpoints
+
+      ## Acceptance
+
+      - [ ] `/api/policies/orchestration` defines rules
+      - [ ] `/api/agents/write/approve` endpoint for human approval
+      - [ ] `/api/agents/write/audit` returns write history
+      - [ ] Policy rules validated against test cases
+      - [ ] Test suite for orchestration policies passes
+
+      ## Labels
+
+      `area:backend-api`, `area:orchestration`, `type:task`, `0.1.0`
+    labels:
+      - area:backend-api
+      - area:orchestration
+      - type:task
+      - "0.1.0"
+
+  - title: "0.1.0 — Advanced Graph Exploration and Interpretation Views"
+    body: |
+      ## Backend Work
+
+      - Implement graph traversal algorithms
+      - Create interpretation exploration endpoints
+      - Add subgraph extraction for visualization
+      - Graph query language support (optional)
+
+      ## Acceptance
+
+      - [ ] `/api/graph/traverse/{entity_id}` returns graph subgraph
+      - [ ] `/api/graph/interpretations/{entity_id}` returns interpretation paths
+      - [ ] Subgraph extraction optimized for large graphs
+      - [ ] Test suite for graph traversal passes
+
+      ## Labels
+
+      `area:backend-api`, `area:graph`, `type:task`, `0.1.0`
+    labels:
+      - area:backend-api
+      - area:graph
+      - type:task
+      - "0.1.0"
+
+  - title: "0.1.0 — Optional Embedded IFFY / IIIF Server Mode"
+    body: |
+      ## Backend Work
+
+      - Implement embedded IIIF image server
+      - IIIF manifest support for documents
+      - Tile-based image serving
+      - IIIF image API endpoints
+
+      ## Acceptance
+
+      - [ ] `/api/iiif/manifest/{document_id}` returns IIIF manifest
+      - [ ] `/api/iiif/image/{document_id}` serves tiles
+      - [ ] IIIF image API v2.1 support
+      - [ ] Test suite for IIIF serving passes
+
+      ## Labels
+
+      `area:backend-api`, `area:image-serving`, `type:task`, `0.1.0`
+    labels:
+      - area:backend-api
+      - area:image-serving
+      - type:task
+      - "0.1.0"
+
+  - title: "0.1.0 — Optional Latent Inference Track (PyKEEN)"
+    body: |
+      ## Backend Work
+
+      - Implement PyKEEN training pipeline
+      - Create prediction generation endpoints
+      - Optional inference track (configurable)
+      - Prediction storage and retrieval
+
+      ## Acceptance
+
+      - [ ] `/api/predictions/train` triggers PyKEEN training
+      - [ ] `/api/predictions/generate/{model_id}` generates predictions
+      - [ ] Optional flag for PyKEEN vs heuristic predictions
+      - [ ] Prediction storage optimized for large graphs
+      - [ ] Test suite for PyKEEN pipeline passes
+
+      ## Labels
+
+      `area:backend-api`, `area:ml`, `type:task`, `0.1.0`
+    labels:
+      - area:backend-api
+      - area:ml
+      - type:task
+      - "0.1.0"
+
+  - title: "0.1.0 — NetworkX Derived Graph Reasoning Integration"
+    body: |
+      ## Backend Work
+
+      - Implement NetworkX graph reasoning
+      - Create derived relationship endpoints
+      - Graph algorithms integration (community detection, centrality)
+      - NetworkX ↔ LanceDB synchronization
+
+      ## Acceptance
+
+      - [ ] `/api/graph/networkx/centrality` returns centrality metrics
+      - [ ] `/api/graph/networkx/communities` detects communities
+      - [ ] NetworkX reasoning optional (configurable)
+      - [ ] Test suite for NetworkX integration passes
+
+      ## Labels
+
+      `area:backend-api`, `area:graph`, `type:task`, `0.1.0`
+    labels:
+      - area:backend-api
+      - area:graph
+      - type:task
+      - "0.1.0"
+
+  - title: "0.1.0 — Advanced Graph / Interpretation Exploration"
+    body: |
+      ## Backend Work
+
+      - Implement complex graph queries
+      - Create interpretation exploration APIs
+      - Add pathfinding between entities
+      - Graph visualization data format
+
+      ## Acceptance
+
+      - [ ] `/api/graph/paths/{entity1}/{entity2}` returns relationships
+      - [ ] `/api/graph/interpretations/exploration/{entity_id}` returns exploration paths
+      - [ ] Complex queries optimized
+      - [ ] Test suite for graph exploration passes
+
+      ## Labels
+
+      `area:backend-api`, `area:graph`, `type:task`, `0.1.0`
+    labels:
+      - area:backend-api
+      - area:graph
+      - type:task
+      - "0.1.0"
+
+  # Legacy Re-enable Issues
+  - title: "Re-enable Library / Search Split Layouts after 0.0.2"
+    body: |
+      ## Backend Work
+
+      - Restore split layout API endpoints
+      - Re-enable backend routes for Library/Search split
+      - API contract compatibility
+
+      ## Acceptance
+
+      - [ ] Split layout API endpoints functional
+      - [ ] Tests pass for split layout queries
+
+      ## Labels
+
+      `area:backend-api`, `type:task`, `legacy-reenable`, `0.1.0`
+    labels:
+      - area:backend-api
+      - type:task
+      - legacy-reenable
+      - "0.1.0"
+
+  - title: "Re-enable Workflow Editor Icon / List / Table Modes after 0.0.2"
+    body: |
+      ## Backend Work
+
+      - Restore workflow editor mode endpoints
+      - Re-enable backend routes for different view modes
+      - API contract compatibility
+
+      ## Acceptance
+
+      - [ ] `/api/workflow/modes` endpoint enabled
+      - [ ] View mode configuration stored in database
+      - [ ] Tests pass for view modes
+
+      ## Labels
+
+      `area:backend-api`, `type:task`, `legacy-reenable`, `0.1.0`
+    labels:
+      - area:backend-api
+      - type:task
+      - legacy-reenable
+      - "0.1.0"
+
+  - title: "Re-enable Search Icon / Table / Map Views after 0.0.2"
+    body: |
+      ## Backend Work
+
+      - Restore search view endpoints
+      - Re-enable map view data endpoints
+      - API contract compatibility
+
+      ## Acceptance
+
+      - [ ] `/api/search/views` endpoint functional
+      - [ ] Map view data endpoints operational
+      - [ ] Tests pass for search views
+
+      ## Labels
+
+      `area:backend-api`, `type:task`, `legacy-reenable`, `0.1.0`
+    labels:
+      - area:backend-api
+      - type:task
+      - legacy-reenable
+      - "0.1.0"

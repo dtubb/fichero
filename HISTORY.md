@@ -378,3 +378,6 @@
 - ✅ Release 0.0.2 merged to main
 - 0.0.2 milestone security work complete
 - Next: 0.0.1 milestone bugs (#383-386)
+
+## 2026-04-10 — Session Summary
+
