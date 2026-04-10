@@ -360,3 +360,9 @@
 - Resolved all merge conflicts in PR #417
 - Marked PR ready for review
 - PR #417 now awaiting human review
+
+## 2026-04-10 — PR #417 MERGED to main
+
+- ✅ PR #417 merged (Release 0.0.2)
+- All security fixes now in main branch
+- 0.0.2 milestone security work COMPLETE
