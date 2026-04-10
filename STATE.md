@@ -1,28 +1,27 @@
 # Current Focus
-Milestone execution — 0.0.2 Phase 4 complete (PR #397 under review)
+Milestone execution — Phase 5 Integration & Polish (Quality Assurance)
 
 # Branch
 - Active branch: `0.0.2` (pushes to `origin/0.0.2`)
-- PR #397 ready: `feature/issue-390` → https://github.com/dtubb/fichero/pull/397
+- Last commit: `b7b5908a` - MCP workflow integration tests fixed, OpenAPI schema synced
 
 # In Progress
-- PR #397: Phase 4 Agent Research (Layer 0) — pending Daniel's review
+- Phase 5 Integration & Polish (#391) - addressing quality gates
+- Pre-existing integration test failures under investigation
 
 # Blocked
-- None
+- None (though some integration tests have pre-existing failures)
 
 # Next Session — Start Here
-- Review PR #397 feedback (if any)
-- When #390 merged, proceed to Phase 5: Integration & Polish (#391)
-- Check remaining 0.0.2 milestone issues for next task
-- Run tests: `PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/`
+- Check remaining quality gates for Phase 5 completion
+- Address pre-existing integration test failures if scope allows
+- Review SwiftUI build status with xcodebuild
+- Run full lint/test sweep before any new work
 
 ## Session Log — Apr 10 2026
-- Completed Phase 4 Agent Research backend implementation:
-  - 350 lines research_models.py with full research workflow hierarchy
-  - 793 lines research_agents.py with CRUD endpoints
-  - 12 unit tests all passing (892 total tests)
-  - Sandboxed tool placeholders for future HTTP/browser implementation
-- PR #397 created and pushed to GitHub
-- Issues #387-#390 all have working backend implementations
-- Next: Phase 5 Integration & Polish (#391) or merge pending PRs
+- Fixed MCP workflow integration tests (2 test fixes)
+  - test_mcp_workflow_with_error: Updated to check error at top-level state
+  - test_multiple_mcp_tools_in_workflow: Fixed assertion (HELLO -> OLLEH)
+- Synced OpenAPI schema (240 endpoints across 20 resources)
+- MCP workflow tests: 6/6 passing
+- All Python tests: 933+ passing (some pre-existing integration failures)
