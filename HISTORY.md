@@ -125,3 +125,14 @@
   - HIGH: MCP server missing authorization
   - Branch: feature/issue-400 pushed, PR #401 created
 - **PRs**: #399 (Phase 4 fixes), #401 (Phase 5 findings) both awaiting review
+
+## 2026-04-10 — Phase 1 Knowledge Graph Security Audit Complete (#402)
+
+- **Issue #402**: Phase 1 Knowledge Graph security review completed
+  - SECURITY_FINDINGS_402.md with PyKEEN pickle vulnerability findings
+  - test_knowledge_graph_security.py with 8 tests (2 FAILING, 3 PASS, 3 SKIP)
+  - HIGH: PyKEEN pickle risk (acceptable for single-user local)
+  - MEDIUM: Entity access control, triple sensitivity filtering
+  - Branch: feature/issue-402 pushed, PR #403 created
+- **Security Audit Progress**: Phase 4, 5, and 1 now audited
+- **Open PRs**: #399, #401, #403 all awaiting Daniel's review
