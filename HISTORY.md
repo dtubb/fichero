@@ -321,3 +321,10 @@
 - Closed 6 security review issues (#398, #400, #402, #404, #406, #408)
 - Closed #391 (Phase 5: Integration & Polish)
 - 0.0.2 milestone security work complete
+
+## 2026-04-10 — PR #417 Created (Release 0.0.2 to main)
+
+- ✅ Created PR #417: 0.0.2 → main
+- 153 commits ahead of main
+- Draft PR with all security fixes and audit documentation
+- URL: https://github.com/dtubb/fichero/pull/417
