@@ -198,3 +198,33 @@ Each Phase requires review across 3 dimensions:
 - **Sprint 2**: Phase 5 (Integration) - Cross-cutting security
 - **Sprint 3**: Phase 1 (Knowledge Graph) - Foundation
 - **Sprint 4**: Phase 2 & 3 (Hermeneutics + Mind Palace)
+
+---
+
+## NEXT SESSION ENTRY POINT
+
+**Action Required**: Start Phase 4 (Agent Research) Security Review Loop
+
+**Goal**: Complete SSRF vulnerability audit of research tools
+
+**Files to Review**:
+- `fichero-api/src/fichero/workflows/tools/research.py` (583 lines) — web_search, browser_navigate, document_fetch tools
+- `fichero-api/src/fichero/api/routes/research_agents.py` (864 lines) — CRUD endpoints
+- `fichero-api/tests/unit/test_research_agents_api.py` (514 lines, 20 tests) — expand for SSRF tests
+
+**Specific SSRF Gaps to Find**:
+1. `_is_sandbox_violation()` only checks starts_with — bypassable
+2. No internal IP blocking (localhost, 169.254.169.254, RFC1918 ranges)
+3. No redirect validation — safe URL → redirect to unsafe
+4. DNS rebinding attacks — hostname resolves to internal IP after initial check
+5. Browser tool (puppeteer) bypasses Python sandbox entirely
+
+**Deliverables**:
+- [ ] Security findings report (CRITICAL/HIGH/MEDIUM)
+- [ ] Failing test cases for each vulnerability
+- [ ] Fix PR with validation logic
+- [ ] Updated test_research_agents_api.py with SSRF security tests
+
+**Priority**: CRITICAL — blocks production deployment until fixed
+
+**Start Command**: Review research.py sandbox implementation, identify all bypass vectors
