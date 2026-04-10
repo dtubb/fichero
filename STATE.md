@@ -1,14 +1,18 @@
 # Current Focus
 Milestone execution — 0.0.2 Phase 2: Hermeneutics (Layer 5)
 
+# Branch
+- Active branch: `0.0.2` (pushes to `origin/0.0.2`)
+- This worktree: `/Users/danieltubb/code/fichero-0.0.2`
+
 # In Progress
 - Issue #388: Phase 2 Hermeneutics (Layer 5) — pending review of existing implementation
 
 # Blocked
-- Branch status: on planning branch (`codex/0.0.2-planning`), not suitable for implementation work
+- None
 
 # Next Session — Start Here
-- Verify branch: `git checkout main` or create feature branch from main before starting implementation
-- Check #388 implementation state: 20 endpoints in `hermeneutics.py`, frameworks CRUD, context application, pattern detection, circle navigation
+- Branch is correct: `0.0.2` — no switch needed
+- Review #388 implementation: 20 endpoints in `hermeneutics.py`, frameworks CRUD, context application, pattern detection, circle navigation
 - Skills relocated from `.agents/skills/` → `plugins/fs_session/skills/` — scripts use `SCRIPT_ROOT` resolver
-- `.venv` directory is untracked — verify `.gitignore` contains it
+- Run `/session-start-auto-solo` to pick and execute one task
