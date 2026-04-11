@@ -444,3 +444,9 @@
 - PR: https://github.com/dtubb/fichero/pull/448
 - Branch: feature/issue-425
 - Task completed in session
+
+## 2026-04-11 — #436 Contradiction Triage Backend
+
+- PR: https://github.com/dtubb/fichero/pull/449
+- Branch: feature/issue-436
+- Task completed in session

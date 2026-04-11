@@ -237,3 +237,34 @@ weekly: bucket_key = ts.strftime("%Y-%W")
 ```python
 success_rate = completed / (completed + failed) * 100
 ```
+
+## Contradiction Triage Pattern — 2026-04-12
+
+**Pattern:** Evidence-based contradiction management with triage workflow
+
+**Severity Levels:**
+- MINOR: Discrepancy in details
+- MODERATE: Significant disagreement  
+- SEVERE: Fundamental conflict
+- CRITICAL: Core thesis contradiction
+
+**Evidence Types:**
+- PRIMARY_SOURCE — Direct archival/documentary
+- SECONDARY_SOURCE — Scholarly analysis
+- EXPERT_TESTIMONY — Authority statements
+- STATISTICAL — Data-driven evidence
+- LOGICAL_INFERENCE — Deductive reasoning
+
+**Resolution Workflow:**
+- UNRESOLVED → UNDER_REVIEW → RESOLVED/REFUTED/SUPERSEDED
+
+**Key Endpoints:**
+- /claims/{id}/contradictions — List with severity filtering
+- /claims/{id}/compare/{id} — Side-by-side analysis
+- /claims/{id}/evidence-chain — Chain traversal (claim→sources→claims)
+- /claims/{id}/visualization — Graph data for UI
+
+**Comparison Analysis:**
+- Semantic similarity (word overlap Jaccard)
+- Points of conflict: confidence gap >0.3, status mismatch
+- Points of agreement: shared entity_ids, similar confidence, same source
