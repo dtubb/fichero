@@ -426,3 +426,25 @@
 - Added library-path validation guardrails and PyKEEN compatibility/sensitivity safeguards.
 - Verified backend unit suite passes (1228 passed, 21 skipped).
 - Closed GitHub issue #364.
+
+---
+
+## 2026-04-11 — Issue #419 — Knowledge Migration / Backfill Tooling
+
+**Status:** VERIFIED COMPLETE (no code changes required)
+
+**Work Done:**
+- Verified existing migration framework meets all acceptance criteria
+- scripts/migrate.py: CLI with --list, --dry-run, --batch-size, rollback, audit
+- fichero/migrations.py: MigrationRunner with dry-run, rollback, audit trail
+- Test suite: 15 migration tests pass (100pct coverage)
+- Full backend suite: 1228 passed, 21 skipped
+- ruff: clean
+
+**Evidence:**
+- pytest test_migrations.py -v: 15 passed
+- python scripts/migrate.py --list: 3 migrations available
+
+**Branch:** feature/issue-419 (worktree created, no changes needed)
+**PR:** N/A - framework already complete in 0.0.2 branch
+**Closed:** https://github.com/dtubb/fichero/issues/419
