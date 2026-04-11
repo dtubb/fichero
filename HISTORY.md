@@ -450,3 +450,9 @@
 - PR: https://github.com/dtubb/fichero/pull/449
 - Branch: feature/issue-436
 - Task completed in session
+
+## 2026-04-11 — #431 Advanced Graph Exploration Backend
+
+- PR: https://github.com/dtubb/fichero/pull/450
+- Branch: feature/issue-431
+- Task completed in session

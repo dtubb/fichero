@@ -268,3 +268,38 @@ success_rate = completed / (completed + failed) * 100
 - Semantic similarity (word overlap Jaccard)
 - Points of conflict: confidence gap >0.3, status mismatch
 - Points of agreement: shared entity_ids, similar confidence, same source
+
+## Graph Exploration Pattern — 2026-04-12
+
+**Pattern:** Pathfinding and exploration over knowledge graph with entity-claim mapping
+
+**Path Algorithms:**
+- SHORTEST: BFS shortest path between entities
+- STRONGEST: Dijkstra-like maximum combined edge weight
+- ALL_SIMPLE: All simple paths up to max_depth
+
+**Entity-Claim Mapping Strategy:**
+```python
+entity_claim_map: dict[str, list[str]] = {
+    entity_id -> [claim_ids mentioning entity]
+}
+
+claim_entity_map: dict[str, list[str]] = {
+    claim_id -> [entity_ids mentioned in claim]
+}
+```
+
+**Path Discovery:**
+- Entities connect through claims they both mention
+- Claims connect through explicit KnowledgeClaimLink
+- Path alternates: entity → claim → entity → claim → ...
+
+**Exploration Depths:**
+- SHALLOW = 1 hop (direct connections)
+- MEDIUM = 2 hops (neighborhood)
+- DEEP = 3 hops (extended neighborhood)
+
+**Graph Metrics:**
+- density = 2E / (V(V-1))
+- avg_degree = total_edges / total_nodes
+- connected_components = V - E (simplified estimate)

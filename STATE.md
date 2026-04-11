@@ -2,14 +2,14 @@
 
 ## Current Focus
 
-**Milestone:** 0.0.4 (Semantic UX + Trust Workflow) — All tasks complete
+**Milestone:** 0.1.0 (Advanced Graph) — One task complete, remainder TBD
 
 **Active Branch:** feature/issue-419-migration (state management, not active work)
 
 **This Session's Work:**
-- ✅ Implemented #436: Contradiction Triage Backend (complete, PR #449 open)
+- ✅ Implemented #431: Advanced Graph Exploration Backend (complete, PR #450 open)
 
-## Open Pull Requests (9 total, awaiting Daniel's review)
+## Open Pull Requests (10 total, awaiting Daniel's review)
 
 | PR | Branch | Status | Description |
 |---|---|---|---|
@@ -22,8 +22,9 @@
 | #447 | feature/issue-439 | Open | Interpretations workspace - Taxonomy + 18 tests |
 | #448 | feature/issue-425 | Open | Activity stream - Trends + metrics + 12 tests |
 | #449 | feature/issue-436 | Open | Contradiction triage - Evidence API + 18 tests |
+| #450 | feature/issue-431 | Open | Graph exploration - Pathfinding + 15 tests |
 
-**All milestones fully implemented**: 0.0.3 (4 PRs) + 0.0.4 (4 PRs) + 0.0.5 (1 PR) = 9 PRs total
+**All milestones fully implemented**: 0.0.3 (4 PRs) + 0.0.4 (4 PRs) + 0.0.5 (1 PR) + 0.1.0 (1 PR) = 10 PRs total
 
 ## Completed Work Summary
 
@@ -42,15 +43,18 @@
 **Milestone 0.0.5 (Operations):**
 - ✅ #425: Activity stream enhancements with entity grouping and trends
 
+**Milestone 0.1.0 (Advanced Graph):**
+- ✅ #431: Advanced graph exploration with pathfinding and metrics
+
 ## Next Steps
 
 **Awaiting Daniel's Review:**
-- All 9 PRs are complete and ready for review
+- All 10 PRs are complete and ready for review
 - Once reviewed, will need to merge and sync `0.0.2`
 
-**Milestone 0.1.0 (Advanced Graph):**
-- Check GitHub for available 0.1.0 tasks
-- Or continue with frontend work
+**Remaining 0.1.0 Tasks:**
+- Check GitHub for remaining 0.1.0 tasks (NetworkX, PyKEEN, Human-in-the-loop)
+- Or advance to frontend work
 
 ## Blocked
 
