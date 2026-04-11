@@ -247,10 +247,12 @@ from fichero.api.routes import (  # noqa: E402
     chat,
     settings,
     knowledge_graph,
+    search_explain,
     hermeneutics,
-    interpretations,
+    graph_exploration,
     mind_palace,
     research_agents,
+    mcp_tools,
 )
 
 RouteSpec = tuple[object, str, list[str]]
@@ -270,12 +272,14 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (activity.router, "/api", ["activity"]),
     (chat.router, "/api/chat", ["chat"]),
     (settings.router, "", ["settings"]),
+    (mcp_tools.router, "/api/mcp", ["mcp"]),
 ]
 
 _DEV_ROUTE_SPECS: list[RouteSpec] = [
     (knowledge_graph.router, "/api/knowledge-graph", ["knowledge-graph"]),
+    (search_explain.router, "/api", ["search-explanation"]),
     (hermeneutics.router, "/api/hermeneutics", ["hermeneutics"]),
-    (interpretations.router, "/api", ["interpretations-workspace"]),
+    (graph_exploration.router, "/api", ["graph-exploration"]),
     (mind_palace.router, "/api/mind-palace", ["mind-palace"]),
     (research_agents.router, "/api/research", ["research"]),
 ]
