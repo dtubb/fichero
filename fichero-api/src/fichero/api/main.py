@@ -318,6 +318,7 @@ from fichero.api.routes import (  # noqa: E402
     interpretations,
     iiif,
     storage,
+    tasks,
     workflow_execution,
     workflows,
 )
@@ -345,6 +346,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (models.router, "/api/models", ["models"]),
     (review_queue.router, "/api", ["review-queue"]),
     (storage.router, "/api/storage", ["storage"]),
+    (tasks.router, "/api/tasks", ["tasks"]),
     (workflow_execution.router, "/api/workflow-execution", ["workflow-execution"]),
     (workflows.router, "/api/workflows", ["workflows"]),
 ]
