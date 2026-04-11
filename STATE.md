@@ -2,14 +2,14 @@
 
 ## Current Focus
 
-**Milestone:** 0.0.4 (Semantic UX + Trust Workflow) — First task complete, 3 remaining
+**Milestone:** 0.0.4 (Semantic UX + Trust Workflow) — Two tasks complete, 2 remaining
 
 **Active Branch:** feature/issue-419-migration (state management, not active work)
 
 **This Session's Work:**
-- ✅ Implemented #440: Claim Review Queue Backend (complete, PR #445 open)
+- ✅ Implemented #438: Search Explanation Backend (complete, PR #446 open)
 
-## Open Pull Requests (0.0.3 Waiting Review, 0.0.4 In Progress)
+## Open Pull Requests (6 total)
 
 | PR | Branch | Status | Description |
 |---|---|---|---|
@@ -18,19 +18,20 @@
 | #443 | feature/issue-421 | Open | Multilingual baseline + 45 tests |
 | #444 | feature/issue-422 | Open | MCP adapters + 16 tests |
 | #445 | feature/issue-440 | Open | Claim review queue + 15 tests |
+| #446 | feature/issue-438 | Open | Search explanation + 22 tests |
 
-**5 PRs total — 4 from 0.0.3 (waiting), 1 from 0.0.4 (new)**
+**0.0.3 Milestone:** 4 PRs waiting review (complete but pending)
+**0.0.4 Milestone:** 2 PRs created, 2 tasks remaining
 
 ## Next Session — Start Here
 
-1. **Check PR merge status** — Especially if #441-#444 were merged:
-   - Sync `0.0.2` with `origin/main`
-   - Delete merged feature branches
-   - Archive completed work to HISTORY.md
+1. **Check if PRs merged** — Any of #441-#446 merged?
+   - Sync `0.0.2` with origin/main
+   - Delete merged branches
+   - Archive to HISTORY.md
 
-2. **Next 0.0.4 tasks** (remaining):
+2. **Remaining 0.0.4 tasks:**
    - #436/#437: Contradiction Triage Backend
-   - #438: Search Explanation Backend
    - #439: Interpretations Workspace Backend
 
 3. **Claim via** `/assign-task <N>` or GitHub labels
@@ -43,11 +44,12 @@
 
 ## Recent Context
 
-- Review queue (#440) — Claim transitions, batch ops, queue views, 15 tests
-- MCP adapters (#422) — 4 knowledge endpoints, 16 tests
-- Multilingual (#421) — 20 languages, transliteration, 45 tests
-- Background tasks (#420) — Task queue, DuckDB persistence, 19 tests
+- Search explanation (#438) — RAG modes, source attribution, metrics, 22 tests
+- Claim review queue (#440) — Transitions, batch ops, queue views, 15 tests
+- Multilingual (#421) — 20 languages, transliteration matching, 45 tests
+- Background tasks (#420) — Task queue persistence, 19 tests
 - Migration framework (#419) — CLI + dry-run/rollback, 15 tests
+- MCP adapters (#422) — Knowledge endpoints, 16 tests
 
 ---
 *Last updated: 2026-04-12*

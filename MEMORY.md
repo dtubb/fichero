@@ -146,3 +146,35 @@ GET /api/claims/queues/rejected
   "reason": "Verified by expert"
 }
 ```
+
+## Search Explanation Pattern — 2026-04-12
+
+**Pattern:** Transparent search with source attribution and RAG mode controls
+
+**Architecture:**
+- RAG modes define precision/recall tradeoffs: conservative (0.8), balanced (0.5), speculative (0.3)
+- Search explanation includes human-readable description + source attribution
+- Metrics: precision estimates, relevance scores, token usage
+- Query refinement suggestions based on result count
+
+**RAG Mode Config:**
+```python
+RAGMode.CONSERVATIVE:  # High precision, low risk
+  min_score: 0.8, max_results: 5, context_ratio: 0.3
+
+RAGMode.BALANCED:  # Default
+  min_score: 0.5, max_results: 10, context_ratio: 0.5
+
+RAGMode.SPECULATIVE:  # Broad research
+  min_score: 0.3, max_results: 20, context_ratio: 0.8
+```
+
+**Source Attribution:**
+- match_type: semantic/keyword/hybrid
+- relevance_score + position rank
+- excerpt preview
+
+**Endpoints:**
+- POST /api/search/explain — Full explanation
+- GET /api/search/modes — Available modes
+- GET /api/search/metrics — System metrics

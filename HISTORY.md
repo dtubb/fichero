@@ -426,3 +426,9 @@
 - PR: https://github.com/dtubb/fichero/pull/445
 - Branch: feature/issue-440
 - Task completed in session
+
+## 2026-04-11 — #438 Search Explanation Backend
+
+- PR: https://github.com/dtubb/fichero/pull/446
+- Branch: feature/issue-438
+- Task completed in session
