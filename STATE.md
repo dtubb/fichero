@@ -8,7 +8,8 @@
 - 0.0.3 milestone **COMPLETE**
 - **0.0.4 milestone COMPLETE**
 - **0.0.5 milestone COMPLETE**
-- **0.1.0 milestone COMPLETE** — #427, #428, #431 done
+- **0.1.0 milestone COMPLETE**
+- **Additional work:** #434 complete (#432, #433 remaining)
 - Unit backend test suite: **1228 passed, 21 skipped**
 
 ## Completed Milestones
@@ -28,10 +29,13 @@
 - ~~#428~~ ✅ — IIIF Server Mode
 - ~~#431~~ ✅ — Advanced Graph / Interpretation Exploration
 
+### Additional Completed
+- ~~#434~~ ✅ — Search Views (Table/Grid/Map)
+
 ## In Progress
 
 1. Backend-only execution of open milestone issues:
-   - **Next milestone:** Check for 0.1.1 or next available milestone
+   - **Open issues:** #432, #433
 
 2. Operational cleanup item (separate scope):
    - Repo-wide Ruff test-lint debt exists outside current feature scope
@@ -42,7 +46,7 @@
 
 ## Next Session — Start Here
 
-1. **Check for next milestone** — Query GitHub for available milestones/issues
+1. **Open backend issues** — #432 or #433
 
 ---
 *Last updated: 2026-04-11*
