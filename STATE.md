@@ -87,5 +87,39 @@
 
 - #400-408: Security fixes merged to 0.0.2 (Daniel's review pending)
 
+## Next Session — Start Here
+
+### 1. Investigate Sources Route Registration (Issue #364)
+
+**Status:** Sources routes implemented but not appearing in running API
+
+**Check First:**
+```bash
+cd /Users/danieltubb/code/fichero-0.0.2
+./scripts/start-backend.sh
+curl http://127.0.0.1:8765/api/sources
+curl -H "X-Fichero-Library-Path: /Users/danieltubb/Dropbox/fichero-library" http://127.0.0.1:8765/api/sources
+curl http://127.0.0.1:8765/openapi.json | grep -A3 '"/api/sources"'
+```
+
+**If routes still 404:**
+- Debug module import ordering in main.py
+- Verify sources.py is being loaded during API startup
+- Check if _CORE_ROUTE_SPECS is being properly constructed
+
+### 2. Complete Sources Contract Tests
+
+Once routes are confirmed working:
+- Verify POST /api/sources creates Document with document_type="source"
+- Verify GET /api/sources lists all sources
+- Verify GET/PUT/DELETE work with source id
+- Add referential integrity tests for claims linking to sources
+
+### 3. Review GitHub Project Board
+
+- **Project**: https://github.com/users/dtubb/projects/5
+- **Milestones**: https://github.com/dtubb/fichero/milestones
+- **Issues**: https://github.com/dtubb/fichero/issues
+
 ---
-*Last updated: 2026-04-12* (0.0.2 release - 1 issue remaining, sources routes implemented but routes need verification)
+*Last updated: 2026-04-12* (Sources routes implemented - runtime registration debugging needed)

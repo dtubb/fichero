@@ -64,6 +64,20 @@ for link in links:
 - Connected components: number of disconnected subgraphs
 - Modularity: community detection quality (0 = random, 1 = perfect)
 
+**Sources Routes Registration Issue — 2026-04-12**
+
+**Problem:** Attempting to add `/api/sources` routes for issue #364, routes were not appearing in running API despite:
+- sources.py file created with FastAPI router
+- router registered in main.py _CORE_ROUTE_SPECS
+- sources module added to routes/__init__.py __all__
+
+**Findings:**
+- Routes appeared in /openapi.json but 404 on actual requests
+- sources module import was failing during main.py import
+- Workaround: sources routes working via POST/GET with proper `X-Fichero-Library-Path` header when tested directly
+
+**Status:** Routes implemented but runtime registration needs further debugging
+
 ## PyKEEN Knowledge Graph Embedding Pattern — 2026-04-12
 
 **Pattern:** Latent inference for knowledge graphs using PyKEEN embeddings and link prediction
