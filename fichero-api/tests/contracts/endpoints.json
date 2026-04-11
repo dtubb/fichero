@@ -339,6 +339,64 @@
         ],
         "request_model": null,
         "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/search/explain",
+        "operation_id": "explain_search_api_search_explain_post",
+        "summary": "Explain a search query",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SearchExplainRequest",
+        "response_model": "SearchExplanation"
+      },
+      {
+        "method": "GET",
+        "path": "/search/explain/{query}",
+        "operation_id": "explain_search_path_api_search_explain__query__get",
+        "summary": "Explain search by path",
+        "path_params": [
+          "query"
+        ],
+        "query_params": [
+          {
+            "name": "search_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "rag_mode",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "SearchExplanation"
+      },
+      {
+        "method": "GET",
+        "path": "/search/modes",
+        "operation_id": "list_rag_modes_api_search_modes_get",
+        "summary": "List RAG modes",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RAGModesResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/search/metrics",
+        "operation_id": "get_search_metrics_api_search_metrics_get",
+        "summary": "Get search metrics",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SearchMetricsSummary"
       }
     ],
     "ingest": [
@@ -1758,6 +1816,130 @@
         ],
         "request_model": null,
         "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/activity/feed",
+        "operation_id": "get_activity_feed_api_activity_feed_get",
+        "summary": "Get Activity Feed",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "entity_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "types",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "levels",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "since",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "until",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "group_by_entity",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ActivityFeedResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/activity/trends",
+        "operation_id": "get_activity_trends_api_activity_trends_get",
+        "summary": "Get Activity Trends",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "period",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "hours",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ActivityTrendsResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/activity/top",
+        "operation_id": "get_top_entities_api_activity_top_get",
+        "summary": "Get Top Entities",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "hours",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "TopEntitiesResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/activity/entity-types",
+        "operation_id": "get_entity_types_api_activity_entity_types_get",
+        "summary": "Get Entity Types",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EntityTypesResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/activity/metrics/summary",
+        "operation_id": "get_activity_metrics_summary_api_activity_metrics_summary_get",
+        "summary": "Get Activity Metrics Summary",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "hours",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ActivityMetricsSummary"
       }
     ],
     "chat": [
@@ -1899,6 +2081,201 @@
         "operation_id": "reset_ai_defaults_api_settings_ai_defaults_delete",
         "summary": "Reset Ai Defaults",
         "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
+    "mcp": [
+      {
+        "method": "POST",
+        "path": "/mcp/mcp/tools/knowledge/entities/upsert",
+        "operation_id": "mcp_knowledge_entity_upsert_api_mcp_mcp_tools_knowledge_entities_upsert_post",
+        "summary": "Upsert knowledge entity",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "KnowledgeEntityUpsertRequest",
+        "response_model": "KnowledgeEntityUpsertResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/mcp/mcp/tools/knowledge/claims/create",
+        "operation_id": "mcp_knowledge_claim_create_api_mcp_mcp_tools_knowledge_claims_create_post",
+        "summary": "Create knowledge claim",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "KnowledgeClaimCreateRequest",
+        "response_model": "KnowledgeClaimCreateResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/mcp/mcp/tools/knowledge/entities/{entity_id}",
+        "operation_id": "mcp_knowledge_entity_get_api_mcp_mcp_tools_knowledge_entities__entity_id__get",
+        "summary": "Get knowledge entity",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "DELETE",
+        "path": "/mcp/mcp/tools/knowledge/entities/{entity_id}",
+        "operation_id": "mcp_knowledge_entity_delete_api_mcp_mcp_tools_knowledge_entities__entity_id__delete",
+        "summary": "Delete knowledge entity",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/mcp/mcp/tools/knowledge/claims/{claim_id}",
+        "operation_id": "mcp_knowledge_claim_get_api_mcp_mcp_tools_knowledge_claims__claim_id__get",
+        "summary": "Get knowledge claim",
+        "path_params": [
+          "claim_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "DELETE",
+        "path": "/mcp/mcp/tools/knowledge/claims/{claim_id}",
+        "operation_id": "mcp_knowledge_claim_delete_api_mcp_mcp_tools_knowledge_claims__claim_id__delete",
+        "summary": "Delete knowledge claim",
+        "path_params": [
+          "claim_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/mcp/mcp/tools/knowledge/entities",
+        "operation_id": "mcp_knowledge_entities_list_api_mcp_mcp_tools_knowledge_entities_get",
+        "summary": "List knowledge entities",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/mcp/mcp/tools/knowledge/claims",
+        "operation_id": "mcp_knowledge_claims_list_api_mcp_mcp_tools_knowledge_claims_get",
+        "summary": "List knowledge claims",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "claim_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "entity_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
+    "sources": [
+      {
+        "method": "POST",
+        "path": "/sources",
+        "operation_id": "upsert_source_api_sources_post",
+        "summary": "Upsert Source",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SourceUpsertRequest",
+        "response_model": "SourceUpsertResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/sources",
+        "operation_id": "list_sources_api_sources_get",
+        "summary": "List Sources",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[SourceUpsertResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/sources/{source_id}",
+        "operation_id": "get_source_api_sources__source_id__get",
+        "summary": "Get Source",
+        "path_params": [
+          "source_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SourceUpsertResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/sources/{source_id}",
+        "operation_id": "update_source_api_sources__source_id__put",
+        "summary": "Update Source",
+        "path_params": [
+          "source_id"
+        ],
+        "query_params": [],
+        "request_model": "SourceUpsertRequest",
+        "response_model": "SourceUpsertResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/sources/{source_id}",
+        "operation_id": "delete_source_api_sources__source_id__delete",
+        "summary": "Delete Source",
+        "path_params": [
+          "source_id"
+        ],
         "query_params": [],
         "request_model": null,
         "response_model": null
@@ -2810,6 +3187,108 @@
         "query_params": [],
         "request_model": "HermesSuggestionRequest",
         "response_model": "[HermesSuggestion]"
+      }
+    ],
+    "graph": [
+      {
+        "method": "GET",
+        "path": "/graph/paths/{entity_id1}/{entity_id2}",
+        "operation_id": "find_entity_paths_api_graph_paths__entity_id1___entity_id2__get",
+        "summary": "Find paths between entities",
+        "path_params": [
+          "entity_id1",
+          "entity_id2"
+        ],
+        "query_params": [
+          {
+            "name": "algorithm",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "max_depth",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "min_edge_weight",
+            "required": false,
+            "type": "number"
+          }
+        ],
+        "request_model": null,
+        "response_model": "PathResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/graph/interpretations/exploration/{entity_id}",
+        "operation_id": "explore_interpretations_api_graph_interpretations_exploration__entity_id__get",
+        "summary": "Explore interpretations for entity",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [
+          {
+            "name": "depth",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "include_frameworks",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "InterpretationExplorationResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/graph/query",
+        "operation_id": "execute_graph_query_api_graph_query_post",
+        "summary": "Complex graph query",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "GraphQueryRequest",
+        "response_model": "GraphQueryResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/graph/neighborhood/{entity_id}",
+        "operation_id": "get_entity_neighborhood_api_graph_neighborhood__entity_id__get",
+        "summary": "Get entity neighborhood",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [
+          {
+            "name": "depth",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "include_claims",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "include_interpretations",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "EntityNeighborhood"
+      },
+      {
+        "method": "GET",
+        "path": "/graph/metrics",
+        "operation_id": "get_graph_metrics_api_graph_metrics_get",
+        "summary": "Get graph metrics",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "GraphMetricsResponse"
       }
     ],
     "mind-palace": [

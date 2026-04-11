@@ -6459,6 +6459,376 @@
         }
       }
     },
+    "/api/activity/feed": {
+      "get": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Get Activity Feed",
+        "description": "Get enriched activity feed with optional grouping.\n\nSupports filtering by entity type (workflow, batch, node, system)\nand grouping results for dashboard views.",
+        "operationId": "get_activity_feed_api_activity_feed_get",
+        "parameters": [
+          {
+            "name": "entity_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Filter by entity type: workflow, batch, node, system",
+              "title": "Entity Type"
+            },
+            "description": "Filter by entity type: workflow, batch, node, system"
+          },
+          {
+            "name": "entity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Filter by specific entity ID",
+              "title": "Entity Id"
+            },
+            "description": "Filter by specific entity ID"
+          },
+          {
+            "name": "types",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Comma-separated activity types",
+              "title": "Types"
+            },
+            "description": "Comma-separated activity types"
+          },
+          {
+            "name": "levels",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Comma-separated levels",
+              "title": "Levels"
+            },
+            "description": "Comma-separated levels"
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "ISO datetime string",
+              "title": "Since"
+            },
+            "description": "ISO datetime string"
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "ISO datetime string",
+              "title": "Until"
+            },
+            "description": "ISO datetime string"
+          },
+          {
+            "name": "group_by_entity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Group results by entity in response",
+              "default": true,
+              "title": "Group By Entity"
+            },
+            "description": "Group results by entity in response"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityFeedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activity/trends": {
+      "get": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Get Activity Trends",
+        "description": "Get time-based activity trends.\n\nReturns aggregated counts over time periods for visualization.",
+        "operationId": "get_activity_trends_api_activity_trends_get",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "hourly, daily, or weekly",
+              "default": "hourly",
+              "title": "Period"
+            },
+            "description": "hourly, daily, or weekly"
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 720,
+              "minimum": 1,
+              "default": 24,
+              "title": "Hours"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityTrendsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activity/top": {
+      "get": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Get Top Entities",
+        "description": "Get top active workflows and batches by activity count.\n\nUseful for identifying most active or problematic entities.",
+        "operationId": "get_top_entities_api_activity_top_get",
+        "parameters": [
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 720,
+              "minimum": 1,
+              "description": "Time range in hours",
+              "default": 24,
+              "title": "Hours"
+            },
+            "description": "Time range in hours"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "Number of top entities per type",
+              "default": 10,
+              "title": "Limit"
+            },
+            "description": "Number of top entities per type"
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopEntitiesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activity/entity-types": {
+      "get": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Get Entity Types",
+        "description": "Get available entity types for filtering.",
+        "operationId": "get_entity_types_api_activity_entity_types_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityTypesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activity/metrics/summary": {
+      "get": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Get Activity Metrics Summary",
+        "description": "Get comprehensive activity metrics summary.\n\nIncludes trends, rates, and busiest periods.",
+        "operationId": "get_activity_metrics_summary_api_activity_metrics_summary_get",
+        "parameters": [
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 720,
+              "minimum": 1,
+              "default": 24,
+              "title": "Hours"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityMetricsSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/chat": {
       "post": {
         "tags": [
@@ -7014,6 +7384,810 @@
                   "additionalProperties": true,
                   "type": "object",
                   "title": "Response Reset Ai Defaults Api Settings Ai Defaults Delete"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mcp/mcp/tools/knowledge/entities/upsert": {
+      "post": {
+        "tags": [
+          "mcp",
+          "mcp-tools"
+        ],
+        "summary": "Upsert knowledge entity",
+        "description": "Create or update a knowledge entity. Maps 1:1 to canonical Knowledge API.",
+        "operationId": "mcp_knowledge_entity_upsert_api_mcp_mcp_tools_knowledge_entities_upsert_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeEntityUpsertRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeEntityUpsertResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MCPErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MCPErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mcp/mcp/tools/knowledge/claims/create": {
+      "post": {
+        "tags": [
+          "mcp",
+          "mcp-tools"
+        ],
+        "summary": "Create knowledge claim",
+        "description": "Create a new knowledge claim. Maps 1:1 to canonical Knowledge API.",
+        "operationId": "mcp_knowledge_claim_create_api_mcp_mcp_tools_knowledge_claims_create_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeClaimCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeClaimCreateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MCPErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MCPErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mcp/mcp/tools/knowledge/entities/{entity_id}": {
+      "get": {
+        "tags": [
+          "mcp",
+          "mcp-tools"
+        ],
+        "summary": "Get knowledge entity",
+        "description": "Retrieve a knowledge entity by ID.",
+        "operationId": "mcp_knowledge_entity_get_api_mcp_mcp_tools_knowledge_entities__entity_id__get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Mcp Knowledge Entity Get Api Mcp Mcp Tools Knowledge Entities  Entity Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "mcp",
+          "mcp-tools"
+        ],
+        "summary": "Delete knowledge entity",
+        "description": "Soft-delete a knowledge entity.",
+        "operationId": "mcp_knowledge_entity_delete_api_mcp_mcp_tools_knowledge_entities__entity_id__delete",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Mcp Knowledge Entity Delete Api Mcp Mcp Tools Knowledge Entities  Entity Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mcp/mcp/tools/knowledge/claims/{claim_id}": {
+      "get": {
+        "tags": [
+          "mcp",
+          "mcp-tools"
+        ],
+        "summary": "Get knowledge claim",
+        "description": "Retrieve a knowledge claim by ID.",
+        "operationId": "mcp_knowledge_claim_get_api_mcp_mcp_tools_knowledge_claims__claim_id__get",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Claim Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Mcp Knowledge Claim Get Api Mcp Mcp Tools Knowledge Claims  Claim Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "mcp",
+          "mcp-tools"
+        ],
+        "summary": "Delete knowledge claim",
+        "description": "Soft-delete a knowledge claim.",
+        "operationId": "mcp_knowledge_claim_delete_api_mcp_mcp_tools_knowledge_claims__claim_id__delete",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Claim Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Mcp Knowledge Claim Delete Api Mcp Mcp Tools Knowledge Claims  Claim Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mcp/mcp/tools/knowledge/entities": {
+      "get": {
+        "tags": [
+          "mcp",
+          "mcp-tools"
+        ],
+        "summary": "List knowledge entities",
+        "description": "List knowledge entities with optional filtering.",
+        "operationId": "mcp_knowledge_entities_list_api_mcp_mcp_tools_knowledge_entities_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Q"
+            }
+          },
+          {
+            "name": "entity_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Entity Type"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Mcp Knowledge Entities List Api Mcp Mcp Tools Knowledge Entities Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mcp/mcp/tools/knowledge/claims": {
+      "get": {
+        "tags": [
+          "mcp",
+          "mcp-tools"
+        ],
+        "summary": "List knowledge claims",
+        "description": "List knowledge claims with optional filtering.",
+        "operationId": "mcp_knowledge_claims_list_api_mcp_mcp_tools_knowledge_claims_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Q"
+            }
+          },
+          {
+            "name": "claim_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Claim Type"
+            }
+          },
+          {
+            "name": "entity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Mcp Knowledge Claims List Api Mcp Mcp Tools Knowledge Claims Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sources": {
+      "post": {
+        "tags": [
+          "sources",
+          "sources"
+        ],
+        "summary": "Upsert Source",
+        "description": "Create or update a source (Document).",
+        "operationId": "upsert_source_api_sources_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceUpsertRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceUpsertResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "sources",
+          "sources"
+        ],
+        "summary": "List Sources",
+        "description": "List all sources (Documents with document_type='source').",
+        "operationId": "list_sources_api_sources_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceUpsertResponse"
+                  },
+                  "title": "Response List Sources Api Sources Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sources/{source_id}": {
+      "get": {
+        "tags": [
+          "sources",
+          "sources"
+        ],
+        "summary": "Get Source",
+        "description": "Get a specific source.",
+        "operationId": "get_source_api_sources__source_id__get",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceUpsertResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "sources",
+          "sources"
+        ],
+        "summary": "Update Source",
+        "description": "Update an existing source.",
+        "operationId": "update_source_api_sources__source_id__put",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceUpsertRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceUpsertResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "sources",
+          "sources"
+        ],
+        "summary": "Delete Source",
+        "description": "Delete a source.",
+        "operationId": "delete_source_api_sources__source_id__delete",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -9179,6 +10353,210 @@
         }
       }
     },
+    "/api/search/explain": {
+      "post": {
+        "tags": [
+          "search-explanation",
+          "search-explain"
+        ],
+        "summary": "Explain a search query",
+        "description": "Returns detailed explanation of why results were matched, with source attribution.",
+        "operationId": "explain_search_api_search_explain_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchExplainRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchExplanation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search/explain/{query}": {
+      "get": {
+        "tags": [
+          "search-explanation",
+          "search-explain"
+        ],
+        "summary": "Explain search by path",
+        "description": "Get search explanation using URL path (GET alternative to POST /explain).",
+        "operationId": "explain_search_path_api_search_explain__query__get",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Query"
+            }
+          },
+          {
+            "name": "search_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SearchType",
+              "default": "hybrid"
+            }
+          },
+          {
+            "name": "rag_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/RAGMode",
+              "default": "balanced"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchExplanation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search/modes": {
+      "get": {
+        "tags": [
+          "search-explanation",
+          "search-explain"
+        ],
+        "summary": "List RAG modes",
+        "description": "Get available RAG modes with their configurations.",
+        "operationId": "list_rag_modes_api_search_modes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RAGModesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search/metrics": {
+      "get": {
+        "tags": [
+          "search-explanation",
+          "search-explain"
+        ],
+        "summary": "Get search metrics",
+        "description": "Returns aggregated search metrics and usage statistics.",
+        "operationId": "get_search_metrics_api_search_metrics_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchMetricsSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/hermeneutics/frameworks": {
       "post": {
         "tags": [
@@ -10309,6 +11687,372 @@
                     "$ref": "#/components/schemas/HermesSuggestion"
                   },
                   "title": "Response Suggest Interpretations Api Hermeneutics Suggestions Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph/paths/{entity_id1}/{entity_id2}": {
+      "get": {
+        "tags": [
+          "graph-exploration",
+          "graph-exploration"
+        ],
+        "summary": "Find paths between entities",
+        "description": "Find relationship paths between two entities through claims and links.",
+        "operationId": "find_entity_paths_api_graph_paths__entity_id1___entity_id2__get",
+        "parameters": [
+          {
+            "name": "entity_id1",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id1"
+            }
+          },
+          {
+            "name": "entity_id2",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id2"
+            }
+          },
+          {
+            "name": "algorithm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PathAlgorithm",
+              "description": "Pathfinding algorithm",
+              "default": "shortest"
+            },
+            "description": "Pathfinding algorithm"
+          },
+          {
+            "name": "max_depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5,
+              "minimum": 1,
+              "description": "Maximum path depth",
+              "default": 3,
+              "title": "Max Depth"
+            },
+            "description": "Maximum path depth"
+          },
+          {
+            "name": "min_edge_weight",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "description": "Minimum edge weight",
+              "default": 0.0,
+              "title": "Min Edge Weight"
+            },
+            "description": "Minimum edge weight"
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PathResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph/interpretations/exploration/{entity_id}": {
+      "get": {
+        "tags": [
+          "graph-exploration",
+          "graph-exploration"
+        ],
+        "summary": "Explore interpretations for entity",
+        "description": "Find interpretation paths and related content for an entity.",
+        "operationId": "explore_interpretations_api_graph_interpretations_exploration__entity_id__get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ExplorationDepth",
+              "description": "Exploration depth",
+              "default": "medium"
+            },
+            "description": "Exploration depth"
+          },
+          {
+            "name": "include_frameworks",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include framework nodes",
+              "default": true,
+              "title": "Include Frameworks"
+            },
+            "description": "Include framework nodes"
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterpretationExplorationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph/query": {
+      "post": {
+        "tags": [
+          "graph-exploration",
+          "graph-exploration"
+        ],
+        "summary": "Complex graph query",
+        "description": "Execute complex graph query with custom parameters.",
+        "operationId": "execute_graph_query_api_graph_query_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphQueryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphQueryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph/neighborhood/{entity_id}": {
+      "get": {
+        "tags": [
+          "graph-exploration",
+          "graph-exploration"
+        ],
+        "summary": "Get entity neighborhood",
+        "description": "Get local neighborhood graph around an entity.",
+        "operationId": "get_entity_neighborhood_api_graph_neighborhood__entity_id__get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 3,
+              "minimum": 1,
+              "description": "Neighborhood depth",
+              "default": 1,
+              "title": "Depth"
+            },
+            "description": "Neighborhood depth"
+          },
+          {
+            "name": "include_claims",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include claim nodes",
+              "default": true,
+              "title": "Include Claims"
+            },
+            "description": "Include claim nodes"
+          },
+          {
+            "name": "include_interpretations",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include interpretation nodes",
+              "default": true,
+              "title": "Include Interpretations"
+            },
+            "description": "Include interpretation nodes"
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityNeighborhood"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph/metrics": {
+      "get": {
+        "tags": [
+          "graph-exploration",
+          "graph-exploration"
+        ],
+        "summary": "Get graph metrics",
+        "description": "Get overall knowledge graph metrics and statistics.",
+        "operationId": "get_graph_metrics_api_graph_metrics_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphMetricsResponse"
                 }
               }
             }
@@ -13744,6 +15488,152 @@
         "title": "APIKeyRequest",
         "description": "Request body for setting API key."
       },
+      "ActivityFeedGroup": {
+        "properties": {
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type"
+          },
+          "entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Entity Id"
+          },
+          "entity_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Entity Name"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "last_activity": {
+            "type": "string",
+            "title": "Last Activity"
+          },
+          "activities": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityResponse"
+            },
+            "type": "array",
+            "title": "Activities"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_type",
+          "entity_id",
+          "entity_name",
+          "count",
+          "last_activity",
+          "activities"
+        ],
+        "title": "ActivityFeedGroup",
+        "description": "Activity grouped by entity type and ID."
+      },
+      "ActivityFeedResponse": {
+        "properties": {
+          "activities": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityResponse"
+            },
+            "type": "array",
+            "title": "Activities"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityFeedGroup"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More"
+          }
+        },
+        "type": "object",
+        "required": [
+          "activities",
+          "groups",
+          "total",
+          "has_more"
+        ],
+        "title": "ActivityFeedResponse",
+        "description": "Response for activity feed with grouping."
+      },
+      "ActivityMetricsSummary": {
+        "properties": {
+          "total_activities": {
+            "type": "integer",
+            "title": "Total Activities"
+          },
+          "total_workflows": {
+            "type": "integer",
+            "title": "Total Workflows"
+          },
+          "total_batches": {
+            "type": "integer",
+            "title": "Total Batches"
+          },
+          "error_count": {
+            "type": "integer",
+            "title": "Error Count"
+          },
+          "warning_count": {
+            "type": "integer",
+            "title": "Warning Count"
+          },
+          "success_rate": {
+            "type": "number",
+            "title": "Success Rate"
+          },
+          "avg_workflow_duration_ms": {
+            "type": "number",
+            "nullable": true,
+            "title": "Avg Workflow Duration Ms"
+          },
+          "avg_batch_duration_ms": {
+            "type": "number",
+            "nullable": true,
+            "title": "Avg Batch Duration Ms"
+          },
+          "busiest_hour": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Busiest Hour"
+          },
+          "period_start": {
+            "type": "string",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "title": "Period End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_activities",
+          "total_workflows",
+          "total_batches",
+          "error_count",
+          "warning_count",
+          "success_rate",
+          "avg_workflow_duration_ms",
+          "avg_batch_duration_ms",
+          "busiest_hour",
+          "period_start",
+          "period_end"
+        ],
+        "title": "ActivityMetricsSummary",
+        "description": "Enhanced activity metrics summary."
+      },
       "ActivityResponse": {
         "properties": {
           "id": {
@@ -13872,6 +15762,38 @@
         ],
         "title": "ActivityStatsResponse",
         "description": "Response model for activity statistics."
+      },
+      "ActivityTrendsResponse": {
+        "properties": {
+          "period": {
+            "type": "string",
+            "title": "Period"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/TrendPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          },
+          "total_activities": {
+            "type": "integer",
+            "title": "Total Activities"
+          },
+          "total_errors": {
+            "type": "integer",
+            "title": "Total Errors"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period",
+          "points",
+          "total_activities",
+          "total_errors"
+        ],
+        "title": "ActivityTrendsResponse",
+        "description": "Time-based activity trends."
       },
       "ArrangeRequest": {
         "properties": {
@@ -15742,6 +17664,108 @@
         ],
         "title": "EntityMergeRequest"
       },
+      "EntityNeighborhood": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "entity_name": {
+            "type": "string",
+            "title": "Entity Name"
+          },
+          "depth": {
+            "type": "integer",
+            "title": "Depth"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/GraphNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/GraphEdge"
+            },
+            "type": "array",
+            "title": "Edges"
+          },
+          "claim_count": {
+            "type": "integer",
+            "title": "Claim Count"
+          },
+          "interpretation_count": {
+            "type": "integer",
+            "title": "Interpretation Count"
+          },
+          "entity_count": {
+            "type": "integer",
+            "title": "Entity Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "entity_name",
+          "depth",
+          "nodes",
+          "edges",
+          "claim_count",
+          "interpretation_count",
+          "entity_count"
+        ],
+        "title": "EntityNeighborhood",
+        "description": "Neighborhood around an entity."
+      },
+      "EntityPath": {
+        "properties": {
+          "path_id": {
+            "type": "string",
+            "title": "Path Id"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/PathSegment"
+            },
+            "type": "array",
+            "title": "Segments"
+          },
+          "length": {
+            "type": "integer",
+            "title": "Length"
+          },
+          "total_weight": {
+            "type": "number",
+            "title": "Total Weight"
+          },
+          "strength_score": {
+            "type": "number",
+            "title": "Strength Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path_id",
+          "source_id",
+          "target_id",
+          "segments",
+          "length",
+          "total_weight",
+          "strength_score"
+        ],
+        "title": "EntityPath",
+        "description": "A path between two entities."
+      },
       "EntityResolutionResponse": {
         "properties": {
           "resolved": {
@@ -15822,6 +17846,26 @@
           "other"
         ],
         "title": "EntityType"
+      },
+      "EntityTypesResponse": {
+        "properties": {
+          "entity_types": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Entity Types"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_types"
+        ],
+        "title": "EntityTypesResponse",
+        "description": "Available entity types for filtering."
       },
       "EntityUpsertRequest": {
         "properties": {
@@ -16007,6 +18051,16 @@
         ],
         "title": "ExecutionStatusResponse",
         "description": "Response with workflow execution status."
+      },
+      "ExplorationDepth": {
+        "type": "string",
+        "enum": [
+          "shallow",
+          "medium",
+          "deep"
+        ],
+        "title": "ExplorationDepth",
+        "description": "Depth of exploration."
       },
       "ExtractTextRequest": {
         "properties": {
@@ -16245,6 +18299,237 @@
         },
         "type": "object",
         "title": "FrameworkUpdateRequest"
+      },
+      "GraphEdge": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight",
+            "default": 1.0
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "target",
+          "type"
+        ],
+        "title": "GraphEdge",
+        "description": "Edge in a graph path."
+      },
+      "GraphMetrics": {
+        "properties": {
+          "entity_count": {
+            "type": "integer",
+            "title": "Entity Count"
+          },
+          "claim_count": {
+            "type": "integer",
+            "title": "Claim Count"
+          },
+          "interpretation_count": {
+            "type": "integer",
+            "title": "Interpretation Count"
+          },
+          "edge_count": {
+            "type": "integer",
+            "title": "Edge Count"
+          },
+          "avg_degree": {
+            "type": "number",
+            "title": "Avg Degree"
+          },
+          "max_degree": {
+            "type": "integer",
+            "title": "Max Degree"
+          },
+          "connected_components": {
+            "type": "integer",
+            "title": "Connected Components"
+          },
+          "density": {
+            "type": "number",
+            "title": "Density"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_count",
+          "claim_count",
+          "interpretation_count",
+          "edge_count",
+          "avg_degree",
+          "max_degree",
+          "connected_components",
+          "density"
+        ],
+        "title": "GraphMetrics",
+        "description": "Graph metrics for visualization."
+      },
+      "GraphMetricsResponse": {
+        "properties": {
+          "metrics": {
+            "$ref": "#/components/schemas/GraphMetrics"
+          },
+          "last_updated": {
+            "type": "string",
+            "title": "Last Updated"
+          },
+          "time_range": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "nullable": true,
+            "title": "Time Range"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metrics",
+          "last_updated",
+          "time_range"
+        ],
+        "title": "GraphMetricsResponse",
+        "description": "Response for graph metrics."
+      },
+      "GraphNode": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "label"
+        ],
+        "title": "GraphNode",
+        "description": "Node in a graph path."
+      },
+      "GraphQueryRequest": {
+        "properties": {
+          "start_entity_id": {
+            "type": "string",
+            "title": "Start Entity Id"
+          },
+          "end_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "End Entity Id"
+          },
+          "relation_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Relation Types"
+          },
+          "max_depth": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Max Depth",
+            "default": 3
+          },
+          "algorithm": {
+            "$ref": "#/components/schemas/PathAlgorithm",
+            "default": "shortest"
+          },
+          "min_edge_weight": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Min Edge Weight",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_entity_id"
+        ],
+        "title": "GraphQueryRequest",
+        "description": "Request for complex graph query."
+      },
+      "GraphQueryResponse": {
+        "properties": {
+          "query_id": {
+            "type": "string",
+            "title": "Query Id"
+          },
+          "start_entity_id": {
+            "type": "string",
+            "title": "Start Entity Id"
+          },
+          "end_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "End Entity Id"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/EntityPath"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "execution_time_ms": {
+            "type": "number",
+            "title": "Execution Time Ms"
+          },
+          "node_count": {
+            "type": "integer",
+            "title": "Node Count"
+          },
+          "edge_count": {
+            "type": "integer",
+            "title": "Edge Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query_id",
+          "start_entity_id",
+          "end_entity_id",
+          "results",
+          "execution_time_ms",
+          "node_count",
+          "edge_count"
+        ],
+        "title": "GraphQueryResponse",
+        "description": "Response for complex graph query."
       },
       "HFModelInfo": {
         "properties": {
@@ -16869,6 +19154,141 @@
         ],
         "title": "InterpretationCreateRequest"
       },
+      "InterpretationExplorationResponse": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "entity_name": {
+            "type": "string",
+            "title": "Entity Name"
+          },
+          "paths": {
+            "items": {
+              "$ref": "#/components/schemas/InterpretationPath"
+            },
+            "type": "array",
+            "title": "Paths"
+          },
+          "related_interpretations": {
+            "items": {
+              "$ref": "#/components/schemas/InterpretationNode"
+            },
+            "type": "array",
+            "title": "Related Interpretations"
+          },
+          "related_claims": {
+            "items": {
+              "$ref": "#/components/schemas/InterpretationNode"
+            },
+            "type": "array",
+            "title": "Related Claims"
+          },
+          "related_frameworks": {
+            "items": {
+              "$ref": "#/components/schemas/InterpretationNode"
+            },
+            "type": "array",
+            "title": "Related Frameworks"
+          },
+          "total_paths": {
+            "type": "integer",
+            "title": "Total Paths"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "entity_name",
+          "paths",
+          "related_interpretations",
+          "related_claims",
+          "related_frameworks",
+          "total_paths"
+        ],
+        "title": "InterpretationExplorationResponse",
+        "description": "Response for interpretation exploration."
+      },
+      "InterpretationNode": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "confidence": {
+            "type": "number",
+            "nullable": true,
+            "title": "Confidence"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "label",
+          "created_at"
+        ],
+        "title": "InterpretationNode",
+        "description": "Node in interpretation exploration."
+      },
+      "InterpretationPath": {
+        "properties": {
+          "path_id": {
+            "type": "string",
+            "title": "Path Id"
+          },
+          "start_node": {
+            "$ref": "#/components/schemas/InterpretationNode"
+          },
+          "end_node": {
+            "$ref": "#/components/schemas/InterpretationNode"
+          },
+          "intermediate_nodes": {
+            "items": {
+              "$ref": "#/components/schemas/InterpretationNode"
+            },
+            "type": "array",
+            "title": "Intermediate Nodes"
+          },
+          "path_type": {
+            "type": "string",
+            "title": "Path Type"
+          },
+          "relevance_score": {
+            "type": "number",
+            "title": "Relevance Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path_id",
+          "start_node",
+          "end_node",
+          "intermediate_nodes",
+          "path_type",
+          "relevance_score"
+        ],
+        "title": "InterpretationPath",
+        "description": "Path through interpretation space."
+      },
       "InterpretationUpdateRequest": {
         "properties": {
           "interpretation_text": {
@@ -17160,6 +19580,138 @@
         ],
         "title": "KnowledgeClaim"
       },
+      "KnowledgeClaimCreateRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Text",
+            "description": "Claim text content"
+          },
+          "source_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Document Id",
+            "description": "Primary source document ID"
+          },
+          "source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Ids",
+            "description": "Multiple source document IDs"
+          },
+          "source_page_labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Page Labels"
+          },
+          "source_languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Languages",
+            "description": "ISO 639-1 codes per source"
+          },
+          "source_type": {
+            "type": "string",
+            "title": "Source Type",
+            "description": "Source type: document, claim, multiple, synthesis",
+            "default": "document"
+          },
+          "entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Entity Ids",
+            "description": "Linked entity IDs"
+          },
+          "claim_type": {
+            "type": "string",
+            "title": "Claim Type",
+            "description": "Type: fact, analysis, interpretation, argument, historiography, theory",
+            "default": "fact"
+          },
+          "epistemic_status": {
+            "type": "string",
+            "title": "Epistemic Status",
+            "description": "Status: tentative, confirmed, rejected",
+            "default": "tentative"
+          },
+          "curation_state": {
+            "type": "string",
+            "title": "Curation State",
+            "description": "State: unreviewed, shortlisted, curated, rejected",
+            "default": "unreviewed"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "default": 0.5
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language",
+            "description": "ISO 639-1 language code"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "default": "mcp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "KnowledgeClaimCreateRequest",
+        "description": "Request to create a knowledge claim via MCP.\n\nMaps 1:1 to the canonical Knowledge API claim creation operation.",
+        "examples": [
+          {
+            "claim_type": "fact",
+            "source_document_id": "doc-123",
+            "text": "Paris is the capital of France"
+          }
+        ]
+      },
+      "KnowledgeClaimCreateResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          },
+          "claim": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Claim"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "claim_id"
+        ],
+        "title": "KnowledgeClaimCreateResponse",
+        "description": "Response from claim creation operation."
+      },
       "KnowledgeClaimLink": {
         "properties": {
           "id": {
@@ -17265,6 +19817,97 @@
           "canonical_name"
         ],
         "title": "KnowledgeEntity"
+      },
+      "KnowledgeEntityUpsertRequest": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Id",
+            "description": "Entity ID for updates"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name",
+            "description": "Canonical entity name"
+          },
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type",
+            "description": "Entity type",
+            "default": "other"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases",
+            "description": "Alternative names"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description",
+            "description": "Entity description"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language",
+            "description": "ISO 639-1 language code"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata",
+            "description": "Custom metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "canonical_name"
+        ],
+        "title": "KnowledgeEntityUpsertRequest",
+        "description": "Request to upsert a knowledge entity via MCP.\n\nMaps 1:1 to the canonical Knowledge API entity upsert operation.",
+        "examples": [
+          {
+            "canonical_name": "Tokyo",
+            "entity_type": "place",
+            "language": "en"
+          }
+        ]
+      },
+      "KnowledgeEntityUpsertResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "operation": {
+            "type": "string",
+            "title": "Operation",
+            "description": "'created' or 'updated'"
+          },
+          "entity": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Entity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "entity_id",
+          "operation"
+        ],
+        "title": "KnowledgeEntityUpsertResponse",
+        "description": "Response from entity upsert operation."
       },
       "KnowledgeGraphInclusion": {
         "properties": {
@@ -17480,6 +20123,25 @@
         ],
         "title": "LibrarySnapshot",
         "description": "A point-in-time snapshot of a library database and its vectors.\n\nSnapshots are stored as Parquet exports of DuckDB tables plus a copy\nof the LanceDB vector directory. They are named with a timestamp and\nan optional reason, and can be restored to recover from bad AI runs\nor schema changes.\n\nStored in:\n    ~/Library/Application Support/com.tubb.fichero/snapshots/{library_name}/"
+      },
+      "MCPErrorResponse": {
+        "properties": {
+          "error": {
+            "type": "string",
+            "title": "Error"
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true,
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "MCPErrorResponse",
+        "description": "Standard MCP error response."
       },
       "ModelCreate": {
         "properties": {
@@ -18280,6 +20942,87 @@
         ],
         "title": "OutputSchema",
         "description": "JSON Schema for structured output from LLM nodes.\n\nWhen specified, the LLM will be instructed to return\ndata matching this schema exactly (using structured output mode).\n\nExample for named entity extraction:\n{\n    \"type\": \"object\",\n    \"properties\": {\n        \"people\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"organizations\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"dates\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}\n    },\n    \"required\": [\"people\", \"organizations\", \"dates\"]\n}"
+      },
+      "PathAlgorithm": {
+        "type": "string",
+        "enum": [
+          "shortest",
+          "all_simple",
+          "strongest"
+        ],
+        "title": "PathAlgorithm",
+        "description": "Pathfinding algorithm to use."
+      },
+      "PathResponse": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "source_entity": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Source Entity"
+          },
+          "target_entity": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Target Entity"
+          },
+          "paths": {
+            "items": {
+              "$ref": "#/components/schemas/EntityPath"
+            },
+            "type": "array",
+            "title": "Paths"
+          },
+          "total_paths": {
+            "type": "integer",
+            "title": "Total Paths"
+          },
+          "algorithm": {
+            "type": "string",
+            "title": "Algorithm"
+          },
+          "max_depth": {
+            "type": "integer",
+            "title": "Max Depth"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_id",
+          "target_id",
+          "source_entity",
+          "target_entity",
+          "paths",
+          "total_paths",
+          "algorithm",
+          "max_depth"
+        ],
+        "title": "PathResponse",
+        "description": "Response for pathfinding between entities."
+      },
+      "PathSegment": {
+        "properties": {
+          "node": {
+            "$ref": "#/components/schemas/GraphNode"
+          },
+          "edge": {
+            "$ref": "#/components/schemas/GraphEdge",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "node"
+        ],
+        "title": "PathSegment",
+        "description": "Single segment in a path (node + edge to next)."
       },
       "PatternCreateRequest": {
         "properties": {
@@ -19295,6 +22038,80 @@
         "title": "ProviderUpdate",
         "description": "Update provider settings."
       },
+      "RAGMode": {
+        "type": "string",
+        "enum": [
+          "conservative",
+          "balanced",
+          "speculative"
+        ],
+        "title": "RAGMode",
+        "description": "RAG search modes with different precision/recall tradeoffs."
+      },
+      "RAGModeConfig": {
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/RAGMode"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "min_score_threshold": {
+            "type": "number",
+            "title": "Min Score Threshold"
+          },
+          "max_results": {
+            "type": "integer",
+            "title": "Max Results"
+          },
+          "context_window_ratio": {
+            "type": "number",
+            "title": "Context Window Ratio"
+          },
+          "enable_hybrid": {
+            "type": "boolean",
+            "title": "Enable Hybrid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "name",
+          "description",
+          "min_score_threshold",
+          "max_results",
+          "context_window_ratio",
+          "enable_hybrid"
+        ],
+        "title": "RAGModeConfig",
+        "description": "Configuration for a RAG mode."
+      },
+      "RAGModesResponse": {
+        "properties": {
+          "modes": {
+            "items": {
+              "$ref": "#/components/schemas/RAGModeConfig"
+            },
+            "type": "array",
+            "title": "Modes"
+          },
+          "current_default": {
+            "$ref": "#/components/schemas/RAGMode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "modes",
+          "current_default"
+        ],
+        "title": "RAGModesResponse",
+        "description": "Response listing available RAG modes."
+      },
       "RenameFolderRequest": {
         "properties": {
           "old_path": {
@@ -19984,6 +22801,209 @@
         "title": "SavedSearchUpdate",
         "description": "Request to update saved search properties."
       },
+      "SearchExplainRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Query",
+            "description": "Search query to explain"
+          },
+          "search_type": {
+            "$ref": "#/components/schemas/SearchType",
+            "description": "Type of search",
+            "default": "hybrid"
+          },
+          "rag_mode": {
+            "$ref": "#/components/schemas/RAGMode",
+            "description": "RAG mode setting",
+            "default": "balanced"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 10
+          },
+          "show_scores": {
+            "type": "boolean",
+            "title": "Show Scores",
+            "description": "Include relevance scores",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "SearchExplainRequest",
+        "description": "Request to explain a search query."
+      },
+      "SearchExplanation": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "search_type": {
+            "type": "string",
+            "title": "Search Type"
+          },
+          "rag_mode": {
+            "type": "string",
+            "title": "Rag Mode"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceAttribution"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/SearchMetrics"
+          },
+          "suggested_refinements": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Suggested Refinements"
+          },
+          "filters_applied": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Filters Applied"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "search_type",
+          "rag_mode",
+          "explanation",
+          "sources",
+          "metrics",
+          "suggested_refinements"
+        ],
+        "title": "SearchExplanation",
+        "description": "Complete search explanation with attribution and metrics."
+      },
+      "SearchMetrics": {
+        "properties": {
+          "total_candidates": {
+            "type": "integer",
+            "title": "Total Candidates"
+          },
+          "filtered_results": {
+            "type": "integer",
+            "title": "Filtered Results"
+          },
+          "precision_estimate": {
+            "type": "number",
+            "title": "Precision Estimate"
+          },
+          "recall_estimate": {
+            "type": "number",
+            "nullable": true,
+            "title": "Recall Estimate"
+          },
+          "avg_relevance_score": {
+            "type": "number",
+            "title": "Avg Relevance Score"
+          },
+          "min_relevance_score": {
+            "type": "number",
+            "title": "Min Relevance Score"
+          },
+          "max_relevance_score": {
+            "type": "number",
+            "title": "Max Relevance Score"
+          },
+          "token_estimate": {
+            "type": "integer",
+            "title": "Token Estimate"
+          },
+          "execution_time_ms": {
+            "type": "number",
+            "title": "Execution Time Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_candidates",
+          "filtered_results",
+          "precision_estimate",
+          "recall_estimate",
+          "avg_relevance_score",
+          "min_relevance_score",
+          "max_relevance_score",
+          "token_estimate",
+          "execution_time_ms"
+        ],
+        "title": "SearchMetrics",
+        "description": "Metrics for a search operation."
+      },
+      "SearchMetricsSummary": {
+        "properties": {
+          "total_searches": {
+            "type": "integer",
+            "title": "Total Searches"
+          },
+          "avg_execution_time_ms": {
+            "type": "number",
+            "title": "Avg Execution Time Ms"
+          },
+          "avg_results_returned": {
+            "type": "number",
+            "title": "Avg Results Returned"
+          },
+          "top_sources": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Top Sources"
+          },
+          "popular_queries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Popular Queries"
+          },
+          "rag_usage_by_mode": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Rag Usage By Mode"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_searches",
+          "avg_execution_time_ms",
+          "avg_results_returned",
+          "top_sources",
+          "popular_queries",
+          "rag_usage_by_mode",
+          "timestamp"
+        ],
+        "title": "SearchMetricsSummary",
+        "description": "Summary of search system metrics."
+      },
       "SearchRequest": {
         "properties": {
           "query": {
@@ -20273,6 +23293,16 @@
         ],
         "title": "SearchSourceType"
       },
+      "SearchType": {
+        "type": "string",
+        "enum": [
+          "semantic",
+          "fulltext",
+          "hybrid"
+        ],
+        "title": "SearchType",
+        "description": "Types of search performed."
+      },
       "SnapshotDeleteResponse": {
         "properties": {
           "deleted": {
@@ -20356,6 +23386,51 @@
           "note"
         ],
         "title": "SnapshotRestoreResponse"
+      },
+      "SourceAttribution": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "source_type": {
+            "type": "string",
+            "title": "Source Type"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "excerpt": {
+            "type": "string",
+            "nullable": true,
+            "title": "Excerpt"
+          },
+          "relevance_score": {
+            "type": "number",
+            "title": "Relevance Score"
+          },
+          "match_type": {
+            "type": "string",
+            "title": "Match Type"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_id",
+          "source_type",
+          "title",
+          "excerpt",
+          "relevance_score",
+          "match_type",
+          "position"
+        ],
+        "title": "SourceAttribution",
+        "description": "Attribution for a single source in search results."
       },
       "SourceMetadata": {
         "properties": {
@@ -20523,6 +23598,76 @@
           "synthesis"
         ],
         "title": "SourceType"
+      },
+      "SourceUpsertRequest": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "file_path": {
+            "type": "string",
+            "title": "File Path"
+          },
+          "document_type": {
+            "type": "string",
+            "title": "Document Type",
+            "default": "source"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "file_path"
+        ],
+        "title": "SourceUpsertRequest",
+        "description": "Request to create or update a source (Document)."
+      },
+      "SourceUpsertResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "file_path": {
+            "type": "string",
+            "title": "File Path"
+          },
+          "document_type": {
+            "type": "string",
+            "title": "Document Type"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "file_path",
+          "document_type",
+          "metadata"
+        ],
+        "title": "SourceUpsertResponse",
+        "description": "Response after upserting a source."
       },
       "SpatialConnection": {
         "properties": {
@@ -21198,6 +24343,115 @@
         ],
         "title": "ToolResponse",
         "description": "Tool definition with ports for node editor."
+      },
+      "TopEntitiesResponse": {
+        "properties": {
+          "workflows": {
+            "items": {
+              "$ref": "#/components/schemas/TopEntity"
+            },
+            "type": "array",
+            "title": "Workflows"
+          },
+          "batches": {
+            "items": {
+              "$ref": "#/components/schemas/TopEntity"
+            },
+            "type": "array",
+            "title": "Batches"
+          },
+          "time_range_hours": {
+            "type": "integer",
+            "title": "Time Range Hours"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflows",
+          "batches",
+          "time_range_hours"
+        ],
+        "title": "TopEntitiesResponse",
+        "description": "Response for top entities by activity."
+      },
+      "TopEntity": {
+        "properties": {
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type"
+          },
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "entity_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Entity Name"
+          },
+          "activity_count": {
+            "type": "integer",
+            "title": "Activity Count"
+          },
+          "error_count": {
+            "type": "integer",
+            "title": "Error Count"
+          },
+          "last_activity": {
+            "type": "string",
+            "title": "Last Activity"
+          },
+          "success_rate": {
+            "type": "number",
+            "title": "Success Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_type",
+          "entity_id",
+          "entity_name",
+          "activity_count",
+          "error_count",
+          "last_activity",
+          "success_rate"
+        ],
+        "title": "TopEntity",
+        "description": "Entity with activity metrics."
+      },
+      "TrendPoint": {
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "error_count": {
+            "type": "integer",
+            "title": "Error Count"
+          },
+          "workflow_count": {
+            "type": "integer",
+            "title": "Workflow Count"
+          },
+          "batch_count": {
+            "type": "integer",
+            "title": "Batch Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timestamp",
+          "count",
+          "error_count",
+          "workflow_count",
+          "batch_count"
+        ],
+        "title": "TrendPoint",
+        "description": "Single point in a trend series."
       },
       "UndoRequest": {
         "properties": {

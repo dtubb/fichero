@@ -253,6 +253,7 @@ from fichero.api.routes import (  # noqa: E402
     mind_palace,
     research_agents,
     mcp_tools,
+    sources,
 )
 
 RouteSpec = tuple[object, str, list[str]]
@@ -273,6 +274,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (chat.router, "/api/chat", ["chat"]),
     (settings.router, "", ["settings"]),
     (mcp_tools.router, "/api/mcp", ["mcp"]),
+    (sources.router, "/api/sources", ["sources"]),
 ]
 
 _DEV_ROUTE_SPECS: list[RouteSpec] = [
