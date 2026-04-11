@@ -155,17 +155,15 @@ class TestFeatureTierSecurity:
 
     def test_tier_change_logged(self):
         """MEDIUM-1: Tier changes should be logged."""
-        # Verify that tier is logged at startup
-        import logging
-        
-        with patch("fichero.api.main.logger") as mock_logger:
-            # Reimport to trigger tier logging
-            from fichero.api import main
-            
-            # Should log the tier being used
-            assert any("FICHERO_FEATURE_TIER" in str(call) 
-                      for call in mock_logger.info.call_args_list), \
-                "Feature tier not logged at startup"
+        import fichero.api.main as main_module
+
+        with patch.object(main_module, "logger") as mock_logger:
+            main_module.resolve_feature_tier()
+
+            assert any(
+                "FICHERO_FEATURE_TIER" in str(call)
+                for call in mock_logger.info.call_args_list
+            ), "Feature tier not logged at startup"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

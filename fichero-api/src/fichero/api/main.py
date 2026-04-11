@@ -23,9 +23,10 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Sequence
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 logger = logging.getLogger(__name__)
@@ -141,9 +142,54 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def validate_library_path_header(request: Request, call_next):
+    """Validate library header early, even when dependencies are overridden in tests."""
+    library_path = request.headers.get("X-Fichero-Library-Path")
+    if library_path and not _is_allowed_library_path(library_path):
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(
+            status_code=403,
+            content={
+                "detail": "Library path is not in an allowed location or not a .fichero package."
+            },
+        )
+    return await call_next(request)
+
+
 # FastAPI dependency: Get database for current library
 from fastapi import Header, HTTPException, Depends  # noqa: E402
 from fichero.db import Database, db_manager  # noqa: E402
+
+
+def _is_allowed_library_path(library_path: str) -> bool:
+    """Validate that a library path is in an allowed location.
+
+    Allowed roots:
+    - ~/Documents
+    - ~/Dropbox
+    - ~/Library/Application Support
+    - test temp dirs under /var/folders and /private/var/folders
+    """
+    try:
+        resolved = Path(library_path).expanduser().resolve()
+    except Exception:
+        return False
+
+    if resolved.suffix != ".fichero":
+        return False
+
+    home = Path.home().resolve()
+    allowed_roots = [
+        home / "Documents",
+        home / "Dropbox",
+        home / "Library" / "Application Support",
+        Path("/var/folders"),
+        Path("/private/var/folders"),
+    ]
+
+    return any(resolved.is_relative_to(root) for root in allowed_roots)
 
 
 async def get_library_database(
@@ -167,6 +213,12 @@ async def get_library_database(
         raise HTTPException(
             status_code=400,
             detail="Missing X-Fichero-Library-Path header. Please open a library document first.",
+        )
+
+    if not _is_allowed_library_path(x_fichero_library_path):
+        raise HTTPException(
+            status_code=403,
+            detail="Library path is not in an allowed location or not a .fichero package.",
         )
 
     try:
@@ -253,6 +305,7 @@ from fichero.api.routes import (  # noqa: E402
     mind_palace,
     research_agents,
     mcp_tools,
+    sources,
 )
 
 RouteSpec = tuple[object, str, list[str]]
@@ -273,6 +326,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (chat.router, "/api/chat", ["chat"]),
     (settings.router, "", ["settings"]),
     (mcp_tools.router, "/api/mcp", ["mcp"]),
+    (sources.router, "/api/sources", ["sources"]),
 ]
 
 _DEV_ROUTE_SPECS: list[RouteSpec] = [
@@ -287,10 +341,16 @@ _DEV_ROUTE_SPECS: list[RouteSpec] = [
 
 def resolve_feature_tier() -> str:
     """Resolve active API feature tier from env with release-safe default."""
-    tier = os.environ.get("FICHERO_FEATURE_TIER", "release").strip().lower()
-    if tier not in {"release", "dev"}:
-        logger.warning("Unknown FICHERO_FEATURE_TIER=%s, defaulting to release", tier)
-        return "release"
+    configured_tier = os.environ.get("FICHERO_FEATURE_TIER", "release").strip().lower()
+    if configured_tier not in {"release", "dev"}:
+        logger.warning(
+            "Unknown FICHERO_FEATURE_TIER=%s, defaulting to release", configured_tier
+        )
+        tier = "release"
+    else:
+        tier = configured_tier
+
+    logger.info("FICHERO_FEATURE_TIER resolved to: %s", tier)
     return tier
 
 
