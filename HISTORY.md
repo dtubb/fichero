@@ -415,3 +415,14 @@
 - Created unit tests for sources API (7 test cases)
 - Discovered sources routes not registering - routes appear in /openapi.json but return 404
 - Committed sources implementation to GitHub (commit 3528e518)
+
+## 2026-04-11 — Session Summary
+
+- Investigated `/api/sources` 404 behavior and identified runtime/worktree environment drift cause.
+- Implemented and merged PR #454 into `0.0.2` for issue #364.
+- Fixed sources CRUD route implementation + tests.
+- Added backend startup venv-priority hardening to prevent cross-worktree import drift.
+- Implemented SSRF redirect-safe request flow and URL hardening in research routes.
+- Added library-path validation guardrails and PyKEEN compatibility/sensitivity safeguards.
+- Verified backend unit suite passes (1228 passed, 21 skipped).
+- Closed GitHub issue #364.

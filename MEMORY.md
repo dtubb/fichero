@@ -78,6 +78,18 @@ for link in links:
 
 **Status:** Routes implemented but runtime registration needs further debugging
 
+## Backend-First Autonomous Loop Policy — 2026-04-11
+
+- For cheap-model `/session-start-auto` loops, **persist execution policy in repo files** (`STATE.md`, `MEMORY.md`, `AGENTS.md`) and GitHub issue comments; chat-only instructions are not durable.
+- Backend delivery order is milestone-sequenced: **0.0.3 → 0.0.4 → 0.0.5 → 0.1.0** before frontend re-expansion.
+- Per-issue execution gate: claim issue → add/update tests (including security tests if network/file/model code) → implement → run pytest + ruff evidence → PR/merge → close issue.
+- Existing repo-wide Ruff test debt can fail global lint despite backend correctness; treat this as separate cleanup scope instead of blocking backend issue completion.
+
+## Sources/API Runtime Drift Lesson — 2026-04-11
+
+- `scripts/start-backend.sh` must prefer project-local `.venv` over ambient `$VIRTUAL_ENV`; otherwise cross-worktree imports can produce route drift (e.g., OpenAPI/routes mismatch and 404 confusion).
+- When route appears in code but not runtime, verify importing file path with `python -c 'import fichero.api.main as m; print(m.__file__)'` and inspect live `/openapi.json` before deeper refactors.
+
 ## PyKEEN Knowledge Graph Embedding Pattern — 2026-04-12
 
 **Pattern:** Latent inference for knowledge graphs using PyKEEN embeddings and link prediction
