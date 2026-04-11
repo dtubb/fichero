@@ -394,3 +394,17 @@
 - Optional dependency with graceful degradation
 - 22 unit tests (all passing), ruff clean
 - PR #452 created and pushed
+
+## 2026-04-11 — Session Summary
+
+**Task #429: Optional Latent Inference Track (PyKEEN)**
+
+- Implemented PyKEEN training pipeline for knowledge graph embeddings
+- Created 15 API endpoints for training, prediction, and management
+- Model types: TransE, RotatE, DistMult, ComplEx, ConvE
+- Link prediction: head, tail, and relation prediction
+- Heuristic fallback using co-occurrence patterns
+- Prediction storage and verification workflow
+- Optional dependency with graceful degradation
+- 25 unit tests (all passing), ruff clean
+- PR #453 created and pushed
