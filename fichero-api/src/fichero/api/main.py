@@ -248,6 +248,7 @@ from fichero.api.routes import (  # noqa: E402
     settings,
     knowledge_graph,
     hermeneutics,
+    graph_exploration,
     mind_palace,
     research_agents,
     mcp_tools,
@@ -276,6 +277,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
 _DEV_ROUTE_SPECS: list[RouteSpec] = [
     (knowledge_graph.router, "/api/knowledge-graph", ["knowledge-graph"]),
     (hermeneutics.router, "/api/hermeneutics", ["hermeneutics"]),
+    (graph_exploration.router, "/api", ["graph-exploration"]),
     (mind_palace.router, "/api/mind-palace", ["mind-palace"]),
     (research_agents.router, "/api/research", ["research"]),
 ]

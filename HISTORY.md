@@ -414,3 +414,39 @@
   - Language filtering for claims/entities
   - 45 unit tests, all passing, ruff clean
   - PR #443 created: feature/issue-421 → 0.0.2
+
+## 2026-04-11 — #422 Thin MCP adapters for canonical knowledge APIs
+
+- PR: https://github.com/dtubb/fichero/pull/444
+- Branch: feature/issue-422
+- Task completed in session
+
+## 2026-04-11 — #440 Claim Review Queue Backend
+
+- PR: https://github.com/dtubb/fichero/pull/445
+- Branch: feature/issue-440
+- Task completed in session
+
+## 2026-04-11 — #438 Search Explanation Backend
+
+- PR: https://github.com/dtubb/fichero/pull/446
+- Branch: feature/issue-438
+- Task completed in session
+
+## 2026-04-11 — #439 Interpretations Workspace Backend
+
+- PR: https://github.com/dtubb/fichero/pull/447
+- Branch: feature/issue-439
+- Task completed in session
+
+## 2026-04-11 — #425 Activity Stream Enhancements
+
+- PR: https://github.com/dtubb/fichero/pull/448
+- Branch: feature/issue-425
+- Task completed in session
+
+## 2026-04-11 — #436 Contradiction Triage Backend
+
+- PR: https://github.com/dtubb/fichero/pull/449
+- Branch: feature/issue-436
+- Task completed in session
