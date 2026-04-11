@@ -2,11 +2,11 @@
 
 ## Current Focus
 
-**Milestone:** 0.1.0 (Advanced Graph) — Three tasks complete, remainder TBD
+**Milestone:** 0.1.0 (Advanced Graph) — Four tasks complete, remainder TBD
 
-**Active Branch:** feature/issue-430 (completed today)
+**Active Branch:** feature/issue-429 (completed today)
 
-## Open Pull Requests (12 total, awaiting Daniel's review)
+## Open Pull Requests (13 total, awaiting Daniel's review)
 
 | PR | Branch | Status | Description |
 |---|---|---|---|
@@ -22,15 +22,16 @@
 | #450 | feature/issue-431 | Open | Graph exploration - Pathfinding + 15 tests |
 | #451 | feature/issue-426 | Open | Orchestration policy - 11 endpoints + 31 tests |
 | #452 | feature/issue-430 | Open | NetworkX reasoning - Centrality + communities + 22 tests |
+| #453 | feature/issue-429 | Open | PyKEEN inference - 5 models + predictions + 25 tests |
 
-**All milestones fully implemented**: 0.0.3 (4 PRs) + 0.0.4 (4 PRs) + 0.0.5 (1 PR) + 0.1.0 (3 PRs) = 12 PRs total
+**All milestones fully implemented**: 0.0.3 (4 PRs) + 0.0.4 (4 PRs) + 0.0.5 (1 PR) + 0.1.0 (4 PRs) = 13 PRs total
 
 ## Milestones Complete
 
 **0.0.3 Data Integrity:** #419, #420, #421, #422
 **0.0.4 Semantic UX:** #436, #438, #439, #440
 **0.0.5 Operations:** #425
-**0.1.0 Advanced Graph:** #431, #426, #430
+**0.1.0 Advanced Graph:** #431, #426, #430, #429
 
 ## Blocked
 
@@ -38,10 +39,10 @@
 
 ## Next Session — Start Here
 
-1. **Check PR status**: `gh pr list --state open` — All 12 PRs awaiting Daniel's review
-2. **Reminds Daniel to review PRs** — Priority order: #441-#444 (0.0.3), #445-#448 (0.0.4), #449 (0.0.5), #450-#452 (0.1.0)
-3. **If PRs merged**: Sync 0.0.2 with main, delete merged branches
-4. **Remaining 0.1.0 tasks**: PyKEEN (#429), IFFY/IIIF (#428), Views (#427), Re-enable tasks (#432-#434)
+1. **Check PR status**: `gh pr list --state open` — All 13 PRs awaiting Daniel's review
+2. **Remind Daniel to review PRs** — Priority order: #441-#444 (0.0.3), #445-#448 (0.0.4), #449 (0.0.5), #450-#453 (0.1.0)
+3. **If any PRs merged**: Sync 0.0.2 with main, delete merged branches
+4. **Remaining 0.1.0 tasks**: IFFY/IIIF (#428), Views (#427), Re-enable tasks (#432-#434)
 
 ---
 *Last updated: 2026-04-12*

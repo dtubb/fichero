@@ -63,3 +63,49 @@ for link in links:
 - Clustering: probability that neighbors are connected
 - Connected components: number of disconnected subgraphs
 - Modularity: community detection quality (0 = random, 1 = perfect)
+
+## PyKEEN Knowledge Graph Embedding Pattern — 2026-04-12
+
+**Pattern:** Latent inference for knowledge graphs using PyKEEN embeddings and link prediction
+
+**Graph Construction:**
+```python
+# Entities -> mentions -> Claims
+(entity_id, "mentions", claim_id)
+
+# Claims -> related -> Claims  
+(claim1_id, "supports", claim2_id)
+
+# Entities -> co_mentioned_with -> Entities
+(entity1_id, "co_mentioned_with", entity2_id)  # via shared claims
+```
+
+**Model Types:**
+- TransE: Translation-based embeddings (geometric)
+- RotatE: Rotation-based in complex space
+- DistMult: Bilinear interaction (fast, good benchmark)
+- ComplEx: Complex-valued embeddings (asymmetric relations)
+- ConvE: Convolutional encoder (captures interactions)
+
+**Prediction Types:**
+- head_prediction: Given (?, relation, tail), predict head
+- tail_prediction: Given (head, relation, ?), predict tail  
+- relation_prediction: Given (head, ?, tail), predict relation
+
+**Training Pipeline:**
+1. Build triples from knowledge graph
+2. Split: 80% train / 10% test / 10% validation
+3. Train with early stopping (patience + min_improvement)
+4. Evaluate: hits@10, mean_rank, MRR
+5. Store model for inference
+
+**Heuristic Fallback:**
+When PyKEEN unavailable, use co-occurrence counts:
+- tail_prediction: entities co-mentioned with source
+- head_prediction: entities that co-mention target
+- relation_prediction: most common relation types
+
+**Storage & Verification:**
+- Predictions stored with metadata and confidence scores
+- User verification: verified=True/False with notes
+- Filterable by model_id and verified status
