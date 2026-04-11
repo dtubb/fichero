@@ -250,6 +250,7 @@ from fichero.api.routes import (  # noqa: E402
     hermeneutics,
     mind_palace,
     research_agents,
+    orchestration,
 )
 
 RouteSpec = tuple[object, str, list[str]]
@@ -276,6 +277,7 @@ _DEV_ROUTE_SPECS: list[RouteSpec] = [
     (hermeneutics.router, "/api/hermeneutics", ["hermeneutics"]),
     (mind_palace.router, "/api/mind-palace", ["mind-palace"]),
     (research_agents.router, "/api/research", ["research"]),
+    (orchestration.router, "/api", ["orchestration"]),
 ]
 
 
