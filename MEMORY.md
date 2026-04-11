@@ -1,14 +1,5 @@
 # Durable Lessons Learned / Decisions
 
-*   **Background Task System Pattern (2026-04-11):** Implemented task queue for background jobs using:
-    - APScheduler for async task execution with priority-based scheduling
-    - DuckDB for persistent task storage (survives restarts)
-    - Task status lifecycle: PENDING → RUNNING → COMPLETED/FAILED/CANCELLED
-    - Progress tracking with current/total/percent/message updates
-    - Type-specific task handlers (reindex, metrics, repair)
-    - Automatic recovery of interrupted tasks on startup
-    - Integration with existing Database class for operations
-
 *   **SSRF Security Pattern for Research Tools (2026-04-10):** Security audit of research tools (research.py) revealed critical SSRF vulnerabilities:
     - `follow_redirects=True` without redirect chain validation allows open redirect attacks
     - `_is_sandbox_violation()` using `startswith()` is insufficient — must validate resolved IPs
@@ -30,79 +21,91 @@
 
 *   **Branch Convention (2026-04-10):** Implementation work happens on milestone branches (e.g., `0.0.2`, `feature/388-hermeneutics`), not planning branches. The `0.0.2` branch IS the active implementation branch. State is now tracking backend implementation work for 0.0.3-0.1.0 milestones with 21 issues created for AI agent claiming.
 
-*   **Migration Framework Pattern (2026-04-10):** Database migrations use a `MigrationRunner` class pattern:
-    - Dry-run mode validates migrations without side effects (count-only)
-    - All mutations logged to `MutationLog` with before/after state for rollback
-    - Rollback operations reverse mutations in descending timestamp order (LIFO)
-    - Batch processing with progress callbacks for large datasets
-    - Validation safety checks prevent running unsafe migrations
-    - Legacy function wrappers maintain backward compatibility
+## NetworkX Graph Reasoning Pattern — 2026-04-12
 
-## Multilingual System Pattern — 2026-04-11
+**Pattern:** Algorithmic graph analysis using NetworkX on knowledge graph data
 
-**Pattern:** Language-aware text processing with transliteration support
-
-**Architecture:**
-- Language detection using cld3 (optional) with heuristic fallback
-- Unicode normalization (NFKC) for consistent representation
-- Language-specific rules (Turkish I handling, German ß, Arabic/Hebrew/Thai scripts)
-- Transliteration tables for common proper nouns (Tokyo→東京)
-- Levenshtein distance for similar-language matching
-
-**Usage:**
+**Graph Construction:**
 ```python
-from fichero.multilingual import detect_language, normalize_text, find_cross_language_matches
+# Entities become nodes with metadata
+G.add_node(entity.id, type="entity", label=entity.canonical_name)
 
-# Detect language
-result = detect_language("这是一句中文")
-# LanguageDetectionResult(language='zh', confidence=0.9, is_reliable=True)
+# Claims become nodes connected to entities
+G.add_node(claim.id, type="claim", label=claim.text, confidence=claim.confidence)
+for entity_id in claim.entity_ids:
+    G.add_edge(entity_id, claim.id, relation="mentions", weight=claim.confidence)
 
-# Normalize for search
-normalized = normalize_text("Straße", "de")  # "straße"
-
-# Cross-language search
-candidates = [("id1", "东京", "zh"), ("id2", "Tokyo", "en")]
-matches = find_cross_language_matches("tokyo", candidates)
-# [("id1", 0.95), ("id2", 1.0)]
+# Claim links connect claims to claims
+for link in links:
+    G.add_edge(link.claim_id, link.related_claim_id, relation=link.relation_type, weight=link.link_quality)
 ```
 
-**Testing:** 45 unit tests covering detection, normalization, stemming, transliteration, and search. Heuristic detection covers CJK, Arabic, Hebrew, Thai, Cyrillic, Devanagari without external deps.
+**Centrality Algorithms:**
+- degree_centrality: Count of edges per node
+- betweenness_centrality: Nodes on most shortest paths
+- closeness_centrality: Inverse of average distance to others
+- eigenvector_centrality: Importance from important neighbors
+- pagerank: Iterative importance with damping factor
 
-## MCP Adapter Pattern — 2026-04-12
+**Community Detection:**
+- louvain: Modularity optimization, O(n log n) complexity
+- greedy_modularity: Hierarchical modularity maximization
+- label_propagation: Fast O(m) complexity, good for large graphs
 
-**Pattern:** Thin MCP tool adapters that call canonical backend APIs with zero logic divergence
+**Graceful Degradation:**
+- Optional dependency - works without NetworkX installed
+- Enabled/disabled via endpoint
+- All functions check `reasoner.is_available()` before use
+- Tests skip when NetworkX not available
 
-**Principle:** MCP tools should be pure HTTP adapters, not reimplemented business logic
+**Metrics:**
+- Density: fraction of possible edges present
+- Clustering: probability that neighbors are connected
+- Connected components: number of disconnected subgraphs
+- Modularity: community detection quality (0 = random, 1 = perfect)
 
-**Architecture:**
-- Dedicated `/api/mcp/tools/*` routes with Pydantic validation
-- Request/response models define strict schemas per tool
-- Backend operations delegate to existing Database class
-- Enum validation helpers ensure type safety with clear errors
-- Soft-delete support for all CRUD operations
+## PyKEEN Knowledge Graph Embedding Pattern — 2026-04-12
 
-**MCP Tool Endpoints:**
+**Pattern:** Latent inference for knowledge graphs using PyKEEN embeddings and link prediction
+
+**Graph Construction:**
 ```python
-POST /api/mcp/tools/knowledge/entities/upsert  # Create or update
-POST /api/mcp/tools/knowledge/claims/create    # Create new claim
-GET    /knowledge/entities/{id}                # Read single
-GET    /knowledge/claims/{id}
-DELETE /knowledge/entities/{id}                # Soft-delete
-DELETE /knowledge/claims/{id}
-GET    /knowledge/entities                     # List with filter
-GET    /knowledge/claims                       # List with filter
+# Entities -> mentions -> Claims
+(entity_id, "mentions", claim_id)
+
+# Claims -> related -> Claims  
+(claim1_id, "supports", claim2_id)
+
+# Entities -> co_mentioned_with -> Entities
+(entity1_id, "co_mentioned_with", entity2_id)  # via shared claims
 ```
 
-**Validation Pattern:**
-```python
-def _validate_entity_type(entity_type: str) -> EntityType:
-    try:
-        return EntityType(entity_type)
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid entity_type. Valid: {[t.value for t in EntityType]}"
-        )
-```
+**Model Types:**
+- TransE: Translation-based embeddings (geometric)
+- RotatE: Rotation-based in complex space
+- DistMult: Bilinear interaction (fast, good benchmark)
+- ComplEx: Complex-valued embeddings (asymmetric relations)
+- ConvE: Convolutional encoder (captures interactions)
 
-**Key Feature:** Entity upsert detects existing by ID — "created" or "updated" in response distinguishes operation
+**Prediction Types:**
+- head_prediction: Given (?, relation, tail), predict head
+- tail_prediction: Given (head, relation, ?), predict tail  
+- relation_prediction: Given (head, ?, tail), predict relation
+
+**Training Pipeline:**
+1. Build triples from knowledge graph
+2. Split: 80% train / 10% test / 10% validation
+3. Train with early stopping (patience + min_improvement)
+4. Evaluate: hits@10, mean_rank, MRR
+5. Store model for inference
+
+**Heuristic Fallback:**
+When PyKEEN unavailable, use co-occurrence counts:
+- tail_prediction: entities co-mentioned with source
+- head_prediction: entities that co-mention target
+- relation_prediction: most common relation types
+
+**Storage & Verification:**
+- Predictions stored with metadata and confidence scores
+- User verification: verified=True/False with notes
+- Filterable by model_id and verified status
