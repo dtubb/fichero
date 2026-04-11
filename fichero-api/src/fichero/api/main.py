@@ -308,6 +308,7 @@ from fichero.api.routes import (  # noqa: E402
     sources,
     review_queue,
     interpretations,
+    iiif,
 )
 
 RouteSpec = tuple[object, str, list[str]]
@@ -340,6 +341,7 @@ _DEV_ROUTE_SPECS: list[RouteSpec] = [
     (graph_exploration.router, "/api", ["graph-exploration"]),
     (mind_palace.router, "/api/mind-palace", ["mind-palace"]),
     (research_agents.router, "/api/research", ["research"]),
+    (iiif.router, "/api/iiif", ["iiif"]),
 ]
 
 
