@@ -26,7 +26,7 @@ from fichero.knowledge_models import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/mcp/tools", tags=["mcp-tools"])
+router = APIRouter(tags=["mcp-tools"])
 
 
 # =============================================================================

@@ -337,7 +337,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (folders.router, "/api/folders", ["folders"]),
     (ingest.router, "/api/ingest", ["ingest"]),
     (migrations.router, "/api/migrations", ["migrations"]),
-    (mcp_tools.router, "/api/mcp", ["mcp"]),
+    (mcp_tools.router, "/api/mcp/tools", ["mcp"]),
     (multilingual.router, "/api", ["multilingual"]),
     (providers.router, "/api/providers", ["providers"]),
     (search.router, "/api/search", ["search"]),
