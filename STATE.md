@@ -4,10 +4,10 @@
 
 **Primary Track:** Backend-first milestone execution
 
-- 0.0.2 issue **#364** — implemented and closed (PR **#454** merged into `0.0.2`)
-- 0.0.3 milestone **COMPLETE** — all 4 issues (#419-#422) done
-- **0.0.4 milestone COMPLETE** — all 5 issues processed
-- **0.0.5 milestone IN PROGRESS** — #425 complete, check for remaining issues
+- 0.0.2 issue **#364** — implemented and closed
+- 0.0.3 milestone **COMPLETE**
+- **0.0.4 milestone COMPLETE**
+- **0.0.5 milestone COMPLETE** — #425 (only issue) done
 - Unit backend test suite: **1228 passed, 21 skipped**
 
 ## Completed Milestones
@@ -19,13 +19,12 @@
 - ~~#438~~ ✅ — Search Explanation Backend
 - ~~#439~~ ✅ — Interpretations Workspace Backend
 
-### 0.0.5 — Operations
+### 0.0.5 — Operations (COMPLETE)
 - ~~#425~~ ✅ — Activity Stream Enhancements
 
 ## In Progress
 
 1. Backend-only execution of open milestone issues:
-   - **0.0.5 (backend):** Check for additional issues
    - **0.1.0 (backend-labeled):** #427, #428, #431 (+ #432-434 re-enable coordination)
 
 2. Operational cleanup item (separate scope):
@@ -37,8 +36,7 @@
 
 ## Next Session — Start Here
 
-1. Check for additional 0.0.5 milestone issues
-2. Continue with next available issue
+1. **0.1.0 Milestone** — #427, #428, #431 (next)
 
 ---
 *Last updated: 2026-04-11*
