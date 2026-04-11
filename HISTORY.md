@@ -360,3 +360,63 @@
 - Resolved all merge conflicts in PR #417
 - Marked PR ready for review
 - PR #417 now awaiting human review
+
+## 2026-04-10 — PR #417 MERGED to main
+
+- ✅ PR #417 merged (Release 0.0.2)
+- All security fixes now in main branch
+- 0.0.2 milestone security work COMPLETE
+
+## 2026-04-10 — Session End (PR #417 Merged)
+
+- ✅ PR #417 merged to main
+- 0.0.2 release complete
+- All security work delivered
+
+## 2026-04-10 — Session End (Release 0.0.2 Complete)
+
+- ✅ Release 0.0.2 merged to main
+- 0.0.2 milestone security work complete
+- Next: 0.0.1 milestone bugs (#383-386)
+
+## 2026-04-10 — Session Summary
+
+
+
+## 2026-04-10 — Session
+
+- **#419 Migration Framework (0.0.3)**: Implemented core MigrationRunner class
+  - Dry-run mode for validation without side effects
+  - Rollback support with before/after state capture
+  - Audit trail via MutationLog for all migrations
+  - Batch processing with progress callbacks
+  - Three operation types: migrate_claims_to_multi_source, backfill_claim_source_metadata, repair_orphaned_claim_links
+  - Safety validation checks before execution
+  - Branch: feature/issue-419-migration
+
+## 2026-04-11 — Session Summary
+
+- #419: Migration framework complete — CLI script, 15 unit tests, PR 441 created
+- Fixed import errors in migrations.py (removed non-existent Page and Artifact references)
+- All quality gates passed: pytest 15/15, ruff zero warnings
+
+## 2026-04-11 — Session Summary
+
+- #420: Background task system complete — TaskQueue with APScheduler, DuckDB persistence, reindex/metrics tasks, 19 unit tests, PR 442 created
+
+## 2026-04-11 — Multilingual Baseline Complete
+
+- ✅ Complete #421: Multilingual baseline for claims/entities and cross-language retrieval
+  - Language detection (20+ languages, cld3 + heuristic fallback)
+  - Text normalization (NFKC Unicode, language-specific rules)
+  - Transliteration matching (tokyo ↔︎ 東京)
+  - Cross-language entity search API
+  - Language filtering for claims/entities
+  - 45 unit tests, all passing, ruff clean
+  - PR #443 created: feature/issue-421 → 0.0.2
+
+## 2026-04-11 — #422 Thin MCP adapters for canonical knowledge APIs
+
+- PR: https://github.com/dtubb/fichero/pull/444
+- Branch: feature/issue-422
+- Task completed in session
