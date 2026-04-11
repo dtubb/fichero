@@ -7,7 +7,8 @@
 - 0.0.2 issue **#364** — implemented and closed
 - 0.0.3 milestone **COMPLETE**
 - **0.0.4 milestone COMPLETE**
-- **0.0.5 milestone COMPLETE** — #425 (only issue) done
+- **0.0.5 milestone COMPLETE**
+- **0.1.0 milestone IN PROGRESS** — #427 complete, #428, #431 remaining
 - Unit backend test suite: **1228 passed, 21 skipped**
 
 ## Completed Milestones
@@ -22,10 +23,13 @@
 ### 0.0.5 — Operations (COMPLETE)
 - ~~#425~~ ✅ — Activity Stream Enhancements
 
+### 0.1.0 — Epistemic Platform Expansion (IN PROGRESS)
+- ~~#427~~ ✅ — Advanced Graph Exploration and Interpretation Views
+
 ## In Progress
 
 1. Backend-only execution of open milestone issues:
-   - **0.1.0 (backend-labeled):** #427, #428, #431 (+ #432-434 re-enable coordination)
+   - **0.1.0 (backend-labeled):** #428, #431 (+ #432-434 re-enable coordination)
 
 2. Operational cleanup item (separate scope):
    - Repo-wide Ruff test-lint debt exists outside current feature scope
@@ -36,7 +40,7 @@
 
 ## Next Session — Start Here
 
-1. **0.1.0 Milestone** — #427, #428, #431 (next)
+1. **0.1.0 Milestone** — #428 (next)
 
 ---
 *Last updated: 2026-04-11*
