@@ -490,3 +490,34 @@
 **Branch:** feature/issue-421
 **Commit:** 66657cdf — use multilingual-aware normalization in knowledge graph routes
 **Closed:** https://github.com/dtubb/fichero/issues/421
+
+---
+
+## 2026-04-11 — Issue #422 — Thin MCP Adapters for Canonical Knowledge APIs
+
+**Status:** COMPLETE
+
+**Work Done:**
+- Fixed MCP tools router path registration
+- fichero/api/routes/mcp_tools.py: entity upsert, claim create endpoints
+- Thin adapter pattern calls canonical Knowledge API operations
+- Endpoints: /api/mcp/tools/knowledge/entities/upsert, /api/mcp/tools/knowledge/claims/create
+
+**Evidence:**
+- pytest test_mcp_tools.py -v: 16 passed
+- Full suite: 1228 passed, 21 skipped
+- ruff: clean
+
+**Branch:** feature/issue-422
+**Commit:** d03a1887 — fix MCP tools router path
+**Closed:** https://github.com/dtubb/fichero/issues/422
+
+## 2026-04-11 — MILESTONE 0.0.3 COMPLETE
+
+All 4 backend issues completed:
+- #419: Migration / Backfill Tooling (verified existing)
+- #420: Reindex / Repair Jobs (router registered)
+- #421: Multilingual Baseline (normalization integrated)
+- #422: MCP Adapters for Knowledge APIs (router fixed)
+
+**Total:** 0.0.3 milestone complete, moving to 0.0.4
