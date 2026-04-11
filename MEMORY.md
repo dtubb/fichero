@@ -203,3 +203,37 @@ RAGMode.SPECULATIVE:  # Broad research
 - GET /api/interpretations/{id}/lineage — Traced provenance
 - POST /api/interpretations/{id}/tags — Add method tags
 - GET /api/interpretations/taxonomy/methods — Available categories/techniques
+
+## Activity Stream Pattern — 2026-04-12
+
+**Pattern:** Time-series activity tracking with aggregation and trend analysis
+
+**Architecture:**
+- Activity model: type, level, timestamp, message + metadata
+- Entity grouping: workflow, batch, node, system
+- In-memory buffer for recent activities (deque)
+- DuckDB persistence for historical queries
+- Pub/sub pattern for real-time streaming (SSE/WebSocket)
+
+**Aggregation Endpoints:**
+- /api/activity/feed — Grouped activities with pagination
+- /api/activity/trends — Time-series data (hourly/daily/weekly)
+- /api/activity/top — Most active entities with success rates
+- /api/activity/metrics/summary — Comprehensive dashboard metrics
+
+**Trend Calculation:**
+```python
+hourly: bucket_key = ts.strftime("%Y-%m-%dT%H:00:00")
+daily:  bucket_key = ts.strftime("%Y-%m-%d")
+weekly: bucket_key = ts.strftime("%Y-%W")
+```
+
+**Busiest Hour Detection:**
+- Count activities per hour
+- Return hour with maximum count
+- Useful for capacity planning
+
+**Success Rate Formula:**
+```python
+success_rate = completed / (completed + failed) * 100
+```

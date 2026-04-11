@@ -2,14 +2,14 @@
 
 ## Current Focus
 
-**Milestone:** 0.0.4 (Semantic UX + Trust Workflow) — All backend tasks complete
+**Milestone:** 0.0.5 (Operations) — One task complete, remainder TBD
 
 **Active Branch:** feature/issue-419-migration (state management, not active work)
 
 **This Session's Work:**
-- ✅ Implemented #439: Interpretations Workspace Backend (complete, PR #447 open)
+- ✅ Implemented #425: Activity Stream Enhancements (complete, PR #448 open)
 
-## Open Pull Requests (7 total, awaiting Daniel's review)
+## Open Pull Requests (8 total, awaiting Daniel's review)
 
 | PR | Branch | Status | Description |
 |---|---|---|---|
@@ -20,8 +20,9 @@
 | #445 | feature/issue-440 | Open | Review queue - Transitions + 15 tests |
 | #446 | feature/issue-438 | Open | Search explanation - RAG modes + 22 tests |
 | #447 | feature/issue-439 | Open | Interpretations workspace - Taxonomy + 18 tests |
+| #448 | feature/issue-425 | Open | Activity stream - Trends + metrics + 12 tests |
 
-**All milestones fully implemented**: 0.0.3 (4 PRs) + 0.0.4 (3 PRs) = 7 PRs total
+**All milestones fully implemented**: 0.0.3 (4 PRs) + 0.0.4 (3 PRs) + 0.0.5 (1 PR) = 8 PRs total
 
 ## Completed Work Summary
 
@@ -36,15 +37,18 @@
 - ✅ #438: Search explanation with RAG modes and attribution
 - ✅ #439: Interpretations workspace with method taxonomy
 
+**Milestone 0.0.5 (Operations):**
+- ✅ #425: Activity stream enhancements with entity grouping and trends
+
 ## Next Steps
 
 **Awaiting Daniel's Review:**
-- All 7 PRs are complete and ready for review
+- All 8 PRs are complete and ready for review
 - Once reviewed, will need to merge and sync `0.0.2`
 
-**Milestone 0.0.5 (Operations):**
-- #425: Activity stream enhancements (ready to claim)
-- Other 0.0.5 tasks available on request
+**Remaining 0.0.5 Tasks:**
+- Check GitHub for remaining 0.0.5 operations tasks
+- Or advance to 0.1.0 milestone
 
 ## Blocked
 

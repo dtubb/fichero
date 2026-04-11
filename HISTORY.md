@@ -438,3 +438,9 @@
 - PR: https://github.com/dtubb/fichero/pull/447
 - Branch: feature/issue-439
 - Task completed in session
+
+## 2026-04-11 — #425 Activity Stream Enhancements
+
+- PR: https://github.com/dtubb/fichero/pull/448
+- Branch: feature/issue-425
+- Task completed in session
