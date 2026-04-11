@@ -469,3 +469,24 @@
 **Branch:** feature/issue-420
 **Commit:** 6fb3f90b — register tasks router in main.py
 **Closed:** https://github.com/dtubb/fichero/issues/420
+
+---
+
+## 2026-04-11 — Issue #421 — Multilingual Baseline for Claims/Entities
+
+**Status:** COMPLETE
+
+**Work Done:**
+- Integrated multilingual-aware normalization into knowledge_graph.py
+- fichero/multilingual.py: language detection, normalization, transliteration
+- KnowledgeEntity/KnowledgeClaim already have language fields
+- API endpoints: /entities, /entities/resolve, /claims with language support
+
+**Evidence:**
+- pytest test_multilingual.py -v: 45 passed
+- Full suite: 1228 passed, 21 skipped
+- ruff: clean
+
+**Branch:** feature/issue-421
+**Commit:** 66657cdf — use multilingual-aware normalization in knowledge graph routes
+**Closed:** https://github.com/dtubb/fichero/issues/421
