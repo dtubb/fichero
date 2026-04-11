@@ -306,6 +306,7 @@ from fichero.api.routes import (  # noqa: E402
     research_agents,
     mcp_tools,
     sources,
+    review_queue,
 )
 
 RouteSpec = tuple[object, str, list[str]]
@@ -327,6 +328,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (settings.router, "", ["settings"]),
     (mcp_tools.router, "/api/mcp", ["mcp"]),
     (sources.router, "/api/sources", ["sources"]),
+    (review_queue.router, "/api", ["review-queue"]),
 ]
 
 _DEV_ROUTE_SPECS: list[RouteSpec] = [
