@@ -2,14 +2,11 @@
 
 ## Current Focus
 
-**Milestone:** 0.1.0 (Advanced Graph) — One task complete, remainder TBD
+**Milestone:** 0.1.0 (Advanced Graph) — Three tasks complete, remainder TBD
 
-**Active Branch:** feature/issue-419-migration (state management, not active work)
+**Active Branch:** feature/issue-430 (completed today)
 
-**This Session's Work:**
-- ✅ Implemented #431: Advanced Graph Exploration Backend (complete, PR #450 open)
-
-## Open Pull Requests (10 total, awaiting Daniel's review)
+## Open Pull Requests (12 total, awaiting Daniel's review)
 
 | PR | Branch | Status | Description |
 |---|---|---|---|
@@ -23,42 +20,28 @@
 | #448 | feature/issue-425 | Open | Activity stream - Trends + metrics + 12 tests |
 | #449 | feature/issue-436 | Open | Contradiction triage - Evidence API + 18 tests |
 | #450 | feature/issue-431 | Open | Graph exploration - Pathfinding + 15 tests |
+| #451 | feature/issue-426 | Open | Orchestration policy - 11 endpoints + 31 tests |
+| #452 | feature/issue-430 | Open | NetworkX reasoning - Centrality + communities + 22 tests |
 
-**All milestones fully implemented**: 0.0.3 (4 PRs) + 0.0.4 (4 PRs) + 0.0.5 (1 PR) + 0.1.0 (1 PR) = 10 PRs total
+**All milestones fully implemented**: 0.0.3 (4 PRs) + 0.0.4 (4 PRs) + 0.0.5 (1 PR) + 0.1.0 (3 PRs) = 12 PRs total
 
-## Completed Work Summary
+## Milestones Complete
 
-**Milestone 0.0.3 (Data Integrity + Quality):**
-- ✅ #419: Migration framework with dry-run and rollback
-- ✅ #420: Background task system with DuckDB persistence
-- ✅ #421: Multilingual baseline for 20+ languages
-- ✅ #422: MCP adapters for canonical knowledge APIs
-
-**Milestone 0.0.4 (Semantic UX + Trust Workflow):**
-- ✅ #436: Contradiction triage with evidence API
-- ✅ #438: Search explanation with RAG modes and attribution
-- ✅ #439: Interpretations workspace with method taxonomy
-- ✅ #440: Claim review queue with state transitions
-
-**Milestone 0.0.5 (Operations):**
-- ✅ #425: Activity stream enhancements with entity grouping and trends
-
-**Milestone 0.1.0 (Advanced Graph):**
-- ✅ #431: Advanced graph exploration with pathfinding and metrics
-
-## Next Steps
-
-**Awaiting Daniel's Review:**
-- All 10 PRs are complete and ready for review
-- Once reviewed, will need to merge and sync `0.0.2`
-
-**Remaining 0.1.0 Tasks:**
-- Check GitHub for remaining 0.1.0 tasks (NetworkX, PyKEEN, Human-in-the-loop)
-- Or advance to frontend work
+**0.0.3 Data Integrity:** #419, #420, #421, #422
+**0.0.4 Semantic UX:** #436, #438, #439, #440
+**0.0.5 Operations:** #425
+**0.1.0 Advanced Graph:** #431, #426, #430
 
 ## Blocked
 
 - (none — just waiting on PR review)
+
+## Next Session — Start Here
+
+1. **Check PR status**: `gh pr list --state open` — All 12 PRs awaiting Daniel's review
+2. **Reminds Daniel to review PRs** — Priority order: #441-#444 (0.0.3), #445-#448 (0.0.4), #449 (0.0.5), #450-#452 (0.1.0)
+3. **If PRs merged**: Sync 0.0.2 with main, delete merged branches
+4. **Remaining 0.1.0 tasks**: PyKEEN (#429), IFFY/IIIF (#428), Views (#427), Re-enable tasks (#432-#434)
 
 ---
 *Last updated: 2026-04-12*
