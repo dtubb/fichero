@@ -88,4 +88,4 @@
 - #400-408: Security fixes merged to 0.0.2 (Daniel's review pending)
 
 ---
-*Last updated: 2026-04-12* (0.0.2 release - 1 issue remaining)
+*Last updated: 2026-04-12* (0.0.2 release - 1 issue remaining, sources routes implemented but routes need verification)
