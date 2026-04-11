@@ -393,3 +393,511 @@ async def cleanup_old_activities(
     older_than = datetime.now() - timedelta(days=days)
     deleted = await tracker.store.delete_old(older_than)
     return {"deleted": deleted, "older_than": older_than.isoformat()}
+
+
+# =============================================================================
+# Enhanced Activity Stream Endpoints (Issue #425)
+# =============================================================================
+
+
+class ActivityFeedGroup(BaseModel):
+    """Activity grouped by entity type and ID."""
+
+    entity_type: str  # "workflow", "batch", "node", "system"
+    entity_id: str | None
+    entity_name: str | None
+    count: int
+    last_activity: str
+    activities: list[ActivityResponse]
+
+
+class ActivityFeedResponse(BaseModel):
+    """Response for activity feed with grouping."""
+
+    activities: list[ActivityResponse]
+    groups: list[ActivityFeedGroup]
+    total: int
+    has_more: bool
+
+
+class TrendPoint(BaseModel):
+    """Single point in a trend series."""
+
+    timestamp: str
+    count: int
+    error_count: int
+    workflow_count: int
+    batch_count: int
+
+
+class ActivityTrendsResponse(BaseModel):
+    """Time-based activity trends."""
+
+    period: str  # "hourly", "daily", "weekly"
+    points: list[TrendPoint]
+    total_activities: int
+    total_errors: int
+
+
+class TopEntity(BaseModel):
+    """Entity with activity metrics."""
+
+    entity_type: str
+    entity_id: str
+    entity_name: str | None
+    activity_count: int
+    error_count: int
+    last_activity: str
+    success_rate: float
+
+
+class TopEntitiesResponse(BaseModel):
+    """Response for top entities by activity."""
+
+    workflows: list[TopEntity]
+    batches: list[TopEntity]
+    time_range_hours: int
+
+
+class EntityTypesResponse(BaseModel):
+    """Available entity types for filtering."""
+
+    entity_types: list[dict[str, str]]
+
+
+class ActivityMetricsSummary(BaseModel):
+    """Enhanced activity metrics summary."""
+
+    total_activities: int
+    total_workflows: int
+    total_batches: int
+    error_count: int
+    warning_count: int
+    success_rate: float
+    avg_workflow_duration_ms: float | None
+    avg_batch_duration_ms: float | None
+    busiest_hour: int | None
+    period_start: str
+    period_end: str
+
+
+# -----------------------------------------------------------------------------
+# Enhanced Feed Endpoint
+# -----------------------------------------------------------------------------
+
+
+@router.get("/feed", response_model=ActivityFeedResponse)
+async def get_activity_feed(
+    db: Database = Depends(get_library_database),
+    entity_type: str | None = Query(
+        None,
+        description="Filter by entity type: workflow, batch, node, system",
+    ),
+    entity_id: str | None = Query(None, description="Filter by specific entity ID"),
+    types: str | None = Query(None, description="Comma-separated activity types"),
+    levels: str | None = Query(None, description="Comma-separated levels"),
+    since: str | None = Query(None, description="ISO datetime string"),
+    until: str | None = Query(None, description="ISO datetime string"),
+    group_by_entity: bool = Query(
+        True, description="Group results by entity in response"
+    ),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+) -> ActivityFeedResponse:
+    """
+    Get enriched activity feed with optional grouping.
+
+    Supports filtering by entity type (workflow, batch, node, system)
+    and grouping results for dashboard views.
+    """
+    tracker = get_activity_tracker(str(db.path))
+
+    # Parse types
+    type_list = None
+    if types:
+        try:
+            type_list = [ActivityType(t.strip()) for t in types.split(",")]
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid activity type: {e}")
+
+    # Parse levels
+    level_list = None
+    if levels:
+        try:
+            level_list = [ActivityLevel(lvl.strip()) for lvl in levels.split(",")]
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid activity level: {e}")
+
+    # Parse timestamps
+    since_dt = None
+    until_dt = None
+    if since:
+        try:
+            since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(
+                status_code=400, detail="Invalid 'since' datetime format"
+            )
+    if until:
+        try:
+            until_dt = datetime.fromisoformat(until.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(
+                status_code=400, detail="Invalid 'until' datetime format"
+            )
+
+    # Build filter
+    filter = ActivityFilter(
+        types=type_list,
+        levels=level_list,
+        since=since_dt,
+        until=until_dt,
+        limit=limit + 1,  # Fetch one extra to check for more
+        offset=offset,
+    )
+
+    # If entity type and ID specified, add to filter
+    if entity_type == "workflow" and entity_id:
+        filter.workflow_id = entity_id
+    elif entity_type == "batch" and entity_id:
+        filter.batch_id = entity_id
+
+    activities = await tracker.query(filter)
+    has_more = len(activities) > limit
+    activities = activities[:limit]  # Trim the extra
+
+    response_activities = [ActivityResponse.from_activity(a) for a in activities]
+
+    # Build groups if requested
+    groups = []
+    if group_by_entity and activities:
+        entity_groups: dict[str, list[ActivityResponse]] = {}
+
+        for act in response_activities:
+            # Determine entity type and ID
+            if act.workflow_id:
+                key = f"workflow:{act.workflow_id}"
+            elif act.batch_id:
+                key = f"batch:{act.batch_id}"
+            elif act.node_id:
+                key = f"node:{act.node_id}"
+            else:
+                key = "system:system"
+
+            if key not in entity_groups:
+                entity_groups[key] = []
+            entity_groups[key].append(act)
+
+        for key, acts in entity_groups.items():
+            entity_type_str, entity_id_str = key.split(":", 1)
+            entity_name = None
+
+            # Try to get entity name from metadata
+            if acts:
+                metadata = acts[0].metadata
+                if entity_type_str == "workflow":
+                    entity_name = metadata.get("workflow_name")
+                elif entity_type_str == "batch":
+                    entity_name = metadata.get("batch_name")
+                elif entity_type_str == "node":
+                    entity_name = metadata.get("node_name")
+
+            groups.append(
+                ActivityFeedGroup(
+                    entity_type=entity_type_str,
+                    entity_id=entity_id_str if entity_id_str != "system" else None,
+                    entity_name=entity_name,
+                    count=len(acts),
+                    last_activity=acts[0].timestamp,  # Already sorted by time desc
+                    activities=acts[:10],  # Include up to 10 per group
+                )
+            )
+
+        # Sort groups by last_activity
+        groups.sort(key=lambda g: g.last_activity, reverse=True)
+
+    return ActivityFeedResponse(
+        activities=response_activities,
+        groups=groups,
+        total=len(response_activities),
+        has_more=has_more,
+    )
+
+
+# -----------------------------------------------------------------------------
+# Trends Endpoint
+# -----------------------------------------------------------------------------
+
+
+@router.get("/trends", response_model=ActivityTrendsResponse)
+async def get_activity_trends(
+    db: Database = Depends(get_library_database),
+    period: str = Query("hourly", description="hourly, daily, or weekly"),
+    hours: int = Query(24, ge=1, le=720),
+) -> ActivityTrendsResponse:
+    """
+    Get time-based activity trends.
+
+    Returns aggregated counts over time periods for visualization.
+    """
+    tracker = get_activity_tracker(str(db.path))
+
+    until = datetime.now()
+    since = until - timedelta(hours=hours)
+
+    # Get all activities in range
+    filter = ActivityFilter(since=since, until=until, limit=10000)
+    activities = await tracker.query(filter)
+
+    # Group by time buckets
+    from collections import defaultdict
+
+    buckets: dict[str, dict] = defaultdict(
+        lambda: {"count": 0, "error_count": 0, "workflow_count": 0, "batch_count": 0}
+    )
+
+    for act in activities:
+        ts = act.timestamp
+
+        if period == "hourly":
+            bucket_key = ts.strftime("%Y-%m-%dT%H:00:00")
+        elif period == "daily":
+            bucket_key = ts.strftime("%Y-%m-%d")
+        else:  # weekly
+            bucket_key = ts.strftime("%Y-%W")
+
+        buckets[bucket_key]["count"] += 1
+        if act.level == ActivityLevel.ERROR:
+            buckets[bucket_key]["error_count"] += 1
+        if act.type.value.startswith("workflow"):
+            buckets[bucket_key]["workflow_count"] += 1
+        if act.type.value.startswith("batch"):
+            buckets[bucket_key]["batch_count"] += 1
+
+    # Convert to sorted trend points
+    sorted_buckets = sorted(buckets.items())
+    points = [
+        TrendPoint(
+            timestamp=bucket,
+            count=data["count"],
+            error_count=data["error_count"],
+            workflow_count=data["workflow_count"],
+            batch_count=data["batch_count"],
+        )
+        for bucket, data in sorted_buckets
+    ]
+
+    total_errors = sum(p.error_count for p in points)
+
+    return ActivityTrendsResponse(
+        period=period,
+        points=points,
+        total_activities=len(activities),
+        total_errors=total_errors,
+    )
+
+
+# -----------------------------------------------------------------------------
+# Top Entities Endpoint
+# -----------------------------------------------------------------------------
+
+
+@router.get("/top", response_model=TopEntitiesResponse)
+async def get_top_entities(
+    db: Database = Depends(get_library_database),
+    hours: int = Query(24, ge=1, le=720, description="Time range in hours"),
+    limit: int = Query(10, ge=1, le=50, description="Number of top entities per type"),
+) -> TopEntitiesResponse:
+    """
+    Get top active workflows and batches by activity count.
+
+    Useful for identifying most active or problematic entities.
+    """
+    tracker = get_activity_tracker(str(db.path))
+
+    until = datetime.now()
+    since = until - timedelta(hours=hours)
+
+    filter = ActivityFilter(since=since, until=until, limit=10000)
+    activities = await tracker.query(filter)
+
+    # Aggregate by entity
+    workflow_stats: dict[str, dict] = {}
+    batch_stats: dict[str, dict] = {}
+
+    for act in activities:
+        if act.workflow_id:
+            if act.workflow_id not in workflow_stats:
+                workflow_stats[act.workflow_id] = {
+                    "count": 0,
+                    "errors": 0,
+                    "name": act.metadata.get("workflow_name", "Unknown"),
+                    "last_activity": act.timestamp,
+                    "completed": 0,
+                    "failed": 0,
+                }
+            stats = workflow_stats[act.workflow_id]
+            stats["count"] += 1
+            if act.level == ActivityLevel.ERROR:
+                stats["errors"] += 1
+            if act.type == ActivityType.WORKFLOW_COMPLETED:
+                stats["completed"] += 1
+            if act.type == ActivityType.WORKFLOW_FAILED:
+                stats["failed"] += 1
+            if act.timestamp > stats["last_activity"]:
+                stats["last_activity"] = act.timestamp
+
+        if act.batch_id:
+            if act.batch_id not in batch_stats:
+                batch_stats[act.batch_id] = {
+                    "count": 0,
+                    "errors": 0,
+                    "name": act.metadata.get("batch_name", "Unknown"),
+                    "last_activity": act.timestamp,
+                    "completed": 0,
+                    "failed": 0,
+                }
+            stats = batch_stats[act.batch_id]
+            stats["count"] += 1
+            if act.level == ActivityLevel.ERROR:
+                stats["errors"] += 1
+            if act.type == ActivityType.BATCH_COMPLETED:
+                stats["completed"] += 1
+            if act.type == ActivityType.BATCH_FAILED:
+                stats["failed"] += 1
+            if act.timestamp > stats["last_activity"]:
+                stats["last_activity"] = act.timestamp
+
+    # Build top entities
+    def calc_success_rate(completed: int, failed: int) -> float:
+        total = completed + failed
+        if total == 0:
+            return 100.0
+        return (completed / total) * 100
+
+    top_workflows = [
+        TopEntity(
+            entity_type="workflow",
+            entity_id=wid,
+            entity_name=data["name"],
+            activity_count=data["count"],
+            error_count=data["errors"],
+            last_activity=data["last_activity"].isoformat(),
+            success_rate=calc_success_rate(data["completed"], data["failed"]),
+        )
+        for wid, data in sorted(
+            workflow_stats.items(), key=lambda x: x[1]["count"], reverse=True
+        )[:limit]
+    ]
+
+    top_batches = [
+        TopEntity(
+            entity_type="batch",
+            entity_id=bid,
+            entity_name=data["name"],
+            activity_count=data["count"],
+            error_count=data["errors"],
+            last_activity=data["last_activity"].isoformat(),
+            success_rate=calc_success_rate(data["completed"], data["failed"]),
+        )
+        for bid, data in sorted(
+            batch_stats.items(), key=lambda x: x[1]["count"], reverse=True
+        )[:limit]
+    ]
+
+    return TopEntitiesResponse(
+        workflows=top_workflows,
+        batches=top_batches,
+        time_range_hours=hours,
+    )
+
+
+# -----------------------------------------------------------------------------
+# Entity Types Endpoint
+# -----------------------------------------------------------------------------
+
+
+@router.get("/entity-types", response_model=EntityTypesResponse)
+async def get_entity_types() -> EntityTypesResponse:
+    """
+    Get available entity types for filtering.
+    """
+    return EntityTypesResponse(
+        entity_types=[
+            {"value": "workflow", "label": "Workflow", "description": "Workflow executions"},
+            {"value": "batch", "label": "Batch", "description": "Batch processing jobs"},
+            {"value": "node", "label": "Node", "description": "Individual workflow nodes"},
+            {"value": "system", "label": "System", "description": "System-level events"},
+        ]
+    )
+
+
+# -----------------------------------------------------------------------------
+# Enhanced Metrics Endpoint
+# -----------------------------------------------------------------------------
+
+
+@router.get("/metrics/summary", response_model=ActivityMetricsSummary)
+async def get_activity_metrics_summary(
+    db: Database = Depends(get_library_database),
+    hours: int = Query(24, ge=1, le=720),
+) -> ActivityMetricsSummary:
+    """
+    Get comprehensive activity metrics summary.
+
+    Includes trends, rates, and busiest periods.
+    """
+    tracker = get_activity_tracker(str(db.path))
+
+    until = datetime.now()
+    since = until - timedelta(hours=hours)
+
+    # Get basic stats
+    stats = await tracker.get_stats(since=since, until=until)
+
+    # Get activities for enhanced metrics
+    filter = ActivityFilter(since=since, until=until, limit=10000)
+    activities = await tracker.query(filter)
+
+    # Count by hour to find busiest
+    hour_counts: dict[int, int] = {}
+    workflow_durations: list[float] = []
+    batch_durations: list[float] = []
+    workflow_count = 0
+    batch_count = 0
+
+    for act in activities:
+        # Hour distribution
+        hour = act.timestamp.hour
+        hour_counts[hour] = hour_counts.get(hour, 0) + 1
+
+        # Durations
+        if act.type == ActivityType.WORKFLOW_COMPLETED and act.duration_ms:
+            workflow_durations.append(act.duration_ms)
+            workflow_count += 1
+        elif act.type == ActivityType.BATCH_COMPLETED and act.duration_ms:
+            batch_durations.append(act.duration_ms)
+            batch_count += 1
+
+    busiest_hour = max(hour_counts.items(), key=lambda x: x[1])[0] if hour_counts else None
+
+    avg_workflow_duration = (
+        sum(workflow_durations) / len(workflow_durations) if workflow_durations else None
+    )
+    avg_batch_duration = (
+        sum(batch_durations) / len(batch_durations) if batch_durations else None
+    )
+
+    return ActivityMetricsSummary(
+        total_activities=stats.total_activities,
+        total_workflows=workflow_count,
+        total_batches=batch_count,
+        error_count=stats.error_count,
+        warning_count=stats.warning_count,
+        success_rate=stats.success_rate,
+        avg_workflow_duration_ms=avg_workflow_duration,
+        avg_batch_duration_ms=avg_batch_duration,
+        busiest_hour=busiest_hour,
+        period_start=stats.period_start.isoformat(),
+        period_end=stats.period_end.isoformat(),
+    )

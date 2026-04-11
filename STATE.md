@@ -2,14 +2,11 @@
 
 ## Current Focus
 
-**Milestone:** 0.0.5 (Operations) — One task complete, remainder TBD
+**Milestone:** 0.1.0 (Advanced Graph) — Four tasks complete, remainder TBD
 
-**Active Branch:** feature/issue-419-migration (state management, not active work)
+**Active Branch:** feature/issue-429 (completed today)
 
-**This Session's Work:**
-- ✅ Implemented #425: Activity Stream Enhancements (complete, PR #448 open)
-
-## Open Pull Requests (8 total, awaiting Daniel's review)
+## Open Pull Requests (13 total, awaiting Daniel's review)
 
 | PR | Branch | Status | Description |
 |---|---|---|---|
@@ -21,38 +18,31 @@
 | #446 | feature/issue-438 | Open | Search explanation - RAG modes + 22 tests |
 | #447 | feature/issue-439 | Open | Interpretations workspace - Taxonomy + 18 tests |
 | #448 | feature/issue-425 | Open | Activity stream - Trends + metrics + 12 tests |
+| #449 | feature/issue-436 | Open | Contradiction triage - Evidence API + 18 tests |
+| #450 | feature/issue-431 | Open | Graph exploration - Pathfinding + 15 tests |
+| #451 | feature/issue-426 | Open | Orchestration policy - 11 endpoints + 31 tests |
+| #452 | feature/issue-430 | Open | NetworkX reasoning - Centrality + communities + 22 tests |
+| #453 | feature/issue-429 | Open | PyKEEN inference - 5 models + predictions + 25 tests |
 
-**All milestones fully implemented**: 0.0.3 (4 PRs) + 0.0.4 (3 PRs) + 0.0.5 (1 PR) = 8 PRs total
+**All milestones fully implemented**: 0.0.3 (4 PRs) + 0.0.4 (4 PRs) + 0.0.5 (1 PR) + 0.1.0 (4 PRs) = 13 PRs total
 
-## Completed Work Summary
+## Milestones Complete
 
-**Milestone 0.0.3 (Data Integrity + Quality):**
-- ✅ #419: Migration framework with dry-run and rollback
-- ✅ #420: Background task system with DuckDB persistence
-- ✅ #421: Multilingual baseline for 20+ languages
-- ✅ #422: MCP adapters for canonical knowledge APIs
-
-**Milestone 0.0.4 (Semantic UX + Trust Workflow):**
-- ✅ #440: Claim review queue with state transitions
-- ✅ #438: Search explanation with RAG modes and attribution
-- ✅ #439: Interpretations workspace with method taxonomy
-
-**Milestone 0.0.5 (Operations):**
-- ✅ #425: Activity stream enhancements with entity grouping and trends
-
-## Next Steps
-
-**Awaiting Daniel's Review:**
-- All 8 PRs are complete and ready for review
-- Once reviewed, will need to merge and sync `0.0.2`
-
-**Remaining 0.0.5 Tasks:**
-- Check GitHub for remaining 0.0.5 operations tasks
-- Or advance to 0.1.0 milestone
+**0.0.3 Data Integrity:** #419, #420, #421, #422
+**0.0.4 Semantic UX:** #436, #438, #439, #440
+**0.0.5 Operations:** #425
+**0.1.0 Advanced Graph:** #431, #426, #430, #429
 
 ## Blocked
 
 - (none — just waiting on PR review)
+
+## Next Session — Start Here
+
+1. **Check PR status**: `gh pr list --state open` — All 13 PRs awaiting Daniel's review
+2. **Remind Daniel to review PRs** — Priority order: #441-#444 (0.0.3), #445-#448 (0.0.4), #449 (0.0.5), #450-#453 (0.1.0)
+3. **If any PRs merged**: Sync 0.0.2 with main, delete merged branches
+4. **Remaining 0.1.0 tasks**: IFFY/IIIF (#428), Views (#427), Re-enable tasks (#432-#434)
 
 ---
 *Last updated: 2026-04-12*
