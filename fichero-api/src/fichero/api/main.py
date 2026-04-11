@@ -88,10 +88,25 @@ async def lifespan(app: FastAPI):
     from fichero.db import db_manager
 
     logger.info("DatabaseManager initialized")
+
+    # Startup: initialize task queue
+    from fichero.workflows.tasks import init_task_queue
+    from pathlib import Path
+
+    db_path = Path.home() / "Library" / "Application Support" / "Fichero" / "fichero.duckdb"
+    await init_task_queue(str(db_path))
+    logger.info("Task queue initialized")
+
     yield
     # Shutdown: close all database connections
     logger.info("Fichero API shutting down...")
     db_manager.close_all()
+
+    # Shutdown: stop task queue
+    from fichero.workflows.tasks import shutdown_task_queue
+
+    await shutdown_task_queue()
+    logger.info("Task queue shut down")
 
 
 app = FastAPI(
@@ -246,6 +261,7 @@ from fichero.api.routes import (  # noqa: E402
     activity,
     chat,
     settings,
+    tasks,
     knowledge_graph,
     hermeneutics,
     mind_palace,
@@ -269,6 +285,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (activity.router, "/api", ["activity"]),
     (chat.router, "/api/chat", ["chat"]),
     (settings.router, "", ["settings"]),
+    (tasks.router, "/api/tasks", ["tasks"]),
 ]
 
 _DEV_ROUTE_SPECS: list[RouteSpec] = [
