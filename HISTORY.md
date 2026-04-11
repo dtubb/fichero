@@ -542,3 +542,23 @@ All 4 backend issues completed:
 **Branch:** feature/issue-435
 **Commit:** bd5bfb7f — register review_queue router in main.py
 **Closed:** https://github.com/dtubb/fichero/issues/435
+
+---
+
+## 2026-04-11 — Issue #436 — Contradiction Triage Backend (Evidence API)
+
+**Status:** COMPLETE
+
+**Work Done:**
+- Added contradiction evidence API endpoints to knowledge_graph.py
+- GET /api/claims/{id}/contradictions — detailed contradiction evidence
+- GET /api/claims/related/{id}/contradicting — contradicting claims with filters
+- GET /api/claims/{id}/evidence-chain — claim → source → claim traversal
+
+**Evidence:**
+- Full suite: 1228 passed, 21 skipped
+- ruff: clean
+
+**Branch:** feature/issue-436
+**Commit:** 0f2dd8e3 — add contradiction evidence API endpoints
+**Closed:** https://github.com/dtubb/fichero/issues/436

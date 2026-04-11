@@ -6,14 +6,14 @@
 
 - 0.0.2 issue **#364** — implemented and closed (PR **#454** merged into `0.0.2`)
 - 0.0.3 milestone **COMPLETE** — all 4 issues (#419-#422) done
-- 0.0.4 milestone **IN PROGRESS** — first issue (#435) complete, #436-439 remaining
+- 0.0.4 milestone **IN PROGRESS** — #435, #436 complete, #437-439 remaining
 - Unit backend test suite: **1228 passed, 21 skipped**
 
 ## In Progress
 
 1. Backend-only execution of open milestone issues:
    - **0.0.3:** ~~#419~~ ✅, ~~#420~~ ✅, ~~#421~~ ✅, ~~#422~~ ✅ — **COMPLETE**
-   - **0.0.4 (backend):** ~~#435~~ ✅, #436, #437, #438, #439
+   - **0.0.4 (backend):** ~~#435~~ ✅, ~~#436~~ ✅, #437, #438, #439
    - **0.0.5 (backend):** #425
    - **0.1.0 (backend-labeled):** #427, #428, #431 (+ #432-434 re-enable coordination)
 
@@ -26,8 +26,8 @@
 
 ## Next Session — Start Here
 
-1. **0.0.4 Milestone** — first issue (#435) complete
-2. Continue **0.0.4 milestone**: #436 (next)
+1. **0.0.4 Milestone** — #435, #436 complete
+2. Continue **0.0.4 milestone**: #437 (next)
 3. Keep using: tests → implement → pytest + ruff → PR → close
 
 ---
