@@ -448,3 +448,24 @@
 **Branch:** feature/issue-419 (worktree created, no changes needed)
 **PR:** N/A - framework already complete in 0.0.2 branch
 **Closed:** https://github.com/dtubb/fichero/issues/419
+
+---
+
+## 2026-04-11 — Issue #420 — Reindex / Repair Jobs and Metrics Recomputation Workers
+
+**Status:** COMPLETE
+
+**Work Done:**
+- Registered tasks router in main.py (was already implemented)
+- fichero/workflows/tasks.py: TaskQueue with DuckDB persistence
+- fichero/api/routes/tasks.py: 8 REST endpoints for reindex/metrics/repair
+- Job queue persists across restarts via background_tasks table
+
+**Evidence:**
+- pytest test_tasks.py -v: 19 passed
+- Full suite: 1228 passed, 21 skipped
+- ruff: clean
+
+**Branch:** feature/issue-420
+**Commit:** 6fb3f90b — register tasks router in main.py
+**Closed:** https://github.com/dtubb/fichero/issues/420
