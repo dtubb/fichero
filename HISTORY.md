@@ -414,3 +414,9 @@
   - Language filtering for claims/entities
   - 45 unit tests, all passing, ruff clean
   - PR #443 created: feature/issue-421 → 0.0.2
+
+## 2026-04-11 — #422 Thin MCP adapters for canonical knowledge APIs
+
+- PR: https://github.com/dtubb/fichero/pull/444
+- Branch: feature/issue-422
+- Task completed in session

@@ -2,46 +2,51 @@
 
 ## Current Focus
 
-**Milestone:** 0.0.3 (Data Integrity + Quality)
+**Milestone:** 0.0.3 (Data Integrity + Quality) — All backend tasks complete, pending PR review
 
-**Active Branch:** feature/issue-421 (but session on main worktree context for state management)
+**Active Branch:** feature/issue-419-migration (state management, not active work)
 
 **This Session's Work:**
-- ✅ Implemented #421: Multilingual baseline (complete, PR #443 open)
+- ✅ Implemented #422: Thin MCP adapters for knowledge APIs (complete, PR #444 open)
 
-## Open Pull Requests
+## Open Pull Requests (0.0.3 Milestone Complete — Waiting Review)
 
 | PR | Branch | Status | Description |
 |---|---|---|---|
 | #441 | feature/issue-419-migration | Open | Migration framework CLI + 15 tests |
-| #442 | feature/issue-420 | Merged? | Background task system (verify) |
+| #442 | feature/issue-420 | Open | Background task system + 19 tests |
 | #443 | feature/issue-421 | Open | Multilingual baseline + 45 tests |
+| #444 | feature/issue-422 | Open | MCP adapters + 16 tests |
+
+**All 0.0.3 backend tasks implemented.** Awaiting Daniel's review and merge.
 
 ## Next Session — Start Here
 
-1. **Check PR statuses** — Are #441, #443 merged? If yes:
-   - Sync `0.0.2` with `origin/main`
+1. **Check if PRs are merged** (#441, #442, #443, #444)
+   - If merged: sync `0.0.2` with `origin/main`
    - Delete merged feature branches
-   - Update local STATE
+   - Archive to HISTORY.md
 
-2. **Select next backend task** from milestone 0.0.3:
-   - #422: Thin MCP adapters for Fichero ↔︎ downstream systems
-   - #425: Activity stream enhancements
-   - Or unclaimed issue from project board
+2. **If all 0.0.3 merged:** Move to 0.0.4 milestone tasks:
+   - #436: Contradiction Triage Backend
+   - #437: Search Explanation Backend
+   - #438: Interpretations Workspace Backend
+   - #439: Claim Review Queue Backend
 
-3. **Claim via** `/assign-task <N>` or `gh issue edit <N> --add-label "in-progress"`
+3. **Claim via** `/assign-task <N>` or GitHub labels
 
 4. **Create worktree** using `scripts/create-worktree.sh`
 
 ## Blocked
 
-- (none)
+- (none — just waiting on PR review)
 
 ## Recent Context
 
-- Migration framework (#419) — PR #441 pending
-- Background tasks (#420) — PR #442 pending/merged
-- Multilingual (#421) — PR #443 created 2026-04-11
+- MCP adapters (#422) — 4 new tool endpoints, 16 tests, PR #444
+- Multilingual (#421) — 20 languages, transliteration matching, PR #443
+- Background tasks (#420) — Task queue with DuckDB persistence, PR #442
+- Migration framework (#419) — CLI + dry-run/rollback, PR #441
 
 ---
-*Last updated: 2026-04-11*
+*Last updated: 2026-04-12*

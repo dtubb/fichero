@@ -67,3 +67,42 @@ matches = find_cross_language_matches("tokyo", candidates)
 ```
 
 **Testing:** 45 unit tests covering detection, normalization, stemming, transliteration, and search. Heuristic detection covers CJK, Arabic, Hebrew, Thai, Cyrillic, Devanagari without external deps.
+
+## MCP Adapter Pattern — 2026-04-12
+
+**Pattern:** Thin MCP tool adapters that call canonical backend APIs with zero logic divergence
+
+**Principle:** MCP tools should be pure HTTP adapters, not reimplemented business logic
+
+**Architecture:**
+- Dedicated `/api/mcp/tools/*` routes with Pydantic validation
+- Request/response models define strict schemas per tool
+- Backend operations delegate to existing Database class
+- Enum validation helpers ensure type safety with clear errors
+- Soft-delete support for all CRUD operations
+
+**MCP Tool Endpoints:**
+```python
+POST /api/mcp/tools/knowledge/entities/upsert  # Create or update
+POST /api/mcp/tools/knowledge/claims/create    # Create new claim
+GET    /knowledge/entities/{id}                # Read single
+GET    /knowledge/claims/{id}
+DELETE /knowledge/entities/{id}                # Soft-delete
+DELETE /knowledge/claims/{id}
+GET    /knowledge/entities                     # List with filter
+GET    /knowledge/claims                       # List with filter
+```
+
+**Validation Pattern:**
+```python
+def _validate_entity_type(entity_type: str) -> EntityType:
+    try:
+        return EntityType(entity_type)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid entity_type. Valid: {[t.value for t in EntityType]}"
+        )
+```
+
+**Key Feature:** Entity upsert detects existing by ID — "created" or "updated" in response distinguishes operation
