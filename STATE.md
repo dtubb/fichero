@@ -2,14 +2,14 @@
 
 ## Current Focus
 
-**Milestone:** 0.0.3 (Data Integrity + Quality) — All backend tasks complete, pending PR review
+**Milestone:** 0.0.4 (Semantic UX + Trust Workflow) — First task complete, 3 remaining
 
 **Active Branch:** feature/issue-419-migration (state management, not active work)
 
 **This Session's Work:**
-- ✅ Implemented #422: Thin MCP adapters for knowledge APIs (complete, PR #444 open)
+- ✅ Implemented #440: Claim Review Queue Backend (complete, PR #445 open)
 
-## Open Pull Requests (0.0.3 Milestone Complete — Waiting Review)
+## Open Pull Requests (0.0.3 Waiting Review, 0.0.4 In Progress)
 
 | PR | Branch | Status | Description |
 |---|---|---|---|
@@ -17,21 +17,21 @@
 | #442 | feature/issue-420 | Open | Background task system + 19 tests |
 | #443 | feature/issue-421 | Open | Multilingual baseline + 45 tests |
 | #444 | feature/issue-422 | Open | MCP adapters + 16 tests |
+| #445 | feature/issue-440 | Open | Claim review queue + 15 tests |
 
-**All 0.0.3 backend tasks implemented.** Awaiting Daniel's review and merge.
+**5 PRs total — 4 from 0.0.3 (waiting), 1 from 0.0.4 (new)**
 
 ## Next Session — Start Here
 
-1. **Check if PRs are merged** (#441, #442, #443, #444)
-   - If merged: sync `0.0.2` with `origin/main`
+1. **Check PR merge status** — Especially if #441-#444 were merged:
+   - Sync `0.0.2` with `origin/main`
    - Delete merged feature branches
-   - Archive to HISTORY.md
+   - Archive completed work to HISTORY.md
 
-2. **If all 0.0.3 merged:** Move to 0.0.4 milestone tasks:
-   - #436: Contradiction Triage Backend
-   - #437: Search Explanation Backend
-   - #438: Interpretations Workspace Backend
-   - #439: Claim Review Queue Backend
+2. **Next 0.0.4 tasks** (remaining):
+   - #436/#437: Contradiction Triage Backend
+   - #438: Search Explanation Backend
+   - #439: Interpretations Workspace Backend
 
 3. **Claim via** `/assign-task <N>` or GitHub labels
 
@@ -43,10 +43,11 @@
 
 ## Recent Context
 
-- MCP adapters (#422) — 4 new tool endpoints, 16 tests, PR #444
-- Multilingual (#421) — 20 languages, transliteration matching, PR #443
-- Background tasks (#420) — Task queue with DuckDB persistence, PR #442
-- Migration framework (#419) — CLI + dry-run/rollback, PR #441
+- Review queue (#440) — Claim transitions, batch ops, queue views, 15 tests
+- MCP adapters (#422) — 4 knowledge endpoints, 16 tests
+- Multilingual (#421) — 20 languages, transliteration, 45 tests
+- Background tasks (#420) — Task queue, DuckDB persistence, 19 tests
+- Migration framework (#419) — CLI + dry-run/rollback, 15 tests
 
 ---
 *Last updated: 2026-04-12*

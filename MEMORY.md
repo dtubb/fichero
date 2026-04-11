@@ -106,3 +106,43 @@ def _validate_entity_type(entity_type: str) -> EntityType:
 ```
 
 **Key Feature:** Entity upsert detects existing by ID — "created" or "updated" in response distinguishes operation
+
+## Review Queue Pattern — 2026-04-12
+
+**Pattern:** Claim review workflow with state transitions and queue views
+
+**State Machine:**
+- unreviewed → shortlisted → curated/rejected
+- bidirectional transitions supported via PATCH endpoints
+- review history tracked in claim.metadata["review_history"]
+
+**Endpoints:**
+```python
+PATCH /api/claims/{id}/transition        # Single claim
+POST /api/claims/batch/transition        # Batch transition
+GET /api/claims/queues/unreviewed      # Queue views
+GET /api/claims/queues/shortlisted
+GET /api/claims/queues/curated
+GET /api/claims/queues/rejected
+```
+
+**Queue Item Enrichment:**
+- Entity IDs resolved to canonical names for display
+- Review history included in response
+- Text truncated (500 chars) with ellipsis
+
+**Filter Parameters:**
+- `?person=<name>` — Match entity names
+- `?topic=<topic>` — Match entities or text
+- `?question=<text>` — Match claim text
+
+**Review History Entry:**
+```json
+{
+  "from_state": "unreviewed",
+  "to_state": "shortlisted",
+  "timestamp": "2024-01-01T00:00:00",
+  "reviewed_by": "human",
+  "reason": "Verified by expert"
+}
+```

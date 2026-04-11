@@ -420,3 +420,9 @@
 - PR: https://github.com/dtubb/fichero/pull/444
 - Branch: feature/issue-422
 - Task completed in session
+
+## 2026-04-11 — #440 Claim Review Queue Backend
+
+- PR: https://github.com/dtubb/fichero/pull/445
+- Branch: feature/issue-440
+- Task completed in session
