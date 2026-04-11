@@ -1,36 +1,47 @@
-# Current Focus
-Backend implementation — 0.0.3 through 0.1.0 milestones
+# STATE.md — Fichero
 
-# Branch
-- Active branch: `0.0.2`
+## Current Focus
 
-# Completed
-- Created 21 backend-focused GitHub issues (#419-440) for 0.0.3, 0.0.4, 0.0.5, 0.1.0, and legacy tasks
-- 0.0.2 release merged to main — all security PRs delivered
-- Documentation in agent-work/ISSUES-CREATED.md for agent agent claiming
+**Milestone:** 0.0.3 (Data Integrity + Quality)
 
-# Next Session — Start Here
-**Backend Implementation Tasks:**
-1. Review GitHub issues #419-440 for backend work
-2. Select tasks based on skill stack (backend-only vs backend+Swift)
-3. Claim issues and implement FastAPI routes
-4. Write unit tests for new endpoints
+**Active Branch:** feature/issue-421 (but session on main worktree context for state management)
 
-**Backend-Only Work Available:**
-- #419: Migration/backfill tooling
-- #420: Reindex/repair workers
-- #421: Multilingual baseline
-- #422: Thin MCP adapters
-- #425: Activity stream enhancements
-- #428: IIIF server mode
-- #429: PyKEEN inference track
-- #430: NetworkX integration
-- #432-434: Legacy re-enable issues
+**This Session's Work:**
+- ✅ Implemented #421: Multilingual baseline (complete, PR #443 open)
 
-**Backend+Swift Work:**
-- #423, #424, #426, #427, #431, #435, #436
+## Open Pull Requests
 
-### Reference
-- All issues: `gh issue list --limit 100 | grep "^4[0-9][0-9]"`
-- By milestone: `gh issue list --milestone "0.0.3"`, `--milestone "0.0.4"`, `--milestone "0.1.0"`
-- Documentation: `agent-work/ISSUES-CREATED.md`
+| PR | Branch | Status | Description |
+|---|---|---|---|
+| #441 | feature/issue-419-migration | Open | Migration framework CLI + 15 tests |
+| #442 | feature/issue-420 | Merged? | Background task system (verify) |
+| #443 | feature/issue-421 | Open | Multilingual baseline + 45 tests |
+
+## Next Session — Start Here
+
+1. **Check PR statuses** — Are #441, #443 merged? If yes:
+   - Sync `0.0.2` with `origin/main`
+   - Delete merged feature branches
+   - Update local STATE
+
+2. **Select next backend task** from milestone 0.0.3:
+   - #422: Thin MCP adapters for Fichero ↔︎ downstream systems
+   - #425: Activity stream enhancements
+   - Or unclaimed issue from project board
+
+3. **Claim via** `/assign-task <N>` or `gh issue edit <N> --add-label "in-progress"`
+
+4. **Create worktree** using `scripts/create-worktree.sh`
+
+## Blocked
+
+- (none)
+
+## Recent Context
+
+- Migration framework (#419) — PR #441 pending
+- Background tasks (#420) — PR #442 pending/merged
+- Multilingual (#421) — PR #443 created 2026-04-11
+
+---
+*Last updated: 2026-04-11*
