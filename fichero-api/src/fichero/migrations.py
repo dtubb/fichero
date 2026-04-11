@@ -31,12 +31,11 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Callable, TypeVar, Any
+from typing import Callable, TypeVar
 from uuid import uuid4
 
 from fichero.db import Database
@@ -48,7 +47,7 @@ from fichero.knowledge_models import (
     MutationLog,
     MutationOperationType,
 )
-from fichero.models import Document, Page, Artifact
+from fichero.models import Document
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -236,7 +235,7 @@ class MigrationRunner:
                         "source_ids": claim.source_ids.copy(),
                         "source_page_labels": claim.source_page_labels.copy(),
                     }
-                    mutation_id = self._log_mutation(
+                    self._log_mutation(
                         entity_type="KnowledgeClaim",
                         entity_id=claim.id,
                         operation=MutationOperationType.update,
@@ -339,7 +338,7 @@ class MigrationRunner:
 
                     # Log mutation
                     after_state = {"source_metadata": source_metadata.model_dump()}
-                    mutation_id = self._log_mutation(
+                    self._log_mutation(
                         entity_type="KnowledgeClaim",
                         entity_id=claim.id,
                         operation=MutationOperationType.update,
@@ -566,8 +565,6 @@ class MigrationRunner:
             "KnowledgeEntity": KnowledgeEntity,
             "KnowledgeClaimLink": KnowledgeClaimLink,
             "Document": Document,
-            "Page": Page,
-            "Artifact": Artifact,
             "MutationLog": MutationLog,
         }
         return model_map.get(entity_type)
