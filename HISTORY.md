@@ -521,3 +521,24 @@ All 4 backend issues completed:
 - #422: MCP Adapters for Knowledge APIs (router fixed)
 
 **Total:** 0.0.3 milestone complete, moving to 0.0.4
+
+---
+
+## 2026-04-11 — Issue #435 — Claim Review Queue (Backend)
+
+**Status:** COMPLETE
+
+**Work Done:**
+- Registered review_queue router in main.py
+- fichero/api/routes/review_queue.py: claim transitions, batch ops, queue views
+- Endpoints: /api/claims/{id}/transition, /api/claims/batch/transition
+- Queue views: /api/claims/queues/unreviewed, shortlisted, curated, rejected
+
+**Evidence:**
+- pytest test_review_queue.py -v: 15 passed
+- Full suite: 1228 passed, 21 skipped
+- ruff: clean
+
+**Branch:** feature/issue-435
+**Commit:** bd5bfb7f — register review_queue router in main.py
+**Closed:** https://github.com/dtubb/fichero/issues/435
