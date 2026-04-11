@@ -382,77 +382,14 @@
 ## 2026-04-10 — Session Summary
 
 
+## 2026-04-12 — Orchestration Policy (#426)
 
-## 2026-04-10 — Session
-
-- **#419 Migration Framework (0.0.3)**: Implemented core MigrationRunner class
-  - Dry-run mode for validation without side effects
-  - Rollback support with before/after state capture
-  - Audit trail via MutationLog for all migrations
-  - Batch processing with progress callbacks
-  - Three operation types: migrate_claims_to_multi_source, backfill_claim_source_metadata, repair_orphaned_claim_links
-  - Safety validation checks before execution
-  - Branch: feature/issue-419-migration
-
-## 2026-04-11 — Session Summary
-
-- #419: Migration framework complete — CLI script, 15 unit tests, PR 441 created
-- Fixed import errors in migrations.py (removed non-existent Page and Artifact references)
-- All quality gates passed: pytest 15/15, ruff zero warnings
-
-## 2026-04-11 — Session Summary
-
-- #420: Background task system complete — TaskQueue with APScheduler, DuckDB persistence, reindex/metrics tasks, 19 unit tests, PR 442 created
-
-## 2026-04-11 — Multilingual Baseline Complete
-
-- ✅ Complete #421: Multilingual baseline for claims/entities and cross-language retrieval
-  - Language detection (20+ languages, cld3 + heuristic fallback)
-  - Text normalization (NFKC Unicode, language-specific rules)
-  - Transliteration matching (tokyo ↔︎ 東京)
-  - Cross-language entity search API
-  - Language filtering for claims/entities
-  - 45 unit tests, all passing, ruff clean
-  - PR #443 created: feature/issue-421 → 0.0.2
-
-## 2026-04-11 — #422 Thin MCP adapters for canonical knowledge APIs
-
-- PR: https://github.com/dtubb/fichero/pull/444
-- Branch: feature/issue-422
-- Task completed in session
-
-## 2026-04-11 — #440 Claim Review Queue Backend
-
-- PR: https://github.com/dtubb/fichero/pull/445
-- Branch: feature/issue-440
-- Task completed in session
-
-## 2026-04-11 — #438 Search Explanation Backend
-
-- PR: https://github.com/dtubb/fichero/pull/446
-- Branch: feature/issue-438
-- Task completed in session
-
-## 2026-04-11 — #439 Interpretations Workspace Backend
-
-- PR: https://github.com/dtubb/fichero/pull/447
-- Branch: feature/issue-439
-- Task completed in session
-
-## 2026-04-11 — #425 Activity Stream Enhancements
-
-- PR: https://github.com/dtubb/fichero/pull/448
-- Branch: feature/issue-425
-- Task completed in session
-
-## 2026-04-11 — #436 Contradiction Triage Backend
-
-- PR: https://github.com/dtubb/fichero/pull/449
-- Branch: feature/issue-436
-- Task completed in session
-
-## 2026-04-11 — #431 Advanced Graph Exploration Backend
-
-- PR: https://github.com/dtubb/fichero/pull/450
-- Branch: feature/issue-431
-- Task completed in session
+- **#426 Human-in-the-Loop Orchestration Policy** — Complete
+  - `orchestration_policy.py`: Policy engine with priority-based matching
+  - `orchestration.py`: 11 API endpoints for policy management and approvals
+  - Policy rules: entity_type, confidence_threshold, requires_source, min_evidence_count
+  - Actions: auto_approve, require_approval, deny
+  - Default rules: High Confidence Auto-Approve, Entity Deletion Protection, Medium Confidence Review
+  - Approval workflow: submit → evaluate → approve/reject → audit
+  - 31 unit tests (all passing)
+  - PR #451: https://github.com/dtubb/fichero/pull/451
