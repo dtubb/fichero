@@ -4,7 +4,7 @@
 
 **Milestone:** 0.1.0 (Advanced Graph) — Three tasks complete, remainder TBD
 
-**Active Branch:** feature/issue-430 (current task)
+**Active Branch:** feature/issue-430 (completed today)
 
 ## Open Pull Requests (12 total, awaiting Daniel's review)
 
@@ -38,10 +38,10 @@
 
 ## Next Session — Start Here
 
-1. **Check PR status**: gh pr list --state open
-2. **Check for new 0.1.0 tasks**: gh issue list --milestone "0.1.0"
+1. **Check PR status**: `gh pr list --state open` — All 12 PRs awaiting Daniel's review
+2. **Reminds Daniel to review PRs** — Priority order: #441-#444 (0.0.3), #445-#448 (0.0.4), #449 (0.0.5), #450-#452 (0.1.0)
 3. **If PRs merged**: Sync 0.0.2 with main, delete merged branches
-4. **Remaining 0.1.0 tasks**: PyKEEN (#429), IFFY/IIIF (#428), Views (#427), plus re-enable tasks (#432, #433, #434)
+4. **Remaining 0.1.0 tasks**: PyKEEN (#429), IFFY/IIIF (#428), Views (#427), Re-enable tasks (#432-#434)
 
 ---
 *Last updated: 2026-04-12*
