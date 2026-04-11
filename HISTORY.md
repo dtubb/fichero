@@ -399,3 +399,7 @@
 - #419: Migration framework complete — CLI script, 15 unit tests, PR 441 created
 - Fixed import errors in migrations.py (removed non-existent Page and Artifact references)
 - All quality gates passed: pytest 15/15, ruff zero warnings
+
+## 2026-04-11 — Session Summary
+
+- #420: Background task system complete — TaskQueue with APScheduler, DuckDB persistence, reindex/metrics tasks, 19 unit tests, PR 442 created

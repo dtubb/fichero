@@ -1,5 +1,14 @@
 # Durable Lessons Learned / Decisions
 
+*   **Background Task System Pattern (2026-04-11):** Implemented task queue for background jobs using:
+    - APScheduler for async task execution with priority-based scheduling
+    - DuckDB for persistent task storage (survives restarts)
+    - Task status lifecycle: PENDING → RUNNING → COMPLETED/FAILED/CANCELLED
+    - Progress tracking with current/total/percent/message updates
+    - Type-specific task handlers (reindex, metrics, repair)
+    - Automatic recovery of interrupted tasks on startup
+    - Integration with existing Database class for operations
+
 *   **SSRF Security Pattern for Research Tools (2026-04-10):** Security audit of research tools (research.py) revealed critical SSRF vulnerabilities:
     - `follow_redirects=True` without redirect chain validation allows open redirect attacks
     - `_is_sandbox_violation()` using `startswith()` is insufficient — must validate resolved IPs
