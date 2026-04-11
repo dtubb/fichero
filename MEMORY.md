@@ -178,3 +178,28 @@ RAGMode.SPECULATIVE:  # Broad research
 - POST /api/search/explain — Full explanation
 - GET /api/search/modes — Available modes
 - GET /api/search/metrics — System metrics
+
+## Interpretations Workspace Pattern — 2026-04-12
+
+**Pattern:** Structured interpretation management with method taxonomy and citation lineage
+
+**Method Taxonomy:**
+- Categories: HISTORICAL, TEXTUAL, ANALYTICAL, SYNTHETIC, CRITICAL, COMPARATIVE, EMPIRICAL, CONCEPTUAL
+- Techniques: CLOSE_READING, DISCOURSE_ANALYSIS, GENRE_ANALYSIS, NARRATIVE_ANALYSIS, SOURCE_CRITICISM, COMPARATIVE_ANALYSIS, STATISTICAL, THEMATIC_CODING, GROUNDED_THEORY, HERMENEUTIC_CIRCLE, DIALECTICAL
+
+**Citation Lineage:**
+- Citation types: primary, secondary, supporting, contradicting, contextual
+- Relevance scores (0.0-1.0)
+- Links claims to source documents via provenance tracing
+
+**Key Features:**
+- Multi-claim interpretations (claim_ids list)
+- Method tag confidence and rationale
+- Lineage tracing traces through claim → document
+- Integration with hermeneutics framework
+
+**Endpoints:**
+- POST/GET/PATCH/DELETE /api/interpretations — CRUD
+- GET /api/interpretations/{id}/lineage — Traced provenance
+- POST /api/interpretations/{id}/tags — Add method tags
+- GET /api/interpretations/taxonomy/methods — Available categories/techniques
