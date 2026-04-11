@@ -11,6 +11,7 @@ from pykeen.pipeline import pipeline
 from pykeen.predict import predict_target
 from pykeen.triples import TriplesFactory
 import pykeen
+import torch
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -37,6 +38,18 @@ from fichero.knowledge_models import (
 from fichero.models import DocType, Document
 
 router = APIRouter()
+
+
+if not hasattr(pykeen.models.Model, "load_directory"):
+    @classmethod
+    def _load_directory_compat(cls, directory: str):
+        """Compatibility shim for PyKEEN versions without Model.load_directory."""
+        model_file = Path(directory) / "trained_model.pkl"
+        if not model_file.exists():
+            raise FileNotFoundError(f"trained_model.pkl not found in {directory}")
+        return torch.load(model_file, map_location="cpu")
+
+    pykeen.models.Model.load_directory = _load_directory_compat
 
 KG_CLAIM_EMBEDDINGS_TABLE = "kg_claim_embeddings"
 KG_ENTITY_EMBEDDINGS_TABLE = "kg_entity_embeddings"
@@ -1012,6 +1025,9 @@ async def create_claim(
         )
 
     now = datetime.now()
+    claim_metadata = dict(request.metadata)
+    claim_metadata.setdefault("sensitivity", "public")
+
     claim = KnowledgeClaim(
         text=request.text.strip(),
         source_document_id=request.source_document_id,
@@ -1026,7 +1042,7 @@ async def create_claim(
         predicted_by=request.predicted_by,
         prediction=request.prediction,
         language=request.language,
-        metadata=request.metadata,
+        metadata=claim_metadata,
         created_by=request.created_by,
         created_at=now,
         updated_at=now,
@@ -1662,6 +1678,11 @@ def _build_minimal_pykeen_triples(
     triples: list[tuple[str, str, str]] = []
 
     for claim in claims:
+        # Security: default to excluding claims from ML training unless marked public.
+        sensitivity = str((claim.metadata or {}).get("sensitivity", "confidential")).lower()
+        if sensitivity in {"confidential", "private", "secret"}:
+            continue
+
         entity_ids = sorted(set(claim.entity_ids))
         for entity_id in entity_ids:
             triples.append((claim.id, "mentions", entity_id))

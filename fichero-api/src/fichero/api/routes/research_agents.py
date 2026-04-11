@@ -6,7 +6,7 @@ import socket
 import time
 from datetime import datetime
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -678,36 +678,45 @@ def _is_safe_url(url: str, allow_userinfo: bool = False) -> tuple[bool, str]:
     """Comprehensive URL safety check for sandboxed requests."""
     if not url:
         return False, "URL is empty"
-    
+
     try:
         parsed = urlparse(url)
     except Exception as e:
         return False, f"Invalid URL format: {e}"
-    
+
     scheme = parsed.scheme.lower()
     if not scheme:
         return False, "URL must have a scheme (http:// or https://)"
-    
+
     if scheme in _SANDBOX_BLOCKED_SCHEMES:
         return False, f"URL scheme '{parsed.scheme}' is not allowed"
-    
+
     if scheme not in ("http", "https"):
         return False, f"URL scheme '{parsed.scheme}' is not allowed (only http/https)"
-    
+
     if not allow_userinfo and (parsed.username or parsed.password):
         return False, "URLs with embedded credentials are not allowed"
-    
+
     hostname = parsed.hostname
     if not hostname:
         return False, "URL must have a hostname"
-    
+
     if _is_internal_ip(hostname):
         return False, f"Internal addresses are not allowed: {hostname}"
-    
+
     if re.match(r"^0[xX][0-9a-fA-F]+", hostname) or re.match(r"^\d+$", hostname):
         if _is_internal_ip(hostname):
             return False, "Numeric IP addresses are not allowed"
-    
+
+    # Basic traversal hardening for path confusion vectors.
+    if "/../" in parsed.path or parsed.path.endswith("/.."):
+        return False, "Path traversal patterns are not allowed"
+
+    # Disallow blocked schemes in query/fragment payloads used as redirect gadgets.
+    query_and_fragment = f"{parsed.query} {parsed.fragment}".lower()
+    if any(f"{blocked}://" in query_and_fragment for blocked in _SANDBOX_BLOCKED_SCHEMES):
+        return False, "Embedded blocked URL schemes are not allowed"
+
     return True, ""
 
 
@@ -715,6 +724,49 @@ def _is_sandbox_violation(url: str) -> bool:
     """Check if URL violates sandbox constraints."""
     is_safe, _ = _is_safe_url(url)
     return not is_safe
+
+
+async def _safe_http_get(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+    params: dict[str, Any] | None = None,
+    max_redirects: int = 5,
+) -> httpx.Response:
+    """GET with explicit redirect validation to prevent SSRF redirect bypass."""
+    current_url = url
+    for _ in range(max_redirects + 1):
+        is_safe, error = _is_safe_url(current_url)
+        if not is_safe:
+            raise HTTPException(status_code=400, detail=f"URL not allowed: {error}")
+
+        response = await client.get(
+            current_url,
+            headers=headers,
+            params=params,
+            follow_redirects=False,
+        )
+
+        if response.status_code in {301, 302, 303, 307, 308}:
+            location = response.headers.get("location")
+            if not location:
+                raise HTTPException(status_code=400, detail="Redirect missing location")
+            next_url = urljoin(str(current_url), location)
+            is_safe, error = _is_safe_url(next_url)
+            if not is_safe:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Redirect target not allowed: {error}",
+                )
+            current_url = next_url
+            params = None
+            continue
+
+        response.raise_for_status()
+        return response
+
+    raise HTTPException(status_code=400, detail="Too many redirects")
 
 
 @router.post("/tools/web-search", response_model=WebSearchResponse)
@@ -732,7 +784,6 @@ async def execute_web_search(
     try:
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(request.timeout_seconds, connect=10.0),
-            follow_redirects=True,
             limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
         ) as client:
             # DuckDuckGo HTML lite (no API key needed)
@@ -740,10 +791,15 @@ async def execute_web_search(
                 "q": request.query,
                 "kl": request.language or "en-us",
             }
-            resp = await client.get("https://html.duckduckgo.com/html/", params=params)
-            resp.raise_for_status()
-            html = resp.text
+            resp = await _safe_http_get(
+                client,
+                "https://html.duckduckgo.com/html/",
+                params=params,
+            )
+            html = resp.text if isinstance(resp.text, str) else str(resp.text)
 
+    except HTTPException:
+        raise
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="Web search timed out")
     except httpx.HTTPStatusError as e:
@@ -818,7 +874,6 @@ async def execute_browser_navigate(
     try:
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(request.timeout_seconds, connect=10.0),
-            follow_redirects=True,
             limits=httpx.Limits(max_connections=10),
         ) as client:
             headers = {
@@ -830,10 +885,11 @@ async def execute_browser_navigate(
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9",
             }
-            resp = await client.get(request.url, headers=headers)
-            resp.raise_for_status()
-            html_content = resp.text
+            resp = await _safe_http_get(client, request.url, headers=headers)
+            html_content = resp.text if isinstance(resp.text, str) else str(resp.text)
 
+    except HTTPException:
+        raise
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="Browser navigation timed out")
     except httpx.HTTPStatusError as e:
@@ -906,17 +962,15 @@ async def execute_document_fetch(
     try:
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(60.0, connect=10.0),
-            follow_redirects=True,
         ) as client:
             headers = {
                 "User-Agent": (
                     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
                 ),
             }
-            resp = await client.get(request.url, headers=headers)
-            resp.raise_for_status()
-            content = resp.text
-            content_type = resp.headers.get("content-type", "text/plain")
+            resp = await _safe_http_get(client, request.url, headers=headers)
+            content = resp.text if isinstance(resp.text, str) else str(resp.text)
+            content_type = str(resp.headers.get("content-type", "text/plain"))
             # Extract title from HTML or use URL
             if "text/html" in content_type:
                 import re
@@ -929,6 +983,8 @@ async def execute_document_fetch(
             else:
                 title = request.url.split("/")[-1]
 
+    except HTTPException:
+        raise
     except httpx.TimeoutException:
         return DocumentFetchResponse(
             url=request.url,

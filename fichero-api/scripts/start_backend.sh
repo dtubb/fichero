@@ -10,12 +10,13 @@ REPO_ROOT="$(cd "$API_ROOT/.." && pwd)"
 
 if [ -n "${FICHERO_PYTHON_BIN:-}" ] && [ -x "${FICHERO_PYTHON_BIN}" ]; then
   PYTHON_BIN="${FICHERO_PYTHON_BIN}"
-elif [ -n "${VIRTUAL_ENV:-}" ] && [ -x "${VIRTUAL_ENV}/bin/python" ]; then
-  PYTHON_BIN="${VIRTUAL_ENV}/bin/python"
 elif [ -x "$API_ROOT/.venv/bin/python" ]; then
+  # Prefer project-local venv over any externally activated environment.
   PYTHON_BIN="$API_ROOT/.venv/bin/python"
 elif [ -x "$REPO_ROOT/.venv/bin/python" ]; then
   PYTHON_BIN="$REPO_ROOT/.venv/bin/python"
+elif [ -n "${VIRTUAL_ENV:-}" ] && [ -x "${VIRTUAL_ENV}/bin/python" ]; then
+  PYTHON_BIN="${VIRTUAL_ENV}/bin/python"
 else
   PYTHON_BIN="python3"
 fi

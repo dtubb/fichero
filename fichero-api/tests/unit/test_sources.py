@@ -1,10 +1,5 @@
 """Tests for the Sources API routes (issue #364)."""
 
-import pytest
-from fastapi.testclient import TestClient
-
-from fichero.api.main import app
-from fichero.models import Document
 
 
 def test_list_sources_empty(client, db):
