@@ -246,6 +246,7 @@ from fichero.api.routes import (  # noqa: E402
     activity,
     chat,
     settings,
+    multilingual,
     knowledge_graph,
     hermeneutics,
     mind_palace,
@@ -269,6 +270,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (activity.router, "/api", ["activity"]),
     (chat.router, "/api/chat", ["chat"]),
     (settings.router, "", ["settings"]),
+    (multilingual.router, "/api/multilingual", ["multilingual"]),
 ]
 
 _DEV_ROUTE_SPECS: list[RouteSpec] = [
