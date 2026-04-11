@@ -15,6 +15,7 @@ import torch
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
+from fichero.multilingual import normalize_text as multilingual_normalize
 from fichero.knowledge_models import (
     ClaimCurationState,
     ClaimRelationType,
@@ -158,8 +159,17 @@ class InclusionUpsertRequest(BaseModel):
     updated_by: str = "human"
 
 
-def _normalize_text(value: str | None) -> str:
-    return (value or "").strip().lower()
+def _normalize_text(value: str | None, language: str = "en") -> str:
+    """Normalize text using language-aware normalization.
+
+    Falls back to the multilingual normalization system which handles:
+    - Unicode NFKC normalization
+    - Language-specific case handling (e.g., Turkish 'İ')
+    - Whitespace normalization
+    """
+    if not value:
+        return ""
+    return multilingual_normalize(value, language)
 
 
 def _descendant_ids_for_folder(db: Database, folder_id: str) -> set[str]:
