@@ -403,3 +403,14 @@
 ## 2026-04-11 — Session Summary
 
 - #420: Background task system complete — TaskQueue with APScheduler, DuckDB persistence, reindex/metrics tasks, 19 unit tests, PR 442 created
+
+## 2026-04-11 — Multilingual Baseline Complete
+
+- ✅ Complete #421: Multilingual baseline for claims/entities and cross-language retrieval
+  - Language detection (20+ languages, cld3 + heuristic fallback)
+  - Text normalization (NFKC Unicode, language-specific rules)
+  - Transliteration matching (tokyo ↔︎ 東京)
+  - Cross-language entity search API
+  - Language filtering for claims/entities
+  - 45 unit tests, all passing, ruff clean
+  - PR #443 created: feature/issue-421 → 0.0.2

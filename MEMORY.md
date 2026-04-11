@@ -37,3 +37,33 @@
     - Batch processing with progress callbacks for large datasets
     - Validation safety checks prevent running unsafe migrations
     - Legacy function wrappers maintain backward compatibility
+
+## Multilingual System Pattern — 2026-04-11
+
+**Pattern:** Language-aware text processing with transliteration support
+
+**Architecture:**
+- Language detection using cld3 (optional) with heuristic fallback
+- Unicode normalization (NFKC) for consistent representation
+- Language-specific rules (Turkish I handling, German ß, Arabic/Hebrew/Thai scripts)
+- Transliteration tables for common proper nouns (Tokyo→東京)
+- Levenshtein distance for similar-language matching
+
+**Usage:**
+```python
+from fichero.multilingual import detect_language, normalize_text, find_cross_language_matches
+
+# Detect language
+result = detect_language("这是一句中文")
+# LanguageDetectionResult(language='zh', confidence=0.9, is_reliable=True)
+
+# Normalize for search
+normalized = normalize_text("Straße", "de")  # "straße"
+
+# Cross-language search
+candidates = [("id1", "东京", "zh"), ("id2", "Tokyo", "en")]
+matches = find_cross_language_matches("tokyo", candidates)
+# [("id1", 0.95), ("id2", 1.0)]
+```
+
+**Testing:** 45 unit tests covering detection, normalization, stemming, transliteration, and search. Heuristic detection covers CJK, Arabic, Hebrew, Thai, Cyrillic, Devanagari without external deps.
