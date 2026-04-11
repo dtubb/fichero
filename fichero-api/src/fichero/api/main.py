@@ -307,6 +307,7 @@ from fichero.api.routes import (  # noqa: E402
     mcp_tools,
     sources,
     review_queue,
+    interpretations,
 )
 
 RouteSpec = tuple[object, str, list[str]]
@@ -335,6 +336,7 @@ _DEV_ROUTE_SPECS: list[RouteSpec] = [
     (knowledge_graph.router, "/api/knowledge-graph", ["knowledge-graph"]),
     (search_explain.router, "/api", ["search-explanation"]),
     (hermeneutics.router, "/api/hermeneutics", ["hermeneutics"]),
+    (interpretations.router, "/api", ["interpretations"]),
     (graph_exploration.router, "/api", ["graph-exploration"]),
     (mind_palace.router, "/api/mind-palace", ["mind-palace"]),
     (research_agents.router, "/api/research", ["research"]),
