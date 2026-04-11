@@ -21,42 +21,45 @@
 
 *   **Branch Convention (2026-04-10):** Implementation work happens on milestone branches (e.g., `0.0.2`, `feature/388-hermeneutics`), not planning branches. The `0.0.2` branch IS the active implementation branch. State is now tracking backend implementation work for 0.0.3-0.1.0 milestones with 21 issues created for AI agent claiming.
 
-## Orchestration Policy Pattern — 2026-04-12
+## NetworkX Graph Reasoning Pattern — 2026-04-12
 
-**Pattern:** Priority-based policy rules for AI agent write operations with human-in-the-loop approval
+**Pattern:** Algorithmic graph analysis using NetworkX on knowledge graph data
 
-**Policy Rule Matching:**
-- Priority order (lower number = higher priority, evaluated first)
-- Conditions stack: entity_type AND confidence_threshold AND requires_source AND min_evidence_count
-- First matching rule wins
-- Fallback: require_approval if no rules match
+**Graph Construction:**
+```python
+# Entities become nodes with metadata
+G.add_node(entity.id, type="entity", label=entity.canonical_name)
 
-**Rule Conditions:**
-- confidence_threshold: confidence >= threshold to pass
-- requires_source: must have non-empty sources list
-- min_evidence_count: evidence items must >= count
-- is_active: rule must be enabled
+# Claims become nodes connected to entities
+G.add_node(claim.id, type="claim", label=claim.text, confidence=claim.confidence)
+for entity_id in claim.entity_ids:
+    G.add_edge(entity_id, claim.id, relation="mentions", weight=claim.confidence)
 
-**Approval Workflow:**
-```
-submit_request() → evaluate() → [auto_approve | require_approval | deny]
-  ↓ require_approval
-  → pending state → approve() or reject() by human
-  ↓ audit logging for all state transitions
+# Claim links connect claims to claims
+for link in links:
+    G.add_edge(link.claim_id, link.related_claim_id, relation=link.relation_type, weight=link.link_quality)
 ```
 
-**Policy Actions:**
-- auto_approve: Immediate approval (high confidence, validated sources)
-- require_approval: Human review required (risk operations, medium confidence)
-- deny: Blocked (low confidence, missing validation)
+**Centrality Algorithms:**
+- degree_centrality: Count of edges per node
+- betweenness_centrality: Nodes on most shortest paths
+- closeness_centrality: Inverse of average distance to others
+- eigenvector_centrality: Importance from important neighbors
+- pagerank: Iterative importance with damping factor
 
-**Default Priority Levels:**
-- 1-10: Auto-approve rules (highest confidence, deletion protection)
-- 11-100: Review rules (medium confidence thresholds)
-- 100+: Fallback/catch-all rules
+**Community Detection:**
+- louvain: Modularity optimization, O(n log n) complexity
+- greedy_modularity: Hierarchical modularity maximization
+- label_propagation: Fast O(m) complexity, good for large graphs
 
-**Audit Record Fields:**
-- request metadata (agent, operation, confidence)
-- policy matching (rule_id, policy_action)
-- approval decision (approved_by, reason, timestamp)
-- execution result (executed_at, error_message)
+**Graceful Degradation:**
+- Optional dependency - works without NetworkX installed
+- Enabled/disabled via endpoint
+- All functions check `reasoner.is_available()` before use
+- Tests skip when NetworkX not available
+
+**Metrics:**
+- Density: fraction of possible edges present
+- Clustering: probability that neighbors are connected
+- Connected components: number of disconnected subgraphs
+- Modularity: community detection quality (0 = random, 1 = perfect)

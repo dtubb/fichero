@@ -382,14 +382,15 @@
 ## 2026-04-10 — Session Summary
 
 
-## 2026-04-12 — Orchestration Policy (#426)
+## 2026-04-11 — Session Summary
 
-- **#426 Human-in-the-Loop Orchestration Policy** — Complete
-  - `orchestration_policy.py`: Policy engine with priority-based matching
-  - `orchestration.py`: 11 API endpoints for policy management and approvals
-  - Policy rules: entity_type, confidence_threshold, requires_source, min_evidence_count
-  - Actions: auto_approve, require_approval, deny
-  - Default rules: High Confidence Auto-Approve, Entity Deletion Protection, Medium Confidence Review
-  - Approval workflow: submit → evaluate → approve/reject → audit
-  - 31 unit tests (all passing)
-  - PR #451: https://github.com/dtubb/fichero/pull/451
+**Task #430: NetworkX Derived Graph Reasoning Integration**
+
+- Implemented NetworkX reasoning engine with graph construction from entities/claims/links
+- Created 11 API endpoints: status, enable, algorithms, centrality, communities, metrics
+- Centrality algorithms: degree, betweenness, closeness, eigenvector, pagerank
+- Community detection: louvain, greedy_modularity, label_propagation
+- Graph metrics: density, clustering_coefficient, connected_components
+- Optional dependency with graceful degradation
+- 22 unit tests (all passing), ruff clean
+- PR #452 created and pushed
