@@ -423,3 +423,19 @@
   - Changes: entities.py, claims.py, claim_links.py with CRUD endpoints
   - Contract tests: test_canonical_knowledge_routes.py
   - Status: Ready for review
+
+## 2026-04-12 — Session End Summary
+
+**Session Output:**
+- ✅ Created PR #455: Canonical FastAPI knowledge write path (Issue #364)
+  - entities.py: Entity CRUD, aliasing, resolution endpoints
+  - claims.py: Claim CRUD with referential integrity validation
+  - claim_links.py: Bidirectional claim link management
+  - Contract tests in test_canonical_knowledge_routes.py
+  - All routes registered in main.py _CORE_ROUTE_SPECS
+- ✅ Updated STATE.md: Next session entry point defined
+- ✅ Updated HISTORY.md: Session log archived
+- Branch: feature/issue-364 pushed to origin
+- PR URL: https://github.com/dtubb/fichero/pull/455
+
+**Status:** 0.0.2 milestone pending Daniel's PR review
