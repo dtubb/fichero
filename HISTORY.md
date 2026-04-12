@@ -463,3 +463,15 @@
 - fichero-api/src/fichero/api/main.py — Added route registrations
 - fichero-api/src/fichero/api/routes/__init__.py — Added module exports
 
+
+## 2026-04-12 — Session End (Issue #364 Complete)
+
+- ✅ **Issue #364**: Canonical FastAPI knowledge write path complete
+  - Created entities.py with CRUD, aliases, resolution endpoints
+  - Created claims.py with referential integrity, multi-source support
+  - Created claim_links.py with bidirectional link management
+  - All routes registered in main.py _CORE_ROUTE_SPECS
+  - Contract tests created (test_canonical_knowledge_routes.py)
+  - Branch: feature/issue-364 pushed, ready for PR review
+
+**Durable Pattern Added**: Canonical route modules extracted from knowledge_graph.py - use dedicated modules for /entities, /claims, /claim-links routes, register as (router, "/api", ["tag"]) tuples.
