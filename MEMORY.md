@@ -1,5 +1,50 @@
 # Durable Lessons Learned / Decisions
 
+## MCP Knowledge Adapter Pattern — 2026-04-12
+
+**Pattern:** Thin MCP adapters that map 1:1 to canonical Knowledge API operations
+
+**Purpose:** Enable Claude Code and other MCP clients to manipulate knowledge graph entities and claims through standardized tools.
+
+**Architecture:**
+```
+MCP Client (Claude Code)
+    ↓
+MCP Server (fichero/mcp_server.py)
+    ↓ HTTP request
+FastAPI MCP Tools Routes (fichero/api/routes/mcp_tools.py)
+    ↓ direct DB access
+Database (DuckDB)
+```
+
+**Key Principle:** No business-logic divergence between MCP and HTTP paths. MCP tools are thin wrappers that:
+1. Validate input (Pydantic models)
+2. Call canonical Knowledge API (or equivalent DB operations)
+3. Return standardized response
+
+**Endpoints:**
+- `POST /mcp/tools/knowledge/entities/upsert` — Create or update entity
+- `POST /mcp/tools/knowledge/claims/create` — Create claim
+- `GET /mcp/tools/knowledge/entities/{id}` — Retrieve entity
+- `GET /mcp/tools/knowledge/claims/{id}` — Retrieve claim
+- `DELETE /mcp/tools/knowledge/entities/{id}` — Soft-delete entity
+- `DELETE /mcp/tools/knowledge/claims/{id}` — Soft-delete claim
+- `GET /mcp/tools/knowledge/entities` — List entities (with filters)
+- `GET /mcp/tools/knowledge/claims` — List claims (with filters)
+
+**MCP Server Tool Handlers:**
+Call canonical API endpoints via `FicheroAPIClient`:
+```python
+async def call_tool(name, args):
+    if name == "fichero_kg_upsert_entity":
+        return await api_client.request("POST", "/knowledge-graph/entities", data=args)
+```
+
+**Testing Strategy:**
+- Unit tests for adapter logic (validation, mapping)
+- Integration tests for end-to-end workflow
+- Verify both direct route access and MCP server invocation
+
 *   **SSRF Security Pattern for Research Tools (2026-04-10):** Security audit of research tools (research.py) revealed critical SSRF vulnerabilities:
     - `follow_redirects=True` without redirect chain validation allows open redirect attacks
     - `_is_sandbox_violation()` using `startswith()` is insufficient — must validate resolved IPs
