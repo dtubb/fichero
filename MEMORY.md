@@ -1,5 +1,56 @@
 # Durable Lessons Learned / Decisions
 
+## FastAPI Route Registration Pattern — 2026-04-12
+
+**Pattern:** Adding new API routes to the FastAPI application
+
+**Required Steps:**
+1. Create route module with FastAPI router in `fichero-api/src/fichero/api/routes/`
+2. Add module to `fichero-api/src/fichero/api/routes/__init__.py` `__all__` list
+3. Import router in `fichero-api/src/fichero/api/main.py` from routes package
+4. Add tuple to `_CORE_ROUTE_SPECS` or `_DEV_ROUTE_SPECS`: `(router, "/api/prefix", ["feature-flag-tags"])`
+
+**Verification:**
+- Check `/openapi.json` for new endpoints
+- Run: `PYTHONPATH=fichero-api/src python -c "from fichero.api.main import app; print([r.path for r in app.routes])"`
+
+**Test Pattern:**
+- Create `test_<feature>_api.py` in `fichero-api/tests/unit/`
+- Test Pydantic models, route handlers, and integration points
+- Avoid TestClient for simple unit tests (test logic directly)
+
+## Multilingual NLP Pattern — 2026-04-12
+
+**Pattern:** Cross-language text processing using cld3 and custom utilities
+
+**Language Detection:**
+```python
+from fichero.multilingual import detect_language
+result = detect_language("Hello world")  # LanguageDetectionResult
+# Returns: language (ISO 639-1), confidence (0-1), is_reliable (confidence > 0.7)
+```
+
+**Text Normalization:**
+```python
+from fichero.multilingual import normalize_text
+normalized = normalize_text(text, language_code)  # NFKC Unicode + lowercase (Latin only)
+```
+
+**Cross-Language Matching:**
+```python
+from fichero.multilingual import calculate_cross_language_similarity, find_cross_language_matches
+score = calculate_cross_language_similarity(text1, lang1, text2, lang2)
+matches = find_cross_language_matches(query, candidates, threshold=0.5)
+```
+
+**Language Persistence:**
+- `KnowledgeEntity.language`: entity's primary language (ISO 639-1)
+- `KnowledgeClaim.language`: claim text language
+- `KnowledgeClaim.source_languages`: list of source document languages
+- `KnowledgeEntity.aliases`: supports transliterations (e.g., ["東京", "Tokyo"])
+
+**Supported Languages:** 20+ including en, es, fr, de, it, pt, ja, ko, zh, ar, ru, hi, th, he
+
 *   **SSRF Security Pattern for Research Tools (2026-04-10):** Security audit of research tools (research.py) revealed critical SSRF vulnerabilities:
     - `follow_redirects=True` without redirect chain validation allows open redirect attacks
     - `_is_sandbox_violation()` using `startswith()` is insufficient — must validate resolved IPs
