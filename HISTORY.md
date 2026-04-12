@@ -415,3 +415,29 @@
 - Created unit tests for sources API (7 test cases)
 - Discovered sources routes not registering - routes appear in /openapi.json but return 404
 - Committed sources implementation to GitHub (commit 3528e518)
+
+## 2026-04-12 — Session Summary (Issue #369)
+
+### Completed
+- Issue #369: Reindex/repair jobs and metrics recomputation workers ✅
+  - New task types: VECTOR_REPAIR and KG_METRICS
+  - Enhanced task handlers with idempotent behavior
+  - Task system health endpoint at /api/tasks/health
+  - Branch feature/issue-369 pushed to GitHub (ready for PR)
+
+### Task Types Implemented
+1. REINDEX - Document reindexing with progress tracking
+2. METRICS - Library document metrics (file types, status distribution)
+3. REPAIR - Database inconsistency repair (missing embeddings, orphaned artifacts)
+4. VECTOR_REPAIR - LanceDB vector index consistency checks
+5. KG_METRICS - Knowledge graph metrics (entities, claims, links by type)
+
+### Acceptance Criteria Met
+- ✅ Jobs recover from interruption (tasks reset to pending on restart)
+- ✅ Idempotent recomputation behavior
+- ✅ Admin health endpoints for job status (/api/tasks/health)
+
+### Technical Changes
+- Modified: fichero-api/src/fichero/workflows/tasks.py
+- Modified: fichero-api/src/fichero/api/routes/tasks.py
+- Created: fichero-api/tests/unit/test_background_tasks.py (26 tests)
