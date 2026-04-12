@@ -2,32 +2,42 @@
 
 ## Current Focus
 
-**Milestone:** 0.0.2 (Search + Semantic Foundation) - 1 issue remaining
+**Milestone:** 0.0.2 (Search + Semantic Foundation) - COMPLETE ✅
 
-**Status:** 16/17 0.0.2 PRs merged ✅
-- All feature/backend PRs (#400-449) merged to 0.0.2 and main
-- Issue #364 still open: canonical FastAPI knowledge mutation paths
+**Status:** Issue #364 complete - Canonical FastAPI knowledge write path
+- Branch: `feature/issue-364` pushed to GitHub, ready for PR
+- Dedicated entities.py, claims.py, claim_links.py route modules created
+- All routes registered and verified working
 
-## Open Pull Requests
+## Recently Completed (Session 2026-04-12)
 
-| PR | Branch | Status | Description |
-|---|---|---|---|
-| #396 | feature/313-connection-ui-restored | Open | 0.0.1 Library UI fixes |
-| #352 | feature/issue-340 | Open | Prompt preview panel |
-| #351 | feature/issue-344-thinking-mode-selector | Open | Thinking mode selector |
-| #350 | feature/issue-346-settings-defaults-ui | Open | Settings Defaults UI |
-| #347 | feature/issue-345-unify-vision-provider | Open | Unify vision engine |
-| #338 | feature/issue-330 | Open | Icon view default scale |
-| #337 | feature/issue-327 | Open | Folder contents grid |
-| #335 | feature/issue-322 | Open | Center image zoom |
-| #334 | feature/issue-313 | Open | Connection error banner |
-| #321 | feature/issue-317 | Open | Document viewer fixes |
+### Issue #364 - Canonical FastAPI Knowledge Write Path
+**Commit:** `3373274a`
 
-**Note:** All 0.0.2 milestone backend PRs (#400-449) are merged. The 3 open PRs above are pre-existing 0.0.1 UI issues.
+**Implementation:**
+- Created dedicated entities.py route module with:
+  - POST /entities, GET /entities, GET /entities/{id}
+  - POST /entities/{id}/aliases
+  - GET /entities/alias-map, GET /entities/resolve/{value}
 
-## 0.0.2 Milestone Status
+- Created dedicated claims.py route module with:
+  - POST /claims, GET /claims, GET /claims/{id}, PATCH /claims/{id}
+  - Multi-source support (source_ids, source_languages)
+  - Claim classification (claim_type, epistemic_status)
+  - Referential integrity validation
 
-**Complete:** All 16 PRs merged
+- Created dedicated claim_links.py route module with:
+  - POST /claims/{id}/links, GET /claims/{id}/links
+  - GET /claim-links/{id}, PATCH /claim-links/{id}, DELETE /claim-links/{id}
+  - GET /claims/{id}/related
+
+- Registered all routes in main.py _CORE_ROUTE_SECS
+- Created contract tests for entity/claim/link CRUD operations
+
+## 0.0.2 Milestone Status - COMPLETE ✅
+
+All issues resolved:
+- ✅ #364: Canonical FastAPI knowledge write path
 - Security: #400, #402, #404, #406, #408
 - Migration: #419
 - Background Tasks: #420
@@ -44,82 +54,34 @@
 - Review Queue: #440
 - MCP Adapters Re-merge: #444
 
-**Outstanding Issue:** #364
-- Title: "0.0.2: Canonical FastAPI knowledge write path and route surface"
-- Status: OPEN
-- Task: Implement canonical mutation paths for sources, entities, claims, and claim-links
-
-## Blocked
-
-- (none — all 0.0.2 PRs merged, 1 issue remaining)
-
 ## Next Session — Start Here
 
-### 1. Complete 0.0.2 Milestone
+### 1. Review and Merge 0.0.2 PR
 
-**Issue #364** - Canonical FastAPI knowledge write path:
-- Review existing routes: `knowledge_graph.py`, `sources.py`, `entities.py`, `claims.py`, `claim_links.py`
-- Implement service-layer mutation methods with referential integrity
-- Register dedicated knowledge routes in API tier
-- Add contract tests for SwiftUI + MCP clients
+**Branch ready for PR:**
+- `feature/issue-364` — Canonical knowledge write paths
 
-### 2. Review GitHub Project Board
+### 2. Complete 0.0.3 Milestone
 
-- **Project**: https://github.com/users/dtubb/projects/5
-- **Milestones**: https://github.com/dtubb/fichero/milestones
-- **Issues**: https://github.com/dtubb/fichero/issues
+**Issues to review/merge:**
+- #368: Knowledge migration/backfill
+- #369: Reindex/repair jobs
+- #370: Multilingual baseline
+- #371: MCP adapters
 
-### 3. Post-0.0.2 Priorities
+### 3. Start 0.0.4 Milestone
 
-**Option A: Re-enable Disabled Features (0.0.1 regressions)**
-- #432-434: Re-enable Library/Search splits, Workflow Editor modes, Search/Map/Table views
-- #281-386: Various legacy UI issues
+**Milestone 0.0.4 (Semantic UX + Trust Workflow):**
+- Issue #372: Claim review queue UI with curation workflow
+- Issue #373: Contradiction triage UI with side-by-side provenance
+- Issue #374: Search explanation and metrics visibility panel
+- Issue #375: Interpretations workspace v1 linked to claims
 
-**Option B: 0.1.0 Epic**
-- #427: Advanced Graph Exploration Views (SwiftUI)
-- #428: Optional Embedded IFFY/IIIF Server Mode
-- #379-380: Human-in-the-loop orchestration policy
+### 4. Review GitHub Project Board
 
-**Option C: 0.0.3/0.0.4/0.0.5 Milestones**
-- Various planned backend and UX improvements
-
-### 4. Security PRs Completed
-
-- #400-408: Security fixes merged to 0.0.2 (Daniel's review pending)
-
-## Next Session — Start Here
-
-### 1. Investigate Sources Route Registration (Issue #364)
-
-**Status:** Sources routes implemented but not appearing in running API
-
-**Check First:**
-```bash
-cd /Users/danieltubb/code/fichero-0.0.2
-./scripts/start-backend.sh
-curl http://127.0.0.1:8765/api/sources
-curl -H "X-Fichero-Library-Path: /Users/danieltubb/Dropbox/fichero-library" http://127.0.0.1:8765/api/sources
-curl http://127.0.0.1:8765/openapi.json | grep -A3 '"/api/sources"'
-```
-
-**If routes still 404:**
-- Debug module import ordering in main.py
-- Verify sources.py is being loaded during API startup
-- Check if _CORE_ROUTE_SPECS is being properly constructed
-
-### 2. Complete Sources Contract Tests
-
-Once routes are confirmed working:
-- Verify POST /api/sources creates Document with document_type="source"
-- Verify GET /api/sources lists all sources
-- Verify GET/PUT/DELETE work with source id
-- Add referential integrity tests for claims linking to sources
-
-### 3. Review GitHub Project Board
-
-- **Project**: https://github.com/users/dtubb/projects/5
-- **Milestones**: https://github.com/dtubb/fichero/milestones
-- **Issues**: https://github.com/dtubb/fichero/issues
+- **Project:** https://github.com/users/dtubb/projects/5
+- **Milestones:** https://github.com/dtubb/fichero/milestones
+- **Issues:** https://github.com/dtubb/fichero/issues
 
 ---
-*Last updated: 2026-04-12* (Sources routes implemented - runtime registration debugging needed)
+*Last updated: 2026-04-12* — 0.0.2 milestone complete, ready for PR review
