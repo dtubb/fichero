@@ -415,3 +415,33 @@
 - Created unit tests for sources API (7 test cases)
 - Discovered sources routes not registering - routes appear in /openapi.json but return 404
 - Committed sources implementation to GitHub (commit 3528e518)
+
+## 2026-04-12 — Session Summary
+
+### Completed
+- Issue #368: Knowledge migration/backfill tooling with dry-run and rollback ✅
+  - CLI script: `fichero-api/scripts/run_migration.py`
+  - FastAPI routes: `/api/migrations/*` endpoints
+  - Unit tests: `fichero-api/tests/unit/test_migrations.py` (16 tests, all passing)
+  - Branch `feature/issue-368` pushed to GitHub (ready for PR)
+
+### Features Implemented
+- Dry-run mode for safe migration previews
+- Rollback support via mutation logs (MutationLog model)
+- Data integrity checks for claim/source/link counts
+- Batch processing with progress callbacks
+- Full audit trail for all operations
+
+### API Endpoints
+- GET /api/migrations - list available migrations
+- POST /api/migrations/run - run migration with optional dry-run
+- POST /api/migrations/validate - validate migration safety before running
+- GET /api/migrations/status/{run_id} - check migration status
+- POST /api/migrations/rollback - rollback a migration
+- GET /api/migrations/integrity-check - data integrity checks
+
+### Technical Details
+- Used existing MigrationRunner class from fichero/migrations.py
+- Added FastAPI dependency injection via get_library_database
+- All code passes ruff linting and formatting
+- Tests cover dry-run, actual execution, rollback, validation, and integrity checks
