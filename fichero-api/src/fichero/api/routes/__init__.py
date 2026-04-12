@@ -15,6 +15,7 @@ __all__ = [
     "local_models",
     "mcp_servers",
     "mcp_tools",
+    "migrations",
     "mind_palace",
     "model_comparison",
     "models",

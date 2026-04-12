@@ -107,7 +107,9 @@ class MigrationResult:
             "audit_id": self.audit_id,
             "error_message": self.error_message,
             "started_at": self.started_at.isoformat(),
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "completed_at": self.completed_at.isoformat()
+            if self.completed_at
+            else None,
             "duration_ms": self.duration_ms,
             "details": self.details,
         }
@@ -251,9 +253,7 @@ class MigrationRunner:
                 processed += 1
 
                 if batch_size and processed % batch_size == 0:
-                    self._report_progress(
-                        "migrate_claims", processed, len(all_claims)
-                    )
+                    self._report_progress("migrate_claims", processed, len(all_claims))
 
             result.status = MigrationStatus.completed
             result.completed_at = datetime.now()
@@ -489,9 +489,7 @@ class MigrationRunner:
                     result.restored += 1
 
                 except Exception as e:
-                    logger.error(
-                        f"Failed to rollback mutation {mutation.id}: {e}"
-                    )
+                    logger.error(f"Failed to rollback mutation {mutation.id}: {e}")
                     result.failed += 1
 
             # Mark mutations as rolled back
@@ -503,8 +501,7 @@ class MigrationRunner:
             result.completed_at = datetime.now()
 
             logger.info(
-                f"Rollback complete: {result.restored} restored, "
-                f"{result.failed} failed"
+                f"Rollback complete: {result.restored} restored, {result.failed} failed"
             )
 
         except Exception as e:
