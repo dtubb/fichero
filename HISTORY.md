@@ -415,3 +415,11 @@
 - Created unit tests for sources API (7 test cases)
 - Discovered sources routes not registering - routes appear in /openapi.json but return 404
 - Committed sources implementation to GitHub (commit 3528e518)
+
+## 2026-04-12 — Session End (PR #455 Created)
+
+- ✅ Created PR #455: Canonical FastAPI knowledge write path
+  - Branch: feature/issue-364 → main
+  - Changes: entities.py, claims.py, claim_links.py with CRUD endpoints
+  - Contract tests: test_canonical_knowledge_routes.py
+  - Status: Ready for review
