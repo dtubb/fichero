@@ -10,9 +10,22 @@
 
 ## Open Pull Requests
 
+### 0.0.2 Milestone (Pending Review)
 | PR | Branch | Status | Description |
 |---|---|---|---|
 | #455 | feature/issue-364 | **Ready for Review** | Canonical knowledge routes (entities, claims, claim-links) |
+
+### 0.0.3 Milestone (Ready for Review)
+| PR | Branch | Status | Description |
+|---|---|---|---|
+| #456 | feature/issue-368 | **Ready for Review** | Knowledge migration/backfill tooling |
+| #457 | feature/issue-369 | **Ready for Review** | Reindex/repair jobs and metrics workers |
+| #458 | feature/issue-370 | **Ready for Review** | Multilingual baseline for claims/entities |
+| #459 | feature/issue-371 | **Ready for Review** | MCP adapters for canonical knowledge APIs |
+
+### 0.0.1 Legacy Issues
+| PR | Branch | Status | Description |
+|---|---|---|---|
 | #396 | feature/313-connection-ui-restored | Open | 0.0.1 Library UI fixes |
 | #352 | feature/issue-340 | Open | Prompt preview panel |
 | #351 | feature/issue-344-thinking-mode-selector | Open | Thinking mode selector |
@@ -56,27 +69,32 @@
 
 ## Next Session — Start Here
 
-### 1. PR Review and Merge (with Daniel)
+### 1. PR Review Queue (with Daniel)
 
-**PR #455**: Canonical FastAPI knowledge write path
-- Branch: `feature/issue-364`
-- URL: https://github.com/dtubb/fichero/pull/455
-- Status: Ready for review, 3 commits ahead of main
-- Changes:
-  - entities.py: Entity CRUD, aliasing, resolution
-  - claims.py: Claim CRUD, referential integrity
-  - claim_links.py: Bidirectional claim linking
-  - Contract tests for all routes
+**5 PRs Ready for Review:**
 
-### 2. Complete 0.0.2 Milestone
+**0.0.2 Milestone:**
+- **PR #455**: Canonical knowledge routes (Issue #364)
+  - URL: https://github.com/dtubb/fichero/pull/455
+  - entities.py, claims.py, claim_links.py with CRUD endpoints
 
-Once PR #455 merged:
-- 0.0.2 milestone complete (17/17 issues resolved)
-- Close issue #364
-- Update GitHub milestone
+**0.0.3 Milestone (all 4 issues):**
+- **PR #456**: Knowledge migration/backfill (Issue #368)
+  - URL: https://github.com/dtubb/fichero/pull/456
+- **PR #457**: Reindex/repair jobs (Issue #369)
+  - URL: https://github.com/dtubb/fichero/pull/457
+- **PR #458**: Multilingual baseline (Issue #370)
+  - URL: https://github.com/dtubb/fichero/pull/458
+- **PR #459**: MCP adapters (Issue #371)
+  - URL: https://github.com/dtubb/fichero/pull/459
+
+### 2. After PR Merges
+
+- Close issues #364, #368, #369, #370, #371
+- Mark 0.0.2 and 0.0.3 milestones complete
+- Begin 0.0.4 milestone work
 
 ### 3. Review GitHub Project Board
 
 - **Project**: https://github.com/users/dtubb/projects/5
 - **Milestones**: https://github.com/dtubb/fichero/milestones
-- **Issues**: https://github.com/dtubb/fichero/issues

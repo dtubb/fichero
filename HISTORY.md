@@ -439,3 +439,20 @@
 - PR URL: https://github.com/dtubb/fichero/pull/455
 
 **Status:** 0.0.2 milestone pending Daniel's PR review
+
+## 2026-04-12 — Session Summary (0.0.3 PRs Created)
+
+- ✅ Created PR #456: Knowledge migration/backfill (#368)
+  - URL: https://github.com/dtubb/fichero/pull/456
+  - Migration endpoints with dry-run and rollback
+- ✅ Created PR #457: Reindex/repair jobs (#369)
+  - URL: https://github.com/dtubb/fichero/pull/457
+  - VECTOR_REPAIR and KG_METRICS task workers
+- ✅ Created PR #458: Multilingual baseline (#370)
+  - URL: https://github.com/dtubb/fichero/pull/458
+  - Cross-language retrieval and entity aliases
+- ✅ Created PR #459: MCP adapters (#371)
+  - URL: https://github.com/dtubb/fichero/pull/459
+  - Thin MCP wrappers for canonical knowledge APIs
+
+**Total: 5 PRs ready for review (1 × 0.0.2 + 4 × 0.0.3)**
