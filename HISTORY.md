@@ -415,3 +415,40 @@
 - Created unit tests for sources API (7 test cases)
 - Discovered sources routes not registering - routes appear in /openapi.json but return 404
 - Committed sources implementation to GitHub (commit 3528e518)
+
+## 2026-04-12 — Session Summary (Issue #371)
+
+### Completed
+- Issue #371: Thin MCP adapters for canonical knowledge APIs ✅
+  - Verified existing MCP tool infrastructure is complete
+  - Added 14 comprehensive unit tests for MCP knowledge adapters
+  - Branch feature/issue-371 pushed to GitHub
+
+### MCP Adapters Verified
+All 8 knowledge API endpoints working through MCP:
+1. POST /mcp/tools/knowledge/entities/upsert
+2. POST /mcp/tools/knowledge/claims/create
+3. GET /mcp/tools/knowledge/entities/{id}
+4. GET /mcp/tools/knowledge/claims/{id}
+5. DELETE /mcp/tools/knowledge/entities/{id}
+6. DELETE /mcp/tools/knowledge/claims/{id}
+7. GET /mcp/tools/knowledge/entities (list)
+8. GET /mcp/tools/knowledge/claims (list)
+
+### Test Coverage Added (14 tests)
+- TestMCPEntityAdapter: 3 tests (creation, update, validation)
+- TestMCPClaimAdapter: 3 tests (creation, multi-source, validation)
+- TestMCPCanonicalMapping: 2 tests (1:1 mapping verification)
+- TestMCPAdapterErrorHandling: 3 tests (validation, ranges)
+- TestMCPEndpointCoverage: 3 tests (CRUD operations)
+
+### 0.0.3 Milestone Status
+ALL COMPLETE:
+- ✅ #368: Knowledge migration/backfill
+- ✅ #369: Reindex/repair jobs
+- ✅ #370: Multilingual baseline
+- ✅ #371: MCP adapters
+
+### Files Created/Modified
+- Created: fichero-api/tests/unit/test_mcp_knowledge_adapters.py (266 lines)
+

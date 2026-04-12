@@ -2,124 +2,75 @@
 
 ## Current Focus
 
-**Milestone:** 0.0.2 (Search + Semantic Foundation) - 1 issue remaining
+**Milestone:** 0.0.3 (Migration + Operational Hardening) — COMPLETE ✅
 
-**Status:** 16/17 0.0.2 PRs merged ✅
-- All feature/backend PRs (#400-449) merged to 0.0.2 and main
-- Issue #364 still open: canonical FastAPI knowledge mutation paths
+**Status:** All 0.0.3 issues completed
+- #371: ✅ MCP adapters for canonical knowledge APIs (branch pushed)
+- #370: ✅ Multilingual baseline (branch pushed)
+- #369: ✅ Reindex/repair jobs (branch pushed)
+- #368: ✅ Knowledge migration/backfill (branch pushed)
 
-## Open Pull Requests
+## Recently Completed (Session 2026-04-12)
 
-| PR | Branch | Status | Description |
-|---|---|---|---|
-| #396 | feature/313-connection-ui-restored | Open | 0.0.1 Library UI fixes |
-| #352 | feature/issue-340 | Open | Prompt preview panel |
-| #351 | feature/issue-344-thinking-mode-selector | Open | Thinking mode selector |
-| #350 | feature/issue-346-settings-defaults-ui | Open | Settings Defaults UI |
-| #347 | feature/issue-345-unify-vision-provider | Open | Unify vision engine |
-| #338 | feature/issue-330 | Open | Icon view default scale |
-| #337 | feature/issue-327 | Open | Folder contents grid |
-| #335 | feature/issue-322 | Open | Center image zoom |
-| #334 | feature/issue-313 | Open | Connection error banner |
-| #321 | feature/issue-317 | Open | Document viewer fixes |
+### Issue #371 - Thin MCP Adapters for Canonical Knowledge APIs
+**Commit:** `408b6f53`
 
-**Note:** All 0.0.2 milestone backend PRs (#400-449) are merged. The 3 open PRs above are pre-existing 0.0.1 UI issues.
+**Implementation:**
+- Verified existing MCP tools for knowledge APIs are working
+- Added comprehensive MCP knowledge adapter tests (14 tests)
 
-## 0.0.2 Milestone Status
+**Adapters Verified:**
+- `POST /mcp/tools/knowledge/entities/upsert` - Entity create/update
+- `POST /mcp/tools/knowledge/claims/create` - Claim creation
+- `GET /mcp/tools/knowledge/entities/{id}` - Entity retrieval
+- `GET /mcp/tools/knowledge/claims/{id}` - Claim retrieval
+- `DELETE /mcp/tools/knowledge/entities/{id}` - Entity soft-delete
+- `DELETE /mcp/tools/knowledge/claims/{id}` - Claim soft-delete
+- `GET /mcp/tools/knowledge/entities` - Entity listing with filters
+- `GET /mcp/tools/knowledge/claims` - Claim listing with filters
 
-**Complete:** All 16 PRs merged
-- Security: #400, #402, #404, #406, #408
-- Migration: #419
-- Background Tasks: #420
-- Multilingual: #421
-- MCP Adapters: #422
-- Activity Stream: #425
-- Orchestration Policy: #426
-- PyKEEN Inference: #429
-- NetworkX Reasoning: #430
-- Graph Exploration: #431
-- Search Explanation: #438
-- Contradiction Triage: #436
-- Interpretations Workspace: #439
-- Review Queue: #440
-- MCP Adapters Re-merge: #444
+**Test Coverage:**
+- Entity upsert/create/update operations
+- Claim creation with single and multiple sources
+- 1:1 canonical API mapping verification
+- Error handling and validation
+- Endpoint coverage verification
 
-**Outstanding Issue:** #364
-- Title: "0.0.2: Canonical FastAPI knowledge write path and route surface"
-- Status: OPEN
-- Task: Implement canonical mutation paths for sources, entities, claims, and claim-links
+## 0.0.3 Milestone — COMPLETE
 
-## Blocked
-
-- (none — all 0.0.2 PRs merged, 1 issue remaining)
+All issues implemented:
+- ✅ #368: Knowledge migration/backfill
+- ✅ #369: Reindex/repair jobs and metrics recomputation
+- ✅ #370: Multilingual baseline for claims/entities
+- ✅ #371: Thin MCP adapters for canonical knowledge APIs
 
 ## Next Session — Start Here
 
-### 1. Complete 0.0.2 Milestone
+### 1. Review and Merge 0.0.3 PRs
 
-**Issue #364** - Canonical FastAPI knowledge write path:
-- Review existing routes: `knowledge_graph.py`, `sources.py`, `entities.py`, `claims.py`, `claim_links.py`
-- Implement service-layer mutation methods with referential integrity
-- Register dedicated knowledge routes in API tier
-- Add contract tests for SwiftUI + MCP clients
+**Branches ready for PR review:**
+- `feature/issue-368` — Knowledge migration/backfill
+- `feature/issue-369` — Reindex/repair jobs
+- `feature/issue-370` — Multilingual baseline
+- `feature/issue-371` — MCP adapters
 
-### 2. Review GitHub Project Board
+### 2. Start 0.0.4 Milestone
 
-- **Project**: https://github.com/users/dtubb/projects/5
-- **Milestones**: https://github.com/dtubb/fichero/milestones
-- **Issues**: https://github.com/dtubb/fichero/issues
+**Milestone 0.0.4 (Semantic UX + Trust Workflow):**
+- Issue #372: Claim review queue UI with curation workflow
+- Issue #373: Contradiction triage UI with side-by-side provenance
+- Issue #374: Search explanation and metrics visibility panel
+- Issue #375: Interpretations workspace v1 linked to claims
 
-### 3. Post-0.0.2 Priorities
-
-**Option A: Re-enable Disabled Features (0.0.1 regressions)**
-- #432-434: Re-enable Library/Search splits, Workflow Editor modes, Search/Map/Table views
-- #281-386: Various legacy UI issues
-
-**Option B: 0.1.0 Epic**
-- #427: Advanced Graph Exploration Views (SwiftUI)
-- #428: Optional Embedded IFFY/IIIF Server Mode
-- #379-380: Human-in-the-loop orchestration policy
-
-**Option C: 0.0.3/0.0.4/0.0.5 Milestones**
-- Various planned backend and UX improvements
-
-### 4. Security PRs Completed
-
-- #400-408: Security fixes merged to 0.0.2 (Daniel's review pending)
-
-## Next Session — Start Here
-
-### 1. Investigate Sources Route Registration (Issue #364)
-
-**Status:** Sources routes implemented but not appearing in running API
-
-**Check First:**
-```bash
-cd /Users/danieltubb/code/fichero-0.0.2
-./scripts/start-backend.sh
-curl http://127.0.0.1:8765/api/sources
-curl -H "X-Fichero-Library-Path: /Users/danieltubb/Dropbox/fichero-library" http://127.0.0.1:8765/api/sources
-curl http://127.0.0.1:8765/openapi.json | grep -A3 '"/api/sources"'
-```
-
-**If routes still 404:**
-- Debug module import ordering in main.py
-- Verify sources.py is being loaded during API startup
-- Check if _CORE_ROUTE_SPECS is being properly constructed
-
-### 2. Complete Sources Contract Tests
-
-Once routes are confirmed working:
-- Verify POST /api/sources creates Document with document_type="source"
-- Verify GET /api/sources lists all sources
-- Verify GET/PUT/DELETE work with source id
-- Add referential integrity tests for claims linking to sources
+**Milestone 0.0.5 (Graph Exploration):**
+- Issue #376: Integrate derived graph reasoning runtime (NetworkX)
+- Issue #377: Optional latent inference track (PyKEEN)
 
 ### 3. Review GitHub Project Board
 
-- **Project**: https://github.com/users/dtubb/projects/5
-- **Milestones**: https://github.com/dtubb/fichero/milestones
-- **Issues**: https://github.com/dtubb/fichero/issues
+- **Project:** https://github.com/users/dtubb/projects/5
+- **Milestones:** https://github.com/dtubb/fichero/milestones
+- **Issues:** https://github.com/dtubb/fichero/issues
 
 ---
-*Last updated: 2026-04-12* (Sources routes implemented - runtime registration debugging needed)
+*Last updated: 2026-04-12* — 0.0.3 milestone complete, ready for PR review
