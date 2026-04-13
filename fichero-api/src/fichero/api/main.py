@@ -286,9 +286,11 @@ async def get_stats(db: Database = Depends(get_library_database)):
 
 # Include route modules
 from fichero.api.routes import (  # noqa: E402
+    actions,
     activity,
     artifacts,
     batch,
+    chains,
     chat,
     claim_links,
     claims,
@@ -296,25 +298,34 @@ from fichero.api.routes import (  # noqa: E402
     entities,
     folders,
     graph_exploration,
+    graph_reasoning,
     hermeneutics,
+    iiif,
     ingest,
+    integrations,
+    interpretations,
     knowledge_graph,
+    local_models,
+    mcp_servers,
     mcp_tools,
     migrations,
     mind_palace,
+    model_comparison,
+    models,
     multilingual,
+    orchestration,
+    predictions,
     providers,
     research_agents,
+    review_queue,
+    schedules,
     search,
     search_explain,
     settings,
     sources,
-    models,
-    review_queue,
-    interpretations,
-    iiif,
     storage,
     tasks,
+    triggers,
     workflow_execution,
     workflows,
 )
@@ -348,6 +359,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
 ]
 
 _DEV_ROUTE_SPECS: list[RouteSpec] = [
+    # Originally dev-tier
     (knowledge_graph.router, "/api/knowledge-graph", ["knowledge-graph"]),
     (search_explain.router, "/api", ["search-explanation"]),
     (hermeneutics.router, "/api/hermeneutics", ["hermeneutics"]),
@@ -356,6 +368,18 @@ _DEV_ROUTE_SPECS: list[RouteSpec] = [
     (mind_palace.router, "/api/mind-palace", ["mind-palace"]),
     (research_agents.router, "/api/research", ["research"]),
     (iiif.router, "/api/iiif", ["iiif"]),
+    # Staged routes — feature-gated behind dev tier
+    (actions.router, "/api", ["actions"]),
+    (chains.router, "/api", ["chains"]),
+    (graph_reasoning.router, "", ["graph-reasoning"]),
+    (integrations.router, "/api", ["integrations"]),
+    (local_models.router, "/api", ["local-models"]),
+    (mcp_servers.router, "/api", ["mcp-servers"]),
+    (model_comparison.router, "/api", ["model-comparison"]),
+    (orchestration.router, "", ["orchestration"]),
+    (predictions.router, "", ["predictions"]),
+    (schedules.router, "/api", ["schedules"]),
+    (triggers.router, "/api", ["triggers"]),
 ]
 
 
