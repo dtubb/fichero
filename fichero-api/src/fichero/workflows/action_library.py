@@ -72,9 +72,6 @@ class ActionDefinition(BaseModel):
     # Usage tracking
     use_count: int = 0
 
-    class Config:
-        json_encoders = {datetime: lambda v: v.isoformat()}
-
 
 class ActionLibraryStore:
     """Persistent storage for action library."""
