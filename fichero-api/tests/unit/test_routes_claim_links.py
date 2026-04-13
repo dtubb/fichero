@@ -1,0 +1,209 @@
+"""Tests for knowledge claim link routes.
+
+ClaimLinks connect two KnowledgeClaims with a typed relationship (supports,
+contradicts, refines, etc.). These routes manage the graph edges between
+claims. Uses real in-memory DB fixtures.
+"""
+
+import pytest
+from datetime import datetime
+from fichero.knowledge_models import (
+    ClaimRelationType,
+    ClaimCurationState,
+    KnowledgeClaim,
+    KnowledgeClaimLink,
+)
+from fichero.models import Document, DocType
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_document(db, name: str = "Source") -> Document:
+    doc = Document(name=name, doc_type=DocType.file)
+    db.save(doc)
+    return doc
+
+
+def _make_claim(db, doc: Document, text: str = "A claim") -> KnowledgeClaim:
+    claim = KnowledgeClaim(
+        text=text,
+        source_document_id=doc.id,
+        entity_ids=[],
+        curation_state=ClaimCurationState.unreviewed,
+        confidence=0.7,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+    db.save(claim)
+    return claim
+
+
+def _make_link(
+    db,
+    claim: KnowledgeClaim,
+    related: KnowledgeClaim,
+    relation: ClaimRelationType = ClaimRelationType.supports,
+) -> KnowledgeClaimLink:
+    link = KnowledgeClaimLink(
+        claim_id=claim.id,
+        related_claim_id=related.id,
+        relation_type=relation,
+        link_quality=0.8,
+        created_at=datetime.now(),
+    )
+    db.save(link)
+    return link
+
+
+# ---------------------------------------------------------------------------
+# POST /api/claims/{claim_id}/links
+# ---------------------------------------------------------------------------
+
+
+class TestCreateClaimLink:
+    def test_create_link(self, client, db):
+        doc = _make_document(db)
+        c1 = _make_claim(db, doc, "Claim 1")
+        c2 = _make_claim(db, doc, "Claim 2")
+        r = client.post(f"/api/claims/{c1.id}/links", json={
+            "related_claim_id": c2.id,
+            "relation_type": "supports",
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert data["claim_id"] == c1.id
+        assert data["related_claim_id"] == c2.id
+
+    def test_missing_source_claim_returns_404(self, client, db):
+        doc = _make_document(db)
+        c2 = _make_claim(db, doc)
+        r = client.post("/api/claims/no-such-claim/links", json={
+            "related_claim_id": c2.id,
+            "relation_type": "supports",
+        })
+        assert r.status_code == 404
+
+    def test_missing_related_claim_returns_404(self, client, db):
+        doc = _make_document(db)
+        c1 = _make_claim(db, doc)
+        r = client.post(f"/api/claims/{c1.id}/links", json={
+            "related_claim_id": "no-such-claim",
+            "relation_type": "supports",
+        })
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# GET /api/claims/{claim_id}/links
+# ---------------------------------------------------------------------------
+
+
+class TestListClaimLinks:
+    def test_returns_links_for_claim(self, client, db):
+        doc = _make_document(db)
+        c1 = _make_claim(db, doc, "Claim A")
+        c2 = _make_claim(db, doc, "Claim B")
+        c3 = _make_claim(db, doc, "Claim C")
+        _make_link(db, c1, c2)
+        _make_link(db, c1, c3)
+        r = client.get(f"/api/claims/{c1.id}/links")
+        assert r.status_code == 200
+        assert len(r.json()) == 2
+
+    def test_includes_incoming_links(self, client, db):
+        doc = _make_document(db)
+        c1 = _make_claim(db, doc, "Source")
+        c2 = _make_claim(db, doc, "Target")
+        _make_link(db, c2, c1)  # c2 -> c1 (c1 is related_claim_id)
+        r = client.get(f"/api/claims/{c1.id}/links")
+        assert r.status_code == 200
+        assert len(r.json()) == 1  # incoming link is included
+
+    def test_missing_claim_returns_404(self, client):
+        r = client.get("/api/claims/no-such-claim/links")
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# GET /api/claim-links/{link_id}
+# ---------------------------------------------------------------------------
+
+
+class TestGetClaimLink:
+    def test_get_existing_link(self, client, db):
+        doc = _make_document(db)
+        c1 = _make_claim(db, doc)
+        c2 = _make_claim(db, doc)
+        link = _make_link(db, c1, c2)
+        r = client.get(f"/api/claim-links/{link.id}")
+        assert r.status_code == 200
+        assert r.json()["id"] == link.id
+
+    def test_get_missing_link_returns_404(self, client):
+        r = client.get("/api/claim-links/no-such-link")
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/claim-links/{link_id}
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateClaimLink:
+    def test_patch_quality(self, client, db):
+        doc = _make_document(db)
+        c1 = _make_claim(db, doc)
+        c2 = _make_claim(db, doc)
+        link = _make_link(db, c1, c2)
+        r = client.patch(f"/api/claim-links/{link.id}", json={"link_quality": 0.95})
+        assert r.status_code == 200
+        assert r.json()["link_quality"] == 0.95
+
+    def test_patch_missing_returns_404(self, client):
+        r = client.patch("/api/claim-links/no-such-id", json={"link_quality": 0.5})
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/claim-links/{link_id}
+# ---------------------------------------------------------------------------
+
+
+class TestDeleteClaimLink:
+    def test_delete_removes_link(self, client, db):
+        doc = _make_document(db)
+        c1 = _make_claim(db, doc)
+        c2 = _make_claim(db, doc)
+        link = _make_link(db, c1, c2)
+        r = client.delete(f"/api/claim-links/{link.id}")
+        assert r.status_code == 200
+        r2 = client.get(f"/api/claim-links/{link.id}")
+        assert r2.status_code == 404
+
+    def test_delete_missing_returns_404(self, client):
+        r = client.delete("/api/claim-links/no-such-id")
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# GET /api/claims/{claim_id}/related
+# ---------------------------------------------------------------------------
+
+
+class TestGetRelatedClaims:
+    def test_returns_related_claims(self, client, db):
+        doc = _make_document(db)
+        c1 = _make_claim(db, doc, "Main claim")
+        c2 = _make_claim(db, doc, "Related claim")
+        _make_link(db, c1, c2)
+        r = client.get(f"/api/claims/{c1.id}/related")
+        assert r.status_code == 200
+        ids = [c["id"] for c in r.json()]
+        assert c2.id in ids
+
+    def test_missing_claim_returns_404(self, client):
+        r = client.get("/api/claims/no-such-claim/related")
+        assert r.status_code == 404
