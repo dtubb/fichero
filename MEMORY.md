@@ -21,6 +21,15 @@
 
 *   **Branch Convention (2026-04-10):** Implementation work happens on milestone branches (e.g., `0.0.2`, `feature/388-hermeneutics`), not planning branches. The `0.0.2` branch IS the active implementation branch. State is now tracking backend implementation work for 0.0.3-0.1.0 milestones with 21 issues created for AI agent claiming.
 
+*   **Canonical Knowledge Route Module Pattern (2026-04-12):** Splitting knowledge_graph.py into dedicated modules:
+    - entities.py: POST/GET/PATCH /entities, aliasing, resolution
+    - claims.py: POST/GET/PATCH /claims, referential integrity
+    - claim_links.py: POST/GET/PATCH/DELETE claim linking (bidirectional)
+    - Register in _CORE_ROUTE_SPECS with tuple: (router, "/api", ["tag"])
+    - Referential integrity: entities must exist before claim creation
+    - No soft-delete for links (hard delete only)
+    - Patterns extracted from knowledge_graph.py lines ~950-1150
+
 ## NetworkX Graph Reasoning Pattern — 2026-04-12
 
 **Pattern:** Algorithmic graph analysis using NetworkX on knowledge graph data

@@ -102,13 +102,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
 # CORS configuration
 # Production: Restrict origins to specific domains
 # Development: Allow localhost origins
 def _get_cors_origins() -> list[str]:
     """Get allowed CORS origins based on environment."""
     env = os.environ.get("FICHERO_ENV", "development").lower().strip()
-    
+
     if env == "production":
         # Production: Only specific origins (configure via env var)
         allowed = os.environ.get("FICHERO_CORS_ORIGINS", "")
@@ -116,7 +117,7 @@ def _get_cors_origins() -> list[str]:
             return [origin.strip() for origin in allowed.split(",")]
         # Default: no cross-origin in production if not configured
         return []
-    
+
     # Development: Allow common local development origins
     return [
         "http://localhost:*",
@@ -136,7 +137,12 @@ app.add_middleware(
     allow_origins=cors_origins,
     allow_credentials=len(cors_origins) > 0 and cors_origins != ["*"],
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Fichero-Library-Path", "X-API-Key"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-Fichero-Library-Path",
+        "X-API-Key",
+    ],
     expose_headers=["X-Request-ID"],
     max_age=600,
 )
@@ -284,53 +290,59 @@ async def get_stats(db: Database = Depends(get_library_database)):
 
 # Include route modules
 from fichero.api.routes import (  # noqa: E402
-    documents,
-    search,
-    ingest,
-    storage,
-    providers,
-    models,
-    folders,
-    artifacts,
-    workflows,
-    workflow_execution,
-    batch,
     activity,
+    artifacts,
+    batch,
     chat,
-    settings,
-    knowledge_graph,
-    search_explain,
-    hermeneutics,
+    claim_links,
+    claims,
+    documents,
+    entities,
+    folders,
     graph_exploration,
+    hermeneutics,
+    ingest,
+    knowledge_graph,
     mind_palace,
-    research_agents,
     mcp_tools,
+    providers,
+    research_agents,
+    search,
+    search_explain,
+    settings,
     sources,
+    models,
     review_queue,
     interpretations,
     iiif,
+    storage,
+    workflow_execution,
+    workflows,
 )
 
 RouteSpec = tuple[object, str, list[str]]
 
 _CORE_ROUTE_SPECS: list[RouteSpec] = [
-    (documents.router, "/api/documents", ["documents"]),
-    (search.router, "/api/search", ["search"]),
-    (ingest.router, "/api/ingest", ["ingest"]),
-    (storage.router, "/api/storage", ["storage"]),
-    (folders.router, "/api/folders", ["folders"]),
-    (artifacts.router, "/api/artifacts", ["artifacts"]),
-    (providers.router, "/api/providers", ["providers"]),
-    (models.router, "/api/models", ["models"]),
-    (workflows.router, "/api/workflows", ["workflows"]),
-    (workflow_execution.router, "/api/workflow-execution", ["workflow-execution"]),
-    (batch.router, "/api", ["batches"]),
     (activity.router, "/api", ["activity"]),
+    (artifacts.router, "/api/artifacts", ["artifacts"]),
+    (batch.router, "/api", ["batches"]),
     (chat.router, "/api/chat", ["chat"]),
-    (settings.router, "", ["settings"]),
+    (claim_links.router, "/api", ["claim-links"]),
+    (claims.router, "/api", ["claims"]),
+    (documents.router, "/api/documents", ["documents"]),
+    (entities.router, "/api", ["entities"]),
+    (folders.router, "/api/folders", ["folders"]),
+    (ingest.router, "/api/ingest", ["ingest"]),
     (mcp_tools.router, "/api/mcp", ["mcp"]),
+    (providers.router, "/api/providers", ["providers"]),
+    (search.router, "/api/search", ["search"]),
+    (settings.router, "", ["settings"]),
     (sources.router, "/api/sources", ["sources"]),
+    (models.router, "/api/models", ["models"]),
     (review_queue.router, "/api", ["review-queue"]),
+    (storage.router, "/api/storage", ["storage"]),
+    (workflow_execution.router, "/api/workflow-execution", ["workflow-execution"]),
+    (workflows.router, "/api/workflows", ["workflows"]),
 ]
 
 _DEV_ROUTE_SPECS: list[RouteSpec] = [

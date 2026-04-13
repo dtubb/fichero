@@ -2,51 +2,25 @@
 
 ## Current Focus
 
-**Primary Track:** Backend-first milestone execution
+**Milestone:** 0.0.2 — COMPLETE, ready for PR review
+**Branch:** `feature/issue-364` (pushed to origin)
 
-- 0.0.2 issue **#364** — implemented and closed
-- 0.0.3 milestone **COMPLETE**
-- **0.0.4 milestone COMPLETE**
-- **0.0.5 milestone COMPLETE**
-- **0.1.0 milestone COMPLETE**
-- **Additional work:** #434 complete (#432, #433 remaining)
-- Unit backend test suite: **1228 passed, 21 skipped**
+## Recently Completed
 
-## Completed Milestones
-
-### 0.0.4 — Semantic UX + Trust Workflow (COMPLETE)
-- ~~#435~~ ✅ — Claim Review Queue Backend
-- ~~#436~~ ✅ — Contradiction Triage Backend
-- ~~#437~~ ❌ — Duplicate of #436
-- ~~#438~~ ✅ — Search Explanation Backend
-- ~~#439~~ ✅ — Interpretations Workspace Backend
-
-### 0.0.5 — Operations (COMPLETE)
-- ~~#425~~ ✅ — Activity Stream Enhancements
-
-### 0.1.0 — Epistemic Platform Expansion (COMPLETE)
-- ~~#427~~ ✅ — Advanced Graph Exploration and Interpretation Views
-- ~~#428~~ ✅ — IIIF Server Mode
-- ~~#431~~ ✅ — Advanced Graph / Interpretation Exploration
-
-### Additional Completed
-- ~~#434~~ ✅ — Search Views (Table/Grid/Map)
-
-## In Progress
-
-1. Backend-only execution of open milestone issues:
-   - **Open issues:** #432, #433
-
-2. Operational cleanup item (separate scope):
-   - Repo-wide Ruff test-lint debt exists outside current feature scope
-
-## Blocked
-
-- None currently
+- #364: Canonical FastAPI knowledge write path — entities, claims, claim_links modules
 
 ## Next Session — Start Here
 
-1. **Open backend issues** — #432 or #433
+### 1. PR Review (with Daniel)
+- Review branch `feature/issue-364` — knowledge write paths
+- Merge to main before proceeding
+
+### 2. Complete 0.0.3 Milestone
+- Merge #368, #369, #370, #371 (already pushed)
+- Verify tests pass, linting clean
+
+### 3. Prepare 0.0.4 Scope
+- #372-375: Claim review UI, contradiction triage, search explain, interpretations
 
 ---
-*Last updated: 2026-04-11*
+*Last updated: 2026-04-12*

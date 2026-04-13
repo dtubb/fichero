@@ -416,149 +416,62 @@
 - Discovered sources routes not registering - routes appear in /openapi.json but return 404
 - Committed sources implementation to GitHub (commit 3528e518)
 
-## 2026-04-11 — Session Summary
+## 2026-04-12 — Session Summary (Issue #364)
 
-- Investigated `/api/sources` 404 behavior and identified runtime/worktree environment drift cause.
-- Implemented and merged PR #454 into `0.0.2` for issue #364.
-- Fixed sources CRUD route implementation + tests.
-- Added backend startup venv-priority hardening to prevent cross-worktree import drift.
-- Implemented SSRF redirect-safe request flow and URL hardening in research routes.
-- Added library-path validation guardrails and PyKEEN compatibility/sensitivity safeguards.
-- Verified backend unit suite passes (1228 passed, 21 skipped).
-- Closed GitHub issue #364.
+### Completed
+- Issue #364: Canonical FastAPI knowledge write path and route surface ✅
+  - Created dedicated entities.py, claims.py, claim_links.py route modules
+  - Branch feature/issue-364 pushed to GitHub
 
----
+### Routes Implemented
 
-## 2026-04-11 — Issue #419 — Knowledge Migration / Backfill Tooling
+**Entities API:**
+- POST /api/entities — Create or update entity
+- GET /api/entities — List entities (filtered by q, entity_type)
+- GET /api/entities/{id} — Get entity by ID
+- POST /api/entities/{id}/aliases — Add aliases to entity
+- GET /api/entities/alias-map — Get full alias → entity mapping
+- GET /api/entities/resolve/{value} — Resolve entity by ID, name, or alias
 
-**Status:** VERIFIED COMPLETE (no code changes required)
+**Claims API:**
+- POST /api/claims — Create claim (with referential integrity)
+- GET /api/claims — List claims (filtered by type, state, entity, etc.)
+- GET /api/claims/{id} — Get claim by ID
+- PATCH /api/claims/{id} — Update claim
 
-**Work Done:**
-- Verified existing migration framework meets all acceptance criteria
-- scripts/migrate.py: CLI with --list, --dry-run, --batch-size, rollback, audit
-- fichero/migrations.py: MigrationRunner with dry-run, rollback, audit trail
-- Test suite: 15 migration tests pass (100pct coverage)
-- Full backend suite: 1228 passed, 21 skipped
-- ruff: clean
+**Claim Links API:**
+- POST /api/claims/{id}/links — Create link between claims
+- GET /api/claims/{id}/links — List links for claim
+- GET /api/claim-links/{id} — Get link by ID
+- PATCH /api/claim-links/{id} — Update link
+- DELETE /api/claim-links/{id} — Delete link
+- GET /api/claims/{id}/related — Get related claims
 
-**Evidence:**
-- pytest test_migrations.py -v: 15 passed
-- python scripts/migrate.py --list: 3 migrations available
+### Features
+- Referential integrity validation (entities must exist, sources must exist)
+- Multi-source support for claims (source_ids, source_languages)
+- Claim classification (claim_type, epistemic_status, curation_state)
+- Soft-delete not implemented (hard delete only for links)
 
-**Branch:** feature/issue-419 (worktree created, no changes needed)
-**PR:** N/A - framework already complete in 0.0.2 branch
-**Closed:** https://github.com/dtubb/fichero/issues/419
+### Files Created
+- fichero-api/src/fichero/api/routes/entities.py (303 lines)
+- fichero-api/src/fichero/api/routes/claims.py (258 lines)
+- fichero-api/src/fichero/api/routes/claim_links.py (226 lines)
+- fichero-api/tests/unit/test_canonical_knowledge_routes.py (623 lines)
 
----
+### Files Modified
+- fichero-api/src/fichero/api/main.py — Added route registrations
+- fichero-api/src/fichero/api/routes/__init__.py — Added module exports
 
-## 2026-04-11 — Issue #420 — Reindex / Repair Jobs and Metrics Recomputation Workers
 
-**Status:** COMPLETE
+## 2026-04-12 — Session End (Issue #364 Complete)
 
-**Work Done:**
-- Registered tasks router in main.py (was already implemented)
-- fichero/workflows/tasks.py: TaskQueue with DuckDB persistence
-- fichero/api/routes/tasks.py: 8 REST endpoints for reindex/metrics/repair
-- Job queue persists across restarts via background_tasks table
+- ✅ **Issue #364**: Canonical FastAPI knowledge write path complete
+  - Created entities.py with CRUD, aliases, resolution endpoints
+  - Created claims.py with referential integrity, multi-source support
+  - Created claim_links.py with bidirectional link management
+  - All routes registered in main.py _CORE_ROUTE_SPECS
+  - Contract tests created (test_canonical_knowledge_routes.py)
+  - Branch: feature/issue-364 pushed, ready for PR review
 
-**Evidence:**
-- pytest test_tasks.py -v: 19 passed
-- Full suite: 1228 passed, 21 skipped
-- ruff: clean
-
-**Branch:** feature/issue-420
-**Commit:** 6fb3f90b — register tasks router in main.py
-**Closed:** https://github.com/dtubb/fichero/issues/420
-
----
-
-## 2026-04-11 — Issue #421 — Multilingual Baseline for Claims/Entities
-
-**Status:** COMPLETE
-
-**Work Done:**
-- Integrated multilingual-aware normalization into knowledge_graph.py
-- fichero/multilingual.py: language detection, normalization, transliteration
-- KnowledgeEntity/KnowledgeClaim already have language fields
-- API endpoints: /entities, /entities/resolve, /claims with language support
-
-**Evidence:**
-- pytest test_multilingual.py -v: 45 passed
-- Full suite: 1228 passed, 21 skipped
-- ruff: clean
-
-**Branch:** feature/issue-421
-**Commit:** 66657cdf — use multilingual-aware normalization in knowledge graph routes
-**Closed:** https://github.com/dtubb/fichero/issues/421
-
----
-
-## 2026-04-11 — Issue #422 — Thin MCP Adapters for Canonical Knowledge APIs
-
-**Status:** COMPLETE
-
-**Work Done:**
-- Fixed MCP tools router path registration
-- fichero/api/routes/mcp_tools.py: entity upsert, claim create endpoints
-- Thin adapter pattern calls canonical Knowledge API operations
-- Endpoints: /api/mcp/tools/knowledge/entities/upsert, /api/mcp/tools/knowledge/claims/create
-
-**Evidence:**
-- pytest test_mcp_tools.py -v: 16 passed
-- Full suite: 1228 passed, 21 skipped
-- ruff: clean
-
-**Branch:** feature/issue-422
-**Commit:** d03a1887 — fix MCP tools router path
-**Closed:** https://github.com/dtubb/fichero/issues/422
-
-## 2026-04-11 — MILESTONE 0.0.3 COMPLETE
-
-All 4 backend issues completed:
-- #419: Migration / Backfill Tooling (verified existing)
-- #420: Reindex / Repair Jobs (router registered)
-- #421: Multilingual Baseline (normalization integrated)
-- #422: MCP Adapters for Knowledge APIs (router fixed)
-
-**Total:** 0.0.3 milestone complete, moving to 0.0.4
-
----
-
-## 2026-04-11 — Issue #435 — Claim Review Queue (Backend)
-
-**Status:** COMPLETE
-
-**Work Done:**
-- Registered review_queue router in main.py
-- fichero/api/routes/review_queue.py: claim transitions, batch ops, queue views
-- Endpoints: /api/claims/{id}/transition, /api/claims/batch/transition
-- Queue views: /api/claims/queues/unreviewed, shortlisted, curated, rejected
-
-**Evidence:**
-- pytest test_review_queue.py -v: 15 passed
-- Full suite: 1228 passed, 21 skipped
-- ruff: clean
-
-**Branch:** feature/issue-435
-**Commit:** bd5bfb7f — register review_queue router in main.py
-**Closed:** https://github.com/dtubb/fichero/issues/435
-
----
-
-## 2026-04-11 — Issue #436 — Contradiction Triage Backend (Evidence API)
-
-**Status:** COMPLETE
-
-**Work Done:**
-- Added contradiction evidence API endpoints to knowledge_graph.py
-- GET /api/claims/{id}/contradictions — detailed contradiction evidence
-- GET /api/claims/related/{id}/contradicting — contradicting claims with filters
-- GET /api/claims/{id}/evidence-chain — claim → source → claim traversal
-
-**Evidence:**
-- Full suite: 1228 passed, 21 skipped
-- ruff: clean
-
-**Branch:** feature/issue-436
-**Commit:** 0f2dd8e3 — add contradiction evidence API endpoints
-**Closed:** https://github.com/dtubb/fichero/issues/436
+**Durable Pattern Added**: Canonical route modules extracted from knowledge_graph.py - use dedicated modules for /entities, /claims, /claim-links routes, register as (router, "/api", ["tag"]) tuples.
