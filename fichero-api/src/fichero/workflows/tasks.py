@@ -366,7 +366,11 @@ class TaskQueue:
             finally:
                 conn.close()
 
-        await asyncio.to_thread(_save)
+        try:
+            await asyncio.to_thread(_save)
+        except (asyncio.CancelledError, RuntimeError):
+            # Event loop shutting down (e.g. test teardown) — save synchronously
+            _save()
 
     def _schedule_next_task(self) -> None:
         """Schedule the next pending task for execution."""
