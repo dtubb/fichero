@@ -1428,6 +1428,11 @@ class DatabaseManager:
                 del self._databases[package_str]
                 logger.info(f"Closed database connection: {package_str}")
 
+    @property
+    def active_count(self) -> int:
+        """Return the number of currently open database connections."""
+        return len(self._databases)
+
     def close_all(self):
         """Close all database connections."""
         with self._lock:

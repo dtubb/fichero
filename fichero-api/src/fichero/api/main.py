@@ -26,7 +26,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Sequence
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,6 @@ def _validate_model_sync() -> bool:
     Returns True if sync is valid, False if there are issues.
     """
     try:
-        from pathlib import Path
         import subprocess
 
         # Find the validation script
@@ -165,7 +164,6 @@ async def validate_library_path_header(request: Request, call_next):
 
 
 # FastAPI dependency: Get database for current library
-from fastapi import Header, HTTPException, Depends  # noqa: E402
 from fichero.db import Database, db_manager  # noqa: E402
 
 
@@ -272,7 +270,7 @@ async def health_check(
         return {
             "status": "healthy",
             "backend_version": "0.1.0",
-            "active_libraries": len(db_manager._databases),
+            "active_libraries": db_manager.active_count,
         }
 
 
