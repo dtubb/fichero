@@ -29,6 +29,8 @@ from typing import Sequence
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from fichero.db import Database, db_manager
+
 logger = logging.getLogger(__name__)
 
 
@@ -161,10 +163,6 @@ async def validate_library_path_header(request: Request, call_next):
             },
         )
     return await call_next(request)
-
-
-# FastAPI dependency: Get database for current library
-from fichero.db import Database, db_manager  # noqa: E402
 
 
 def _is_allowed_library_path(library_path: str) -> bool:

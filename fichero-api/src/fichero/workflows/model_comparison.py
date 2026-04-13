@@ -14,11 +14,13 @@ from dataclasses import dataclass, field
 from typing import Any
 from datetime import datetime
 
-from pydantic import BaseModel, Field
-
 from enum import Enum
 
+from pydantic import BaseModel, Field
+
 from fichero.llm import get_langchain_model, LLMConfig, vision
+from fichero.workflows.registry import register_tool
+from fichero.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
 
@@ -766,9 +768,6 @@ def get_comparison_engine() -> ModelComparisonEngine:
 # =============================================================================
 # Workflow Tool Registration
 # =============================================================================
-
-from fichero.workflows.types import State, PortDef, DataType  # noqa: E402
-from fichero.workflows.registry import register_tool  # noqa: E402
 
 
 @register_tool(
