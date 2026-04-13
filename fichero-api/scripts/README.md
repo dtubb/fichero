@@ -1,34 +1,41 @@
 # fichero-api scripts
 
-All repository automation scripts live in this folder.
+Repository automation scripts for the Fichero Python backend.
 
-## Core local development
-- `start_backend.sh`: Start API server with project defaults.
-- `start_backend.py`: Python entry for local backend start flow.
-- `sync_openapi_schema.sh`: Export backend OpenAPI schema and copy it into `fichero-swiftui/fichero-api-client`.
+## Development
 
-## Validation and checks
-- `validate_repo.sh`: Run repository validation commands.
-- `validate_model_sync.py`: Verify backend models and generated schema alignment.
-- `validate_swift_api_calls.py`: Validate Swift client API call usage against schema.
-- `verify_system.py`: End-to-end environment verification helper.
-- `check_dependencies.py`: Report missing or inconsistent Python dependencies.
+| Script | Purpose |
+|---|---|
+| `start_backend.sh` | Start API server for local development |
+| `start_backend.py` | Python entry point for bundled backend (Briefcase) |
+| `sync_openapi_schema.sh` | Export Python OpenAPI schema → Swift client. **Run after any API change.** |
+
+## Validation
+
+| Script | Purpose |
+|---|---|
+| `validate_repo.sh` | Run tests, lint, and checks |
+| `validate_model_sync.py` | Verify Python/Swift model field alignment (called by `start_backend.sh`) |
+| `export_openapi_schema.py` | Raw schema export (called by `sync_openapi_schema.sh`) |
+| `run_migration.py` | Knowledge graph migration CLI with dry-run/rollback support |
 
 ## Build and packaging
-- `build_backend_bundle.sh`: Build bundled backend app via Briefcase.
-- `build_dual_backend.sh`: Build backend bundle variants.
-- `bundle_python_backend.sh`: Package Python backend artifacts.
-- `xcode_copy_backend.sh`: Xcode build-phase helper to copy bundled backend into app resources.
+
+| Script | Purpose |
+|---|---|
+| `build_backend_bundle.sh` | Build Briefcase macOS bundle |
+| `bundle_python_backend.sh` | Package Python backend artifacts (called by build script) |
+| `xcode_copy_backend.sh` | Xcode build-phase helper — copies bundle into app resources |
 
 ## Utilities
-- `clean_local_artifacts.sh`: Remove local generated artifacts and caches.
-- `export_api_schemas.py`: Export API schemas for tooling/docs.
-- `export_openapi_schema.py`: Export OpenAPI schema JSON used by Swift client sync.
-- `refresh_app_icon.sh`: Refresh app icon assets.
-- `setup_app_icon.py`: Generate/setup icon asset inputs.
 
-## Ownership boundary
-- Backend schema source of truth: `fichero-api/src/fichero/...`
-- Swift package consumer: `fichero-swiftui/fichero-api-client`
-- When backend API routes or schema models change, run:
-  - `./fichero-api/scripts/sync_openapi_schema.sh`
+| Script | Purpose |
+|---|---|
+| `clean_local_artifacts.sh` | Remove build artifacts, caches, and generated files |
+
+## When to run sync
+
+Run `./fichero-api/scripts/sync_openapi_schema.sh` after modifying:
+- Any route in `src/fichero/api/routes/`
+- Any Pydantic model in `src/fichero/models.py` or related model files
+- Request/response schemas
