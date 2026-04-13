@@ -10,7 +10,7 @@ from typing import Any, Optional
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from fichero.db import Database
 from fichero.api.main import get_library_database
@@ -601,7 +601,7 @@ class WorkflowPatchRequest(BaseModel):
     folder_path: Optional[str] = None
     sort_order: Optional[int] = None
 
-    model_config = {"extra": "allow"}
+    model_config = ConfigDict(extra="allow")
 
 
 @router.patch("/{workflow_id}")

@@ -11,7 +11,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -48,7 +48,7 @@ class KnowledgeEntityUpsertRequest(BaseModel):
     language: str | None = Field(None, description="ISO 639-1 language code")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Custom metadata")
 
-    model_config = {"json_schema_extra": {"examples": [{"canonical_name": "Tokyo", "entity_type": "place", "language": "en"}]}}
+    model_config = ConfigDict(json_schema_extra={"examples": [{"canonical_name": "Tokyo", "entity_type": "place", "language": "en"}]})
 
 
 class KnowledgeEntityUpsertResponse(BaseModel):
@@ -81,7 +81,7 @@ class KnowledgeClaimCreateRequest(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_by: str = Field(default="mcp")
 
-    model_config = {"json_schema_extra": {"examples": [{"text": "Paris is the capital of France", "source_document_id": "doc-123", "claim_type": "fact"}]}}
+    model_config = ConfigDict(json_schema_extra={"examples": [{"text": "Paris is the capital of France", "source_document_id": "doc-123", "claim_type": "fact"}]})
 
 
 class KnowledgeClaimCreateResponse(BaseModel):

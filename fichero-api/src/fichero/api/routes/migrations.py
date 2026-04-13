@@ -17,8 +17,7 @@ from pydantic import BaseModel, Field
 
 from fichero.db import Database
 
-# Import the dependency from main
-from fichero.api.main import get_library_database  # noqa: E402
+from fichero.api.main import get_library_database
 from fichero.migrations import MigrationRunner
 
 router = APIRouter(prefix="/migrations", tags=["migrations"])
