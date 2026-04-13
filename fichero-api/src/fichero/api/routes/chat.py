@@ -5,20 +5,22 @@ RAG-style chat using LangChain for semantic search and LLM generation.
 """
 
 import logging
-from typing import Optional, List
 from datetime import datetime
+from pathlib import Path
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, ConfigDict
 
 from fichero.db import Database
 from fichero.api.main import get_library_database
 from fichero.app_db import get_app_db, AppDatabase
 from fichero.models import (
-    Document,
-    Provider as ProviderModel,
-    Model as ModelModel,
     Conversation,
+    DocType,
+    Document,
+    Model as ModelModel,
+    Provider as ProviderModel,
 )
 from fichero.keychain import has_api_key
 from fichero.providers import get_provider_info
@@ -43,8 +45,6 @@ def _read_file_content(path: str | None, max_chars: int = 5000) -> str | None:
         return None
 
     try:
-        from pathlib import Path
-
         p = Path(path)
         if not p.exists() or not p.is_file():
             return None
@@ -97,20 +97,20 @@ class ChatRequest(BaseModel):
 
     message: str
     conversation_id: Optional[str] = None
-    document_ids: Optional[List[str]] = None  # Scope to specific documents
+    document_ids: Optional[list[str]] = None  # Scope to specific documents
     include_sources: bool = True
     max_sources: int = 5
     provider: Optional[str] = None  # e.g., "openai", "anthropic", "ollama"
     model: Optional[str] = None  # e.g., "gpt-4o-mini", "claude-3-haiku"
 
-    model_config = {"extra": "allow"}
+    model_config = ConfigDict(extra="allow")
 
 
 class ChatResponse(BaseModel):
     """Response model for chat."""
 
     message: str
-    sources: List[DocumentSource]
+    sources: list[DocumentSource]
     conversation_id: str
     model_used: str = (
         ""  # Which model actually handled the request (empty if not known)
@@ -122,7 +122,7 @@ class ProviderInfo(BaseModel):
 
     id: str
     name: str
-    models: List[str]
+    models: list[str]
     available: bool  # Whether API key is configured
     supports_vision: bool = False  # Whether provider supports vision/image input
 
@@ -132,7 +132,7 @@ class ConversationHistory(BaseModel):
 
     id: str
     title: str
-    messages: List[ChatMessage]
+    messages: list[ChatMessage]
     created_at: str
     updated_at: str
     folder_path: str = "/"
@@ -195,7 +195,7 @@ def _get_langchain_llm(db: Database, provider: str = None, model: str = None):
     )
 
 
-def _build_rag_prompt(query: str, context_docs: List[dict]) -> str:
+def _build_rag_prompt(query: str, context_docs: list[dict]) -> str:
     """Build a RAG prompt with retrieved context."""
     context_parts = []
     for i, doc in enumerate(context_docs, 1):
@@ -364,7 +364,7 @@ async def chat(
 async def list_conversations(
     folder_path: str = "/",
     db: Database = Depends(get_library_database),
-) -> List[dict]:
+) -> list[dict]:
     """List all conversations, optionally filtered by folder."""
     # Query conversations from database
     convs = db.query(Conversation, folder_path=folder_path)
@@ -416,7 +416,7 @@ class ConversationUpdate(BaseModel):
     title: Optional[str] = None
     folder_path: Optional[str] = None
 
-    model_config = {"extra": "allow"}
+    model_config = ConfigDict(extra="allow")
 
 
 @router.put("/conversations/{conversation_id}")
@@ -531,7 +531,7 @@ def get_app_database() -> AppDatabase:
 @router.get("/providers")
 async def list_providers(
     app_db: AppDatabase = Depends(get_app_database),
-) -> List[ProviderInfo]:
+) -> list[ProviderInfo]:
     """List available LLM providers and their models from user configuration.
 
     Providers are stored app-wide (not per-library), so we query the app database.
@@ -588,10 +588,10 @@ async def list_providers(
 class ExtractTextRequest(BaseModel):
     """Request to extract text from documents."""
 
-    document_ids: Optional[List[str]] = None  # None means all documents
+    document_ids: Optional[list[str]] = None  # None means all documents
     force: bool = False  # Re-extract even if text already exists
 
-    model_config = {"extra": "allow"}
+    model_config = ConfigDict(extra="allow")
 
 
 class ExtractTextResponse(BaseModel):
@@ -600,7 +600,7 @@ class ExtractTextResponse(BaseModel):
     extracted: int
     skipped: int
     failed: int
-    errors: List[str]
+    errors: list[str]
 
 
 @router.post("/extract-text")
@@ -614,8 +614,6 @@ async def extract_text(
     This populates the page_content field for search and chat.
     Can be used to re-extract text for documents imported before text extraction was working.
     """
-    from pathlib import Path
-    from fichero.models import DocType
     from fichero.ingest import _extract_text_content
 
     extracted = 0

@@ -5,14 +5,15 @@ Semantic search using LanceDB vector embeddings.
 """
 
 import logging
-from typing import Any, Optional
 from datetime import datetime
+from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Query
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from pydantic import BaseModel, ConfigDict, Field
 
+from fichero.api.main import get_library_database
 from fichero.db import Database, SearchResult
-from fichero.models import Document
+from fichero.models import Document, SavedSearch
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -23,10 +24,6 @@ def _safe_isoformat(value) -> str:
     return (
         value.isoformat() if hasattr(value, "isoformat") else datetime.now().isoformat()
     )
-
-
-# Import the get_library_database dependency
-from fichero.api.main import get_library_database  # noqa: E402
 
 
 # Request/Response models
@@ -171,8 +168,6 @@ async def reindex_all(
 @router.post("/embed/{doc_id}")
 async def embed_document(doc_id: str, db: Database = Depends(get_library_database)):
     """Create embedding for a specific document."""
-    from fichero.models import Document
-
     doc = db.get(Document, doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
@@ -188,10 +183,6 @@ async def embed_document(doc_id: str, db: Database = Depends(get_library_databas
 # =============================================================================
 # Saved Searches
 # =============================================================================
-
-from typing import List  # noqa: E402
-
-from fichero.models import SavedSearch  # noqa: E402
 
 
 class SavedSearchCreate(BaseModel):
@@ -256,7 +247,7 @@ async def save_search(
 @router.get("/saved")
 async def list_saved_searches(
     db: Database = Depends(get_library_database),
-) -> List[SavedSearchResponse]:
+) -> list[SavedSearchResponse]:
     """List all saved searches."""
     searches = db.all(SavedSearch)
     return [
@@ -287,7 +278,7 @@ class SavedSearchUpdate(BaseModel):
     sort_direction: Optional[str] = None  # "asc" or "desc"
     folder_path: Optional[str] = None
 
-    model_config = {"extra": "allow"}
+    model_config = ConfigDict(extra="allow")
 
 
 @router.put("/saved/{search_id}")
