@@ -7,7 +7,7 @@ Provides standardized error types, logging, and recovery mechanisms.
 
 import logging
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Any, Optional
 from fastapi import HTTPException, status
 
 # Configure logging
@@ -47,7 +47,7 @@ class FicheroError(Exception):
         category: ErrorCategory = ErrorCategory.UNKNOWN,
         severity: ErrorSeverity = ErrorSeverity.ERROR,
         original_exception: Optional[Exception] = None,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,
     ):
         self.message = message
         self.category = category
@@ -84,7 +84,7 @@ class FicheroError(Exception):
         if self.context:
             logger.debug("Error context: %s", self.context)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert error to dictionary for API responses."""
         return {
             "error": self.message,
@@ -102,7 +102,7 @@ class DatabaseError(FicheroError):
         self,
         message: str,
         original_exception: Optional[Exception] = None,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,
     ):
         super().__init__(
             message,
@@ -120,7 +120,7 @@ class FileSystemError(FicheroError):
         self,
         message: str,
         original_exception: Optional[Exception] = None,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,
     ):
         super().__init__(
             message,
@@ -139,7 +139,7 @@ class APIError(FicheroError):
         message: str,
         status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
         original_exception: Optional[Exception] = None,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,
     ):
         super().__init__(
             message,
@@ -163,7 +163,7 @@ class ValidationError(FicheroError):
         message: str,
         field: Optional[str] = None,
         original_exception: Optional[Exception] = None,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,
     ):
         context = context or {}
         if field:
@@ -185,7 +185,7 @@ class ConfigurationError(FicheroError):
         self,
         message: str,
         original_exception: Optional[Exception] = None,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,
     ):
         super().__init__(
             message,
@@ -201,7 +201,7 @@ def handle_error(
     default_message: str = "An unexpected error occurred",
     category: ErrorCategory = ErrorCategory.UNKNOWN,
     severity: ErrorSeverity = ErrorSeverity.ERROR,
-    context: Optional[Dict[str, Any]] = None,
+    context: Optional[dict[str, Any]] = None,
 ) -> FicheroError:
     """
     Standard error handler that converts any exception to a FicheroError.

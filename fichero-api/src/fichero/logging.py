@@ -9,7 +9,7 @@ import logging
 import logging.handlers
 import os
 import sys
-from typing import Optional, Dict, Any
+from typing import Any, Optional
 from datetime import datetime
 import json
 
@@ -149,7 +149,7 @@ class FicheroLogger:
         self,
         level: int,
         message: str,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,
         **kwargs,
     ):
         """
@@ -175,7 +175,7 @@ class FicheroLogger:
             self.logger.log(level, message)
 
     def debug(
-        self, message: str, *args, context: Optional[Dict[str, Any]] = None, **kwargs
+        self, message: str, *args, context: Optional[dict[str, Any]] = None, **kwargs
     ):
         """Log debug message with optional context."""
         if context:
@@ -184,7 +184,7 @@ class FicheroLogger:
             self.logger.debug(message, *args, **kwargs)
 
     def info(
-        self, message: str, *args, context: Optional[Dict[str, Any]] = None, **kwargs
+        self, message: str, *args, context: Optional[dict[str, Any]] = None, **kwargs
     ):
         """Log info message with optional context."""
         if context:
@@ -193,7 +193,7 @@ class FicheroLogger:
             self.logger.info(message, *args, **kwargs)
 
     def warning(
-        self, message: str, *args, context: Optional[Dict[str, Any]] = None, **kwargs
+        self, message: str, *args, context: Optional[dict[str, Any]] = None, **kwargs
     ):
         """Log warning message with optional context."""
         if context:
@@ -202,7 +202,7 @@ class FicheroLogger:
             self.logger.warning(message, *args, **kwargs)
 
     def error(
-        self, message: str, *args, context: Optional[Dict[str, Any]] = None, **kwargs
+        self, message: str, *args, context: Optional[dict[str, Any]] = None, **kwargs
     ):
         """Log error message with optional context."""
         if context:
@@ -211,7 +211,7 @@ class FicheroLogger:
             self.logger.error(message, *args, **kwargs)
 
     def critical(
-        self, message: str, *args, context: Optional[Dict[str, Any]] = None, **kwargs
+        self, message: str, *args, context: Optional[dict[str, Any]] = None, **kwargs
     ):
         """Log critical message with optional context."""
         if context:
@@ -224,7 +224,7 @@ class FicheroLogger:
         operation: str,
         status: str,
         duration: Optional[float] = None,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,
     ):
         """
         Log operation with status and timing information.
@@ -254,7 +254,7 @@ class FicheroLogger:
         path: str,
         status_code: int,
         duration: float,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,
     ):
         """
         Log API request with timing and status information.

@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     from fichero.models import LibrarySnapshot
 
 from pydantic import computed_field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 try:
     from PIL import Image, ImageOps
@@ -69,7 +69,7 @@ class StorageSettings(BaseSettings):
         FICHERO_QUALITY=90
     """
 
-    model_config = {"env_prefix": "FICHERO_"}
+    model_config = SettingsConfigDict(env_prefix="FICHERO_")
 
     # Base path - can be overridden for testing
     base_path: Path = Path(

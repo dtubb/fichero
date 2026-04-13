@@ -17,7 +17,7 @@ from __future__ import annotations
 import uuid
 from enum import Enum
 from typing import TypedDict, Any, Literal, Annotated
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 def _merge_parallel_results(
@@ -210,7 +210,7 @@ class OutputSchema(BaseModel):
         default="", description="Description for LLM prompt context"
     )
 
-    model_config = {"populate_by_name": True}
+    model_config = ConfigDict(populate_by_name=True)
 
 
 # =============================================================================
