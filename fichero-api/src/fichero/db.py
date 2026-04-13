@@ -41,6 +41,7 @@ from datetime import datetime
 import json
 import logging
 import re
+import time
 import duckdb
 from pydantic import BaseModel
 from fichero.errors import ErrorCategory, handle_error, retry_on_failure
@@ -503,7 +504,6 @@ class Database:
         Returns:
             Tuple of (results, total_count, search_stats)
         """
-        import time
 
         if not query or not query.strip():
             return [], 0, {"search_type": "none"}

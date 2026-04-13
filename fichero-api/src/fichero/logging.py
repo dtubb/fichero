@@ -8,6 +8,7 @@ Provides standardized logging setup, log rotation, and logging utilities.
 import logging
 import logging.handlers
 import os
+import time
 import sys
 from typing import Any, Optional
 from datetime import datetime
@@ -356,7 +357,6 @@ def log_operation(func):
     """
 
     def wrapper(*args, **kwargs):
-        import time
 
         logger = get_logger(func.__module__ or "fichero")
         operation_name = (
@@ -412,7 +412,6 @@ def log_api_endpoint(func):
     """
 
     def wrapper(*args, **kwargs):
-        import time
         from fastapi import Request
 
         # Extract request object if available

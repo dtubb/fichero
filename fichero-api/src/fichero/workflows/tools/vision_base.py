@@ -15,6 +15,7 @@ Provides:
 from __future__ import annotations
 
 import asyncio
+import os
 import base64
 import dataclasses
 import io
@@ -190,7 +191,6 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
             CGImageSourceCopyPropertiesAtIndex,
         )
         from Foundation import NSURL
-        import os
 
         # Verify file exists and is readable
         if not os.path.exists(image_path):

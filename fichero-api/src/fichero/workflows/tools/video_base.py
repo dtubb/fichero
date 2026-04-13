@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import logging
+import shutil
 import os
 import subprocess
 import tempfile
@@ -353,7 +354,6 @@ async def save_artifact(
 
 def _cleanup_temp_files(*paths: str) -> None:
     """Remove temporary files and directories."""
-    import shutil
 
     for path in paths:
         try:

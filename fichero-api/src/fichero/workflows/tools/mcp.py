@@ -7,6 +7,7 @@ MCP tools are LangChain BaseTool instances that can be used in workflows.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -63,7 +64,6 @@ def _create_mcp_tool_wrapper(tool: BaseTool, tool_name: str):
     Returns:
         Async wrapper function for the tool
     """
-    import asyncio
 
     async def mcp_tool_wrapper(
         inputs: dict[str, Any],

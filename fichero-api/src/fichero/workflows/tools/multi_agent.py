@@ -9,6 +9,7 @@ Implements advanced agent patterns for coordinating multiple agents:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -330,7 +331,6 @@ async def supervisor_agent(
             # Execute selected workers based on aggregation strategy
             if aggregation_strategy == "parallel":
                 # Execute all selected workers in parallel
-                import asyncio
 
                 worker_configs = [
                     w for w in workers_config if w["name"] in decision["workers"]
@@ -355,7 +355,6 @@ async def supervisor_agent(
 
             elif aggregation_strategy == "best_of":
                 # Execute all and pick best (by length as proxy for completeness)
-                import asyncio
 
                 worker_configs = [
                     w for w in workers_config if w["name"] in decision["workers"]
@@ -819,7 +818,6 @@ async def agent_coordinator(
     - Ensemble decision making
     - Verification through redundancy
     """
-    import asyncio
 
     task = inputs.get("task", "")
     context = inputs.get("context", {})

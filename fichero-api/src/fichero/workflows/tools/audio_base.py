@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -198,7 +200,6 @@ def apple_speech_recognize_sync(file_path: str, language: str = "en") -> str:
             "Requires macOS with PyObjC and Speech framework access."
         )
 
-    import os
 
     if not os.path.exists(file_path):
         raise ValueError(f"Audio file not found: {file_path}")
@@ -230,7 +231,6 @@ def apple_speech_recognize_sync(file_path: str, language: str = "en") -> str:
     request.setShouldReportPartialResults_(False)
 
     # Perform recognition synchronously using a semaphore
-    import threading
 
     result_text = ""
     error_msg = None
