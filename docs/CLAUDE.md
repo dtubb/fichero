@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-**Last Updated:** 2026-02-22
+**Last Updated:** 2026-04-13
 **Status:** Canonical Agent Guidance
 
 This file provides guidance to coding agents when working with code in this repository.
@@ -320,13 +320,9 @@ See `docs/architecture/swiftui/api_migration_guide.md` and `docs/architecture/sw
 
 ### Current Branch Context
 
-**Active Branch:** `codex/restructure-api-swiftui` (43 commits ahead of main)
-- Major architectural refactoring: moved to `fichero-api/` and `fichero-swiftui/` subdirectories
-- Implemented OpenAPI-based type-safe API client
-- Migrated agent docs to `docs/agent-workflow/`
-- Established proper backend bundling and script organization
+**Active Branch:** `0.0.2` — all milestone work happens here. Commit directly; do not create per-task feature branches.
 
-**Main Branch:** `main` - Primary development branch for PRs
+**Main Branch:** `main` — stable releases only. Never push to main without explicit approval.
 
 ### Commit Message Conventions
 
@@ -357,32 +353,17 @@ refactor: made it better
 
 ### Branching Strategy
 
-- **Feature branches:** `feature/<name>` - New features
-- **Codex branches:** `codex/<name>` - Major architectural changes
-- **Bugfix branches:** `fix/<name>` - Bug fixes
-- **Main branch:** Always stable, ready for release
+- **Active branch:** `0.0.2` — all implementation work goes here
+- **Main branch:** Always stable, ready for release — never push directly
 
-### Pull Request Workflow
+### Pre-Commit Checklist for `0.0.2`
 
-1. Ensure all changes are on a feature branch
-2. Run quality checks before creating PR:
-   ```bash
-   # Swift quality checks
-   swiftlint lint fichero-swiftui/fichero-swiftui/
-   xcodebuild test -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero
-
-   # Python quality checks
-   PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived
-
-   # OpenAPI contract validation
-   PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_api_contracts.py
-   ```
-3. Create PR targeting `main` branch
-4. PR description should include:
-   - Summary of changes (bullet points)
-   - Test plan checklist
-   - Related TODO items
-5. Zero SwiftLint warnings and zero Ruff errors required for merge
+Run before each commit:
+```bash
+swiftlint lint fichero-swiftui/fichero-swiftui/
+PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived
+PYTHONPATH=fichero-api/src .venv/bin/ruff check fichero-api/src/
+```
 
 ### Pre-Commit Checklist
 
@@ -395,19 +376,9 @@ refactor: made it better
 - [ ] No debug code or commented-out blocks
 - [ ] File sizes within guidelines (< 400 lines recommended)
 
-## Recent Development Focus (Last 2 Weeks)
+## Current Development Focus
 
-Based on recent commit history:
-1. **Code Quality & Linting** (42%): SwiftLint compliance, closure syntax, trailing commas, unused parameters
-2. **Testing & Stability** (24%): Python 3.14 compatibility, pytest async markers, contract test alignment
-3. **Bug Fixes** (24%): Deprecated API migrations, bookmark handling, workflow contract models, API drift tolerance
-4. **Documentation & Tooling** (14%): Agent workflow reorganization, architecture docs, OpenAPI sync automation
-
-**Current Technical Priorities:**
-- Complete OpenAPI client migration (20 files using manual APIClient)
-- Refactor large view files (EditorView.swift 1,981 lines, WorkflowNodeView.swift complexity 27)
-- SwiftLint compliance across all Swift files
-- API contract alignment between Swift and Python
+**Branch `0.0.2`** consolidates all milestone work from 0.0.3–0.1.0 backend issues and SwiftUI bug fixes. See `STATE.md` for next session entry point and `HISTORY.md` for completed work log.
 
 ## AI Task Management System
 
@@ -791,8 +762,8 @@ class APIClient: ObservableObject {
 - **`fichero-swiftui/Services/*Generated.swift`** - 16 generated service wrappers
 - **`fichero-api/tests/contracts/openapi.json`** - OpenAPI schema (regenerated from Python)
 
-### Refactoring Complete (Feb 2026)
-All 35 oversized files refactored to target sizes. See `agents/progress.md` for details.
+### Refactoring Complete
+All 35 oversized files refactored to target sizes (completed Feb 2026).
 
 ## Additional Resources
 

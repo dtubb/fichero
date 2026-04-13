@@ -1,6 +1,6 @@
 # Agent Briefing — Fichero
 
-Quick orientation for new sessions and teammates.
+Quick orientation for new sessions.
 
 ## Project
 
@@ -8,19 +8,17 @@ Fichero — macOS document management with AI processing (SwiftUI + Python FastA
 
 ## Current Phase
 
-**Execution (post-Phase-0).** Planning is approved; execute milestone issues from GitHub in priority order.
+**Execution.** Implement milestone issues from GitHub on branch `0.0.2`. Commit directly after each task — no per-task branches, no PRs.
 
 ## Essential Files
 
 | File | Purpose |
 |---|---|
-| `SOUL.md` | Agent identity and what Fichero is |
-| `MEMORY.md` | Current state, conventions, lessons learned |
-| `AGENTS.md` | Execution rules, current phase, and hard constraints |
-| `TASKS.md` | Deprecated local pointer to GitHub source of truth |
+| `SOUL.md` | What Fichero is and what matters |
+| `MEMORY.md` | Conventions, lessons, durable decisions |
+| `AGENTS.md` | Execution rules, build commands, hard constraints |
 | `STATE.md` | Current branch, focus, next session entry point |
 | `docs/CLAUDE.md` | Full agent guidance (canonical, detailed) |
-| `docs/agent-workflow/TODO.md` | Master task list in repo |
 
 ## Key Commands
 
@@ -38,8 +36,8 @@ ruff check fichero-api/src/
 
 ## Hard Rules
 
-1. Never push to main without Daniel's approval
+1. Never push to `main` — all work goes to `0.0.2`
 2. Never skip build/test/lint before completing work
 3. Never modify generated files (`*Generated.swift`, openapi.json)
-4. GitHub milestones/issues/project are source of truth for scope/status
+4. GitHub milestones/issues are source of truth for scope/status
 5. PYTHONPATH must be `fichero-api/src`
