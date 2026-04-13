@@ -5,6 +5,7 @@ Thumbnail and file serving endpoints.
 """
 
 import logging
+import os
 from pathlib import Path
 from urllib.parse import quote
 
@@ -209,7 +210,6 @@ async def debug_document_paths(
 ):
     """Debug endpoint to check document paths and file access."""
     from fichero.storage import resolve_source, _thumb_path
-    import os
 
     package_path = Path(x_fichero_library_path)
     doc = db.get(Document, doc_id)
