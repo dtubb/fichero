@@ -13,7 +13,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from PIL import Image
 
 from fichero.api.main import get_library_database
@@ -48,6 +48,8 @@ class ImageServiceProfile(BaseModel):
 class ImageInfoResponse(BaseModel):
     """IIIF Image Information Response (info.json)."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     context: str = IIIF_CONTEXT
     id: str = Field(..., alias="@id")
     protocol: str = "http://iiif.io/api/image"
@@ -55,9 +57,6 @@ class ImageInfoResponse(BaseModel):
     height: int
     tiles: list[dict[str, Any]] | None = None
     profile: list[Any] = Field(default_factory=list)
-
-    class Config:
-        populate_by_name = True
 
 
 # =============================================================================
@@ -79,15 +78,14 @@ class IIIFCanvas(BaseModel):
 class IIIFManifest(BaseModel):
     """IIIF Presentation API Manifest."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     context: str = "http://iiif.io/api/presentation/2/context.json"
     id: str = Field(..., alias="@id")
     type: str = "sc:Manifest"
     label: str
     description: str | None = None
     sequences: list[dict[str, Any]] = Field(default_factory=list)
-
-    class Config:
-        populate_by_name = True
 
 
 # =============================================================================
