@@ -466,3 +466,13 @@ ALL COMPLETE:
   - `LibraryView.iconViewScale` changed from `@SceneStorage` to `@AppStorage` for bug fix #330
 - **GitHub cleanup:** Only `0.0.2` and `main` remain; worktree directory cleaned up
 - **Test state:** 1276 passing, 33 pre-existing failures (test_canonical_knowledge_routes ×20, test_background_tasks ×1, test_mcp_knowledge_adapters ×2)
+
+## 2026-04-13 — Session Summary
+
+- Completed branch consolidation: cherry-picked all 0.0.3 backend issues + SwiftUI bug fixes into 0.0.2
+- Deleted 35 remote feature branches; only origin/0.0.2 and origin/main remain
+- Repo docs cleanup: AGENTS.md, SOUL.md, USER.md, TASKS.md made agent-generic (no Claude-specific language)
+- .claude/CLAUDE.md rewritten with UPCOMING_BRANCH, AUTONOMOUS_COMMITS, branch discipline (no per-task branches)
+- docs/CLAUDE.md: fixed stale active branch reference (codex/restructure → 0.0.2)
+- .claude/agent-briefing.md: hard rule 1 now reflects 0.0.2 direct commits
+- Deleted stale files: MANAGER.md, PREFLIGHT_REPORT.md, agents/ralph.py, agents/run-loop.sh, agents/loop-prompt.txt, agents/ralph-loop.md, agents/plan.md, agents/progress.md, docs/architecture/MIND_PALACE_PLAN.md

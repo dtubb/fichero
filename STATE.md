@@ -2,13 +2,13 @@
 
 ## Current Focus
 
-**Branch:** `0.0.2` (consolidated — all feature branches merged in)
+**Branch:** `0.0.2` — clean, pushed. All feature branches deleted.
 
-**Status:** 0.0.2 fully consolidated. 0.0.3 milestone issues were previously completed on separate branches and are now merged. GitHub has only `0.0.2` and `main`.
+**Status:** Repo docs cleaned up. Agent-generic language throughout. Ready for backend review pass.
 
 ## In Progress
 
-Nothing active. All branch consolidation work complete.
+Nothing active.
 
 ## Known Pre-Existing Test Failures (not regressions)
 
@@ -16,18 +16,14 @@ Nothing active. All branch consolidation work complete.
 - `test_background_tasks.py` — 1 failure (test_metrics_is_idempotent)
 - `test_mcp_knowledge_adapters.py` — 2 failures (test checks router-internal paths, not final FastAPI paths)
 
-Total: 33 failing, 1276 passing.
+Total: ~33 failing, ~1276 passing.
 
 ## Next Session — Start Here
 
-1. **Decide 0.0.2 → main merge**: `0.0.2` has all milestone work (0.0.3 backend, SwiftUI bug fixes). Ready for review and merge to `main`.
-2. **Fix pre-existing test failures**: The 33 failures above are good cleanup targets before merging to main — especially `test_canonical_knowledge_routes.py` (20 failures).
-3. **Start 0.0.4 milestone** (Semantic UX + Trust Workflow):
-   - #372: Claim review queue UI with curation workflow
-   - #373: Contradiction triage UI with side-by-side provenance
-   - #374: Search explanation and metrics visibility panel
-   - #375: Interpretations workspace v1 linked to claims
-4. **GitHub project board**: https://github.com/users/dtubb/projects/5
+1. **Backend code review pass** — systematic review of all Python backend files against `docs/architecture/api/`. Check consistency, file sizes, naming, patterns. See prompt in HISTORY.md (2026-04-13 entry) or ask for it.
+2. **Fix pre-existing test failures** — 33 failures above are good cleanup targets before merging to main.
+3. **Decide 0.0.2 → main merge** — all milestone work is in. Ready for review.
+4. **Start 0.0.4 milestone** — #372 claim review queue UI, #373 contradiction triage, #374 search metrics panel, #375 interpretations workspace.
 
 ---
-*Last updated: 2026-04-13* — branch consolidation complete, 0.0.2 pushed and clean
+*Last updated: 2026-04-13* — repo cleanup complete, 0.0.2 pushed and clean
