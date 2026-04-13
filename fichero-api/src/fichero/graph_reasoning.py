@@ -326,8 +326,8 @@ class NetworkXReasoner:
             modularity = nx.community.modularity(
                 G, [set(c) for c in communities], weight="weight"
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Modularity calculation failed: %s", e)
 
         execution_time = (time.time() - start_time) * 1000
 
@@ -385,8 +385,8 @@ class NetworkXReasoner:
             if nx.is_connected(G):
                 diameter = nx.diameter(G)
                 avg_path_length = nx.average_shortest_path_length(G)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Graph diameter/path calculation failed: %s", e)
 
         return ShortestPathsResponse(
             source_id=source_id,
@@ -417,8 +417,8 @@ class NetworkXReasoner:
         clustering = 0.0
         try:
             clustering = nx.average_clustering(G)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Clustering calculation failed: %s", e)
 
         components = list(nx.connected_components(G))
         connected_components = len(components)

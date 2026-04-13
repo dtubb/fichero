@@ -786,8 +786,8 @@ class Database:
             model = get_app_db().get_setting("default_embeddings_model")
             if model:
                 return model
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not read default_embeddings_model setting: %s", e)
         return DEFAULT_MODEL
 
     def _ensure_embedder(self) -> None:
