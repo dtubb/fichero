@@ -1,14 +1,11 @@
 """Tests for PyKEEN latent inference (Issue #429)."""
 
-import pytest
-
 from fichero.pykeen_inference import (
     ModelType,
     PredictionType,
     TrainingConfig,
     TrainingResult,
     TrainingStatus,
-    PyKEENInference,
     get_inference,
     set_inference_enabled,
     StoredPrediction,
@@ -21,13 +18,6 @@ from fichero.knowledge_models import (
     EpistemicStatus,
     ClaimRelationType,
 )
-
-try:
-    import pykeen  # noqa: F401
-    PYKEEN_AVAILABLE = True
-except ImportError:
-    PYKEEN_AVAILABLE = False
-
 
 def _create_claim(text: str, confidence: float, entity_ids: list[str]) -> KnowledgeClaim:
     """Create a test KnowledgeClaim with required fields."""
@@ -106,15 +96,10 @@ class TestPyKEENInference:
         pi._inference = None
         self.inference = get_inference(enabled=True)
 
-    def test_is_available(self):
-        """Test availability check."""
-        assert self.inference.is_available() == PYKEEN_AVAILABLE
-
     def test_get_status(self):
         """Test status report."""
         status = self.inference.get_status()
-        assert "available" in status
-        assert "pykeen_installed" in status
+        assert "enabled" in status
         assert "models_trained" in status
 
     def test_build_triples_empty(self):
@@ -152,30 +137,6 @@ class TestPyKEENInference:
         link_triples = [t for t in triples if t[1] == "supports"]
         assert len(link_triples) >= 1
 
-    def test_train_model_not_available(self):
-        """Test training when PyKEEN not available."""
-        import fichero.pykeen_inference as pi
-
-        original_available = pi.PYKEEN_AVAILABLE
-        pi.PYKEEN_AVAILABLE = False
-        pi._inference = None
-
-        inference = get_inference(enabled=True)
-        entity = KnowledgeEntity(canonical_name="Test", entity_type=EntityType.person)
-
-        result = inference.train_model(
-            model_id="test-model",
-            entities=[entity],
-            claims=[],
-            links=[],
-            config=TrainingConfig(),
-        )
-
-        assert result.status == TrainingStatus.failed
-        assert "PyKEEN not available" in result.error_message
-
-        pi.PYKEEN_AVAILABLE = original_available
-
     def test_train_model_insufficient_data(self):
         """Test training with insufficient data."""
         entity = KnowledgeEntity(canonical_name="Test", entity_type=EntityType.person)
@@ -191,7 +152,6 @@ class TestPyKEENInference:
         assert result.status == TrainingStatus.failed
         assert "Insufficient" in result.error_message
 
-    @pytest.mark.skipif(not PYKEEN_AVAILABLE, reason="PyKEEN not available")
     def test_train_model_success(self):
         """Test successful model training."""
         entities = [
@@ -242,24 +202,6 @@ class TestPyKEENInference:
         """Test deleting non-existent model."""
         deleted = self.inference.delete_model("nonexistent")
         assert deleted is False
-
-    def test_predict_links_not_available(self):
-        """Test prediction when PyKEEN not available."""
-        import fichero.pykeen_inference as pi
-
-        original_available = pi.PYKEEN_AVAILABLE
-        pi.PYKEEN_AVAILABLE = False
-        pi._inference = None
-
-        inference = get_inference(enabled=False)
-        result = inference.predict_links(
-            model_id="test",
-            prediction_type=PredictionType.tail_prediction,
-        )
-
-        assert result is None
-
-        pi.PYKEEN_AVAILABLE = original_available
 
     def test_store_and_get_prediction(self):
         """Test storing and retrieving predictions."""
@@ -353,34 +295,10 @@ class TestSetInferenceEnabled:
 
         set_inference_enabled(True)
         inference = get_inference()
-        assert inference.enabled == PYKEEN_AVAILABLE
+        assert inference.enabled is True
 
         set_inference_enabled(False)
         assert inference.enabled is False
-
-
-class TestPyKEENNotAvailable:
-    """Test behavior when PyKEEN is not available."""
-
-    def test_inference_disabled_without_pykeen(self, monkeypatch):
-        """Test that inference reports not available when PyKEEN missing."""
-        import fichero.pykeen_inference as pi
-
-        original_available = pi.PYKEEN_AVAILABLE
-        original_pykeen = pi.pykeen
-        original_inference = pi._inference
-
-        pi.PYKEEN_AVAILABLE = False
-        pi.pykeen = None
-        pi._inference = None
-
-        inference = PyKEENInference(enabled=True)
-        assert inference.is_available() is False
-
-        # Restore
-        pi.PYKEEN_AVAILABLE = original_available
-        pi.pykeen = original_pykeen
-        pi._inference = original_inference
 
 
 class TestTrainingResult:

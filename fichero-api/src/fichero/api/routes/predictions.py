@@ -26,7 +26,6 @@ from fichero.pykeen_inference import (
     TrainingResult,
     get_inference,
     set_inference_enabled,
-    PYKEEN_AVAILABLE,
 )
 
 logger = logging.getLogger(__name__)
@@ -93,7 +92,7 @@ async def get_prediction_status() -> dict:
 async def set_prediction_enabled(request: EnableRequest) -> dict:
     """Enable or disable PyKEEN inference."""
     set_inference_enabled(request.enabled)
-    return {"enabled": request.enabled, "pykeen_available": PYKEEN_AVAILABLE}
+    return {"enabled": request.enabled}
 
 
 @router.get("/api/predictions/models")
@@ -113,12 +112,6 @@ async def train_prediction_model(
     Training is asynchronous in memory; job status tracks completion.
     """
     inference = get_inference()
-
-    if not inference.is_available():
-        raise HTTPException(
-            status_code=503,
-            detail="PyKEEN not available. Install with: pip install pykeen",
-        )
 
     # Load knowledge data
     entities = db.load_all(KnowledgeEntity)
@@ -197,12 +190,6 @@ async def generate_predictions(
 ) -> PredictionResponse:
     """Generate link predictions using a trained model."""
     inference = get_inference()
-
-    if not inference.is_available():
-        raise HTTPException(
-            status_code=503,
-            detail="PyKEEN not available",
-        )
 
     # Build entity name map for readable results
     entities = db.load_all(KnowledgeEntity)

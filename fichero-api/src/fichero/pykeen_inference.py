@@ -1,36 +1,25 @@
 """PyKEEN latent inference for knowledge graph link prediction.
 
-Provides optional knowledge graph embedding training and link prediction
-using PyKEEN library. Falls back gracefully when PyKEEN unavailable.
+Trains knowledge graph embedding models and generates link predictions
+using PyKEEN.
 """
 
 from __future__ import annotations
 
 import logging
+import math
 import time
 from enum import Enum
 from typing import Any
 
+import torch
 from pydantic import BaseModel, Field
-
-try:
-    import pykeen
-    from pykeen.datasets import Dataset
-    from pykeen.models import Model
-    from pykeen.training import SLCWATrainingLoop
-    from pykeen.stoppers import EarlyStopper
-    from pykeen.evaluation import RankBasedEvaluator
-    from pykeen.triples import TriplesFactory
-    PYKEEN_AVAILABLE = True
-except ImportError:
-    PYKEEN_AVAILABLE = False
-    pykeen = None
-    Dataset = None
-    Model = None
-    SLCWATrainingLoop = None
-    EarlyStopper = None
-    RankBasedEvaluator = None
-    TriplesFactory = None
+from pykeen.evaluation import RankBasedEvaluator
+from pykeen.stoppers import EarlyStopper
+from pykeen.training import SLCWATrainingLoop
+from pykeen.triples import TriplesFactory
+import pykeen.models
+import pykeen.optimizers
 
 from fichero.knowledge_models import (
     KnowledgeClaim,
@@ -137,26 +126,17 @@ class StoredPrediction(BaseModel):
 
 
 class PyKEENInference:
-    """PyKEEN-based link prediction for knowledge graphs.
-
-    Optional dependency - gracefully degrades when PyKEEN unavailable.
-    """
+    """PyKEEN-based link prediction for knowledge graphs."""
 
     def __init__(self, enabled: bool = True):
-        self.enabled = enabled and PYKEEN_AVAILABLE
+        self.enabled = enabled
         self._models: dict[str, Any] = {}  # model_id -> trained model
         self._training_jobs: dict[str, TrainingResult] = {}
         self._predictions: dict[str, StoredPrediction] = {}
 
-    def is_available(self) -> bool:
-        """Check if PyKEEN inference is available."""
-        return self.enabled and PYKEEN_AVAILABLE
-
     def get_status(self) -> dict[str, Any]:
         """Get inference engine status."""
         return {
-            "available": self.is_available(),
-            "pykeen_installed": PYKEEN_AVAILABLE,
             "enabled": self.enabled,
             "models_trained": len(self._models),
             "training_jobs": len(self._training_jobs),
@@ -215,19 +195,6 @@ class PyKEENInference:
         config: TrainingConfig,
     ) -> TrainingResult:
         """Train a PyKEEN model on the knowledge graph."""
-        if not self.is_available():
-            return TrainingResult(
-                model_id=model_id,
-                status=TrainingStatus.failed,
-                model_type=config.model_type.value,
-                epochs_completed=0,
-                training_time_ms=0.0,
-                entity_count=len(entities),
-                relation_count=0,
-                triple_count=0,
-                error_message="PyKEEN not available",
-            )
-
         start_time = time.time()
 
         try:
@@ -248,9 +215,7 @@ class PyKEENInference:
                 )
 
             # Create triples factory
-            triples_factory = TriplesFactory.from_labeled_triples(
-                triples,
-            )
+            triples_factory = TriplesFactory.from_labeled_triples(triples)
 
             # Split data
             training, testing, validation = triples_factory.split(
@@ -258,10 +223,7 @@ class PyKEENInference:
             )
 
             # Get model class
-            model_class = getattr(
-                pykeen.models,
-                config.model_type.value,
-            )
+            model_class = getattr(pykeen.models, config.model_type.value)
 
             # Create model
             model = model_class(
@@ -321,10 +283,8 @@ class PyKEENInference:
                 "relation_id_to_index": triples_factory.relation_to_id,
             }
 
-            # Calculate metrics
             hits_at_10 = results.get_metric("hits_at_10")
             mean_rank = results.get_metric("mean_rank")
-
             training_time = (time.time() - start_time) * 1000
 
             result = TrainingResult(
@@ -373,7 +333,7 @@ class PyKEENInference:
         entity_map: dict[str, str] | None = None,  # id -> name
     ) -> PredictionResponse | None:
         """Generate link predictions using trained model."""
-        if not self.is_available() or model_id not in self._models:
+        if model_id not in self._models:
             return None
 
         start_time = time.time()
@@ -385,48 +345,29 @@ class PyKEENInference:
             entity_to_id = model_data["entity_id_to_index"]
             relation_to_id = model_data["relation_id_to_index"]
 
-            # Get indices
-            if source_entity_id and source_entity_id in entity_to_id:
-                h_idx = entity_to_id[source_entity_id]
-            else:
-                h_idx = None
+            h_idx = entity_to_id.get(source_entity_id) if source_entity_id else None
+            t_idx = entity_to_id.get(target_entity_id) if target_entity_id else None
+            r_idx = relation_to_id.get(relation) if relation else None
 
-            if target_entity_id and target_entity_id in entity_to_id:
-                t_idx = entity_to_id[target_entity_id]
-            else:
-                t_idx = None
-
-            if relation and relation in relation_to_id:
-                r_idx = relation_to_id[relation]
-            else:
-                r_idx = None
-
-            # Predict based on type
             if prediction_type == PredictionType.tail_prediction:
-                # Predict tail given head and relation
                 if h_idx is None or r_idx is None:
                     return None
-
                 scores = model.predict_t(h_idx, r_idx)
                 predictions = self._rank_predictions(
                     scores, entity_to_id, triples_factory, top_k, entity_map
                 )
 
             elif prediction_type == PredictionType.head_prediction:
-                # Predict head given tail and relation
                 if t_idx is None or r_idx is None:
                     return None
-
                 scores = model.predict_h(r_idx, t_idx)
                 predictions = self._rank_predictions(
                     scores, entity_to_id, triples_factory, top_k, entity_map
                 )
 
             elif prediction_type == PredictionType.relation_prediction:
-                # Predict relation given head and tail
                 if h_idx is None or t_idx is None:
                     return None
-
                 scores = model.predict_r(h_idx, t_idx)
                 predictions = self._rank_relation_predictions(
                     scores, relation_to_id, triples_factory, top_k
@@ -459,25 +400,17 @@ class PyKEENInference:
         entity_map: dict[str, str] | None,
     ) -> list[PredictionResult]:
         """Rank entity predictions from scores."""
-        import torch
-
         if isinstance(scores, torch.Tensor):
             scores = scores.cpu().numpy()
 
-        # Get top k indices (descending score)
         top_indices = scores.argsort()[-top_k:][::-1]
-
         id_to_entity = {v: k for k, v in entity_to_id.items()}
 
         results = []
         for rank, idx in enumerate(top_indices, 1):
             entity_id = id_to_entity.get(int(idx), f"unknown_{idx}")
             score = float(scores[idx])
-            # Normalize score to 0-1 using sigmoid
-            import math
-
             confidence = 1 / (1 + math.exp(-score))
-
             entity_name = entity_map.get(entity_id, entity_id) if entity_map else entity_id
 
             results.append(
@@ -500,8 +433,6 @@ class PyKEENInference:
         top_k: int,
     ) -> list[PredictionResult]:
         """Rank relation predictions from scores."""
-        import torch
-
         if isinstance(scores, torch.Tensor):
             scores = scores.cpu().numpy()
 
@@ -512,8 +443,6 @@ class PyKEENInference:
         for rank, idx in enumerate(top_indices, 1):
             relation_id = id_to_relation.get(int(idx), f"unknown_{idx}")
             score = float(scores[idx])
-            import math
-
             confidence = 1 / (1 + math.exp(-score))
 
             results.append(
@@ -543,10 +472,7 @@ class PyKEENInference:
             return True
         return False
 
-    def store_prediction(
-        self,
-        prediction: StoredPrediction,
-    ) -> None:
+    def store_prediction(self, prediction: StoredPrediction) -> None:
         """Store a prediction for later verification."""
         self._predictions[prediction.prediction_id] = prediction
 
@@ -589,4 +515,4 @@ def set_inference_enabled(enabled: bool) -> None:
     if _inference is None:
         _inference = PyKEENInference(enabled=enabled)
     else:
-        _inference.enabled = enabled and PYKEEN_AVAILABLE
+        _inference.enabled = enabled
