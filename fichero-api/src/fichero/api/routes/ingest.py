@@ -12,9 +12,9 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Header
 from pydantic import BaseModel
 
-from fichero.models import Document
-from fichero.db import Database
 from fichero.api.main import get_library_database
+from fichero.db import Database
+from fichero.models import Document
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

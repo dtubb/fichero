@@ -19,6 +19,7 @@ import logging
 import re
 import socket
 import time
+from datetime import datetime
 from typing import Any
 from urllib.parse import urlparse
 
@@ -816,7 +817,6 @@ async def research_document_fetch(
         library_path = state.get("library_path")
         if library_path:
             try:
-                from datetime import datetime
                 from fichero.db import db_manager
                 from fichero.models import Document, DocType
 
