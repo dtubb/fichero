@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from pathlib import Path
 from typing import Any
 
 from langgraph.graph import StateGraph, START, END
@@ -568,8 +569,6 @@ def _make_parallel_node_function(
         cache_key = None
         if is_cacheable and library_path and not skip_cache:
             try:
-                from pathlib import Path
-
                 db_path = Path(library_path) / "fichero.duckdb"
                 if db_path.exists():
                     cache = get_node_cache(db_path)

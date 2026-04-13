@@ -14,8 +14,11 @@ This is separate from library databases which store:
 - Provider references (which providers this library uses)
 """
 
-from pathlib import Path
+import json
 import logging
+from datetime import datetime
+from pathlib import Path
+
 import duckdb
 from fichero.storage import settings
 from fichero.models import Provider, Model
@@ -129,7 +132,7 @@ class AppDatabase:
 
     def save_provider(self, provider: Provider) -> Provider:
         """Save or update a provider."""
-        from datetime import datetime
+
 
         self.conn.execute(
             """
@@ -212,8 +215,8 @@ class AppDatabase:
 
     def save_model(self, model: Model) -> Model:
         """Save or update a model."""
-        from datetime import datetime
-        import json
+
+
 
         capabilities_json = (
             json.dumps(model.capabilities) if model.capabilities else "[]"
@@ -257,7 +260,7 @@ class AppDatabase:
 
     def list_models(self, provider_id: str | None = None) -> list[Model]:
         """List models, optionally filtered by provider."""
-        import json
+
 
         if provider_id:
             results = self.conn.execute(
@@ -328,7 +331,7 @@ class AppDatabase:
 
     def set_setting(self, key: str, value: str):
         """Set a setting value (upsert)."""
-        from datetime import datetime
+
 
         now = datetime.now()
         self.conn.execute(
@@ -424,8 +427,8 @@ class AppDatabase:
 
     def save_mcp_server(self, server):
         """Save or update an MCP server."""
-        from datetime import datetime
-        import json
+
+
 
         self.conn.execute(
             """
@@ -467,7 +470,7 @@ class AppDatabase:
 
     def get_mcp_server(self, server_id: str):
         """Get an MCP server by ID."""
-        import json
+
         from fichero.models import MCPServer
 
         result = self.conn.execute(
@@ -495,7 +498,7 @@ class AppDatabase:
 
     def query_mcp_servers(self, **filters):
         """Query MCP servers with optional filters."""
-        import json
+
         from fichero.models import MCPServer
 
         # Build WHERE clause from filters

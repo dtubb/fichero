@@ -649,8 +649,6 @@ class Database:
                     if "date_from" in filters or "date_to" in filters:
                         created_at = metadata.get("created_at")
                         if created_at:
-                            from datetime import datetime
-
                             try:
                                 created_date = datetime.fromisoformat(created_at)
                                 if "date_from" in filters:
@@ -699,8 +697,6 @@ class Database:
 
                 if highlight_results and query:
                     # Simple highlighting - find query in content
-                    import re
-
                     # Escape special regex characters in query
                     escaped_query = re.escape(query)
                     # Find all occurrences (case insensitive)

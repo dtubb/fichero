@@ -8,6 +8,8 @@ ensuring no business-logic divergence between MCP and HTTP paths.
 from __future__ import annotations
 
 import logging
+import uuid
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -208,8 +210,6 @@ async def mcp_knowledge_entity_upsert(
                 )
 
         # Create new entity
-        import uuid
-        from datetime import datetime
 
         entity = KnowledgeEntity(
             id=request.id or str(uuid.uuid4()),
@@ -281,8 +281,6 @@ async def mcp_knowledge_claim_create(
                 raise HTTPException(status_code=400, detail=f"Linked entity not found: {entity_id}")
 
         # Create claim
-        import uuid
-        from datetime import datetime
 
         claim = KnowledgeClaim(
             id=str(uuid.uuid4()),
@@ -368,7 +366,6 @@ async def mcp_knowledge_entity_delete(
 
     entity.is_deleted = True
     entity.deleted_at = "now()"  # Will be converted to proper timestamp by DB
-    from datetime import datetime
     entity.deleted_at = datetime.now()
 
     db.save(entity)
@@ -391,7 +388,6 @@ async def mcp_knowledge_claim_delete(
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
 
     claim.is_deleted = True
-    from datetime import datetime
     claim.deleted_at = datetime.now()
 
     db.save(claim)

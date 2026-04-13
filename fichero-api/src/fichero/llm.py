@@ -38,6 +38,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from typing import AsyncIterator, Any
 
@@ -268,7 +269,6 @@ def parse_thinking_response(text: str) -> tuple[str, str | None]:
         >>> parse_thinking_response("Simple answer without thinking")
         ('Simple answer without thinking', None)
     """
-    import re
 
     # Try to extract thinking and answer tags
     think_match = re.search(r"<think>(.*?)</think>", text, re.DOTALL)
@@ -311,7 +311,6 @@ def is_thinking_model(model: str) -> bool:
             else keyword in model_lower
         ):
             # Check it's a word, not part of another word (e.g., "rethinking")
-            import re
 
             if re.search(rf"\b{keyword}\b", model_lower):
                 return True

@@ -14,6 +14,7 @@ Key Features:
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from typing import Any, TypedDict
@@ -435,7 +436,6 @@ def validate_state(state: WorkflowExecutionState) -> bool:
 
 def serialize_state(state: WorkflowExecutionState) -> str:
     """Serialize state to JSON string."""
-    import json
 
     state_dict = state.to_dict()
     return json.dumps(state_dict, indent=2)
@@ -443,7 +443,6 @@ def serialize_state(state: WorkflowExecutionState) -> str:
 
 def deserialize_state(json_str: str) -> WorkflowExecutionState:
     """Deserialize state from JSON string."""
-    import json
 
     data = json.loads(json_str)
     return WorkflowExecutionState.from_dict(data)

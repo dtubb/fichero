@@ -340,7 +340,6 @@ class FileWatcherManager:
 
     def _row_to_trigger(self, row) -> FileTrigger:
         """Convert database row to FileTrigger object."""
-        import json
 
         events = json.loads(row[4]) if row[4] else ["created"]
 
@@ -622,7 +621,6 @@ class FileWatcherManager:
         """Save trigger to database."""
 
         def _save():
-            import json
 
             conn = duckdb.connect(self.db_path)
             try:
@@ -671,7 +669,6 @@ class FileWatcherManager:
         """Save trigger execution to database."""
 
         def _save():
-            import json
 
             conn = duckdb.connect(self.db_path)
             try:

@@ -10,6 +10,7 @@ Provides scheduling capabilities for automated workflow execution:
 """
 
 import asyncio
+import json
 import logging
 import uuid
 from dataclasses import dataclass, field
@@ -235,7 +236,6 @@ class WorkflowScheduler:
 
     def _row_to_schedule(self, row) -> Schedule:
         """Convert database row to Schedule object."""
-        import json
 
         return Schedule(
             schedule_id=row[0],
@@ -494,7 +494,6 @@ class WorkflowScheduler:
         """Save schedule to database."""
 
         def _save():
-            import json
 
             conn = duckdb.connect(self.db_path)
             try:

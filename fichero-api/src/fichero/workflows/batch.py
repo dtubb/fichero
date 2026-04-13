@@ -10,6 +10,7 @@ Provides batch processing capabilities using LangGraph threads with:
 """
 
 import asyncio
+import json
 import logging
 import uuid
 from dataclasses import dataclass, field
@@ -301,7 +302,6 @@ class BatchManager:
 
                 # Save items
                 for item in batch.items:
-                    import json
 
                     conn.execute(
                         """
@@ -373,7 +373,6 @@ class BatchManager:
                     [batch_id],
                 ).fetchall()
 
-                import json
 
                 items = [
                     BatchItem(

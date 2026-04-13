@@ -16,6 +16,7 @@ Key Features:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import uuid
 import time
@@ -706,7 +707,6 @@ class SSEEventAdapter(ProgressEventListener):
             "namespace": list(event.namespace) if event.namespace else None,
         }
 
-        import json
 
         return f"data: {json.dumps(event_data)}\n\n"
 

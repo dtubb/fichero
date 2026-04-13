@@ -30,8 +30,9 @@ Path Syntax:
 
 from __future__ import annotations
 
-import re
+import json
 import logging
+import re
 from typing import Any
 
 from fichero.workflows.types import State
@@ -284,7 +285,6 @@ def _parse_json(value: Any, repair: bool = False) -> Any:
     - Missing quotes around strings
     - JavaScript-style comments
     """
-    import json
 
     if not isinstance(value, str):
         return value
@@ -336,7 +336,6 @@ def _extract_json(value: Any) -> Any:
     Useful when LLM returns JSON wrapped in explanation text.
     Finds the first complete {...} or [...] block.
     """
-    import json
 
     if not isinstance(value, str):
         return value

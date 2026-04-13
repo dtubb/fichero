@@ -29,8 +29,11 @@ Usage:
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import shutil
+from datetime import datetime, timedelta
+from uuid import uuid4
 import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor, Future
@@ -699,11 +702,6 @@ def snapshot_library(
         FileNotFoundError: If library_path doesn't exist
         RuntimeError: If DuckDB export or LanceDB copy fails
     """
-    import shutil
-    from datetime import datetime, timedelta
-    from uuid import uuid4
-    from pathlib import Path
-
     from fichero.models import LibrarySnapshot, SnapshotInitiatorType
 
     library_path_p = Path(library_path)
@@ -814,8 +812,6 @@ def list_snapshots(
     Returns:
         List of LibrarySnapshot records, newest first
     """
-    from datetime import datetime
-
     snapshots = _load_all_snapshot_records()
 
     if library_name:
@@ -845,10 +841,6 @@ def restore_snapshot(snapshot_id: str) -> dict:
     Raises:
         FileNotFoundError: If snapshot_id not found
     """
-    import shutil
-    from datetime import datetime
-    from pathlib import Path
-
     snapshots = _load_all_snapshot_records()
     snapshot = next((s for s in snapshots if s.id == snapshot_id), None)
 
@@ -905,8 +897,6 @@ def delete_snapshot(snapshot_id: str) -> bool:
     Returns:
         True if deleted, False if not found
     """
-    import shutil
-
     snapshots = _load_all_snapshot_records()
     snapshot = next((s for s in snapshots if s.id == snapshot_id), None)
 
@@ -933,7 +923,7 @@ def _snapshot_records_path() -> "Path":
 
 def _load_all_snapshot_records() -> list["LibrarySnapshot"]:
     """Load all snapshot records from the JSON registry."""
-    import json
+
 
     from fichero.models import LibrarySnapshot, SnapshotInitiatorType
 
@@ -958,7 +948,7 @@ def _load_all_snapshot_records() -> list["LibrarySnapshot"]:
 
 def _save_snapshot_record(snapshot: "LibrarySnapshot") -> None:
     """Save a snapshot record to the JSON registry."""
-    import json
+
 
     records_path = _snapshot_records_path()
     records_path.parent.mkdir(parents=True, exist_ok=True)
@@ -975,7 +965,7 @@ def _save_snapshot_record(snapshot: "LibrarySnapshot") -> None:
 
 def _delete_snapshot_record(snapshot_id: str) -> None:
     """Delete a snapshot record from the JSON registry."""
-    import json
+
 
     snapshots = _load_all_snapshot_records()
     snapshots = [s for s in snapshots if s.id != snapshot_id]
@@ -998,8 +988,6 @@ def _enforce_retention(library_name: str) -> int:
     Returns:
         Number of snapshots deleted
     """
-    from datetime import datetime
-
     snapshots = _load_all_snapshot_records()
     snapshots = [s for s in snapshots if s.library_name == library_name]
     now = datetime.now()
