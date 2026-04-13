@@ -32,6 +32,8 @@ import base64
 import json
 import logging
 import shutil
+
+import duckdb
 from datetime import datetime, timedelta
 from uuid import uuid4
 import tempfile
@@ -725,8 +727,6 @@ def snapshot_library(
     db_path = library_path_p / "fichero.duckdb"
     if db_path.exists():
         try:
-            import duckdb
-
             export_conn = duckdb.connect(str(db_path), read_only=True)
             # Get list of tables
             tables = export_conn.execute("SHOW TABLES").fetchall()
@@ -857,8 +857,6 @@ def restore_snapshot(snapshot_id: str) -> dict:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         lib_path = Path(snapshot.library_path)
         restored_db_path = lib_path.parent / f"{lib_path.stem}.restored-{ts}.duckdb"
-        import duckdb
-
         restore_conn = duckdb.connect(str(restored_db_path))
         for parquet_file in sorted(db_src.glob("*.parquet")):
             table_name = parquet_file.stem

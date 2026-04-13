@@ -11,6 +11,7 @@ Uses AppleScript for communication with Bookends.
 """
 
 import logging
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -223,8 +224,6 @@ class BookendsIntegration(AppIntegration):
         # If item has an attachment, copy it
         if item.file_path and item.file_path.exists():
             if target_path:
-                import shutil
-
                 shutil.copy2(item.file_path, target_path)
                 return target_path
             return item.file_path
@@ -243,8 +242,6 @@ class BookendsIntegration(AppIntegration):
             source_path = Path(result.replace(":", "/"))
             if source_path.exists():
                 if target_path:
-                    import shutil
-
                     shutil.copy2(source_path, target_path)
                     return target_path
                 return source_path

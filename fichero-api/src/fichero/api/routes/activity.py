@@ -10,6 +10,7 @@ NOTE: All activity data is stored per-library in the library's database file.
 Routes require the X-Fichero-Library-Path header.
 """
 
+import asyncio
 import json
 import logging
 from collections import defaultdict
@@ -313,8 +314,6 @@ async def websocket_activity_stream(
             async for activity in tracker.stream(sub_id):
                 response = ActivityResponse.from_activity(activity)
                 await websocket.send_json(response.model_dump())
-
-        import asyncio
 
         send_task = asyncio.create_task(send_activities())
 

@@ -6,6 +6,7 @@ Provides standardized error types, logging, and recovery mechanisms.
 """
 
 import logging
+import time
 from enum import Enum
 from typing import Any, Optional
 from fastapi import HTTPException, status
@@ -347,8 +348,6 @@ def retry_on_failure(
                         )
 
                         # Sleep for the delay period
-                        import time
-
                         time.sleep(delay)
                     else:
                         logger.error(

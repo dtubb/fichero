@@ -9,6 +9,7 @@ Endpoints for:
 from __future__ import annotations
 
 import logging
+import time
 from collections import deque
 from datetime import datetime
 from enum import Enum
@@ -667,7 +668,6 @@ async def execute_graph_query(
     db: Database = Depends(get_library_database),
 ) -> GraphQueryResponse:
     """Execute a complex graph query."""
-    import time
     start_time = time.time()
 
     # Similar to find_entity_paths but with custom filters

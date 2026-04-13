@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+import uuid
 from dataclasses import dataclass, field
 from typing import Any
 from datetime import datetime
@@ -266,8 +267,6 @@ class ModelComparisonEngine:
         Returns:
             ComparisonResult with all model responses and metrics
         """
-        import uuid
-
         comparison_id = str(uuid.uuid4())[:8]
 
         logger.info(
@@ -465,8 +464,6 @@ class ModelComparisonEngine:
         Returns:
             ComparisonResult with all model responses
         """
-        import uuid
-
         comparison_id = str(uuid.uuid4())[:8]
 
         logger.info(
@@ -601,7 +598,6 @@ class ModelComparisonEngine:
         Returns:
             ComparisonResult with all model responses
         """
-        import uuid
         from fichero.workflows.registry import get_tool
 
         comparison_id = str(uuid.uuid4())[:8]

@@ -7,6 +7,7 @@ community detection, and derived relationship inference.
 from __future__ import annotations
 
 import logging
+import time
 from enum import Enum
 
 from pydantic import BaseModel
@@ -185,8 +186,6 @@ class NetworkXReasoner:
         links: list[KnowledgeClaimLink],
     ) -> CentralityResponse | None:
         """Calculate centrality metrics for graph nodes."""
-        import time
-
         if not self.enabled or not NETWORKX_AVAILABLE:
             return None
 
@@ -262,8 +261,6 @@ class NetworkXReasoner:
         links: list[KnowledgeClaimLink],
     ) -> CommunitiesResponse | None:
         """Detect communities in the knowledge graph."""
-        import time
-
         if not self.enabled or not NETWORKX_AVAILABLE:
             return None
 

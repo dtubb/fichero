@@ -8,6 +8,7 @@ Special handling: HEIC (via heif-convert), JXL (via djxl), RAW (via rawpy)
 import logging
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from PIL import Image
@@ -97,8 +98,6 @@ class ImageLoader(MediaLoader):
                 "HEIC support requires heif-convert. Install with: brew install libheif"
             )
 
-        import tempfile
-
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
             temp_png = Path(tmp.name)
 
@@ -124,8 +123,6 @@ class ImageLoader(MediaLoader):
                 raise RuntimeError(
                     "JPEG XL support requires djxl. Install with: brew install jpeg-xl"
                 )
-
-        import tempfile
 
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
             temp_png = Path(tmp.name)

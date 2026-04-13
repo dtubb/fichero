@@ -11,6 +11,7 @@ Uses AppleScript for communication with DEVONthink.
 """
 
 import logging
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -200,8 +201,6 @@ class DEVONthinkIntegration(AppIntegration):
         # If item has a file path, we can copy it directly
         if item.file_path and item.file_path.exists():
             if target_path:
-                import shutil
-
                 shutil.copy2(item.file_path, target_path)
                 return target_path
             return item.file_path

@@ -1,5 +1,6 @@
 """Mind Palace API routes (dev tier) — Layer 6 spatial workspace."""
 
+import math
 from datetime import datetime
 from typing import Any
 
@@ -713,8 +714,6 @@ async def suggest_arrangement(
     # Simple circular arrangement as placeholder
     count = len(nodes)
     for i, node in enumerate(nodes):
-        import math
-
         angle = 2 * math.pi * i / count
         radius = 3.0
         node.position_x = radius * math.cos(angle)

@@ -13,9 +13,12 @@ Features:
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import inspect
 import logging
+import operator
+import re
 import uuid
 from datetime import datetime
 from enum import Enum
@@ -339,10 +342,6 @@ def evaluate_condition(condition: ChainStepCondition, data: dict[str, Any]) -> b
     Supported operators: ==, !=, <, >, <=, >=, and, or, not, in, is
     Supported literals: strings, numbers, booleans, None, lists
     """
-    import ast
-    import operator
-    import re
-
     expression = condition.expression
 
     # Replace path expressions with actual values

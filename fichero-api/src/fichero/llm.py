@@ -36,6 +36,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 import os
 import re
@@ -367,7 +368,6 @@ async def vision_inference_api(
         ... )
     """
     import aiohttp
-    import base64
 
     url = f"https://api-inference.huggingface.co/models/{model}"
 

@@ -8,6 +8,7 @@ Supported loaders:
 - Document: Kreuzberg for Office docs, EPUBs, plain text
 """
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -117,8 +118,6 @@ class UnifiedLoader:
 
         For use in non-async contexts.
         """
-        import asyncio
-
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:

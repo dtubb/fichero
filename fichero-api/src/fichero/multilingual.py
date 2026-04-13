@@ -8,6 +8,7 @@ Provides:
 """
 
 import re
+import unicodedata
 from dataclasses import dataclass
 
 
@@ -146,8 +147,6 @@ def normalize_text(text: str, language: str) -> str:
     Returns:
         Normalized text
     """
-    import unicodedata
-
     if not text:
         return ""
 

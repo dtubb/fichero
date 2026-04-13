@@ -814,7 +814,6 @@ async def execute_web_search(
 
     # Parse DuckDuckGo HTML results (simple regex, no external parser)
     results: list[WebSearchResult] = []
-    import re
 
     # DuckDuckGo HTML format: <a href="..." class="result__a">Title</a>
     # followed by <a href="..." class="result__url">url</a> and <p class="result__snippet">snippet</p>
@@ -905,8 +904,6 @@ async def execute_browser_navigate(
     elapsed_ms = int((time.monotonic() - start) * 1000)
 
     # Extract title and links
-    import re
-
     title_match = re.search(
         r"<title[^>]*>(.*?)</title>", html_content, re.IGNORECASE | re.DOTALL
     )
@@ -972,8 +969,6 @@ async def execute_document_fetch(
             content_type = str(resp.headers.get("content-type", "text/plain"))
             # Extract title from HTML or use URL
             if "text/html" in content_type:
-                import re
-
                 title_match = re.search(
                     r"<title[^>]*>(.*?)</title>", content, re.IGNORECASE | re.DOTALL
                 )
