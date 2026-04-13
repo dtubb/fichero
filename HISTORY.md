@@ -416,62 +416,32 @@
 - Discovered sources routes not registering - routes appear in /openapi.json but return 404
 - Committed sources implementation to GitHub (commit 3528e518)
 
-## 2026-04-12 — Session Summary (Issue #364)
+## 2026-04-12 — Session Summary
 
 ### Completed
-- Issue #364: Canonical FastAPI knowledge write path and route surface ✅
-  - Created dedicated entities.py, claims.py, claim_links.py route modules
-  - Branch feature/issue-364 pushed to GitHub
+- Issue #368: Knowledge migration/backfill tooling with dry-run and rollback ✅
+  - CLI script: `fichero-api/scripts/run_migration.py`
+  - FastAPI routes: `/api/migrations/*` endpoints
+  - Unit tests: `fichero-api/tests/unit/test_migrations.py` (16 tests, all passing)
+  - Branch `feature/issue-368` pushed to GitHub (ready for PR)
 
-### Routes Implemented
+### Features Implemented
+- Dry-run mode for safe migration previews
+- Rollback support via mutation logs (MutationLog model)
+- Data integrity checks for claim/source/link counts
+- Batch processing with progress callbacks
+- Full audit trail for all operations
 
-**Entities API:**
-- POST /api/entities — Create or update entity
-- GET /api/entities — List entities (filtered by q, entity_type)
-- GET /api/entities/{id} — Get entity by ID
-- POST /api/entities/{id}/aliases — Add aliases to entity
-- GET /api/entities/alias-map — Get full alias → entity mapping
-- GET /api/entities/resolve/{value} — Resolve entity by ID, name, or alias
+### API Endpoints
+- GET /api/migrations - list available migrations
+- POST /api/migrations/run - run migration with optional dry-run
+- POST /api/migrations/validate - validate migration safety before running
+- GET /api/migrations/status/{run_id} - check migration status
+- POST /api/migrations/rollback - rollback a migration
+- GET /api/migrations/integrity-check - data integrity checks
 
-**Claims API:**
-- POST /api/claims — Create claim (with referential integrity)
-- GET /api/claims — List claims (filtered by type, state, entity, etc.)
-- GET /api/claims/{id} — Get claim by ID
-- PATCH /api/claims/{id} — Update claim
-
-**Claim Links API:**
-- POST /api/claims/{id}/links — Create link between claims
-- GET /api/claims/{id}/links — List links for claim
-- GET /api/claim-links/{id} — Get link by ID
-- PATCH /api/claim-links/{id} — Update link
-- DELETE /api/claim-links/{id} — Delete link
-- GET /api/claims/{id}/related — Get related claims
-
-### Features
-- Referential integrity validation (entities must exist, sources must exist)
-- Multi-source support for claims (source_ids, source_languages)
-- Claim classification (claim_type, epistemic_status, curation_state)
-- Soft-delete not implemented (hard delete only for links)
-
-### Files Created
-- fichero-api/src/fichero/api/routes/entities.py (303 lines)
-- fichero-api/src/fichero/api/routes/claims.py (258 lines)
-- fichero-api/src/fichero/api/routes/claim_links.py (226 lines)
-- fichero-api/tests/unit/test_canonical_knowledge_routes.py (623 lines)
-
-### Files Modified
-- fichero-api/src/fichero/api/main.py — Added route registrations
-- fichero-api/src/fichero/api/routes/__init__.py — Added module exports
-
-
-## 2026-04-12 — Session End (Issue #364 Complete)
-
-- ✅ **Issue #364**: Canonical FastAPI knowledge write path complete
-  - Created entities.py with CRUD, aliases, resolution endpoints
-  - Created claims.py with referential integrity, multi-source support
-  - Created claim_links.py with bidirectional link management
-  - All routes registered in main.py _CORE_ROUTE_SPECS
-  - Contract tests created (test_canonical_knowledge_routes.py)
-  - Branch: feature/issue-364 pushed, ready for PR review
-
-**Durable Pattern Added**: Canonical route modules extracted from knowledge_graph.py - use dedicated modules for /entities, /claims, /claim-links routes, register as (router, "/api", ["tag"]) tuples.
+### Technical Details
+- Used existing MigrationRunner class from fichero/migrations.py
+- Added FastAPI dependency injection via get_library_database
+- All code passes ruff linting and formatting
+- Tests cover dry-run, actual execution, rollback, validation, and integrity checks

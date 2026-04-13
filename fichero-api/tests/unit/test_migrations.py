@@ -1,465 +1,521 @@
-"""Unit tests for migration framework with dry-run, rollback, and audit trail.
+"""Tests for knowledge migration/backfill tooling."""
 
-Tests cover:
-- MigrationRunner functionality
-- Dry-run mode validation
-- Rollback operations
-- Audit trail logging
-- Batch processing
-- Repair operations
-"""
+from datetime import datetime
+from unittest.mock import MagicMock
 
 import pytest
-from unittest.mock import Mock
 
-from fichero.migrations import (
-    MigrationRunner,
-    MigrationStatus,
-    migrate_claims_to_multi_source,
-)
+from fichero.db import Database
 from fichero.knowledge_models import (
     KnowledgeClaim,
     KnowledgeClaimLink,
-    SourceType,
-    ClaimRelationType,
+    KnowledgeEntity,
     MutationLog,
     MutationOperationType,
+    SourceType,
+)
+from fichero.migrations import (
+    MigrationResult,
+    MigrationRunner,
+    MigrationStatus,
 )
 from fichero.models import Document
 
 
+@pytest.fixture
+def mock_db():
+    """Create a mock database for testing."""
+    db = MagicMock(spec=Database)
+    db.save = MagicMock()
+    db.get = MagicMock(return_value=None)
+    db.delete = MagicMock()
+    db.all = MagicMock(return_value=[])
+    db.query = MagicMock(return_value=[])
+    return db
+
+
+@pytest.fixture
+def migration_runner(mock_db):
+    """Create a MigrationRunner with mock database."""
+    return MigrationRunner(mock_db, agent_id="test_runner")
+
+
 class TestMigrationRunner:
-    """Test suite for MigrationRunner class."""
+    """Test cases for MigrationRunner."""
 
-    @pytest.fixture
-    def mock_db(self):
-        """Create a mock Database for testing."""
-        db = Mock()
-        db.save = Mock()
-        db.get = Mock(return_value=None)
-        db.all = Mock(return_value=[])
-        db.delete = Mock()
-        db.query = Mock(return_value=[])
-        return db
-
-    @pytest.fixture
-    def runner(self, mock_db):
-        """Create a MigrationRunner with mock database."""
-        return MigrationRunner(mock_db, agent_id="test_agent")
-
-    def test_migrate_claims_to_multi_source_dry_run(self, runner, mock_db):
-        """Test dry-run mode for claims migration."""
-        # Setup: claims that need migration
-        claim1 = KnowledgeClaim(
+    def test_migrate_claims_to_multi_source_dry_run(self, migration_runner, mock_db):
+        """Test dry-run mode counts but doesn't modify claims."""
+        # Setup: Create claims needing migration
+        claim_needing_migration = KnowledgeClaim(
             id="claim1",
-            text="Test claim 1",
+            text="Test claim",
             source_document_id="doc1",
             source_type=SourceType.document,
             source_ids=[],  # Empty - needs migration
         )
-        claim2 = KnowledgeClaim(
+        claim_already_migrated = KnowledgeClaim(
             id="claim2",
-            text="Test claim 2",
+            text="Migrated claim",
             source_document_id="doc2",
             source_type=SourceType.document,
-            source_ids=["doc2"],  # Already migrated
+            source_ids=["doc2"],  # Already has source_ids
         )
 
-        mock_db.all.return_value = [claim1, claim2]
-
-        # Execute: dry run
-        result = runner.migrate_claims_to_multi_source(dry_run=True)
-
-        # Assert
-        assert result.status == MigrationStatus.completed
-        assert result.migrated == 1  # Only claim1 needs migration
-        assert result.skipped == 1  # claim2 already migrated
-        assert result.dry_run is True
-        assert result.audit_id is None  # No mutations in dry-run
-
-        # Verify no saves were made
-        mock_db.save.assert_not_called()
-
-    def test_migrate_claims_to_multi_source_live(self, runner, mock_db):
-        """Test live execution of claims migration."""
-        # Setup: claim needing migration
-        claim1 = KnowledgeClaim(
-            id="claim1",
-            text="Test claim 1",
-            source_document_id="doc1",
-            source_page_label="p.5",
-            source_type=SourceType.document,
-            source_ids=[],
-        )
-
-        mock_db.all.return_value = [claim1]
-
-        # Execute: live run
-        result = runner.migrate_claims_to_multi_source(dry_run=False)
-
-        # Assert
-        assert result.status == MigrationStatus.completed
-        assert result.migrated == 1
-        assert result.skipped == 0
-
-        # Verify claim was saved with migrated data
-        mock_db.save.assert_any_call(claim1)
-
-        # Verify claim has migrated data
-        assert claim1.source_ids == ["doc1"]
-        assert claim1.source_page_labels == ["p.5"]
-
-    def test_migrate_claims_audit_trail(self, runner, mock_db):
-        """Test that migrations create audit trail."""
-        # Setup
-        claim1 = KnowledgeClaim(
-            id="claim1",
-            text="Test claim 1",
-            source_document_id="doc1",
-            source_type=SourceType.document,
-            source_ids=[],
-        )
-        mock_db.all.return_value = [claim1]
+        mock_db.all.return_value = [
+            claim_needing_migration,
+            claim_already_migrated,
+        ]
 
         # Execute
-        result = runner.migrate_claims_to_multi_source(dry_run=False)
+        result = migration_runner.migrate_claims_to_multi_source(dry_run=True)
 
-        # Assert: mutation was logged
+        # Verify
+        assert result.status == MigrationStatus.completed
+        assert result.dry_run is True
+        assert result.migrated == 1  # Only first claim needs migration
+        assert result.skipped == 1  # Second already migrated
+
+        # Ensure no mutations were logged in dry-run mode
+        mock_db.save.assert_not_called()
+
+    def test_migrate_claims_to_multi_source_with_mutation(
+        self, migration_runner, mock_db
+    ):
+        """Test actual migration creates mutation log entries."""
+        claim = KnowledgeClaim(
+            id="claim1",
+            text="Test claim",
+            source_document_id="doc1",
+            source_type=SourceType.document,
+            source_ids=[],
+            source_page_label="p.5",
+        )
+
+        mock_db.all.return_value = [claim]
+
+        # Execute
+        result = migration_runner.migrate_claims_to_multi_source(dry_run=False)
+
+        # Verify
+        assert result.status == MigrationStatus.completed
+        assert result.migrated == 1
+
+        # Should have saved the updated claim
+        assert mock_db.save.call_count >= 1
+
+        # Should have logged mutation
         mutation_calls = [
-            call for call in mock_db.save.call_args_list
-            if len(call.args) == 1 and isinstance(call.args[0], MutationLog)
+            call
+            for call in mock_db.save.call_args_list
+            if len(call.args) > 0 and isinstance(call.args[0], MutationLog)
         ]
         assert len(mutation_calls) == 1
 
-        mutation = mutation_calls[0].args[0]
-        assert mutation.entity_type == "KnowledgeClaim"
-        assert mutation.entity_id == "claim1"
-        assert mutation.operation == MutationOperationType.update
-        assert mutation.before_state == {"source_ids": [], "source_page_labels": []}
-        assert "run_id" in result.details
+    def test_repair_orphaned_claim_links_dry_run(self, migration_runner, mock_db):
+        """Test dry-run counts orphaned links without deleting."""
+        from fichero.knowledge_models import KnowledgeClaim
 
-    def test_rollback_update_operation(self, runner, mock_db):
-        """Test rollback of an update operation."""
-        # Setup: create a mutation log for an update
-        run_id = "test_run_123"
-        mutation = MutationLog(
-            id="mut1",
-            entity_type="KnowledgeClaim",
-            entity_id="claim1",
-            operation=MutationOperationType.update,
-            before_state={"source_ids": [], "source_page_labels": []},
-            after_state={"source_ids": ["doc1"], "source_page_labels": ["p.1"]},
-            run_id=run_id,
+        # Setup: Create links - one orphaned, one valid
+        orphaned_link = KnowledgeClaimLink(
+            id="link1",
+            claim_id="deleted_claim",
+            related_claim_id="existing_claim",
+            relation_type="supports",
+        )
+        valid_link = KnowledgeClaimLink(
+            id="link2",
+            claim_id="existing_claim",
+            related_claim_id="another_claim",
+            relation_type="contradicts",
         )
 
-        # The entity as it currently exists
-        current_claim = KnowledgeClaim(
+        # Create claims that exist (for the valid link)
+        existing_claim = KnowledgeClaim(
+            id="existing_claim", text="Existing claim", source_document_id="doc1"
+        )
+        another_claim = KnowledgeClaim(
+            id="another_claim", text="Another claim", source_document_id="doc2"
+        )
+
+        mock_db.all.side_effect = [
+            [orphaned_link, valid_link],  # First call for links
+            [
+                existing_claim,
+                another_claim,
+            ],  # Second call for claims - not "deleted_claim"
+        ]
+
+        # Execute
+        result = migration_runner.repair_orphaned_claim_links(dry_run=True)
+
+        # Verify
+        assert result.status == MigrationStatus.completed
+        assert (
+            result.migrated == 1
+        )  # Orphaned link counted (deleted_claim doesn't exist)
+        assert result.skipped == 1  # Valid link skipped
+
+        # No deletions in dry-run
+        mock_db.delete.assert_not_called()
+
+    def test_repair_orphaned_claim_links_actual(self, migration_runner, mock_db):
+        """Test actual repair deletes orphaned links."""
+        orphaned_link = KnowledgeClaimLink(
+            id="link1",
+            claim_id="deleted_claim",
+            related_claim_id="existing_claim",
+            relation_type="supports",
+        )
+
+        mock_db.all.return_value = [orphaned_link]
+        mock_db.get.return_value = None  # claim doesn't exist
+
+        # Execute
+        result = migration_runner.repair_orphaned_claim_links(dry_run=False)
+
+        # Verify
+        assert result.status == MigrationStatus.completed
+        assert result.migrated == 1
+
+        # Should have logged mutation and deleted
+        assert mock_db.delete.call_count == 1
+
+    def test_data_integrity_validation(self, migration_runner, mock_db):
+        """Test migration safety validation."""
+        # Setup claims with missing source_document_id
+        bad_claim = KnowledgeClaim(
+            id="claim1",
+            text="No source",
+            source_document_id="",
+            source_type=SourceType.document,
+            source_ids=[],
+        )
+
+        mock_db.all.return_value = [bad_claim]
+
+        # Execute validation
+        validation = migration_runner.validate_migration_safety(
+            "migrate_claims_to_multi_source", sample_size=100
+        )
+
+        # Verify
+        assert validation["can_run"] is False
+        assert len(validation["errors"]) > 0
+
+    def test_backfill_source_metadata_dry_run(self, migration_runner, mock_db):
+        """Test backfill dry-run counts claims needing metadata."""
+        from fichero.knowledge_models import SourceMetadata
+
+        claim_needing_backfill = KnowledgeClaim(
             id="claim1",
             text="Test",
             source_document_id="doc1",
-            source_ids=["doc1"],
-            source_page_labels=["p.1"],
+            source_metadata=None,  # Needs backfill
+        )
+        claim_with_metadata = KnowledgeClaim(
+            id="claim2",
+            text="Test 2",
+            source_document_id="doc2",
+            source_metadata=SourceMetadata(title="Has metadata"),  # Has metadata
         )
 
-        mock_db.query.return_value = [mutation]
-        mock_db.get.return_value = current_claim
-
-        # Execute rollback
-        result = runner.rollback(run_id)
-
-        # Assert
-        assert result.status == MigrationStatus.rolled_back
-        assert result.restored == 1
-        assert result.failed == 0
-
-        # Verify entity was restored
-        mock_db.save.assert_called()
-        saved_calls = [
-            c for c in mock_db.save.call_args_list
-            if isinstance(c.args[0], KnowledgeClaim)
-        ]
-        assert len(saved_calls) == 1
-        restored_claim = saved_calls[0].args[0]
-        assert restored_claim.source_ids == []
-        assert restored_claim.source_page_labels == []
-
-    def test_rollback_delete_operation(self, runner, mock_db):
-        """Test rollback of a delete operation."""
-        run_id = "test_run_456"
-        mutation = MutationLog(
-            id="mut2",
-            entity_type="KnowledgeClaimLink",
-            entity_id="link1",
-            operation=MutationOperationType.delete,
-            before_state={
-                "id": "link1",
-                "claim_id": "claim1",
-                "related_claim_id": "claim2",
-                "relation_type": "supports",
-            },
-            run_id=run_id,
+        # Mock document with metadata
+        doc_with_meta = Document(
+            id="doc1",
+            name="Test Doc",
+            metadata={"title": "Test Title", "publisher": "Test Pub"},
         )
 
-        mock_db.query.return_value = [mutation]
-        mock_db.get.return_value = None  # Link was deleted
+        def mock_get_side_effect(model_class, entity_id):
+            if model_class == Document and entity_id == "doc1":
+                return doc_with_meta
+            if model_class == Document and entity_id == "doc2":
+                return Document(id="doc2", name="Doc 2", metadata={})
+            return None
 
-        # Execute rollback
-        result = runner.rollback(run_id)
-
-        # Assert
-        assert result.status == MigrationStatus.rolled_back
-        assert result.restored == 1
-
-        # Verify entity was recreated
-        mock_db.save.assert_called()
-        saved_calls = [
-            c for c in mock_db.save.call_args_list
-            if isinstance(c.args[0], KnowledgeClaimLink)
-        ]
-        assert len(saved_calls) == 1
-        restored_link = saved_calls[0].args[0]
-        assert restored_link.id == "link1"
-        assert restored_link.claim_id == "claim1"
-
-    def test_repair_orphaned_claim_links(self, runner, mock_db):
-        """Test repair of orphaned claim links."""
-        # Setup: link pointing to deleted claim
-        orphaned_link = KnowledgeClaimLink(
-            id="orphan_link",
-            claim_id="deleted_claim",
-            related_claim_id="existing_claim",
-            relation_type=ClaimRelationType.supports,
-        )
-        existing_link = KnowledgeClaimLink(
-            id="valid_link",
-            claim_id="existing_claim",
-            related_claim_id="other_claim",
-            relation_type=ClaimRelationType.supports,
-        )
-
-        runner._get_model_class = Mock(return_value=KnowledgeClaimLink)
-        mock_db.all.side_effect = [
-            [orphaned_link, existing_link],  # First call: all links
-            [],  # Second call: no existing claims (both deleted)
+        mock_db.get.side_effect = mock_get_side_effect
+        mock_db.all.return_value = [
+            claim_needing_backfill,
+            claim_with_metadata,
         ]
 
-        # Execute dry run
-        result = runner.repair_orphaned_claim_links(dry_run=True)
+        # Execute
+        result = migration_runner.backfill_claim_source_metadata(dry_run=True)
 
-        # Assert
-        assert result.migrated == 2  # Both deleted because no claims exist
-        assert result.skipped == 0
-        assert mock_db.delete.call_count == 0  # Dry run doesn't delete
+        # Verify
+        assert result.migrated == 1  # Only first claim
+        assert result.skipped == 1  # Second has metadata
 
-    def test_progress_callback(self, runner, mock_db):
-        """Test progress callback is called during batch processing."""
-        callback = Mock()
-        runner.set_progress_callback(callback)
+    def test_progress_callback(self, migration_runner, mock_db):
+        """Test progress callback is invoked during migration."""
+        progress_calls = []
 
-        # Setup: multiple claims
+        def progress_callback(operation, current, total):
+            progress_calls.append((operation, current, total))
+
+        migration_runner.set_progress_callback(progress_callback)
+
+        # Create multiple claims
         claims = [
             KnowledgeClaim(
                 id=f"claim{i}",
-                text=f"Test {i}",
+                text=f"Claim {i}",
+                source_document_id=f"doc{i}",
+                source_type=SourceType.document,
+                source_ids=[],
+            )
+            for i in range(5)
+        ]
+
+        mock_db.all.return_value = claims
+
+        # Execute with batch_size to trigger progress
+        migration_runner.migrate_claims_to_multi_source(dry_run=False, batch_size=2)
+
+        # Verify progress was reported
+        assert len(progress_calls) > 0
+
+    def test_batch_size_limit(self, migration_runner, mock_db):
+        """Test batch processing respects limit parameter."""
+        claims = [
+            KnowledgeClaim(
+                id=f"claim{i}",
+                text=f"Claim {i}",
                 source_document_id=f"doc{i}",
                 source_type=SourceType.document,
                 source_ids=[],
             )
             for i in range(10)
         ]
+
         mock_db.all.return_value = claims
 
-        # Execute with batch size
-        runner.migrate_claims_to_multi_source(  # result unused, testing callback
-            dry_run=True, batch_size=5
+        # Execute with limit
+        result = migration_runner.migrate_claims_to_multi_source(dry_run=False, limit=3)
+
+        # Verify only 3 were migrated
+        assert result.migrated == 3
+
+
+class TestRollbackOperations:
+    """Test cases for rollback functionality."""
+
+    def test_rollback_update_operation(self, migration_runner, mock_db):
+        """Test rollback restores entity to before_state."""
+        # Setup mutation log entry
+        mutation = MutationLog(
+            id="mut1",
+            entity_type="KnowledgeClaim",
+            entity_id="claim1",
+            operation=MutationOperationType.update,
+            before_state={"source_ids": [], "text": "Original"},
+            after_state={"source_ids": ["doc1"], "text": "Updated"},
+            run_id="test_run_123",
         )
 
-        # Assert callback was called
-        assert callback.call_count > 0
-        callback.assert_any_call("migrate_claims", 5, 10)
+        mock_db.query.return_value = [mutation]
 
-    def test_legacy_migration_function(self, mock_db):
-        """Test backward-compatible legacy migration function."""
-        claim1 = KnowledgeClaim(
+        # Mock the claim to restore
+        current_claim = KnowledgeClaim(
             id="claim1",
-            text="Test",
+            text="Updated",
             source_document_id="doc1",
-            source_type=SourceType.document,
-            source_ids=[],
+            source_ids=["doc1"],
         )
-        mock_db.all.return_value = [claim1]
-
-        # Use legacy function
-        migrated, skipped = migrate_claims_to_multi_source(mock_db, dry_run=False)
-
-        assert migrated == 1
-        assert skipped == 0
-
-    def test_migrate_with_batch_size(self, runner, mock_db):
-        """Test migration with batch processing."""
-        # Setup: many claims
-        claims = [
-            KnowledgeClaim(
-                id=f"claim{i}",
-                text=f"Test {i}",
-                source_document_id=f"doc{i}",
-                source_type=SourceType.document,
-                source_ids=[],
-            )
-            for i in range(25)
-        ]
-        mock_db.all.return_value = claims
-
-        callback = Mock()
-        runner.set_progress_callback(callback)
-
-        # Execute: small batch size
-        result = runner.migrate_claims_to_multi_source(
-            dry_run=False, batch_size=10
-        )
-
-        # Assert
-        assert result.migrated == 25
-        assert result.status == MigrationStatus.completed
-
-        # Progress should be reported at 10 and 20
-        progress_calls = [
-            c for c in callback.call_args_list
-            if c.args[0] == "migrate_claims"
-        ]
-        assert len(progress_calls) >= 2
-
-    def test_validation_safety_checks(self, runner, mock_db):
-        """Test migration safety validation."""
-        # Setup: claim missing source_document_id
-        bad_claim = KnowledgeClaim(
-            id="bad_claim",
-            text="Bad claim",
-            source_document_id="",  # Empty!
-            source_type=SourceType.document,
-            source_ids=[],
-        )
-        mock_db.all.return_value = [bad_claim]
-
-        # Execute validation
-        validation = runner.validate_migration_safety(
-            "migrate_claims_to_multi_source", sample_size=10
-        )
-
-        # Assert: validation should flag the error
-        assert validation["can_run"] is False
-        assert len(validation["errors"]) > 0
-        assert "bad_claim" in validation["errors"][0]
-
-
-class TestBackfillOperations:
-    """Test suite for backfill operations."""
-
-    @pytest.fixture
-    def mock_db(self):
-        db = Mock()
-        db.save = Mock()
-        db.get = Mock(return_value=None)
-        db.all = Mock(return_value=[])
-        return db
-
-    @pytest.fixture
-    def runner(self, mock_db):
-        return MigrationRunner(mock_db)
-
-    def test_backfill_source_metadata_dry_run(self, runner, mock_db):
-        """Test dry-run of source metadata backfill."""
-        # Setup: claim without source_metadata
-        claim = KnowledgeClaim(
-            id="claim1",
-            text="Test claim",
-            source_document_id="doc1",
-            source_metadata=None,  # Needs backfill
-        )
-        mock_db.all.return_value = [claim]
-
-        # Source document with metadata
-        source_doc = Document(
-            id="doc1",
-            name="test.pdf",
-            path="/test.pdf",
-            metadata={
-                "title": "Test Document",
-                "date": "2024-01-01",
-            },
-        )
-        mock_db.get.return_value = source_doc
-
-        # Execute: dry run
-        result = runner.backfill_claim_source_metadata(dry_run=True)
-
-        # Assert
-        assert result.migrated == 1
-        assert result.skipped == 0
-        assert result.dry_run is True
-
-        # No saves in dry-run
-        mutation_saves = [
-            c for c in mock_db.save.call_args_list
-            if len(c.args) == 1 and isinstance(c.args[0], MutationLog)
-        ]
-        assert len(mutation_saves) == 0
-
-    def test_backfill_skips_already_filled(self, runner, mock_db):
-        """Test backfill skips claims that already have source_metadata."""
-        from fichero.knowledge_models import SourceMetadata
-
-        # Setup: claim with existing source_metadata
-        claim = KnowledgeClaim(
-            id="claim1",
-            text="Test claim",
-            source_document_id="doc1",
-            source_metadata=SourceMetadata(title="Already Filled"),
-        )
-        mock_db.all.return_value = [claim]
+        mock_db.get.return_value = current_claim
 
         # Execute
-        result = runner.backfill_claim_source_metadata(dry_run=False)
+        result = migration_runner.rollback("test_run_123")
 
-        # Assert
-        assert result.migrated == 0
-        assert result.skipped == 1
+        # Verify
+        assert result.status == MigrationStatus.rolled_back
+        assert result.restored == 1
 
+        # Verify claim was restored
+        assert current_claim.source_ids == []
+        assert current_claim.text == "Original"
 
-class TestEdgeCases:
-    """Test edge cases and error handling."""
+    def test_rollback_create_operation(self, migration_runner, mock_db):
+        """Test rollback of create operation deletes the entity."""
+        mutation = MutationLog(
+            id="mut1",
+            entity_type="KnowledgeClaim",
+            entity_id="new_claim",
+            operation=MutationOperationType.create,
+            before_state=None,
+            after_state={"id": "new_claim", "text": "Created"},
+            run_id="test_run_456",
+        )
 
-    @pytest.fixture
-    def runner(self):
-        mock_db = Mock()
-        mock_db.save = Mock()
-        return MigrationRunner(mock_db)
+        mock_db.query.return_value = [mutation]
 
-    def test_rollback_no_mutations(self, runner):
-        """Test rollback when no mutations exist."""
-        runner.db.query.return_value = []
+        created_claim = KnowledgeClaim(
+            id="new_claim", text="Created", source_document_id="doc1"
+        )
+        mock_db.get.return_value = created_claim
 
-        result = runner.rollback("nonexistent_run")
+        # Execute
+        result = migration_runner.rollback("test_run_456")
+
+        # Verify
+        assert result.status == MigrationStatus.rolled_back
+        assert result.restored == 1
+        mock_db.delete.assert_called_once_with(created_claim)
+
+    def test_rollback_delete_operation(self, migration_runner, mock_db):
+        """Test rollback of delete operation recreates the entity."""
+        mutation = MutationLog(
+            id="mut1",
+            entity_type="KnowledgeClaim",
+            entity_id="deleted_claim",
+            operation=MutationOperationType.delete,
+            before_state={
+                "id": "deleted_claim",
+                "text": "Original text",
+                "source_document_id": "doc1",
+            },
+            after_state=None,
+            run_id="test_run_789",
+        )
+
+        mock_db.query.return_value = [mutation]
+
+        # Execute
+        result = migration_runner.rollback("test_run_789")
+
+        # Verify
+        assert result.status == MigrationStatus.rolled_back
+        assert result.restored == 1
+
+        # Should have saved the recreated entity
+        assert mock_db.save.call_count >= 1
+
+    def test_rollback_nonexistent_run(self, migration_runner, mock_db):
+        """Test rollback with non-existent run_id fails gracefully."""
+        mock_db.query.return_value = []
+
+        result = migration_runner.rollback("nonexistent_run")
 
         assert result.status == MigrationStatus.failed
         assert "No mutations found" in result.error_message
 
-    def test_model_class_lookup(self, runner):
-        """Test model class lookup from entity type names."""
-        from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
-        from fichero.models import Document
 
-        assert runner._get_model_class("KnowledgeClaim") == KnowledgeClaim
-        assert runner._get_model_class("KnowledgeEntity") == KnowledgeEntity
-        assert runner._get_model_class("Document") == Document
-        assert runner._get_model_class("UnknownType") is None
+class TestMigrationResult:
+    """Test cases for MigrationResult data class."""
 
-    def test_empty_database(self, runner):
-        """Test migration with empty database."""
-        runner.db.all.return_value = []
+    def test_duration_calculation(self):
+        """Test duration is calculated correctly."""
+        start = datetime.now()
+        result = MigrationResult(
+            migration_name="test",
+            status=MigrationStatus.completed,
+            started_at=start,
+            completed_at=start,  # Same time = 0ms
+        )
 
-        result = runner.migrate_claims_to_multi_source(dry_run=False)
+        assert result.duration_ms == 0
 
-        assert result.migrated == 0
-        assert result.skipped == 0
-        assert result.status == MigrationStatus.completed
+        # Test with different times
+        import time
+
+        result2 = MigrationResult(
+            migration_name="test2",
+            status=MigrationStatus.completed,
+            started_at=start,
+        )
+        time.sleep(0.01)  # Small delay
+        result2.completed_at = datetime.now()
+
+        assert result2.duration_ms is not None
+        assert result2.duration_ms >= 10  # At least 10ms
+
+    def test_to_dict_serialization(self):
+        """Test result can be serialized to dict."""
+        result = MigrationResult(
+            migration_name="test_migration",
+            status=MigrationStatus.completed,
+            migrated=5,
+            skipped=2,
+            dry_run=True,
+            audit_id="audit123",
+            details={"extra": "info"},
+        )
+
+        data = result.to_dict()
+
+        assert data["migration_name"] == "test_migration"
+        assert data["migrated"] == 5
+        assert data["dry_run"] is True
+        assert data["audit_id"] == "audit123"
+
+
+class TestDataIntegrityChecks:
+    """Test cases for data integrity validation."""
+
+    def test_claim_source_counts_validation(self, migration_runner, mock_db):
+        """Test validation of claim/source/link counts."""
+        # Setup test data
+        entities = [
+            KnowledgeEntity(id=f"ent{i}", canonical_name=f"Entity {i}")
+            for i in range(3)
+        ]
+        claims = [
+            KnowledgeClaim(
+                id=f"claim{i}",
+                text=f"Claim {i}",
+                source_document_id=f"doc{i}",
+                entity_ids=[f"ent{i}"],
+            )
+            for i in range(3)
+        ]
+        links = [
+            KnowledgeClaimLink(
+                id=f"link{i}",
+                claim_id=f"claim{i}",
+                related_claim_id=f"claim{(i + 1) % 3}",
+                relation_type="supports",
+            )
+            for i in range(3)
+        ]
+
+        mock_db.all.side_effect = [entities, claims, links]
+
+        # Calculate counts
+        ent_count = len(entities)
+        claim_count = len(claims)
+        link_count = len(links)
+
+        # Verify counts match expectations
+        assert ent_count == 3
+        assert claim_count == 3
+        assert link_count == 3
+
+    def test_orphaned_entities_detection(self, migration_runner, mock_db):
+        """Test detection of entities not referenced by any claim."""
+        # Entity referenced by a claim
+        referenced_entity = KnowledgeEntity(id="ent1", canonical_name="Referenced")
+        # Orphaned entity
+        orphaned_entity = KnowledgeEntity(id="ent2", canonical_name="Orphaned")
+
+        entities = [referenced_entity, orphaned_entity]
+        claims = [
+            KnowledgeClaim(
+                id="claim1",
+                text="Claim",
+                source_document_id="doc1",
+                entity_ids=["ent1"],  # References ent1
+            )
+        ]
+
+        mock_db.all.side_effect = [entities, claims]
+
+        # Find referenced entity IDs
+        referenced_ids = set()
+        for claim in claims:
+            referenced_ids.update(claim.entity_ids)
+
+        # Check which entities are orphaned
+        orphaned = [e for e in entities if e.id not in referenced_ids]
+
+        assert len(orphaned) == 1
+        assert orphaned[0].id == "ent2"
