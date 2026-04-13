@@ -8,14 +8,13 @@ Works with Workflows, SavedSearches, and Conversations.
 import logging
 from datetime import datetime
 from enum import Enum
-from typing import List
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from fichero.db import Database
 from fichero.api.main import get_library_database
-from fichero.models import Workflow, SavedSearch, Conversation
+from fichero.db import Database
+from fichero.models import Conversation, SavedSearch, Workflow
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -60,7 +59,7 @@ class FolderInfo(BaseModel):
 class MoveItemsRequest(BaseModel):
     """Request to move items to a folder."""
 
-    item_ids: List[str]
+    item_ids: list[str]
     folder_path: str
 
 
@@ -81,7 +80,7 @@ async def list_folders(
     entity_type: EntityType,
     parent_path: str = "/",
     db: Database = Depends(get_library_database),
-) -> List[FolderInfo]:
+) -> list[FolderInfo]:
     """List unique folder paths under parent.
 
     Args:
