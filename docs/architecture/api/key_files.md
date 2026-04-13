@@ -45,10 +45,18 @@
 - `research_agents.py` — Autonomous research workflows
 - `search_explain.py` — Search algorithm explanation
 
-### Staged (built, not yet registered)
-- `actions.py`, `chains.py`, `graph_reasoning.py`, `integrations.py`
-- `local_models.py`, `mcp_servers.py`, `model_comparison.py`
-- `orchestration.py`, `predictions.py`, `schedules.py`, `triggers.py`
+### Additional dev-tier (staged features, `FICHERO_FEATURE_TIER=dev`)
+- `actions.py` — Action definitions and library
+- `chains.py` — Sequential workflow chaining
+- `graph_reasoning.py` — NetworkX graph analysis
+- `integrations.py` — DEVONthink, Bookends, Tinderbox sync
+- `local_models.py` — Local model management (Whisper, embeddings, spaCy)
+- `mcp_servers.py` — MCP server lifecycle
+- `model_comparison.py` — Multi-model response comparison
+- `orchestration.py` — Orchestration policy rules
+- `predictions.py` — PyKEEN link prediction
+- `schedules.py` — Cron-style workflow scheduling
+- `triggers.py` — Event-driven workflow triggers
 
 ## Data Layer
 

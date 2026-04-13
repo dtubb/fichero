@@ -74,11 +74,23 @@ Routes are registered at startup based on the `FICHERO_FEATURE_TIER` environment
 | `/api/research` | `research_agents` | Autonomous research workflows |
 | `/api/iiif` | `iiif` | IIIF image interoperability |
 
-### Staged Routes (built, not yet registered — 11)
+### Additional Dev-Tier Routes (staged features)
 
-These modules are complete but not wired into `main.py` yet. They represent features in progress or awaiting milestone prioritisation:
+These are also gated behind `FICHERO_FEATURE_TIER=dev`. They are complete but not yet promoted to core:
 
-`actions`, `chains`, `graph_reasoning`, `integrations`, `local_models`, `mcp_servers`, `model_comparison`, `orchestration`, `predictions`, `schedules`, `triggers`
+| Prefix | Module | Purpose |
+|---|---|---|
+| `/api` | `actions` | Action definitions and library |
+| `/api` | `chains` | Sequential workflow chaining |
+| `` | `graph_reasoning` | NetworkX graph analysis (centrality, communities) |
+| `/api` | `integrations` | DEVONthink, Bookends, Tinderbox sync |
+| `/api` | `local_models` | Local model (Whisper, embeddings, spaCy) management |
+| `/api` | `mcp_servers` | MCP server lifecycle management |
+| `/api` | `model_comparison` | Multi-model response comparison |
+| `` | `orchestration` | Orchestration policy rules |
+| `` | `predictions` | PyKEEN link prediction |
+| `/api` | `schedules` | Cron-style workflow scheduling |
+| `/api` | `triggers` | Event-driven workflow triggers |
 
 ## Core Modules
 

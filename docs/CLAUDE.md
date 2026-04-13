@@ -97,7 +97,7 @@ The Swift app is a **pure UI layer** - all business logic, data persistence, and
 - **`api/main.py`**: FastAPI app with 23 core routes + 8 dev-tier routes (31 total). Active tier controlled by `FICHERO_FEATURE_TIER` env var (`release` | `dev`, default `release`).
   - **Core (always on):** activity, artifacts, batch, chat, claim-links, claims, documents, entities, folders, ingest, migrations, mcp-tools, multilingual, providers, review-queue, search, settings, sources, models, storage, tasks, workflow-execution, workflows
   - **Dev tier** (`FICHERO_FEATURE_TIER=dev`): knowledge-graph, search-explanation, hermeneutics, interpretations, graph-exploration, mind-palace, research, iiif
-  - **Staged (built but not yet registered):** actions, chains, graph-reasoning, integrations, local-models, mcp-servers, model-comparison, orchestration, predictions, schedules, triggers
+  - **Also dev-tier (staged features):** actions, chains, graph-reasoning, integrations, local-models, mcp-servers, model-comparison, orchestration, predictions, schedules, triggers
 - **`db.py`**: Dual database layer (DuckDB for relational data, LanceDB for vector embeddings)
 - **`models.py`**: Pydantic models shared between API and database
 - **`workflows/`**: LangGraph-based visual workflow engine with tool registry, execution engine, and state management
