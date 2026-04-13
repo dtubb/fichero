@@ -148,7 +148,6 @@ async def update_claim_link(
     data = request.model_dump(exclude_unset=True)
     for key, value in data.items():
         setattr(link, key, value)
-    link.updated_at = datetime.now()
     db.save(link)
     return link
 

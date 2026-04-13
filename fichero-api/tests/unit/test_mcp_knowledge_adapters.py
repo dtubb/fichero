@@ -231,11 +231,11 @@ class TestMCPEndpointCoverage:
         paths = [r.path for r in router.routes]
 
         # Should have upsert endpoint
-        assert "/mcp/tools/knowledge/entities/upsert" in paths
+        assert "/knowledge/entities/upsert" in paths
         # Should have read endpoint
-        assert any("/mcp/tools/knowledge/entities/{entity_id}" in p for p in paths)
+        assert any("/knowledge/entities/{entity_id}" in p for p in paths)
         # Should have list endpoint
-        assert "/mcp/tools/knowledge/entities" in paths
+        assert "/knowledge/entities" in paths
 
     def test_claim_endpoints(self):
         """Verify all claim endpoints exist."""
@@ -244,11 +244,11 @@ class TestMCPEndpointCoverage:
         paths = [r.path for r in router.routes]
 
         # Should have create endpoint
-        assert "/mcp/tools/knowledge/claims/create" in paths
+        assert "/knowledge/claims/create" in paths
         # Should have read endpoint
-        assert any("/mcp/tools/knowledge/claims/{claim_id}" in p for p in paths)
+        assert any("/knowledge/claims/{claim_id}" in p for p in paths)
         # Should have list endpoint
-        assert "/mcp/tools/knowledge/claims" in paths
+        assert "/knowledge/claims" in paths
 
     def test_soft_delete_supported(self):
         """Verify soft delete is available."""

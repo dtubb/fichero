@@ -7,7 +7,7 @@ providing a clean separation from the broader knowledge graph functionality.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -176,9 +176,9 @@ async def upsert_entity(
 
 @router.get("", response_model=list[KnowledgeEntity])
 async def list_entities(
-    q: str | None = Query(default=None),
-    entity_type: EntityType | None = Query(default=None),
-    limit: int = Query(default=50, ge=1, le=500),
+    q: Annotated[str | None, Query()] = None,
+    entity_type: Annotated[EntityType | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 50,
     db: Database = Depends(get_library_database),
 ) -> list[KnowledgeEntity]:
     """List knowledge entities with optional filtering."""

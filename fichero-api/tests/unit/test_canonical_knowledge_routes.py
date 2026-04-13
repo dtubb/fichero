@@ -55,12 +55,12 @@ from fichero.models import Document
 class TestEntitiesRoutes:
     """Test entity canonical API routes."""
 
-    def test_upsert_entity_creates_new(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_upsert_entity_creates_new(self, tmp_path):
         """POST /entities creates new entity."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         request = EntityUpsertRequest(
@@ -70,19 +70,19 @@ class TestEntitiesRoutes:
             aliases=["Alias1", "Alias2"],
         )
 
-        entity = upsert_entity(request, db)
+        entity = await upsert_entity(request, db)
 
         assert entity.canonical_name == "Test Entity"
         assert entity.entity_type == EntityType.person
         assert entity.language == "en"
         assert "Alias1" in entity.aliases
 
-    def test_upsert_entity_updates_existing(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_upsert_entity_updates_existing(self, tmp_path):
         """POST /entities with ID updates existing entity."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         # Create initial entity
@@ -90,7 +90,7 @@ class TestEntitiesRoutes:
             canonical_name="Original Name",
             entity_type=EntityType.person,
         )
-        entity = upsert_entity(create_req, db)
+        entity = await upsert_entity(create_req, db)
         entity_id = entity.id
 
         # Update entity
@@ -99,18 +99,18 @@ class TestEntitiesRoutes:
             canonical_name="Updated Name",
             entity_type=EntityType.organization,
         )
-        updated = upsert_entity(update_req, db)
+        updated = await upsert_entity(update_req, db)
 
         assert updated.id == entity_id
         assert updated.canonical_name == "Updated Name"
         assert updated.entity_type == EntityType.organization
 
-    def test_get_entity_by_id(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_get_entity_by_id(self, tmp_path):
         """GET /entities/{id} returns entity."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         # Create entity
@@ -118,32 +118,32 @@ class TestEntitiesRoutes:
             canonical_name="Test Entity",
             entity_type=EntityType.location,
         )
-        entity = upsert_entity(request, db)
+        entity = await upsert_entity(request, db)
         entity_id = entity.id
 
         # Get entity
-        retrieved = get_entity(entity_id, db)
+        retrieved = await get_entity(entity_id, db)
         assert retrieved.id == entity_id
         assert retrieved.canonical_name == "Test Entity"
 
-    def test_get_entity_not_found(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_get_entity_not_found(self, tmp_path):
         """GET /entities/{id} returns 404 for unknown ID."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         with pytest.raises(HTTPException) as exc:
-            get_entity("nonexistent-id", db)
+            await get_entity("nonexistent-id", db)
         assert exc.value.status_code == 404
 
-    def test_add_aliases_to_entity(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_add_aliases_to_entity(self, tmp_path):
         """POST /entities/{id}/aliases adds aliases."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         # Create entity
@@ -152,34 +152,34 @@ class TestEntitiesRoutes:
             entity_type=EntityType.person,
             aliases=["Initial"],
         )
-        entity = upsert_entity(request, db)
+        entity = await upsert_entity(request, db)
         entity_id = entity.id
 
         # Add aliases
         alias_request = EntityAliasRequest(aliases=["New1", "New2"])
-        updated = add_entity_aliases(entity_id, alias_request, db)
+        updated = await add_entity_aliases(entity_id, alias_request, db)
 
         assert "Initial" in updated.aliases
         assert "New1" in updated.aliases
         assert "New2" in updated.aliases
 
-    def test_list_entities_with_filter(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_list_entities_with_filter(self, tmp_path):
         """GET /entities?q= filters by query."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         # Create entities
-        upsert_entity(
+        await upsert_entity(
             EntityUpsertRequest(
                 canonical_name="Alpha Entity",
                 entity_type=EntityType.person,
             ),
             db,
         )
-        upsert_entity(
+        await upsert_entity(
             EntityUpsertRequest(
                 canonical_name="Beta Entity",
                 entity_type=EntityType.person,
@@ -188,7 +188,7 @@ class TestEntitiesRoutes:
         )
 
         # List with filter
-        results = list_entities(q="Alpha", db=db)
+        results = await list_entities(q="Alpha", limit=50, db=db)
         assert len(results) == 1
         assert results[0].canonical_name == "Alpha Entity"
 
@@ -196,24 +196,24 @@ class TestEntitiesRoutes:
 class TestClaimsRoutes:
     """Test claim canonical API routes."""
 
-    def test_create_claim_success(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_create_claim_success(self, tmp_path):
         """POST /claims creates claim with valid data."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         # Create source document
         doc = Document(
-            title="Test Source",
-            file_path="/path/to/source.pdf",
-            document_type="source",
+            name="Test Source",
+            path="/path/to/source.pdf",
+            doc_type="file",
         )
         db.save(doc)
 
         # Create entity
-        entity = upsert_entity(
+        entity = await upsert_entity(
             EntityUpsertRequest(
                 canonical_name="Test Entity",
                 entity_type=EntityType.person,
@@ -229,7 +229,7 @@ class TestClaimsRoutes:
             confidence=0.95,
         )
 
-        claim = create_claim(request, db)
+        claim = await create_claim(request, db)
 
         assert claim.text == "The sky is blue"
         assert claim.source_document_id == doc.id
@@ -237,12 +237,12 @@ class TestClaimsRoutes:
         assert claim.claim_type == ClaimType.fact
         assert claim.confidence == 0.95
 
-    def test_create_claim_missing_source(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_create_claim_missing_source(self, tmp_path):
         """POST /claims returns 404 for missing source."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         request = ClaimCreateRequest(
@@ -251,22 +251,22 @@ class TestClaimsRoutes:
         )
 
         with pytest.raises(HTTPException) as exc:
-            create_claim(request, db)
+            await create_claim(request, db)
         assert exc.value.status_code == 404
 
-    def test_create_claim_missing_entity(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_create_claim_missing_entity(self, tmp_path):
         """POST /claims returns 404 for missing entity."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         # Create source document
         doc = Document(
-            title="Test Source",
-            file_path="/path/to/source.pdf",
-            document_type="source",
+            name="Test Source",
+            path="/path/to/source.pdf",
+            doc_type="file",
         )
         db.save(doc)
 
@@ -277,22 +277,22 @@ class TestClaimsRoutes:
         )
 
         with pytest.raises(HTTPException) as exc:
-            create_claim(request, db)
+            await create_claim(request, db)
         assert exc.value.status_code == 404
 
-    def test_patch_claim_success(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_patch_claim_success(self, tmp_path):
         """PATCH /claims/{id} updates claim."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         # Create source and claim
         doc = Document(
-            title="Test Source",
-            file_path="/path/to/source.pdf",
-            document_type="source",
+            name="Test Source",
+            path="/path/to/source.pdf",
+            doc_type="file",
         )
         db.save(doc)
 
@@ -301,7 +301,7 @@ class TestClaimsRoutes:
             source_document_id=doc.id,
             confidence=0.5,
         )
-        claim = create_claim(request, db)
+        claim = await create_claim(request, db)
 
         # Update claim
         patch_request = ClaimPatchRequest(
@@ -309,30 +309,30 @@ class TestClaimsRoutes:
             confidence=0.9,
             curation_state=ClaimCurationState.curated,
         )
-        updated = patch_claim(claim.id, patch_request, db)
+        updated = await patch_claim(claim.id, patch_request, db)
 
         assert updated.text == "Updated text"
         assert updated.confidence == 0.9
         assert updated.curation_state == ClaimCurationState.curated
 
-    def test_list_claims_filtered(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_list_claims_filtered(self, tmp_path):
         """GET /claims filters by curation_state, claim_type, etc."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         # Create source
         doc = Document(
-            title="Test Source",
-            file_path="/path/to/source.pdf",
-            document_type="source",
+            name="Test Source",
+            path="/path/to/source.pdf",
+            doc_type="file",
         )
         db.save(doc)
 
         # Create claims with different types
-        create_claim(
+        await create_claim(
             ClaimCreateRequest(
                 text="Fact claim",
                 source_document_id=doc.id,
@@ -341,7 +341,7 @@ class TestClaimsRoutes:
             ),
             db,
         )
-        create_claim(
+        await create_claim(
             ClaimCreateRequest(
                 text="Theory claim",
                 source_document_id=doc.id,
@@ -352,12 +352,12 @@ class TestClaimsRoutes:
         )
 
         # Filter by claim type
-        results = list_claims(claim_type=ClaimType.fact, db=db)
+        results = await list_claims(claim_type=ClaimType.fact, limit=200, offset=0, db=db)
         assert len(results) == 1
         assert results[0].claim_type == ClaimType.fact
 
         # Filter by curation state
-        curated = list_claims(curation_state=ClaimCurationState.curated, db=db)
+        curated = await list_claims(curation_state=ClaimCurationState.curated, limit=200, offset=0, db=db)
         assert len(curated) == 1
         assert curated[0].curation_state == ClaimCurationState.curated
 
@@ -365,30 +365,30 @@ class TestClaimsRoutes:
 class TestClaimLinksRoutes:
     """Test claim link canonical API routes."""
 
-    def test_create_claim_link_success(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_create_claim_link_success(self, tmp_path):
         """POST /claims/{id}/links creates link between claims."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         # Create source and claims
         doc = Document(
-            title="Test Source",
-            file_path="/path/to/source.pdf",
-            document_type="source",
+            name="Test Source",
+            path="/path/to/source.pdf",
+            doc_type="file",
         )
         db.save(doc)
 
-        claim1 = create_claim(
+        claim1 = await create_claim(
             ClaimCreateRequest(
                 text="First claim",
                 source_document_id=doc.id,
             ),
             db,
         )
-        claim2 = create_claim(
+        claim2 = await create_claim(
             ClaimCreateRequest(
                 text="Second claim",
                 source_document_id=doc.id,
@@ -403,7 +403,7 @@ class TestClaimLinksRoutes:
             evidence="Both claims agree",
         )
 
-        link = create_claim_link(claim1.id, request, db)
+        link = await create_claim_link(claim1.id, request, db)
 
         assert link.claim_id == claim1.id
         assert link.related_claim_id == claim2.id
@@ -411,12 +411,12 @@ class TestClaimLinksRoutes:
         assert link.link_quality == 0.8
         assert link.evidence == "Both claims agree"
 
-    def test_create_link_missing_claim(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_create_link_missing_claim(self, tmp_path):
         """POST /claims/{id}/links returns 404 for missing claim."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         request = ClaimLinkCreateRequest(
@@ -425,40 +425,40 @@ class TestClaimLinksRoutes:
         )
 
         with pytest.raises(HTTPException) as exc:
-            create_claim_link("nonexistent-claim", request, db)
+            await create_claim_link("nonexistent-claim", request, db)
         assert exc.value.status_code == 404
 
-    def test_list_claim_links(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_list_claim_links(self, tmp_path):
         """GET /claims/{id}/links returns all related links."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         # Create source and claims
         doc = Document(
-            title="Test Source",
-            file_path="/path/to/source.pdf",
-            document_type="source",
+            name="Test Source",
+            path="/path/to/source.pdf",
+            doc_type="file",
         )
         db.save(doc)
 
-        claim1 = create_claim(
+        claim1 = await create_claim(
             ClaimCreateRequest(
                 text="First claim",
                 source_document_id=doc.id,
             ),
             db,
         )
-        claim2 = create_claim(
+        claim2 = await create_claim(
             ClaimCreateRequest(
                 text="Second claim",
                 source_document_id=doc.id,
             ),
             db,
         )
-        claim3 = create_claim(
+        claim3 = await create_claim(
             ClaimCreateRequest(
                 text="Third claim",
                 source_document_id=doc.id,
@@ -467,7 +467,7 @@ class TestClaimLinksRoutes:
         )
 
         # Create links
-        create_claim_link(
+        await create_claim_link(
             claim1.id,
             ClaimLinkCreateRequest(
                 related_claim_id=claim2.id,
@@ -475,7 +475,7 @@ class TestClaimLinksRoutes:
             ),
             db,
         )
-        create_claim_link(
+        await create_claim_link(
             claim3.id,
             ClaimLinkCreateRequest(
                 related_claim_id=claim1.id,
@@ -484,33 +484,33 @@ class TestClaimLinksRoutes:
             db,
         )
 
-        links = list_claim_links(claim1.id, db)
+        links = await list_claim_links(claim1.id, db)
         assert len(links) == 2  # Both outgoing and incoming
 
-    def test_update_claim_link(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_update_claim_link(self, tmp_path):
         """PATCH /claim-links/{id} updates link."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         # Create source and claims
         doc = Document(
-            title="Test Source",
-            file_path="/path/to/source.pdf",
-            document_type="source",
+            name="Test Source",
+            path="/path/to/source.pdf",
+            doc_type="file",
         )
         db.save(doc)
 
-        claim1 = create_claim(
+        claim1 = await create_claim(
             ClaimCreateRequest(
                 text="First claim",
                 source_document_id=doc.id,
             ),
             db,
         )
-        claim2 = create_claim(
+        claim2 = await create_claim(
             ClaimCreateRequest(
                 text="Second claim",
                 source_document_id=doc.id,
@@ -518,7 +518,7 @@ class TestClaimLinksRoutes:
             db,
         )
 
-        link = create_claim_link(
+        link = await create_claim_link(
             claim1.id,
             ClaimLinkCreateRequest(
                 related_claim_id=claim2.id,
@@ -532,35 +532,35 @@ class TestClaimLinksRoutes:
             link_quality=0.9,
             evidence="Stronger evidence found",
         )
-        updated = update_claim_link(link.id, update, db)
+        updated = await update_claim_link(link.id, update, db)
 
         assert updated.link_quality == 0.9
         assert updated.evidence == "Stronger evidence found"
 
-    def test_delete_claim_link(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_delete_claim_link(self, tmp_path):
         """DELETE /claim-links/{id} removes link."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         # Create source and claims
         doc = Document(
-            title="Test Source",
-            file_path="/path/to/source.pdf",
-            document_type="source",
+            name="Test Source",
+            path="/path/to/source.pdf",
+            doc_type="file",
         )
         db.save(doc)
 
-        claim1 = create_claim(
+        claim1 = await create_claim(
             ClaimCreateRequest(
                 text="First claim",
                 source_document_id=doc.id,
             ),
             db,
         )
-        claim2 = create_claim(
+        claim2 = await create_claim(
             ClaimCreateRequest(
                 text="Second claim",
                 source_document_id=doc.id,
@@ -568,7 +568,7 @@ class TestClaimLinksRoutes:
             db,
         )
 
-        link = create_claim_link(
+        link = await create_claim_link(
             claim1.id,
             ClaimLinkCreateRequest(
                 related_claim_id=claim2.id,
@@ -577,7 +577,7 @@ class TestClaimLinksRoutes:
             db,
         )
 
-        result = delete_claim_link(link.id, db)
+        result = await delete_claim_link(link.id, db)
         assert result["success"] is True
         assert result["link_id"] == link.id
 
@@ -585,24 +585,24 @@ class TestClaimLinksRoutes:
 class TestReferentialIntegrity:
     """Test referential integrity across entities, claims, and links."""
 
-    def test_claim_references_valid_entities(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_claim_references_valid_entities(self, tmp_path):
         """Claims can only reference existing entities."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         doc = Document(
-            title="Test Source",
-            file_path="/path/to/source.pdf",
-            document_type="source",
+            name="Test Source",
+            path="/path/to/source.pdf",
+            doc_type="file",
         )
         db.save(doc)
 
         # Should fail with invalid entity
         with pytest.raises(HTTPException) as exc:
-            create_claim(
+            await create_claim(
                 ClaimCreateRequest(
                     text="Claim with bad entity",
                     source_document_id=doc.id,
@@ -612,17 +612,17 @@ class TestReferentialIntegrity:
             )
         assert exc.value.status_code == 404
 
-    def test_claim_link_references_valid_claims(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_claim_link_references_valid_claims(self, tmp_path):
         """Claim links can only reference existing claims."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         # Should fail with invalid claim IDs
         with pytest.raises(HTTPException) as exc:
-            create_claim_link(
+            await create_claim_link(
                 "nonexistent",
                 ClaimLinkCreateRequest(
                     related_claim_id="also-nonexistent",
@@ -636,12 +636,12 @@ class TestReferentialIntegrity:
 class TestCanonicalAPIContract:
     """Verify canonical API contract - no business logic divergence."""
 
-    def test_entity_api_matches_model(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_entity_api_matches_model(self, tmp_path):
         """Entity API fields match KnowledgeEntity model."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         # Create entity via API
@@ -653,7 +653,7 @@ class TestCanonicalAPIContract:
             description="Test description",
             metadata={"key": "value"},
         )
-        entity = upsert_entity(request, db)
+        entity = await upsert_entity(request, db)
 
         # Verify all fields persisted correctly
         assert entity.canonical_name == "API Entity"
@@ -663,18 +663,18 @@ class TestCanonicalAPIContract:
         assert entity.description == "Test description"
         assert entity.metadata == {"key": "value"}
 
-    def test_claim_api_matches_model(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_claim_api_matches_model(self, tmp_path):
         """Claim API fields match KnowledgeClaim model."""
         from fichero.db import Database
 
         db_path = tmp_path / "test.fichero"
-        db_path.mkdir(exist_ok=True)
         db = Database(str(db_path))
 
         doc = Document(
-            title="Test Source",
-            file_path="/path/to/source.pdf",
-            document_type="source",
+            name="Test Source",
+            path="/path/to/source.pdf",
+            doc_type="file",
         )
         db.save(doc)
 
@@ -687,7 +687,7 @@ class TestCanonicalAPIContract:
             curation_state=ClaimCurationState.unreviewed,
             metadata={"source": "test"},
         )
-        claim = create_claim(request, db)
+        claim = await create_claim(request, db)
 
         # Verify all fields persisted
         assert claim.text == "API claim text"

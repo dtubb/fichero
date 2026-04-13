@@ -7,7 +7,7 @@ providing a clean separation from the broader knowledge graph functionality.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -202,17 +202,17 @@ def _normalize_text(value: str | None) -> str:
 
 @router.get("", response_model=list[KnowledgeClaim])
 async def list_claims(
-    q: str | None = Query(default=None),
-    entity_id: str | None = Query(default=None),
-    curated_only: bool = Query(default=False),
-    curation_state: ClaimCurationState | None = Query(default=None),
-    claim_type: ClaimType | None = Query(default=None),
-    epistemic_status: EpistemicStatus | None = Query(default=None),
-    source_document_id: str | None = Query(default=None),
-    source_language: str | None = Query(default=None),
-    source_type: SourceType | None = Query(default=None),
-    limit: int = Query(default=200, ge=1, le=1000),
-    offset: int = Query(default=0, ge=0),
+    q: Annotated[str | None, Query()] = None,
+    entity_id: Annotated[str | None, Query()] = None,
+    curated_only: Annotated[bool, Query()] = False,
+    curation_state: Annotated[ClaimCurationState | None, Query()] = None,
+    claim_type: Annotated[ClaimType | None, Query()] = None,
+    epistemic_status: Annotated[EpistemicStatus | None, Query()] = None,
+    source_document_id: Annotated[str | None, Query()] = None,
+    source_language: Annotated[str | None, Query()] = None,
+    source_type: Annotated[SourceType | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 200,
+    offset: Annotated[int, Query(ge=0)] = 0,
     db: Database = Depends(get_library_database),
 ) -> list[KnowledgeClaim]:
     """List knowledge claims with optional filtering."""
