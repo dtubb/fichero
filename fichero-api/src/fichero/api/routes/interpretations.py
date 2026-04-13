@@ -430,7 +430,7 @@ async def delete_interpretation(
             detail=f"Interpretation not found: {interpretation_id}",
         )
 
-    db.delete(Interpretation, interpretation_id)
+    db.delete(interpretation)
 
     return {"deleted": True, "id": interpretation_id}
 

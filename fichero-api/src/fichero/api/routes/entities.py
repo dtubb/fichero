@@ -199,39 +199,9 @@ async def list_entities(
     return entities[:limit]
 
 
-@router.get("/{entity_id}", response_model=KnowledgeEntity)
-async def get_entity(
-    entity_id: str,
-    db: Database = Depends(get_library_database),
-) -> KnowledgeEntity:
-    """Get a knowledge entity by ID."""
-    entity = db.get(KnowledgeEntity, entity_id)
-    if entity is None:
-        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
-    return entity
-
-
 # =============================================================================
 # Entity Alias Management
 # =============================================================================
-
-
-@router.post("/{entity_id}/aliases", response_model=KnowledgeEntity)
-async def add_entity_aliases(
-    entity_id: str,
-    request: EntityAliasRequest,
-    db: Database = Depends(get_library_database),
-) -> KnowledgeEntity:
-    """Add aliases to an existing entity."""
-    entity = db.get(KnowledgeEntity, entity_id)
-    if entity is None:
-        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
-    merged = set(entity.aliases)
-    merged.update(a.strip() for a in request.aliases if a.strip())
-    entity.aliases = sorted(merged)
-    entity.updated_at = datetime.now()
-    db.save(entity)
-    return entity
 
 
 @router.get("/alias-map", response_model=EntityAliasMapResponse)
@@ -302,3 +272,33 @@ async def resolve_entity(
                 else "alias",
             )
     return EntityResolutionResponse(resolved=False, value=value, match_type=None)
+
+
+@router.get("/{entity_id}", response_model=KnowledgeEntity)
+async def get_entity(
+    entity_id: str,
+    db: Database = Depends(get_library_database),
+) -> KnowledgeEntity:
+    """Get a knowledge entity by ID."""
+    entity = db.get(KnowledgeEntity, entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+    return entity
+
+
+@router.post("/{entity_id}/aliases", response_model=KnowledgeEntity)
+async def add_entity_aliases(
+    entity_id: str,
+    request: EntityAliasRequest,
+    db: Database = Depends(get_library_database),
+) -> KnowledgeEntity:
+    """Add aliases to an existing entity."""
+    entity = db.get(KnowledgeEntity, entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+    merged = set(entity.aliases)
+    merged.update(a.strip() for a in request.aliases if a.strip())
+    entity.aliases = sorted(merged)
+    entity.updated_at = datetime.now()
+    db.save(entity)
+    return entity

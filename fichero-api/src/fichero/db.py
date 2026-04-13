@@ -100,6 +100,7 @@ class Database:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
         self.conn = duckdb.connect(str(path))
+        self.duck = self.conn  # Alias used by ActionStore and other direct SQL callers
         self._lance_path = path.parent / "vectors"
         self._lance_db = None  # Lazy init
         self._embedder = None  # Lazy init

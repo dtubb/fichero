@@ -45,6 +45,61 @@ class ArtifactListResponse(BaseModel):
 # Routes
 
 
+@router.get("/")
+async def list_all_artifacts(
+    artifact_type: Optional[str] = Query(None, description="Filter by artifact type"),
+    limit: int = Query(100, ge=1, le=500, description="Max results"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    db: Database = Depends(get_library_database),
+) -> ArtifactListResponse:
+    """List all artifacts in the library.
+
+    Returns artifacts sorted by creation date (newest first).
+    """
+    query_kwargs = {}
+    if artifact_type:
+        query_kwargs["artifact_type"] = artifact_type
+
+    artifacts = (
+        db.query(Artifact, **query_kwargs) if query_kwargs else db.query(Artifact)
+    )
+    artifacts.sort(key=lambda a: a.created_at, reverse=True)
+
+    total = len(artifacts)
+    artifacts = artifacts[offset : offset + limit]
+
+    response_artifacts = [
+        ArtifactResponse(
+            id=a.id,
+            document_id=a.document_id,
+            artifact_type=a.artifact_type,
+            content=a.content,
+            data=a.data,
+            version=a.version,
+            provider=a.provider,
+            model=a.model,
+            confidence=a.confidence,
+            reviewed=a.reviewed,
+            created_at=a.created_at.isoformat() if a.created_at else "",
+        )
+        for a in artifacts
+    ]
+    return ArtifactListResponse(artifacts=response_artifacts, total=total)
+
+
+@router.get("/types")
+async def list_artifact_types(
+    db: Database = Depends(get_library_database),
+) -> list[str]:
+    """List all artifact types in the library.
+
+    Useful for filtering UI.
+    """
+    artifacts = db.query(Artifact)
+    types = set(a.artifact_type for a in artifacts if a.artifact_type)
+    return sorted(types)
+
+
 @router.get("/document/{doc_id}")
 async def list_document_artifacts(
     doc_id: str,
@@ -125,68 +180,6 @@ async def get_artifact(
     )
 
 
-@router.get("/")
-async def list_all_artifacts(
-    artifact_type: Optional[str] = Query(None, description="Filter by artifact type"),
-    limit: int = Query(100, ge=1, le=500, description="Max results"),
-    offset: int = Query(0, ge=0, description="Offset for pagination"),
-    db: Database = Depends(get_library_database),
-) -> ArtifactListResponse:
-    """List all artifacts in the library.
-
-    Returns artifacts sorted by creation date (newest first).
-    """
-    # Build query kwargs
-    query_kwargs = {}
-    if artifact_type:
-        query_kwargs["artifact_type"] = artifact_type
-
-    # Query artifacts
-    artifacts = (
-        db.query(Artifact, **query_kwargs) if query_kwargs else db.query(Artifact)
-    )
-
-    # Sort by created_at descending
-    artifacts.sort(key=lambda a: a.created_at, reverse=True)
-
-    # Apply pagination
-    total = len(artifacts)
-    artifacts = artifacts[offset : offset + limit]
-
-    # Convert to response format
-    response_artifacts = [
-        ArtifactResponse(
-            id=a.id,
-            document_id=a.document_id,
-            artifact_type=a.artifact_type,
-            content=a.content,
-            data=a.data,
-            version=a.version,
-            provider=a.provider,
-            model=a.model,
-            confidence=a.confidence,
-            reviewed=a.reviewed,
-            created_at=a.created_at.isoformat() if a.created_at else "",
-        )
-        for a in artifacts
-    ]
-
-    return ArtifactListResponse(artifacts=response_artifacts, total=total)
-
-
-@router.get("/types")
-async def list_artifact_types(
-    db: Database = Depends(get_library_database),
-) -> list[str]:
-    """List all artifact types in the library.
-
-    Useful for filtering UI.
-    """
-    artifacts = db.query(Artifact)
-    types = set(a.artifact_type for a in artifacts if a.artifact_type)
-    return sorted(types)
-
-
 @router.delete("/{artifact_id}", status_code=204)
 async def delete_artifact(
     artifact_id: str,
@@ -199,5 +192,5 @@ async def delete_artifact(
             status_code=404, detail=f"Artifact not found: {artifact_id}"
         )
 
-    db.delete(Artifact, artifact_id)
+    db.delete(artifact)
     logger.info(f"Deleted artifact {artifact_id}")
