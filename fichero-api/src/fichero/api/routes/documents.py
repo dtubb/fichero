@@ -5,25 +5,26 @@ CRUD operations for Document model.
 """
 
 import logging
+from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, UploadFile, Depends
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
+from pydantic import BaseModel, ConfigDict
 
+from fichero.api.main import get_library_database
 from fichero.db import Database
-from fichero.models import Document, DocType, FileType, Status, Artifact
+from fichero.models import Artifact, DocType, Document, FileType, Status
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# Import the get_library_database dependency
-from fichero.api.main import get_library_database  # noqa: E402
-
-
 # Request/Response models
 class DocumentCreate(BaseModel):
     """Request model for creating a document."""
+
+    model_config = ConfigDict(extra="allow")
 
     name: str
     parent_id: Optional[str] = None
@@ -33,11 +34,11 @@ class DocumentCreate(BaseModel):
     page_content: Optional[str] = None
     metadata: dict = {}
 
-    model_config = {"extra": "allow"}
-
 
 class DocumentUpdate(BaseModel):
     """Request model for updating a document."""
+
+    model_config = ConfigDict(extra="allow")
 
     name: Optional[str] = None
     parent_id: Optional[str] = None
@@ -47,8 +48,6 @@ class DocumentUpdate(BaseModel):
     page_content: Optional[str] = None
     status: Optional[Status] = None
     metadata: Optional[dict] = None
-
-    model_config = {"extra": "allow"}
 
 
 # Routes
@@ -216,8 +215,6 @@ async def update_document(
         setattr(doc, field, value)
 
     # Update timestamp
-    from datetime import datetime
-
     doc.updated_at = datetime.now()
 
     db.save(doc)
@@ -292,7 +289,6 @@ async def import_file(
     db: Database = Depends(get_library_database),
 ) -> Document:
     """Import a file and create a document."""
-    from pathlib import Path
     from fichero.ingest import ingest_file, IngestMode
     from fichero.storage import save_uploaded_file
 
@@ -331,9 +327,9 @@ async def import_file(
 class MoveRequest(BaseModel):
     """Request model for moving a document."""
 
-    parent_id: Optional[str] = None
+    model_config = ConfigDict(extra="allow")
 
-    model_config = {"extra": "allow"}
+    parent_id: Optional[str] = None
 
 
 @router.put("/{doc_id}/move")
@@ -362,8 +358,6 @@ async def move_document(
     doc.parent_id = parent_id
 
     # Update timestamp
-    from datetime import datetime
-
     doc.updated_at = datetime.now()
 
     db.save(doc)
