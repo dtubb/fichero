@@ -22,6 +22,8 @@ from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.executors.asyncio import AsyncIOExecutor
 
 from fichero.db import Database
+from fichero.knowledge_models import KnowledgeClaim, KnowledgeClaimLink, KnowledgeEntity
+from fichero.models import Artifact, Document
 
 logger = logging.getLogger(__name__)
 
@@ -455,7 +457,7 @@ class TaskQueue:
             )
 
         # Get documents to reindex
-        from fichero.models import Document
+
 
         docs = await asyncio.to_thread(self.database.all, Document)
         total = len(docs)
@@ -512,7 +514,7 @@ class TaskQueue:
         task.progress.percent = 20.0
         await self._save_task(task)
 
-        from fichero.models import Document
+
 
         docs = await asyncio.to_thread(self.database.all, Document)
         doc_count = len(docs)
@@ -583,7 +585,7 @@ class TaskQueue:
         task.progress.message = "Repairing database inconsistencies..."
         await self._save_task(task)
 
-        from fichero.models import Document, Artifact
+
 
         repaired = {"embeddings": 0, "artifacts": 0, "docs": 0}
 
@@ -660,7 +662,7 @@ class TaskQueue:
         task.progress.message = "Repairing vector index..."
         await self._save_task(task)
 
-        from fichero.models import Document
+
 
         repaired = {"added": 0, "removed": 0, "checked": 0}
 
@@ -739,11 +741,7 @@ class TaskQueue:
         task.progress.message = "Computing knowledge graph metrics..."
         await self._save_task(task)
 
-        from fichero.knowledge_models import (
-            KnowledgeClaim,
-            KnowledgeEntity,
-            KnowledgeClaimLink,
-        )
+
 
         # Step 1: Entity metrics
         task.progress.current = 1

@@ -29,7 +29,9 @@ from fichero.api.main import get_library_database
 from fichero.models import Workflow
 from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
 from fichero.workflows.workflow_store import WorkflowStore
-from fichero.workflows.builder import SystemicErrorDetected
+from fichero.workflows.builder import SystemicErrorDetected, build_graph
+from fichero.workflows.cache import get_node_cache
+from fichero.workflows.types import EdgeDef, NodeDef, WorkflowDef
 from fichero.workflows.activity import get_activity_tracker
 from fichero.workflows.runtime import (
     build_initial_state,
@@ -264,7 +266,7 @@ async def _run_workflow_in_background(
         )
 
         # Build workflow using the shared runtime conversion path.
-        from fichero.workflows.builder import build_graph
+
 
         workflow_def = to_workflow_def(workflow)
 
@@ -1580,7 +1582,7 @@ async def get_workflow_visualization(
             )
 
         # Build graph (without checkpointer for visualization)
-        from fichero.workflows.builder import build_graph
+
 
         workflow_def = to_workflow_def(workflow)
 
@@ -1634,7 +1636,7 @@ async def get_workflow_visualization_png(
             )
 
         # Build graph
-        from fichero.workflows.builder import build_graph
+
 
         workflow_def = to_workflow_def(workflow)
 
@@ -1924,7 +1926,7 @@ async def get_workflow_cache_stats(
         Cache statistics
     """
     try:
-        from fichero.workflows.cache import get_node_cache
+
 
         cache = get_node_cache(db.path)
         stats = cache.get_stats(workflow_id=workflow_id)
@@ -1953,7 +1955,7 @@ async def clear_workflow_cache(
         Number of entries deleted
     """
     try:
-        from fichero.workflows.cache import get_node_cache
+
 
         cache = get_node_cache(db.path)
         count = cache.clear_workflow(workflow_id)
@@ -1981,7 +1983,7 @@ async def clear_all_cache(
         Number of entries deleted
     """
     try:
-        from fichero.workflows.cache import get_node_cache
+
 
         cache = get_node_cache(db.path)
         count = cache.clear_all()
@@ -2097,8 +2099,8 @@ async def get_thread_diagram_png(
         500: Failed to generate diagram
     """
     try:
-        from fichero.workflows.builder import build_graph
-        from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
+
+
 
         activity_tracker = get_activity_tracker(str(db.path))
         run = await activity_tracker.store.get_workflow_run(thread_id)
@@ -2174,7 +2176,7 @@ async def get_all_cache_stats(
         Cache statistics
     """
     try:
-        from fichero.workflows.cache import get_node_cache
+
 
         cache = get_node_cache(db.path)
         stats = cache.get_stats()
