@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
+from fichero.models import DocType, Document
 from fichero.research_models import (
     BrowserNavigateRequest,
     BrowserNavigateResponse,
@@ -956,8 +957,6 @@ async def execute_document_fetch(
     is_safe, error_msg = _is_safe_url(request.url)
     if not is_safe:
         raise HTTPException(status_code=400, detail=f"URL not allowed: {error_msg}")
-
-    from fichero.models import Document, DocType
 
     try:
         async with httpx.AsyncClient(

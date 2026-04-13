@@ -180,8 +180,6 @@ async def get_related_claims(
     db: Database = Depends(get_library_database),
 ) -> list[KnowledgeClaim]:
     """Get all claims related to a given claim."""
-    from fichero.knowledge_models import KnowledgeClaim
-
     # Validate source claim exists
     claim = db.get(KnowledgeClaim, claim_id)
     if claim is None:

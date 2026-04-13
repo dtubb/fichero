@@ -12,6 +12,7 @@ Routes require the X-Fichero-Library-Path header.
 
 import json
 import logging
+from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
@@ -27,8 +28,8 @@ from fastapi import (
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from fichero.db import Database
 from fichero.api.main import get_library_database
+from fichero.db import Database, db_manager
 from fichero.workflows.activity import (
     Activity,
     ActivityFilter,
@@ -302,8 +303,6 @@ async def websocket_activity_stream(
     await websocket.accept()
 
     # Get database for library
-    from fichero.db import db_manager
-
     db = db_manager.get_database(x_fichero_library_path)
     tracker = get_activity_tracker(str(db.path))
     sub_id = tracker.subscribe()
@@ -650,8 +649,6 @@ async def get_activity_trends(
     activities = await tracker.query(filter)
 
     # Group by time buckets
-    from collections import defaultdict
-
     buckets: dict[str, dict] = defaultdict(
         lambda: {"count": 0, "error_count": 0, "workflow_count": 0, "batch_count": 0}
     )

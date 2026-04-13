@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from fichero.db import Database
 from fichero.app_db import get_app_db, AppDatabase
 from fichero.api.main import get_library_database
-from fichero.models import Provider, Model, ProviderType
+from fichero.models import Model, Provider, ProviderRef, ProviderType
 from fichero.providers import (
     get_provider_info,
     list_providers as list_catalog_providers,
@@ -724,7 +724,7 @@ async def list_library_provider_refs(
 
     Returns references with full provider details from app database.
     """
-    from fichero.models import ProviderRef
+
 
     # Get all provider refs from library database
     refs = db.query(ProviderRef)
@@ -757,7 +757,7 @@ async def add_provider_ref(
     app_db: AppDatabase = Depends(get_app_database),
 ) -> ProviderRefResponse:
     """Add a provider reference to this library."""
-    from fichero.models import ProviderRef
+
 
     # Verify provider exists in app database
     provider = app_db.get_provider(request.provider_id)
@@ -799,7 +799,7 @@ async def update_provider_ref(
     app_db: AppDatabase = Depends(get_app_database),
 ) -> ProviderRefResponse:
     """Update a provider reference."""
-    from fichero.models import ProviderRef
+
 
     # Get existing reference
     ref = db.get(ProviderRef, ref_id)
@@ -838,7 +838,7 @@ async def delete_provider_ref(
     db: Database = Depends(get_library_database),
 ):
     """Remove a provider reference from this library."""
-    from fichero.models import ProviderRef
+
 
     ref = db.get(ProviderRef, ref_id)
     if not ref:

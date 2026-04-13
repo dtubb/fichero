@@ -9,8 +9,10 @@ Endpoints for:
 from __future__ import annotations
 
 import logging
+from collections import deque
 from datetime import datetime
 from enum import Enum
+from heapq import heappop, heappush
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -280,8 +282,6 @@ def _bfs_shortest_path(
     max_depth: int = 4,
 ) -> list[list[str]] | None:
     """Find shortest path(s) using BFS."""
-    from collections import deque
-
     if start_id == target_id:
         return [[start_id]]
 
@@ -349,8 +349,6 @@ def _find_strongest_path(
         adjacency[link.related_claim_id].append((link.claim_id, weight, link.id))
 
     # Dijkstra-like search for strongest path
-    from heapq import heappush, heappop
-
     # Priority queue: (-path_strength, current_id, path)
     pq = [(-1.0, start_id, [start_id])]
     visited: set[str] = set()
@@ -632,7 +630,6 @@ async def explore_interpretations(
     # Framework nodes
     framework_nodes: list[InterpretationNode] = []
     if include_frameworks:
-        from fichero.hermeneutics_models import InterpretiveFramework
         all_frameworks = db.all(InterpretiveFramework)
         used_framework_ids = {i.framework_id for i in related_interps}
         framework_nodes = [
@@ -700,8 +697,6 @@ async def execute_graph_query(
     # If end entity specified, find paths
     if request.end_entity_id:
         # Use existing pathfinding
-        from collections import deque
-
         # Build adjacency
         adjacency: dict[str, list[tuple[str, float]]] = {}
         for link in filtered_links:

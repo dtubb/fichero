@@ -391,9 +391,7 @@ async def undo_mutations(
         for key, value in before.items():
             if key not in ("id", "created_at"):
                 setattr(entity, key, value)
-        from datetime import datetime as dt
-
-        entity.updated_at = dt.now()
+        entity.updated_at = datetime.now()
         db.save(entity)
 
         # Create reversal log entry
@@ -413,7 +411,7 @@ async def undo_mutations(
             agent_id=log.agent_id,
             created_by=log.created_by,
             reversal_id=log.id,
-            created_at=dt.now(),
+            created_at=datetime.now(),
         )
         db.save(reverse)
 

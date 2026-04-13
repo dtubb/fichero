@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections import Counter
 from datetime import datetime
 from enum import Enum
 from typing import Any
@@ -406,8 +407,6 @@ async def get_search_metrics(
     # Estimate top sources (most frequently referenced)
     top_sources = []
     if claims:
-        from collections import Counter
-
         doc_refs = Counter(
             c.source_document_id for c in claims if c.source_document_id
         )

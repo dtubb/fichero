@@ -8,6 +8,7 @@ Provides REST endpoints for:
 """
 
 import logging
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from fastapi import APIRouter, Header, HTTPException, Query
@@ -702,8 +703,6 @@ async def get_task_system_health(
         )
 
     # Get task counts by status
-    from datetime import datetime, timedelta
-
     all_tasks = await queue.list_tasks(limit=1000)
 
     pending_count = sum(1 for t in all_tasks if t.status == TaskStatus.PENDING)

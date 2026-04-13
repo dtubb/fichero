@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -343,7 +344,6 @@ async def store_prediction(
     """Store a prediction for later verification."""
     inference = get_inference()
 
-    from datetime import datetime, timezone
 
     prediction = StoredPrediction(
         prediction_id=request.prediction_id or f"pred_{uuid.uuid4().hex[:12]}",
