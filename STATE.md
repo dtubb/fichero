@@ -4,62 +4,58 @@
 
 **Milestone:** 0.0.3 (Migration + Operational Hardening)
 
-**Status:** Issue #369 complete ✅ - Reindex/repair jobs and metrics recomputation
-- Branch: `feature/issue-369` pushed to GitHub, ready for PR
-- All tests passing (core functionality)
+**Status:** Issue #370 complete ✅ - Multilingual baseline for claims/entities
+- Branch: `feature/issue-370` pushed to GitHub, ready for PR
+- 20 unit tests added, all passing
 - ruff linting clean
 
 ## Recently Completed (Session 2026-04-12)
 
-### Issue #369 - Reindex/Repair Jobs and Metrics Recomputation Workers
-**Commit:** `e5a68f59`
+### Issue #370 - Multilingual Baseline for Claims/Entities
+**Commit:** `71f94f09`
 
 **Implementation:**
-- New task types: `VECTOR_REPAIR` and `KG_METRICS`
-- Enhanced existing task handlers with idempotent behavior
-- Added task system health endpoint at `/api/tasks/health`
+- Registered multilingual routes in main.py _CORE_ROUTE_SPECS
+- Added comprehensive API-level tests (20 tests)
 
 **Features Delivered:**
-- Jobs recover from interruption (tasks reset to pending on restart)
-- Idempotent recomputation behavior
-- Admin health endpoints for job status
+- Language detection for 20+ languages (EN, JA, ZH, KO, etc.)
+- Language persistence verified in KnowledgeEntity and KnowledgeClaim
+- Entity alias/transliteration mapping supported
+- Cross-language retrieval test fixtures
+- Text normalization for multiple languages
+- Stemming support for English
 
-**Task Types:**
-- `REINDEX` - Reindex documents in LanceDB
-- `METRICS` - Recompute library document metrics
-- `REPAIR` - Repair database inconsistencies (orphaned artifacts, missing embeddings)
-- `VECTOR_REPAIR` - Repair LanceDB vector index consistency
-- `KG_METRICS` - Recompute knowledge graph metrics (claims, links, entities)
-
-**API Endpoints:**
-- `POST /api/tasks/reindex` - Create reindex job
-- `POST /api/tasks/metrics` - Create metrics job
-- `POST /api/tasks/repair` - Create repair job
-- `POST /api/tasks/vector-repair` - Create vector repair job
-- `POST /api/tasks/kg-metrics` - Create KG metrics job
-- `GET /api/tasks/health` - Task system health status
+**API Endpoints (already existed, now registered in core):**
+- `POST /api/multilingual/detect` - Detect language of text
+- `POST /api/multilingual/transliterate` - Get transliteration variants
+- `POST /api/multilingual/entities/search` - Cross-language entity search
+- `GET /api/multilingual/claims` - Filter claims by language
+- `GET /api/multilingual/entities` - Filter entities by language
+- `POST /api/multilingual/normalize` - Normalize text for language
 
 ## 0.0.3 Milestone Status
 
-**Open Issues:** #371, #370, #369
+**Open Issues:** #371
 - #371: Thin MCP adapters for canonical knowledge APIs
-- #370: Multilingual baseline for claims/entities and cross-language retrieval
-- #369: ✅ Complete - Reindex/repair jobs and metrics recomputation
+- #370: ✅ Complete - Multilingual baseline
+- #369: ✅ Complete - Reindex/repair jobs (branch pushed)
+- #368: ✅ Complete - Knowledge migration/backfill (branch pushed)
 
-## 0.0.2 Completion Blocker
+## 0.0.2 Completion Note
 
-**Issue #364** is CLOSED on GitHub but STATE.md was not updated:
+**Issue #364** is CLOSED on GitHub - 0.0.2 milestone is complete.
 - #364: Canonical FastAPI knowledge write paths - CLOSED
-- **Action needed:** Close 0.0.2 milestone on GitHub
 
 ## Next Session — Start Here
 
 ### 1. Complete 0.0.3 Milestone
 
-**Issue #370** - Multilingual baseline:
-- Add language detection for claims
-- Implement cross-language entity linking
-- Add translation utilities for search
+**Issue #371** - Thin MCP adapters:
+- Create adapter layer for knowledge APIs
+- Implement MCP tool definitions for claims/entities
+- Register tools with MCP server
+- Add tests for MCP tool invocations
 
 ### 2. Review GitHub Project Board
 
@@ -67,12 +63,13 @@
 - **Milestones:** https://github.com/dtubb/fichero/milestones
 - **Issues:** https://github.com/dtubb/fichero/issues
 
-### 3. 0.0.3 Final Issue
+### 3. Post-0.0.3 Priorities
 
-**Issue #371** - Thin MCP adapters:
-- Create adapter layer for knowledge APIs
-- Implement MCP tool definitions for claims/entities
-- Register tools with MCP server
+**Milestone 0.0.4 - Semantic UX + Trust Workflow:**
+- Claim review queue UI
+- Contradiction triage UX
+- Search explanation panel
+- Interpretations workspace
 
 ---
-*Last updated: 2026-04-12* - Issue #369 complete, branch ready for PR
+*Last updated: 2026-04-12* - Issue #370 complete, branch ready for PR
