@@ -195,6 +195,21 @@ for link in links:
 - `scripts/start-backend.sh` must prefer project-local `.venv` over ambient `$VIRTUAL_ENV`; otherwise cross-worktree imports can produce route drift (e.g., OpenAPI/routes mismatch and 404 confusion).
 - When route appears in code but not runtime, verify importing file path with `python -c 'import fichero.api.main as m; print(m.__file__)'` and inspect live `/openapi.json` before deeper refactors.
 
+## Cherry-Pick Conflict Patterns — 2026-04-13
+
+**When cherry-picking onto an evolved branch, these patterns recur:**
+
+- **research_agents.py + research_models.py must stay in sync**: If you take `--ours` on `research_agents.py` (to keep SSRF security hardening), you must also restore `research_models.py` and the test file to match. The two files form a coherent set — mixed versions break imports.
+- **project.pbxproj file references**: Cherry-pick may try to add references to files that don't exist in HEAD (e.g., `BatchDetailView.swift`, `BatchRow.swift`). Always check with `find` before accepting `--theirs` on project.pbxproj; take `--ours` if referenced files don't exist.
+- **`@SceneStorage` vs `@AppStorage` for view state**: Bug fix #330 deliberately changed `iconViewScale` from `@SceneStorage` (per-window) to `@AppStorage` (app-wide persistent). When this conflict appears, take `--theirs` — it's the intentional fix.
+- **Empty cherry-picks**: When a cherry-pick resolves as empty ("possibly due to conflict resolution"), use `git cherry-pick --skip` — HEAD already contains equivalent changes.
+
+## Branch Cleanup Lesson — 2026-04-13
+
+- After consolidation, verify branch count with `git branch -r` — only `origin/0.0.2` and `origin/main` should remain.
+- `git worktree remove --force` still fails if the directory has content git can't delete itself. Follow up with `git worktree prune && rm -rf <path>`.
+- `.kreuzberg/extraction/*.msgpack` binary files appear as modified during cherry-picks of branches that processed documents. Always resolve with `--theirs` — these are cache files.
+
 ## PyKEEN Knowledge Graph Embedding Pattern — 2026-04-12
 
 **Pattern:** Latent inference for knowledge graphs using PyKEEN embeddings and link prediction

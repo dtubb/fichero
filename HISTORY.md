@@ -452,3 +452,17 @@ ALL COMPLETE:
 ### Files Created/Modified
 - Created: fichero-api/tests/unit/test_mcp_knowledge_adapters.py (266 lines)
 
+
+## 2026-04-13 — Branch Consolidation Session
+
+- **Branch consolidation**: All feature branches merged/cherry-picked into `0.0.2`, 35 branches deleted from GitHub
+  - Merged 5 backend feature branches (364, 368, 369, 370, 371) via sequential 3-way merges
+  - Cherry-picked backend fixes: #420 (tasks router), #421 (multilingual KG normalization), #422 (MCP path fix to `/api/mcp/tools`)
+  - Cherry-picked #390 research agents refactor — kept HEAD's SSRF-hardened `research_agents.py`, restored `research_models.py` to match
+  - Cherry-picked 10 SwiftUI bug fixes from feature branches: connection error banner (#313), document viewer fix (#317), image centering (#322), folder grid (#327), icon scale fix (#330), connection error UI + library size column (#313/#314/#315)
+- **Key conflict resolutions:**
+  - `multilingual.router` must register at `/api` (not `/api/multilingual`) — router declares prefix internally
+  - `research_agents.py` kept HEAD's SSRF security hardening over cherry-pick's placeholder version
+  - `LibraryView.iconViewScale` changed from `@SceneStorage` to `@AppStorage` for bug fix #330
+- **GitHub cleanup:** Only `0.0.2` and `main` remain; worktree directory cleaned up
+- **Test state:** 1276 passing, 33 pre-existing failures (test_canonical_knowledge_routes ×20, test_background_tasks ×1, test_mcp_knowledge_adapters ×2)
