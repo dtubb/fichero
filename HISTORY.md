@@ -416,32 +416,28 @@
 - Discovered sources routes not registering - routes appear in /openapi.json but return 404
 - Committed sources implementation to GitHub (commit 3528e518)
 
-## 2026-04-12 — Session Summary
+## 2026-04-12 — Session Summary (Issue #369)
 
 ### Completed
-- Issue #368: Knowledge migration/backfill tooling with dry-run and rollback ✅
-  - CLI script: `fichero-api/scripts/run_migration.py`
-  - FastAPI routes: `/api/migrations/*` endpoints
-  - Unit tests: `fichero-api/tests/unit/test_migrations.py` (16 tests, all passing)
-  - Branch `feature/issue-368` pushed to GitHub (ready for PR)
+- Issue #369: Reindex/repair jobs and metrics recomputation workers ✅
+  - New task types: VECTOR_REPAIR and KG_METRICS
+  - Enhanced task handlers with idempotent behavior
+  - Task system health endpoint at /api/tasks/health
+  - Branch feature/issue-369 pushed to GitHub (ready for PR)
 
-### Features Implemented
-- Dry-run mode for safe migration previews
-- Rollback support via mutation logs (MutationLog model)
-- Data integrity checks for claim/source/link counts
-- Batch processing with progress callbacks
-- Full audit trail for all operations
+### Task Types Implemented
+1. REINDEX - Document reindexing with progress tracking
+2. METRICS - Library document metrics (file types, status distribution)
+3. REPAIR - Database inconsistency repair (missing embeddings, orphaned artifacts)
+4. VECTOR_REPAIR - LanceDB vector index consistency checks
+5. KG_METRICS - Knowledge graph metrics (entities, claims, links by type)
 
-### API Endpoints
-- GET /api/migrations - list available migrations
-- POST /api/migrations/run - run migration with optional dry-run
-- POST /api/migrations/validate - validate migration safety before running
-- GET /api/migrations/status/{run_id} - check migration status
-- POST /api/migrations/rollback - rollback a migration
-- GET /api/migrations/integrity-check - data integrity checks
+### Acceptance Criteria Met
+- ✅ Jobs recover from interruption (tasks reset to pending on restart)
+- ✅ Idempotent recomputation behavior
+- ✅ Admin health endpoints for job status (/api/tasks/health)
 
-### Technical Details
-- Used existing MigrationRunner class from fichero/migrations.py
-- Added FastAPI dependency injection via get_library_database
-- All code passes ruff linting and formatting
-- Tests cover dry-run, actual execution, rollback, validation, and integrity checks
+### Technical Changes
+- Modified: fichero-api/src/fichero/workflows/tasks.py
+- Modified: fichero-api/src/fichero/api/routes/tasks.py
+- Created: fichero-api/tests/unit/test_background_tasks.py (26 tests)

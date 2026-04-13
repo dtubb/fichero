@@ -31,9 +31,7 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 class CreateTaskRequest(BaseModel):
     """Request to create a background task."""
 
-    name: Optional[str] = Field(
-        None, description="Optional display name for the task"
-    )
+    name: Optional[str] = Field(None, description="Optional display name for the task")
     options: dict[str, Any] = Field(
         default_factory=dict, description="Task-specific options"
     )
@@ -93,9 +91,7 @@ class MetricsResponse(BaseModel):
     """Response for metrics recomputation."""
 
     document_count: int = Field(..., description="Total document count")
-    embedding_stats: dict[str, Any] = Field(
-        ..., description="Embedding statistics"
-    )
+    embedding_stats: dict[str, Any] = Field(..., description="Embedding statistics")
     file_types: dict[str, int] = Field(..., description="File type distribution")
     status_distribution: dict[str, int] = Field(
         ..., description="Document status distribution"
@@ -132,7 +128,9 @@ def _task_to_response(task: BackgroundTask) -> TaskResponse:
             message=task.result.message,
             details=task.result.details,
             error=task.result.error,
-        ) if task.result else None,
+        )
+        if task.result
+        else None,
         created_at=task.created_at.isoformat(),
         started_at=task.started_at.isoformat() if task.started_at else None,
         completed_at=task.completed_at.isoformat() if task.completed_at else None,
@@ -215,7 +213,8 @@ async def create_metrics_task(
 )
 async def list_tasks(
     status: Optional[str] = Query(
-        None, description="Filter by status (pending, running, completed, failed, cancelled)"
+        None,
+        description="Filter by status (pending, running, completed, failed, cancelled)",
     ),
     task_type: Optional[str] = Query(
         None, description="Filter by task type (reindex, metrics, repair)"
@@ -484,4 +483,256 @@ async def get_metrics_data(
         embedding_stats=details.get("embedding_stats", {}),
         file_types=details.get("file_types", {}),
         status_distribution=details.get("status_distribution", {}),
+    )
+
+
+# Additional Task Types (Issue #369)
+# =============================================================================
+
+
+class KGMetricsResponse(BaseModel):
+    """Response for knowledge graph metrics."""
+
+    entity_count: int = Field(..., description="Total number of entities")
+    entity_by_type: dict[str, int] = Field(..., description="Entities by type")
+    claim_count: int = Field(..., description="Total number of claims")
+    claims_by_status: dict[str, int] = Field(
+        ..., description="Claims by curation status"
+    )
+    claims_by_type: dict[str, int] = Field(..., description="Claims by claim type")
+    claims_with_sources: int = Field(..., description="Claims with source references")
+    link_count: int = Field(..., description="Total number of claim links")
+    links_by_relation: dict[str, int] = Field(..., description="Links by relation type")
+
+
+class VectorRepairResponse(BaseModel):
+    """Response for vector repair task."""
+
+    added: int = Field(..., description="Embeddings added")
+    removed: int = Field(..., description="Embeddings removed")
+    checked: int = Field(..., description="Documents checked")
+    document_count: int = Field(..., description="Total documents")
+    vector_count: int = Field(..., description="Total vectors in index")
+
+
+class TaskSystemHealthResponse(BaseModel):
+    """Health status for the task system."""
+
+    status: str = Field(..., description="System status: healthy, degraded, or down")
+    queue_running: bool = Field(..., description="Whether task queue is active")
+    pending_count: int = Field(..., description="Number of pending tasks")
+    running_count: int = Field(..., description="Number of running tasks")
+    completed_count: int = Field(
+        ..., description="Number of completed tasks in last 24h"
+    )
+    failed_count: int = Field(..., description="Number of failed tasks in last 24h")
+    supported_task_types: list[str] = Field(..., description="Supported task types")
+
+
+@router.post(
+    "/vector-repair",
+    response_model=TaskResponse,
+    summary="Create vector repair job",
+    description="Creates a background task to repair LanceDB vector index consistency.",
+)
+async def create_vector_repair_task(
+    request: CreateTaskRequest = None,
+    x_fichero_library_path: str = Header(..., description="Library path"),
+) -> TaskResponse:
+    """Create a vector repair task."""
+    queue = get_task_queue()
+    if not queue:
+        raise HTTPException(
+            status_code=503,
+            detail="Task queue not initialized",
+        )
+
+    name = request.name if request and request.name else "Repair Vector Index"
+    options = request.options if request else {}
+    priority = request.priority if request else 0
+
+    task = await queue.create_task(
+        task_type=TaskType.VECTOR_REPAIR,
+        name=name,
+        options=options,
+        priority=priority,
+    )
+
+    return _task_to_response(task)
+
+
+@router.post(
+    "/kg-metrics",
+    response_model=TaskResponse,
+    summary="Create knowledge graph metrics job",
+    description="Creates a background task to recompute knowledge graph metrics.",
+)
+async def create_kg_metrics_task(
+    request: CreateTaskRequest = None,
+    x_fichero_library_path: str = Header(..., description="Library path"),
+) -> TaskResponse:
+    """Create a knowledge graph metrics task."""
+    queue = get_task_queue()
+    if not queue:
+        raise HTTPException(
+            status_code=503,
+            detail="Task queue not initialized",
+        )
+
+    name = request.name if request and request.name else "Recompute KG Metrics"
+    options = request.options if request else {}
+    priority = request.priority if request else 0
+
+    task = await queue.create_task(
+        task_type=TaskType.KG_METRICS,
+        name=name,
+        options=options,
+        priority=priority,
+    )
+
+    return _task_to_response(task)
+
+
+@router.get(
+    "/vector-repair/{task_id}/progress",
+    response_model=VectorRepairResponse,
+    summary="Get vector repair progress",
+    description="Get specific progress info for a vector repair task.",
+)
+async def get_vector_repair_progress(
+    task_id: str,
+    x_fichero_library_path: str = Header(..., description="Library path"),
+) -> VectorRepairResponse:
+    """Get vector repair task progress."""
+    queue = get_task_queue()
+    if not queue:
+        raise HTTPException(
+            status_code=503,
+            detail="Task queue not initialized",
+        )
+
+    task = await queue.get_task(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Task {task_id} not found",
+        )
+
+    if task.task_type != TaskType.VECTOR_REPAIR:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Task {task_id} is not a vector repair task",
+        )
+
+    details = task.result.details if task.result else {}
+    return VectorRepairResponse(
+        added=details.get("added", 0),
+        removed=details.get("removed", 0),
+        checked=details.get("checked", task.progress.current),
+        document_count=details.get("document_count", 0),
+        vector_count=details.get("vector_count", 0),
+    )
+
+
+@router.get(
+    "/kg-metrics/{task_id}/data",
+    response_model=KGMetricsResponse,
+    summary="Get KG metrics data",
+    description="Get computed metrics from a completed KG metrics task.",
+)
+async def get_kg_metrics_data(
+    task_id: str,
+    x_fichero_library_path: str = Header(..., description="Library path"),
+) -> KGMetricsResponse:
+    """Get knowledge graph metrics task result data."""
+    queue = get_task_queue()
+    if not queue:
+        raise HTTPException(
+            status_code=503,
+            detail="Task queue not initialized",
+        )
+
+    task = await queue.get_task(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Task {task_id} not found",
+        )
+
+    if task.task_type != TaskType.KG_METRICS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Task {task_id} is not a KG metrics task",
+        )
+
+    if not task.result or not task.result.success:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Task {task_id} has not completed successfully",
+        )
+
+    details = task.result.details
+    return KGMetricsResponse(
+        entity_count=details.get("entity_count", 0),
+        entity_by_type=details.get("entity_by_type", {}),
+        claim_count=details.get("claim_count", 0),
+        claims_by_status=details.get("claims_by_status", {}),
+        claims_by_type=details.get("claims_by_type", {}),
+        claims_with_sources=details.get("claims_with_sources", 0),
+        link_count=details.get("link_count", 0),
+        links_by_relation=details.get("links_by_relation", {}),
+    )
+
+
+@router.get(
+    "/health",
+    response_model=TaskSystemHealthResponse,
+    summary="Get task system health",
+    description="Get health status and statistics for the background task system.",
+)
+async def get_task_system_health(
+    x_fichero_library_path: str = Header(..., description="Library path"),
+) -> TaskSystemHealthResponse:
+    """Get health status of the task system."""
+    queue = get_task_queue()
+    if not queue:
+        raise HTTPException(
+            status_code=503,
+            detail="Task queue not initialized",
+        )
+
+    # Get task counts by status
+    from datetime import datetime, timedelta
+
+    all_tasks = await queue.list_tasks(limit=1000)
+
+    pending_count = sum(1 for t in all_tasks if t.status == TaskStatus.PENDING)
+    running_count = sum(1 for t in all_tasks if t.status == TaskStatus.RUNNING)
+
+    last_24h = datetime.now() - timedelta(hours=24)
+    recent_tasks = [t for t in all_tasks if t.created_at > last_24h]
+    completed_count = sum(1 for t in recent_tasks if t.status == TaskStatus.COMPLETED)
+    failed_count = sum(1 for t in recent_tasks if t.status == TaskStatus.FAILED)
+
+    # Determine status
+    status = "healthy"
+    if failed_count > completed_count:
+        status = "degraded"
+    if not queue._running:
+        status = "down"
+
+    return TaskSystemHealthResponse(
+        status=status,
+        queue_running=queue._running,
+        pending_count=pending_count,
+        running_count=running_count,
+        completed_count=completed_count,
+        failed_count=failed_count,
+        supported_task_types=[
+            TaskType.REINDEX.value,
+            TaskType.METRICS.value,
+            TaskType.REPAIR.value,
+            TaskType.VECTOR_REPAIR.value,
+            TaskType.KG_METRICS.value,
+        ],
     )
