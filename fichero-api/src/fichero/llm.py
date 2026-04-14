@@ -566,7 +566,7 @@ async def structured_output(
 # =============================================================================
 
 
-def get_langchain_model(config: LLMConfig):
+def get_langchain_model(config: LLMConfig) -> Any:
     """Create a LangChain ChatModel from Fichero LLMConfig.
 
     This enables integration with LangChain/LangGraph tools like create_react_agent.
