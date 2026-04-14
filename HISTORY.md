@@ -512,3 +512,12 @@ ALL COMPLETE:
   - Lazy import patching: patch at source module path, not route module path
   - Async mock pattern: `tracker.store.delete_old = AsyncMock(return_value=0)` for cleanup routes
   - Real Pydantic instances required for route return values (not MagicMock)
+
+## 2026-04-14 — Typed response model pass + Swift client fix
+
+- Replaced every `-> dict` / `-> dict[str, Any]` return annotation on FastAPI route handlers with named Pydantic `BaseModel` types (35 route files, ~50+ handlers)
+- Fixed 3 test breakages: ClaimLinkDeletedResponse subscript, `json` field name collision → `json_data`, predictions fixture assertion
+- Fixed `exclusiveMinimum` OpenAPI 3.0 parse error: `gt=0` → `ge=1` in MigrationRunRequest
+- Fixed `xFicheroLibraryPath` redeclaration in Swift client: removed duplicate `Header(...)` param from all 6 migration route handlers (was duplicating what `get_library_database` already declares)
+- Swift client pipeline now builds cleanly: 448 endpoints, `Build complete`, `✅ All models are in sync!`
+- All 1785 unit tests passing, lint clean throughout

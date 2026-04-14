@@ -35,6 +35,18 @@ This preserves all existing `include_router(research_agents_router)` call sites 
 
 **FK-free store.** DuckDB store has no foreign key constraints. `create_plan(project_id="missing")` succeeds (200) — don't write tests expecting 404 on missing parents unless the route explicitly validates them.
 
+## OpenAPI / Swift Client Codegen Patterns — 2026-04-14
+
+**`-> dict` handlers produce empty OpenAPI schemas.** FastAPI only emits named `$ref` schemas for handlers with a `BaseModel` return annotation. `-> dict` / `-> dict[str, Any]` produces `{}` in the spec — `swift-openapi-generator` gets no schema and can't synthesize Swift types. Fix: add a named `BaseModel` subclass as return type on every route handler.
+
+**`gt=0` causes `exclusiveMinimum` parse error in swift-openapi-generator.** FastAPI/Pydantic emits `exclusiveMinimum: 0` (JSON Schema Draft 2020-12 / OpenAPI 3.1 style). The Swift generator targets OpenAPI 3.0 which expects `exclusiveMinimum` as a Bool. Fix: use `ge=1` instead of `gt=0` for integer fields — semantically identical but emits `minimum: 1`.
+
+**Duplicate header from Depends + explicit Header param.** `get_library_database` already declares `x_fichero_library_path: str = Header(...)`. If a route handler also declares it explicitly, FastAPI inlines it twice in the OpenAPI spec — `swift-openapi-generator` generates two Swift properties with the same name and the build fails with "invalid redeclaration". Fix: remove the explicit `Header(...)` param from any handler that also calls `Depends(get_library_database)`.
+
+**Pydantic v2: never name a field `json`.** `json` shadows `BaseModel.json()` — Pydantic emits a `UserWarning` and the field behaves unexpectedly. Use `json_data` or similar. Tests calling `r.json()["json"]` will also break.
+
+**Class ordering matters for return type annotations.** A `BaseModel` used as a return type annotation must be defined at module level BEFORE the function. If placed after (even logically nearby), Python raises `NameError` at import time. Place new response models at the top of the file, after `router = APIRouter()`.
+
 ## FastAPI Route Registration Pattern — 2026-04-12
 
 **Pattern:** Adding new API routes to the FastAPI application

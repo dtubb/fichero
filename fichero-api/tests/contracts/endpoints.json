@@ -201,7 +201,7 @@
           }
         ],
         "request_model": null,
-        "response_model": null
+        "response_model": "CleanupResponse"
       },
       {
         "method": "GET",
@@ -331,6 +331,42 @@
     "artifacts": [
       {
         "method": "GET",
+        "path": "/artifacts/",
+        "operation_id": "list_all_artifacts_api_artifacts__get",
+        "summary": "List All Artifacts",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "artifact_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ArtifactListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/artifacts/types",
+        "operation_id": "list_artifact_types_api_artifacts_types_get",
+        "summary": "List Artifact Types",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
         "path": "/artifacts/document/{doc_id}",
         "operation_id": "list_document_artifacts_api_artifacts_document__doc_id__get",
         "summary": "List Document Artifacts",
@@ -377,42 +413,6 @@
         "path_params": [
           "artifact_id"
         ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/artifacts/",
-        "operation_id": "list_all_artifacts_api_artifacts__get",
-        "summary": "List All Artifacts",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "artifact_type",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "name": "offset",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "ArtifactListResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/artifacts/types",
-        "operation_id": "list_artifact_types_api_artifacts_types_get",
-        "summary": "List Artifact Types",
-        "path_params": [],
         "query_params": [],
         "request_model": null,
         "response_model": null
@@ -483,7 +483,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "BatchDeletedResponse"
       },
       {
         "method": "GET",
@@ -619,7 +619,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "ConversationDeletedResponse"
       },
       {
         "method": "POST",
@@ -631,7 +631,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "ConversationSummary"
       },
       {
         "method": "POST",
@@ -647,7 +647,7 @@
           }
         ],
         "request_model": null,
-        "response_model": null
+        "response_model": "ConversationReorderResponse"
       },
       {
         "method": "GET",
@@ -1015,7 +1015,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "ClaimLinkDeletedResponse"
       }
     ],
     "documents": [
@@ -1170,7 +1170,7 @@
           }
         ],
         "request_model": null,
-        "response_model": null
+        "response_model": "ReorderResponse"
       },
       {
         "method": "POST",
@@ -1214,7 +1214,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "OrphanCleanupResponse"
       }
     ],
     "entities": [
@@ -1256,6 +1256,28 @@
       },
       {
         "method": "GET",
+        "path": "/entities/alias-map",
+        "operation_id": "get_entity_alias_map_api_entities_alias_map_get",
+        "summary": "Get Entity Alias Map",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EntityAliasMapResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/entities/resolve/{value}",
+        "operation_id": "resolve_entity_api_entities_resolve__value__get",
+        "summary": "Resolve Entity",
+        "path_params": [
+          "value"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EntityResolutionResponse"
+      },
+      {
+        "method": "GET",
         "path": "/entities/{entity_id}",
         "operation_id": "get_entity_api_entities__entity_id__get",
         "summary": "Get Entity",
@@ -1277,28 +1299,6 @@
         "query_params": [],
         "request_model": "fichero__api__routes__entities__EntityAliasRequest",
         "response_model": "KnowledgeEntity"
-      },
-      {
-        "method": "GET",
-        "path": "/entities/alias-map",
-        "operation_id": "get_entity_alias_map_api_entities_alias_map_get",
-        "summary": "Get Entity Alias Map",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "EntityAliasMapResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/entities/resolve/{value}",
-        "operation_id": "resolve_entity_api_entities_resolve__value__get",
-        "summary": "Resolve Entity",
-        "path_params": [
-          "value"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "EntityResolutionResponse"
       }
     ],
     "folders": [
@@ -1348,7 +1348,7 @@
         ],
         "query_params": [],
         "request_model": "RenameFolderRequest",
-        "response_model": null
+        "response_model": "FolderRenameResponse"
       },
       {
         "method": "DELETE",
@@ -1371,7 +1371,7 @@
           }
         ],
         "request_model": null,
-        "response_model": null
+        "response_model": "FolderDeleteResponse"
       },
       {
         "method": "PUT",
@@ -1383,7 +1383,7 @@
         ],
         "query_params": [],
         "request_model": "MoveItemsRequest",
-        "response_model": null
+        "response_model": "FolderMoveResponse"
       }
     ],
     "ingest": [
@@ -1515,7 +1515,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "KnowledgeEntity"
       },
       {
         "method": "DELETE",
@@ -1527,7 +1527,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "MCPEntityDeletedResponse"
       },
       {
         "method": "GET",
@@ -1539,7 +1539,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "KnowledgeClaim"
       },
       {
         "method": "DELETE",
@@ -1551,7 +1551,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "MCPClaimDeletedResponse"
       },
       {
         "method": "GET",
@@ -1582,7 +1582,7 @@
           }
         ],
         "request_model": null,
-        "response_model": null
+        "response_model": "MCPEntitiesListResponse"
       },
       {
         "method": "GET",
@@ -1618,7 +1618,7 @@
           }
         ],
         "request_model": null,
-        "response_model": null
+        "response_model": "MCPClaimsListResponse"
       }
     ],
     "multilingual": [
@@ -1676,7 +1676,7 @@
           }
         ],
         "request_model": null,
-        "response_model": null
+        "response_model": "ClaimsPageResponse"
       },
       {
         "method": "GET",
@@ -1707,7 +1707,7 @@
           }
         ],
         "request_model": null,
-        "response_model": null
+        "response_model": "EntitiesPageResponse"
       },
       {
         "method": "POST",
@@ -1716,33 +1716,11 @@
         "summary": "Normalize text",
         "path_params": [],
         "query_params": [],
-        "request_model": null,
-        "response_model": null
+        "request_model": "NormalizeRequest",
+        "response_model": "NormalizeResponse"
       }
     ],
     "providers": [
-      {
-        "method": "GET",
-        "path": "/providers/catalog",
-        "operation_id": "list_provider_catalog_api_providers_catalog_get",
-        "summary": "List Provider Catalog",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "[ProviderCatalogResponse]"
-      },
-      {
-        "method": "GET",
-        "path": "/providers/catalog/{provider_type}",
-        "operation_id": "get_catalog_provider_api_providers_catalog__provider_type__get",
-        "summary": "Get Catalog Provider",
-        "path_params": [
-          "provider_type"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "ProviderCatalogResponse"
-      },
       {
         "method": "GET",
         "path": "/providers/models/{provider_type}",
@@ -1770,6 +1748,76 @@
         ],
         "request_model": null,
         "response_model": "[ModelResponse]"
+      },
+      {
+        "method": "POST",
+        "path": "/providers/{provider_type}/api-key",
+        "operation_id": "set_provider_api_key_api_providers__provider_type__api_key_post",
+        "summary": "Set Provider Api Key",
+        "path_params": [
+          "provider_type"
+        ],
+        "query_params": [],
+        "request_model": "APIKeyRequest",
+        "response_model": "APIKeyStoredResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/providers/{provider_type}/api-key",
+        "operation_id": "delete_provider_api_key_api_providers__provider_type__api_key_delete",
+        "summary": "Delete Provider Api Key",
+        "path_params": [
+          "provider_type"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "APIKeyDeletedResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/providers/{provider_type}/api-key/status",
+        "operation_id": "check_api_key_status_api_providers__provider_type__api_key_status_get",
+        "summary": "Check Api Key Status",
+        "path_params": [
+          "provider_type"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "APIKeyStatusResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/providers/{provider_type}/test",
+        "operation_id": "test_provider_connection_api_providers__provider_type__test_post",
+        "summary": "Test Provider Connection",
+        "path_params": [
+          "provider_type"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ConnectionTestResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/providers/catalog",
+        "operation_id": "list_provider_catalog_api_providers_catalog_get",
+        "summary": "List Provider Catalog",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ProviderCatalogResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/providers/catalog/{provider_type}",
+        "operation_id": "get_catalog_provider_api_providers_catalog__provider_type__get",
+        "summary": "Get Catalog Provider",
+        "path_params": [
+          "provider_type"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ProviderCatalogResponse"
       },
       {
         "method": "GET",
@@ -1833,7 +1881,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "DeletedResponse"
       },
       {
         "method": "GET",
@@ -1869,55 +1917,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "POST",
-        "path": "/providers/{provider_type}/api-key",
-        "operation_id": "set_provider_api_key_api_providers__provider_type__api_key_post",
-        "summary": "Set Provider Api Key",
-        "path_params": [
-          "provider_type"
-        ],
-        "query_params": [],
-        "request_model": "APIKeyRequest",
-        "response_model": null
-      },
-      {
-        "method": "DELETE",
-        "path": "/providers/{provider_type}/api-key",
-        "operation_id": "delete_provider_api_key_api_providers__provider_type__api_key_delete",
-        "summary": "Delete Provider Api Key",
-        "path_params": [
-          "provider_type"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/providers/{provider_type}/api-key/status",
-        "operation_id": "check_api_key_status_api_providers__provider_type__api_key_status_get",
-        "summary": "Check Api Key Status",
-        "path_params": [
-          "provider_type"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "POST",
-        "path": "/providers/{provider_type}/test",
-        "operation_id": "test_provider_connection_api_providers__provider_type__test_post",
-        "summary": "Test Provider Connection",
-        "path_params": [
-          "provider_type"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "ConnectionTestResponse"
+        "response_model": "DeletedResponse"
       },
       {
         "method": "GET",
@@ -1954,7 +1954,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "DeletedResponse"
       }
     ],
     "search": [
@@ -1986,7 +1986,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "ReindexStartedResponse"
       },
       {
         "method": "POST",
@@ -1998,7 +1998,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "EmbedDocumentResponse"
       },
       {
         "method": "POST",
@@ -2042,7 +2042,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "DeletedResponse"
       },
       {
         "method": "POST",
@@ -2070,7 +2070,7 @@
           }
         ],
         "request_model": null,
-        "response_model": null
+        "response_model": "ReorderResponse"
       },
       {
         "method": "GET",
@@ -2248,7 +2248,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": "AIDefaults",
-        "response_model": null
+        "response_model": "StatusOkResponse"
       },
       {
         "method": "DELETE",
@@ -2258,7 +2258,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "StatusOkResponse"
       }
     ],
     "sources": [
@@ -2441,7 +2441,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "DocumentDebugResponse"
       },
       {
         "method": "POST",
@@ -2830,6 +2830,30 @@
         ],
         "query_params": [],
         "request_model": null,
+        "response_model": "ThreadDeletedResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/workflow-execution/threads/{thread_id}/run",
+        "operation_id": "get_workflow_run_api_workflow_execution_threads__thread_id__run_get",
+        "summary": "Get Workflow Run",
+        "path_params": [
+          "thread_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "WorkflowRunResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/workflow-execution/threads/{thread_id}/diagram.png",
+        "operation_id": "get_thread_diagram_png_api_workflow_execution_threads__thread_id__diagram_png_get",
+        "summary": "Get Thread Diagram Png",
+        "path_params": [
+          "thread_id"
+        ],
+        "query_params": [],
+        "request_model": null,
         "response_model": null
       },
       {
@@ -2916,30 +2940,6 @@
       },
       {
         "method": "GET",
-        "path": "/workflow-execution/threads/{thread_id}/run",
-        "operation_id": "get_workflow_run_api_workflow_execution_threads__thread_id__run_get",
-        "summary": "Get Workflow Run",
-        "path_params": [
-          "thread_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "WorkflowRunResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/workflow-execution/threads/{thread_id}/diagram.png",
-        "operation_id": "get_thread_diagram_png_api_workflow_execution_threads__thread_id__diagram_png_get",
-        "summary": "Get Thread Diagram Png",
-        "path_params": [
-          "thread_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "GET",
         "path": "/workflow-execution/cache/stats",
         "operation_id": "get_all_cache_stats_api_workflow_execution_cache_stats_get",
         "summary": "Get All Cache Stats",
@@ -2968,7 +2968,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "ToolListResponse"
+        "response_model": "fichero__api__routes__workflows__ToolListResponse"
       },
       {
         "method": "GET",
@@ -3074,7 +3074,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "WorkflowExportResponse"
       },
       {
         "method": "GET",
@@ -3122,7 +3122,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "WorkflowDeletedResponse"
       },
       {
         "method": "POST",
@@ -3150,7 +3150,7 @@
           }
         ],
         "request_model": null,
-        "response_model": null
+        "response_model": "WorkflowReorderResponse"
       }
     ],
     "knowledge-graph": [
@@ -3172,7 +3172,7 @@
         "path_params": [],
         "query_params": [
           {
-            "name": "entity_type",
+            "name": "run_id",
             "required": false,
             "type": "string"
           },
@@ -3182,12 +3182,7 @@
             "type": "string"
           },
           {
-            "name": "run_id",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "created_by",
+            "name": "entity_type",
             "required": false,
             "type": "string"
           },
@@ -3199,54 +3194,6 @@
         ],
         "request_model": null,
         "response_model": "[MutationLogResponse]"
-      },
-      {
-        "method": "POST",
-        "path": "/knowledge-graph/entities",
-        "operation_id": "upsert_entity_api_knowledge_graph_entities_post",
-        "summary": "Upsert Entity",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "fichero__api__routes__knowledge_graph__EntityUpsertRequest",
-        "response_model": "KnowledgeEntity"
-      },
-      {
-        "method": "GET",
-        "path": "/knowledge-graph/entities",
-        "operation_id": "list_entities_api_knowledge_graph_entities_get",
-        "summary": "List Entities",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "q",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "entity_type",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "[KnowledgeEntity]"
-      },
-      {
-        "method": "POST",
-        "path": "/knowledge-graph/entities/{entity_id}/aliases",
-        "operation_id": "add_entity_aliases_api_knowledge_graph_entities__entity_id__aliases_post",
-        "summary": "Add Entity Aliases",
-        "path_params": [
-          "entity_id"
-        ],
-        "query_params": [],
-        "request_model": "fichero__api__routes__knowledge_graph__EntityAliasRequest",
-        "response_model": "KnowledgeEntity"
       },
       {
         "method": "POST",
@@ -3325,6 +3272,284 @@
       },
       {
         "method": "POST",
+        "path": "/knowledge-graph/entities/semantic/embed",
+        "operation_id": "embed_entities_api_knowledge_graph_entities_semantic_embed_post",
+        "summary": "Embed Entities",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "_EmbedEntityRequest",
+        "response_model": "EmbedEntitiesResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/entities/semantic",
+        "operation_id": "search_entities_semantic_api_knowledge_graph_entities_semantic_get",
+        "summary": "Search Entities Semantic",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/entities",
+        "operation_id": "upsert_entity_api_knowledge_graph_entities_post",
+        "summary": "Upsert Entity",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "fichero__api__routes__knowledge_graph__entities__EntityUpsertRequest",
+        "response_model": "KnowledgeEntity"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/entities",
+        "operation_id": "list_entities_api_knowledge_graph_entities_get",
+        "summary": "List Entities",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[KnowledgeEntity]"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/entities/{entity_id}/aliases",
+        "operation_id": "add_entity_aliases_api_knowledge_graph_entities__entity_id__aliases_post",
+        "summary": "Add Entity Aliases",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [],
+        "request_model": "fichero__api__routes__knowledge_graph__entities__EntityAliasRequest",
+        "response_model": "KnowledgeEntity"
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/claims/semantic/embed",
+        "operation_id": "embed_claims_api_knowledge_graph_claims_semantic_embed_post",
+        "summary": "Embed Claims",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "_EmbedClaimRequest",
+        "response_model": "EmbedClaimsResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/claims/semantic",
+        "operation_id": "search_claims_semantic_api_knowledge_graph_claims_semantic_get",
+        "summary": "Search Claims Semantic",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "claim_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "curation_state",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/claims/filtered",
+        "operation_id": "list_claims_filtered_api_knowledge_graph_claims_filtered_get",
+        "summary": "List Claims Filtered",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "claim_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "curation_state",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "epistemic_status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "entity_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "source_language",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "source_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "scope_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "target_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "included_only",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "curated_only",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[KnowledgeClaim]"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/claims/{claim_id}",
+        "operation_id": "get_claim_api_knowledge_graph_claims__claim_id__get",
+        "summary": "Get Claim",
+        "path_params": [
+          "claim_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "KnowledgeClaim"
+      },
+      {
+        "method": "PATCH",
+        "path": "/knowledge-graph/claims/{claim_id}",
+        "operation_id": "patch_claim_api_knowledge_graph_claims__claim_id__patch",
+        "summary": "Patch Claim",
+        "path_params": [
+          "claim_id"
+        ],
+        "query_params": [
+          {
+            "name": "run_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "agent_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": "fichero__api__routes__knowledge_graph__claims__ClaimPatchRequest",
+        "response_model": "KnowledgeClaim"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/claims/{claim_id}/similar",
+        "operation_id": "find_similar_claims_api_knowledge_graph_claims__claim_id__similar_get",
+        "summary": "Find Similar Claims",
+        "path_params": [
+          "claim_id"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/knowledge-graph/claims/{claim_id}/links",
+        "operation_id": "create_claim_link_api_knowledge_graph_claims__claim_id__links_post",
+        "summary": "Create Claim Link",
+        "path_params": [
+          "claim_id"
+        ],
+        "query_params": [],
+        "request_model": "fichero__api__routes__knowledge_graph__claims__ClaimLinkCreateRequest",
+        "response_model": "KnowledgeClaimLink"
+      },
+      {
+        "method": "GET",
+        "path": "/knowledge-graph/claims/{claim_id}/links",
+        "operation_id": "list_claim_links_api_knowledge_graph_claims__claim_id__links_get",
+        "summary": "List Claim Links",
+        "path_params": [
+          "claim_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[KnowledgeClaimLink]"
+      },
+      {
+        "method": "POST",
         "path": "/knowledge-graph/claims",
         "operation_id": "create_claim_api_knowledge_graph_claims_post",
         "summary": "Create Claim",
@@ -3341,7 +3566,7 @@
             "type": "string"
           }
         ],
-        "request_model": "fichero__api__routes__knowledge_graph__ClaimCreateRequest",
+        "request_model": "fichero__api__routes__knowledge_graph__claims__ClaimCreateRequest",
         "response_model": "KnowledgeClaim"
       },
       {
@@ -3436,200 +3661,6 @@
         "response_model": "[KnowledgeClaim]"
       },
       {
-        "method": "PATCH",
-        "path": "/knowledge-graph/claims/{claim_id}",
-        "operation_id": "patch_claim_api_knowledge_graph_claims__claim_id__patch",
-        "summary": "Patch Claim",
-        "path_params": [
-          "claim_id"
-        ],
-        "query_params": [
-          {
-            "name": "run_id",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "agent_id",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "request_model": "fichero__api__routes__knowledge_graph__ClaimPatchRequest",
-        "response_model": "KnowledgeClaim"
-      },
-      {
-        "method": "GET",
-        "path": "/knowledge-graph/claims/{claim_id}",
-        "operation_id": "get_claim_api_knowledge_graph_claims__claim_id__get",
-        "summary": "Get Claim",
-        "path_params": [
-          "claim_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "KnowledgeClaim"
-      },
-      {
-        "method": "GET",
-        "path": "/knowledge-graph/claims/filtered",
-        "operation_id": "list_claims_filtered_api_knowledge_graph_claims_filtered_get",
-        "summary": "List Claims Filtered",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "q",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "claim_type",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "curation_state",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "epistemic_status",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "entity_id",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "source_language",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "source_type",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "scope_type",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "target_id",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "included_only",
-            "required": false,
-            "type": "boolean"
-          },
-          {
-            "name": "curated_only",
-            "required": false,
-            "type": "boolean"
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "name": "offset",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "[KnowledgeClaim]"
-      },
-      {
-        "method": "POST",
-        "path": "/knowledge-graph/claims/semantic/embed",
-        "operation_id": "embed_claims_api_knowledge_graph_claims_semantic_embed_post",
-        "summary": "Embed Claims",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "_EmbedClaimRequest",
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/knowledge-graph/claims/semantic",
-        "operation_id": "search_claims_semantic_api_knowledge_graph_claims_semantic_get",
-        "summary": "Search Claims Semantic",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "q",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "claim_type",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "curation_state",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/knowledge-graph/claims/{claim_id}/similar",
-        "operation_id": "find_similar_claims_api_knowledge_graph_claims__claim_id__similar_get",
-        "summary": "Find Similar Claims",
-        "path_params": [
-          "claim_id"
-        ],
-        "query_params": [
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "POST",
-        "path": "/knowledge-graph/claims/{claim_id}/links",
-        "operation_id": "create_claim_link_api_knowledge_graph_claims__claim_id__links_post",
-        "summary": "Create Claim Link",
-        "path_params": [
-          "claim_id"
-        ],
-        "query_params": [],
-        "request_model": "fichero__api__routes__knowledge_graph__ClaimLinkCreateRequest",
-        "response_model": "KnowledgeClaimLink"
-      },
-      {
-        "method": "GET",
-        "path": "/knowledge-graph/claims/{claim_id}/links",
-        "operation_id": "list_claim_links_api_knowledge_graph_claims__claim_id__links_get",
-        "summary": "List Claim Links",
-        "path_params": [
-          "claim_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "[KnowledgeClaimLink]"
-      },
-      {
         "method": "POST",
         "path": "/knowledge-graph/inclusion",
         "operation_id": "upsert_inclusion_api_knowledge_graph_inclusion_post",
@@ -3679,43 +3710,7 @@
           }
         ],
         "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "POST",
-        "path": "/knowledge-graph/entities/semantic/embed",
-        "operation_id": "embed_entities_api_knowledge_graph_entities_semantic_embed_post",
-        "summary": "Embed Entities",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "_EmbedEntityRequest",
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/knowledge-graph/entities/semantic",
-        "operation_id": "search_entities_semantic_api_knowledge_graph_entities_semantic_get",
-        "summary": "Search Entities Semantic",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "q",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "entity_type",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": null
+        "response_model": "ClaimsOverviewResponse"
       },
       {
         "method": "POST",
@@ -3735,7 +3730,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": "PredictionGenerateHeuristicRequest",
-        "response_model": null
+        "response_model": "HeuristicPredictionsResponse"
       },
       {
         "method": "GET",
@@ -3779,7 +3774,7 @@
           }
         ],
         "request_model": null,
-        "response_model": null
+        "response_model": "ApplyPredictionsResponse"
       },
       {
         "method": "GET",
@@ -3896,7 +3891,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "FrameworkDeactivatedResponse"
       },
       {
         "method": "POST",
@@ -4200,7 +4195,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "InterpretationDeletedResponse"
       },
       {
         "method": "GET",
@@ -4312,7 +4307,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "GraphMetricsResponse"
+        "response_model": "fichero__api__routes__graph_exploration__GraphMetricsResponse"
       },
       {
         "method": "GET",
@@ -4368,6 +4363,112 @@
         "query_params": [],
         "request_model": "SubgraphRequest",
         "response_model": "SubgraphResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/graph/networkx/status",
+        "operation_id": "get_networkx_status_api_graph_networkx_status_get",
+        "summary": "Get NetworkX status",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EnableResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/graph/networkx/enable",
+        "operation_id": "set_networkx_enabled_api_graph_networkx_enable_post",
+        "summary": "Enable or disable NetworkX reasoning",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "fichero__api__routes__graph_reasoning__EnableRequest",
+        "response_model": "EnableResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/graph/networkx/centrality",
+        "operation_id": "calculate_centrality_api_graph_networkx_centrality_post",
+        "summary": "Calculate centrality metrics",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CentralityRequest",
+        "response_model": "CentralityResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/graph/networkx/centrality/{algorithm}",
+        "operation_id": "get_centrality_api_graph_networkx_centrality__algorithm__get",
+        "summary": "Calculate centrality (GET endpoint)",
+        "path_params": [
+          "algorithm"
+        ],
+        "query_params": [
+          {
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "CentralityResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/graph/networkx/communities",
+        "operation_id": "detect_communities_api_graph_networkx_communities_post",
+        "summary": "Detect communities in the graph",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CommunitiesRequest",
+        "response_model": "CommunitiesResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/graph/networkx/communities/{algorithm}",
+        "operation_id": "get_communities_api_graph_networkx_communities__algorithm__get",
+        "summary": "Detect communities (GET endpoint)",
+        "path_params": [
+          "algorithm"
+        ],
+        "query_params": [
+          {
+            "name": "min_size",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "CommunitiesResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/graph/networkx/paths",
+        "operation_id": "find_shortest_paths_api_graph_networkx_paths_post",
+        "summary": "Find shortest paths",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ShortestPathsRequest",
+        "response_model": "ShortestPathsResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/graph/networkx/metrics",
+        "operation_id": "get_graph_metrics_api_graph_networkx_metrics_get",
+        "summary": "Get graph metrics",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "fichero__api__routes__graph_reasoning__GraphMetricsResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/graph/networkx/algorithms",
+        "operation_id": "list_algorithms_api_graph_networkx_algorithms_get",
+        "summary": "List available algorithms",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "AlgorithmsListResponse"
       }
     ],
     "mind-palace": [
@@ -4436,7 +4537,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "MindPalaceDeletedResponse"
       },
       {
         "method": "GET",
@@ -4515,7 +4616,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "MindPalaceDeletedResponse"
       },
       {
         "method": "POST",
@@ -4558,7 +4659,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "MindPalaceDeletedResponse"
       },
       {
         "method": "POST",
@@ -4699,7 +4800,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "MindPalaceDeletedResponse"
       },
       {
         "method": "GET",
@@ -4772,7 +4873,7 @@
         ],
         "query_params": [],
         "request_model": "CaptureRequest",
-        "response_model": null
+        "response_model": "CaptureViewportResponse"
       },
       {
         "method": "POST",
@@ -4793,7 +4894,7 @@
           }
         ],
         "request_model": null,
-        "response_model": null
+        "response_model": "TinderboxExportResponse"
       },
       {
         "method": "POST",
@@ -4878,7 +4979,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "DeletedWithIdResponse"
       },
       {
         "method": "POST",
@@ -5035,7 +5136,7 @@
         "summary": "Create Note",
         "path_params": [],
         "query_params": [],
-        "request_model": "fichero__api__routes__research_agents__NoteCreateRequest",
+        "request_model": "fichero__api__routes__research_notes__NoteCreateRequest",
         "response_model": "ResearchNote"
       },
       {
@@ -5077,7 +5178,7 @@
           "note_id"
         ],
         "query_params": [],
-        "request_model": "fichero__api__routes__research_agents__NoteUpdateRequest",
+        "request_model": "fichero__api__routes__research_notes__NoteUpdateRequest",
         "response_model": "ResearchNote"
       },
       {
@@ -5209,6 +5310,1378 @@
         ],
         "request_model": null,
         "response_model": null
+      }
+    ],
+    "actions": [
+      {
+        "method": "GET",
+        "path": "/actions",
+        "operation_id": "list_actions_api_actions_get",
+        "summary": "List Actions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ActionResponse]"
+      },
+      {
+        "method": "POST",
+        "path": "/actions",
+        "operation_id": "create_action_api_actions_post",
+        "summary": "Create Action",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateActionRequest",
+        "response_model": "ActionResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/actions/builtin",
+        "operation_id": "list_builtin_actions_api_actions_builtin_get",
+        "summary": "List Builtin Actions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ActionResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/actions/custom",
+        "operation_id": "list_custom_actions_api_actions_custom_get",
+        "summary": "List Custom Actions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ActionResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/actions/recent",
+        "operation_id": "list_recent_actions_api_actions_recent_get",
+        "summary": "List Recent Actions",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ActionResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/actions/popular",
+        "operation_id": "list_popular_actions_api_actions_popular_get",
+        "summary": "List Popular Actions",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ActionResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/actions/categories",
+        "operation_id": "list_categories_api_actions_categories_get",
+        "summary": "List Categories",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "CategoriesResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/actions/category/{category}",
+        "operation_id": "list_actions_by_category_api_actions_category__category__get",
+        "summary": "List Actions By Category",
+        "path_params": [
+          "category"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ActionResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/actions/search",
+        "operation_id": "search_actions_api_actions_search_get",
+        "summary": "Search Actions",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "category",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "tags",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ActionResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/actions/{action_id}",
+        "operation_id": "get_action_api_actions__action_id__get",
+        "summary": "Get Action",
+        "path_params": [
+          "action_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ActionResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/actions/{action_id}",
+        "operation_id": "update_action_api_actions__action_id__put",
+        "summary": "Update Action",
+        "path_params": [
+          "action_id"
+        ],
+        "query_params": [],
+        "request_model": "UpdateActionRequest",
+        "response_model": "ActionResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/actions/{action_id}",
+        "operation_id": "delete_action_api_actions__action_id__delete",
+        "summary": "Delete Action",
+        "path_params": [
+          "action_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ActionSuccessResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/actions/{action_id}/use",
+        "operation_id": "record_action_use_api_actions__action_id__use_post",
+        "summary": "Record Action Use",
+        "path_params": [
+          "action_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ActionSuccessResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/actions/{action_id}/export",
+        "operation_id": "export_action_api_actions__action_id__export_get",
+        "summary": "Export Action",
+        "path_params": [
+          "action_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ActionJsonResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/actions/import",
+        "operation_id": "import_action_api_actions_import_post",
+        "summary": "Import Action",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ImportActionRequest",
+        "response_model": "ActionResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/actions/from-node",
+        "operation_id": "create_action_from_node_api_actions_from_node_post",
+        "summary": "Create Action From Node",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateFromNodeRequest",
+        "response_model": "ActionResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/actions/composite",
+        "operation_id": "create_composite_action_api_actions_composite_post",
+        "summary": "Create Composite Action",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateCompositeRequest",
+        "response_model": "ActionResponse"
+      }
+    ],
+    "chains": [
+      {
+        "method": "POST",
+        "path": "/chains",
+        "operation_id": "create_chain_api_chains_post",
+        "summary": "Create Chain",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateChainRequest",
+        "response_model": "ChainResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/chains",
+        "operation_id": "list_chains_api_chains_get",
+        "summary": "List Chains",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ChainListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/chains/{chain_id}",
+        "operation_id": "get_chain_api_chains__chain_id__get",
+        "summary": "Get Chain",
+        "path_params": [
+          "chain_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ChainResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/chains/{chain_id}",
+        "operation_id": "update_chain_api_chains__chain_id__put",
+        "summary": "Update Chain",
+        "path_params": [
+          "chain_id"
+        ],
+        "query_params": [],
+        "request_model": "UpdateChainRequest",
+        "response_model": "ChainResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/chains/{chain_id}",
+        "operation_id": "delete_chain_api_chains__chain_id__delete",
+        "summary": "Delete Chain",
+        "path_params": [
+          "chain_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ChainDeletedResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/chains/{chain_id}/execute",
+        "operation_id": "execute_chain_api_chains__chain_id__execute_post",
+        "summary": "Execute Chain",
+        "path_params": [
+          "chain_id"
+        ],
+        "query_params": [],
+        "request_model": "ExecuteChainRequest",
+        "response_model": "ChainExecutionResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/chains/executions/{execution_id}",
+        "operation_id": "get_chain_execution_api_chains_executions__execution_id__get",
+        "summary": "Get Chain Execution",
+        "path_params": [
+          "execution_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ChainExecutionStatusResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/chains/executions/{execution_id}",
+        "operation_id": "cancel_chain_execution_api_chains_executions__execution_id__delete",
+        "summary": "Cancel Chain Execution",
+        "path_params": [
+          "execution_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ChainCancelResponse"
+      }
+    ],
+    "integrations": [
+      {
+        "method": "GET",
+        "path": "/integrations",
+        "operation_id": "list_integrations_api_integrations_get",
+        "summary": "List Integrations",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[IntegrationInfo]"
+      },
+      {
+        "method": "GET",
+        "path": "/integrations/available",
+        "operation_id": "list_available_integrations_api_integrations_available_get",
+        "summary": "List Available Integrations",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[IntegrationInfo]"
+      },
+      {
+        "method": "GET",
+        "path": "/integrations/{app_name}",
+        "operation_id": "get_integration_api_integrations__app_name__get",
+        "summary": "Get Integration",
+        "path_params": [
+          "app_name"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "IntegrationInfo"
+      },
+      {
+        "method": "POST",
+        "path": "/integrations/{app_name}/refresh",
+        "operation_id": "refresh_integration_api_integrations__app_name__refresh_post",
+        "summary": "Refresh Integration",
+        "path_params": [
+          "app_name"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "IntegrationInfo"
+      },
+      {
+        "method": "GET",
+        "path": "/integrations/{app_name}/items",
+        "operation_id": "list_items_api_integrations__app_name__items_get",
+        "summary": "List Items",
+        "path_params": [
+          "app_name"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "search",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "item_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "database",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "container",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[IntegrationItem]"
+      },
+      {
+        "method": "GET",
+        "path": "/integrations/{app_name}/items/{external_id}",
+        "operation_id": "get_item_api_integrations__app_name__items__external_id__get",
+        "summary": "Get Item",
+        "path_params": [
+          "app_name",
+          "external_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "IntegrationItem"
+      },
+      {
+        "method": "POST",
+        "path": "/integrations/{app_name}/import",
+        "operation_id": "import_item_api_integrations__app_name__import_post",
+        "summary": "Import Item",
+        "path_params": [
+          "app_name"
+        ],
+        "query_params": [],
+        "request_model": "ImportRequest",
+        "response_model": "ImportResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/integrations/{app_name}/export",
+        "operation_id": "export_item_api_integrations__app_name__export_post",
+        "summary": "Export Item",
+        "path_params": [
+          "app_name"
+        ],
+        "query_params": [],
+        "request_model": "ExportRequest",
+        "response_model": "ExportResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/integrations/{app_name}/open/{external_id}",
+        "operation_id": "open_item_api_integrations__app_name__open__external_id__post",
+        "summary": "Open Item",
+        "path_params": [
+          "app_name",
+          "external_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "OpenItemResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/integrations/devonthink/databases",
+        "operation_id": "list_devonthink_databases_api_integrations_devonthink_databases_get",
+        "summary": "List Devonthink Databases",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "DatabaseListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/integrations/bookends/libraries",
+        "operation_id": "list_bookends_libraries_api_integrations_bookends_libraries_get",
+        "summary": "List Bookends Libraries",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LibraryListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/integrations/bookends/citation/{external_id}",
+        "operation_id": "get_bookends_citation_api_integrations_bookends_citation__external_id__get",
+        "summary": "Get Bookends Citation",
+        "path_params": [
+          "external_id"
+        ],
+        "query_params": [
+          {
+            "name": "style",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "CitationResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/integrations/tinderbox/documents",
+        "operation_id": "list_tinderbox_documents_api_integrations_tinderbox_documents_get",
+        "summary": "List Tinderbox Documents",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "DocumentListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/integrations/tinderbox/notes",
+        "operation_id": "create_tinderbox_note_api_integrations_tinderbox_notes_post",
+        "summary": "Create Tinderbox Note",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateNoteRequest",
+        "response_model": "CreateNoteResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/integrations/tinderbox/notes/{external_id}/attributes",
+        "operation_id": "get_tinderbox_attributes_api_integrations_tinderbox_notes__external_id__attributes_get",
+        "summary": "Get Tinderbox Attributes",
+        "path_params": [
+          "external_id"
+        ],
+        "query_params": [
+          {
+            "name": "attributes",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "AttributesResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/integrations/tinderbox/notes/{external_id}/attributes",
+        "operation_id": "set_tinderbox_attributes_api_integrations_tinderbox_notes__external_id__attributes_put",
+        "summary": "Set Tinderbox Attributes",
+        "path_params": [
+          "external_id"
+        ],
+        "query_params": [],
+        "request_model": "SetAttributesRequest",
+        "response_model": "SetAttributesResponse"
+      }
+    ],
+    "local-models": [
+      {
+        "method": "GET",
+        "path": "/local-models",
+        "operation_id": "list_local_models_api_local_models_get",
+        "summary": "List Local Models",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "model_type",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "LocalModelListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/local-models/disk-usage",
+        "operation_id": "disk_usage_api_local_models_disk_usage_get",
+        "summary": "Disk Usage",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "DiskUsageResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/local-models/download/{model_type}/{model_id}",
+        "operation_id": "download_model_api_local_models_download__model_type___model_id__post",
+        "summary": "Download Model",
+        "path_params": [
+          "model_type",
+          "model_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "DownloadStartedResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/local-models/{model_type}/{model_id}",
+        "operation_id": "delete_model_api_local_models__model_type___model_id__delete",
+        "summary": "Delete Model",
+        "path_params": [
+          "model_type",
+          "model_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "fichero__api__routes__local_models__DeleteModelResponse"
+      }
+    ],
+    "mcp-servers": [
+      {
+        "method": "GET",
+        "path": "/mcp-servers",
+        "operation_id": "list_mcp_servers_api_mcp_servers_get",
+        "summary": "List Mcp Servers",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[MCPServerResponse]"
+      },
+      {
+        "method": "POST",
+        "path": "/mcp-servers",
+        "operation_id": "create_mcp_server_api_mcp_servers_post",
+        "summary": "Create Mcp Server",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateMCPServerRequest",
+        "response_model": "MCPServerResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/mcp-servers/tools/all",
+        "operation_id": "get_all_mcp_tools_api_mcp_servers_tools_all_get",
+        "summary": "Get All Mcp Tools",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "MCPToolListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/mcp-servers/tools/load-into-workflow-registry",
+        "operation_id": "load_mcp_tools_into_workflow_registry_api_mcp_servers_tools_load_into_workflow_registry_post",
+        "summary": "Load Mcp Tools Into Workflow Registry",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "MCPToolRegistryResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/mcp-servers/tools/reload-workflow-registry",
+        "operation_id": "reload_mcp_tools_in_workflow_registry_api_mcp_servers_tools_reload_workflow_registry_post",
+        "summary": "Reload Mcp Tools In Workflow Registry",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "MCPToolRegistryResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/mcp-servers/{server_id}",
+        "operation_id": "get_mcp_server_api_mcp_servers__server_id__get",
+        "summary": "Get Mcp Server",
+        "path_params": [
+          "server_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "MCPServerResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/mcp-servers/{server_id}",
+        "operation_id": "update_mcp_server_api_mcp_servers__server_id__put",
+        "summary": "Update Mcp Server",
+        "path_params": [
+          "server_id"
+        ],
+        "query_params": [],
+        "request_model": "UpdateMCPServerRequest",
+        "response_model": "MCPServerResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/mcp-servers/{server_id}",
+        "operation_id": "delete_mcp_server_api_mcp_servers__server_id__delete",
+        "summary": "Delete Mcp Server",
+        "path_params": [
+          "server_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "MCPServerDeletedResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/mcp-servers/{server_id}/load-tools",
+        "operation_id": "load_server_tools_api_mcp_servers__server_id__load_tools_post",
+        "summary": "Load Server Tools",
+        "path_params": [
+          "server_id"
+        ],
+        "query_params": [
+          {
+            "name": "force_reload",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "MCPServerToolsResponse"
+      }
+    ],
+    "model-comparison": [
+      {
+        "method": "POST",
+        "path": "/model-comparison/compare",
+        "operation_id": "compare_models_api_model_comparison_compare_post",
+        "summary": "Compare Models",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CompareRequest",
+        "response_model": "ComparisonResultResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/model-comparison/history",
+        "operation_id": "get_comparison_history_api_model_comparison_history_get",
+        "summary": "Get Comparison History",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ComparisonHistoryResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/model-comparison/comparison/{comparison_id}",
+        "operation_id": "get_comparison_api_model_comparison_comparison__comparison_id__get",
+        "summary": "Get Comparison",
+        "path_params": [
+          "comparison_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ComparisonResultResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/model-comparison/models",
+        "operation_id": "list_available_models_api_model_comparison_models_get",
+        "summary": "List Available Models",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ModelListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/model-comparison/estimate-cost",
+        "operation_id": "estimate_comparison_cost_api_model_comparison_estimate_cost_post",
+        "summary": "Estimate Comparison Cost",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CompareRequest",
+        "response_model": "CostEstimateResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/model-comparison/presets",
+        "operation_id": "get_comparison_presets_api_model_comparison_presets_get",
+        "summary": "Get Comparison Presets",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PresetsResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/model-comparison/models-by-tier",
+        "operation_id": "get_models_grouped_by_tier_api_model_comparison_models_by_tier_get",
+        "summary": "Get Models Grouped By Tier",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ModelsByTierResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/model-comparison/compare-vision",
+        "operation_id": "compare_vision_models_api_model_comparison_compare_vision_post",
+        "summary": "Compare Vision Models",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "VisionCompareRequest",
+        "response_model": "ComparisonResultResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/model-comparison/compare-tool",
+        "operation_id": "compare_tool_across_models_api_model_comparison_compare_tool_post",
+        "summary": "Compare Tool Across Models",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ToolCompareRequest",
+        "response_model": "ComparisonResultResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/model-comparison/tools",
+        "operation_id": "list_available_tools_api_model_comparison_tools_get",
+        "summary": "List Available Tools",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "fichero__api__routes__model_comparison__ToolListResponse"
+      }
+    ],
+    "policies": [
+      {
+        "method": "GET",
+        "path": "/policies/orchestration",
+        "operation_id": "list_policy_rules_api_policies_orchestration_get",
+        "summary": "List orchestration policy rules",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "active_only",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "PolicyRulesListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/policies/orchestration",
+        "operation_id": "create_policy_rule_api_policies_orchestration_post",
+        "summary": "Create a new policy rule",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "PolicyRuleCreateRequest",
+        "response_model": "PolicyRuleResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/policies/orchestration/{rule_id}",
+        "operation_id": "get_policy_rule_api_policies_orchestration__rule_id__get",
+        "summary": "Get a specific policy rule",
+        "path_params": [
+          "rule_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PolicyRuleResponse"
+      },
+      {
+        "method": "PATCH",
+        "path": "/policies/orchestration/{rule_id}",
+        "operation_id": "update_policy_rule_api_policies_orchestration__rule_id__patch",
+        "summary": "Update a policy rule",
+        "path_params": [
+          "rule_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PolicyRuleResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/policies/orchestration/{rule_id}",
+        "operation_id": "delete_policy_rule_api_policies_orchestration__rule_id__delete",
+        "summary": "Delete a policy rule",
+        "path_params": [
+          "rule_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/policies/orchestration/evaluate",
+        "operation_id": "evaluate_policy_api_policies_orchestration_evaluate_post",
+        "summary": "Evaluate a hypothetical write against policies",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "PolicyEvaluationRequest",
+        "response_model": "PolicyEvaluationResponse"
+      }
+    ],
+    "agents": [
+      {
+        "method": "POST",
+        "path": "/agents/write",
+        "operation_id": "submit_agent_write_api_agents_write_post",
+        "summary": "Submit an agent write request",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "AgentWriteRequestInput",
+        "response_model": "AgentWriteResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/agents/write/approve",
+        "operation_id": "approve_agent_write_api_agents_write_approve_post",
+        "summary": "Approve or reject a pending write request",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "record_id",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": "ApprovalRequest",
+        "response_model": "ApprovalResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/agents/write/audit",
+        "operation_id": "get_agent_write_audit_api_agents_write_audit_get",
+        "summary": "Get agent write audit history",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "agent_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "state",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "AgentWriteRecordsListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/agents/write/audit/{record_id}",
+        "operation_id": "get_agent_write_record_api_agents_write_audit__record_id__get",
+        "summary": "Get a specific write record",
+        "path_params": [
+          "record_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "AgentWriteRecordResponse"
+      }
+    ],
+    "predictions": [
+      {
+        "method": "GET",
+        "path": "/predictions/status",
+        "operation_id": "get_prediction_status_api_predictions_status_get",
+        "summary": "Get Prediction Status",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PredictionStatusResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/predictions/enable",
+        "operation_id": "set_prediction_enabled_api_predictions_enable_post",
+        "summary": "Set Prediction Enabled",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "fichero__api__routes__predictions__EnableRequest",
+        "response_model": "EnabledResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/predictions/models",
+        "operation_id": "list_available_models_api_predictions_models_get",
+        "summary": "List Available Models",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/predictions/train",
+        "operation_id": "train_prediction_model_api_predictions_train_post",
+        "summary": "Train Prediction Model",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "TrainRequest",
+        "response_model": "TrainingResult"
+      },
+      {
+        "method": "GET",
+        "path": "/predictions/training-jobs",
+        "operation_id": "list_training_jobs_api_predictions_training_jobs_get",
+        "summary": "List Training Jobs",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[TrainingResult]"
+      },
+      {
+        "method": "GET",
+        "path": "/predictions/training-jobs/{model_id}",
+        "operation_id": "get_training_job_api_predictions_training_jobs__model_id__get",
+        "summary": "Get Training Job",
+        "path_params": [
+          "model_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TrainingResult"
+      },
+      {
+        "method": "DELETE",
+        "path": "/predictions/models/{model_id}",
+        "operation_id": "delete_trained_model_api_predictions_models__model_id__delete",
+        "summary": "Delete Trained Model",
+        "path_params": [
+          "model_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "fichero__api__routes__predictions__DeleteModelResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/predictions/generate/{model_id}",
+        "operation_id": "generate_predictions_api_predictions_generate__model_id__post",
+        "summary": "Generate Predictions",
+        "path_params": [
+          "model_id"
+        ],
+        "query_params": [],
+        "request_model": "PredictionRequest",
+        "response_model": "PredictionResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/predictions/heuristic",
+        "operation_id": "generate_heuristic_predictions_api_predictions_heuristic_post",
+        "summary": "Generate Heuristic Predictions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "PredictionRequest",
+        "response_model": "PredictionResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/predictions/store",
+        "operation_id": "store_prediction_api_predictions_store_post",
+        "summary": "Store Prediction",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "model_id",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": "StorePredictionRequest",
+        "response_model": "StoredPrediction"
+      },
+      {
+        "method": "GET",
+        "path": "/predictions/stored",
+        "operation_id": "list_stored_predictions_api_predictions_stored_get",
+        "summary": "List Stored Predictions",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "model_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "verified",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[StoredPrediction]"
+      },
+      {
+        "method": "GET",
+        "path": "/predictions/stored/{prediction_id}",
+        "operation_id": "get_stored_prediction_api_predictions_stored__prediction_id__get",
+        "summary": "Get Stored Prediction",
+        "path_params": [
+          "prediction_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "StoredPrediction"
+      },
+      {
+        "method": "PATCH",
+        "path": "/predictions/stored/{prediction_id}/verify",
+        "operation_id": "verify_prediction_api_predictions_stored__prediction_id__verify_patch",
+        "summary": "Verify Prediction",
+        "path_params": [
+          "prediction_id"
+        ],
+        "query_params": [],
+        "request_model": "VerifyPredictionRequest",
+        "response_model": "StoredPrediction"
+      }
+    ],
+    "schedules": [
+      {
+        "method": "POST",
+        "path": "/schedules",
+        "operation_id": "create_schedule_api_schedules_post",
+        "summary": "Create Schedule",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateScheduleRequest",
+        "response_model": "ScheduleResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/schedules",
+        "operation_id": "list_schedules_api_schedules_get",
+        "summary": "List Schedules",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "workflow_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ScheduleResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/schedules/{schedule_id}",
+        "operation_id": "get_schedule_api_schedules__schedule_id__get",
+        "summary": "Get Schedule",
+        "path_params": [
+          "schedule_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ScheduleResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/schedules/{schedule_id}",
+        "operation_id": "delete_schedule_api_schedules__schedule_id__delete",
+        "summary": "Delete Schedule",
+        "path_params": [
+          "schedule_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ScheduleDeletedResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/schedules/{schedule_id}",
+        "operation_id": "update_schedule_api_schedules__schedule_id__put",
+        "summary": "Update Schedule",
+        "path_params": [
+          "schedule_id"
+        ],
+        "query_params": [],
+        "request_model": "UpdateScheduleRequest",
+        "response_model": "ScheduleResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/schedules/{schedule_id}/pause",
+        "operation_id": "pause_schedule_api_schedules__schedule_id__pause_post",
+        "summary": "Pause Schedule",
+        "path_params": [
+          "schedule_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ScheduleResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/schedules/{schedule_id}/resume",
+        "operation_id": "resume_schedule_api_schedules__schedule_id__resume_post",
+        "summary": "Resume Schedule",
+        "path_params": [
+          "schedule_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ScheduleResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/schedules/{schedule_id}/trigger",
+        "operation_id": "trigger_schedule_api_schedules__schedule_id__trigger_post",
+        "summary": "Trigger Schedule",
+        "path_params": [
+          "schedule_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ScheduleRunResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/schedules/{schedule_id}/runs",
+        "operation_id": "get_schedule_runs_api_schedules__schedule_id__runs_get",
+        "summary": "Get Schedule Runs",
+        "path_params": [
+          "schedule_id"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ScheduleRunResponse]"
+      }
+    ],
+    "triggers": [
+      {
+        "method": "POST",
+        "path": "/triggers",
+        "operation_id": "create_trigger_api_triggers_post",
+        "summary": "Create Trigger",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateTriggerRequest",
+        "response_model": "TriggerResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/triggers",
+        "operation_id": "list_triggers_api_triggers_get",
+        "summary": "List Triggers",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "workflow_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[TriggerResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/triggers/{trigger_id}",
+        "operation_id": "get_trigger_api_triggers__trigger_id__get",
+        "summary": "Get Trigger",
+        "path_params": [
+          "trigger_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TriggerResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/triggers/{trigger_id}",
+        "operation_id": "delete_trigger_api_triggers__trigger_id__delete",
+        "summary": "Delete Trigger",
+        "path_params": [
+          "trigger_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TriggerDeletedResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/triggers/{trigger_id}",
+        "operation_id": "update_trigger_api_triggers__trigger_id__put",
+        "summary": "Update Trigger",
+        "path_params": [
+          "trigger_id"
+        ],
+        "query_params": [],
+        "request_model": "UpdateTriggerRequest",
+        "response_model": "TriggerResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/triggers/{trigger_id}/pause",
+        "operation_id": "pause_trigger_api_triggers__trigger_id__pause_post",
+        "summary": "Pause Trigger",
+        "path_params": [
+          "trigger_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TriggerResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/triggers/{trigger_id}/resume",
+        "operation_id": "resume_trigger_api_triggers__trigger_id__resume_post",
+        "summary": "Resume Trigger",
+        "path_params": [
+          "trigger_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TriggerResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/triggers/{trigger_id}/executions",
+        "operation_id": "get_trigger_executions_api_triggers__trigger_id__executions_get",
+        "summary": "Get Trigger Executions",
+        "path_params": [
+          "trigger_id"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[TriggerExecutionResponse]"
       }
     ]
   }
