@@ -10,16 +10,14 @@
 
 Nothing active.
 
-## Known Pre-Existing Test Failures (not regressions)
+## Test Health
 
-- `test_knowledge_graph_security.py` — 2 failures (ImportError in PyKEEN tests)
-- `test_providers.py` — 2 failures (mock target mismatch: patches `fichero.llm._get_litellm` but function moved to `llm_models`)
-- `test_tasks.py::TestTaskPriority::test_tasks_ordered_by_priority` — 1 failure (APScheduler race condition)
+**1785 passing, 0 failures, 21 skipped.** All pre-existing failures resolved.
 
 ## Next Session — Start Here
 
-1. **Fix `test_providers.py` mock target** — patches `fichero.llm._get_litellm` but function is now in `fichero.llm_models`; update mock target to fix 2 failures.
-2. **Decide 0.0.2 → main merge** — file-splitting done, all route handlers typed, Swift client building, test suite stable. Ready for final review and merge.
+1. **Release 0.0.1** — ship 0.0.1 before merging 0.0.2 into main.
+2. **Then merge 0.0.2 → main** — branch is clean, tests green, Swift client pipeline working. Ready to merge once 0.0.1 is out.
 3. **Start 0.0.4 milestone** — #372 claim review queue UI, #373 contradiction triage, #374 search metrics panel, #375 interpretations workspace.
 
 ---
