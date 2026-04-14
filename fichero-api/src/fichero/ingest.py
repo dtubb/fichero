@@ -40,7 +40,7 @@ import mimetypes
 import shutil
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Iterator
+from typing import TYPE_CHECKING, Any, Callable, Coroutine, Iterator
 from uuid import uuid4
 
 from fichero.models import Document, DocType, FileType, Status
@@ -154,7 +154,7 @@ def detect_file_type(path: Path) -> FileType:
 # =============================================================================
 
 
-def _resolve_default_db():
+def _resolve_default_db() -> Any:
     """
     Resolve legacy module-level db fallback for callers/tests that do not
     pass an explicit db argument.
@@ -438,7 +438,7 @@ def _extract_text_content(doc: Document, path: Path) -> None:
         doc.metadata["text_extracted"] = False
 
 
-def _run_async(coro):
+def _run_async(coro: Coroutine[Any, Any, Any]) -> Any:
     """Run async coroutine in sync context."""
     try:
         loop = asyncio.get_running_loop()
