@@ -342,8 +342,8 @@ class TestProviderAPIRoutes:
 
     def test_api_key_status(self, client):
         """Test GET /api/providers/{provider_type}/api-key/status"""
-        with patch("fichero.api.routes.providers.has_api_key") as mock_has:
-            with patch("fichero.api.routes.providers.keychain_available") as mock_avail:
+        with patch("fichero.api.routes.provider_keys.has_api_key") as mock_has:
+            with patch("fichero.api.routes.provider_keys.keychain_available") as mock_avail:
                 mock_has.return_value = True
                 mock_avail.return_value = True
 
