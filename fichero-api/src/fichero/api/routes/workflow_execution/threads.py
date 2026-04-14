@@ -16,7 +16,8 @@ from fichero.workflows.activity import get_activity_tracker
 from fichero.workflows.builder import build_graph
 from fichero.workflows.types import EdgeDef, NodeDef, WorkflowDef
 
-from .core import ThreadListResponse, get_thread_status
+from .schemas import ThreadListResponse
+from .core import get_thread_status
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

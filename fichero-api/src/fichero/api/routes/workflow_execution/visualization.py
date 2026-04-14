@@ -12,7 +12,7 @@ from fichero.workflows.workflow_store import WorkflowStore
 from fichero.workflows.builder import build_graph
 from fichero.workflows.runtime import to_workflow_def
 
-from .core import _generate_workflow_python_code
+from .runner import _generate_workflow_python_code
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

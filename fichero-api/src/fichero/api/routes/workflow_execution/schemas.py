@@ -1,0 +1,94 @@
+"""Request/response models and SSE event types for workflow execution."""
+
+from datetime import datetime, timezone
+from typing import Any
+
+from pydantic import BaseModel, Field
+
+
+class ExecuteWorkflowRequest(BaseModel):
+    """Request to execute a workflow."""
+
+    workflow_id: str
+    inputs: dict[str, Any] = Field(default_factory=dict)
+    thread_id: str | None = None  # Optional - generated if not provided
+    checkpoint_ns: str = ""  # Checkpoint namespace for sub-workflows
+    interrupt_before: list[str] = Field(
+        default_factory=list
+    )  # Node IDs to pause before
+    interrupt_after: list[str] = Field(default_factory=list)  # Node IDs to pause after
+    force_new: bool = (
+        False  # If True, ignore provided thread_id and create a fresh execution
+    )
+    skip_cache: bool = (
+        False  # If True, bypass node result cache (still writes new results)
+    )
+
+
+class ExecutionStatusResponse(BaseModel):
+    """Response with workflow execution status."""
+
+    thread_id: str
+    workflow_id: str
+    workflow_name: str
+    status: str  # "running", "paused", "completed", "failed"
+    checkpoint_id: str | None = None
+    current_state: dict[str, Any] | None = None
+    error: str | None = None
+
+
+class ResumeWorkflowRequest(BaseModel):
+    """Request to resume a paused workflow."""
+
+    inputs: dict[str, Any] | None = None  # Optional new inputs
+
+
+class CancelWorkflowRequest(BaseModel):
+    """Request to cancel a running workflow."""
+
+    pass  # No parameters needed
+
+
+class ThreadListResponse(BaseModel):
+    """Response with list of execution threads."""
+
+    threads: list[ExecutionStatusResponse]
+
+
+class ExecuteAcceptedResponse(BaseModel):
+    """Response when workflow execution has been accepted (202)."""
+
+    thread_id: str
+    workflow_id: str
+    workflow_name: str
+    status: str = "accepted"  # Will transition to "running"
+    stream_url: str  # URL to subscribe for SSE events
+
+
+class SSEEvent(BaseModel):
+    """Server-Sent Event for workflow execution updates."""
+
+    # Events: "start", "node_begin", "node_end", "complete", "error", "pause"
+    #         "parallel_start", "file_start", "file_complete", "file_error", "parallel_complete"
+    event: str
+    thread_id: str
+    workflow_id: str
+    data: dict[str, Any] = Field(default_factory=dict)
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    # Parallel execution fields
+    node_id: str | None = None
+    file_path: str | None = None
+    file_index: int | None = None
+    file_total: int | None = None
+    progress: float | None = None  # 0.0 to 1.0
+
+
+def format_sse(event: SSEEvent) -> str:
+    """Format an SSE event for streaming."""
+    data = event.model_dump_json()
+    formatted = f"event: {event.event}\ndata: {data}\n\n"
+    # Debug: log every SSE event being sent
+    print(f"[SSE-YIELD] {event.event}: {str(event.data)[:80]}...")
+    return formatted
