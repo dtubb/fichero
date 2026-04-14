@@ -1,4 +1,24 @@
 
+## 2026-04-14 — Backend File-Splitting Pass
+
+- **#460 Backend cleanup**: Split all files exceeding the 1000-line hard limit
+  - `storage.py` (1004) → `storage.py` + `storage_snapshots.py` (snapshot CRUD, retention enforcement)
+  - `workflows/tasks.py` (1091) → `tasks.py` + `task_types.py` (enums/dataclasses) + `task_workers.py` (TaskWorkersMixin)
+  - `api/routes/workflow_execution/core.py` (1352) → `core.py` + `schemas.py` (Pydantic models) + `runner.py` (background execution)
+  - `api/routes/research_agents.py` (1034) → thin combiner + `research_crud.py` + `research_notes.py` + `research_tools.py`
+  - Also confirmed splits from prior sessions: `knowledge_graph.py`, `mcp_server.py`, `db.py` migrations, `providers.py`, `llm.py`, `graph_exploration.py`, `activity.py`, `registry.py`, `llm_base.py`
+- Removed unused `DocType` import in `iiif.py`; cleaned all unused imports post-split with `ruff --fix`
+- Backward-compatible re-exports maintained in all split modules (`__all__` + `# noqa: F401`)
+- Final state: highest file `db.py` at 996 lines; 1780 tests passing, 5 pre-existing failures, lint clean
+
+## 2026-04-14 — Route Test Coverage Sprint
+
+- **#461 Test coverage**: Added tests for all 6 remaining untested route modules
+  - `test_snapshots.py`, `test_iiif.py`, `test_local_models.py`, `test_sources.py`, `test_views.py`, `test_research_agents.py`
+  - Fixed IIIF bug: `DocType` enum lookup was breaking on raw string values
+  - Fixed MCP tools: corrected parameter handling in 3 tool implementations
+  - 1780 total tests passing after all additions
+
 ## 2026-04-10 — Autonomous Loop Session
 
 - **#390 Phase 4 Agent Research (Layer 0)**: Implemented complete backend for systematic discovery
