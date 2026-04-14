@@ -5,15 +5,66 @@ Endpoints for managing locally-downloaded AI models (Whisper, embeddings, spaCy)
 Models are stored in ~/Library/Application Support/com.tubb.fichero/models/
 """
 
-from typing import Any
-
 from fastapi import APIRouter, BackgroundTasks, HTTPException
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/local-models")
 
 
+# =============================================================================
+# Response Models
+# =============================================================================
+
+
+class LocalModelInfoResponse(BaseModel):
+    """A locally-managed AI model (Whisper, embeddings)."""
+
+    model_id: str
+    model_type: str
+    display_name: str
+    size_bytes: int
+    is_downloaded: bool
+    expected_size_mb: int
+    path: str | None
+    metadata: dict
+
+
+class LocalModelListResponse(BaseModel):
+    """List of local models."""
+
+    models: list[LocalModelInfoResponse]
+
+
+class DiskUsageResponse(BaseModel):
+    """Disk usage broken down by model type."""
+
+    whisper: int
+    embeddings: int
+    total: int
+
+
+class DownloadStartedResponse(BaseModel):
+    """Confirmation that a model download has been queued."""
+
+    status: str
+    model_type: str
+    model_id: str
+
+
+class DeleteModelResponse(BaseModel):
+    """Result of a model deletion."""
+
+    status: str
+    freed_bytes: int
+
+
+# =============================================================================
+# Routes
+# =============================================================================
+
+
 @router.get("")
-def list_local_models(model_type: str | None = None) -> dict[str, Any]:
+def list_local_models(model_type: str | None = None) -> LocalModelListResponse:
     """List all local models, optionally filtered by type.
 
     Query params:
@@ -30,15 +81,18 @@ def list_local_models(model_type: str | None = None) -> dict[str, Any]:
     else:
         models = mgr.list_all()
 
-    return {"models": [m.to_dict() for m in models]}
+    return LocalModelListResponse(
+        models=[LocalModelInfoResponse(**m.to_dict()) for m in models]
+    )
 
 
 @router.get("/disk-usage")
-def disk_usage() -> dict[str, Any]:
+def disk_usage() -> DiskUsageResponse:
     """Get total disk usage by model type."""
     from fichero.local_models import LocalModelManager
 
-    return LocalModelManager().total_disk_usage()
+    data = LocalModelManager().total_disk_usage()
+    return DiskUsageResponse(**data)
 
 
 @router.post("/download/{model_type}/{model_id:path}")
@@ -46,7 +100,7 @@ def download_model(
     model_type: str,
     model_id: str,
     background_tasks: BackgroundTasks,
-) -> dict[str, Any]:
+) -> DownloadStartedResponse:
     """Start downloading a model in the background.
 
     Args:
@@ -59,7 +113,6 @@ def download_model(
         EMBEDDINGS_MODELS,
     )
 
-    # Validate model exists
     if model_type == "whisper":
         if model_id not in WHISPER_MODELS:
             raise HTTPException(
@@ -78,11 +131,13 @@ def download_model(
     mgr = LocalModelManager()
     background_tasks.add_task(mgr.download_model, model_type, model_id)
 
-    return {"status": "downloading", "model_type": model_type, "model_id": model_id}
+    return DownloadStartedResponse(
+        status="downloading", model_type=model_type, model_id=model_id
+    )
 
 
 @router.delete("/{model_type}/{model_id:path}")
-def delete_model(model_type: str, model_id: str) -> dict[str, Any]:
+def delete_model(model_type: str, model_id: str) -> DeleteModelResponse:
     """Delete a downloaded model.
 
     Args:
@@ -97,4 +152,4 @@ def delete_model(model_type: str, model_id: str) -> dict[str, Any]:
     mgr = LocalModelManager()
     freed = mgr.delete_model(model_type, model_id)
 
-    return {"status": "ok", "freed_bytes": freed}
+    return DeleteModelResponse(status="ok", freed_bytes=freed)

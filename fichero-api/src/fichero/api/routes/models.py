@@ -68,7 +68,7 @@ def _get_cache(key: str) -> Optional[list]:
     return None
 
 
-def _set_cache(key: str, data: list):
+def _set_cache(key: str, data: list) -> None:
     """Cache response."""
     _cache[key] = (datetime.now(), data)
 

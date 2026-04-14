@@ -17,18 +17,22 @@ from unittest.mock import MagicMock, patch
 def _make_model_entry(
     model_id: str = "base",
     model_type: str = "whisper",
-    downloaded: bool = False,
+    is_downloaded: bool = False,
 ) -> MagicMock:
     m = MagicMock()
     m.model_id = model_id
     m.model_type = model_type
-    m.downloaded = downloaded
+    m.is_downloaded = is_downloaded
     m.size_bytes = 0
     m.to_dict.return_value = {
         "model_id": model_id,
         "model_type": model_type,
-        "downloaded": downloaded,
+        "display_name": model_id,
         "size_bytes": 0,
+        "is_downloaded": is_downloaded,
+        "expected_size_mb": 0,
+        "path": None,
+        "metadata": {},
     }
     return m
 
