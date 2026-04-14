@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from fichero.db import Database
@@ -197,7 +197,6 @@ def _rollback_result_to_response(result) -> RollbackResponse:
 
 @router.get("", response_model=MigrationListResponse)
 async def list_migrations(
-    x_fichero_library_path: str = Header(..., description="Path to Fichero library"),
     db: Database = Depends(get_library_database),
 ) -> MigrationListResponse:
     """List all available migrations with descriptions."""
@@ -207,7 +206,6 @@ async def list_migrations(
 @router.post("/run", response_model=MigrationStatusResponse)
 async def run_migration(
     request: MigrationRunRequest,
-    x_fichero_library_path: str = Header(..., description="Path to Fichero library"),
     db: Database = Depends(get_library_database),
 ) -> MigrationStatusResponse:
     """Run a migration with optional dry-run mode.
@@ -248,7 +246,6 @@ async def run_migration(
 @router.post("/validate", response_model=MigrationValidationResponse)
 async def validate_migration(
     request: MigrationValidationRequest,
-    x_fichero_library_path: str = Header(..., description="Path to Fichero library"),
     db: Database = Depends(get_library_database),
 ) -> MigrationValidationResponse:
     """Validate if a migration can run safely on the current data.
@@ -274,7 +271,6 @@ async def validate_migration(
 @router.get("/status/{run_id}", response_model=MigrationStatusResponse)
 async def get_migration_status(
     run_id: str,
-    x_fichero_library_path: str = Header(..., description="Path to Fichero library"),
     db: Database = Depends(get_library_database),
 ) -> MigrationStatusResponse:
     """Get the status of a migration run by its audit ID.
@@ -300,7 +296,6 @@ async def get_migration_status(
 @router.post("/rollback", response_model=RollbackResponse)
 async def rollback_migration(
     request: RollbackRequest,
-    x_fichero_library_path: str = Header(..., description="Path to Fichero library"),
     db: Database = Depends(get_library_database),
 ) -> RollbackResponse:
     """Rollback a migration using its audit ID.
@@ -321,7 +316,6 @@ async def rollback_migration(
 
 @router.get("/integrity-check", response_model=DataIntegrityCheckResponse)
 async def data_integrity_check(
-    x_fichero_library_path: str = Header(..., description="Path to Fichero library"),
     db: Database = Depends(get_library_database),
 ) -> DataIntegrityCheckResponse:
     """Run data integrity checks on the knowledge graph.
