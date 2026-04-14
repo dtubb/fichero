@@ -331,7 +331,10 @@ class TestTaskPriority:
         """Create TaskQueue for priority testing."""
         queue = TaskQueue(temp_db_path)
         await queue.start()
+        # Pause scheduler so tasks aren't picked up before the ordering assertion
+        queue._scheduler.pause()
         yield queue
+        queue._scheduler.resume()
         await queue.stop()
 
     @pytest.mark.asyncio

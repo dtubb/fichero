@@ -432,7 +432,7 @@ class TaskQueue(TaskWorkersMixin):
                     query += " AND task_type = ?"
                     params.append(task_type.value)
 
-                query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+                query += " ORDER BY priority ASC, created_at ASC LIMIT ? OFFSET ?"
                 params.extend([limit, offset])
 
                 results = conn.execute(query, params).fetchall()

@@ -40,7 +40,7 @@ class TestPyKEENSecurity:
         try:
             # Currently no signature verification
             # This test documents the vulnerability
-            from fichero.api.routes.knowledge_graph import _prediction_artifacts_dir
+            from fichero.api.routes.knowledge_graph.predictions import _prediction_artifacts_dir
 
             # The vulnerability: pykeen.models.Model.load_directory()
             # uses pickle without verification
@@ -57,7 +57,7 @@ class TestPyKEENSecurity:
         Expected: FAIL (path not validated)
         Fixed: Should block paths outside artifacts directory.
         """
-        from fichero.api.routes.knowledge_graph import _prediction_artifacts_dir
+        from fichero.api.routes.knowledge_graph.predictions import _prediction_artifacts_dir
 
         # Test path validation
         traversal_path = "../../../etc/passwd"
@@ -190,7 +190,7 @@ class TestTripleBuildingSecurity:
         Expected: FAIL (no sensitivity flag)
         Fixed: Check claim.sensitivity before adding to triples.
         """
-        from fichero.api.routes.knowledge_graph import _build_minimal_pykeen_triples
+        from fichero.api.routes.knowledge_graph.predictions import _build_minimal_pykeen_triples
         from fichero.knowledge_models import KnowledgeClaim
 
         # Create a confidential claim
