@@ -28,6 +28,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/multilingual", tags=["multilingual"])
 
 
+class NormalizeRequest(BaseModel):
+    text: str = ""
+    language: str = "en"
+    stemming: bool = False
+
+
+class NormalizeResponse(BaseModel):
+    original: str
+    normalized: str
+    language: str
+    stemming: bool
+
+
 # Request/Response Models
 
 
@@ -332,27 +345,23 @@ async def get_entities_by_language(
 
 @router.post(
     "/normalize",
-    response_model=dict,
+    response_model=NormalizeResponse,
     summary="Normalize text",
     description="Normalize text for the given language.",
 )
 async def normalize_endpoint(
-    request: dict,
+    request: NormalizeRequest,
     x_fichero_library_path: str = Header(..., description="Library path"),
-) -> dict:
+) -> NormalizeResponse:
     """Normalize text for a language."""
-    text = request.get("text", "")
-    language = request.get("language", "en")
-    apply_stemming = request.get("stemming", False)
+    normalized = normalize_text(request.text, request.language)
 
-    normalized = normalize_text(text, language)
+    if request.stemming:
+        normalized = stem_text(normalized, request.language)
 
-    if apply_stemming:
-        normalized = stem_text(normalized, language)
-
-    return {
-        "original": text,
-        "normalized": normalized,
-        "language": language,
-        "stemming": apply_stemming,
-    }
+    return NormalizeResponse(
+        original=request.text,
+        normalized=normalized,
+        language=request.language,
+        stemming=request.stemming,
+    )

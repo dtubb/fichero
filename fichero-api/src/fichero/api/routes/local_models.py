@@ -5,13 +5,15 @@ Endpoints for managing locally-downloaded AI models (Whisper, embeddings, spaCy)
 Models are stored in ~/Library/Application Support/com.tubb.fichero/models/
 """
 
+from typing import Any
+
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 router = APIRouter(prefix="/local-models")
 
 
 @router.get("")
-def list_local_models(model_type: str | None = None):
+def list_local_models(model_type: str | None = None) -> dict[str, Any]:
     """List all local models, optionally filtered by type.
 
     Query params:
@@ -32,7 +34,7 @@ def list_local_models(model_type: str | None = None):
 
 
 @router.get("/disk-usage")
-def disk_usage():
+def disk_usage() -> dict[str, Any]:
     """Get total disk usage by model type."""
     from fichero.local_models import LocalModelManager
 
@@ -44,7 +46,7 @@ def download_model(
     model_type: str,
     model_id: str,
     background_tasks: BackgroundTasks,
-):
+) -> dict[str, Any]:
     """Start downloading a model in the background.
 
     Args:
@@ -80,7 +82,7 @@ def download_model(
 
 
 @router.delete("/{model_type}/{model_id:path}")
-def delete_model(model_type: str, model_id: str):
+def delete_model(model_type: str, model_id: str) -> dict[str, Any]:
     """Delete a downloaded model.
 
     Args:
