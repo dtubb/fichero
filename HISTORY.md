@@ -521,3 +521,10 @@ ALL COMPLETE:
 - Fixed `xFicheroLibraryPath` redeclaration in Swift client: removed duplicate `Header(...)` param from all 6 migration route handlers (was duplicating what `get_library_database` already declares)
 - Swift client pipeline now builds cleanly: 448 endpoints, `Build complete`, `✅ All models are in sync!`
 - All 1785 unit tests passing, lint clean throughout
+
+## 2026-04-14 — Verification pass + STATE.md correction
+
+- Verified test_providers.py mock target already fixed (committed in prior session as 7377376c)
+- Confirmed 1785 passing, 0 failures — all pre-existing failures resolved
+- Confirmed 0.0.2 is clean: only origin/0.0.2 and origin/main exist, no stray branches
+- Updated STATE.md to reflect accurate test health and clarify sequencing: release 0.0.1 first, then merge 0.0.2 → main
