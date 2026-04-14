@@ -35,7 +35,7 @@ Usage:
 
 from pathlib import Path
 from types import UnionType
-from typing import TypeVar, Type, get_origin, get_args, Union, Any, Callable
+from typing import TypeVar, Type, get_origin, get_args, Union, Any
 from dataclasses import dataclass
 from datetime import datetime
 import json
@@ -44,7 +44,9 @@ import re
 import time
 import duckdb
 from pydantic import BaseModel
-from fichero.errors import ErrorCategory, handle_error, retry_on_failure
+from fichero.db_embeddings import DatabaseEmbeddingMixin
+from fichero.db_manager import DatabaseManager, db_manager  # noqa: F401
+from fichero.errors import ErrorCategory, handle_error
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +82,7 @@ class SearchResult:
         return f"SearchResult(id={self.document_id}, score={self.score:.3f}, preview='{preview}')"
 
 
-class Database:
+class Database(DatabaseEmbeddingMixin):
     """Simple Pythonic wrapper for DuckDB + LanceDB."""
 
     def __init__(self, path: str | Path | None = None):
@@ -107,9 +109,14 @@ class Database:
         self._tables_created: set[str] = set()
 
         # Migrate tables if needed
-        self._migrate_workflow_table()
-        self._migrate_saved_search_table()
-        self._migrate_provider_refs_table()
+        from fichero.db_migrations import (
+            migrate_workflow_table,
+            migrate_saved_search_table,
+            migrate_provider_refs_table,
+        )
+        migrate_workflow_table(self.conn)
+        migrate_saved_search_table(self.conn)
+        migrate_provider_refs_table(self.conn)
 
     # =========================================================================
     # Core CRUD Operations
@@ -738,125 +745,11 @@ class Database:
             logger.warning("Search failed: %s", e)
             return [], 0, {"search_type": search_type, "error": str(e)}
 
-    def reindex_all(self, on_progress: Callable[[int, int], None] | None = None) -> int:
-        """Reindex all documents with page_content.
-
-        Args:
-            on_progress: Optional callback(indexed: int, total: int)
-
-        Returns:
-            Number of documents indexed
-        """
-        from fichero.models import Document
-
-        docs = self.all(Document)
-        total = len(docs)
-        indexed = 0
-
-        for i, doc in enumerate(docs):
-            if self.embed(doc):
-                indexed += 1
-
-            if on_progress:
-                on_progress(indexed, total)
-
-        logger.info("Reindexed %s/%s documents", indexed, total)
-        return indexed
-
-    def embedding_stats(self) -> dict:
-        """Get statistics about embeddings.
-
-        Returns:
-            Dict with indexed_count, table_exists
-        """
-        try:
-            if "embeddings" not in self._lance_tables():
-                return {"indexed_count": 0, "table_exists": False}
-
-            table = self.lance.open_table("embeddings")
-            count = table.count_rows()
-            return {"indexed_count": count, "table_exists": True}
-        except Exception:
-            return {"indexed_count": 0, "table_exists": False}
-
-    def _get_embedding_model_name(self) -> str:
-        """Get configured embedding model, defaulting to multilingual-e5-large."""
-        try:
-            from fichero.app_db import get_app_db
-
-            model = get_app_db().get_setting("default_embeddings_model")
-            if model:
-                return model
-        except Exception as e:
-            logger.debug("Could not read default_embeddings_model setting: %s", e)
-        return DEFAULT_MODEL
-
-    def _ensure_embedder(self) -> None:
-        """Lazy-load the embedding model.
-
-        Uses FastEmbed (ONNX-based, no scikit-learn dependency).
-        Reads configured model from app settings, falls back to DEFAULT_MODEL.
-        """
-        if self._embedder is None:
-            try:
-                from fastembed import TextEmbedding
-                from fichero.local_models import MODELS_BASE
-
-                model_name = self._get_embedding_model_name()
-                cache_dir = MODELS_BASE / "embeddings"
-                cache_dir.mkdir(parents=True, exist_ok=True)
-                self._embedder = TextEmbedding(
-                    model_name=model_name,
-                    cache_dir=str(cache_dir),
-                )
-                logger.info(
-                    "Loaded embedding model: %s (cache_dir=%s)",
-                    model_name,
-                    cache_dir,
-                )
-            except ImportError:
-                raise ImportError(
-                    "fastembed not installed. Install with: pip install fastembed"
-                )
-
-    def _embed_text(self, text: str) -> list[float]:
-        """Generate embedding vector for text.
-
-        Uses FastEmbed for local ONNX-based embedding.
-        Lazy-loads the model on first use.
-
-        Args:
-            text: Text to embed
-
-        Returns:
-            List of floats (embedding vector)
-        """
-        self._ensure_embedder()
-        # FastEmbed returns a generator, get first result
-        embeddings = list(self._embedder.embed([text]))
-        return embeddings[0].tolist()
-
-    def _embed_texts(self, texts: list[str]) -> list[list[float]]:
-        """Batch embed multiple texts.
-
-        More efficient than calling _embed_text() in a loop.
-
-        Args:
-            texts: List of texts to embed
-
-        Returns:
-            List of embedding vectors
-        """
-        if not texts:
-            return []
-
-        self._ensure_embedder()
-        embeddings = list(self._embedder.embed(texts))
-        return [e.tolist() for e in embeddings]
-
     # =========================================================================
     # Trace JSONL Export (for debug logs)
     # =========================================================================
+    # reindex_all, embedding_stats, and embedding helpers are in DatabaseEmbeddingMixin
+    # (fichero.db_embeddings)
 
     def export_traces_jsonl(self, run_id: str, path: str | Path | None = None) -> Path:
         """Export all traces for a run to JSONL file.
@@ -1073,375 +966,31 @@ class Database:
         """Close database connection."""
         self.conn.close()
 
-    @retry_on_failure(max_attempts=2, delay_seconds=0.5)
     def _migrate_workflow_table(self) -> None:
-        """Migrate workflows table to new schema if needed."""
-        try:
-            # First check if table exists
-            table_exists = (
-                self.conn.execute("""
-                SELECT COUNT(*) FROM information_schema.tables 
-                WHERE table_name = 'workflows'
-            """).fetchone()[0]
-                > 0
-            )
-
-            if not table_exists:
-                # Table doesn't exist, no migration needed
-                logger.debug("Workflows table does not exist, skipping migration")
-                return
-
-            # Check current schema
-            result = self.conn.execute("PRAGMA table_info('workflows')").fetchall()
-            columns = [row[1] for row in result]
-
-            # If old schema (has 'steps' but not 'format'), migrate
-            if "steps" in columns and "format" not in columns:
-                logger.info("Migrating workflows table to new schema...")
-
-                # Add new columns
-                self.conn.execute("""
-                    ALTER TABLE workflows 
-                    ADD COLUMN format VARCHAR DEFAULT 'steps'
-                """)
-
-                self.conn.execute("""
-                    ALTER TABLE workflows 
-                    ADD COLUMN nodes JSON DEFAULT []
-                """)
-
-                self.conn.execute("""
-                    ALTER TABLE workflows 
-                    ADD COLUMN edges JSON DEFAULT []
-                """)
-
-                self.conn.execute("""
-                    ALTER TABLE workflows 
-                    ADD COLUMN folder_path VARCHAR DEFAULT '/'
-                """)
-
-                self.conn.execute("""
-                    ALTER TABLE workflows 
-                    ADD COLUMN sort_order INTEGER DEFAULT 0
-                """)
-
-                self.conn.execute("""
-                    ALTER TABLE workflows 
-                    ADD COLUMN is_template BOOLEAN DEFAULT FALSE
-                """)
-
-                self.conn.execute("""
-                    ALTER TABLE workflows 
-                    ADD COLUMN tags JSON DEFAULT []
-                """)
-
-                self.conn.execute("""
-                    ALTER TABLE workflows 
-                    ADD COLUMN provider VARCHAR DEFAULT ''
-                """)
-
-                self.conn.execute("""
-                    ALTER TABLE workflows 
-                    ADD COLUMN model VARCHAR DEFAULT ''
-                """)
-
-                # Migrate existing data: convert steps to placeholder nodes/edges
-                self.conn.execute("""
-                    UPDATE workflows 
-                    SET format = 'steps'
-                    WHERE format IS NULL OR format = ''
-                """)
-
-                logger.info("Workflows table migration completed")
-
-        except Exception as e:
-            error = handle_error(
-                e,
-                default_message="Workflow table migration failed",
-                category=ErrorCategory.DATABASE,
-                context={"operation": "workflow_table_migration"},
-            )
-            logger.warning("Migration failed: %s", error.message)
-            raise  # Re-raise to trigger retry
+        """Delegate to db_migrations.migrate_workflow_table."""
+        from fichero.db_migrations import migrate_workflow_table
+        migrate_workflow_table(self.conn)
 
     def _migrate_saved_search_table(self) -> None:
-        """Migrate saved_searches table to add missing columns."""
-        try:
-            # Check if table exists using DuckDB's information_schema
-            table_exists = (
-                self.conn.execute("""
-                SELECT COUNT(*) FROM information_schema.tables
-                WHERE table_name = 'saved_searches'
-            """).fetchone()[0]
-                > 0
-            )
-
-            if not table_exists:
-                # Table doesn't exist, nothing to migrate
-                logger.debug("Saved searches table does not exist, skipping migration")
-                return
-
-            # Check current schema
-            result = self.conn.execute("PRAGMA table_info('saved_searches')").fetchall()
-            columns = {row[1]: row for row in result}
-
-            # Add folder_path if missing
-            if "folder_path" not in columns:
-                logger.info(
-                    "Migrating saved_searches table: adding folder_path column..."
-                )
-                self.conn.execute("""
-                    ALTER TABLE saved_searches
-                    ADD COLUMN folder_path VARCHAR DEFAULT '/'
-                """)
-
-            # Add sort_order if missing
-            if "sort_order" not in columns:
-                logger.info(
-                    "Migrating saved_searches table: adding sort_order column..."
-                )
-                self.conn.execute("""
-                    ALTER TABLE saved_searches
-                    ADD COLUMN sort_order INTEGER DEFAULT 0
-                """)
-
-            # Add sort_direction if missing
-            if "sort_direction" not in columns:
-                logger.info(
-                    "Migrating saved_searches table: adding sort_direction column..."
-                )
-                self.conn.execute("""
-                    ALTER TABLE saved_searches
-                    ADD COLUMN sort_direction VARCHAR DEFAULT 'desc'
-                """)
-
-            logger.info("Saved searches table migration completed")
-
-        except Exception as e:
-            # Table might not exist or other issue
-            logger.warning(f"Saved searches migration check failed: {e}")
+        """Delegate to db_migrations.migrate_saved_search_table."""
+        from fichero.db_migrations import migrate_saved_search_table
+        migrate_saved_search_table(self.conn)
 
     def _migrate_provider_refs_table(self) -> None:
-        """Create provider_refs table if it doesn't exist.
+        """Delegate to db_migrations.migrate_provider_refs_table."""
+        from fichero.db_migrations import migrate_provider_refs_table
+        migrate_provider_refs_table(self.conn)
 
-        This table tracks which app-wide providers a library references.
-        Actual provider config is stored in app.duckdb.
-        """
-        try:
-            # Check if table exists
-            table_exists = (
-                self.conn.execute("""
-                SELECT COUNT(*) FROM information_schema.tables
-                WHERE table_name = 'provider_refs'
-            """).fetchone()[0]
-                > 0
-            )
+    def _migrate_activity_tables(self) -> None:
+        """Delegate to db_migrations.migrate_activity_tables."""
+        from fichero.db_migrations import migrate_activity_tables
+        migrate_activity_tables(self.conn)
 
-            if table_exists:
-                logger.debug("provider_refs table already exists")
-                return
+    def _migrate_checkpoint_tables(self) -> None:
+        """Delegate to db_migrations.migrate_checkpoint_tables."""
+        from fichero.db_migrations import migrate_checkpoint_tables
+        migrate_checkpoint_tables(self.conn)
 
-            # Create the table
-            logger.info("Creating provider_refs table...")
-            self.conn.execute("""
-                CREATE TABLE IF NOT EXISTS provider_refs (
-                    id VARCHAR PRIMARY KEY,
-                    provider_id VARCHAR NOT NULL,
-                    enabled BOOLEAN DEFAULT TRUE,
-                    sort_order INTEGER DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-
-            # Create index on provider_id for fast lookups
-            self.conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_provider_refs_provider
-                ON provider_refs(provider_id)
-            """)
-
-            logger.info("provider_refs table created successfully")
-
-        except Exception as e:
-            logger.warning(f"provider_refs table creation failed: {e}")
-
-    def _migrate_activity_tables(self):
-        """Ensure activity tracking tables exist.
-
-        Creates the activities table for storing workflow execution events.
-        This enables the Activity sidebar to show historical data.
-        """
-        try:
-            # Activities table - stores workflow, node, and batch events
-            self.conn.execute("""
-                CREATE TABLE IF NOT EXISTS activities (
-                    id TEXT PRIMARY KEY,
-                    type TEXT NOT NULL,
-                    level TEXT NOT NULL,
-                    timestamp TIMESTAMP NOT NULL,
-                    message TEXT NOT NULL,
-                    workflow_id TEXT,
-                    batch_id TEXT,
-                    thread_id TEXT,
-                    node_id TEXT,
-                    metadata JSON,
-                    duration_ms FLOAT,
-                    error TEXT
-                )
-            """)
-
-            # Indexes for efficient queries
-            self.conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_activities_timestamp
-                ON activities(timestamp DESC)
-            """)
-            self.conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_activities_type
-                ON activities(type)
-            """)
-            self.conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_activities_workflow_id
-                ON activities(workflow_id)
-            """)
-            self.conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_activities_batch_id
-                ON activities(batch_id)
-            """)
-            self.conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_activities_thread_id
-                ON activities(thread_id)
-            """)
-            self.conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_activities_level
-                ON activities(level)
-            """)
-
-            logger.info("Activity tables migration completed")
-
-        except Exception as e:
-            logger.warning(f"Activity tables migration failed: {e}")
-
-    def _migrate_checkpoint_tables(self):
-        """Ensure LangGraph checkpoint tables exist.
-
-        Creates the checkpoints and checkpoint_writes tables for workflow
-        state persistence. This enables viewing Graph history in Activity sidebar.
-        """
-        try:
-            # Checkpoints table - stores workflow execution state
-            self.conn.execute("""
-                CREATE TABLE IF NOT EXISTS checkpoints (
-                    thread_id TEXT NOT NULL,
-                    checkpoint_ns TEXT NOT NULL DEFAULT '',
-                    checkpoint_id TEXT NOT NULL,
-                    parent_checkpoint_id TEXT,
-                    type TEXT,
-                    checkpoint BLOB,
-                    metadata BLOB,
-                    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id)
-                )
-            """)
-
-            # Writes table - stores pending checkpoint writes
-            self.conn.execute("""
-                CREATE TABLE IF NOT EXISTS checkpoint_writes (
-                    thread_id TEXT NOT NULL,
-                    checkpoint_ns TEXT NOT NULL DEFAULT '',
-                    checkpoint_id TEXT NOT NULL,
-                    task_id TEXT NOT NULL,
-                    idx INTEGER NOT NULL,
-                    channel TEXT NOT NULL,
-                    type TEXT,
-                    value BLOB,
-                    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id, task_id, idx)
-                )
-            """)
-
-            logger.info("Checkpoint tables migration completed")
-
-        except Exception as e:
-            logger.warning(f"Checkpoint tables migration failed: {e}")
-
-
-# Multi-library database manager for package documents
-class DatabaseManager:
-    """Manages multiple Database instances for package documents.
-
-    Each .fichero package contains its own database files:
-    - MyLibrary.fichero/fichero.duckdb
-    - MyLibrary.fichero/lance/
-
-    The manager maintains a pool of open Database connections.
-    """
-
-    def __init__(self):
-        self._databases: dict[str, Database] = {}
-        self._lock = __import__("threading").Lock()
-        logger.info("DatabaseManager initialized")
-
-    def get_database(self, package_path: str | Path) -> Database:
-        """Get or create Database instance for a package.
-
-        Args:
-            package_path: Path to the .fichero package directory
-                         (e.g., /Users/name/Documents/MyLibrary.fichero)
-
-        Returns:
-            Database instance for this package
-        """
-        package_path = Path(package_path)
-        package_str = str(package_path)
-
-        with self._lock:
-            if package_str not in self._databases:
-                # Create new database connection for this package
-                db_path = package_path / "fichero.duckdb"
-
-                logger.info(f"Creating database connection for package: {package_str}")
-
-                # Create the database instance
-                db = Database(path=db_path)
-
-                # Run migrations
-                db._migrate_workflow_table()
-                db._migrate_saved_search_table()
-                db._migrate_provider_refs_table()
-                db._migrate_activity_tables()
-                db._migrate_checkpoint_tables()
-
-                self._databases[package_str] = db
-                logger.info(f"Database connection created: {db_path}")
-
-            return self._databases[package_str]
-
-    def close_database(self, package_path: str | Path):
-        """Close database connection for a package."""
-        package_str = str(Path(package_path))
-
-        with self._lock:
-            if package_str in self._databases:
-                db = self._databases[package_str]
-                db.conn.close()
-                del self._databases[package_str]
-                logger.info(f"Closed database connection: {package_str}")
-
-    @property
-    def active_count(self) -> int:
-        """Return the number of currently open database connections."""
-        return len(self._databases)
-
-    def close_all(self):
-        """Close all database connections."""
-        with self._lock:
-            for package_path, db in list(self._databases.items()):
-                db.conn.close()
-                logger.info(f"Closed database: {package_path}")
-            self._databases.clear()
-            logger.info("All database connections closed")
-
-
-# Global database manager for package documents
-db_manager = DatabaseManager()
 
 # Backward-compatibility alias used by older tests/tooling that patch `fichero.db.db`.
 db = db_manager
