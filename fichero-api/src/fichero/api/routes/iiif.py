@@ -18,7 +18,7 @@ from PIL import Image
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
-from fichero.models import Document, DocType, FileType
+from fichero.models import Document, FileType
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/iiif", tags=["iiif"])
