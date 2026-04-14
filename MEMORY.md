@@ -1,5 +1,19 @@
 # Durable Lessons Learned / Decisions
 
+## Route Test Patterns — 2026-04-14
+
+**Double-prefix gotcha:** When a router has `prefix="/X"` AND is mounted at `/api/X`, actual paths are `/api/X/X/...`. Affects: `tasks`, `migrations`, `iiif`, `review_queue`. Always check `grep "router\b" main.py` and `router = APIRouter(prefix=...)` together.
+
+**Patch lazy imports at the source module, not the route module.** `from fichero.storage import stats` inside a route function body must be patched as `fichero.storage.stats`, not `fichero.api.routes.storage.stats`. But `from fichero.multilingual import detect_language` at module top must be patched as `fichero.api.routes.multilingual.detect_language` (bound name).
+
+**Route return values must be real Pydantic instances.** When a route returns a model directly (FastAPI serializes it), patching must return a real model instance — not `MagicMock(spec=...)`. Pydantic's C-extension serializer rejects `_SentinelObject`.
+
+**Async mock pattern for cleanup routes.** Routes that call `tracker.store.delete_old(dt)` need `tracker.store = MagicMock()` with `tracker.store.delete_old = AsyncMock(return_value=0)` — the store sub-attribute must exist before setting the async mock.
+
+**DocType vs FileType confusion.** `DocType` describes hierarchy role (file, folder, chunk, page). `FileType` describes media format (image, pdf, audio). The IIIF route had this wrong: `DocType.image` doesn't exist — use `doc.file_type` against `FileType.image/pdf`.
+
+**FK-free store.** DuckDB store has no foreign key constraints. `create_plan(project_id="missing")` succeeds (200) — don't write tests expecting 404 on missing parents unless the route explicitly validates them.
+
 ## FastAPI Route Registration Pattern — 2026-04-12
 
 **Pattern:** Adding new API routes to the FastAPI application

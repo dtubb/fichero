@@ -476,3 +476,19 @@ ALL COMPLETE:
 - docs/CLAUDE.md: fixed stale active branch reference (codex/restructure → 0.0.2)
 - .claude/agent-briefing.md: hard rule 1 now reflects 0.0.2 direct commits
 - Deleted stale files: MANAGER.md, PREFLIGHT_REPORT.md, agents/ralph.py, agents/run-loop.sh, agents/loop-prompt.txt, agents/ralph-loop.md, agents/plan.md, agents/progress.md, docs/architecture/MIND_PALACE_PLAN.md
+
+## 2026-04-14 — Test Coverage Sprint
+
+- **Comprehensive route test coverage**: Wrote tests for all remaining untested route files
+  - Added ~650 new tests across 20 new test files
+  - Test count went from ~1606 → 1774 passing
+  - Every route module in `fichero-api/src/fichero/api/routes/` now has a corresponding test file
+- **Source bugs fixed during testing**:
+  - `entities.py`: Route ordering bug — `/alias-map` and `/resolve/{value}` shadowed by `/{entity_id}`
+  - `mcp_tools.py`: Stray `canonical_hash` field (not in DB schema); soft-delete used non-existent `is_deleted` column; case-insensitive filter bug in entity/claim lists
+  - `iiif.py`: `DocType.image/pdf` used instead of correct `FileType.image/pdf`
+- **Test patterns established**:
+  - Double-prefix pattern: routers with `prefix="/X"` mounted at `/api/X` → paths at `/api/X/X/...`
+  - Lazy import patching: patch at source module path, not route module path
+  - Async mock pattern: `tracker.store.delete_old = AsyncMock(return_value=0)` for cleanup routes
+  - Real Pydantic instances required for route return values (not MagicMock)
