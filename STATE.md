@@ -2,9 +2,9 @@
 
 ## Current Focus
 
-**Branch:** `0.0.2` — pushed and clean. Swift client pipeline fully working.
+**Branch:** `0.0.2` — pushed and clean. Backend work complete.
 
-**Status:** Backend cleanup complete (#460 closed). All new feature areas planned and tracked on GitHub. Milestone restructuring complete.
+**Status:** Milestone restructuring complete. 42 milestones, one testable feature each. Release gate issues created for all milestones. Testing process documented.
 
 ## In Progress
 
@@ -12,37 +12,74 @@ Nothing active.
 
 ## Test Health
 
-**1785 passing, 0 failures, 21 skipped.** All pre-existing failures resolved.
+**1785 passing, 0 failures, 21 skipped.**
 
-## Milestone Map (post-restructure)
+## Release Map
 
-| Milestone | Issues | What |
+| Milestone | Theme | Issues |
 |---|---|---|
-| **0.0.1** | 6 open | Core Library — drag/drop + transcribe + window restore. Daniel's next test. |
-| **0.0.2** | 0 open | Search + Semantic Foundation — branch done, ready to merge after 0.0.1 ships. |
-| **0.0.3** | 6 open | Migration + Ops + re-enable layouts (#432, #433) |
-| **0.0.4** | 6 open | Semantic UX + Trust Workflow (knowledge graph UI) |
-| **0.0.5** | 26 open | Operations (async DNS fix, folder watchers, batch tools) |
-| **0.0.6** | 9 open | Image Editing (crop, rotate, enhance, remove-bg, segment, lossless) |
-| **0.0.7** | 7 open | Export System (JSON, Markdown, Word, Excel, HTML, Netlify) |
-| **0.0.8** | 2 open | API Security + Auth (localhost + API key) |
-| **0.0.9** | 5 open | Frontend Wiring v1 (feature gates, testing pipeline, search UI) |
-| **0.1.0** | 16 open | Epistemic Platform Expansion |
+| **0.0.1** | Core Library — ship next | 6 |
+| **0.0.2** | Backend merge (no UI) | 0 |
+| **0.0.3** | Wire: Search v1 | 8 |
+| **0.0.4** | Wire: Search v2 (Filters + Layouts) | 4 |
+| **0.0.5** | Wire: Search v3 (Semantic Map) | 3 |
+| **0.0.6** | Wire: Providers + API Keys | 8 |
+| **0.0.7** | Wire: Local Models | 1 |
+| **0.0.8** | Wire: Chat v1 | 4 |
+| **0.0.9** | Wire: Chat v2 (Model Comparison) | 2 |
+| **0.1.0** | Wire: Workflow Basics | 5 |
+| **0.1.1** | Wire: Workflow Editor | 4 |
+| **0.1.2** | Wire: Workflow Tools | 3 |
+| **0.1.3** | Wire: Workflow Chains (LangGraph) | 1 |
+| **0.1.4** | Wire: Batch Processing | 6 |
+| **0.1.5** | Wire: Activity Monitor | 2 |
+| **0.1.6** | Wire: Automation (Triggers + Schedules) | 2 |
+| **0.2.0** | Wire: KG Entities | 1 |
+| **0.2.1** | Wire: KG Claims List | 1 |
+| **0.2.2** | Wire: KG Claim Inspector | 2 |
+| **0.2.3** | Wire: Ontology Browser | 1 |
+| **0.2.4** | Wire: Epistemology Graph | 2 |
+| **0.2.5** | Wire: KG Predictions | 1 |
+| **0.2.6** | Wire: Hermeneutics | 3 |
+| **0.3.0** | Wire: Image Editing v1 (Crop + Rotate) | 7 |
+| **0.3.1** | Wire: Image Editing v2 (Enhance + Remove BG) | 3 |
+| **0.3.2** | Wire: Image Segmentation | 2 |
+| **0.4.0** | Wire: Export Basics (JSON + Markdown) | 4 |
+| **0.4.1** | Wire: Export Documents (Word + PDF) | 2 |
+| **0.4.2** | Wire: Export Spreadsheets (Excel) | 2 |
+| **0.4.3** | Wire: Export Web + Netlify | 3 |
+| **0.5.0** | Wire: MCP Servers | 2 |
+| **0.5.1** | Wire: API Security + Auth | 3 |
+| **0.6.0** | Wire: Spatial Knowledge Layer | 9 |
+| **0.6.1** | Wire: Spatial Library | 1 |
+| **0.7.0** | Wire: Agents | 1 |
+| **0.7.1** | Wire: Research Agents | 1 |
+| **0.7.2** | Wire: Integrations | 2 |
+| **0.8.0** | Backend Ops + Migrations | 4 |
+| **0.8.1** | Backend Operations | 4 |
+| **0.9.0** | Epistemic Platform Expansion | 8 |
 
-## Parallel Release Workflow
+## Testing Process
 
-When Daniel tests a release, Claude builds the next one on a separate worktree:
-- Daniel testing: `0.0.1`
-- Claude building next: `0.0.3` (after 0.0.2 merges)
-- Trigger to merge forward: `/release <version>`
+See `docs/architecture/release-process.md` — every milestone follows the same pipeline:
+1. Backend tests + lint
+2. Enable feature flag + Xcode build + SwiftLint
+3. Claude: MCP API tests + Peekaboo visual screenshots
+4. Daniel: human test checklist (in release gate issue)
+5. Bug loop via `/bug` skill
+6. `/release` to ship
 
 ## Next Session — Start Here
 
-1. **0.0.1 bugs** — fix #383, #384, #385, #386 (drag/drop, image import, window restore, transcribe). These are all SwiftUI issues.
-2. **Frontend wiring plan** — read #479, create `docs/architecture/frontend/overview.md` and `FeatureFlags.swift`
-3. **`/bug` skill** — already written in fichero-skills. Test it.
-4. **Then: ship 0.0.1** — once bugs fixed, `/milestone-check` → Daniel human tests → `/release 0.0.1`
-5. **Merge 0.0.2 → main** — immediately after 0.0.1 ships
+1. **Fix 0.0.1 bugs** — #383, #384, #385, #386 (SwiftUI: drag/drop, image import, window restore, transcribe reliability). These are the last 6 issues blocking the first ship.
+2. **Then: `/milestone-check`** → Daniel human tests → `/release 0.0.1`
+3. **Merge 0.0.2 → main** — immediately after 0.0.1 ships
+4. **Begin 0.0.3** — Wire Search v1: enable search, test, ship
+
+## Parallel Workflow
+
+Daniel tests N → Claude builds N+1 in a separate worktree.
+Gate: Claude never merges without Daniel's `/release N`.
 
 ---
-*Last updated: 2026-04-14* — #460 closed, issues #461-480 filed, milestones restructured (0.0.6-0.0.9 created), /bug skill written
+*Last updated: 2026-04-14* — 42 milestones created, release gate issues filed (#481-515), release-process.md written
