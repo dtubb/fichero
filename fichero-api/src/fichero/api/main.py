@@ -87,8 +87,6 @@ async def lifespan(app: FastAPI):
 
     # Startup: initialize database manager
     logger.info("Fichero API starting up...")
-    from fichero.db import db_manager
-
     logger.info("DatabaseManager initialized")
     yield
     # Shutdown: close all database connections
