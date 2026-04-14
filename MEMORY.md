@@ -1,5 +1,26 @@
 # Durable Lessons Learned / Decisions
 
+## File-Splitting Patterns — 2026-04-14
+
+**Mixin pattern for large class splits.** When splitting a large class (e.g., `TaskQueue`), extract method groups into a `*Mixin` class. The mixin references `self.database`, `self._save_task` etc. without owning them — Python resolves `self` at call time, so the mixin works as long as the concrete class provides those attributes. Pattern used in `task_workers.py` / `TaskWorkersMixin`.
+
+**Re-export pattern for backward compatibility.** After splitting a module, add at the bottom of the original file:
+```python
+from fichero.new_module import func_a, func_b  # noqa: F401, E402 (re-exported)
+```
+This keeps all existing import paths working. Use `# noqa: F401` because ruff sees these as unused.
+
+**Thin combiner router for split route modules.** When splitting a large route file into sub-modules, make the original a thin combiner:
+```python
+from fastapi import APIRouter
+from .sub_module_a import router as a_router
+router = APIRouter()
+router.include_router(a_router)
+```
+This preserves all existing `include_router(research_agents_router)` call sites in `main.py`.
+
+**Schemas module for Pydantic models.** When splitting a route module, move all Pydantic request/response models to a `schemas.py` sibling. Other modules (`core.py`, `runner.py`, `threads.py`) all import from `schemas.py`. This prevents circular imports and keeps models findable.
+
 ## Route Test Patterns — 2026-04-14
 
 **Double-prefix gotcha:** When a router has `prefix="/X"` AND is mounted at `/api/X`, actual paths are `/api/X/X/...`. Affects: `tasks`, `migrations`, `iiif`, `review_queue`. Always check `grep "router\b" main.py` and `router = APIRouter(prefix=...)` together.
