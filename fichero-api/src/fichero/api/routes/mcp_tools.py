@@ -298,7 +298,6 @@ async def mcp_knowledge_claim_create(
             language=request.language,
             metadata=request.metadata,
             created_by=request.created_by,
-            canonical_hash=request.text.strip()[:64],  # Simplified hash
             created_at=datetime.now(),
             updated_at=datetime.now(),
         )
@@ -364,12 +363,8 @@ async def mcp_knowledge_entity_delete(
     if not entity:
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
 
-    entity.is_deleted = True
-    entity.deleted_at = "now()"  # Will be converted to proper timestamp by DB
-    entity.deleted_at = datetime.now()
-
-    db.save(entity)
-    logger.info(f"MCP: Soft-deleted entity {entity_id}")
+    db.delete(entity)
+    logger.info(f"MCP: Deleted entity {entity_id}")
     return {"success": True, "entity_id": entity_id, "operation": "deleted"}
 
 
@@ -387,11 +382,8 @@ async def mcp_knowledge_claim_delete(
     if not claim:
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
 
-    claim.is_deleted = True
-    claim.deleted_at = datetime.now()
-
-    db.save(claim)
-    logger.info(f"MCP: Soft-deleted claim {claim_id}")
+    db.delete(claim)
+    logger.info(f"MCP: Deleted claim {claim_id}")
     return {"success": True, "claim_id": claim_id, "operation": "deleted"}
 
 
@@ -413,7 +405,7 @@ async def mcp_knowledge_entities_list(
 
     # Apply filters
     if q:
-        entities = [e for e in entities if q.lower() in e.canonical_name]
+        entities = [e for e in entities if q.lower() in e.canonical_name.lower()]
     if entity_type:
         entities = [e for e in entities if e.entity_type.value == entity_type]
 
@@ -447,7 +439,7 @@ async def mcp_knowledge_claims_list(
 
     # Apply filters
     if q:
-        claims = [c for c in claims if q.lower() in c.text]
+        claims = [c for c in claims if q.lower() in c.text.lower()]
     if claim_type:
         claims = [c for c in claims if c.claim_type.value == claim_type]
     if entity_id:

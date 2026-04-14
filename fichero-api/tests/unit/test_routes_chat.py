@@ -1,0 +1,121 @@
+"""Tests for chat/conversation management routes.
+
+Chat routes manage RAG conversations stored per-library. The LLM call path
+is out of scope here — tests focus on conversation CRUD (list, get, update,
+delete, reorder) and the providers list. Chat routes live at /api/chat/...
+"""
+
+import pytest
+
+from fichero.models import Conversation
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_conv(conv_id: str = "conv-1", title: str = "My Chat") -> Conversation:
+    return Conversation(id=conv_id, title=title, messages=[])
+
+
+# ---------------------------------------------------------------------------
+# GET /api/chat/conversations
+# ---------------------------------------------------------------------------
+
+
+class TestListConversations:
+    def test_empty_list(self, client):
+        r = client.get("/api/chat/conversations")
+        assert r.status_code == 200
+        assert r.json() == []
+
+    def test_returns_conversations(self, client, db):
+        db.save(_make_conv("c-1", "First Chat"))
+        db.save(_make_conv("c-2", "Second Chat"))
+
+        r = client.get("/api/chat/conversations")
+        assert r.status_code == 200
+        assert len(r.json()) == 2
+
+
+# ---------------------------------------------------------------------------
+# GET /api/chat/conversations/{id}
+# ---------------------------------------------------------------------------
+
+
+class TestGetConversation:
+    def test_get_existing(self, client, db):
+        conv = _make_conv("c-get", "Test conversation")
+        db.save(conv)
+
+        r = client.get("/api/chat/conversations/c-get")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["id"] == "c-get"
+        assert data["title"] == "Test conversation"
+        assert "messages" in data
+
+    def test_get_missing_returns_404(self, client):
+        r = client.get("/api/chat/conversations/no-such-conv")
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# PUT /api/chat/conversations/{id}
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateConversation:
+    def test_update_title(self, client, db):
+        conv = _make_conv("c-upd", "Old Title")
+        db.save(conv)
+
+        r = client.put("/api/chat/conversations/c-upd", json={"title": "New Title"})
+        assert r.status_code == 200
+        assert r.json()["title"] == "New Title"
+
+    def test_update_missing_returns_404(self, client):
+        r = client.put("/api/chat/conversations/no-such", json={"title": "X"})
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/chat/conversations/{id}
+# ---------------------------------------------------------------------------
+
+
+class TestDeleteConversation:
+    def test_delete_existing(self, client, db):
+        conv = _make_conv("c-del", "To Delete")
+        db.save(conv)
+
+        r = client.delete("/api/chat/conversations/c-del")
+        assert r.status_code == 200
+        assert r.json()["status"] == "deleted"
+
+    def test_delete_missing_returns_404(self, client):
+        r = client.delete("/api/chat/conversations/no-such")
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# POST /api/chat/conversations/reorder
+# ---------------------------------------------------------------------------
+
+
+class TestReorderConversations:
+    def test_reorder_updates_sort_order(self, client, db):
+        c1 = _make_conv("r-1", "Conv 1")
+        c2 = _make_conv("r-2", "Conv 2")
+        db.save(c1)
+        db.save(c2)
+
+        r = client.post("/api/chat/conversations/reorder", json=["r-2", "r-1"])
+        assert r.status_code == 200
+        data = r.json()
+        assert data["count"] == 2
+
+    def test_reorder_missing_conv_returns_404(self, client):
+        r = client.post("/api/chat/conversations/reorder", json=["no-such-conv"])
+        assert r.status_code == 404
