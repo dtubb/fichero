@@ -41,9 +41,9 @@ class MigrationRunRequest(BaseModel):
 
     command: MigrationCommand
     dry_run: bool = Field(default=False, description="Validate without making changes")
-    batch_size: int | None = Field(default=None, gt=0, description="Process in batches")
+    batch_size: int | None = Field(default=None, ge=1, description="Process in batches")
     limit: int | None = Field(
-        default=None, gt=0, description="Maximum items to process"
+        default=None, ge=1, description="Maximum items to process"
     )
 
 
