@@ -9,6 +9,7 @@ Provides:
 
 import asyncio
 import json
+import threading
 import logging
 import uuid
 from dataclasses import dataclass, field
@@ -144,6 +145,8 @@ class TaskQueue:
         self._scheduler: Optional[AsyncIOScheduler] = None
         self._running: bool = False
         self._lock = asyncio.Lock()
+        self._db_lock = threading.Lock()   # serializes concurrent DuckDB writes
+        self._executing: set[str] = set()   # task_ids currently being executed
         self._init_database()
 
     def _init_database(self) -> None:
@@ -330,43 +333,44 @@ class TaskQueue:
         """Save task to database."""
 
         def _save():
-            conn = duckdb.connect(self.db_path)
-            try:
-                conn.execute(
-                    """
-                    INSERT OR REPLACE INTO background_tasks (
-                        task_id, task_type, name, status,
-                        options, priority, timeout_seconds,
-                        progress_current, progress_total, progress_message,
-                        progress_updated_at,
-                        result_success, result_message, result_details, result_error,
-                        created_at, started_at, completed_at, error_message
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                    [
-                        task.task_id,
-                        task.task_type.value,
-                        task.name,
-                        task.status.value,
-                        json.dumps(task.config.options),
-                        task.config.priority,
-                        task.config.timeout_seconds,
-                        task.progress.current,
-                        task.progress.total,
-                        task.progress.message,
-                        task.progress.updated_at,
-                        task.result.success if task.result else None,
-                        task.result.message if task.result else None,
-                        json.dumps(task.result.details) if task.result else None,
-                        task.result.error if task.result else None,
-                        task.created_at,
-                        task.started_at,
-                        task.completed_at,
-                        task.error_message,
-                    ],
-                )
-            finally:
-                conn.close()
+            with self._db_lock:
+                conn = duckdb.connect(self.db_path)
+                try:
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO background_tasks (
+                            task_id, task_type, name, status,
+                            options, priority, timeout_seconds,
+                            progress_current, progress_total, progress_message,
+                            progress_updated_at,
+                            result_success, result_message, result_details, result_error,
+                            created_at, started_at, completed_at, error_message
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                        [
+                            task.task_id,
+                            task.task_type.value,
+                            task.name,
+                            task.status.value,
+                            json.dumps(task.config.options),
+                            task.config.priority,
+                            task.config.timeout_seconds,
+                            task.progress.current,
+                            task.progress.total,
+                            task.progress.message,
+                            task.progress.updated_at,
+                            task.result.success if task.result else None,
+                            task.result.message if task.result else None,
+                            json.dumps(task.result.details) if task.result else None,
+                            task.result.error if task.result else None,
+                            task.created_at,
+                            task.started_at,
+                            task.completed_at,
+                            task.error_message,
+                        ],
+                    )
+                finally:
+                    conn.close()
 
         try:
             await asyncio.to_thread(_save)
@@ -397,31 +401,53 @@ class TaskQueue:
         )
         logger.debug(f"Scheduled task {next_task.task_id}")
 
+    async def _claim_for_direct_execution(self, task: BackgroundTask) -> bool:
+        """Claim a task for direct execution (not via APScheduler).
+
+        Returns True if successfully claimed, False if already running/done.
+        Called by _execute_* methods when invoked directly (e.g. from tests or
+        the API), so that a concurrent APScheduler _execute_task sees the task
+        as already executing and skips it.
+        """
+        async with self._lock:
+            if task.task_id in self._executing:
+                return False
+            if task.status not in (TaskStatus.PENDING, TaskStatus.RUNNING):
+                return False
+            self._executing.add(task.task_id)
+            if task.status == TaskStatus.PENDING:
+                task.status = TaskStatus.RUNNING
+                task.started_at = datetime.now()
+            return True
+
     async def _execute_task(self, task_id: str) -> None:
         """Execute a background task."""
         async with self._lock:
             task = self._tasks.get(task_id)
             if not task or task.status != TaskStatus.PENDING:
                 return
+            if task_id in self._executing:
+                return
 
             task.status = TaskStatus.RUNNING
             task.started_at = datetime.now()
+            self._executing.add(task_id)
             await self._save_task(task)
 
         logger.info(f"Starting task {task_id}: {task.name}")
 
         try:
-            # Execute based on task type
+            # Execute based on task type (call _do_* directly — task is already claimed)
             if task.task_type == TaskType.REINDEX:
-                result = await self._execute_reindex(task)
+                result = await self._do_reindex(task)
             elif task.task_type == TaskType.METRICS:
-                result = await self._execute_metrics(task)
+                result = await self._do_metrics(task)
             elif task.task_type == TaskType.REPAIR:
-                result = await self._execute_repair(task)
+                result = await self._do_repair(task)
             elif task.task_type == TaskType.VECTOR_REPAIR:
-                result = await self._execute_vector_repair(task)
+                result = await self._do_vector_repair(task)
             elif task.task_type == TaskType.KG_METRICS:
-                result = await self._execute_kg_metrics(task)
+                result = await self._do_kg_metrics(task)
             else:
                 raise ValueError(f"Unknown task type: {task.task_type}")
 
@@ -442,23 +468,46 @@ class TaskQueue:
 
         finally:
             task.completed_at = datetime.now()
+            self._executing.discard(task_id)
             await self._save_task(task)
 
             # Schedule next task
             self._schedule_next_task()
 
     async def _execute_reindex(self, task: BackgroundTask) -> TaskResult:
-        """Execute reindex task for LanceDB."""
+        """Public entry point for reindex — claims task, runs, finalizes."""
+        claimed = await self._claim_for_direct_execution(task)
+        if not claimed:
+            # Already running via APScheduler — return current result or wait result
+            return task.result or TaskResult(success=True, message="Already executing")
+        try:
+            result = await self._do_reindex(task)
+            task.completed_at = datetime.now()
+            await self._save_task(task)
+            return result
+        except Exception as e:
+            task.status = TaskStatus.FAILED
+            task.error_message = str(e)
+            task.result = TaskResult(success=False, message="Task failed", error=str(e))
+            task.completed_at = datetime.now()
+            await self._save_task(task)
+            return task.result
+        finally:
+            self._executing.discard(task.task_id)
+
+    async def _do_reindex(self, task: BackgroundTask) -> TaskResult:
+        """Internal reindex implementation (called by _execute_reindex and _execute_task)."""
         if not self.database:
-            return TaskResult(
+            result = TaskResult(
                 success=False,
                 message="Database not available",
                 error="Database not initialized",
             )
+            task.result = result
+            task.status = TaskStatus.FAILED
+            return result
 
         # Get documents to reindex
-
-
         docs = await asyncio.to_thread(self.database.all, Document)
         total = len(docs)
 
@@ -489,20 +538,46 @@ class TaskQueue:
             except Exception as e:
                 logger.warning(f"Failed to index document {doc.id}: {e}")
 
-        return TaskResult(
+        result = TaskResult(
             success=True,
             message=f"Reindexed {indexed}/{total} documents",
             details={"indexed": indexed, "total": total},
         )
+        task.result = result
+        task.status = TaskStatus.COMPLETED if result.success else TaskStatus.FAILED
+        return result
 
     async def _execute_metrics(self, task: BackgroundTask) -> TaskResult:
-        """Execute metrics recomputation task."""
+        """Public entry point for metrics — claims task, runs, finalizes."""
+        claimed = await self._claim_for_direct_execution(task)
+        if not claimed:
+            return task.result or TaskResult(success=True, message="Already executing")
+        try:
+            result = await self._do_metrics(task)
+            task.completed_at = datetime.now()
+            await self._save_task(task)
+            return result
+        except Exception as e:
+            task.status = TaskStatus.FAILED
+            task.error_message = str(e)
+            task.result = TaskResult(success=False, message="Task failed", error=str(e))
+            task.completed_at = datetime.now()
+            await self._save_task(task)
+            return task.result
+        finally:
+            self._executing.discard(task.task_id)
+
+    async def _do_metrics(self, task: BackgroundTask) -> TaskResult:
+        """Internal metrics implementation (called by _execute_metrics and _execute_task)."""
         if not self.database:
-            return TaskResult(
+            result = TaskResult(
                 success=False,
                 message="Database not available",
                 error="Database not initialized",
             )
+            task.result = result
+            task.status = TaskStatus.FAILED
+            return result
 
         task.progress.total = 5  # Steps in metrics computation
         task.progress.message = "Computing library metrics..."
@@ -555,7 +630,7 @@ class TaskQueue:
         task.progress.percent = 100.0
         await self._save_task(task)
 
-        return TaskResult(
+        result = TaskResult(
             success=True,
             message=f"Metrics computed for {doc_count} documents",
             details={
@@ -565,9 +640,32 @@ class TaskQueue:
                 "status_distribution": status_counts,
             },
         )
+        task.result = result
+        task.status = TaskStatus.COMPLETED if result.success else TaskStatus.FAILED
+        return result
 
     async def _execute_repair(self, task: BackgroundTask) -> TaskResult:
-        """Execute repair task for database inconsistencies.
+        """Public entry point for repair — claims task, runs, finalizes."""
+        claimed = await self._claim_for_direct_execution(task)
+        if not claimed:
+            return task.result or TaskResult(success=True, message="Already executing")
+        try:
+            result = await self._do_repair(task)
+            task.completed_at = datetime.now()
+            await self._save_task(task)
+            return result
+        except Exception as e:
+            task.status = TaskStatus.FAILED
+            task.error_message = str(e)
+            task.result = TaskResult(success=False, message="Task failed", error=str(e))
+            task.completed_at = datetime.now()
+            await self._save_task(task)
+            return task.result
+        finally:
+            self._executing.discard(task.task_id)
+
+    async def _do_repair(self, task: BackgroundTask) -> TaskResult:
+        """Internal repair implementation (called by _execute_repair and _execute_task).
 
         Repairs:
         - Documents with missing embeddings
@@ -575,11 +673,14 @@ class TaskQueue:
         - Stale metadata entries
         """
         if not self.database:
-            return TaskResult(
+            result = TaskResult(
                 success=False,
                 message="Database not available",
                 error="Database not initialized",
             )
+            task.result = result
+            task.status = TaskStatus.FAILED
+            return result
 
         task.progress.total = 3
         task.progress.message = "Repairing database inconsistencies..."
@@ -597,7 +698,7 @@ class TaskQueue:
 
         docs = await asyncio.to_thread(self.database.all, Document)
         for doc in docs:
-            if doc.page_content and not doc.embedding:
+            if doc.page_content and not getattr(doc, "embedding", None):
                 try:
                     await asyncio.to_thread(self.database.embed, doc)
                     repaired["embeddings"] += 1
@@ -613,7 +714,8 @@ class TaskQueue:
         artifacts = await asyncio.to_thread(self.database.all, Artifact)
         doc_ids = {d.id for d in docs}
         for artifact in artifacts:
-            if artifact.document_id not in doc_ids:
+            artifact_doc_id = getattr(artifact, "document_id", None)
+            if artifact_doc_id and artifact_doc_id not in doc_ids:
                 # Orphaned artifact - delete or mark as orphaned
                 await asyncio.to_thread(self.database.delete, artifact)
                 repaired["artifacts"] += 1
@@ -637,14 +739,37 @@ class TaskQueue:
                 repaired["docs"] += 1
 
         total_repaired = sum(repaired.values())
-        return TaskResult(
+        result = TaskResult(
             success=True,
             message=f"Repair completed: {total_repaired} items fixed",
             details=repaired,
         )
+        task.result = result
+        task.status = TaskStatus.COMPLETED if result.success else TaskStatus.FAILED
+        return result
 
     async def _execute_vector_repair(self, task: BackgroundTask) -> TaskResult:
-        """Execute vector repair task for LanceDB consistency.
+        """Public entry point for vector repair — claims task, runs, finalizes."""
+        claimed = await self._claim_for_direct_execution(task)
+        if not claimed:
+            return task.result or TaskResult(success=True, message="Already executing")
+        try:
+            result = await self._do_vector_repair(task)
+            task.completed_at = datetime.now()
+            await self._save_task(task)
+            return result
+        except Exception as e:
+            task.status = TaskStatus.FAILED
+            task.error_message = str(e)
+            task.result = TaskResult(success=False, message="Task failed", error=str(e))
+            task.completed_at = datetime.now()
+            await self._save_task(task)
+            return task.result
+        finally:
+            self._executing.discard(task.task_id)
+
+    async def _do_vector_repair(self, task: BackgroundTask) -> TaskResult:
+        """Internal vector repair implementation.
 
         Repairs vector index issues:
         - Missing vectors for documents with content
@@ -652,11 +777,14 @@ class TaskQueue:
         - Vector dimension mismatches
         """
         if not self.database:
-            return TaskResult(
+            result = TaskResult(
                 success=False,
                 message="Database not available",
                 error="Database not initialized",
             )
+            task.result = result
+            task.status = TaskStatus.FAILED
+            return result
 
         task.progress.total = 4
         task.progress.message = "Repairing vector index..."
@@ -681,7 +809,7 @@ class TaskQueue:
         await self._save_task(task)
 
         for doc in docs:
-            if doc.page_content and not doc.embedding:
+            if doc.page_content and not getattr(doc, "embedding", None):
                 try:
                     success = await asyncio.to_thread(self.database.embed, doc)
                     if success:
@@ -711,7 +839,7 @@ class TaskQueue:
         task.progress.percent = 100.0
         await self._save_task(task)
 
-        return TaskResult(
+        result = TaskResult(
             success=True,
             message=f"Vector repair complete: {repaired['added']} added, {repaired['removed']} removed",
             details={
@@ -720,9 +848,32 @@ class TaskQueue:
                 "vector_count": vector_count,
             },
         )
+        task.result = result
+        task.status = TaskStatus.COMPLETED if result.success else TaskStatus.FAILED
+        return result
 
     async def _execute_kg_metrics(self, task: BackgroundTask) -> TaskResult:
-        """Execute knowledge graph metrics recomputation.
+        """Public entry point for KG metrics — claims task, runs, finalizes."""
+        claimed = await self._claim_for_direct_execution(task)
+        if not claimed:
+            return task.result or TaskResult(success=True, message="Already executing")
+        try:
+            result = await self._do_kg_metrics(task)
+            task.completed_at = datetime.now()
+            await self._save_task(task)
+            return result
+        except Exception as e:
+            task.status = TaskStatus.FAILED
+            task.error_message = str(e)
+            task.result = TaskResult(success=False, message="Task failed", error=str(e))
+            task.completed_at = datetime.now()
+            await self._save_task(task)
+            return task.result
+        finally:
+            self._executing.discard(task.task_id)
+
+    async def _do_kg_metrics(self, task: BackgroundTask) -> TaskResult:
+        """Internal KG metrics implementation.
 
         Recomputes:
         - Entity statistics (per type)
@@ -731,11 +882,14 @@ class TaskQueue:
         - Connected component analysis
         """
         if not self.database:
-            return TaskResult(
+            result = TaskResult(
                 success=False,
                 message="Database not available",
                 error="Database not initialized",
             )
+            task.result = result
+            task.status = TaskStatus.FAILED
+            return result
 
         task.progress.total = 4
         task.progress.message = "Computing knowledge graph metrics..."
@@ -794,7 +948,7 @@ class TaskQueue:
         task.progress.percent = 100.0
         await self._save_task(task)
 
-        return TaskResult(
+        result = TaskResult(
             success=True,
             message=f"KG metrics: {len(entities)} entities, {len(claims)} claims, {len(links)} links",
             details={
@@ -808,6 +962,9 @@ class TaskQueue:
                 "links_by_relation": links_by_relation,
             },
         )
+        task.result = result
+        task.status = TaskStatus.COMPLETED if result.success else TaskStatus.FAILED
+        return result
 
     async def get_task(self, task_id: str) -> Optional[BackgroundTask]:
         """Get task by ID."""
