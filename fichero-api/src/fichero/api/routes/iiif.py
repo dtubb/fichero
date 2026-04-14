@@ -18,7 +18,7 @@ from PIL import Image
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
-from fichero.models import Document, DocType
+from fichero.models import Document, DocType, FileType
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/iiif", tags=["iiif"])
@@ -95,7 +95,7 @@ class IIIFManifest(BaseModel):
 
 def _get_image_path(doc: Document) -> Path | None:
     """Get the image file path for a document."""
-    if doc.doc_type not in (DocType.image, DocType.pdf) and not doc.path:
+    if doc.file_type not in (FileType.image, FileType.pdf) and not doc.path:
         return None
 
     # Try display image first, then thumbnail, then original
