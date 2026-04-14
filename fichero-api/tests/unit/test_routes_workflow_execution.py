@@ -52,7 +52,7 @@ class TestListThreads:
     def test_returns_empty_when_no_threads(self, client):
         mock_cp = _make_mock_checkpointer()
         with patch(
-            "fichero.api.routes.workflow_execution.AsyncDuckDBCheckpointer.from_db_path",
+            "fichero.api.routes.workflow_execution.threads.AsyncDuckDBCheckpointer.from_db_path",
             return_value=mock_cp,
         ):
             r = client.get("/api/workflow-execution/threads")
@@ -72,7 +72,7 @@ class TestGetThreadStatus:
         mock_cp = _make_mock_checkpointer()
         mock_cp.aget_tuple = AsyncMock(return_value=None)
         with patch(
-            "fichero.api.routes.workflow_execution.AsyncDuckDBCheckpointer.from_db_path",
+            "fichero.api.routes.workflow_execution.core.AsyncDuckDBCheckpointer.from_db_path",
             return_value=mock_cp,
         ):
             r = client.get("/api/workflow-execution/threads/nonexistent/status")
@@ -89,7 +89,7 @@ class TestDeleteThread:
         mock_cp = _make_mock_checkpointer()
         mock_cp.aget_tuple = AsyncMock(return_value=None)
         with patch(
-            "fichero.api.routes.workflow_execution.AsyncDuckDBCheckpointer.from_db_path",
+            "fichero.api.routes.workflow_execution.threads.AsyncDuckDBCheckpointer.from_db_path",
             return_value=mock_cp,
         ):
             r = client.delete("/api/workflow-execution/threads/nonexistent")
@@ -113,7 +113,7 @@ class TestCacheStats:
             "newest_entry": None,
         }
         with patch(
-            "fichero.api.routes.workflow_execution.get_node_cache",
+            "fichero.api.routes.workflow_execution.cache.get_node_cache",
             return_value=mock_cache,
         ):
             r = client.get(f"/api/workflow-execution/workflows/{wf.id}/cache/stats")
@@ -131,7 +131,7 @@ class TestCacheStats:
             "newest_entry": None,
         }
         with patch(
-            "fichero.api.routes.workflow_execution.get_node_cache",
+            "fichero.api.routes.workflow_execution.cache.get_node_cache",
             return_value=mock_cache,
         ):
             r = client.get(f"/api/workflow-execution/workflows/{wf.id}/cache/stats")
@@ -149,7 +149,7 @@ class TestClearWorkflowCache:
         mock_cache = MagicMock()
         mock_cache.clear_workflow.return_value = 3
         with patch(
-            "fichero.api.routes.workflow_execution.get_node_cache",
+            "fichero.api.routes.workflow_execution.cache.get_node_cache",
             return_value=mock_cache,
         ):
             r = client.delete(f"/api/workflow-execution/workflows/{wf.id}/cache")
@@ -167,7 +167,7 @@ class TestClearGlobalCache:
         mock_cache = MagicMock()
         mock_cache.clear_all.return_value = 0
         with patch(
-            "fichero.api.routes.workflow_execution.get_node_cache",
+            "fichero.api.routes.workflow_execution.cache.get_node_cache",
             return_value=mock_cache,
         ):
             r = client.delete("/api/workflow-execution/cache")
@@ -190,7 +190,7 @@ class TestGlobalCacheStats:
             "newest_entry": None,
         }
         with patch(
-            "fichero.api.routes.workflow_execution.get_node_cache",
+            "fichero.api.routes.workflow_execution.cache.get_node_cache",
             return_value=mock_cache,
         ):
             r = client.get("/api/workflow-execution/cache/stats")
@@ -209,7 +209,7 @@ class TestExecuteWorkflow:
             "inputs": {},
         }
         with patch(
-            "fichero.api.routes.workflow_execution.AsyncDuckDBCheckpointer.from_db_path",
+            "fichero.api.routes.workflow_execution.core.AsyncDuckDBCheckpointer.from_db_path",
             return_value=_make_mock_checkpointer(),
         ):
             r = client.post("/api/workflow-execution/execute", json=payload)
