@@ -182,7 +182,7 @@ class TestModelInfo:
         """Test listing models for a provider."""
         from fichero.llm import list_models_for_provider
 
-        with patch("fichero.llm._get_litellm") as mock_litellm:
+        with patch("fichero.llm_models._get_litellm") as mock_litellm:
             mock_litellm.return_value.model_cost = {
                 "openai/gpt-4o": {
                     "input_cost_per_token": 0.000005,
@@ -214,7 +214,7 @@ class TestModelInfo:
         """Test getting model cost info."""
         from fichero.llm import get_model_cost
 
-        with patch("fichero.llm._get_litellm") as mock_litellm:
+        with patch("fichero.llm_models._get_litellm") as mock_litellm:
             mock_litellm.return_value.model_cost = {
                 "gpt-4o": {
                     "input_cost_per_token": 0.000005,
@@ -232,7 +232,7 @@ class TestModelInfo:
         """Test cost estimation."""
         from fichero.llm import estimate_cost
 
-        with patch("fichero.llm._get_litellm") as mock_litellm:
+        with patch("fichero.llm_models._get_litellm") as mock_litellm:
             mock_litellm.return_value.cost_per_token.return_value = (0.05, 0.15)
 
             cost = estimate_cost("gpt-4o", input_tokens=1000, output_tokens=500)
