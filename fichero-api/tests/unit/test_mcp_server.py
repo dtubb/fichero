@@ -139,7 +139,7 @@ class TestAPIRequests:
     @pytest.mark.asyncio
     async def test_api_request_unknown_method(self, client):
         """Test API request with unknown HTTP method."""
-        result = await client.request("PATCH", "/documents")
+        result = await client.request("OPTIONS", "/documents")
         assert "error" in result
         assert "Unknown method" in result["error"]
 
