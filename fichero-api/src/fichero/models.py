@@ -67,7 +67,8 @@ class FileType(str, Enum):
     audio = "audio"  # mp3, wav, m4a
     video = "video"  # mp4, mov
     text = "text"  # txt, md
-    word = "word"  # docx
+    word = "word"  # doc
+    docx = "docx"  # docx
     epub = "epub"  # ebooks
     other = "other"
 
@@ -77,6 +78,7 @@ class Status(str, Enum):
 
     pending = "pending"
     processing = "processing"
+    active = "active"
     completed = "completed"
     failed = "failed"
 
