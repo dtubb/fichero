@@ -10,6 +10,10 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 
+class StatusOkResponse(BaseModel):
+    status: str
+
+
 class AIDefaults(BaseModel):
     """Default AI model configuration per category."""
 
@@ -52,7 +56,7 @@ def get_ai_defaults() -> AIDefaults:
 
 
 @router.put("/ai-defaults")
-def set_ai_defaults(body: AIDefaults) -> dict:
+def set_ai_defaults(body: AIDefaults) -> StatusOkResponse:
     """Set default AI models for each category."""
     from fichero.app_db import get_app_db
 
@@ -76,14 +80,14 @@ def set_ai_defaults(body: AIDefaults) -> dict:
             db.set_setting(key, value)
         else:
             db.delete_setting(key)
-    return {"status": "ok"}
+    return StatusOkResponse(status="ok")
 
 
 @router.delete("/ai-defaults")
-def reset_ai_defaults() -> dict:
+def reset_ai_defaults() -> StatusOkResponse:
     """Reset all AI default settings to empty."""
     from fichero.app_db import get_app_db
 
     db = get_app_db()
     db.reset_ai_defaults()
-    return {"status": "ok"}
+    return StatusOkResponse(status="ok")

@@ -6,7 +6,6 @@ Endpoints for algorithmic graph analysis using NetworkX.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -71,6 +70,19 @@ class ShortestPathsRequest(BaseModel):
 
     source_id: str
     target_ids: list[str]
+
+
+class AlgorithmInfo(BaseModel):
+    id: str
+    name: str
+    description: str
+
+
+class AlgorithmsListResponse(BaseModel):
+    networkx_available: bool
+    reasoner_enabled: bool
+    centrality_algorithms: list[AlgorithmInfo]
+    community_algorithms: list[AlgorithmInfo]
 
 
 class GraphMetricsResponse(BaseModel):
@@ -421,27 +433,27 @@ async def get_graph_metrics(
 
 @router.get(
     "/api/graph/networkx/algorithms",
-    response_model=dict[str, Any],
+    response_model=AlgorithmsListResponse,
     summary="List available algorithms",
     tags=["graph-reasoning"],
 )
-async def list_algorithms() -> dict[str, Any]:
+async def list_algorithms() -> AlgorithmsListResponse:
     """List all available NetworkX algorithms and their descriptions."""
     reasoner = get_reasoner()
 
-    return {
-        "networkx_available": reasoner.is_available(),
-        "reasoner_enabled": reasoner.enabled,
-        "centrality_algorithms": [
-            {"id": "degree_centrality", "name": "Degree Centrality", "description": "Node importance based on number of connections"},
-            {"id": "betweenness_centrality", "name": "Betweenness Centrality", "description": "Nodes that bridge different parts of the graph"},
-            {"id": "closeness_centrality", "name": "Closeness Centrality", "description": "Average distance to all other nodes"},
-            {"id": "eigenvector_centrality", "name": "Eigenvector Centrality", "description": "Influence based on neighbors' importance"},
-            {"id": "pagerank", "name": "PageRank", "description": "PageRank algorithm for node importance"},
+    return AlgorithmsListResponse(
+        networkx_available=reasoner.is_available(),
+        reasoner_enabled=reasoner.enabled,
+        centrality_algorithms=[
+            AlgorithmInfo(id="degree_centrality", name="Degree Centrality", description="Node importance based on number of connections"),
+            AlgorithmInfo(id="betweenness_centrality", name="Betweenness Centrality", description="Nodes that bridge different parts of the graph"),
+            AlgorithmInfo(id="closeness_centrality", name="Closeness Centrality", description="Average distance to all other nodes"),
+            AlgorithmInfo(id="eigenvector_centrality", name="Eigenvector Centrality", description="Influence based on neighbors' importance"),
+            AlgorithmInfo(id="pagerank", name="PageRank", description="PageRank algorithm for node importance"),
         ],
-        "community_algorithms": [
-            {"id": "louvain", "name": "Louvain", "description": "Modularity optimization for community detection"},
-            {"id": "greedy_modularity", "name": "Greedy Modularity", "description": "Greedy modularity maximization"},
-            {"id": "label_propagation", "name": "Label Propagation", "description": "Fast label propagation community detection"},
+        community_algorithms=[
+            AlgorithmInfo(id="louvain", name="Louvain", description="Modularity optimization for community detection"),
+            AlgorithmInfo(id="greedy_modularity", name="Greedy Modularity", description="Greedy modularity maximization"),
+            AlgorithmInfo(id="label_propagation", name="Label Propagation", description="Fast label propagation community detection"),
         ],
-    }
+    )

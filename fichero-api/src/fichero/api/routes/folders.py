@@ -63,6 +63,23 @@ class MoveItemsRequest(BaseModel):
     folder_path: str
 
 
+class FolderRenameResponse(BaseModel):
+    moved_count: int
+    old_path: str
+    new_path: str
+
+
+class FolderMoveResponse(BaseModel):
+    moved_count: int
+    folder_path: str
+
+
+class FolderDeleteResponse(BaseModel):
+    deleted_count: int
+    moved_to_root: int
+    parent_path: str | None = None
+
+
 class RenameFolderRequest(BaseModel):
     """Request to rename a folder."""
 
@@ -162,7 +179,7 @@ async def rename_folder(
     entity_type: EntityType,
     request: RenameFolderRequest,
     db: Database = Depends(get_library_database),
-) -> dict:
+) -> FolderRenameResponse:
     """Rename a folder and all items within it.
 
     Also renames all subfolders recursively.
@@ -195,11 +212,11 @@ async def rename_folder(
             db.save(item)
             moved_count += 1
 
-    return {
-        "moved_count": moved_count,
-        "old_path": request.old_path,
-        "new_path": request.new_path,
-    }
+    return FolderRenameResponse(
+        moved_count=moved_count,
+        old_path=request.old_path,
+        new_path=request.new_path,
+    )
 
 
 @router.put("/{entity_type}/move")
@@ -207,7 +224,7 @@ async def move_items(
     entity_type: EntityType,
     request: MoveItemsRequest,
     db: Database = Depends(get_library_database),
-) -> dict:
+) -> FolderMoveResponse:
     """Move items to a different folder.
 
     Args:
@@ -232,7 +249,7 @@ async def move_items(
             db.save(item)
             moved_count += 1
 
-    return {"moved_count": moved_count, "folder_path": request.folder_path}
+    return FolderMoveResponse(moved_count=moved_count, folder_path=request.folder_path)
 
 
 @router.delete("/{entity_type}/folders")
@@ -241,7 +258,7 @@ async def delete_folder(
     folder_path: str,
     delete_contents: bool = False,
     db: Database = Depends(get_library_database),
-) -> dict:
+) -> FolderDeleteResponse:
     """Delete a folder (optionally with contents).
 
     Args:
@@ -259,7 +276,7 @@ async def delete_folder(
         # Delete all items in folder
         for item in items:
             db.delete(item)
-        return {"deleted_count": len(items), "moved_to_root": 0}
+        return FolderDeleteResponse(deleted_count=len(items), moved_to_root=0)
     else:
         # Move items to parent folder
         parent_path = "/".join(folder_path.rstrip("/").split("/")[:-1]) or "/"
@@ -267,8 +284,8 @@ async def delete_folder(
             item.folder_path = parent_path
             item.updated_at = datetime.now()
             db.save(item)
-        return {
-            "deleted_count": 0,
-            "moved_to_root": len(items),
-            "parent_path": parent_path,
-        }
+        return FolderDeleteResponse(
+            deleted_count=0,
+            moved_to_root=len(items),
+            parent_path=parent_path,
+        )

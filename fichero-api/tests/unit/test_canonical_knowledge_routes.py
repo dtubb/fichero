@@ -578,8 +578,8 @@ class TestClaimLinksRoutes:
         )
 
         result = await delete_claim_link(link.id, db)
-        assert result["success"] is True
-        assert result["link_id"] == link.id
+        assert result.success is True
+        assert result.link_id == link.id
 
 
 class TestReferentialIntegrity:

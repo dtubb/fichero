@@ -101,6 +101,32 @@ class MCPErrorResponse(BaseModel):
     detail: str | None = None
 
 
+class MCPEntityDeletedResponse(BaseModel):
+    success: bool
+    entity_id: str
+    operation: str
+
+
+class MCPClaimDeletedResponse(BaseModel):
+    success: bool
+    claim_id: str
+    operation: str
+
+
+class MCPEntitiesListResponse(BaseModel):
+    entities: list
+    total: int
+    limit: int
+    offset: int
+
+
+class MCPClaimsListResponse(BaseModel):
+    claims: list
+    total: int
+    limit: int
+    offset: int
+
+
 # =============================================================================
 # Helper Functions
 # =============================================================================
@@ -325,12 +351,12 @@ async def mcp_knowledge_claim_create(
 async def mcp_knowledge_entity_get(
     entity_id: str,
     db: Database = Depends(get_library_database),
-) -> dict[str, Any]:
+) -> KnowledgeEntity:
     """MCP tool endpoint: Get knowledge entity by ID."""
     entity = db.get(KnowledgeEntity, entity_id)
     if not entity:
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
-    return entity.model_dump(mode="json")
+    return entity
 
 
 @router.get(
@@ -341,12 +367,12 @@ async def mcp_knowledge_entity_get(
 async def mcp_knowledge_claim_get(
     claim_id: str,
     db: Database = Depends(get_library_database),
-) -> dict[str, Any]:
+) -> KnowledgeClaim:
     """MCP tool endpoint: Get knowledge claim by ID."""
     claim = db.get(KnowledgeClaim, claim_id)
     if not claim:
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
-    return claim.model_dump(mode="json")
+    return claim
 
 
 @router.delete(
@@ -357,7 +383,7 @@ async def mcp_knowledge_claim_get(
 async def mcp_knowledge_entity_delete(
     entity_id: str,
     db: Database = Depends(get_library_database),
-) -> dict[str, Any]:
+) -> MCPEntityDeletedResponse:
     """MCP tool endpoint: Soft-delete knowledge entity."""
     entity = db.get(KnowledgeEntity, entity_id)
     if not entity:
@@ -365,7 +391,7 @@ async def mcp_knowledge_entity_delete(
 
     db.delete(entity)
     logger.info(f"MCP: Deleted entity {entity_id}")
-    return {"success": True, "entity_id": entity_id, "operation": "deleted"}
+    return MCPEntityDeletedResponse(success=True, entity_id=entity_id, operation="deleted")
 
 
 @router.delete(
@@ -376,7 +402,7 @@ async def mcp_knowledge_entity_delete(
 async def mcp_knowledge_claim_delete(
     claim_id: str,
     db: Database = Depends(get_library_database),
-) -> dict[str, Any]:
+) -> MCPClaimDeletedResponse:
     """MCP tool endpoint: Soft-delete knowledge claim."""
     claim = db.get(KnowledgeClaim, claim_id)
     if not claim:
@@ -384,7 +410,7 @@ async def mcp_knowledge_claim_delete(
 
     db.delete(claim)
     logger.info(f"MCP: Deleted claim {claim_id}")
-    return {"success": True, "claim_id": claim_id, "operation": "deleted"}
+    return MCPClaimDeletedResponse(success=True, claim_id=claim_id, operation="deleted")
 
 
 @router.get(
@@ -398,7 +424,7 @@ async def mcp_knowledge_entities_list(
     limit: int = 50,
     offset: int = 0,
     db: Database = Depends(get_library_database),
-) -> dict[str, Any]:
+) -> MCPEntitiesListResponse:
     """MCP tool endpoint: List knowledge entities."""
     entities = db.all(KnowledgeEntity)
     total = len(entities)
@@ -412,12 +438,12 @@ async def mcp_knowledge_entities_list(
     # Apply pagination
     paginated = entities[offset:offset + limit]
 
-    return {
-        "entities": [e.model_dump(mode="json") for e in paginated],
-        "total": total,
-        "limit": limit,
-        "offset": offset,
-    }
+    return MCPEntitiesListResponse(
+        entities=[e.model_dump(mode="json") for e in paginated],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get(
@@ -432,7 +458,7 @@ async def mcp_knowledge_claims_list(
     limit: int = 50,
     offset: int = 0,
     db: Database = Depends(get_library_database),
-) -> dict[str, Any]:
+) -> MCPClaimsListResponse:
     """MCP tool endpoint: List knowledge claims."""
     claims = db.all(KnowledgeClaim)
     total = len(claims)
@@ -448,9 +474,9 @@ async def mcp_knowledge_claims_list(
     # Apply pagination
     paginated = claims[offset:offset + limit]
 
-    return {
-        "claims": [c.model_dump(mode="json") for c in paginated],
-        "total": total,
-        "limit": limit,
-        "offset": offset,
-    }
+    return MCPClaimsListResponse(
+        claims=[c.model_dump(mode="json") for c in paginated],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )

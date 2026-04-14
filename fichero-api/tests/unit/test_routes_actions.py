@@ -229,8 +229,8 @@ class TestExportImportAction:
         created = client.post("/api/actions", json=payload).json()
         r = client.get(f"/api/actions/{created['id']}/export")
         assert r.status_code == 200
-        # Export returns {"json": "<serialized string>"}
-        exported_str = r.json()["json"]
+        # Export returns {"json_data": "<serialized string>"}
+        exported_str = r.json()["json_data"]
         exported = _json.loads(exported_str)
         assert exported["name"] == "Exportable"
 

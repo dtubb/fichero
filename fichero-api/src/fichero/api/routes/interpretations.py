@@ -80,6 +80,11 @@ class InterpretationDetailResponse(BaseModel):
     updated_at: datetime
 
 
+class InterpretationDeletedResponse(BaseModel):
+    deleted: bool
+    id: str
+
+
 class MethodTaxonomyResponse(BaseModel):
     """Method taxonomy for interpretations."""
 
@@ -421,7 +426,7 @@ async def update_interpretation(
 async def delete_interpretation(
     interpretation_id: str,
     db: Database = Depends(get_library_database),
-) -> dict[str, Any]:
+) -> InterpretationDeletedResponse:
     """Delete an interpretation."""
     interpretation = db.get(Interpretation, interpretation_id)
     if not interpretation:
@@ -432,7 +437,7 @@ async def delete_interpretation(
 
     db.delete(interpretation)
 
-    return {"deleted": True, "id": interpretation_id}
+    return InterpretationDeletedResponse(deleted=True, id=interpretation_id)
 
 
 @router.get("/taxonomy/methods", response_model=MethodTaxonomyResponse)

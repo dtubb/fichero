@@ -81,6 +81,40 @@ class ImportResponse(BaseModel):
     error: Optional[str] = None
 
 
+class OpenItemResponse(BaseModel):
+    success: bool
+
+
+class DatabaseListResponse(BaseModel):
+    databases: list
+
+
+class LibraryListResponse(BaseModel):
+    libraries: list
+
+
+class CitationResponse(BaseModel):
+    citation: str
+    style: str
+
+
+class DocumentListResponse(BaseModel):
+    documents: list
+
+
+class CreateNoteResponse(BaseModel):
+    success: bool
+    id: str
+
+
+class AttributesResponse(BaseModel):
+    attributes: dict
+
+
+class SetAttributesResponse(BaseModel):
+    success: bool
+
+
 # Routes
 @router.get("", response_model=list[IntegrationInfo])
 async def list_integrations():
@@ -337,7 +371,7 @@ async def export_item(app_name: str, request: ExportRequest):
 
 
 @router.post("/{app_name}/open/{external_id}")
-async def open_item(app_name: str, external_id: str):
+async def open_item(app_name: str, external_id: str) -> OpenItemResponse:
     """Open an item in its native app."""
     registry = get_integration_registry()
     integration = registry.get(app_name)
@@ -359,12 +393,12 @@ async def open_item(app_name: str, external_id: str):
         )
 
     success = await integration.open_item(external_id)
-    return {"success": success}
+    return OpenItemResponse(success=success)
 
 
 # DEVONthink-specific endpoints
 @router.get("/devonthink/databases")
-async def list_devonthink_databases():
+async def list_devonthink_databases() -> DatabaseListResponse:
     """List DEVONthink databases."""
     registry = get_integration_registry()
     integration = registry.get("devonthink")
@@ -376,12 +410,12 @@ async def list_devonthink_databases():
         raise HTTPException(status_code=503, detail="DEVONthink is not available")
 
     databases = await integration.list_databases()
-    return {"databases": databases}
+    return DatabaseListResponse(databases=databases)
 
 
 # Bookends-specific endpoints
 @router.get("/bookends/libraries")
-async def list_bookends_libraries():
+async def list_bookends_libraries() -> LibraryListResponse:
     """List Bookends libraries."""
     registry = get_integration_registry()
     integration = registry.get("bookends")
@@ -393,11 +427,11 @@ async def list_bookends_libraries():
         raise HTTPException(status_code=503, detail="Bookends is not available")
 
     libraries = await integration.list_libraries()
-    return {"libraries": libraries}
+    return LibraryListResponse(libraries=libraries)
 
 
 @router.get("/bookends/citation/{external_id}")
-async def get_bookends_citation(external_id: str, style: str = Query(default="APA")):
+async def get_bookends_citation(external_id: str, style: str = Query(default="APA")) -> CitationResponse:
     """Get a formatted citation for a Bookends reference."""
     registry = get_integration_registry()
     integration = registry.get("bookends")
@@ -410,13 +444,13 @@ async def get_bookends_citation(external_id: str, style: str = Query(default="AP
 
     citation = await integration.get_citation(external_id, style)
     if citation:
-        return {"citation": citation, "style": style}
+        return CitationResponse(citation=citation, style=style)
     raise HTTPException(status_code=404, detail="Citation not found")
 
 
 # Tinderbox-specific endpoints
 @router.get("/tinderbox/documents")
-async def list_tinderbox_documents():
+async def list_tinderbox_documents() -> DocumentListResponse:
     """List Tinderbox documents."""
     registry = get_integration_registry()
     integration = registry.get("tinderbox")
@@ -428,7 +462,7 @@ async def list_tinderbox_documents():
         raise HTTPException(status_code=503, detail="Tinderbox is not available")
 
     documents = await integration.list_documents()
-    return {"documents": documents}
+    return DocumentListResponse(documents=documents)
 
 
 class CreateNoteRequest(BaseModel):
@@ -442,7 +476,7 @@ class CreateNoteRequest(BaseModel):
 
 
 @router.post("/tinderbox/notes")
-async def create_tinderbox_note(request: CreateNoteRequest):
+async def create_tinderbox_note(request: CreateNoteRequest) -> CreateNoteResponse:
     """Create a new note in Tinderbox."""
     registry = get_integration_registry()
     integration = registry.get("tinderbox")
@@ -462,7 +496,7 @@ async def create_tinderbox_note(request: CreateNoteRequest):
     )
 
     if note_id:
-        return {"success": True, "id": note_id}
+        return CreateNoteResponse(success=True, id=note_id)
     raise HTTPException(status_code=500, detail="Failed to create note")
 
 
@@ -476,7 +510,7 @@ class SetAttributesRequest(BaseModel):
 async def get_tinderbox_attributes(
     external_id: str,
     attributes: str = Query(..., description="Comma-separated list of attribute names"),
-):
+) -> AttributesResponse:
     """Get specific attributes of a Tinderbox note."""
     registry = get_integration_registry()
     integration = registry.get("tinderbox")
@@ -489,11 +523,11 @@ async def get_tinderbox_attributes(
 
     attr_list = [a.strip() for a in attributes.split(",")]
     values = await integration.get_attributes(external_id, attr_list)
-    return {"attributes": values}
+    return AttributesResponse(attributes=values)
 
 
 @router.put("/tinderbox/notes/{external_id}/attributes")
-async def set_tinderbox_attributes(external_id: str, request: SetAttributesRequest):
+async def set_tinderbox_attributes(external_id: str, request: SetAttributesRequest) -> SetAttributesResponse:
     """Set attributes on a Tinderbox note."""
     registry = get_integration_registry()
     integration = registry.get("tinderbox")
@@ -505,4 +539,4 @@ async def set_tinderbox_attributes(external_id: str, request: SetAttributesReque
         raise HTTPException(status_code=503, detail="Tinderbox is not available")
 
     success = await integration.set_attributes(external_id, request.attributes)
-    return {"success": success}
+    return SetAttributesResponse(success=success)

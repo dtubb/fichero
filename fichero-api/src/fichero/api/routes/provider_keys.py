@@ -28,6 +28,26 @@ router = APIRouter()
 
 
 # =============================================================================
+# Response Models
+# =============================================================================
+
+
+class APIKeyStoredResponse(BaseModel):
+    status: str  # "stored"
+
+
+class APIKeyDeletedResponse(BaseModel):
+    status: str  # "deleted"
+
+
+class APIKeyStatusResponse(BaseModel):
+    provider_type: str
+    has_api_key: bool
+    is_local: bool
+    keychain_available: bool
+
+
+# =============================================================================
 # API Key Management
 # =============================================================================
 
@@ -39,7 +59,7 @@ class APIKeyRequest(BaseModel):
 
 
 @router.post("/{provider_type}/api-key")
-async def set_provider_api_key(provider_type: str, request: APIKeyRequest):
+async def set_provider_api_key(provider_type: str, request: APIKeyRequest) -> APIKeyStoredResponse:
     """Store API key for a provider type in keychain."""
     if not keychain_available():
         raise HTTPException(status_code=503, detail="Keychain not available")
@@ -62,21 +82,21 @@ async def set_provider_api_key(provider_type: str, request: APIKeyRequest):
         raise HTTPException(status_code=500, detail="Failed to store API key")
 
     logger.info(f"Successfully stored API key for {provider_type}")
-    return {"status": "stored"}
+    return APIKeyStoredResponse(status="stored")
 
 
 @router.delete("/{provider_type}/api-key")
-async def delete_provider_api_key(provider_type: str):
+async def delete_provider_api_key(provider_type: str) -> APIKeyDeletedResponse:
     """Delete API key for a provider type from keychain."""
     if not keychain_available():
         raise HTTPException(status_code=503, detail="Keychain not available")
 
     delete_api_key(provider_type)
-    return {"status": "deleted"}
+    return APIKeyDeletedResponse(status="deleted")
 
 
 @router.get("/{provider_type}/api-key/status")
-async def check_api_key_status(provider_type: str):
+async def check_api_key_status(provider_type: str) -> APIKeyStatusResponse:
     """Check if API key exists for a provider type."""
     info = get_provider_info(provider_type)
     if not info:
@@ -84,12 +104,12 @@ async def check_api_key_status(provider_type: str):
             status_code=404, detail=f"Provider type not found: {provider_type}"
         )
 
-    return {
-        "provider_type": provider_type,
-        "has_api_key": has_api_key(provider_type) if not info.is_local else True,
-        "is_local": info.is_local,
-        "keychain_available": keychain_available(),
-    }
+    return APIKeyStatusResponse(
+        provider_type=provider_type,
+        has_api_key=has_api_key(provider_type) if not info.is_local else True,
+        is_local=info.is_local,
+        keychain_available=keychain_available(),
+    )
 
 
 # =============================================================================

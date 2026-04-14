@@ -42,6 +42,26 @@ if not hasattr(pykeen.models.Model, "load_directory"):
 router = APIRouter()
 
 
+class HeuristicPredictionItem(BaseModel):
+    source_claim_id: str
+    target_claim_id: str
+    similarity_score: float
+    method: str
+
+
+class HeuristicPredictionsResponse(BaseModel):
+    predictions: list[HeuristicPredictionItem]
+    method: str
+    claims_embedded: int
+
+
+class ApplyPredictionsResponse(BaseModel):
+    applied: int
+    total_predictions_evaluated: int
+    min_confidence_threshold: float
+    relation_types: list[str]
+
+
 class PredictionGenerateHeuristicRequest(BaseModel):
     """Generate heuristic link predictions based on embedding similarity."""
 
@@ -268,7 +288,7 @@ async def generate_pykeen_predictions(
 async def generate_heuristic_predictions(
     request: PredictionGenerateHeuristicRequest,
     db: Database = Depends(get_library_database),
-) -> dict[str, Any]:
+) -> HeuristicPredictionsResponse:
     """Generate heuristic predictions using embedding similarity."""
     if KG_CLAIM_EMBEDDINGS_TABLE not in db._lance_tables():
         raise HTTPException(
@@ -313,11 +333,13 @@ async def generate_heuristic_predictions(
             )
 
     predictions.sort(key=lambda p: p["similarity_score"], reverse=True)
-    return {
-        "predictions": predictions[: request.top_k * 5],
-        "method": "heuristic",
-        "claims_embedded": len(all_claims),
-    }
+    return HeuristicPredictionsResponse(
+        predictions=[
+            HeuristicPredictionItem(**p) for p in predictions[: request.top_k * 5]
+        ],
+        method="heuristic",
+        claims_embedded=len(all_claims),
+    )
 
 
 @router.get("/predictions", response_model=list[KnowledgePredictionRun])
@@ -340,7 +362,7 @@ async def apply_prediction(
     min_confidence: float = Query(default=0.7, ge=0.0, le=1.0),
     max_links: int = Query(default=100, ge=1, le=1000),
     db: Database = Depends(get_library_database),
-) -> dict[str, Any]:
+) -> ApplyPredictionsResponse:
     """Apply a prediction run's top-scoring predictions as claim links."""
     run = db.get(KnowledgePredictionRun, run_id)
     if not run:
@@ -444,9 +466,9 @@ async def apply_prediction(
     for link in new_links:
         db.save(link)
 
-    return {
-        "applied": len(new_links),
-        "total_predictions_evaluated": len(all_claims) * len(candidate_relations),
-        "min_confidence_threshold": min_confidence,
-        "relation_types": candidate_relations,
-    }
+    return ApplyPredictionsResponse(
+        applied=len(new_links),
+        total_predictions_evaluated=len(all_claims) * len(candidate_relations),
+        min_confidence_threshold=min_confidence,
+        relation_types=candidate_relations,
+    )

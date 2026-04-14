@@ -209,6 +209,10 @@ class ProviderRefUpdate(BaseModel):
     sort_order: int | None = None
 
 
+class DeletedResponse(BaseModel):
+    status: str
+
+
 class ProviderRefResponse(BaseModel):
     """Provider reference response with full provider details."""
 
@@ -326,14 +330,14 @@ async def update_provider_ref(
 async def delete_provider_ref(
     ref_id: str,
     db: Database = Depends(get_library_database),
-):
+) -> DeletedResponse:
     """Remove a provider reference from this library."""
     ref = db.get(ProviderRef, ref_id)
     if not ref:
         raise HTTPException(status_code=404, detail="Provider reference not found")
 
     db.delete(ref)
-    return {"status": "deleted"}
+    return DeletedResponse(status="deleted")
 
 
 @router.get("/{provider_id}")
@@ -400,14 +404,14 @@ async def update_provider(
 async def delete_provider(
     provider_id: str,
     app_db: AppDatabase = Depends(get_app_database),
-):
+) -> DeletedResponse:
     """Delete a provider (app-wide). Models are cascade deleted."""
     provider = app_db.get_provider(provider_id)
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
 
     app_db.delete_provider(provider_id)
-    return {"status": "deleted"}
+    return DeletedResponse(status="deleted")
 
 
 # =============================================================================
@@ -489,7 +493,7 @@ async def remove_model_from_provider(
     provider_id: str,
     model_id: str,
     app_db: AppDatabase = Depends(get_app_database),
-):
+) -> DeletedResponse:
     """Remove a model from a provider."""
     models = app_db.list_models(provider_id)
     model_exists = any(m.id == model_id for m in models)
@@ -498,4 +502,4 @@ async def remove_model_from_provider(
         raise HTTPException(status_code=404, detail="Model not found")
 
     app_db.delete_model(model_id)
-    return {"status": "deleted"}
+    return DeletedResponse(status="deleted")

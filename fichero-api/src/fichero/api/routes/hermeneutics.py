@@ -30,6 +30,10 @@ router = APIRouter()
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+class FrameworkDeactivatedResponse(BaseModel):
+    status: str
+
+
 class FrameworkCreateRequest(BaseModel):
     name: str
     framework_type: FrameworkType
@@ -206,7 +210,7 @@ async def update_framework(
 async def delete_framework(
     framework_id: str,
     db: Database = Depends(get_library_database),
-) -> dict[str, str]:
+) -> FrameworkDeactivatedResponse:
     framework = db.get(InterpretiveFramework, framework_id)
     if not framework:
         raise HTTPException(
@@ -216,7 +220,7 @@ async def delete_framework(
     framework.is_active = False
     framework.updated_at = datetime.now()
     db.save(framework)
-    return {"status": "deactivated"}
+    return FrameworkDeactivatedResponse(status="deactivated")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

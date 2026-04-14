@@ -125,6 +125,44 @@ class ChainExecutionResponse(BaseModel):
     message: str
 
 
+class ChainDeletedResponse(BaseModel):
+    deleted: bool
+    id: str
+
+
+class ChainStepResultInfo(BaseModel):
+    step_id: str
+    workflow_id: str
+    status: str
+    error: str | None
+    duration_ms: float | None
+
+
+class ChainEventInfo(BaseModel):
+    event_type: str
+    step_id: str | None
+    message: str | None
+    progress: float | None
+    timestamp: str
+
+
+class ChainExecutionStatusResponse(BaseModel):
+    execution_id: str
+    chain_id: str
+    status: str
+    step_results: list[ChainStepResultInfo]
+    final_outputs: dict
+    final_files: list
+    total_duration_ms: float | None
+    events: list[ChainEventInfo]
+
+
+class ChainCancelResponse(BaseModel):
+    cancelled: bool
+    execution_id: str
+    message: str | None = None
+
+
 # =============================================================================
 # In-progress Execution Tracking
 # =============================================================================
@@ -309,11 +347,11 @@ async def update_chain(chain_id: str, request: UpdateChainRequest) -> ChainRespo
 
 
 @router.delete("/{chain_id}")
-async def delete_chain(chain_id: str) -> dict[str, Any]:
+async def delete_chain(chain_id: str) -> ChainDeletedResponse:
     """Delete a workflow chain."""
     if not chain_store.delete(chain_id):
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
-    return {"deleted": True, "id": chain_id}
+    return ChainDeletedResponse(deleted=True, id=chain_id)
 
 
 # =============================================================================
@@ -390,7 +428,7 @@ async def execute_chain(
 
 
 @router.get("/executions/{execution_id}")
-async def get_chain_execution(execution_id: str) -> dict[str, Any]:
+async def get_chain_execution(execution_id: str) -> ChainExecutionStatusResponse:
     """Get the status and result of a chain execution."""
     if execution_id not in _running_executions:
         raise HTTPException(
@@ -400,38 +438,38 @@ async def get_chain_execution(execution_id: str) -> dict[str, Any]:
     result = _running_executions[execution_id]
     events = _execution_events.get(execution_id, [])
 
-    return {
-        "execution_id": execution_id,
-        "chain_id": result.chain_id,
-        "status": result.status.value,
-        "step_results": [
-            {
-                "step_id": sr.step_id,
-                "workflow_id": sr.workflow_id,
-                "status": sr.status.value,
-                "error": sr.error,
-                "duration_ms": sr.duration_ms,
-            }
+    return ChainExecutionStatusResponse(
+        execution_id=execution_id,
+        chain_id=result.chain_id,
+        status=result.status.value,
+        step_results=[
+            ChainStepResultInfo(
+                step_id=sr.step_id,
+                workflow_id=sr.workflow_id,
+                status=sr.status.value,
+                error=sr.error,
+                duration_ms=sr.duration_ms,
+            )
             for sr in result.step_results
         ],
-        "final_outputs": result.final_outputs,
-        "final_files": result.final_files,
-        "total_duration_ms": result.total_duration_ms,
-        "events": [
-            {
-                "event_type": e.event_type.value,
-                "step_id": e.step_id,
-                "message": e.message,
-                "progress": e.progress,
-                "timestamp": e.timestamp.isoformat(),
-            }
+        final_outputs=result.final_outputs,
+        final_files=result.final_files,
+        total_duration_ms=result.total_duration_ms,
+        events=[
+            ChainEventInfo(
+                event_type=e.event_type.value,
+                step_id=e.step_id,
+                message=e.message,
+                progress=e.progress,
+                timestamp=e.timestamp.isoformat(),
+            )
             for e in events[-20:]  # Last 20 events
         ],
-    }
+    )
 
 
 @router.delete("/executions/{execution_id}")
-async def cancel_chain_execution(execution_id: str) -> dict[str, Any]:
+async def cancel_chain_execution(execution_id: str) -> ChainCancelResponse:
     """Cancel a running chain execution.
 
     Note: May not immediately stop if a workflow step is in progress.
@@ -446,13 +484,13 @@ async def cancel_chain_execution(execution_id: str) -> dict[str, Any]:
     if result.status == ChainStepStatus.PENDING:
         result.status = ChainStepStatus.CANCELLED
         _running_executions[execution_id] = result
-        return {"cancelled": True, "execution_id": execution_id}
+        return ChainCancelResponse(cancelled=True, execution_id=execution_id)
 
-    return {
-        "cancelled": False,
-        "execution_id": execution_id,
-        "message": f"Execution already in status: {result.status.value}",
-    }
+    return ChainCancelResponse(
+        cancelled=False,
+        execution_id=execution_id,
+        message=f"Execution already in status: {result.status.value}",
+    )
 
 
 # =============================================================================

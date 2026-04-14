@@ -90,6 +90,18 @@ class CreateFromNodeRequest(BaseModel):
     tags: list[str] = []
 
 
+class CategoriesResponse(BaseModel):
+    categories: list[str]
+
+
+class ActionSuccessResponse(BaseModel):
+    success: bool
+
+
+class ActionJsonResponse(BaseModel):
+    json_data: str
+
+
 class CreateCompositeRequest(BaseModel):
     """Request to create composite action."""
 
@@ -180,10 +192,10 @@ async def list_popular_actions(
 
 
 @router.get("/categories")
-async def list_categories(store: ActionStore = Depends(get_action_store)):
+async def list_categories(store: ActionStore = Depends(get_action_store)) -> CategoriesResponse:
     """List all action categories."""
     categories = store.get_categories()
-    return {"categories": categories}
+    return CategoriesResponse(categories=categories)
 
 
 @router.get("/category/{category}", response_model=list[ActionResponse])
@@ -293,7 +305,7 @@ async def update_action(
 
 
 @router.delete("/{action_id}")
-async def delete_action(action_id: str, store: ActionStore = Depends(get_action_store)):
+async def delete_action(action_id: str, store: ActionStore = Depends(get_action_store)) -> ActionSuccessResponse:
     """Delete an action."""
     action = store.get(action_id)
     if not action:
@@ -303,7 +315,7 @@ async def delete_action(action_id: str, store: ActionStore = Depends(get_action_
         raise HTTPException(status_code=403, detail="Cannot delete built-in action")
 
     success = store.delete(action_id)
-    return {"success": success}
+    return ActionSuccessResponse(success=success)
 
 
 # =========================================================================
@@ -314,14 +326,14 @@ async def delete_action(action_id: str, store: ActionStore = Depends(get_action_
 @router.post("/{action_id}/use")
 async def record_action_use(
     action_id: str, store: ActionStore = Depends(get_action_store)
-):
+) -> ActionSuccessResponse:
     """Record that an action was used."""
     action = store.get(action_id)
     if not action:
         raise HTTPException(status_code=404, detail="Action not found")
 
     store.record_use(action_id)
-    return {"success": True}
+    return ActionSuccessResponse(success=True)
 
 
 # =========================================================================
@@ -330,11 +342,11 @@ async def record_action_use(
 
 
 @router.get("/{action_id}/export")
-async def export_action(action_id: str, store: ActionStore = Depends(get_action_store)):
+async def export_action(action_id: str, store: ActionStore = Depends(get_action_store)) -> ActionJsonResponse:
     """Export an action as JSON."""
     try:
         json_str = store.export_action(action_id)
-        return {"json": json_str}
+        return ActionJsonResponse(json_data=json_str)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

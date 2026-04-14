@@ -101,6 +101,11 @@ class EntityAuditResponse(BaseModel):
     created_at: datetime
 
 
+class EmbedEntitiesResponse(BaseModel):
+    embedded: int
+    table: str
+
+
 class _EmbedEntityRequest(BaseModel):
     entity_ids: list[str] | None = None
 
@@ -482,7 +487,7 @@ async def resolve_entity(
 async def embed_entities(
     request: _EmbedEntityRequest | None = None,
     db: Database = Depends(get_library_database),
-) -> dict[str, Any]:
+) -> EmbedEntitiesResponse:
     """Embed entities into LanceDB for semantic search."""
     if request and request.entity_ids:
         entities = [db.get(KnowledgeEntity, eid) for eid in request.entity_ids]
@@ -491,7 +496,7 @@ async def embed_entities(
         entities = db.all(KnowledgeEntity)
 
     if not entities:
-        return {"embedded": 0, "table": KG_ENTITY_EMBEDDINGS_TABLE}
+        return EmbedEntitiesResponse(embedded=0, table=KG_ENTITY_EMBEDDINGS_TABLE)
 
     texts = [
         e.canonical_name + (" " + " ".join(e.aliases) if e.aliases else "")
@@ -510,7 +515,7 @@ async def embed_entities(
         for e, v in zip(entities, vectors)
     ]
     db.save_vectors(KG_ENTITY_EMBEDDINGS_TABLE, records)
-    return {"embedded": len(records), "table": KG_ENTITY_EMBEDDINGS_TABLE}
+    return EmbedEntitiesResponse(embedded=len(records), table=KG_ENTITY_EMBEDDINGS_TABLE)
 
 
 @router.get("/entities/semantic")

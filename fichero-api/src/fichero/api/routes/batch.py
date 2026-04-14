@@ -51,6 +51,11 @@ def get_workflow_store() -> WorkflowStore:
 # Pydantic models for API
 
 
+class BatchDeletedResponse(BaseModel):
+    status: str
+    batch_id: str
+
+
 class BatchItemResponse(BaseModel):
     """Response model for a batch item."""
 
@@ -385,7 +390,7 @@ async def retry_batch(batch_id: str):
 
 
 @router.delete("/{batch_id}")
-async def delete_batch(batch_id: str) -> dict[str, str]:
+async def delete_batch(batch_id: str) -> BatchDeletedResponse:
     """Delete a batch and its items."""
     manager = get_batch_manager()
 
@@ -397,4 +402,4 @@ async def delete_batch(batch_id: str) -> dict[str, str]:
         raise HTTPException(status_code=400, detail="Cannot delete a running batch")
 
     await manager.delete_batch(batch_id)
-    return {"status": "deleted", "batch_id": batch_id}
+    return BatchDeletedResponse(status="deleted", batch_id=batch_id)

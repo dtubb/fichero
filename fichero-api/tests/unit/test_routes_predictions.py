@@ -20,9 +20,9 @@ def mock_inference():
     inference = MagicMock()
     inference.get_status.return_value = {
         "enabled": False,
-        "model_loaded": False,
-        "model_type": None,
-        "training_status": "idle",
+        "models_trained": 0,
+        "training_jobs": 0,
+        "stored_predictions": 0,
     }
     inference.get_all_predictions.return_value = []
     inference.get_prediction.return_value = None
@@ -54,7 +54,7 @@ class TestPredictionStatus:
         assert r.status_code == 200
         data = r.json()
         assert "enabled" in data
-        assert "model_loaded" in data
+        assert "models_trained" in data
 
 
 class TestEnablePredictions:

@@ -41,6 +41,38 @@ class NormalizeResponse(BaseModel):
     stemming: bool
 
 
+class ClaimSummary(BaseModel):
+    id: str
+    text: str
+    language: str | None
+    source_languages: list[str]
+    source_document_id: str
+
+
+class ClaimsPageResponse(BaseModel):
+    claims: list[ClaimSummary]
+    total: int
+    language: str
+    limit: int
+    offset: int
+
+
+class EntitySummary(BaseModel):
+    id: str
+    canonical_name: str
+    entity_type: str
+    language: str | None
+    aliases: list[str]
+
+
+class EntitiesPageResponse(BaseModel):
+    entities: list[EntitySummary]
+    total: int
+    language: str
+    limit: int
+    offset: int
+
+
 # Request/Response Models
 
 
@@ -250,7 +282,6 @@ async def cross_language_entity_search(
 
 @router.get(
     "/claims",
-    response_model=dict,
     summary="Get claims by language",
     description="Filter claims by source language.",
 )
@@ -259,45 +290,39 @@ async def get_claims_by_language(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     x_fichero_library_path: str = Header(..., description="Library path"),
-) -> dict:
+) -> ClaimsPageResponse:
     """Get claims filtered by source language."""
     db = db_manager.get_database(x_fichero_library_path)
 
-    # Get all claims and filter by language
     all_claims = db.all(KnowledgeClaim)
-    filtered = []
+    filtered = [
+        c for c in all_claims
+        if c.language == source_language or source_language in (c.source_languages or [])
+    ]
 
-    for claim in all_claims:
-        # Check if claim language matches or if source_languages contains the language
-        claim_langs = claim.source_languages or []
-        if claim.language == source_language or source_language in claim_langs:
-            filtered.append(claim)
-
-    # Apply pagination
     total = len(filtered)
     paginated = filtered[offset : offset + limit]
 
-    return {
-        "claims": [
-            {
-                "id": c.id,
-                "text": c.text,
-                "language": c.language,
-                "source_languages": c.source_languages,
-                "source_document_id": c.source_document_id,
-            }
+    return ClaimsPageResponse(
+        claims=[
+            ClaimSummary(
+                id=c.id,
+                text=c.text,
+                language=c.language,
+                source_languages=c.source_languages or [],
+                source_document_id=c.source_document_id,
+            )
             for c in paginated
         ],
-        "total": total,
-        "language": source_language,
-        "limit": limit,
-        "offset": offset,
-    }
+        total=total,
+        language=source_language,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get(
     "/entities",
-    response_model=dict,
     summary="Get entities by language",
     description="Filter entities by language.",
 )
@@ -307,40 +332,36 @@ async def get_entities_by_language(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     x_fichero_library_path: str = Header(..., description="Library path"),
-) -> dict:
+) -> EntitiesPageResponse:
     """Get entities filtered by language."""
     db = db_manager.get_database(x_fichero_library_path)
 
-    # Get all entities and filter
     all_entities = db.all(KnowledgeEntity)
-    filtered = []
+    filtered = [
+        e for e in all_entities
+        if e.language == language
+        and (not entity_type or e.entity_type.value == entity_type)
+    ]
 
-    for entity in all_entities:
-        if entity.language == language:
-            if entity_type and entity.entity_type.value != entity_type:
-                continue
-            filtered.append(entity)
-
-    # Apply pagination
     total = len(filtered)
     paginated = filtered[offset : offset + limit]
 
-    return {
-        "entities": [
-            {
-                "id": e.id,
-                "canonical_name": e.canonical_name,
-                "entity_type": e.entity_type.value,
-                "language": e.language,
-                "aliases": e.aliases,
-            }
+    return EntitiesPageResponse(
+        entities=[
+            EntitySummary(
+                id=e.id,
+                canonical_name=e.canonical_name,
+                entity_type=e.entity_type.value,
+                language=e.language,
+                aliases=e.aliases or [],
+            )
             for e in paginated
         ],
-        "total": total,
-        "language": language,
-        "limit": limit,
-        "offset": offset,
-    }
+        total=total,
+        language=language,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.post(

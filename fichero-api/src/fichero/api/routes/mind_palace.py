@@ -130,6 +130,23 @@ class ArrangeRequest(BaseModel):
     arrangement_type: ArrangementType = ArrangementType.semantic
 
 
+class MindPalaceDeletedResponse(BaseModel):
+    status: str
+
+
+class CaptureViewportResponse(BaseModel):
+    status: str
+    message: str
+    room_id: str
+    region: str
+
+
+class TinderboxExportResponse(BaseModel):
+    status: str
+    message: str
+    room_id: str
+
+
 class ViewportSaveRequest(BaseModel):
     """Viewport save — camera fields optional, room/user from path."""
 
@@ -213,12 +230,12 @@ async def update_room(
 async def delete_room(
     room_id: str,
     db: Database = Depends(get_library_database),
-) -> dict[str, str]:
+) -> MindPalaceDeletedResponse:
     room = db.get(SpatialRoom, room_id)
     if not room:
         raise HTTPException(status_code=404, detail=f"Room not found: {room_id}")
     db.delete(room)
-    return {"status": "deleted"}
+    return MindPalaceDeletedResponse(status="deleted")
 
 
 @router.get("/rooms/{room_id}/scene", response_model=RoomSceneSummary)
@@ -342,12 +359,12 @@ async def move_node(
 async def remove_node(
     node_id: str,
     db: Database = Depends(get_library_database),
-) -> dict[str, str]:
+) -> MindPalaceDeletedResponse:
     node = db.get(SpatialNode, node_id)
     if not node:
         raise HTTPException(status_code=404, detail=f"Node not found: {node_id}")
     db.delete(node)
-    return {"status": "deleted"}
+    return MindPalaceDeletedResponse(status="deleted")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -408,14 +425,14 @@ async def list_connections(
 async def remove_connection(
     connection_id: str,
     db: Database = Depends(get_library_database),
-) -> dict[str, str]:
+) -> MindPalaceDeletedResponse:
     conn = db.get(SpatialConnection, connection_id)
     if not conn:
         raise HTTPException(
             status_code=404, detail=f"Connection not found: {connection_id}"
         )
     db.delete(conn)
-    return {"status": "deleted"}
+    return MindPalaceDeletedResponse(status="deleted")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -580,12 +597,12 @@ async def update_note(
 async def delete_note(
     note_id: str,
     db: Database = Depends(get_library_database),
-) -> dict[str, str]:
+) -> MindPalaceDeletedResponse:
     note = db.get(NativeNote, note_id)
     if not note:
         raise HTTPException(status_code=404, detail=f"Note not found: {note_id}")
     db.delete(note)
-    return {"status": "deleted"}
+    return MindPalaceDeletedResponse(status="deleted")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -735,7 +752,7 @@ async def capture_viewport(
     room_id: str,
     request: CaptureRequest,
     db: Database = Depends(get_library_database),
-) -> dict[str, str]:
+) -> CaptureViewportResponse:
     """Capture a viewport as an image.
 
     Full implementation would render the 3D scene and return image bytes.
@@ -745,12 +762,12 @@ async def capture_viewport(
     if not room:
         raise HTTPException(status_code=404, detail=f"Room not found: {room_id}")
 
-    return {
-        "status": "placeholder",
-        "message": "Scene capture requires RealityKit Metal renderer — not yet implemented in backend",
-        "room_id": room_id,
-        "region": request.region.value,
-    }
+    return CaptureViewportResponse(
+        status="placeholder",
+        message="Scene capture requires RealityKit Metal renderer — not yet implemented in backend",
+        room_id=room_id,
+        region=request.region.value,
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -763,7 +780,7 @@ async def export_to_tinderbox(
     room_id: str,
     tinderbox_note_id: str | None = None,
     db: Database = Depends(get_library_database),
-) -> dict[str, str]:
+) -> TinderboxExportResponse:
     """Export room notes to Tinderbox.
 
     Requires Tinderbox integration — returns a placeholder.
@@ -772,11 +789,11 @@ async def export_to_tinderbox(
     if not room:
         raise HTTPException(status_code=404, detail=f"Room not found: {room_id}")
 
-    return {
-        "status": "placeholder",
-        "message": "Tinderbox export requires external Tinderbox integration",
-        "room_id": room_id,
-    }
+    return TinderboxExportResponse(
+        status="placeholder",
+        message="Tinderbox export requires external Tinderbox integration",
+        room_id=room_id,
+    )
 
 
 @router.post("/import/tinderbox")

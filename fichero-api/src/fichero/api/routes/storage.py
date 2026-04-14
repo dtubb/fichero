@@ -27,6 +27,21 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+class DocumentDebugResponse(BaseModel):
+    doc_id: str
+    doc_name: str
+    doc_path: str | None
+    doc_path_exists: bool
+    package_path: str
+    package_exists: bool
+    resolved_source: str | None
+    source_exists: bool
+    expected_thumb_path: str
+    thumb_exists: bool
+    cwd: str
+    metadata: dict
+
+
 def _inline_content_disposition(filename: str) -> str:
     """Build a Content-Disposition header safe for non-ASCII filenames."""
     ascii_fallback = (
@@ -207,7 +222,7 @@ async def debug_document_paths(
     doc_id: str,
     db: Database = Depends(get_library_database),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-):
+) -> DocumentDebugResponse:
     """Debug endpoint to check document paths and file access."""
     from fichero.storage import resolve_source, _thumb_path
 
@@ -219,20 +234,20 @@ async def debug_document_paths(
     source_path = resolve_source(doc)
     thumb_path = _thumb_path(doc.id, package_path)
 
-    return {
-        "doc_id": doc.id,
-        "doc_name": doc.name,
-        "doc_path": doc.path,
-        "doc_path_exists": Path(doc.path).exists() if doc.path else False,
-        "package_path": str(package_path),
-        "package_exists": package_path.exists(),
-        "resolved_source": str(source_path) if source_path else None,
-        "source_exists": source_path.exists() if source_path else False,
-        "expected_thumb_path": str(thumb_path),
-        "thumb_exists": thumb_path.exists(),
-        "cwd": os.getcwd(),
-        "metadata": doc.metadata,
-    }
+    return DocumentDebugResponse(
+        doc_id=doc.id,
+        doc_name=doc.name,
+        doc_path=doc.path,
+        doc_path_exists=Path(doc.path).exists() if doc.path else False,
+        package_path=str(package_path),
+        package_exists=package_path.exists(),
+        resolved_source=str(source_path) if source_path else None,
+        source_exists=source_path.exists() if source_path else False,
+        expected_thumb_path=str(thumb_path),
+        thumb_exists=thumb_path.exists(),
+        cwd=os.getcwd(),
+        metadata=doc.metadata,
+    )
 
 
 # =============================================================================

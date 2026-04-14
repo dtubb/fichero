@@ -127,6 +127,26 @@ class ProviderInfo(BaseModel):
     supports_vision: bool = False  # Whether provider supports vision/image input
 
 
+class ConversationSummary(BaseModel):
+    id: str
+    title: str
+    message_count: int
+    created_at: str
+    updated_at: str
+    folder_path: str
+    sort_order: int
+
+
+class ConversationDeletedResponse(BaseModel):
+    status: str
+
+
+class ConversationReorderResponse(BaseModel):
+    status: str
+    count: int
+    folder_path: str
+
+
 class ConversationHistory(BaseModel):
     """Conversation with message history."""
 
@@ -454,7 +474,7 @@ async def update_conversation(
 async def duplicate_conversation(
     conversation_id: str,
     db: Database = Depends(get_library_database),
-) -> dict:
+) -> ConversationSummary:
     """Duplicate a conversation with a new ID."""
     original = db.get(Conversation, conversation_id)
     if not original:
@@ -473,29 +493,29 @@ async def duplicate_conversation(
 
     db.save(new_conv)
 
-    return {
-        "id": new_conv.id,
-        "title": new_conv.title,
-        "message_count": len(new_conv.messages),
-        "created_at": _safe_isoformat(getattr(new_conv, "created_at", None)),
-        "updated_at": _safe_isoformat(getattr(new_conv, "updated_at", None)),
-        "folder_path": new_conv.folder_path,
-        "sort_order": new_conv.sort_order,
-    }
+    return ConversationSummary(
+        id=new_conv.id,
+        title=new_conv.title,
+        message_count=len(new_conv.messages),
+        created_at=_safe_isoformat(getattr(new_conv, "created_at", None)),
+        updated_at=_safe_isoformat(getattr(new_conv, "updated_at", None)),
+        folder_path=new_conv.folder_path,
+        sort_order=new_conv.sort_order,
+    )
 
 
 @router.delete("/conversations/{conversation_id}")
 async def delete_conversation(
     conversation_id: str,
     db: Database = Depends(get_library_database),
-):
+) -> ConversationDeletedResponse:
     """Delete a conversation."""
     conv = db.get(Conversation, conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     db.delete(conv)
-    return {"status": "deleted"}
+    return ConversationDeletedResponse(status="deleted")
 
 
 @router.post("/conversations/reorder")
@@ -503,7 +523,7 @@ async def reorder_conversations(
     conversation_ids: list[str],
     folder_path: str = "/",
     db: Database = Depends(get_library_database),
-) -> dict:
+) -> ConversationReorderResponse:
     """Reorder conversations within a folder."""
     for index, conversation_id in enumerate(conversation_ids):
         conv = db.get(Conversation, conversation_id)
@@ -516,11 +536,11 @@ async def reorder_conversations(
         conv.updated_at = datetime.now()
         db.save(conv)
 
-    return {
-        "status": "reordered",
-        "count": len(conversation_ids),
-        "folder_path": folder_path,
-    }
+    return ConversationReorderResponse(
+        status="reordered",
+        count=len(conversation_ids),
+        folder_path=folder_path,
+    )
 
 
 def get_app_database() -> AppDatabase:

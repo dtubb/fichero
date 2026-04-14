@@ -21,6 +21,18 @@ router = APIRouter()
 
 
 # Request/Response models
+
+
+class ReorderResponse(BaseModel):
+    status: str
+    count: int
+
+
+class OrphanCleanupResponse(BaseModel):
+    orphaned_documents_deleted: int
+    artifacts_deleted: int
+
+
 class DocumentCreate(BaseModel):
     """Request model for creating a document."""
 
@@ -266,7 +278,7 @@ async def reorder_documents(
     doc_ids: list[str],
     folder_path: str = "/",
     db: Database = Depends(get_library_database),
-) -> dict:
+) -> ReorderResponse:
     """Reorder documents within a folder."""
     # Update sort_order for each document
     for i, doc_id in enumerate(doc_ids):
@@ -279,7 +291,7 @@ async def reorder_documents(
         doc.sort_order = i
         db.save(doc)
 
-    return {"status": "reordered", "count": len(doc_ids)}
+    return ReorderResponse(status="reordered", count=len(doc_ids))
 
 
 @router.post("/import")
@@ -369,7 +381,7 @@ async def move_document(
 @router.post("/cleanup-orphans")
 async def cleanup_orphan_documents(
     db: Database = Depends(get_library_database),
-) -> dict:
+) -> OrphanCleanupResponse:
     """Remove unreachable/orphan document rows.
 
     A document is considered orphaned when it is not reachable from any root
@@ -378,7 +390,7 @@ async def cleanup_orphan_documents(
     """
     all_docs = list(db.all(Document))
     if not all_docs:
-        return {"orphaned_documents_deleted": 0, "artifacts_deleted": 0}
+        return OrphanCleanupResponse(orphaned_documents_deleted=0, artifacts_deleted=0)
 
     docs_by_parent: dict[str | None, list[Document]] = {}
     for item in all_docs:
@@ -413,7 +425,7 @@ async def cleanup_orphan_documents(
             artifacts_deleted,
         )
 
-    return {
-        "orphaned_documents_deleted": len(orphaned),
-        "artifacts_deleted": artifacts_deleted,
-    }
+    return OrphanCleanupResponse(
+        orphaned_documents_deleted=len(orphaned),
+        artifacts_deleted=artifacts_deleted,
+    )

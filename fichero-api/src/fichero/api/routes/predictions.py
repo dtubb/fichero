@@ -33,6 +33,28 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["predictions"])
 
 
+class PredictionStatusResponse(BaseModel):
+    """Current state of the PyKEEN inference engine."""
+
+    enabled: bool
+    models_trained: int
+    training_jobs: int
+    stored_predictions: int
+
+
+class EnabledResponse(BaseModel):
+    """Confirmation that inference was enabled or disabled."""
+
+    enabled: bool
+
+
+class DeleteModelResponse(BaseModel):
+    """Confirmation that a trained model was deleted."""
+
+    deleted: bool
+    model_id: str
+
+
 class TrainRequest(BaseModel):
     """Request to train a PyKEEN model."""
 
@@ -82,17 +104,17 @@ class VerifyPredictionRequest(BaseModel):
 
 
 @router.get("/api/predictions/status")
-async def get_prediction_status() -> dict:
+async def get_prediction_status() -> PredictionStatusResponse:
     """Get PyKEEN prediction engine status."""
     inference = get_inference()
-    return inference.get_status()
+    return PredictionStatusResponse(**inference.get_status())
 
 
 @router.post("/api/predictions/enable")
-async def set_prediction_enabled(request: EnableRequest) -> dict:
+async def set_prediction_enabled(request: EnableRequest) -> EnabledResponse:
     """Enable or disable PyKEEN inference."""
     set_inference_enabled(request.enabled)
-    return {"enabled": request.enabled}
+    return EnabledResponse(enabled=request.enabled)
 
 
 @router.get("/api/predictions/models")
@@ -171,7 +193,7 @@ async def get_training_job(model_id: str) -> TrainingResult:
 
 
 @router.delete("/api/predictions/models/{model_id}")
-async def delete_trained_model(model_id: str) -> dict:
+async def delete_trained_model(model_id: str) -> DeleteModelResponse:
     """Delete a trained model."""
     inference = get_inference()
     deleted = inference.delete_model(model_id)
@@ -179,7 +201,7 @@ async def delete_trained_model(model_id: str) -> dict:
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Model {model_id} not found")
 
-    return {"deleted": True, "model_id": model_id}
+    return DeleteModelResponse(deleted=True, model_id=model_id)
 
 
 @router.post("/api/predictions/generate/{model_id}")

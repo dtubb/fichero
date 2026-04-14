@@ -51,6 +51,10 @@ class CheckpointHistoryResponse(BaseModel):
     checkpoints: list[CheckpointSnapshot]
 
 
+class ThreadDeletedResponse(BaseModel):
+    message: str
+
+
 class WorkflowRunResponse(BaseModel):
     """Response with workflow run data (code, logs, etc.)."""
 
@@ -370,7 +374,7 @@ async def list_threads(
 async def delete_thread(
     thread_id: str,
     db: Database = Depends(get_library_database),
-) -> dict[str, str]:
+) -> ThreadDeletedResponse:
     """
     Delete a workflow execution thread and its checkpoints.
 
@@ -409,7 +413,7 @@ async def delete_thread(
         )
 
         logger.info(f"Deleted thread: {thread_id}")
-        return {"message": f"Thread deleted: {thread_id}"}
+        return ThreadDeletedResponse(message=f"Thread deleted: {thread_id}")
 
     except HTTPException:
         raise

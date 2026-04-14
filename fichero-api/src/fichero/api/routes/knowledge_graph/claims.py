@@ -98,6 +98,38 @@ class InclusionUpsertRequest(BaseModel):
 # Static /claims sub-paths MUST be defined BEFORE /{claim_id} to avoid
 # FastAPI's greedy path-parameter matching swallowing them.
 
+class EmbedClaimsResponse(BaseModel):
+    embedded: int
+    table: str
+
+
+class OverviewCounts(BaseModel):
+    claims: int
+    entities: int
+    claim_links: int
+    curated_claims: int
+    shortlisted_claims: int
+    rejected_claims: int
+    unreviewed_claims: int
+    predicted_claims: int
+    included_claims: int
+
+
+class OverviewMetrics(BaseModel):
+    average_confidence: float
+
+
+class OverviewScope(BaseModel):
+    scope_type: str | None
+    target_id: str | None
+
+
+class ClaimsOverviewResponse(BaseModel):
+    counts: OverviewCounts
+    metrics: OverviewMetrics
+    scope: OverviewScope
+
+
 class _EmbedClaimRequest(BaseModel):
     claim_ids: list[str] | None = None
 
@@ -106,7 +138,7 @@ class _EmbedClaimRequest(BaseModel):
 async def embed_claims(
     request: _EmbedClaimRequest | None = None,
     db: Database = Depends(get_library_database),
-) -> dict[str, Any]:
+) -> EmbedClaimsResponse:
     """Embed claims into LanceDB for semantic search."""
     if request and request.claim_ids:
         claims = [db.get(KnowledgeClaim, cid) for cid in request.claim_ids]
@@ -115,7 +147,7 @@ async def embed_claims(
         claims = db.all(KnowledgeClaim)
 
     if not claims:
-        return {"embedded": 0, "table": KG_CLAIM_EMBEDDINGS_TABLE}
+        return EmbedClaimsResponse(embedded=0, table=KG_CLAIM_EMBEDDINGS_TABLE)
 
     texts = [c.text for c in claims]
     vectors = db._embed_texts(texts)  # type: ignore[attr-defined]
@@ -130,7 +162,7 @@ async def embed_claims(
         for c, v in zip(claims, vectors)
     ]
     db.save_vectors(KG_CLAIM_EMBEDDINGS_TABLE, records)
-    return {"embedded": len(records), "table": KG_CLAIM_EMBEDDINGS_TABLE}
+    return EmbedClaimsResponse(embedded=len(records), table=KG_CLAIM_EMBEDDINGS_TABLE)
 
 
 @router.get("/claims/semantic")
@@ -521,7 +553,7 @@ async def overview(
     scope_type: InclusionScopeType | None = Query(default=None),
     target_id: str | None = Query(default=None),
     db: Database = Depends(get_library_database),
-) -> dict[str, Any]:
+) -> ClaimsOverviewResponse:
     claims = db.all(KnowledgeClaim)
     claims = _filter_claims(
         claims,
@@ -556,23 +588,21 @@ async def overview(
         sum(claim.confidence for claim in claims) / len(claims) if claims else 0.0
     )
 
-    return {
-        "counts": {
-            "claims": len(claims),
-            "entities": len(entities),
-            "claim_links": len(claim_links),
-            "curated_claims": curated,
-            "shortlisted_claims": shortlisted,
-            "rejected_claims": rejected,
-            "unreviewed_claims": unreviewed,
-            "predicted_claims": predicted,
-            "included_claims": included_claims,
-        },
-        "metrics": {
-            "average_confidence": average_confidence,
-        },
-        "scope": {
-            "scope_type": scope_type.value if scope_type else None,
-            "target_id": target_id,
-        },
-    }
+    return ClaimsOverviewResponse(
+        counts=OverviewCounts(
+            claims=len(claims),
+            entities=len(entities),
+            claim_links=len(claim_links),
+            curated_claims=curated,
+            shortlisted_claims=shortlisted,
+            rejected_claims=rejected,
+            unreviewed_claims=unreviewed,
+            predicted_claims=predicted,
+            included_claims=included_claims,
+        ),
+        metrics=OverviewMetrics(average_confidence=average_confidence),
+        scope=OverviewScope(
+            scope_type=scope_type.value if scope_type else None,
+            target_id=target_id,
+        ),
+    )

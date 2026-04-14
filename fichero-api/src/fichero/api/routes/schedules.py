@@ -33,6 +33,10 @@ router = APIRouter(prefix="/schedules", tags=["schedules"])
 # Request/Response Models
 
 
+class ScheduleDeletedResponse(BaseModel):
+    message: str
+
+
 class ScheduleConfigRequest(BaseModel):
     """Schedule configuration request."""
 
@@ -269,7 +273,7 @@ async def get_schedule(
 async def delete_schedule(
     schedule_id: str,
     scheduler: WorkflowScheduler = Depends(get_scheduler),
-) -> dict:
+) -> ScheduleDeletedResponse:
     """Delete a schedule."""
 
     # Verify schedule exists
@@ -278,7 +282,7 @@ async def delete_schedule(
         raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
 
     await scheduler.delete_schedule(schedule_id)
-    return {"message": f"Schedule {schedule_id} deleted"}
+    return ScheduleDeletedResponse(message=f"Schedule {schedule_id} deleted")
 
 
 @router.put("/{schedule_id}", response_model=ScheduleResponse)

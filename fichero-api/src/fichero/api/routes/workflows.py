@@ -291,6 +291,27 @@ class PromptResponse(BaseModel):
     prompt: str = ""  # Empty string if no prompt
 
 
+class WorkflowExportResponse(BaseModel):
+    id: str
+    name: str
+    description: str
+    provider: str
+    model: str
+    format: str
+    nodes: list
+    edges: list
+    exported_at: str
+
+
+class WorkflowDeletedResponse(BaseModel):
+    message: str
+
+
+class WorkflowReorderResponse(BaseModel):
+    status: str
+    count: int
+
+
 @router.post("/tools/{tool_name}/prompt")
 async def get_tool_prompt(tool_name: str, request: PromptRequest) -> PromptResponse:
     """Get the default prompt for a tool, optionally customized by config.
@@ -434,7 +455,7 @@ async def import_workflow(
 async def export_workflow(
     workflow_id: str,
     db: Database = Depends(get_library_database),
-) -> dict:
+) -> WorkflowExportResponse:
     """Export a workflow as JSON data for sharing/importing."""
     try:
         from fichero.models import Workflow
@@ -446,17 +467,17 @@ async def export_workflow(
             )
 
         # Return the workflow data as JSON for export
-        return {
-            "id": workflow.id,
-            "name": workflow.name,
-            "description": workflow.description,
-            "provider": workflow.provider,
-            "model": workflow.model,
-            "format": workflow.format,
-            "nodes": workflow.nodes,
-            "edges": workflow.edges,
-            "exported_at": datetime.now().isoformat(),
-        }
+        return WorkflowExportResponse(
+            id=workflow.id,
+            name=workflow.name,
+            description=workflow.description,
+            provider=workflow.provider,
+            model=workflow.model,
+            format=workflow.format,
+            nodes=workflow.nodes,
+            edges=workflow.edges,
+            exported_at=datetime.now().isoformat(),
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -655,7 +676,7 @@ async def patch_workflow(
 async def delete_workflow(
     workflow_id: str,
     db: Database = Depends(get_library_database),
-):
+) -> WorkflowDeletedResponse:
     """Delete a saved workflow."""
     try:
         from fichero.models import Workflow
@@ -669,7 +690,7 @@ async def delete_workflow(
         # Delete from database
         db.delete(workflow)
 
-        return {"message": f"Workflow {workflow_id} deleted successfully"}
+        return WorkflowDeletedResponse(message=f"Workflow {workflow_id} deleted successfully")
     except HTTPException:
         raise
     except Exception as e:
@@ -732,7 +753,7 @@ async def reorder_workflows(
     workflow_ids: list[str],
     folder_path: str = "/",
     db: Database = Depends(get_library_database),
-) -> dict:
+) -> WorkflowReorderResponse:
     """Reorder workflows within a folder."""
     try:
         from fichero.models import Workflow
@@ -749,7 +770,7 @@ async def reorder_workflows(
             workflow.sort_order = i
             db.save(workflow)
 
-        return {"status": "reordered", "count": len(workflow_ids)}
+        return WorkflowReorderResponse(status="reordered", count=len(workflow_ids))
     except HTTPException:
         raise
     except Exception as e:

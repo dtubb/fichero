@@ -140,6 +140,10 @@ class TriggerResponse(BaseModel):
         )
 
 
+class TriggerDeletedResponse(BaseModel):
+    message: str
+
+
 class TriggerExecutionResponse(BaseModel):
     """Trigger execution response."""
 
@@ -283,7 +287,7 @@ async def get_trigger(
 async def delete_trigger(
     trigger_id: str,
     watcher: FileWatcherManager = Depends(get_file_watcher),
-) -> dict:
+) -> TriggerDeletedResponse:
     """Delete a file trigger."""
 
     # Verify trigger exists
@@ -292,7 +296,7 @@ async def delete_trigger(
         raise HTTPException(status_code=404, detail=f"Trigger {trigger_id} not found")
 
     await watcher.delete_trigger(trigger_id)
-    return {"message": f"Trigger {trigger_id} deleted"}
+    return TriggerDeletedResponse(message=f"Trigger {trigger_id} deleted")
 
 
 @router.put("/{trigger_id}", response_model=TriggerResponse)

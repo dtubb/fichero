@@ -91,13 +91,110 @@ class ModelInfo(BaseModel):
     output_price_per_million: float
 
 
+class ModelResultResponse(BaseModel):
+    """Result from a single model in a comparison run."""
+
+    provider: str
+    model: str
+    response: str
+    latency_ms: float
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+    error: str | None
+    timestamp: str
+
+
+class ComparisonResultResponse(BaseModel):
+    """Result of comparing multiple models on the same prompt."""
+
+    prompt: str
+    models_compared: list[str]
+    results: list[ModelResultResponse]
+    fastest_model: str | None
+    cheapest_model: str | None
+    total_cost_usd: float
+    total_latency_ms: float
+    comparison_id: str
+    timestamp: str
+
+
+class ComparisonHistoryResponse(BaseModel):
+    history: list[ComparisonResultResponse]
+
+
+class ModelListResponse(BaseModel):
+    models: list[ModelInfo]
+
+
+class CostEstimateItem(BaseModel):
+    provider: str
+    model: str
+    estimated_cost_usd: float
+
+
+class CostEstimateResponse(BaseModel):
+    estimated_input_tokens: int
+    estimated_output_tokens: int
+    model_estimates: list[CostEstimateItem]
+    total_estimated_cost_usd: float
+
+
+class TierModelInfo(BaseModel):
+    provider: str
+    model: str
+    input_price: float
+    output_price: float
+    tier: str
+
+
+class ModelsByTierResponse(BaseModel):
+    frontier: list[TierModelInfo] = []
+    mid: list[TierModelInfo] = []
+    budget: list[TierModelInfo] = []
+    local: list[TierModelInfo] = []
+
+
+class PresetModelSpec(BaseModel):
+    provider: str
+    model: str
+
+
+class ComparisonPreset(BaseModel):
+    name: str
+    description: str
+    models: list[PresetModelSpec]
+
+
+class PresetsResponse(BaseModel):
+    presets: list[ComparisonPreset]
+
+
+class ToolPortInfo(BaseModel):
+    id: str
+    name: str
+    required: bool
+
+
+class ComparisonToolInfo(BaseModel):
+    name: str
+    display_name: str
+    description: str
+    category: str
+    input_ports: list[ToolPortInfo]
+
+
+class ToolListResponse(BaseModel):
+    tools: list[ComparisonToolInfo]
+
+
 # =============================================================================
 # API Endpoints
 # =============================================================================
 
 
 @router.post("/compare")
-async def compare_models(request: CompareRequest):
+async def compare_models(request: CompareRequest) -> ComparisonResultResponse:
     """Compare responses from multiple models.
 
     Runs the same prompt against all specified models in parallel
@@ -122,32 +219,33 @@ async def compare_models(request: CompareRequest):
     engine = get_comparison_engine()
     result = await engine.compare(comparison_request)
 
-    return result.to_dict()
+    return ComparisonResultResponse(**result.to_dict())
 
 
 @router.get("/history")
-async def get_comparison_history(limit: int = 10):
+async def get_comparison_history(limit: int = 10) -> ComparisonHistoryResponse:
     """Get recent comparison history."""
     engine = get_comparison_engine()
-    return {"history": engine.get_history(limit)}
+    return ComparisonHistoryResponse(
+        history=[ComparisonResultResponse(**r.to_dict()) for r in engine.get_history(limit)]
+    )
 
 
 @router.get("/comparison/{comparison_id}")
-async def get_comparison(comparison_id: str):
+async def get_comparison(comparison_id: str) -> ComparisonResultResponse:
     """Get a specific comparison by ID."""
     engine = get_comparison_engine()
     result = engine.get_comparison(comparison_id)
     if not result:
         raise HTTPException(status_code=404, detail="Comparison not found")
-    return result.to_dict()
+    return ComparisonResultResponse(**result.to_dict())
 
 
 @router.get("/models")
-async def list_available_models():
+async def list_available_models() -> ModelListResponse:
     """List available models with pricing information."""
     models = []
     for model_name, (input_price, output_price) in MODEL_PRICING.items():
-        # Infer provider from model name
         if model_name.startswith("gpt"):
             provider = "openai"
         elif model_name.startswith("claude"):
@@ -159,20 +257,18 @@ async def list_available_models():
         else:
             provider = "local"
 
-        models.append(
-            {
-                "provider": provider,
-                "model": model_name,
-                "input_price_per_million": input_price,
-                "output_price_per_million": output_price,
-            }
-        )
+        models.append(ModelInfo(
+            provider=provider,
+            model=model_name,
+            input_price_per_million=input_price,
+            output_price_per_million=output_price,
+        ))
 
-    return {"models": models}
+    return ModelListResponse(models=models)
 
 
 @router.post("/estimate-cost")
-async def estimate_comparison_cost(request: CompareRequest):
+async def estimate_comparison_cost(request: CompareRequest) -> CostEstimateResponse:
     """Estimate the cost of running a comparison.
 
     Uses approximate token counts to estimate costs before running.
@@ -195,79 +291,51 @@ async def estimate_comparison_cost(request: CompareRequest):
         cost = estimate_cost(
             model_name, estimated_input_tokens, estimated_output_tokens
         )
-        estimates.append(
-            {
-                "provider": m.get("provider", "openai"),
-                "model": model_name,
-                "estimated_cost_usd": cost,
-            }
-        )
+        estimates.append(CostEstimateItem(
+            provider=m.get("provider", "openai"),
+            model=model_name,
+            estimated_cost_usd=cost,
+        ))
         total_estimated_cost += cost
 
-    return {
-        "estimated_input_tokens": estimated_input_tokens,
-        "estimated_output_tokens": estimated_output_tokens,
-        "model_estimates": estimates,
-        "total_estimated_cost_usd": total_estimated_cost,
-    }
+    return CostEstimateResponse(
+        estimated_input_tokens=estimated_input_tokens,
+        estimated_output_tokens=estimated_output_tokens,
+        model_estimates=estimates,
+        total_estimated_cost_usd=total_estimated_cost,
+    )
 
 
 @router.get("/presets")
-async def get_comparison_presets():
+async def get_comparison_presets() -> PresetsResponse:
     """Get preset model combinations for common comparison scenarios."""
-    return {
-        "presets": [
-            {
-                "name": "Speed Test",
-                "description": "Compare response speed across providers",
-                "models": [
-                    {"provider": "openai", "model": "gpt-4o-mini"},
-                    {"provider": "anthropic", "model": "claude-3-5-haiku-20241022"},
-                    {"provider": "google", "model": "gemini-1.5-flash"},
-                ],
-            },
-            {
-                "name": "Quality Test",
-                "description": "Compare quality across top-tier models",
-                "models": [
-                    {"provider": "openai", "model": "gpt-4o"},
-                    {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022"},
-                    {"provider": "google", "model": "gemini-1.5-pro"},
-                ],
-            },
-            {
-                "name": "Budget Test",
-                "description": "Compare cost-effective models",
-                "models": [
-                    {"provider": "openai", "model": "gpt-3.5-turbo"},
-                    {"provider": "anthropic", "model": "claude-3-haiku-20240307"},
-                    {"provider": "google", "model": "gemini-1.5-flash"},
-                ],
-            },
-            {
-                "name": "Claude Family",
-                "description": "Compare different Claude models",
-                "models": [
-                    {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022"},
-                    {"provider": "anthropic", "model": "claude-3-5-haiku-20241022"},
-                    {"provider": "anthropic", "model": "claude-3-opus-20240229"},
-                ],
-            },
-            {
-                "name": "GPT Family",
-                "description": "Compare different GPT models",
-                "models": [
-                    {"provider": "openai", "model": "gpt-4o"},
-                    {"provider": "openai", "model": "gpt-4o-mini"},
-                    {"provider": "openai", "model": "gpt-4-turbo"},
-                ],
-            },
-        ]
-    }
+    presets = [
+        ComparisonPreset(name="Speed Test", description="Compare response speed across providers",
+            models=[PresetModelSpec(provider="openai", model="gpt-4o-mini"),
+                    PresetModelSpec(provider="anthropic", model="claude-3-5-haiku-20241022"),
+                    PresetModelSpec(provider="google", model="gemini-1.5-flash")]),
+        ComparisonPreset(name="Quality Test", description="Compare quality across top-tier models",
+            models=[PresetModelSpec(provider="openai", model="gpt-4o"),
+                    PresetModelSpec(provider="anthropic", model="claude-3-5-sonnet-20241022"),
+                    PresetModelSpec(provider="google", model="gemini-1.5-pro")]),
+        ComparisonPreset(name="Budget Test", description="Compare cost-effective models",
+            models=[PresetModelSpec(provider="openai", model="gpt-3.5-turbo"),
+                    PresetModelSpec(provider="anthropic", model="claude-3-haiku-20240307"),
+                    PresetModelSpec(provider="google", model="gemini-1.5-flash")]),
+        ComparisonPreset(name="Claude Family", description="Compare different Claude models",
+            models=[PresetModelSpec(provider="anthropic", model="claude-3-5-sonnet-20241022"),
+                    PresetModelSpec(provider="anthropic", model="claude-3-5-haiku-20241022"),
+                    PresetModelSpec(provider="anthropic", model="claude-3-opus-20240229")]),
+        ComparisonPreset(name="GPT Family", description="Compare different GPT models",
+            models=[PresetModelSpec(provider="openai", model="gpt-4o"),
+                    PresetModelSpec(provider="openai", model="gpt-4o-mini"),
+                    PresetModelSpec(provider="openai", model="gpt-4-turbo")]),
+    ]
+    return PresetsResponse(presets=presets)
 
 
 @router.get("/models-by-tier")
-async def get_models_grouped_by_tier():
+async def get_models_grouped_by_tier() -> ModelsByTierResponse:
     """Get all models grouped by performance/cost tier.
 
     Returns models organized into:
@@ -276,11 +344,17 @@ async def get_models_grouped_by_tier():
     - budget: Basic quality, low cost (GPT-3.5, etc.)
     - local: Free, runs locally (Llama, Mistral via Ollama)
     """
-    return get_models_by_tier()
+    raw = get_models_by_tier()
+    return ModelsByTierResponse(
+        frontier=[TierModelInfo(**m) for m in raw.get("frontier", [])],
+        mid=[TierModelInfo(**m) for m in raw.get("mid", [])],
+        budget=[TierModelInfo(**m) for m in raw.get("budget", [])],
+        local=[TierModelInfo(**m) for m in raw.get("local", [])],
+    )
 
 
 @router.post("/compare-vision")
-async def compare_vision_models(request: VisionCompareRequest):
+async def compare_vision_models(request: VisionCompareRequest) -> ComparisonResultResponse:
     """Compare vision models on the same image(s).
 
     Sends the same image(s) to multiple vision-capable models
@@ -308,11 +382,11 @@ async def compare_vision_models(request: VisionCompareRequest):
         timeout_seconds=request.timeout_seconds,
     )
 
-    return result.to_dict()
+    return ComparisonResultResponse(**result.to_dict())
 
 
 @router.post("/compare-tool")
-async def compare_tool_across_models(request: ToolCompareRequest):
+async def compare_tool_across_models(request: ToolCompareRequest) -> ComparisonResultResponse:
     """Compare models running the same workflow tool.
 
     Runs a workflow tool (describe, summarize, classify, etc.) with
@@ -338,31 +412,30 @@ async def compare_tool_across_models(request: ToolCompareRequest):
         timeout_seconds=request.timeout_seconds,
     )
 
-    return result.to_dict()
+    return ComparisonResultResponse(**result.to_dict())
 
 
 @router.get("/tools")
-async def list_available_tools():
+async def list_available_tools() -> ToolListResponse:
     """List available workflow tools that can be used for comparison.
 
     Returns tools that support LLM comparison (have uses_llm=True).
     """
     from fichero.workflows.registry import list_tools
 
-    tools = []
-    for tool_def in list_tools():
-        if tool_def.uses_llm:
-            tools.append(
-                {
-                    "name": tool_def.name,
-                    "display_name": tool_def.display_name,
-                    "description": tool_def.description,
-                    "category": tool_def.category,
-                    "input_ports": [
-                        {"id": p.id, "name": p.name, "required": p.required}
-                        for p in tool_def.input_ports
-                    ],
-                }
-            )
+    tools = [
+        ComparisonToolInfo(
+            name=tool_def.name,
+            display_name=tool_def.display_name,
+            description=tool_def.description,
+            category=tool_def.category,
+            input_ports=[
+                ToolPortInfo(id=p.id, name=p.name, required=p.required)
+                for p in tool_def.input_ports
+            ],
+        )
+        for tool_def in list_tools()
+        if tool_def.uses_llm
+    ]
 
-    return {"tools": tools}
+    return ToolListResponse(tools=tools)

@@ -73,6 +73,25 @@ class ReindexResponse(BaseModel):
     indexed: int
 
 
+class ReindexStartedResponse(BaseModel):
+    status: str
+    message: str
+
+
+class EmbedDocumentResponse(BaseModel):
+    document_id: str
+    embedded: bool
+
+
+class DeletedResponse(BaseModel):
+    status: str
+
+
+class ReorderResponse(BaseModel):
+    status: str
+    count: int
+
+
 # Routes
 
 
@@ -143,7 +162,7 @@ async def search_stats(db: Database = Depends(get_library_database)):
 @router.post("/reindex")
 async def reindex_all(
     background_tasks: BackgroundTasks, db: Database = Depends(get_library_database)
-):
+) -> ReindexStartedResponse:
     """
     Rebuild search index for all documents.
 
@@ -159,14 +178,14 @@ async def reindex_all(
 
     background_tasks.add_task(do_reindex)
 
-    return {
-        "status": "started",
-        "message": "Reindex started in background. Poll /api/search/stats for progress.",
-    }
+    return ReindexStartedResponse(
+        status="started",
+        message="Reindex started in background. Poll /api/search/stats for progress.",
+    )
 
 
 @router.post("/embed/{doc_id}")
-async def embed_document(doc_id: str, db: Database = Depends(get_library_database)):
+async def embed_document(doc_id: str, db: Database = Depends(get_library_database)) -> EmbedDocumentResponse:
     """Create embedding for a specific document."""
     doc = db.get(Document, doc_id)
     if not doc:
@@ -174,10 +193,7 @@ async def embed_document(doc_id: str, db: Database = Depends(get_library_databas
 
     success = db.embed(doc)
 
-    return {
-        "document_id": doc_id,
-        "embedded": success,
-    }
+    return EmbedDocumentResponse(document_id=doc_id, embedded=success)
 
 
 # =============================================================================
@@ -366,14 +382,14 @@ async def duplicate_saved_search(
 @router.delete("/saved/{search_id}")
 async def delete_saved_search(
     search_id: str, db: Database = Depends(get_library_database)
-):
+) -> DeletedResponse:
     """Delete a saved search."""
     saved = db.get(SavedSearch, search_id)
     if not saved:
         raise HTTPException(status_code=404, detail="Saved search not found")
 
     db.delete(saved)
-    return {"status": "deleted"}
+    return DeletedResponse(status="deleted")
 
 
 @router.post("/saved/reorder")
@@ -381,7 +397,7 @@ async def reorder_saved_searches(
     search_ids: list[str],
     folder_path: str = "/",
     db: Database = Depends(get_library_database),
-) -> dict:
+) -> ReorderResponse:
     """Reorder saved searches within a folder."""
     # Update sort_order for each saved search
     for i, search_id in enumerate(search_ids):
@@ -395,7 +411,7 @@ async def reorder_saved_searches(
         saved.sort_order = i
         db.save(saved)
 
-    return {"status": "reordered", "count": len(search_ids)}
+    return ReorderResponse(status="reordered", count=len(search_ids))
 
 
 # =============================================================================

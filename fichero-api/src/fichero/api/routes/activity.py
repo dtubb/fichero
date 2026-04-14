@@ -85,6 +85,11 @@ class ActivityResponse(BaseModel):
         )
 
 
+class CleanupResponse(BaseModel):
+    deleted: int
+    older_than: str
+
+
 class ActivityStatsResponse(BaseModel):
     """Response model for activity statistics."""
 
@@ -381,7 +386,7 @@ async def cleanup_old_activities(
     days: int = Query(
         30, ge=1, le=365, description="Delete activities older than N days"
     ),
-) -> dict[str, Any]:
+) -> CleanupResponse:
     """
     Delete old activities to manage database size.
 
@@ -390,7 +395,7 @@ async def cleanup_old_activities(
     tracker = get_activity_tracker(str(db.path))
     older_than = datetime.now() - timedelta(days=days)
     deleted = await tracker.store.delete_old(older_than)
-    return {"deleted": deleted, "older_than": older_than.isoformat()}
+    return CleanupResponse(deleted=deleted, older_than=older_than.isoformat())
 
 
 # =============================================================================

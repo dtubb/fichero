@@ -28,6 +28,11 @@ router = APIRouter()
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+class DeletedWithIdResponse(BaseModel):
+    status: str
+    id: str
+
+
 class ProjectCreateRequest(BaseModel):
     name: str
     description: str = ""
@@ -105,12 +110,12 @@ async def update_project(
 async def delete_project(
     project_id: str,
     db: Database = Depends(get_library_database),
-) -> dict[str, str]:
+) -> DeletedWithIdResponse:
     project = db.get(ResearchProject, project_id)
     if not project:
         raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
     db.delete(project)
-    return {"status": "deleted", "id": project_id}
+    return DeletedWithIdResponse(status="deleted", id=project_id)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

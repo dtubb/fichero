@@ -47,6 +47,12 @@ class ClaimLinkUpdateRequest(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
+class ClaimLinkDeletedResponse(BaseModel):
+    success: bool
+    link_id: str
+    operation: str
+
+
 class ClaimLinkResponse(BaseModel):
     """Response model for claim link operations."""
 
@@ -156,7 +162,7 @@ async def update_claim_link(
 async def delete_claim_link(
     link_id: str,
     db: Database = Depends(get_library_database),
-) -> dict[str, Any]:
+) -> ClaimLinkDeletedResponse:
     """Delete a claim link (hard delete)."""
     link = db.get(KnowledgeClaimLink, link_id)
     if link is None:
@@ -164,7 +170,7 @@ async def delete_claim_link(
 
     # Delete from database
     db.delete(link)
-    return {"success": True, "link_id": link_id, "operation": "deleted"}
+    return ClaimLinkDeletedResponse(success=True, link_id=link_id, operation="deleted")
 
 
 # =============================================================================

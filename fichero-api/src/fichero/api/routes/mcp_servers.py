@@ -78,6 +78,35 @@ class MCPToolInfo(BaseModel):
     server_name: str
 
 
+class MCPToolListResponse(BaseModel):
+    """List of tools from one or all MCP servers."""
+
+    tool_count: int
+    tools: list[MCPToolInfo]
+
+
+class MCPToolRegistryResponse(BaseModel):
+    """Result of loading MCP tools into the workflow registry."""
+
+    tool_count: int
+    message: str
+
+
+class MCPServerDeletedResponse(BaseModel):
+    """Confirmation that an MCP server was deleted."""
+
+    message: str
+
+
+class MCPServerToolsResponse(BaseModel):
+    """Tools loaded from a specific MCP server."""
+
+    server_id: str
+    server_name: str
+    tool_count: int
+    tools: list[MCPToolInfo]
+
+
 # =============================================================================
 # Helper Functions
 # =============================================================================
@@ -139,7 +168,7 @@ async def list_mcp_servers():
 
 
 @router.get("/mcp-servers/tools/all")
-async def get_all_mcp_tools():
+async def get_all_mcp_tools() -> MCPToolListResponse:
     """Get all tools from all enabled MCP servers."""
     try:
         app_db = get_app_db()
@@ -177,10 +206,7 @@ async def get_all_mcp_tools():
             )
 
         logger.info(f"Loaded {len(tools)} total tools from all servers")
-        return {
-            "tool_count": len(tools),
-            "tools": tool_infos,
-        }
+        return MCPToolListResponse(tool_count=len(tools), tools=tool_infos)
 
     except Exception as e:
         logger.exception(f"Failed to load all MCP tools: {e}")
@@ -188,7 +214,7 @@ async def get_all_mcp_tools():
 
 
 @router.post("/mcp-servers/tools/load-into-workflow-registry")
-async def load_mcp_tools_into_workflow_registry():
+async def load_mcp_tools_into_workflow_registry() -> MCPToolRegistryResponse:
     """Load all MCP tools into the workflow registry.
 
     This makes MCP tools available in the workflow node editor.
@@ -209,10 +235,10 @@ async def load_mcp_tools_into_workflow_registry():
         tool_count = await load_mcp_tools_into_registry()
 
         logger.info(f"Loaded {tool_count} MCP tools into workflow registry")
-        return {
-            "tool_count": tool_count,
-            "message": f"Successfully loaded {tool_count} MCP tools into workflow registry",
-        }
+        return MCPToolRegistryResponse(
+            tool_count=tool_count,
+            message=f"Successfully loaded {tool_count} MCP tools into workflow registry",
+        )
 
     except Exception as e:
         logger.exception(f"Failed to load MCP tools into workflow registry: {e}")
@@ -220,7 +246,7 @@ async def load_mcp_tools_into_workflow_registry():
 
 
 @router.post("/mcp-servers/tools/reload-workflow-registry")
-async def reload_mcp_tools_in_workflow_registry():
+async def reload_mcp_tools_in_workflow_registry() -> MCPToolRegistryResponse:
     """Reload MCP tools in the workflow registry.
 
     This clears existing MCP tools and reloads them from all enabled servers.
@@ -241,10 +267,10 @@ async def reload_mcp_tools_in_workflow_registry():
         tool_count = await reload_mcp_tools()
 
         logger.info(f"Reloaded {tool_count} MCP tools in workflow registry")
-        return {
-            "tool_count": tool_count,
-            "message": f"Successfully reloaded {tool_count} MCP tools in workflow registry",
-        }
+        return MCPToolRegistryResponse(
+            tool_count=tool_count,
+            message=f"Successfully reloaded {tool_count} MCP tools in workflow registry",
+        )
 
     except Exception as e:
         logger.exception(f"Failed to reload MCP tools in workflow registry: {e}")
@@ -370,7 +396,7 @@ async def update_mcp_server(server_id: str, request: UpdateMCPServerRequest):
 
 
 @router.delete("/mcp-servers/{server_id}")
-async def delete_mcp_server(server_id: str):
+async def delete_mcp_server(server_id: str) -> MCPServerDeletedResponse:
     """Delete an MCP server."""
     try:
         app_db = get_app_db()
@@ -392,7 +418,7 @@ async def delete_mcp_server(server_id: str):
         manager.remove_server(server_name)
 
         logger.info(f"Deleted MCP server: {server_name}")
-        return {"message": f"Server '{server_name}' deleted successfully"}
+        return MCPServerDeletedResponse(message=f"Server '{server_name}' deleted successfully")
 
     except HTTPException:
         raise
@@ -402,7 +428,7 @@ async def delete_mcp_server(server_id: str):
 
 
 @router.post("/mcp-servers/{server_id}/load-tools")
-async def load_server_tools(server_id: str, force_reload: bool = False):
+async def load_server_tools(server_id: str, force_reload: bool = False) -> MCPServerToolsResponse:
     """Load tools from a specific MCP server.
 
     Args:
@@ -444,12 +470,12 @@ async def load_server_tools(server_id: str, force_reload: bool = False):
         ]
 
         logger.info(f"Loaded {len(tools)} tools from server: {server.name}")
-        return {
-            "server_id": server_id,
-            "server_name": server.name,
-            "tool_count": len(tools),
-            "tools": tool_infos,
-        }
+        return MCPServerToolsResponse(
+            server_id=server_id,
+            server_name=server.name,
+            tool_count=len(tools),
+            tools=tool_infos,
+        )
 
     except HTTPException:
         raise
