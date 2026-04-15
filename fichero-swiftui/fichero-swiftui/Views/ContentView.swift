@@ -183,19 +183,19 @@ struct ContentView: View {
     private var mainContentView: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebarContent
-        } content: {
-            centerContent
         } detail: {
-            if showInspectorSidebar {
-                detailView
-            } else {
-                EmptyView()
-                    .navigationSplitViewColumnWidth(0)
-            }
+            centerContent
+                .inspector(isPresented: $showInspectorSidebar) {
+                    detailView
+                        .inspectorColumnWidth(
+                            min: ContentView.inspectorMinWidth,
+                            ideal: inspectorWidth,
+                            max: ContentView.inspectorMaxWidth
+                        )
+                }
         }
-        .navigationSplitViewStyle(.prominentDetail)
         // Avoid duplicate generic per-column title pills in macOS split view.
-        .navigationTitle("")
+        .navigationTitle(toolbarTitle)
         .toolbar(removing: .sidebarToggle)
         .onAppear {
             // Restore all persisted state from @SceneStorage

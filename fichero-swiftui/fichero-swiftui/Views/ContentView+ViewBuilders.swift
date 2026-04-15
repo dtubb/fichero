@@ -204,25 +204,15 @@ extension ContentView {
 
     // MARK: - Inspector View
 
-    /// Inspector/info sidebar view (right column - fixed width)
+    /// Inspector/info sidebar view (rendered inside .inspector panel)
     @ViewBuilder
     var inspectorView: some View {
         switch viewMode {
         case .library, .search:
             DocumentInspector(document: inspectorDocument)
-                .navigationSplitViewColumnWidth(
-                    min: ContentView.inspectorMinWidth,
-                    ideal: inspectorWidth,
-                    max: ContentView.inspectorMaxWidth
-                )
 
         case .chat, .comparison:
             ChatInspector(selectedDocuments: $chatSelectedDocuments)
-                .navigationSplitViewColumnWidth(
-                    min: ContentView.inspectorMinWidth,
-                    ideal: inspectorWidth,
-                    max: ContentView.inspectorMaxWidth
-                )
 
         case .workflow:
             WorkflowInspector(
@@ -231,11 +221,6 @@ extension ContentView {
                     addNodeFromTool(tool, at: position)
                 }
             )
-            .navigationSplitViewColumnWidth(
-                min: ContentView.inspectorMinWidth,
-                ideal: inspectorWidth,
-                max: ContentView.inspectorMaxWidth
-            )
 
         case .chain:
             WorkflowInspector(
@@ -243,11 +228,6 @@ extension ContentView {
                 onAddNode: { tool, position in
                     addNodeFromTool(tool, at: position)
                 }
-            )
-            .navigationSplitViewColumnWidth(
-                min: ContentView.inspectorMinWidth,
-                ideal: inspectorWidth,
-                max: ContentView.inspectorMaxWidth
             )
 
         case .batches, .batch, .automation, .schedule, .trigger, .activity:
@@ -259,11 +239,6 @@ extension ContentView {
                 Spacer()
             }
             .padding()
-            .navigationSplitViewColumnWidth(
-                min: ContentView.inspectorMinWidth,
-                ideal: inspectorWidth,
-                max: ContentView.inspectorMaxWidth
-            )
         }
     }
 

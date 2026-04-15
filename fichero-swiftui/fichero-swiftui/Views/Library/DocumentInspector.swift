@@ -18,16 +18,23 @@ struct DocumentInspector: View {
     // MARK: - Document Detail
 
     private func documentDetail(_ doc: Document) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                DocumentInspectorInfoTab(document: doc)
-                if !doc.metadata.isEmpty || doc.path != nil {
-                    DocumentInspectorMetadataTab(document: doc)
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    DocumentInspectorInfoTab(document: doc)
+                    if !doc.metadata.isEmpty || doc.path != nil {
+                        DocumentInspectorMetadataTab(document: doc)
+                    }
+                    DocumentInspectorArtifactsTab(documentId: doc.id)
+                    Spacer()
                 }
-                DocumentInspectorArtifactsTab(documentId: doc.id)
-                Spacer()
+                .padding()
             }
-            .padding()
+
+            Divider()
+
+            DocumentInspectorContentTab(document: doc)
+                .frame(minHeight: 180, idealHeight: 240)
         }
     }
 

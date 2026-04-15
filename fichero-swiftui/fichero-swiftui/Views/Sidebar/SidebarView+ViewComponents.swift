@@ -256,7 +256,7 @@ extension SidebarView {
                 handleUnifiedRowTap(item)
             }
             .listRowBackground(
-                selectedActivityItemIds.contains(item.id)
+                (item.id == selectedItemId || selectedActivityItemIds.contains(item.id))
                     ? Color.accentColor.opacity(0.18)
                     : Color.clear
             )
