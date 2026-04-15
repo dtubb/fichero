@@ -528,3 +528,16 @@ ALL COMPLETE:
 - Confirmed 1785 passing, 0 failures — all pre-existing failures resolved
 - Confirmed 0.0.2 is clean: only origin/0.0.2 and origin/main exist, no stray branches
 - Updated STATE.md to reflect accurate test health and clarify sequencing: release 0.0.1 first, then merge 0.0.2 → main
+
+## 2026-04-15 — Session Summary
+
+- Closed #460 (backend cleanup/consistency pass) and filed #461 (async DNS fix for blocking socket.getaddrinfo calls)
+- Filed 20 GitHub issues for export system (milestones 0.4.0–0.4.3) and image editing system (milestones 0.3.0–0.3.2)
+- Restructured GitHub milestones from 7 coarse milestones to 40 fine-grained ones (one testable feature each, 0.0.1–0.9.0)
+- Created release gate issues #481–515 (one per milestone) with Daniel human test checklists
+- Wrote docs/architecture/release-process.md (7-step testing pipeline: backend, SwiftLint, MCP API tests, Peekaboo, human test, bug loop, tag+ship)
+- Filed #516 (add CSV/RTF/MOBI to Swift FileType enum → 0.0.1), #517 (re-enable list/table/map views → 0.0.3), #518 (import progress indicator → 0.0.3), #519 (artifacts column in table view → 0.0.3)
+- Created /bug skill at fichero-skills/plugins/fs_session/skills/bug/skill.md
+- Added bug priority rule to .claude/agent-briefing.md — autonomous sessions fix type:bug issues before features
+- Deleted stale 0.8.2 GitHub milestone and corrected STATE.md count to 40
+- Deleted ~/.claude/skills/ (all skills now live in plugins only, no duplicates)

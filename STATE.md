@@ -4,11 +4,11 @@
 
 **Branch:** `0.0.2` — pushed and clean. Backend work complete.
 
-**Status:** Milestone restructuring complete. 42 milestones, one testable feature each. Release gate issues created for all milestones. Testing process documented.
+**Status:** Session complete. 40 milestones, release gate issues filed, testing process documented, `/bug` skill live, bug priority rule wired into autonomous sessions.
 
 ## In Progress
 
-Nothing active.
+Nothing active. Waiting on Daniel to test 0.0.1.
 
 ## Test Health
 
@@ -71,10 +71,10 @@ See `docs/architecture/release-process.md` — every milestone follows the same 
 
 ## Next Session — Start Here
 
-1. **Fix 0.0.1 bugs** — #383, #384, #385, #386 (SwiftUI: drag/drop, image import, window restore, transcribe reliability). These are the last 6 issues blocking the first ship.
-2. **Then: `/milestone-check`** → Daniel human tests → `/release 0.0.1`
+1. **Fix 0.0.1 bugs autonomously** — #383, #384, #385, #386 (drag/drop, image import, window restore, transcribe) + #516 (FileType enum). Run `/session-start-auto` overnight.
+2. **Daniel: test 0.0.1** → `/release 0.0.1`
 3. **Merge 0.0.2 → main** — immediately after 0.0.1 ships
-4. **Begin 0.0.3** — Wire Search v1: enable search, test, ship
+4. **Begin 0.0.3** — Wire: Search v1 (11 open issues: list/table views, artifacts column, import progress)
 
 ## Parallel Workflow
 
@@ -82,4 +82,4 @@ Daniel tests N → Claude builds N+1 in a separate worktree.
 Gate: Claude never merges without Daniel's `/release N`.
 
 ---
-*Last updated: 2026-04-14* — 42 milestones created, release gate issues filed (#481-515), release-process.md written
+*Last updated: 2026-04-14* — 40 milestones, release gate issues filed (#481-515), release-process.md written

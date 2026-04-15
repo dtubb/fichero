@@ -34,6 +34,21 @@ swiftlint lint fichero-swiftui/fichero-swiftui/
 ruff check fichero-api/src/
 ```
 
+## Task Priority (override default lowest-issue-number ordering)
+
+When picking the next task in an autonomous session, use this priority order:
+
+1. **`type:bug` issues** — fix all open bugs before any feature work, regardless of milestone or issue number
+2. **Current milestone feature issues** — lowest issue number first
+3. **Future milestone issues** — only if current milestone is empty
+
+To find bugs:
+```bash
+gh issue list --state open --label "type:bug" --limit 20
+```
+
+**Why:** Daniel files bugs via `/bug` while testing the app. Bugs must be fixed before the next session ships new features or they pile up and block testing.
+
 ## Hard Rules
 
 1. Never push to `main` — all work goes to `0.0.2`

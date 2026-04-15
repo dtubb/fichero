@@ -257,6 +257,14 @@ for link in links:
 - `git worktree remove --force` still fails if the directory has content git can't delete itself. Follow up with `git worktree prune && rm -rf <path>`.
 - `.kreuzberg/extraction/*.msgpack` binary files appear as modified during cherry-picks of branches that processed documents. Always resolve with `--theirs` — these are cache files.
 
+## Milestone + Release Architecture — 2026-04-15
+
+**40 milestones, one testable feature each (0.0.1–0.9.0).** Each milestone has one `release-gate` issue with Daniel's human test checklist. Testing pipeline: backend tests → SwiftLint + Xcode build → MCP API tests → Peekaboo screenshots → Daniel human test → bug loop → tag+ship. See `docs/architecture/release-process.md`.
+
+**Bug priority rule in `.claude/agent-briefing.md`:** autonomous sessions (`/session-start-auto`) always fix `type:bug` issues before picking feature work. Daniel files bugs via `/bug` skill → GitHub issue with `type:bug` label → auto-prioritised next session.
+
+**Skills live in plugins only.** `~/.claude/skills/` has been deleted. All skills are in `fichero-skills/plugins/`. Never copy skills back to `~/.claude/skills/` — that creates duplicates in the skill picker.
+
 ## PyKEEN Knowledge Graph Embedding Pattern — 2026-04-12
 
 **Pattern:** Latent inference for knowledge graphs using PyKEEN embeddings and link prediction
