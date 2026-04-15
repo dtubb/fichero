@@ -71,6 +71,7 @@ class FileType(str, Enum):
     docx = "docx"  # docx
     epub = "epub"  # ebooks
     spreadsheet = "spreadsheet"  # csv, xlsx, xls, ods
+    presentation = "presentation"  # pptx, ppt
     other = "other"
 
 

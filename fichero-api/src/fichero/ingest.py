@@ -58,6 +58,7 @@ _TEXT_EXTRACTABLE = {
     FileType.text,
     FileType.epub,
     FileType.spreadsheet,
+    FileType.presentation,
 }
 
 
@@ -132,6 +133,9 @@ _FILE_TYPE_MAP = {
     ".xlsx": FileType.spreadsheet,
     ".xls": FileType.spreadsheet,
     ".ods": FileType.spreadsheet,
+    # Presentations
+    ".pptx": FileType.presentation,
+    ".ppt": FileType.presentation,
     # Ebooks
     ".epub": FileType.epub,
     ".mobi": FileType.epub,

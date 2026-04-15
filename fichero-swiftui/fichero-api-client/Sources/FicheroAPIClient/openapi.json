@@ -30728,6 +30728,7 @@
           "docx",
           "epub",
           "spreadsheet",
+          "presentation",
           "other"
         ],
         "title": "FileType",

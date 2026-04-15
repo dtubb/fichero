@@ -437,6 +437,7 @@ class DocumentServiceGenerated: ObservableObject {
         case .video: return .video
         case .epub: return .epub
         case .spreadsheet: return .spreadsheet
+        case .presentation: return .presentation
         case .other: return .other
         }
     }

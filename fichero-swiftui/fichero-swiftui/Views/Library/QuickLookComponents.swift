@@ -294,6 +294,7 @@ struct QuickLookDownloadView: View {
             case .word: ext = "docx"
             case .epub: ext = "epub"
             case .spreadsheet: ext = "xlsx"
+            case .presentation: ext = "pptx"
             case .csv: ext = "csv"
             case .rtf: ext = "rtf"
             case .mobi: ext = "mobi"
