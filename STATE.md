@@ -71,10 +71,10 @@ See `docs/architecture/release-process.md` — every milestone follows the same 
 
 ## Next Session — Start Here
 
-1. **Fix 0.0.1 bugs autonomously** — #383, #384, #385, #386 (drag/drop, image import, window restore, transcribe) + #516 (FileType enum). Run `/session-start-auto` overnight.
-2. **Daniel: test 0.0.1** → `/release 0.0.1`
-3. **Merge 0.0.2 → main** — immediately after 0.0.1 ships
-4. **Begin 0.0.3** — Wire: Search v1 (11 open issues: list/table views, artifacts column, import progress)
+1. **Daniel: `/release 0.0.1`** — ship as-is, no bug fixes needed first
+2. **Run `/session-start-auto`** — fixes 0.0.2 bugs autonomously (#383, #384, #385, #386, #353, #516, #520 Sparkle)
+3. **Daniel: test 0.0.2** → `/release 0.0.2` (backend merge + bug fixes + Sparkle)
+4. **Begin 0.0.3** — Wire: Search v1 (11 issues: list/table views, search frontend, import progress)
 
 ## Parallel Workflow
 
