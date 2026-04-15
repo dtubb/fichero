@@ -2,13 +2,17 @@
 
 ## Current Focus
 
-**Branch:** `0.0.2` — pushed and clean. Backend work complete.
+**Branch:** `0.0.2` — pushed and clean.
 
-**Status:** Session complete. 40 milestones, release gate issues filed, testing process documented, `/bug` skill live, bug priority rule wired into autonomous sessions.
+**Active worktrees:**
+- `~/code/fichero-0.0.2` — bug fixes (Daniel testing)
+- `~/code/fichero-0.0.3` — Wire: Search v1 (Claude loop, branch `0.0.3`)
+
+**Status:** 0.0.1 ready to ship. 0.0.2 queued for auto-fix. 0.0.3 worktree created, loop ready to start.
 
 ## In Progress
 
-Nothing active. Waiting on Daniel to test 0.0.1.
+Nothing active. Waiting on Daniel to `/release 0.0.1`.
 
 ## Test Health
 
@@ -71,10 +75,10 @@ See `docs/architecture/release-process.md` — every milestone follows the same 
 
 ## Next Session — Start Here
 
-1. **Daniel: `/release 0.0.1`** — ship as-is, no bug fixes needed first
-2. **Run `/session-start-auto`** — fixes 0.0.2 bugs autonomously (#383, #384, #385, #386, #353, #516, #520 Sparkle)
-3. **Daniel: test 0.0.2** → `/release 0.0.2` (backend merge + bug fixes + Sparkle)
-4. **Begin 0.0.3** — Wire: Search v1 (11 issues: list/table views, search frontend, import progress)
+1. **Daniel: `/release 0.0.1`** — ship as-is today
+2. **In `~/code/fichero-0.0.2`:** run `/session-start-auto` to fix 0.0.2 bugs (#383–386, #353, #516, #520)
+3. **In `~/code/fichero-0.0.3`:** run `/session-start-auto` to build Wire: Search v1 (11 issues)
+4. **Daniel: test 0.0.2** → `/release 0.0.2`, then rebase 0.0.3 onto it and continue
 
 ## Parallel Workflow
 

@@ -541,3 +541,12 @@ ALL COMPLETE:
 - Added bug priority rule to .claude/agent-briefing.md — autonomous sessions fix type:bug issues before features
 - Deleted stale 0.8.2 GitHub milestone and corrected STATE.md count to 40
 - Deleted ~/.claude/skills/ (all skills now live in plugins only, no duplicates)
+
+## 2026-04-15 — Session Summary (continued)
+
+- Restructured milestone assignments: 0.0.1 ships as-is, 0.0.2 = backend merge + 0.0.1 bug fixes + Sparkle (#383, #384, #385, #386, #353, #516, #520), 0.0.3 = Wire: Search v1 (stays separate)
+- Created 0.0.3 worktree at ~/code/fichero-0.0.3 on branch 0.0.3 (off 0.0.2 HEAD, 1785 tests passing)
+- Documented milestone-worktree pattern and two-ahead rule in .claude/CLAUDE.md
+- Added bug priority rule to .claude/agent-briefing.md (autonomous sessions fix type:bug before features)
+- Deleted ~/.claude/skills/ — all skills now live in fichero-skills/plugins/ only
+- Deleted stale 0.8.2 GitHub milestone

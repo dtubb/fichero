@@ -257,6 +257,18 @@ for link in links:
 - `git worktree remove --force` still fails if the directory has content git can't delete itself. Follow up with `git worktree prune && rm -rf <path>`.
 - `.kreuzberg/extraction/*.msgpack` binary files appear as modified during cherry-picks of branches that processed documents. Always resolve with `--theirs` — these are cache files.
 
+## Milestone Worktree Convention — 2026-04-15
+
+**Each milestone gets its own worktree at `~/code/fichero-<version>/`** (e.g. `~/code/fichero-0.0.3`). Never per-task branches — commit all milestone work directly to the milestone branch.
+
+**Two-ahead rule:** Never more than one milestone ahead of what Daniel is testing. Layout at any time:
+- Released: N
+- Daniel testing: N+1 (`~/code/fichero-<N+1>`)
+- Claude building: N+2 (`~/code/fichero-<N+2>`)
+- Do NOT start N+3 until Daniel approves N+1.
+
+**Create worktree:** `git worktree add ~/code/fichero-0.0.X -b 0.0.X` (from the current milestone's repo)
+
 ## Milestone + Release Architecture — 2026-04-15
 
 **40 milestones, one testable feature each (0.0.1–0.9.0).** Each milestone has one `release-gate` issue with Daniel's human test checklist. Testing pipeline: backend tests → SwiftLint + Xcode build → MCP API tests → Peekaboo screenshots → Daniel human test → bug loop → tag+ship. See `docs/architecture/release-process.md`.
