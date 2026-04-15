@@ -70,6 +70,7 @@ class FileType(str, Enum):
     word = "word"  # doc
     docx = "docx"  # docx
     epub = "epub"  # ebooks
+    spreadsheet = "spreadsheet"  # csv, xlsx, xls, ods
     other = "other"
 
 

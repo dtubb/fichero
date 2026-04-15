@@ -30,6 +30,7 @@ enum FileType: String, Codable, CaseIterable {
     case audio
     case video
     case epub
+    case spreadsheet
     case csv
     case rtf
     case mobi
@@ -44,6 +45,7 @@ enum FileType: String, Codable, CaseIterable {
         case .audio: return "waveform"
         case .video: return "film"
         case .epub: return "book"
+        case .spreadsheet: return "tablecells"
         case .csv: return "tablecells"
         case .rtf: return "doc.text"
         case .mobi: return "books.vertical"

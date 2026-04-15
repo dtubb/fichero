@@ -28,8 +28,8 @@ OFFICE_FORMATS = {
 # E-book formats
 EBOOK_FORMATS = {".epub", ".mobi"}
 
-# Plain text formats
-TEXT_FORMATS = {".txt", ".md", ".markdown", ".rst", ".html", ".htm", ".xml"}
+# Plain text formats (including CSV which is structured plain text)
+TEXT_FORMATS = {".txt", ".md", ".markdown", ".rst", ".html", ".htm", ".xml", ".csv"}
 
 ALL_DOCUMENT_FORMATS = OFFICE_FORMATS | EBOOK_FORMATS | TEXT_FORMATS
 

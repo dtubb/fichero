@@ -30727,6 +30727,7 @@
           "word",
           "docx",
           "epub",
+          "spreadsheet",
           "other"
         ],
         "title": "FileType",

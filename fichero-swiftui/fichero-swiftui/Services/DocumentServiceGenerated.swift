@@ -436,9 +436,8 @@ class DocumentServiceGenerated: ObservableObject {
         case .audio: return .audio
         case .video: return .video
         case .epub: return .epub
+        case .spreadsheet: return .spreadsheet
         case .other: return .other
-        // csv, rtf, mobi are not yet in the generated spec; they arrive as .other
-        // and are decoded directly by FileType's Codable conformance via rawValue
         }
     }
 
