@@ -13,7 +13,16 @@ AUTONOMOUS_PRS: false
 TASK_TRACKING: github
 ```
 
-**Branch discipline**: All work happens on `0.0.2`. Do NOT create per-task worktrees or feature branches. Commit to `0.0.2` after each task. Push when the task is complete. No PRs — commit directly.
+**Branch discipline**: Each milestone gets its own branch and worktree at `~/code/fichero-<version>/`. Do NOT create per-task branches within a milestone — commit all milestone work directly to the milestone branch. No PRs — commit directly and push.
+
+**Worktree pattern**: `git worktree add ~/code/fichero-0.0.3 -b 0.0.3`
+Convention: `~/code/fichero-<version>` (e.g. `~/code/fichero-0.0.3`, `~/code/fichero-0.0.4`)
+
+**Two-ahead rule**: Never work more than one milestone ahead of what Daniel is testing.
+- Released: N (e.g. 0.0.1)
+- Daniel testing: N+1 (e.g. 0.0.2) — bug fixes happen here
+- Claude building: N+2 (e.g. 0.0.3) — one worktree, one agent loop
+- Do NOT start N+3 until Daniel approves N+1.
 
 ## How I Work
 
@@ -86,4 +95,5 @@ Full architecture: `docs/CLAUDE.md`, `docs/architecture/`
 3. Never modify generated files manually (`*Generated.swift`, `openapi.json`, the api-client package).
 4. Never start coding before a plan exists for non-trivial work.
 5. `PYTHONPATH` must be set to `fichero-api/src` for all Python commands.
-6. Never create per-task worktrees or feature branches during autonomous sessions — commit to `0.0.2` directly.
+6. Never create per-task branches — commit all work to the milestone branch directly.
+7. Never start a milestone more than one ahead of what Daniel is currently testing.
