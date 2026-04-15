@@ -202,14 +202,7 @@ class ActivityServiceGenerated {
         switch response {
         case .ok(let okResponse):
             let result = try okResponse.body.json
-            // Extract "deleted" count from additionalProperties
-            if let deleted = result.additionalProperties.value["deleted"] as? Int {
-                return deleted
-            }
-            if let deleted = result.additionalProperties.value["deleted"] as? NSNumber {
-                return deleted.intValue
-            }
-            return 0
+            return result.deleted
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")

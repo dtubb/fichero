@@ -84,7 +84,15 @@ class ConversationServiceGenerated: ObservableObject {
         switch response {
         case .ok(let okResponse):
             let payload = try okResponse.body.json
-            return try parseConversationAPI(from: payload.additionalProperties)
+            return ConversationAPI(
+                id: payload.id,
+                title: payload.title,
+                messageCount: payload.messageCount,
+                createdAt: payload.createdAt,
+                updatedAt: payload.updatedAt,
+                folderPath: payload.folderPath,
+                sortOrder: payload.sortOrder
+            )
         default:
             throw ConversationServiceError.unexpectedResponse
         }

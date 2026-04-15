@@ -211,8 +211,13 @@ class ProviderServiceGenerated: ObservableObject {
 
         switch response {
         case .ok(let okResponse):
-            let container = try okResponse.body.json
-            return extractAPIKeyStatus(from: container, providerType: providerType)
+            let result = try okResponse.body.json
+            return APIKeyStatus(
+                providerType: result.providerType,
+                hasApiKey: result.hasApiKey,
+                isLocal: result.isLocal,
+                keychainAvailable: result.keychainAvailable
+            )
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")

@@ -264,7 +264,7 @@ struct WorkflowStreamParsingTests {
 
         let result = service.parseEvent(input)
 
-        if case .fileComplete(_, let nodeId, let filePath, let fileIndex, let fileTotal, let progress) = result {
+        if case .fileComplete(_, let nodeId, let filePath, let fileIndex, let fileTotal, let progress, _) = result {
             #expect(nodeId == "node-1")
             #expect(filePath == "/docs/done.pdf")
             #expect(fileIndex == 3)

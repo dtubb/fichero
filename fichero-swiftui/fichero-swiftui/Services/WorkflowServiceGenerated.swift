@@ -316,7 +316,10 @@ class WorkflowServiceGenerated: ObservableObject {
         switch response {
         case .ok(let okResponse):
             let exported = try okResponse.body.json
-            return convertObjectContainerToAnyCodable(exported.additionalProperties)
+            // Re-encode the typed struct as JSON then decode into AnyCodable dict
+            // so callers get the full workflow definition as a raw dictionary.
+            let data = try JSONEncoder().encode(exported)
+            return try JSONDecoder().decode([String: AnyCodable].self, from: data)
         default:
             throw WorkflowServiceError.unexpectedResponse
         }

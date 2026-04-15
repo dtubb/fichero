@@ -432,6 +432,7 @@ class DocumentServiceGenerated: ObservableObject {
         case .pdf: return .pdf
         case .text: return .text
         case .word: return .word
+        case .docx: return .word  // docx is a Word variant
         case .audio: return .audio
         case .video: return .video
         case .epub: return .epub
@@ -445,6 +446,7 @@ class DocumentServiceGenerated: ObservableObject {
         switch status {
         case .pending: return .pending
         case .processing: return .processing
+        case .active: return .processing  // active is an in-progress state
         case .completed: return .completed
         case .failed: return .failed
         }

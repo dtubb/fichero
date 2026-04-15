@@ -131,18 +131,12 @@ class ImportServiceGenerated: ObservableObject {
         extractText: Bool,
         autoEmbed: Bool
     ) async throws -> Document {
-        // Ensure file is accessible
-        guard url.startAccessingSecurityScopedResource() else {
-            throw ImportError(
-                url: url,
-                error: NSError(
-                    domain: "ImportService",
-                    code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "Cannot access file"]
-                )
-            )
+        // Enable security-scoped access in sandboxed builds; non-sandboxed builds
+        // return false but the URL remains accessible via normal file I/O.
+        let didStartAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccess { url.stopAccessingSecurityScopedResource() }
         }
-        defer { url.stopAccessingSecurityScopedResource() }
 
         let response = try await client.api.ingestFileApiIngestFilePost(
             headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
@@ -183,18 +177,12 @@ class ImportServiceGenerated: ObservableObject {
         // Persist sandbox permission when folder import starts directly.
         FolderAccessManager.shared.saveBookmarkIfDirectory(url)
 
-        // Ensure folder is accessible
-        guard url.startAccessingSecurityScopedResource() else {
-            throw ImportError(
-                url: url,
-                error: NSError(
-                    domain: "ImportService",
-                    code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "Cannot access folder"]
-                )
-            )
+        // Enable security-scoped access in sandboxed builds; non-sandboxed builds
+        // return false but the URL remains accessible via normal file I/O.
+        let didStartAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccess { url.stopAccessingSecurityScopedResource() }
         }
-        defer { url.stopAccessingSecurityScopedResource() }
 
         let response = try await client.api.ingestFolderApiIngestFolderPost(
             headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
@@ -395,6 +383,7 @@ class ImportServiceGenerated: ObservableObject {
         switch status {
         case .pending: return .pending
         case .processing: return .processing
+        case .active: return .processing  // active is an in-progress state
         case .completed: return .completed
         case .failed: return .failed
         }

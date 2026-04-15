@@ -97,8 +97,8 @@ class SearchServiceGenerated: ObservableObject {
 
         switch response {
         case .ok(let okResponse):
-            let container = try okResponse.body.json
-            return extractReindexStatus(from: container)
+            let result = try okResponse.body.json
+            return ReindexStatus(status: result.status, message: result.message)
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
@@ -118,8 +118,8 @@ class SearchServiceGenerated: ObservableObject {
 
         switch response {
         case .ok(let okResponse):
-            let container = try okResponse.body.json
-            return extractEmbedStatus(from: container, defaultDocId: documentId)
+            let result = try okResponse.body.json
+            return EmbedStatus(documentId: result.documentId, embedded: result.embedded)
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
