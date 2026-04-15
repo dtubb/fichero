@@ -124,3 +124,87 @@ class TestIngestStatus:
         assert data["status"] in ("pending", "running", "completed", "failed")
         assert "total" in data
         assert "processed" in data
+
+
+# ---------------------------------------------------------------------------
+# Image import metadata persistence (issue #384)
+# ---------------------------------------------------------------------------
+
+
+class TestImageIngestMetadata:
+    """Verify that image files are ingested with correct type metadata.
+
+    These tests use a real database (via the `client` fixture) to confirm that
+    metadata flows end-to-end through the route → ingest → Document chain.
+    """
+
+    def test_jpg_ingest_returns_image_file_type(self, client, tmp_path):
+        """POST /api/ingest/file on a .jpg must return file_type='image'."""
+        img = tmp_path / "photo.jpg"
+        img.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 16)  # minimal JPEG header
+
+        r = client.post("/api/ingest/file", json={"path": str(img)})
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data.get("file_type") == "image", (
+            f"Expected file_type='image' for .jpg, got {data.get('file_type')!r}"
+        )
+
+    def test_png_ingest_returns_image_file_type(self, client, tmp_path):
+        """POST /api/ingest/file on a .png must return file_type='image'."""
+        img = tmp_path / "screenshot.png"
+        img.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 8)  # minimal PNG header
+
+        r = client.post("/api/ingest/file", json={"path": str(img)})
+
+        assert r.status_code == 200
+        assert r.json().get("file_type") == "image"
+
+    def test_image_ingest_populates_name_and_path(self, client, tmp_path):
+        """Ingested image document must have name and path set."""
+        img = tmp_path / "landscape.png"
+        img.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 8)
+
+        r = client.post("/api/ingest/file", json={"path": str(img)})
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data.get("name") == "landscape.png", (
+            f"Document name should be filename, got {data.get('name')!r}"
+        )
+        assert data.get("path") is not None, "Document path should be populated"
+
+    def test_heic_ingest_returns_image_file_type(self, client, tmp_path):
+        """POST /api/ingest/file on a .heic must return file_type='image'."""
+        img = tmp_path / "iphone_photo.heic"
+        img.write_bytes(b"\x00" * 12 + b"ftyp")  # minimal HEIC-like bytes
+
+        r = client.post("/api/ingest/file", json={"path": str(img)})
+
+        assert r.status_code == 200
+        assert r.json().get("file_type") == "image"
+
+    def test_image_ingest_doc_type_is_file(self, client, tmp_path):
+        """Ingested image must have doc_type='file', not 'folder'."""
+        img = tmp_path / "avatar.jpg"
+        img.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 16)
+
+        r = client.post("/api/ingest/file", json={"path": str(img)})
+
+        assert r.status_code == 200
+        assert r.json().get("doc_type") == "file"
+
+    def test_multiple_image_formats_ingest_correctly(self, client, tmp_path):
+        """All major image formats must ingest with file_type='image'."""
+        formats = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".tiff", ".bmp"]
+
+        for ext in formats:
+            img = tmp_path / f"test{ext}"
+            img.write_bytes(b"\x00" * 16)
+
+            r = client.post("/api/ingest/file", json={"path": str(img)})
+            assert r.status_code == 200, f"Failed for {ext}: {r.text}"
+            assert r.json().get("file_type") == "image", (
+                f"Expected file_type='image' for {ext}, got {r.json().get('file_type')!r}"
+            )
