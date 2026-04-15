@@ -12,11 +12,11 @@
 
 ## In Progress
 
-Nothing active. Waiting on Daniel to `/release 0.0.1`.
+Nothing active on 0.0.2. #383, #384, #516 closed this session.
 
 ## Test Health
 
-**1785 passing, 0 failures, 21 skipped.**
+**1791 passing, 0 failures, 21 skipped.**
 
 ## Release Map
 
@@ -75,9 +75,9 @@ See `docs/architecture/release-process.md` — every milestone follows the same 
 
 ## Next Session — Start Here
 
-1. **Daniel: `/release 0.0.1`** — ship as-is today
-2. **In `~/code/fichero-0.0.2`:** run `/session-start-auto` to fix 0.0.2 bugs (#383–386, #353, #516, #520)
-3. **In `~/code/fichero-0.0.3`:** run `/session-start-auto` to build Wire: Search v1 (11 issues)
+1. **Daniel: manual test #385** (window restore) and **#520** (Sparkle) — both need UI verification
+2. **In `~/code/fichero-0.0.2`:** if #385/#520 need code fixes, fix them here
+3. **In `~/code/fichero-0.0.3`:** run `/session-start-auto` to build Wire: Search v1 (#517–519 etc.)
 4. **Daniel: test 0.0.2** → `/release 0.0.2`, then rebase 0.0.3 onto it and continue
 
 ## Parallel Workflow
@@ -86,4 +86,4 @@ Daniel tests N → Claude builds N+1 in a separate worktree.
 Gate: Claude never merges without Daniel's `/release N`.
 
 ---
-*Last updated: 2026-04-14* — 40 milestones, release gate issues filed (#481-515), release-process.md written
+*Last updated: 2026-04-15* — #383/#384/#516 closed; #385/#520 need Daniel's manual UI testing
