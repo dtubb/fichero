@@ -248,7 +248,9 @@ struct PredictionReviewView: View {
         .padding()
     }
 
-    private func claimsForPrediction(_ prediction: Components.Schemas.KnowledgePrediction) -> PredictionReviewState.ClaimPair {
+    private func claimsForPrediction(
+        _ prediction: Components.Schemas.KnowledgePrediction
+    ) -> PredictionReviewState.ClaimPair {
         (nil, nil)
     }
 }

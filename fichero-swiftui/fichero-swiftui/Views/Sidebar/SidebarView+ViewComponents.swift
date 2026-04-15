@@ -77,13 +77,14 @@ extension SidebarView {
                 if case .folder = item.itemType, item.category == .workflow { return true }
                 return false
             }
-            let chainItems = (libraryId == LibraryManager.globalLibraryId && FeatureManager.shared.isWorkflowChainsEnabled)
+            let isGlobalLibrary = libraryId == LibraryManager.globalLibraryId
+            let chainItems = (isGlobalLibrary && FeatureManager.shared.isWorkflowChainsEnabled)
                 ? chains.map { SidebarItem.fromChain($0, libraryId: libraryId) }
                 : []
-            let scheduleItems = (libraryId == LibraryManager.globalLibraryId && FeatureManager.shared.isAutomationEnabled)
+            let scheduleItems = (isGlobalLibrary && FeatureManager.shared.isAutomationEnabled)
                 ? schedules.map { SidebarItem.fromSchedule($0, libraryId: libraryId) }
                 : []
-            let triggerItems = (libraryId == LibraryManager.globalLibraryId && FeatureManager.shared.isAutomationEnabled)
+            let triggerItems = (isGlobalLibrary && FeatureManager.shared.isAutomationEnabled)
                 ? triggers.map { SidebarItem.fromTrigger($0, libraryId: libraryId) }
                 : []
             let activityItems = FeatureManager.shared.isActivityEnabled

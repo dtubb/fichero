@@ -40,7 +40,8 @@ struct AttributedTextEditor: NSViewRepresentable {
         textView.allowsUndo = true
         textView.allowsDocumentBackgroundColorChange = true
         textView.usesFindBar = true
-        textView.usesInspectorBar = true
+        // Keep formatting controls local to the editor, not the window-level inspector bar.
+        textView.usesInspectorBar = false
         textView.usesRuler = true
         textView.usesFontPanel = true
         textView.importsGraphics = true

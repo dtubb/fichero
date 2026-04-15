@@ -67,7 +67,7 @@ struct ContentView: View {
     // Column visibility persistence
     @SceneStorage("sidebarWidth") var sidebarWidth: Double = 280
     @SceneStorage("contentWidth") var contentWidth: Double = 600
-    @SceneStorage("inspectorWidth") var inspectorWidth: Double = 250
+    @SceneStorage("inspectorWidth") var inspectorWidth: Double = 300
     @SceneStorage("widescreenContentPaneWidth") var widescreenContentPaneWidth: Double = 320
     @SceneStorage("showSidebar") var showSidebar: Bool = true
     @SceneStorage("showInspectorSidebar") var showInspectorSidebar: Bool = true
@@ -187,13 +187,30 @@ struct ContentView: View {
             centerContent
                 .inspector(isPresented: $showInspectorSidebar) {
                     detailView
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear.preference(
+                                    key: InspectorWidthPreferenceKey.self,
+                                    value: geo.size.width
+                                )
+                            }
+                        )
                         .inspectorColumnWidth(
                             min: ContentView.inspectorMinWidth,
                             ideal: inspectorWidth,
                             max: ContentView.inspectorMaxWidth
                         )
                 }
+                .onPreferenceChange(InspectorWidthPreferenceKey.self) { newWidth in
+                    let clamped = min(
+                        max(newWidth, ContentView.inspectorMinWidth),
+                        ContentView.inspectorMaxWidth
+                    )
+                    guard abs(clamped - inspectorWidth) > 1 else { return }
+                    inspectorWidth = clamped
+                }
         }
+        .navigationSplitViewStyle(.balanced)
         // Avoid duplicate generic per-column title pills in macOS split view.
         .navigationTitle(toolbarTitle)
         .toolbar(removing: .sidebarToggle)
@@ -521,6 +538,15 @@ struct ContentView: View {
                 handleFileDrop: handleFileDrop
             )
         )
+    }
+}
+
+// MARK: - Preference Keys
+
+private struct InspectorWidthPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 300
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 
