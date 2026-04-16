@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - View Components
 
@@ -238,7 +239,11 @@ extension SidebarView {
     }
 
     @ViewBuilder
-    private func unifiedRows(_ items: [SidebarItem]) -> some View {
+    private func unifiedRows(
+        _ items: [SidebarItem],
+        libraryId: UUID? = nil,
+        acceptsFileInsert: Bool = false
+    ) -> some View {
         ForEach(items) { item in
             SidebarItemRow(
                 item: item,
@@ -264,6 +269,17 @@ extension SidebarView {
             )
             .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 8))
         }
+        // Native between-row drop zone for file URLs at library root.
+        // Only the documents bucket opts in (not Saved Searches / Workflows,
+        // where dropping a file is meaningless). Offset is ignored until
+        // persistent sort-order lands — every insert routes to library root.
+        .onInsert(
+            of: acceptsFileInsert ? [UTType.fileURL] : []
+        ) { offset, providers in
+            if let libraryId {
+                handleLibraryRootInsert(libraryId: libraryId, offset: offset, providers: providers)
+            }
+        }
     }
 
     @ViewBuilder
@@ -280,7 +296,11 @@ extension SidebarView {
                     set: { setUnifiedSectionExpanded($0, libraryId: libraryId, sectionKey: sectionKey) }
                 ),
                 content: {
-                    unifiedRows(items)
+                    unifiedRows(
+                        items,
+                        libraryId: libraryId,
+                        acceptsFileInsert: sectionKey == "library"
+                    )
                 },
                 label: {
                     Text(title)
@@ -391,4 +411,5 @@ extension SidebarView {
         }
         return nil
     }
+
 }

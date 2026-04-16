@@ -323,6 +323,7 @@
 		B6A0020500000000BATCH6S2 /* SidebarView+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010500000000BATCH6S2 /* SidebarView+Helpers.swift */; };
 		B6A0020600000000BATCH6S3 /* SidebarView+SelectionHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010600000000BATCH6S3 /* SidebarView+SelectionHandling.swift */; };
 		B6A0020700000000BATCH6S4 /* SidebarView+ViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010700000000BATCH6S4 /* SidebarView+ViewComponents.swift */; };
+		B6A002FF00000000DROPS001 /* SidebarView+DropHandlers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A001FF00000000DROPS001 /* SidebarView+DropHandlers.swift */; };
 		B6A0020800000000BATCH6A1 /* AddProviderSheet+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010800000000BATCH6A1 /* AddProviderSheet+Helpers.swift */; };
 		B6A0020900000000BATCH6A2 /* AddProviderSheet+Step1.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010900000000BATCH6A2 /* AddProviderSheet+Step1.swift */; };
 		B6A0020A00000000BATCH6A3 /* AddProviderSheet+Step2.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010A00000000BATCH6A3 /* AddProviderSheet+Step2.swift */; };
@@ -701,6 +702,7 @@
 		B6A0010500000000BATCH6S2 /* SidebarView+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarView+Helpers.swift"; sourceTree = "<group>"; };
 		B6A0010600000000BATCH6S3 /* SidebarView+SelectionHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarView+SelectionHandling.swift"; sourceTree = "<group>"; };
 		B6A0010700000000BATCH6S4 /* SidebarView+ViewComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarView+ViewComponents.swift"; sourceTree = "<group>"; };
+		B6A001FF00000000DROPS001 /* SidebarView+DropHandlers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarView+DropHandlers.swift"; sourceTree = "<group>"; };
 		B6A0010800000000BATCH6A1 /* AddProviderSheet+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Helpers.swift"; sourceTree = "<group>"; };
 		B6A0010900000000BATCH6A2 /* AddProviderSheet+Step1.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Step1.swift"; sourceTree = "<group>"; };
 		B6A0010A00000000BATCH6A3 /* AddProviderSheet+Step2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Step2.swift"; sourceTree = "<group>"; };
@@ -900,6 +902,7 @@
 				B6A0010500000000BATCH6S2 /* SidebarView+Helpers.swift */,
 				B6A0010600000000BATCH6S3 /* SidebarView+SelectionHandling.swift */,
 				B6A0010700000000BATCH6S4 /* SidebarView+ViewComponents.swift */,
+				B6A001FF00000000DROPS001 /* SidebarView+DropHandlers.swift */,
 				A1FB1D9A2F0420D50023093C /* SidebarViewExtensions.swift */,
 				A13E7C1B2F27E01E00EC9EE1 /* Modes */,
 				A13E7C252F27E03300EC9EE1 /* SidebarModeBar.swift */,
@@ -1875,6 +1878,7 @@
 				B6A0020500000000BATCH6S2 /* SidebarView+Helpers.swift in Sources */,
 				B6A0020600000000BATCH6S3 /* SidebarView+SelectionHandling.swift in Sources */,
 				B6A0020700000000BATCH6S4 /* SidebarView+ViewComponents.swift in Sources */,
+				B6A002FF00000000DROPS001 /* SidebarView+DropHandlers.swift in Sources */,
 				B6A0020800000000BATCH6A1 /* AddProviderSheet+Helpers.swift in Sources */,
 				B6A0020900000000BATCH6A2 /* AddProviderSheet+Step1.swift in Sources */,
 				B6A0020A00000000BATCH6A3 /* AddProviderSheet+Step2.swift in Sources */,
