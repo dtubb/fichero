@@ -184,15 +184,16 @@ struct ContentView: View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebarContent
         } detail: {
-            HSplitView {
+            HStack(spacing: 0) {
                 centerContent
                 if showInspectorSidebar {
+                    InspectorDivider(
+                        width: $inspectorWidth,
+                        minWidth: ContentView.inspectorMinWidth,
+                        maxWidth: ContentView.inspectorMaxWidth
+                    )
                     detailView
-                        .frame(
-                            minWidth: CGFloat(ContentView.inspectorMinWidth),
-                            idealWidth: CGFloat(inspectorWidth),
-                            maxWidth: CGFloat(ContentView.inspectorMaxWidth)
-                        )
+                        .frame(width: CGFloat(inspectorWidth))
                 }
             }
         }

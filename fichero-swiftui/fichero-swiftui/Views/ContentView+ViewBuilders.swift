@@ -267,6 +267,45 @@ extension ContentView {
     }
 }
 
+/// Draggable divider between content and inspector panel.
+/// The inspector has a fixed width (`frame(width:)`), so only the content area
+/// flexes when the NavigationSplitView sidebar is toggled. This divider lets the
+/// user resize the inspector by dragging.
+struct InspectorDivider: View {
+    @Binding var width: Double
+    let minWidth: Double
+    let maxWidth: Double
+    @State private var initialWidth: Double?
+
+    var body: some View {
+        Rectangle()
+            .fill(Color(nsColor: .separatorColor))
+            .frame(width: 1)
+            .padding(.horizontal, 2)
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                if hovering {
+                    NSCursor.resizeLeftRight.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in
+                        if initialWidth == nil { initialWidth = width }
+                        guard let start = initialWidth else { return }
+                        // Dragging left → inspector grows (negative x translation)
+                        let newWidth = start - value.translation.width
+                        width = min(max(newWidth, minWidth), maxWidth)
+                    }
+                    .onEnded { _ in
+                        initialWidth = nil
+                    }
+            )
+    }
+}
+
 private struct WidescreenContentPaneWidthPreferenceKey: PreferenceKey {
     static let defaultValue: CGFloat = 320
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
