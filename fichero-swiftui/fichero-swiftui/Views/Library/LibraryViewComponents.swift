@@ -28,6 +28,7 @@ struct MailStyleRow: View {
                     Text(document.name)
                         .font(.headline)
                         .lineLimit(3)
+                        .truncationMode(.middle)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Spacer()
@@ -127,6 +128,7 @@ struct MapCard: View {
             Text(document.name)
                 .font(.caption)
                 .lineLimit(2)
+                .truncationMode(.middle)
                 .multilineTextAlignment(.center)
                 .frame(width: 90)
         }
@@ -269,6 +271,7 @@ struct DocumentThumbnailView: View {
             Text(document.name)
                 .font(.caption)
                 .lineLimit(2)
+                .truncationMode(.middle)
                 .multilineTextAlignment(.center)
                 .foregroundColor(isSelected ? .accentColor : .primary)
         }
