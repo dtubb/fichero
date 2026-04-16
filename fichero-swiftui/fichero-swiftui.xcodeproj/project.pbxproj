@@ -35,6 +35,7 @@
 		047 /* ChatServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 146 /* ChatServiceGenerated.swift */; };
 		048 /* WorkflowExecutionObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149 /* WorkflowExecutionObserver.swift */; };
 		049 /* DocumentServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148 /* DocumentServiceGenerated.swift */; };
+		0EB90A1DBB324F96AE256464 /* PDFThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1786CA1F532B414196BAAABE /* PDFThumbnailView.swift */; };
 		150 /* ChainEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 151 /* ChainEditorView.swift */; };
 		154 /* ScheduleCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152 /* ScheduleCreationSheet.swift */; };
 		155 /* TriggerCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153 /* TriggerCreationSheet.swift */; };
@@ -70,7 +71,6 @@
 		202674CC2F4788F2008EAB5D /* WorkflowLibraryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674CB2F4788F2008EAB5D /* WorkflowLibraryRow.swift */; };
 		202674CE2F4788FF008EAB5D /* NewWorkflowSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674CD2F4788FF008EAB5D /* NewWorkflowSheet.swift */; };
 		202674D02F4789BF008EAB5D /* LibraryViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674CF2F4789BF008EAB5D /* LibraryViewComponents.swift */; };
-		0EB90A1DBB324F96AE256464 /* PDFThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1786CA1F532B414196BAAABE /* PDFThumbnailView.swift */; };
 		202674D22F478A13008EAB5D /* LibraryView+DisplayModes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D12F478A13008EAB5D /* LibraryView+DisplayModes.swift */; };
 		202674D42F489633008EAB5D /* SearchFiltersPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D32F489633008EAB5D /* SearchFiltersPanel.swift */; };
 		202674D62F48963F008EAB5D /* SearchResultRowFromAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D52F48963F008EAB5D /* SearchResultRowFromAPI.swift */; };
@@ -410,6 +410,7 @@
 		152 /* ScheduleCreationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleCreationSheet.swift; sourceTree = "<group>"; };
 		153 /* TriggerCreationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerCreationSheet.swift; sourceTree = "<group>"; };
 		16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScheduleDetailView.swift; sourceTree = "<group>"; };
+		1786CA1F532B414196BAAABE /* PDFThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFThumbnailView.swift; sourceTree = "<group>"; };
 		1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIDefaults.swift; path = "fichero-swiftui/Views/Settings/AIDefaults.swift"; sourceTree = SOURCE_ROOT; };
 		1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Helpers.swift"; sourceTree = "<group>"; };
 		1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LocalModelsSettingsView.swift; path = "fichero-swiftui/Views/Settings/LocalModelsSettingsView.swift"; sourceTree = SOURCE_ROOT; };
@@ -447,7 +448,6 @@
 		202674CB2F4788F2008EAB5D /* WorkflowLibraryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowLibraryRow.swift; sourceTree = "<group>"; };
 		202674CD2F4788FF008EAB5D /* NewWorkflowSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewWorkflowSheet.swift; sourceTree = "<group>"; };
 		202674CF2F4789BF008EAB5D /* LibraryViewComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewComponents.swift; sourceTree = "<group>"; };
-		1786CA1F532B414196BAAABE /* PDFThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFThumbnailView.swift; sourceTree = "<group>"; };
 		202674D12F478A13008EAB5D /* LibraryView+DisplayModes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+DisplayModes.swift"; sourceTree = "<group>"; };
 		202674D32F489633008EAB5D /* SearchFiltersPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchFiltersPanel.swift; sourceTree = "<group>"; };
 		202674D52F48963F008EAB5D /* SearchResultRowFromAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResultRowFromAPI.swift; sourceTree = "<group>"; };
@@ -872,7 +872,6 @@
 				A1BFB2D92F042CBB00EAA55A /* Menu */,
 				A13E80A42F2AD78100EC9EE1 /* ModelComparison */,
 				4115 /* Search */,
-				4117 /* Settings */,
 				A1BFB2DB2F042E5100EAA55A /* Settings */,
 				A1D8BCE72F2CD054006D91D7 /* Sheets */,
 				4111 /* Sidebar */,
@@ -970,13 +969,6 @@
 				20D8ED522F48E2CA006950A3 /* WorkflowInspector+DataLoading.swift */,
 			);
 			path = Workflow;
-			sourceTree = "<group>";
-		};
-		4117 /* Settings */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Settings;
 			sourceTree = "<group>";
 		};
 		4118 /* Chat */ = {

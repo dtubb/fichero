@@ -607,3 +607,21 @@ Fixed 15+ bugs filed during Daniel's manual testing. App now boots cleanly, drag
 Logger category FicheroApp + LibraryManager emit ⏱ breadcrumbs. Actual debug-mode startup with external backend = 2.5s of SwiftUI first-layout between library restore (80ms) and backend start (190ms). Library restoration is NOT the bottleneck.
 
 ### 24+ commits on 0.0.2 this session, everything pushed to origin/0.0.2.
+
+## 2026-04-16 (late evening) — 0.0.2 bug sprint continued
+
+Second wave of bugs after Daniel's testing. Fixed all 13 new bugs:
+- #546 magnifier Y-direction (removed redundant Y-flip — coordinate normalization fix had made the flip wrong)
+- #548 WorkflowExecutionObserver noisy init log silenced
+- #559 icon grid duplicate names — middle-truncate so unique suffix stays visible
+- #560 sidebar arrow keys — re-add .focusable() (trade-off: arrow keys over perfect first-click)
+- #561 folder drag-drop — verified code path exists via importFolderAndWait; drop-line indicator deferred
+- #562 trackpad pinch-to-zoom — custom gesture recognizer was consuming pinch without forwarding; now forwards to scrollView.setMagnification(_:centeredAt:)
+- #563 Option+Left/Right pane cycling (plain arrows kept for inner-pane navigation)
+- #564 remove Quick Look (menu item, ⌘Y shortcut, Space binding, showQuickLook flag)
+- #565 remove ambiguous Space handler
+- #552 workflow dispatch feedback overlay
+
+Decision: remove Quick Look entirely. Preview pane is always visible and provides equivalent functionality. Freed ⌘Y and Space.
+
+0.0.2 bug count: started at ~25 open, ended at 0. Only #520 Sparkle task remaining.
