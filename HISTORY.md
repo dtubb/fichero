@@ -625,3 +625,14 @@ Second wave of bugs after Daniel's testing. Fixed all 13 new bugs:
 Decision: remove Quick Look entirely. Preview pane is always visible and provides equivalent functionality. Freed ⌘Y and Space.
 
 0.0.2 bug count: started at ~25 open, ended at 0. Only #520 Sparkle task remaining.
+
+## 2026-04-16 (evening) — PDF-as-container + magnifier polish
+
+- #568 PDFs become containers: ingest creates one Document per page (doc_type=page, parent_id=pdf, sequence=page_number, page_content=extracted_text). Kreuzberg's `ExtractionConfig(pages=PageConfig(extract_pages=True))` drives the extraction; blank pages kept so sequences stay dense.
+- Frontend: `PDFThumbnailView` accepts `pageIndex` and renders the specific page via `page.thumbnail(of:for:)`. Double-clicking a PDF now navigates into it (same handler as folders) — pages show as children in the grid.
+- #566 magnifier: `MagnifierLimits.minMagnification` was 1.0, clamping ⌘⌥[ at 1x. Now 0.25 to match `MagnifierPanel.swift`'s own limit.
+- #567 magnifier: swapped shortcuts so ⌘⇧M toggles the panel and ⌘⌥M toggles lock. Matches Loupe's existing ordering.
+
+0.0.2 bug count remains at 0. Only #520 Sparkle task left before release.
+
+- Swift test coverage added: `PDFHandlingTests.swift` with 14 tests guarding `Document.isNavigableContainer` (9 cases incl. a `FileType.allCases` tripwire) and `PDFThumbnailView.renderThumbnail` (5 cases, including a different-color-per-page pixel-diff guard that catches "renderer ignores pageIndex" regressions). Tests build their PDFs in-memory from `NSColor`/`NSImage` + `PDFPage(image:)` — no binary fixtures.

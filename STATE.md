@@ -20,10 +20,11 @@ Nothing active.
 
 ## Next Session — Start Here
 
-1. **Daniel: relaunch and verify this round's fixes** — pinch-to-zoom, sidebar arrow keys, Option+Left/Right pane cycling, middle-truncated filenames, magnifier Y direction, Quick Look removal.
-2. **#520 Sparkle** — verify Check-for-Updates menu item + appcast URL.
-3. **If all clean:** `/release 0.0.2`, then rebase 0.0.3 onto it.
-4. **In `~/code/fichero-0.0.3`:** resume Wire: Search v1 (`/session-start-auto`).
+1. **Daniel: import a multi-page PDF** and verify — grid shows one thumbnail per page rendered by `PDFThumbnailView`, double-clicking the PDF drills into it, preview pane shows the correct page full-size.
+2. **Verify magnifier** — ⌘⌥[ zooms below 1x, ⌘⇧M toggles panel, ⌘⌥M toggles lock.
+3. **#520 Sparkle** — last open 0.0.2 item. Needs SDK wire-up, appcast signing, update-check UI.
+4. **If all clean:** `/release 0.0.2`, then rebase 0.0.3 onto it.
+5. **In `~/code/fichero-0.0.3`:** resume Wire: Search v1 (`/session-start-auto`).
 
 ## Parallel Workflow
 
@@ -31,4 +32,4 @@ Daniel tests N → Claude builds N+1 in a separate worktree.
 Gate: Claude never merges without Daniel's `/release N`.
 
 ---
-*Last updated: 2026-04-16 (late evening)* — 30+ bugs closed this session. Only #520 remains.
+*Last updated: 2026-04-16 (evening, post PDF-as-container)* — #568, #566, #567 closed; Swift test coverage added for PDF navigation + per-page thumbnail rendering. Only #520 remains on 0.0.2.

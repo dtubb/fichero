@@ -257,6 +257,19 @@ for link in links:
 - `git worktree remove --force` still fails if the directory has content git can't delete itself. Follow up with `git worktree prune && rm -rf <path>`.
 - `.kreuzberg/extraction/*.msgpack` binary files appear as modified during cherry-picks of branches that processed documents. Always resolve with `--theirs` — these are cache files.
 
+## Swift Target File Sync — 2026-04-16
+
+- Only `fichero-swiftui-tests/` and `fichero-swiftui-ui-tests/` are `PBXFileSystemSynchronizedRootGroup`. The **main `Fichero` target is not** — new `.swift` files inside `fichero-swiftui/fichero-swiftui/…` must be added to `project.pbxproj` explicitly or they won't compile into the app (SourceKit will even error with `Cannot find type 'X' in scope`).
+- Workaround when adding a small extension: merge it into an existing file already in the target (e.g. append `extension Document { … }` to the bottom of `Document.swift`) rather than creating a new file. Avoids touching the pbxproj.
+- If you *must* create a new file in the main target: edit pbxproj manually (add `PBXFileReference` + `PBXBuildFile` entries and list the file in the target's `PBXSourcesBuildPhase`) or use Xcode.app to add it.
+
+## Swift Tests — Pattern for Testing View Logic — 2026-04-16
+
+- SwiftUI `View` types can't practically be instantiated in unit tests — they need bindings, observed objects, environment values. **Extract pure logic onto the model** (e.g. `Document.isNavigableContainer` instead of `LibraryView.canNavigateInto(_:)`) and have the view call into it. The test then just builds a `Document` value and asserts against the computed property.
+- **"All cases" tripwire pattern**: when a function's contract is "only X is true", assert `FileType.allCases.filter { … } == [.pdf]` rather than enumerating every false case. If someone adds a new case and accidentally makes it match, the test fires without needing maintenance.
+- **PDF fixtures at test time, not on disk**: build multi-page PDFs with `PDFDocument() + PDFPage(image: NSImage)` drawn with `NSColor.setFill()`. Different colors per page let you pixel-diff TIFF representations to prove the renderer honors `pageIndex`. Tear down in `defer { try? FileManager.default.removeItem(at: url) }` — no binary fixtures to check in.
+- **`build.db is locked`** during `xcodebuild` means Xcode.app is holding the lock (`lsof` shows `SWBBuildS`). Run with `-derivedDataPath /tmp/some-dir` to use a separate build database rather than asking the user to quit Xcode.
+
 ## Milestone Worktree Convention — 2026-04-15
 
 **Each milestone gets its own worktree at `~/code/fichero-<version>/`** (e.g. `~/code/fichero-0.0.3`). Never per-task branches — commit all milestone work directly to the milestone branch.
