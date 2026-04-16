@@ -185,16 +185,15 @@ struct ContentView: View {
             sidebarContent
         } detail: {
             centerContent
-                .inspector(isPresented: $showInspectorSidebar) {
-                    detailView
-                        .inspectorColumnWidth(
-                            min: ContentView.inspectorMinWidth,
-                            ideal: inspectorWidth,
-                            max: ContentView.inspectorMaxWidth
-                        )
-                }
         }
-        .navigationSplitViewStyle(.balanced)
+        .inspector(isPresented: $showInspectorSidebar) {
+            detailView
+                .inspectorColumnWidth(
+                    min: ContentView.inspectorMinWidth,
+                    ideal: inspectorWidth,
+                    max: ContentView.inspectorMaxWidth
+                )
+        }
         // Avoid duplicate generic per-column title pills in macOS split view.
         .navigationTitle(toolbarTitle)
         .toolbar(removing: .sidebarToggle)
@@ -345,9 +344,7 @@ struct ContentView: View {
             if showInspectorToggle {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        withAnimation {
-                            showInspectorSidebar.toggle()
-                        }
+                        showInspectorSidebar.toggle()
                     } label: {
                         Image(systemName: "info.circle")
                     }

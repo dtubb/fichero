@@ -10,7 +10,10 @@ extension ContentView {
     }
 
     var effectiveCenterIdealWidth: Double {
-        showInspectorSidebar ? contentWidth : max(contentWidth, 1100)
+        // .inspector() is now a sibling of NavigationSplitView, not nested inside the detail
+        // column. The split view gets whatever width the inspector leaves, so the content
+        // ideal is the same whether the inspector is shown or hidden.
+        max(contentWidth, 600)
     }
 
     // MARK: - Pane Focus Indicator
