@@ -96,7 +96,7 @@ struct ImagePreviewMenuCommands: View {
                 Label("Lock Magnifier", systemImage: "lock")
             }
         }
-        .keyboardShortcut("m", modifiers: [.command, .option, .shift])
+        .keyboardShortcut("m", modifiers: [.command, .shift])
         .disabled(!hasActiveImagePreview || !magnifierEnabled)
 
         // Magnifier zoom in
@@ -143,7 +143,7 @@ struct ImagePreviewMenuCommands: View {
                 Label("Lock Loupe", systemImage: "lock")
             }
         }
-        .keyboardShortcut("l", modifiers: [.command, .option, .shift])
+        .keyboardShortcut("l", modifiers: [.command, .shift])
         .disabled(!hasActiveImagePreview || !loupeEnabled)
 
         // Loupe zoom in

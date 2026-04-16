@@ -96,7 +96,7 @@ struct EditorView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(Color(.textBackgroundColor))
+        .background(Color(nsColor: NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)))
     }
 
     // MARK: - Generic Preview
@@ -129,7 +129,7 @@ struct EditorView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxHeight: 200)
-                .background(Color(.textBackgroundColor))
+                .background(Color(nsColor: NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)))
                 .cornerRadius(8)
                 .padding(.horizontal)
             }
@@ -220,7 +220,7 @@ struct ZoomableImageView: View {
             .frame(width: geometry.size.width, height: geometry.size.height)
             .clipped()
         }
-        .background(Color(.textBackgroundColor))
+        .background(Color(nsColor: NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)))
         // Scroll wheel zoom
         .onContinuousHover { _ in } // Enable scroll events
         .background(ScrollWheelZoomView(scale: $scale, minScale: minScale, maxScale: maxScale))

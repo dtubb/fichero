@@ -128,7 +128,26 @@ struct FicheroApp: App {
                 FocusedSaveDatabaseButton()
             }
 
-            // Data menu - Item creation commands
+            // Edit menu
+            CommandGroup(after: .pasteboard) {
+                Divider()
+
+                FocusedRenameButton()
+                    .keyboardShortcut(.return, modifiers: [])
+
+                FocusedDeleteButton()
+                    .keyboardShortcut(.delete, modifiers: [.command])
+            }
+
+            // View menu items
+            CommandGroup(after: .toolbar) {
+                ViewMenuCommands()
+                    .environmentObject(viewSettings)
+            }
+
+            CommandGroup(replacing: .sidebar) { }
+
+            // Data menu — declared after View, before Format
             CommandMenu("Data") {
                 FocusedNewFolderButton()
 
@@ -168,26 +187,7 @@ struct FicheroApp: App {
                 }
             }
 
-            // Edit menu
-            CommandGroup(after: .pasteboard) {
-                Divider()
-
-                FocusedRenameButton()
-                    .keyboardShortcut(.return, modifiers: [])
-
-                FocusedDeleteButton()
-                    .keyboardShortcut(.delete, modifiers: [.command])
-            }
-
             TextFormattingCommands()
-
-            // View menu items
-            CommandGroup(after: .toolbar) {
-                ViewMenuCommands()
-                    .environmentObject(viewSettings)
-            }
-
-            CommandGroup(replacing: .sidebar) { }
 
             // Help menu - use default macOS help behavior
 

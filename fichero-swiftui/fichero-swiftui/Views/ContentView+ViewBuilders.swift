@@ -150,7 +150,7 @@ extension ContentView {
 
                 ResizableDivider(
                     width: $widescreenContentPaneWidth,
-                    minWidth: 260,
+                    minWidth: 140,
                     maxWidth: 900,
                     edge: .leading
                 )
