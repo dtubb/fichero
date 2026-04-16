@@ -255,10 +255,14 @@ class MagnifierPanelNSView: NSView {
         let sourceHeight = bounds.height / magnification
 
         // Center on cursor position.
-        // cursorPosition.y is top-down (0=top, 1=bottom) but NSImage uses
-        // AppKit coordinates (Y=0 at bottom), so flip the Y axis.
+        // TrackingImageView computes cursorPosition in AppKit bottom-up coords
+        // (cursorPosition.y = 0 at bottom, = 1 at top), and NSImage.draw(in:from:)
+        // also uses AppKit bottom-up coords — so the mapping is DIRECT, no flip.
+        // (An earlier version flipped Y to fix an unrelated offset, but that was
+        // actually caused by bounds-vs-image-dimensions; once the normalization
+        // was fixed to subtract centering offset, the flip became wrong.)
         let centerX = cursorPosition.x * image.size.width
-        let centerY = (1 - cursorPosition.y) * image.size.height
+        let centerY = cursorPosition.y * image.size.height
 
         var sourceRect = NSRect(
             x: centerX - sourceWidth / 2,
