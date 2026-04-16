@@ -131,7 +131,6 @@
 		2133BF0B15424FFDBA37619B /* FolderContentsGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747AC1DB57A54EA79D0817E8 /* FolderContentsGrid.swift */; };
 		2ED84CCBA91252EA2D0C5D34 /* TriggerEditorPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */; };
 		3D3445F0B90D093149C9A7D6 /* DocumentInspectorContentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */; };
-		ED0E3300104D4A70958C3844 /* AttributedTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 004167806445469D9A3595E4 /* AttributedTextEditor.swift */; };
 		4458475E8C2BF728591E504F /* AIDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */; };
 		4EBA402FBE51F9F56366C3A5 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
@@ -339,6 +338,7 @@
 		DDE8A1E95DE61B0723A40BC9 /* DynamicConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */; };
 		E6E64CE83B1FF1235DCFDF80 /* ScheduleDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */; };
 		E8DB4DEABBD7388DB33D81DA /* DocumentInspectorInfoTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */; };
+		ED0E3300104D4A70958C3844 /* AttributedTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 004167806445469D9A3595E4 /* AttributedTextEditor.swift */; };
 		FC3F95AC0E1F4A7DB6B9993E /* FeatureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */; };
 		GTE2 /* GeneratedTypeExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = GTE1 /* GeneratedTypeExtensions.swift */; };
 		IMP00012F27F36000EC9EE1 /* ImportServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMP00022F27F36000EC9EE1 /* ImportServiceGenerated.swift */; };
@@ -375,6 +375,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		004167806445469D9A3595E4 /* AttributedTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AttributedTextEditor.swift; path = "fichero-swiftui/Views/Library/DocumentInspector/AttributedTextEditor.swift"; sourceTree = SOURCE_ROOT; };
 		04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DynamicConfigView.swift; sourceTree = "<group>"; };
 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		101 /* FicheroApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FicheroApp.swift; sourceTree = "<group>"; };
@@ -503,7 +504,6 @@
 		20D8EE462F4BE285006950A3 /* ActionPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionPickerView.swift; sourceTree = "<group>"; };
 		20D8EE482F4BED4B006950A3 /* ActionRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionRowView.swift; sourceTree = "<group>"; };
 		20D8EE4A2F4BED57006950A3 /* ActionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionDetailView.swift; sourceTree = "<group>"; };
-		004167806445469D9A3595E4 /* AttributedTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AttributedTextEditor.swift; path = "fichero-swiftui/Views/Library/DocumentInspector/AttributedTextEditor.swift"; sourceTree = SOURCE_ROOT; };
 		312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorArtifactsTab.swift; path = "fichero-swiftui/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab.swift"; sourceTree = SOURCE_ROOT; };
 		36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorContentTab.swift; path = "fichero-swiftui/Views/Library/DocumentInspector/DocumentInspectorContentTab.swift"; sourceTree = SOURCE_ROOT; };
 		371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BackendSettingsView.swift; path = "fichero-swiftui/Views/Settings/BackendSettingsView.swift"; sourceTree = SOURCE_ROOT; };

@@ -550,3 +550,23 @@ ALL COMPLETE:
 - Added bug priority rule to .claude/agent-briefing.md (autonomous sessions fix type:bug before features)
 - Deleted ~/.claude/skills/ — all skills now live in fichero-skills/plugins/ only
 - Deleted stale 0.8.2 GitHub milestone
+
+## 2026-04-16 — Session: 0.0.2 Bug Fix Marathon
+
+- Fixed 18 bugs across 0.0.2 milestone (#525-#543, #353, #385, #386)
+- Inspector layout: replaced .inspector() + HSplitView with HStack + ResizableDivider pattern
+- Restored inspector tab bar (InspectorTab enum with Info/Content icon tabs)
+- Fixed DragGesture oscillation with .coordinateSpace(.global)
+- Fixed NSScrollView ruler bleed with masksToBounds
+- Fixed magnifier Y-coordinate flip for AppKit bottom-up coordinates
+- Settings: enabled General tab, added import mode picker, converted Defaults to Form layout
+- Sidebar: fixed subfolder selection (child rows handle own taps via onItemTapped callback)
+- Fixed preview selection restoration on relaunch (detailDocument sync from browserSelection)
+- Simplified magnifier lock shortcuts (⌘⌥⇧ → ⌘⇧)
+- Menu order: File, Edit, View, Data, Format
+- Preview: overlay scroll bars, RGB 253/253/253 background, no header in widescreen
+- 16 new Swift unit tests (InspectorTab, FileType additions, ResizableDivider, selection lookup)
+- Removed full-window drop highlight (sidebar has per-folder targeting)
+- PDF import verified working end-to-end (#353)
+- Window state restoration verified implemented (#385)
+- Workflow dispatch paths verified (#386)
