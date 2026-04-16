@@ -250,7 +250,8 @@ extension SidebarView {
                 selectedItemId: $selectedItemId,
                 renameState: renameState,
                 deleteState: deleteState,
-                libraryManager: libraryManager
+                libraryManager: libraryManager,
+                onItemTapped: { tappedItem in handleUnifiedRowTap(tappedItem) }
             )
             .contentShape(Rectangle())
             .onTapGesture {

@@ -33,6 +33,7 @@ struct SidebarItemRow: View {
     @State var isCommittingRename = false
     @State var isPulsing = false
 
+    var onItemTapped: ((SidebarItem) -> Void)?
     var onAutomationPause: (() -> Void)?
     var onAutomationResume: (() -> Void)?
     var onAutomationTrigger: (() -> Void)?
@@ -77,7 +78,15 @@ struct SidebarItemRow: View {
                         selectedItemId: $selectedItemId,
                         renameState: renameState,
                         deleteState: deleteState,
-                        libraryManager: libraryManager
+                        libraryManager: libraryManager,
+                        onItemTapped: onItemTapped
+                    )
+                    .contentShape(Rectangle())
+                    .onTapGesture { onItemTapped?(child) }
+                    .listRowBackground(
+                        child.id == selectedItemId
+                            ? Color.accentColor.opacity(0.18)
+                            : Color.clear
                     )
                     .tag(child.id)
                 }
