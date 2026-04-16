@@ -36,6 +36,11 @@ extension SidebarItemRow {
                 } else {
                     sidebarRowLogger.debug("✅ Imported \(fileURLs.count) external file(s) to library root")
                 }
+                // Refresh twice: once immediately, again after 500ms to catch
+                // the race where the backend hasn't finished indexing new
+                // documents when the first refresh fires.
+                await documentStore?.refresh()
+                try? await Task.sleep(for: .milliseconds(500))
                 await documentStore?.refresh()
             } catch {
                 sidebarRowLogger.error("❌ External drop import failed: \(error.localizedDescription)")

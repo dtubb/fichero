@@ -234,11 +234,16 @@ struct DocumentThumbnailView: View {
                     .fill(Color(.windowBackgroundColor))
                     .aspectRatio(1, contentMode: .fit)
 
-                // Show folder icon for folders, thumbnail for files
+                // Show folder icon for folders, thumbnail for files.
+                // For PDFs, render the first page locally via PDFKit since
+                // the backend currently doesn't generate PDF thumbnails.
                 if document.docType == .folder {
                     Image(systemName: "folder.fill")
                         .font(.system(size: 48))
                         .foregroundColor(.accentColor)
+                } else if document.fileType == .pdf, let path = document.path, !path.isEmpty {
+                    PDFThumbnailView(path: path, size: CGSize(width: 240, height: 320))
+                        .clipped()
                 } else {
                     // Load thumbnail from backend API with library path header
                     LibraryImageView(documentId: document.id, imageType: .thumbnail)
