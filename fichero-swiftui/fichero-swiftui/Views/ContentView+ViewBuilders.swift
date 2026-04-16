@@ -116,14 +116,10 @@ extension ContentView {
                 contentWithOptionalModeRail
                     .overlay { paneFocusIndicator(for: .content) }
                     .frame(minHeight: 150, idealHeight: 180)
-                    .focusable()
-                    .focused($focusedPane, equals: .content)
-                    .focusEffectDisabled()
 
                 previewView
                     .overlay { paneFocusIndicator(for: .preview) }
                     .frame(minHeight: 400, idealHeight: 720)
-                    // Focus tracking without .focusable() — avoids swallowing first click
             }
             .frame(maxWidth: .infinity)
 
@@ -137,9 +133,6 @@ extension ContentView {
                 contentWithOptionalModeRail
                     .overlay { paneFocusIndicator(for: .content) }
                     .frame(width: clampedWidescreenContentPaneWidth)
-                    .focusable()
-                    .focused($focusedPane, equals: .content)
-                    .focusEffectDisabled()
 
                 ResizableDivider(
                     width: $widescreenContentPaneWidth,
