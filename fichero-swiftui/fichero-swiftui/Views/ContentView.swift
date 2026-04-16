@@ -194,6 +194,7 @@ struct ContentView: View {
                     )
                     detailView
                         .frame(width: CGFloat(inspectorWidth))
+                        .transition(.move(edge: .trailing))
                 }
             }
         }
@@ -259,7 +260,9 @@ struct ContentView: View {
         }
         .onChange(of: viewSettings.showInspector) { _, newValue in
             if showInspectorSidebar != newValue {
-                showInspectorSidebar = newValue
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showInspectorSidebar = newValue
+                }
             }
         }
         .toolbar {
@@ -347,7 +350,9 @@ struct ContentView: View {
             if showInspectorToggle {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        showInspectorSidebar.toggle()
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showInspectorSidebar.toggle()
+                        }
                     } label: {
                         Image(systemName: "info.circle")
                     }
