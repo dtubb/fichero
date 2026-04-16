@@ -18,7 +18,8 @@ extension SidebarItemRow {
         if let targetFolder,
            case .document(let doc) = targetFolder.itemType,
            doc.docType == .folder {
-            targetFolderId = targetFolder.id
+            // Use the actual document ID, not the sidebar item ID (which has a "doc:" prefix)
+            targetFolderId = doc.id
         } else {
             targetFolderId = nil
         }

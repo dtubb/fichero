@@ -45,9 +45,6 @@ extension ContentView {
         .environmentObject(conversationService)
         .environmentObject(ErrorService.shared)
         .environmentObject(performanceService)
-        .focusable()
-        .focused($focusedPane, equals: .sidebar)
-        .focusEffectDisabled()
         .overlay { paneFocusIndicator(for: .sidebar) }
         .navigationSplitViewColumnWidth(min: 250, ideal: sidebarWidth, max: 350)
         .focusedSceneValue(\.sidebarMode, $sidebarMode)
@@ -111,9 +108,7 @@ extension ContentView {
             contentWithOptionalModeRail
                 .overlay { paneFocusIndicator(for: .content) }
                 .frame(maxWidth: .infinity)
-                .focusable()
-                .focused($focusedPane, equals: .content)
-                .focusEffectDisabled()
+                // Focus tracking without .focusable() — avoids swallowing first click
 
         case .standard:
             // Standard: Content stacked above preview (vertical split)
@@ -128,9 +123,7 @@ extension ContentView {
                 previewView
                     .overlay { paneFocusIndicator(for: .preview) }
                     .frame(minHeight: 400, idealHeight: 720)
-                    .focusable()
-                    .focused($focusedPane, equals: .preview)
-                    .focusEffectDisabled()
+                    // Focus tracking without .focusable() — avoids swallowing first click
             }
             .frame(maxWidth: .infinity)
 
@@ -158,9 +151,7 @@ extension ContentView {
                 EditorView(document: detailDocument, showHeader: false)
                     .overlay { paneFocusIndicator(for: .preview) }
                     .frame(maxWidth: .infinity)
-                    .focusable()
-                    .focused($focusedPane, equals: .preview)
-                    .focusEffectDisabled()
+                    // Focus tracking without .focusable() — avoids swallowing first click
             }
             .frame(maxWidth: .infinity)
         }
@@ -231,9 +222,7 @@ extension ContentView {
     @ViewBuilder
     var detailView: some View {
         inspectorView
-            .focusable()
-            .focused($focusedPane, equals: .inspector)
-            .focusEffectDisabled()
+            // Focus tracking without .focusable() — avoids swallowing first click
             .overlay { paneFocusIndicator(for: .inspector) }
     }
 

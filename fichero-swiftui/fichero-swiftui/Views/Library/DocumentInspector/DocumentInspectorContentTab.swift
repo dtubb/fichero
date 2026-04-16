@@ -83,14 +83,6 @@ struct DocumentInspectorContentTab: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(.textBackgroundColor))
 
-                if draftContent.isEmpty {
-                    Text("Add notes or edit extracted text...")
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 14)
-                        .allowsHitTesting(false)
-                }
-
                 if let saveError {
                     Text(saveError)
                         .font(.caption)

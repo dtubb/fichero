@@ -100,9 +100,16 @@ class TrackingImageView: NSImageView {
             }
         }
 
-        // Normalize to 0-1 range
-        let normalizedX = location.x / bounds.width
-        let normalizedY = location.y / bounds.height
+        // Normalize to 0-1 range relative to the actual image, not the frame.
+        // When zoomed out, the frame is larger than the image (image is centered),
+        // so we subtract the centering offset before normalizing.
+        guard let image = image else { return }
+        let imageW = image.size.width
+        let imageH = image.size.height
+        let offsetX = max(0, (bounds.width - imageW) / 2)
+        let offsetY = max(0, (bounds.height - imageH) / 2)
+        let normalizedX = (location.x - offsetX) / imageW
+        let normalizedY = (location.y - offsetY) / imageH
 
         onCursorMoved?(CGPoint(x: normalizedX, y: normalizedY))
     }
