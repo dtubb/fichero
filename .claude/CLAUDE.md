@@ -47,6 +47,25 @@ ruff check fichero-api/src/
 swiftlint lint fichero-swiftui/fichero-swiftui/
 ```
 
+## Xcode MCP Tools
+
+When the Xcode MCP server is connected, prefer these over raw `xcodebuild`:
+
+| Tool | Use |
+|---|---|
+| `mcp__xcode__BuildProject` | Build the project (needs `tabIdentifier` from `XcodeListWindows`) |
+| `mcp__xcode__RunAllTests` | Run all tests from the active scheme |
+| `mcp__xcode__RunSomeTests` | Run specific test suites (pass `targetName` + `testIdentifier`) |
+| `mcp__xcode__GetBuildLog` | Check build errors/warnings after a failed build |
+| `mcp__xcode__XcodeListNavigatorIssues` | List Xcode Issue Navigator warnings/errors |
+| `mcp__xcode__RenderPreview` | Render a `#Preview` to get a visual snapshot |
+| `mcp__xcode__DocumentationSearch` | Search Apple developer docs |
+| `mcp__xcode__XcodeGlob` | Find files in the Xcode project structure |
+
+**Previews**: `RenderPreview` requires `#Preview` macros in the source file. Previews that depend on backend (`@EnvironmentObject var appState`) will timeout — make previews self-contained with mock data. Use previews to visually verify settings layouts, inspector tabs, and static UI.
+
+**Testing flow**: `BuildProject` → `RunAllTests` → `GetBuildLog` (if failures) → `XcodeListNavigatorIssues` (for warnings).
+
 ## Commit Format
 
 Conventional commits: `feat:`, `fix:`, `chore:`, `refactor:`, `test:`, `docs:`, `style:`

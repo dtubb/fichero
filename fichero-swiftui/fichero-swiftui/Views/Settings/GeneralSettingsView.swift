@@ -108,3 +108,8 @@ struct GeneralSettingsView: View {
         return families.sorted()
     }
 }
+
+#Preview("General Settings") {
+    GeneralSettingsView()
+        .frame(width: 550, height: 450)
+}
