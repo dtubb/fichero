@@ -67,13 +67,25 @@ struct SidebarItemRow: View {
         )
     }
 
-    /// Wraps itemLabel so the drop hit-region fills the entire row width, not
-    /// just the Label's natural icon+text bounds. Without this, hovering on the
-    /// whitespace to the right of the text doesn't trigger `isTargeted`.
+    /// Wraps itemLabel so both the drop hit-region AND the drop-highlight
+    /// visual fill the entire row width, not just the Label's natural
+    /// icon+text bounds.
+    ///
+    /// - `.frame(maxWidth: .infinity)` expands the view frame to full row width.
+    /// - `.contentShape(Rectangle())` extends the hit area to that full frame.
+    /// - `.background(...)` then draws the drop-target wash across the whole
+    ///   expanded frame. Using `.background` here (not `.listRowBackground`)
+    ///   because the latter caches its view per-row in sidebar-style Lists
+    ///   and doesn't reliably re-render on @State changes in our setup.
     private var fullWidthLabel: some View {
         itemLabel
+            .padding(.vertical, 2)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
+            .background(
+                RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
+                    .fill(dropTint)
+            )
     }
 
     private var rowContextMenu: some View {
@@ -111,6 +123,17 @@ struct SidebarItemRow: View {
                     )
                     .tag(child.id)
                 }
+                // Native between-row drop zone — SwiftUI draws a blue insertion
+                // line as the cursor moves between rows, and fires this callback
+                // on release. Accepts Finder files (fileURL) and internal
+                // sidebar drags (utf8PlainText from `.draggable(item.id)`).
+                .onInsert(of: [UTType.fileURL, UTType.utf8PlainText]) { offset, providers in
+                    handleInsertBetweenChildren(
+                        at: offset,
+                        providers: providers,
+                        parentFolder: item
+                    )
+                }
             } label: {
                 fullWidthLabel
                     .draggable(item.id)
@@ -124,7 +147,6 @@ struct SidebarItemRow: View {
                     }
                     .contextMenu { rowContextMenu }
             }
-            .listRowBackground(dropTint)
         } else if isFolder {
             fullWidthLabel
                 .draggable(item.id)
@@ -137,8 +159,7 @@ struct SidebarItemRow: View {
                     isDropTargeted = isTargeted
                 }
                 .contextMenu { rowContextMenu }
-                .listRowBackground(dropTint)
-        } else {
+            } else {
             fullWidthLabel
                 .draggable(item.id)
                 .dropDestination(for: String.self) { droppedIDs, _ in
@@ -157,7 +178,6 @@ struct SidebarItemRow: View {
                     isDropTargeted = isTargeted
                 }
                 .contextMenu { rowContextMenu }
-                .listRowBackground(dropTint)
-        }
+            }
     }
 }

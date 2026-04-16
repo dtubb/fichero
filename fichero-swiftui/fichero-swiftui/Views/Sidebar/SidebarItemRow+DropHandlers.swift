@@ -1,7 +1,115 @@
 import OSLog
 import SwiftUI
+import UniformTypeIdentifiers
 
 extension SidebarItemRow {
+    // MARK: - Between-row insertion (`.onInsert`)
+
+    /// Handles drops between rows inside a folder's children.
+    ///
+    /// SwiftUI's `.onInsert(of:perform:)` surface is how `List`/`ForEach` expose
+    /// inter-row drop zones — it gives us a free native blue insertion line.
+    /// The `offset` tells us *where* in the children list the user dropped;
+    /// we don't yet persist sidebar order server-side so for now any insert
+    /// into a folder's children is treated as "move/import into this folder"
+    /// regardless of offset. Ordering can be wired later via a `sortOrder`
+    /// field without changing the drop UX.
+    ///
+    /// - Parameters:
+    ///   - offset: 0-based insertion index within the children list (ignored
+    ///     until sort-order is persisted).
+    ///   - providers: the raw `NSItemProvider`s SwiftUI hands us. May contain
+    ///     file URLs (Finder drags) and/or UTF-8 plain text (internal sidebar
+    ///     item IDs emitted by `.draggable(item.id)`).
+    ///   - parentFolder: the folder whose children the user is inserting into.
+    ///     `nil` means drop into library root.
+    func handleInsertBetweenChildren(
+        at offset: Int,
+        providers: [NSItemProvider],
+        parentFolder: SidebarItem?
+    ) {
+        let parentFolderId: String? = {
+            guard let parentFolder,
+                  case .document(let doc) = parentFolder.itemType,
+                  doc.docType == .folder else { return nil }
+            return doc.id
+        }()
+
+        sidebarRowLogger.debug(
+            "📥 Insert at offset \(offset) into \(parentFolderId ?? "library root") with \(providers.count) provider(s)"
+        )
+
+        Task {
+            var fileURLs: [URL] = []
+            var itemIds: [String] = []
+
+            for provider in providers {
+                if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier),
+                   let url = try? await Self.loadURL(from: provider) {
+                    fileURLs.append(url)
+                } else if provider.hasItemConformingToTypeIdentifier(UTType.utf8PlainText.identifier),
+                          let str = try? await Self.loadString(from: provider) {
+                    itemIds.append(str)
+                }
+            }
+
+            if !fileURLs.isEmpty, let importService {
+                do {
+                    _ = try await importService.importFiles(
+                        fileURLs,
+                        mode: .link,
+                        parentId: parentFolderId
+                    )
+                    await documentStore?.refresh()
+                    try? await Task.sleep(for: .milliseconds(500))
+                    await documentStore?.refresh()
+                    sidebarRowLogger.debug("✅ Inserted \(fileURLs.count) file(s) via onInsert")
+                } catch {
+                    sidebarRowLogger.error("❌ onInsert import failed: \(error.localizedDescription)")
+                }
+            }
+
+            for itemId in itemIds {
+                if let parentFolderId {
+                    await moveItemToFolder(itemId: itemId, targetFolderId: parentFolderId)
+                } else {
+                    let actualItemId = extractActualId(from: itemId)
+                    if let store = documentStore {
+                        _ = try? await store.moveDocument(actualItemId, toParent: nil)
+                    }
+                }
+            }
+        }
+    }
+
+    private static func loadURL(from provider: NSItemProvider) async throws -> URL {
+        try await withCheckedThrowingContinuation { continuation in
+            _ = provider.loadObject(ofClass: URL.self) { url, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let url {
+                    continuation.resume(returning: url)
+                } else {
+                    continuation.resume(throwing: NSError(domain: "SidebarInsertDrop", code: -1))
+                }
+            }
+        }
+    }
+
+    private static func loadString(from provider: NSItemProvider) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            _ = provider.loadObject(ofClass: NSString.self) { value, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let nsString = value as? NSString {
+                    continuation.resume(returning: nsString as String)
+                } else {
+                    continuation.resume(throwing: NSError(domain: "SidebarInsertDrop", code: -2))
+                }
+            }
+        }
+    }
+
     func handleExternalFileDrop(urls: [URL], targetFolder: SidebarItem?) -> Bool {
         guard let importService else {
             sidebarRowLogger.warning("❌ External drop rejected: no import service for library")
