@@ -187,27 +187,11 @@ struct ContentView: View {
             centerContent
                 .inspector(isPresented: $showInspectorSidebar) {
                     detailView
-                        .background(
-                            GeometryReader { geo in
-                                Color.clear.preference(
-                                    key: InspectorWidthPreferenceKey.self,
-                                    value: geo.size.width
-                                )
-                            }
-                        )
                         .inspectorColumnWidth(
                             min: ContentView.inspectorMinWidth,
                             ideal: inspectorWidth,
                             max: ContentView.inspectorMaxWidth
                         )
-                }
-                .onPreferenceChange(InspectorWidthPreferenceKey.self) { newWidth in
-                    let clamped = min(
-                        max(newWidth, ContentView.inspectorMinWidth),
-                        ContentView.inspectorMaxWidth
-                    )
-                    guard abs(clamped - inspectorWidth) > 1 else { return }
-                    inspectorWidth = clamped
                 }
         }
         .navigationSplitViewStyle(.balanced)
@@ -220,10 +204,10 @@ struct ContentView: View {
             if focusedPane == nil {
                 focusedPane = .content
             }
-            inspectorWidth = min(
-                max(inspectorWidth, ContentView.inspectorMinWidth),
-                ContentView.inspectorMaxWidth
-            )
+            // Clamp to a sane range. SceneStorage can hold stale/corrupted values
+            // from previous sessions (e.g., values written during layout animations).
+            // 400 is a generous practical maximum for an inspector panel.
+            inspectorWidth = min(max(inspectorWidth, ContentView.inspectorMinWidth), 400)
             contentWidth = min(
                 max(contentWidth, ContentView.contentMinWidth),
                 ContentView.contentMaxWidth
@@ -538,15 +522,6 @@ struct ContentView: View {
                 handleFileDrop: handleFileDrop
             )
         )
-    }
-}
-
-// MARK: - Preference Keys
-
-private struct InspectorWidthPreferenceKey: PreferenceKey {
-    static let defaultValue: CGFloat = 300
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
     }
 }
 
