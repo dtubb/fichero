@@ -184,15 +184,17 @@ struct ContentView: View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebarContent
         } detail: {
-            centerContent
-        }
-        .inspector(isPresented: $showInspectorSidebar) {
-            detailView
-                .inspectorColumnWidth(
-                    min: ContentView.inspectorMinWidth,
-                    ideal: inspectorWidth,
-                    max: ContentView.inspectorMaxWidth
-                )
+            HSplitView {
+                centerContent
+                if showInspectorSidebar {
+                    detailView
+                        .frame(
+                            minWidth: CGFloat(ContentView.inspectorMinWidth),
+                            idealWidth: CGFloat(inspectorWidth),
+                            maxWidth: CGFloat(ContentView.inspectorMaxWidth)
+                        )
+                }
+            }
         }
         // Avoid duplicate generic per-column title pills in macOS split view.
         .navigationTitle(toolbarTitle)
