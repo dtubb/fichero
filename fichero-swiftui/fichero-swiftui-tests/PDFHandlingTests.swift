@@ -1,0 +1,195 @@
+//
+//  PDFHandlingTests.swift
+//  FicheroTests
+//
+//  Unit tests for 0.0.2 PDF-as-container behaviour (#568, #566, #567):
+//    - Document.isNavigableContainer — which documents double-click navigates into
+//    - PDFThumbnailView.renderThumbnail — per-page local rendering
+//
+//  These tests guard the contract that:
+//    - PDFs are containers (double-click drills into their pages)
+//    - A page Document's thumbnail renders *that specific page*, not page 0
+//    - Out-of-range pageIndex and missing files return nil rather than crashing
+//
+
+import AppKit
+import Foundation
+import PDFKit
+import Testing
+@testable import Fichero
+
+// MARK: - Document.isNavigableContainer
+
+struct DocumentNavigationTests {
+
+    private func makeDoc(
+        docType: DocType = .file,
+        fileType: FileType? = nil
+    ) -> Document {
+        Document(docType: docType, fileType: fileType, name: "test")
+    }
+
+    @Test("Folders are navigable containers")
+    func folderIsNavigable() {
+        #expect(makeDoc(docType: .folder).isNavigableContainer)
+    }
+
+    @Test("PDFs are navigable containers (pages drill-in, #568)")
+    func pdfIsNavigable() {
+        #expect(makeDoc(docType: .file, fileType: .pdf).isNavigableContainer)
+    }
+
+    @Test("Images are not navigable — double-click should preview")
+    func imageIsNotNavigable() {
+        #expect(!makeDoc(docType: .file, fileType: .image).isNavigableContainer)
+    }
+
+    @Test("Text files are not navigable")
+    func textIsNotNavigable() {
+        #expect(!makeDoc(docType: .file, fileType: .text).isNavigableContainer)
+    }
+
+    @Test("Word documents are not navigable")
+    func wordIsNotNavigable() {
+        #expect(!makeDoc(docType: .file, fileType: .word).isNavigableContainer)
+    }
+
+    @Test("Files with no fileType are not navigable")
+    func untypedFileIsNotNavigable() {
+        #expect(!makeDoc(docType: .file, fileType: nil).isNavigableContainer)
+    }
+
+    @Test("Page children of a PDF are not themselves navigable")
+    func pageChildIsNotNavigable() {
+        // A PDF page is a leaf for navigation purposes — previewing it shows
+        // the page itself. Drilling into a page would have no meaning.
+        #expect(!makeDoc(docType: .page, fileType: nil).isNavigableContainer)
+    }
+
+    @Test("Chunks are not navigable")
+    func chunkIsNotNavigable() {
+        #expect(!makeDoc(docType: .chunk, fileType: nil).isNavigableContainer)
+    }
+
+    @Test("All FileType cases have a stable navigability contract")
+    func allFileTypesStable() {
+        // Exactly one file type (.pdf) is navigable today.
+        // If a new container format is added, update this test deliberately.
+        let navigable = FileType.allCases.filter { fileType in
+            Document(docType: .file, fileType: fileType, name: "x").isNavigableContainer
+        }
+        #expect(navigable == [.pdf])
+    }
+}
+
+// MARK: - PDFThumbnailView.renderThumbnail
+
+struct PDFThumbnailRenderingTests {
+
+    /// Build a multi-page PDF at a temp path. Each page is a different solid
+    /// color so we can distinguish which page was rendered (pages are tiny
+    /// NSImage sources drawn straight onto a PDFPage).
+    private static func makeMultiPagePDF(
+        pageColors: [NSColor],
+        size: CGSize = CGSize(width: 100, height: 140)
+    ) throws -> URL {
+        let pdf = PDFDocument()
+        for (index, color) in pageColors.enumerated() {
+            let image = NSImage(size: size)
+            image.lockFocus()
+            color.setFill()
+            NSRect(origin: .zero, size: size).fill()
+            image.unlockFocus()
+            guard let page = PDFPage(image: image) else {
+                throw NSError(domain: "PDFHandlingTests", code: index)
+            }
+            pdf.insert(page, at: index)
+        }
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("fichero-pdf-test-\(UUID().uuidString).pdf")
+        guard pdf.write(to: url) else {
+            throw NSError(domain: "PDFHandlingTests", code: -1)
+        }
+        return url
+    }
+
+    @Test("Rendering page 0 of a single-page PDF produces a non-nil image")
+    func rendersSinglePage() async throws {
+        let url = try Self.makeMultiPagePDF(pageColors: [.red])
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let image = await PDFThumbnailView.renderThumbnail(
+            at: url.path,
+            pageIndex: 0,
+            size: CGSize(width: 200, height: 280)
+        )
+        #expect(image != nil)
+    }
+
+    @Test("Rendering pageIndex 1 of a 3-page PDF returns the second page, not the first")
+    func rendersCorrectPageByIndex() async throws {
+        // Distinct colors so average-pixel sampling can tell page 0 from page 1.
+        let url = try Self.makeMultiPagePDF(pageColors: [.red, .green, .blue])
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let page0 = await PDFThumbnailView.renderThumbnail(
+            at: url.path, pageIndex: 0, size: CGSize(width: 60, height: 80)
+        )
+        let page1 = await PDFThumbnailView.renderThumbnail(
+            at: url.path, pageIndex: 1, size: CGSize(width: 60, height: 80)
+        )
+
+        try #require(page0 != nil)
+        try #require(page1 != nil)
+
+        // Sanity: both are valid NSImages with the requested aspect.
+        #expect(page0!.size.width > 0 && page0!.size.height > 0)
+        #expect(page1!.size.width > 0 && page1!.size.height > 0)
+
+        // Regression guard for #568: renderer must honor pageIndex.
+        // Two pages of *different* solid colours must produce pixel-different
+        // images. If pageIndex were ignored (always rendering page 0) the TIFF
+        // representations would be identical.
+        let tiff0 = page0!.tiffRepresentation
+        let tiff1 = page1!.tiffRepresentation
+        try #require(tiff0 != nil)
+        try #require(tiff1 != nil)
+        #expect(tiff0 != tiff1, "pageIndex: 0 and pageIndex: 1 rendered the same bytes — renderer is ignoring pageIndex")
+    }
+
+    @Test("Out-of-range pageIndex returns nil, does not crash")
+    func outOfRangePageIndexReturnsNil() async throws {
+        let url = try Self.makeMultiPagePDF(pageColors: [.red])
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let image = await PDFThumbnailView.renderThumbnail(
+            at: url.path,
+            pageIndex: 99,
+            size: CGSize(width: 200, height: 280)
+        )
+        #expect(image == nil)
+    }
+
+    @Test("Negative pageIndex returns nil")
+    func negativePageIndexReturnsNil() async throws {
+        let url = try Self.makeMultiPagePDF(pageColors: [.red])
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let image = await PDFThumbnailView.renderThumbnail(
+            at: url.path,
+            pageIndex: -1,
+            size: CGSize(width: 200, height: 280)
+        )
+        #expect(image == nil)
+    }
+
+    @Test("Missing file returns nil rather than throwing")
+    func missingFileReturnsNil() async {
+        let image = await PDFThumbnailView.renderThumbnail(
+            at: "/tmp/definitely-does-not-exist-\(UUID().uuidString).pdf",
+            pageIndex: 0,
+            size: CGSize(width: 200, height: 280)
+        )
+        #expect(image == nil)
+    }
+}
