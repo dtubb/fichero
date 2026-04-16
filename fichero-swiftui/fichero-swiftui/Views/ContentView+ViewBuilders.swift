@@ -160,6 +160,7 @@ extension ContentView {
                 previewView
                     .overlay { paneFocusIndicator(for: .preview) }
                     .frame(minWidth: 420, idealWidth: 760, maxWidth: .infinity)
+                    .clipped()
                     .focusable()
                     .focused($focusedPane, equals: .preview)
                     .focusEffectDisabled()
