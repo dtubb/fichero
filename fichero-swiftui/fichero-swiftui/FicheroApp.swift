@@ -38,12 +38,14 @@ struct FicheroApp: App {
 
     init() {
         let startupClock = Date()
-        // Offer to move to /Applications if launched from DMG or Downloads
         AppInstaller.promptToMoveToApplicationsIfNeeded()
-        logger.info("⏱ AppInstaller check: \(Date().timeIntervalSince(startupClock) * 1000, format: .fixed(precision: 1))ms")
-        // Global library loads synchronously via LibraryManager.shared singleton.
-        // User libraries are restored asynchronously from the scene .task below
-        // so the UI can render before ~19 services × N libraries are constructed.
+        let installerMs = Date().timeIntervalSince(startupClock) * 1000
+        logger.info("⏱ AppInstaller check: \(installerMs, format: .fixed(precision: 1))ms")
+
+        let restoreStart = Date()
+        LibraryManager.shared.restoreSavedLibraries()
+        let restoreMs = Date().timeIntervalSince(restoreStart) * 1000
+        logger.info("⏱ restoreSavedLibraries: \(restoreMs, format: .fixed(precision: 1))ms")
     }
 
     // MARK: - File Opening
@@ -92,16 +94,7 @@ struct FicheroApp: App {
                     handleOpenURL(url)
                 }
                 .task {
-                    // Connect backend service to app delegate for termination handling
                     appDelegate.backendService = backendService
-
-                    // Restore user libraries asynchronously so the UI renders first.
-                    // The global library is already loaded synchronously via
-                    // LibraryManager.shared (singleton init).
-                    let restoreStart = Date()
-                    LibraryManager.shared.restoreSavedLibraries()
-                    let restoreMs = Date().timeIntervalSince(restoreStart) * 1000
-                    logger.info("⏱ restoreSavedLibraries: \(restoreMs, format: .fixed(precision: 1))ms")
 
                     // Start backend on app launch
                     let backendStart = Date()
