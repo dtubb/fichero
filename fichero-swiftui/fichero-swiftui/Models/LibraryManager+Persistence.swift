@@ -8,9 +8,14 @@ extension LibraryManager {
     private static let openLibraryPathsKey = "FicheroOpenLibraryPaths"
     private static let libraryDisplayNamesByPathKey = "FicheroLibraryDisplayNamesByPath"
 
-    /// Save current open library paths to UserDefaults
+    /// Save current open library paths to UserDefaults.
+    /// Excludes temporary/untitled libraries — those live in /var/folders/.../T/
+    /// and get cleaned up by macOS, so persisting their paths would log
+    /// "Saved library not found" warnings on every subsequent launch.
     func saveOpenLibraryPaths() {
-        let paths = openLibraries.map { $0.url.path }
+        let paths = openLibraries
+            .filter { !isTemporaryLibrary($0.url) }
+            .map { $0.url.path }
         UserDefaults.standard.set(paths, forKey: Self.openLibraryPathsKey)
         saveLibraryDisplayNames()
         libraryManagerLogger.info("Saved \(paths.count) library paths to UserDefaults")
@@ -42,12 +47,16 @@ extension LibraryManager {
             libraryManagerLogger.info("⏱ restoreSavedLibraries total: \(overallMs, format: .fixed(precision: 1))ms for \(paths.count) libraries")
         }
 
+        var validPaths: [String] = []
+        var prunedAnyPath = false
+
         for path in paths {
             // Validate path is not empty and doesn't contain dangerous characters
             guard !path.isEmpty,
                   !path.contains(".."),
                   path.hasPrefix("/") else {
                 libraryManagerLogger.warning("Skipping invalid library path: \(path)")
+                prunedAnyPath = true
                 continue
             }
 
@@ -56,6 +65,7 @@ extension LibraryManager {
             // Additional security check: ensure it's a .fichero package
             guard url.pathExtension == "fichero" else {
                 libraryManagerLogger.warning("Skipping non-fichero path: \(path)")
+                prunedAnyPath = true
                 continue
             }
 
@@ -64,9 +74,17 @@ extension LibraryManager {
                 let library = openLibrary(at: url)
                 let perLibraryMs = Date().timeIntervalSince(perLibraryStart) * 1000
                 libraryManagerLogger.info("⏱ Restored \(library.displayName): \(perLibraryMs, format: .fixed(precision: 1))ms")
+                validPaths.append(path)
             } else {
-                libraryManagerLogger.warning("Saved library not found: \(path)")
+                libraryManagerLogger.warning("Pruning missing saved library: \(path)")
+                prunedAnyPath = true
             }
+        }
+
+        // Persist the pruned list so missing paths don't keep failing on every launch.
+        if prunedAnyPath {
+            UserDefaults.standard.set(validPaths, forKey: Self.openLibraryPathsKey)
+            libraryManagerLogger.info("Pruned \(paths.count - validPaths.count) missing/invalid library paths")
         }
     }
 }

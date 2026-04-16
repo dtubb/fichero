@@ -35,6 +35,6 @@ struct SettingsView: View {
                     }
             }
         }
-        .frame(width: 550, height: 450)
+        .frame(width: 680, height: 520)
     }
 }

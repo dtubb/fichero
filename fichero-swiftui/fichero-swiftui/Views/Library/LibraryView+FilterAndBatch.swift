@@ -171,6 +171,15 @@ extension LibraryView {
             Label("Rename", systemImage: "pencil")
         }
 
+        if let path = document.path, !path.isEmpty {
+            Button {
+                let url = URL(fileURLWithPath: path)
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            } label: {
+                Label("Reveal in Finder", systemImage: "folder")
+            }
+        }
+
         // Show "Run Workflow..." when at least one document is selected.
         if !selection.isEmpty && featureManager.isWorkflowRunOnSelectionEnabled {
             Button {

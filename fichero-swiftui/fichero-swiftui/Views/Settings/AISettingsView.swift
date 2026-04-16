@@ -200,12 +200,17 @@ private extension AISettingsView {
 
     @ViewBuilder
     func providerPicker(selection: Binding<String>) -> some View {
-        Picker("Provider", selection: selection) {
+        // De-duplicate by providerType so the Picker ForEach has unique IDs
+        // even if the backend returns multiple provider rows with the same type.
+        let uniqueProviders = Array(
+            Dictionary(grouping: appState.providers, by: { $0.providerType })
+                .compactMapValues { $0.first }
+                .values
+        ).sorted(by: { $0.name < $1.name })
+
+        return Picker("Provider", selection: selection) {
             Text("None").tag("")
-            ForEach(
-                appState.providers,
-                id: \.providerType
-            ) { provider in
+            ForEach(uniqueProviders, id: \.providerType) { provider in
                 Text(provider.name).tag(provider.providerType)
             }
         }

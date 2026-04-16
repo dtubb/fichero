@@ -157,6 +157,9 @@ struct LibraryView: View {
             .onChange(of: sortOrder) { _, newOrder in
                 handleSortOrderChange(newOrder)
             }
+            // Suppress implicit animations on folder change — icons should appear
+            // instantly, not slide in cascading from the top.
+            .transaction(value: folderId) { $0.animation = nil }
         )
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {

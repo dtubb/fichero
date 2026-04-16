@@ -356,8 +356,9 @@ struct ContentView: View {
                 }
             }
 
+            // Inspector toggle at the trailing edge of the toolbar (standard macOS placement).
             if showInspectorToggle {
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItem(placement: .automatic) {
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             showInspectorSidebar.toggle()
