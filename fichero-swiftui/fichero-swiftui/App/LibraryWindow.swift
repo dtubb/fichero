@@ -152,6 +152,22 @@ struct LibraryWindow: View {
             hasInitialized = true
             initializeWindow()
         }
+        .onChange(of: libraryManager.openLibraries.count) {
+            // User libraries are restored asynchronously — when they arrive,
+            // check if our persisted library is now available and switch to it.
+            reassignPersistedLibraryIfAvailable()
+        }
+    }
+
+    /// Called when openLibraries changes (e.g., async library restoration completed).
+    /// Switches the window to the persisted library if it's now available.
+    private func reassignPersistedLibraryIfAvailable() {
+        guard let persistedLibraryId,
+              let restoredId = UUID(uuidString: persistedLibraryId),
+              libraryManager.getLibrary(id: restoredId) != nil,
+              windowState.libraryId != restoredId else { return }
+        libraryWindowLogger.info("Persisted library now available — switching: \(restoredId)")
+        assignLibrary(id: restoredId)
     }
 
     // MARK: - Initialization

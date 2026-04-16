@@ -35,7 +35,12 @@ extension LibraryManager {
     /// Restore libraries from saved paths
     func restoreSavedLibraries() {
         let paths = getSavedLibraryPaths()
-        libraryManagerLogger.info("Restoring \(paths.count) saved libraries")
+        libraryManagerLogger.info("⏱ Restoring \(paths.count) saved libraries")
+        let overallStart = Date()
+        defer {
+            let overallMs = Date().timeIntervalSince(overallStart) * 1000
+            libraryManagerLogger.info("⏱ restoreSavedLibraries total: \(overallMs, format: .fixed(precision: 1))ms for \(paths.count) libraries")
+        }
 
         for path in paths {
             // Validate path is not empty and doesn't contain dangerous characters
@@ -55,8 +60,10 @@ extension LibraryManager {
             }
 
             if FileManager.default.fileExists(atPath: path) {
+                let perLibraryStart = Date()
                 let library = openLibrary(at: url)
-                libraryManagerLogger.info("Restored library: \(library.displayName)")
+                let perLibraryMs = Date().timeIntervalSince(perLibraryStart) * 1000
+                libraryManagerLogger.info("⏱ Restored \(library.displayName): \(perLibraryMs, format: .fixed(precision: 1))ms")
             } else {
                 libraryManagerLogger.warning("Saved library not found: \(path)")
             }

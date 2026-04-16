@@ -37,10 +37,13 @@ struct FicheroApp: App {
     @StateObject private var libraryManager = LibraryManager.shared
 
     init() {
+        let startupClock = Date()
         // Offer to move to /Applications if launched from DMG or Downloads
         AppInstaller.promptToMoveToApplicationsIfNeeded()
-        // Restore libraries synchronously before any windows appear
-        LibraryManager.shared.restoreSavedLibraries()
+        logger.info("⏱ AppInstaller check: \(Date().timeIntervalSince(startupClock) * 1000, format: .fixed(precision: 1))ms")
+        // Global library loads synchronously via LibraryManager.shared singleton.
+        // User libraries are restored asynchronously from the scene .task below
+        // so the UI can render before ~19 services × N libraries are constructed.
     }
 
     // MARK: - File Opening
@@ -92,13 +95,22 @@ struct FicheroApp: App {
                     // Connect backend service to app delegate for termination handling
                     appDelegate.backendService = backendService
 
+                    // Restore user libraries asynchronously so the UI renders first.
+                    // The global library is already loaded synchronously via
+                    // LibraryManager.shared (singleton init).
+                    let restoreStart = Date()
+                    LibraryManager.shared.restoreSavedLibraries()
+                    let restoreMs = Date().timeIntervalSince(restoreStart) * 1000
+                    logger.info("⏱ restoreSavedLibraries: \(restoreMs, format: .fixed(precision: 1))ms")
+
                     // Start backend on app launch
+                    let backendStart = Date()
                     do {
                         try await backendService.start()
-                        logger.info("Backend started successfully")
+                        let backendMs = Date().timeIntervalSince(backendStart) * 1000
+                        logger.info("⏱ backendService.start: \(backendMs, format: .fixed(precision: 1))ms")
                     } catch {
                         logger.error("Failed to start backend: \(error.localizedDescription)")
-                        // Show error alert to user
                         await showBackendError(error)
                     }
                 }
