@@ -124,14 +124,8 @@ struct DropTargetModifiers: ViewModifier {
             } isTargeted: { isTargeted in
                 self.isDropTargeted = isTargeted
             }
-            .overlay {
-                if isDropTargeted {
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.accentColor, lineWidth: 2)
-                        .padding(4)
-                        .allowsHitTesting(false)
-                }
-            }
+            // No full-window highlight overlay — sidebar folder rows show their own
+            // per-folder drop targeting via SidebarItemRow's isDropTargeted state.
             .overlay {
                 if isImporting {
                     ZStack {
