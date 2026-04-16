@@ -135,44 +135,34 @@ extension ContentView {
             .frame(maxWidth: .infinity)
 
         case .widescreen:
-            // Widescreen: Content and preview side-by-side (horizontal split)
-            HSplitView {
+            // Widescreen: Content and preview side-by-side.
+            // Uses HStack + ResizableDivider (same pattern as inspector) so the
+            // content pane width is explicitly stored and only changes on user drag.
+            // HSplitView was replaced because NSSplitView ignores idealWidth and
+            // GeometryReader race-conditions overwrite the saved width on restart.
+            HStack(spacing: 0) {
                 contentWithOptionalModeRail
                     .overlay { paneFocusIndicator(for: .content) }
-                    .frame(
-                        minWidth: 260,
-                        idealWidth: clampedWidescreenContentPaneWidth,
-                        maxWidth: 900
-                    )
-                    .background(
-                        GeometryReader { geometry in
-                            Color.clear
-                                .preference(
-                                    key: WidescreenContentPaneWidthPreferenceKey.self,
-                                    value: geometry.size.width
-                                )
-                        }
-                    )
+                    .frame(width: clampedWidescreenContentPaneWidth)
                     .focusable()
                     .focused($focusedPane, equals: .content)
                     .focusEffectDisabled()
 
-                // No header in widescreen — the selected document is already
-                // visible in the icon list. Hiding the header also removes the
-                // horizontal line that formed at the HSplitView divider junction.
+                ResizableDivider(
+                    width: $widescreenContentPaneWidth,
+                    minWidth: 260,
+                    maxWidth: 900,
+                    edge: .leading
+                )
+
                 EditorView(document: detailDocument, showHeader: false)
                     .overlay { paneFocusIndicator(for: .preview) }
-                    .frame(minWidth: 420, idealWidth: 760, maxWidth: .infinity)
+                    .frame(maxWidth: .infinity)
                     .focusable()
                     .focused($focusedPane, equals: .preview)
                     .focusEffectDisabled()
             }
             .frame(maxWidth: .infinity)
-            .onPreferenceChange(WidescreenContentPaneWidthPreferenceKey.self) { newWidth in
-                let clamped = min(max(newWidth, 260), 900)
-                guard abs(clamped - widescreenContentPaneWidth) > 1 else { return }
-                widescreenContentPaneWidth = clamped
-            }
         }
     }
 
@@ -258,15 +248,20 @@ extension ContentView {
     }
 }
 
-/// Draggable divider between content and inspector panel.
-/// The inspector has a fixed width (`frame(width:)`), so only the content area
-/// flexes when the NavigationSplitView sidebar is toggled. This divider lets the
-/// user resize the inspector by dragging.
-struct InspectorDivider: View {
+/// Draggable divider for resizing adjacent panels.
+/// - `leadingPanel`: the panel being resized is on the LEFT (drag right to grow)
+/// - `trailingPanel`: the panel being resized is on the RIGHT (drag left to grow)
+struct ResizableDivider: View {
     @Binding var width: Double
     let minWidth: Double
     let maxWidth: Double
+    var edge: Edge = .trailing
     @State private var initialWidth: Double?
+
+    enum Edge {
+        case leading   // panel on left — drag right to grow
+        case trailing  // panel on right — drag left to grow
+    }
 
     var body: some View {
         Rectangle()
@@ -286,21 +281,15 @@ struct InspectorDivider: View {
                     .onChanged { value in
                         if initialWidth == nil { initialWidth = width }
                         guard let start = initialWidth else { return }
-                        // Dragging left → inspector grows (negative x translation)
-                        let newWidth = start - value.translation.width
+                        let newWidth = edge == .trailing
+                            ? start - value.translation.width
+                            : start + value.translation.width
                         width = min(max(newWidth, minWidth), maxWidth)
                     }
                     .onEnded { _ in
                         initialWidth = nil
                     }
             )
-    }
-}
-
-private struct WidescreenContentPaneWidthPreferenceKey: PreferenceKey {
-    static let defaultValue: CGFloat = 320
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
     }
 }
 

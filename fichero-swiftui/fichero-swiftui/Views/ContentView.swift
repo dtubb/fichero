@@ -188,7 +188,7 @@ struct ContentView: View {
                 centerContent
                     .frame(minWidth: CGFloat(ContentView.contentMinWidth), maxWidth: .infinity)
                 if showInspectorSidebar {
-                    InspectorDivider(
+                    ResizableDivider(
                         width: $inspectorWidth,
                         minWidth: ContentView.inspectorMinWidth,
                         maxWidth: ContentView.inspectorMaxWidth
