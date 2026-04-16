@@ -23,29 +23,13 @@ struct AttributedTextEditor: NSViewRepresentable {
             ?? .systemFont(ofSize: CGFloat(fontSize))
     }
 
-    func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSScrollView()
-        scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = false
-        scrollView.hasHorizontalRuler = true
-        scrollView.rulersVisible = rulersVisible
-        scrollView.borderType = .noBorder
-        scrollView.drawsBackground = true
-        scrollView.backgroundColor = .textBackgroundColor
-        // Force layer-backed clipping so the NSRulerView (which is tiled
-        // outside the NSClipView) doesn't draw beyond the scroll view's
-        // SwiftUI-proposed frame.
-        scrollView.wantsLayer = true
-        scrollView.layer?.masksToBounds = true
-
-        let textView = NSTextView()
+    private func configureTextView(_ textView: NSTextView) {
         textView.isEditable = isEditable
         textView.isSelectable = true
         textView.isRichText = true
         textView.allowsUndo = true
         textView.allowsDocumentBackgroundColorChange = true
         textView.usesFindBar = true
-        // Keep formatting controls local to the editor, not the window-level inspector bar.
         textView.usesInspectorBar = false
         textView.usesRuler = true
         textView.usesFontPanel = true
@@ -73,6 +57,22 @@ struct AttributedTextEditor: NSViewRepresentable {
         textView.textContainer?.widthTracksTextView = true
         textView.isHorizontallyResizable = false
         textView.autoresizingMask = [.width]
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.hasHorizontalRuler = true
+        scrollView.rulersVisible = rulersVisible
+        scrollView.borderType = .noBorder
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = .textBackgroundColor
+        scrollView.wantsLayer = true
+        scrollView.layer?.masksToBounds = true
+
+        let textView = NSTextView()
+        configureTextView(textView)
         textView.delegate = context.coordinator
         context.coordinator.isApplyingModelUpdate = true
         textView.textStorage?.setAttributedString(text)

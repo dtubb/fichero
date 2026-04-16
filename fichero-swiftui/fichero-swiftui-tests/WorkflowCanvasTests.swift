@@ -52,16 +52,7 @@ class WorkflowCanvasTests: XCTestCase {
         let gridSpacing: CGFloat = 20
         let snapThreshold: CGFloat = 10
         
-        // Test case 1: Value close to grid line should snap
-        let testValue1: CGFloat = 22.0
-        let expected1: CGFloat = 20.0
-        
-        // Test case 2: Value far from grid line should not snap
-        let testValue2: CGFloat = 25.0
-        let expected2: CGFloat = 25.0
-        
-        // These would be tested with the actual snapping function
-        // For now, we'll just verify the constants are reasonable
+        // Verify the constants are reasonable
         XCTAssertTrue(gridSpacing > 0, "Grid spacing should be positive")
         XCTAssertTrue(snapThreshold > 0, "Snap threshold should be positive")
         XCTAssertTrue(snapThreshold < gridSpacing, "Snap threshold should be less than grid spacing")
