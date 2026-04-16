@@ -82,6 +82,6 @@ struct WorkflowToolbar: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(.ultraThinMaterial)
+        .background(Color(.controlBackgroundColor))
     }
 }

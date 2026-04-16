@@ -264,16 +264,20 @@ struct ResizableDivider: View {
     }
 
     var body: some View {
-        Rectangle()
-            .fill(Color(nsColor: .separatorColor))
-            .frame(width: 1)
-            .padding(.horizontal, 2)
+        // 8px clear hit zone with a 1px visible separator centered inside.
+        Color.clear
+            .frame(width: 8)
+            .overlay(
+                Rectangle()
+                    .fill(Color(nsColor: .separatorColor))
+                    .frame(width: 1)
+            )
             .contentShape(Rectangle())
             .onHover { hovering in
                 if hovering {
-                    NSCursor.resizeLeftRight.push()
+                    NSCursor.resizeLeftRight.set()
                 } else {
-                    NSCursor.pop()
+                    NSCursor.arrow.set()
                 }
             }
             .gesture(
