@@ -299,7 +299,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
 
         @MainActor
         @objc func handleMagnify(_ gesture: NSMagnificationGestureRecognizer) {
-            // Check if cursor is over loupe - if so, zoom the loupe instead of main image
+            // Check if cursor is over loupe — zoom the loupe instead of the main image.
             if let trackingView = imageView as? TrackingImageView,
                trackingView.loupeEnabled,
                let loupeViewPos = trackingView.loupeViewPosition {
@@ -307,7 +307,6 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                 let loupeRadius = trackingView.loupeSize / 2
                 let distance = hypot(location.x - loupeViewPos.x, location.y - loupeViewPos.y)
                 if distance <= loupeRadius {
-                    // Over loupe - zoom loupe magnification
                     switch gesture.state {
                     case .began:
                         initialMagnification = trackingView.loupeMagnification
@@ -320,9 +319,28 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                     default:
                         break
                     }
+                    return
                 }
             }
-            // If not over loupe, let NSScrollView's built-in magnification handle it
+
+            // Not over loupe — forward the pinch to the scroll view.
+            // NSScrollView's built-in magnification would normally do this, but
+            // our custom recognizer captures the event first and without forwarding,
+            // the scroll view never zooms (#562).
+            guard let scrollView = scrollView else { return }
+            switch gesture.state {
+            case .began:
+                initialMagnification = scrollView.magnification
+            case .changed:
+                let newMag = initialMagnification * (1 + gesture.magnification)
+                let clamped = max(scrollView.minMagnification, min(scrollView.maxMagnification, newMag))
+                // Set magnification centred on the gesture location so the pinch
+                // feels anchored under the cursor.
+                let location = gesture.location(in: scrollView.contentView)
+                scrollView.setMagnification(clamped, centeredAt: location)
+            default:
+                break
+            }
         }
 
         /// Scroll to a normalized position (0-1 coordinates)
