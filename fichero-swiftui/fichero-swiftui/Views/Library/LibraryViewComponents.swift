@@ -96,10 +96,26 @@ struct MapCard: View {
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color(.windowBackgroundColor))
 
-                // Load thumbnail from backend API with library path header
-                LibraryImageView(documentId: document.id, imageType: .thumbnail)
-                    .aspectRatio(contentMode: .fill)
+                // PDFs + PDF page children render locally via PDFKit;
+                // everything else loads thumbnail from backend API.
+                if document.fileType == .pdf, let path = document.path, !path.isEmpty {
+                    PDFThumbnailView(path: path, size: CGSize(width: 200, height: 280))
+                        .clipped()
+                } else if document.docType == .page,
+                          let pdfPath = document.metadata["pdf_path"]?.value as? String,
+                          !pdfPath.isEmpty {
+                    let pageIndex = max(0, (document.sequence ?? 1) - 1)
+                    PDFThumbnailView(
+                        path: pdfPath,
+                        size: CGSize(width: 200, height: 280),
+                        pageIndex: pageIndex
+                    )
                     .clipped()
+                } else {
+                    LibraryImageView(documentId: document.id, imageType: .thumbnail)
+                        .aspectRatio(contentMode: .fill)
+                        .clipped()
+                }
 
                 // Status indicator overlay
                 VStack {
@@ -237,8 +253,7 @@ struct DocumentThumbnailView: View {
                     .aspectRatio(1, contentMode: .fit)
 
                 // Show folder icon for folders, thumbnail for files.
-                // For PDFs, render the first page locally via PDFKit since
-                // the backend currently doesn't generate PDF thumbnails.
+                // For PDFs + PDF page children, render locally via PDFKit.
                 if document.docType == .folder {
                     Image(systemName: "folder.fill")
                         .font(.system(size: 48))
@@ -246,6 +261,16 @@ struct DocumentThumbnailView: View {
                 } else if document.fileType == .pdf, let path = document.path, !path.isEmpty {
                     PDFThumbnailView(path: path, size: CGSize(width: 240, height: 320))
                         .clipped()
+                } else if document.docType == .page,
+                          let pdfPath = document.metadata["pdf_path"]?.value as? String,
+                          !pdfPath.isEmpty {
+                    let pageIndex = max(0, (document.sequence ?? 1) - 1)
+                    PDFThumbnailView(
+                        path: pdfPath,
+                        size: CGSize(width: 240, height: 320),
+                        pageIndex: pageIndex
+                    )
+                    .clipped()
                 } else {
                     // Load thumbnail from backend API with library path header
                     LibraryImageView(documentId: document.id, imageType: .thumbnail)

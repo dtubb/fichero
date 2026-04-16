@@ -76,6 +76,17 @@ struct EditorView: View {
     private func previewContent(_ doc: Document) -> some View {
         if doc.docType == .folder {
             FolderContentsGrid(folder: doc)
+        } else if doc.docType == .page,
+                  let pdfPath = doc.metadata["pdf_path"]?.value as? String,
+                  !pdfPath.isEmpty {
+            // PDF page child — render the specific page full-size.
+            let pageIndex = max(0, (doc.sequence ?? 1) - 1)
+            PDFThumbnailView(
+                path: pdfPath,
+                size: CGSize(width: 1600, height: 2100),
+                pageIndex: pageIndex
+            )
+            .background(Color(nsColor: NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)))
         } else {
             QuickLookDownloadView(document: doc)
         }

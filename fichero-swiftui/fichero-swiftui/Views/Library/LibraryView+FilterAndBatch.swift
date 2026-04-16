@@ -127,6 +127,24 @@ extension LibraryView {
 
     // MARK: - Tap Handling
 
+    /// Documents the user can "enter" by double-clicking:
+    /// - Folders (existing behavior)
+    /// - PDFs (treated as a container of page children for 0.0.2)
+    func canNavigateInto(_ doc: Document) -> Bool {
+        if doc.docType == .folder { return true }
+        if doc.fileType == .pdf { return true }
+        return false
+    }
+
+    /// Handle double-click: navigate into folders/PDFs, preview everything else.
+    func handleDoubleClick(_ doc: Document) {
+        if canNavigateInto(doc) {
+            onNavigateInto(doc)
+        } else {
+            detailDocument = doc
+        }
+    }
+
     func handleTap(_ doc: Document) {
         onRequestFocus()
         let modifiers = NSEvent.modifierFlags

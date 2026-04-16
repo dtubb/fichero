@@ -2,11 +2,15 @@ import AppKit
 import PDFKit
 import SwiftUI
 
-/// Renders a thumbnail of a PDF's first page locally using PDFKit.
+/// Renders a thumbnail of a PDF page locally using PDFKit.
+/// - For a PDF file itself: renders page 0 (first page).
+/// - For a page Document (child of a PDF): renders the specific page.
+///   Pass `pageIndex = sequence - 1` (PDFKit is 0-indexed, our sequence is 1-based).
 /// Used as a fallback when the backend hasn't generated a PDF thumbnail.
 struct PDFThumbnailView: View {
     let path: String
     let size: CGSize
+    var pageIndex: Int = 0
 
     @State private var image: NSImage?
 
@@ -23,17 +27,18 @@ struct PDFThumbnailView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .task(id: path) {
-            image = await Self.renderThumbnail(at: path, size: size)
+        .task(id: "\(path):\(pageIndex)") {
+            image = await Self.renderThumbnail(at: path, pageIndex: pageIndex, size: size)
         }
     }
 
-    /// Render the first page of a PDF at the requested pixel size.
+    /// Render a specific page of a PDF at the requested pixel size.
     /// Runs off the main actor — PDFKit can do the render on any thread.
-    static func renderThumbnail(at path: String, size: CGSize) async -> NSImage? {
+    static func renderThumbnail(at path: String, pageIndex: Int = 0, size: CGSize) async -> NSImage? {
         await Task.detached(priority: .userInitiated) {
             guard let pdf = PDFDocument(url: URL(fileURLWithPath: path)),
-                  let page = pdf.page(at: 0) else {
+                  pageIndex >= 0, pageIndex < pdf.pageCount,
+                  let page = pdf.page(at: pageIndex) else {
                 return nil
             }
             return page.thumbnail(of: size, for: .mediaBox)

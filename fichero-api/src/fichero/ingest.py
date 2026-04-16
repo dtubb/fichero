@@ -280,7 +280,90 @@ def ingest_file(
         if auto_embed and doc.page_content:
             db.embed(doc)
 
+        # PDFs are containers of pages. Create a child Document for each page
+        # so workflows (transcribe, extract, etc.) can fan out per-page and
+        # each page is searchable on its own.
+        if file_type == FileType.pdf:
+            _create_pdf_page_children(doc, path, db, auto_embed=auto_embed)
+
     return doc
+
+
+def _create_pdf_page_children(
+    parent_doc: Document,
+    path: Path,
+    db: Database,
+    *,
+    auto_embed: bool = False,
+) -> list[Document]:
+    """Create one child Document per PDF page with extracted per-page text.
+
+    Each child has:
+        - doc_type = DocType.page
+        - parent_id = parent PDF Document id
+        - sequence = 1-based page number
+        - page_content = extracted text for that page
+
+    Pages are real DB entities so workflows can iterate per-page, search can
+    index per-page, and future features (highlights, annotations) have a
+    place to hang off.
+
+    Full-size page thumbnails are rendered on-demand client-side via PDFKit
+    rather than at ingest time (avoids ~200 pages × ~500ms × large disk use
+    for archival PDFs).
+    """
+    try:
+        from kreuzberg import ExtractionConfig, PageConfig, extract_file_sync
+    except ImportError as exc:
+        logger.debug("Kreuzberg not available for PDF page splitting: %s", exc)
+        return []
+
+    try:
+        cfg = ExtractionConfig(pages=PageConfig(extract_pages=True))
+        result = extract_file_sync(str(path), None, cfg)
+    except Exception as exc:
+        logger.warning("PDF page extraction failed for %s: %s", path, exc)
+        return []
+
+    page_records = result.pages or []
+    if not page_records:
+        logger.debug("PDF %s has no extractable pages", path.name)
+        return []
+
+    pages: list[Document] = []
+    for page_dict in page_records:
+        page_number = page_dict.get("page_number") or (len(pages) + 1)
+        content = page_dict.get("content") or ""
+        page_doc = Document(
+            parent_id=parent_doc.id,
+            doc_type=DocType.page,
+            file_type=None,  # a page is not a file in itself
+            name=f"{parent_doc.name} - Page {page_number}",
+            sequence=page_number,
+            status=Status.completed,
+            page_content=content if content else None,
+            metadata={
+                "pdf_parent_id": parent_doc.id,
+                "pdf_parent_name": parent_doc.name,
+                "pdf_path": str(path),  # so frontend can render page thumbnail locally
+                "page_number": page_number,
+                "is_blank": bool(page_dict.get("is_blank")),
+                "text_extracted": bool(content),
+                "text_length": len(content),
+            },
+        )
+        db.save(page_doc)
+
+        if auto_embed and page_doc.page_content:
+            try:
+                db.embed(page_doc)
+            except Exception as exc:
+                logger.debug("Embedding failed for page %s: %s", page_number, exc)
+
+        pages.append(page_doc)
+
+    logger.info("Created %d page children for PDF %s", len(pages), path.name)
+    return pages
 
 
 def _copy_to_library(source: Path, package_path: Path | None = None) -> Path:

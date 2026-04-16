@@ -44,7 +44,8 @@ extension ContentView {
                 folderId: selectedSidebarItemId,
                 onRequestFocus: { focusedPane = .content },
                 onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
-                onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) }
+                onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) },
+                onNavigateInto: { doc in navigateToDocument(doc) }
             )
 
         case .search(let savedSearch):

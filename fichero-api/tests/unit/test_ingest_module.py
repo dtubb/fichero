@@ -1199,6 +1199,61 @@ class TestTextExtraction:
                 assert doc.metadata.get("text_extracted") == True
                 assert len(doc.page_content) > 0  # Should have some content
 
+    def test_pdf_creates_page_children(self):
+        """Importing a PDF should create a parent Document plus one child per page.
+
+        Kreuzberg's page extraction is mocked so this test exercises only the
+        ingest layer's fan-out logic — not pdfium's actual PDF parsing.
+        """
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import FileType, DocType
+
+        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.pdf"
+
+        saved_docs: list = []
+
+        class FakeDB:
+            def save(self, doc):
+                saved_docs.append(doc)
+
+            def get(self, *_args, **_kwargs):
+                return None
+
+            def embed(self, *_args, **_kwargs):
+                pass
+
+        fake_pages_result = MagicMock()
+        fake_pages_result.pages = [
+            {"page_number": 1, "content": "First page text", "is_blank": False},
+            {"page_number": 2, "content": "Second page text", "is_blank": False},
+            {"page_number": 3, "content": "", "is_blank": True},
+        ]
+
+        fake_db = FakeDB()
+        with patch("fichero.bookmarks.create_bookmark") as mock_bookmark, \
+             patch("kreuzberg.extract_file_sync", return_value=fake_pages_result):
+            mock_bookmark.return_value = None
+            parent = ingest_file(file_path, mode=IngestMode.LINK, extract_text=True, db=fake_db)
+
+        assert parent.file_type == FileType.pdf
+        assert parent.doc_type == DocType.file
+
+        page_children = [d for d in saved_docs if d.doc_type == DocType.page and d.parent_id == parent.id]
+        assert len(page_children) == 3
+
+        sequences = sorted(p.sequence for p in page_children if p.sequence is not None)
+        assert sequences == [1, 2, 3]
+
+        for page in page_children:
+            assert page.metadata.get("pdf_parent_id") == parent.id
+            assert page.metadata.get("pdf_path") == str(file_path)
+            assert page.metadata.get("page_number") == page.sequence
+
+        blank_pages = [p for p in page_children if p.metadata.get("is_blank")]
+        assert len(blank_pages) == 1
+        assert blank_pages[0].sequence == 3
+        assert blank_pages[0].page_content is None
+
     def test_text_extraction_disabled(self):
         """Should not extract text when extract_text=False."""
         from fichero.ingest import ingest_file, IngestMode

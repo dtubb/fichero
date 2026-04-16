@@ -17,6 +17,7 @@ struct LibraryView: View {
     var onRequestFocus: () -> Void = {}  // Called on tap to pull keyboard focus into content area
     var onRequestPreviousPaneFocus: () -> Void = {}  // Left arrow in list/table — move to sidebar
     var onRequestNextPaneFocus: () -> Void = {}  // Right arrow in list/table — move to inspector
+    var onNavigateInto: (Document) -> Void = { _ in }  // Double-click on folder/PDF — navigate into it
 
     @State var searchText: String = ""
     @State var showFilterBar = false

@@ -24,7 +24,7 @@ extension LibraryView {
                             .id(doc.id)
                             .draggable(doc.id)
                             .onTapGesture(count: 2) {
-                                detailDocument = doc
+                                handleDoubleClick(doc)
                             }
                             .onTapGesture {
                                 handleTap(doc)
@@ -108,7 +108,7 @@ extension LibraryView {
                         )
                         .contentShape(Rectangle())
                         .onTapGesture(count: 2) {
-                            detailDocument = doc
+                            handleDoubleClick(doc)
                         }
                         .onTapGesture {
                             handleTap(doc)
@@ -200,7 +200,7 @@ extension LibraryView {
         .onTapGesture(count: 2) {
             if let firstId = selection.first,
                let doc = filteredDocuments.first(where: { $0.id == firstId }) {
-                detailDocument = doc
+                handleDoubleClick(doc)
             }
         }
     }
@@ -226,7 +226,7 @@ extension LibraryView {
                         position: pos
                     )
                     .onTapGesture(count: 2) {
-                        detailDocument = doc
+                        handleDoubleClick(doc)
                     }
                     .onTapGesture {
                         handleTap(doc)
