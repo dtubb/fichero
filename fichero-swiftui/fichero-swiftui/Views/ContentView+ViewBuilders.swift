@@ -110,14 +110,10 @@ extension ContentView {
             // None: Just content, no preview
             contentWithOptionalModeRail
                 .overlay { paneFocusIndicator(for: .content) }
+                .frame(maxWidth: .infinity)
                 .focusable()
                 .focused($focusedPane, equals: .content)
                 .focusEffectDisabled()
-                .navigationSplitViewColumnWidth(
-                    min: ContentView.contentMinWidth,
-                    ideal: effectiveCenterIdealWidth,
-                    max: ContentView.contentMaxWidth
-                )
 
         case .standard:
             // Standard: Content stacked above preview (vertical split)
@@ -136,11 +132,7 @@ extension ContentView {
                     .focused($focusedPane, equals: .preview)
                     .focusEffectDisabled()
             }
-            .navigationSplitViewColumnWidth(
-                min: ContentView.contentMinWidth,
-                ideal: effectiveCenterIdealWidth,
-                max: ContentView.contentMaxWidth
-            )
+            .frame(maxWidth: .infinity)
 
         case .widescreen:
             // Widescreen: Content and preview side-by-side (horizontal split)
@@ -172,11 +164,7 @@ extension ContentView {
                     .focused($focusedPane, equals: .preview)
                     .focusEffectDisabled()
             }
-            .navigationSplitViewColumnWidth(
-                min: ContentView.contentMinWidth,
-                ideal: effectiveCenterIdealWidth,
-                max: ContentView.contentMaxWidth
-            )
+            .frame(maxWidth: .infinity)
             .onPreferenceChange(WidescreenContentPaneWidthPreferenceKey.self) { newWidth in
                 let clamped = min(max(newWidth, 260), 900)
                 guard abs(clamped - widescreenContentPaneWidth) > 1 else { return }

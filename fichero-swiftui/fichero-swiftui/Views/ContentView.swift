@@ -234,6 +234,15 @@ struct ContentView: View {
             if currentLayoutMode != initialLayoutMode {
                 currentLayoutMode = initialLayoutMode
             }
+
+            // If documents were already loaded before onAppear, restore
+            // the preview selection now (the onChange handler won't fire).
+            if detailDocument == nil, !documentStore.currentDocuments.isEmpty {
+                if let firstSelectedId = browserSelection.first,
+                   let doc = documentStore.currentDocuments.first(where: { $0.id == firstSelectedId }) {
+                    detailDocument = doc
+                }
+            }
         }
         .onChange(of: documentStore.collections) { oldCollections, newCollections in
             // Re-restore view mode once data loads (collections arrive after API responds)
