@@ -23,10 +23,6 @@ struct ViewMenuCommands: View {
 
         Divider()
 
-        QuickLookButton(viewSettings: viewSettings)
-
-        Divider()
-
         ImagePreviewMenuCommands()
 
         Divider()
@@ -419,22 +415,6 @@ struct PreviewModeButton: View {
             KeyEquivalent(Character(shortcut)),
             modifiers: [.command]
         )
-    }
-}
-
-// MARK: - Quick Look Button
-
-/// Quick Look toggle command
-struct QuickLookButton: View {
-    @ObservedObject var viewSettings: ViewSettings
-
-    var body: some View {
-        Button {
-            viewSettings.showQuickLook.toggle()
-        } label: {
-            Label("Quick Look", systemImage: "eye")
-        }
-        .keyboardShortcut("y", modifiers: [.command])
     }
 }
 

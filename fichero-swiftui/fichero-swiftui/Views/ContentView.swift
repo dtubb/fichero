@@ -156,6 +156,18 @@ struct ContentView: View {
             cyclePaneFocus(reverse: true)
             return .handled
         }
+        // Option+Left/Right cycles between panes (sidebar → content → preview → inspector).
+        // Plain left/right are reserved for inner-pane navigation (grid columns, DisclosureGroup expand).
+        .onKeyPress(.leftArrow, phases: .down) { keyPress in
+            guard keyPress.modifiers.contains(.option) else { return .ignored }
+            cyclePaneFocus(reverse: true)
+            return .handled
+        }
+        .onKeyPress(.rightArrow, phases: .down) { keyPress in
+            guard keyPress.modifiers.contains(.option) else { return .ignored }
+            cyclePaneFocus(reverse: false)
+            return .handled
+        }
         .alert(item: $errorService.currentAlert) { errorModel in
             let message = errorModel.recoverySuggestion != nil ?
                 "\(errorModel.message)\n\n\(errorModel.recoverySuggestion!)" :

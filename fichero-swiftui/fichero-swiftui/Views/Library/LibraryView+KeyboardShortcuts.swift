@@ -12,10 +12,6 @@ extension LibraryView {
                 openSelectedDocument()
                 return .handled
             }
-            .onKeyPress(.space) {
-                toggleQuickLook()
-                return .handled
-            }
             .onKeyPress(characters: .alphanumerics.union(.punctuationCharacters)) { keyPress in
                 // Skip if a rename is in progress
                 guard renamingDocumentId == nil else { return .ignored }
@@ -115,17 +111,6 @@ extension LibraryView {
         guard let firstId = selection.first,
               let doc = filteredDocuments.first(where: { $0.id == firstId }) else { return }
         detailDocument = doc
-    }
-
-    /// Toggle quick look for the selected document
-    func toggleQuickLook() {
-        guard let firstId = selection.first,
-              let doc = filteredDocuments.first(where: { $0.id == firstId }) else { return }
-        if detailDocument?.id == doc.id {
-            detailDocument = nil
-        } else {
-            detailDocument = doc
-        }
     }
 
     /// Select all visible documents

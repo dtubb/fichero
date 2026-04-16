@@ -46,10 +46,11 @@ extension ContentView {
         .environmentObject(ErrorService.shared)
         .environmentObject(performanceService)
         .overlay { paneFocusIndicator(for: .sidebar) }
-        // Update focusedPane on interaction so the focus-border indicator
-        // follows the user. .simultaneousGesture doesn't consume the tap,
-        // so sidebar List selection still fires.
-        .simultaneousGesture(TapGesture().onEnded { focusedPane = .sidebar })
+        // Make the sidebar focusable so arrow keys navigate the List.
+        // (Removing this broke arrow-key navigation — see #560.)
+        .focusable()
+        .focused($focusedPane, equals: .sidebar)
+        .focusEffectDisabled()
         .navigationSplitViewColumnWidth(min: 250, ideal: sidebarWidth, max: 350)
         .focusedSceneValue(\.sidebarMode, $sidebarMode)
     }
