@@ -67,6 +67,27 @@ struct SidebarItemRow: View {
         )
     }
 
+    /// Wraps itemLabel so the drop hit-region fills the entire row width, not
+    /// just the Label's natural icon+text bounds. Without this, hovering on the
+    /// whitespace to the right of the text doesn't trigger `isTargeted`.
+    private var fullWidthLabel: some View {
+        itemLabel
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+    }
+
+    private var rowContextMenu: some View {
+        SidebarItemContextMenu(
+            item: item,
+            renameState: renameState,
+            deleteState: deleteState,
+            onPause: onAutomationPause,
+            onResume: onAutomationResume,
+            onTrigger: onAutomationTrigger,
+            onCancel: onAutomationCancel
+        )
+    }
+
     var body: some View {
         if let children = item.children, !children.isEmpty {
             DisclosureGroup(isExpanded: isExpanded) {
@@ -91,7 +112,7 @@ struct SidebarItemRow: View {
                     .tag(child.id)
                 }
             } label: {
-                itemLabel
+                fullWidthLabel
                     .draggable(item.id)
                     .dropDestination(for: String.self) { droppedIDs, _ in
                         handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
@@ -101,45 +122,24 @@ struct SidebarItemRow: View {
                     } isTargeted: { isTargeted in
                         isDropTargeted = isTargeted
                     }
-                    .contextMenu {
-                        SidebarItemContextMenu(
-                            item: item,
-                            renameState: renameState,
-                            deleteState: deleteState,
-                            onPause: onAutomationPause,
-                            onResume: onAutomationResume,
-                            onTrigger: onAutomationTrigger,
-                            onCancel: onAutomationCancel
-                        )
-                    }
+                    .contextMenu { rowContextMenu }
             }
+            .listRowBackground(dropTint)
         } else if isFolder {
-            itemLabel
+            fullWidthLabel
                 .draggable(item.id)
                 .dropDestination(for: String.self) { droppedIDs, _ in
-                    handleDropIntoFolder(
-                        itemIDs: droppedIDs,
-                        targetFolder: item
-                    )
+                    handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
                 }
                 .dropDestination(for: URL.self) { droppedURLs, _ in
                     handleExternalFileDrop(urls: droppedURLs, targetFolder: item)
                 } isTargeted: { isTargeted in
                     isDropTargeted = isTargeted
                 }
-                .contextMenu {
-                    SidebarItemContextMenu(
-                        item: item,
-                        renameState: renameState,
-                        deleteState: deleteState,
-                        onPause: onAutomationPause,
-                        onResume: onAutomationResume,
-                        onTrigger: onAutomationTrigger,
-                        onCancel: onAutomationCancel
-                    )
-                }
+                .contextMenu { rowContextMenu }
+                .listRowBackground(dropTint)
         } else {
-            itemLabel
+            fullWidthLabel
                 .draggable(item.id)
                 .dropDestination(for: String.self) { droppedIDs, _ in
                     handleDropBesideItem(itemIDs: droppedIDs, targetItem: item)
@@ -156,17 +156,8 @@ struct SidebarItemRow: View {
                 } isTargeted: { isTargeted in
                     isDropTargeted = isTargeted
                 }
-                .contextMenu {
-                    SidebarItemContextMenu(
-                        item: item,
-                        renameState: renameState,
-                        deleteState: deleteState,
-                        onPause: onAutomationPause,
-                        onResume: onAutomationResume,
-                        onTrigger: onAutomationTrigger,
-                        onCancel: onAutomationCancel
-                    )
-                }
+                .contextMenu { rowContextMenu }
+                .listRowBackground(dropTint)
         }
     }
 }
