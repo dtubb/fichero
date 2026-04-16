@@ -1,5 +1,5 @@
 {
-  "originHash" : "76e553d5764ebe4eef303b4c00285a941795e4ada3f40ae4665c8ae66c684579",
+  "originHash" : "8de7950af5524802683446df44fc736deb45699cd4845d99d400d3f152b13e9d",
   "pins" : [
     {
       "identity" : "openapikit",
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sparkle-project/Sparkle",
       "state" : {
-        "revision" : "21d8df80440b1ca3b65fa82e40782f1e5a9e6ba2",
-        "version" : "2.9.0"
+        "revision" : "066e75a8b3e99962685d6a90cdd5293ebffd9261",
+        "version" : "2.9.1"
       }
     },
     {
@@ -33,8 +33,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-argument-parser",
       "state" : {
-        "revision" : "c5d11a805e765f52ba34ec7284bd4fcd6ba68615",
-        "version" : "1.7.0"
+        "revision" : "626b5b7b2f45e1b0b1c6f4a309296d1d21d7311b",
+        "version" : "1.7.1"
       }
     },
     {
@@ -42,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-collections",
       "state" : {
-        "revision" : "8d9834a6189db730f6264db7556a7ffb751e99ee",
-        "version" : "1.4.0"
+        "revision" : "6675bc0ff86e61436e615df6fc5174e043e57924",
+        "version" : "1.4.1"
       }
     },
     {
@@ -69,8 +69,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-openapi-generator",
       "state" : {
-        "revision" : "ecf21fdf08d4cf30ca506bb822f5fe580e090efb",
-        "version" : "1.10.4"
+        "revision" : "73997cc62c2193d5046e431c9d546119dda14502",
+        "version" : "1.11.1"
       }
     },
     {
@@ -87,8 +87,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-openapi-urlsession",
       "state" : {
-        "revision" : "279aa6b77be6aa842a4bf3c45fa79fa15edf3e07",
-        "version" : "1.2.0"
+        "revision" : "576a65b4ffb8c12ddad4950dc21eea2ef071bec2",
+        "version" : "1.3.0"
       }
     },
     {

@@ -570,3 +570,40 @@ ALL COMPLETE:
 - PDF import verified working end-to-end (#353)
 - Window state restoration verified implemented (#385)
 - Workflow dispatch paths verified (#386)
+
+## 2026-04-16 (PM) — 0.0.2 Bug Fix Sprint (evening session)
+
+Fixed 15+ bugs filed during Daniel's manual testing. App now boots cleanly, drag/drop, selection, and most UI interactions work.
+
+### Filed and fixed
+- #543 subfolder selection (child rows handle own taps via onItemTapped)
+- #538 preview pane scroll bars (changed to .overlay scroller style)
+- #540 drag-drop highlight covering window (scoped to sidebar rows only)
+- #539 magnifier Y-flip
+- #541 settings layout (Form conversion)
+- #542 import-mode picker in General settings
+- #544 first-click swallowed (removed .focusable() from pane wrappers)
+- #545 placeholder text removed from inspector Content tab
+- #546 magnifier normalization (subtract centering offset when zoomed out)
+- #547 drag-drop JPG upper/lower case (root cause: doc: prefix on sidebar IDs — ALL folder drops were failing)
+- #548 partial — silenced noisy WorkflowExecutionObserver init log
+- #549 prune missing library paths + exclude temp libraries from saveOpenLibraryPaths
+- #550 focus ring (simultaneousGesture to update focusedPane without consuming taps)
+- #551 drag-drop refresh race (double-refresh with 500ms delay)
+- #552 workflow dispatch feedback (transient importProgress overlay)
+- #553 inspector toggle right-aligned
+- #554a PDF thumbnail (PDFKit first-page render locally)
+- #555 icon-grid cascade animation suppressed via .transaction(value: folderId)
+- #556 settings window resized to 680×520
+- #557 Reveal in Finder context menu
+- #558 de-duplicate providers by providerType in ForEach
+
+### Crashes/regressions introduced and recovered
+- c7c27e9fe orphaned .focusable/.focused crashed on launch — committed fix for standard + widescreen layout cases the replace_all had missed.
+- e3674833 perf change broke backend startup — library restoration moved to scene .task ran BEFORE backend.start(); reverted to init() in 6fb77302.
+- Xcode DerivedData corrupted multiple times — full wipe + resolvePackageDependencies to recover.
+
+### Timing measurement added
+Logger category FicheroApp + LibraryManager emit ⏱ breadcrumbs. Actual debug-mode startup with external backend = 2.5s of SwiftUI first-layout between library restore (80ms) and backend start (190ms). Library restoration is NOT the bottleneck.
+
+### 24+ commits on 0.0.2 this session, everything pushed to origin/0.0.2.
