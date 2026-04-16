@@ -39,7 +39,9 @@ class WorkflowExecutionObserver {
     // MARK: - Initialization
 
     init() {
-        workflowExecutionLogger.debug("WorkflowExecutionObserver initialized")
+        // Note: SwiftUI may briefly create multiple @State instances during
+        // scene setup / preview rendering. Each is scoped to its view's
+        // lifetime. Suppress the init log to avoid confusion.
     }
 
     // MARK: - Execution Lifecycle

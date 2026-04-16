@@ -154,7 +154,18 @@ extension ContentView {
             ["document_id": documentId]
         }
 
+        // Show a transient status line so the user sees the dispatch happened.
+        importProgress = "Starting workflow on \(selectedIds.count) \(selectedIds.count == 1 ? "document" : "documents")…"
+
         Task { @MainActor in
+            defer {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(2))
+                    if importProgress?.hasPrefix("Starting workflow") == true {
+                        importProgress = nil
+                    }
+                }
+            }
             do {
                 let batch = try await library.batchService.createBatch(
                     workflowId: workflowId,
@@ -162,6 +173,7 @@ extension ContentView {
                     maxConcurrent: 5
                 )
                 try await library.batchService.executeBatch(batchId: batch.batchId)
+                importProgress = "Workflow running — see Activity for progress"
                 logger.info(
                     """
                     Started batch \(batch.batchId) for workflow \(workflowId) \
@@ -169,6 +181,7 @@ extension ContentView {
                     """
                 )
             } catch {
+                importProgress = nil
                 logger.error("Run Workflow on Selection failed: \(error.localizedDescription)")
                 ErrorService.shared.reportError(error)
             }
