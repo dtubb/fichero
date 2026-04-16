@@ -6,6 +6,7 @@ struct DocumentInspectorContentTab: View {
     let document: Document
     @EnvironmentObject private var documentService: DocumentServiceGenerated
     @EnvironmentObject private var documentStore: DocumentStore
+    @AppStorage("editor.rulersVisible") private var rulersVisible = true
     @AppStorage("editor.fontName") private var fontName: String = "System"
     @AppStorage("editor.fontSize") private var fontSize: Double = 14
     @AppStorage("editor.lineSpacing") private var lineSpacing: Double = 4
@@ -57,7 +58,7 @@ struct DocumentInspectorContentTab: View {
                 AttributedTextEditor(
                     text: $draftAttributedText,
                     isEditable: !isSaving,
-                    rulersVisible: false,
+                    rulersVisible: rulersVisible,
                     fontName: fontName,
                     fontSize: fontSize,
                     lineSpacing: lineSpacing,

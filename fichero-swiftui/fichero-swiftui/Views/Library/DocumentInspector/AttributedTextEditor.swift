@@ -32,6 +32,11 @@ struct AttributedTextEditor: NSViewRepresentable {
         scrollView.borderType = .noBorder
         scrollView.drawsBackground = true
         scrollView.backgroundColor = .textBackgroundColor
+        // Force layer-backed clipping so the NSRulerView (which is tiled
+        // outside the NSClipView) doesn't draw beyond the scroll view's
+        // SwiftUI-proposed frame.
+        scrollView.wantsLayer = true
+        scrollView.layer?.masksToBounds = true
 
         let textView = NSTextView()
         textView.isEditable = isEditable
