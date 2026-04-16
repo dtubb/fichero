@@ -5,7 +5,7 @@ struct ImagePreviewMenuCommands: View {
     // MARK: - Constants
 
     private enum MagnifierLimits {
-        static let minMagnification: Double = 1.0
+        static let minMagnification: Double = 0.25
         static let maxMagnification: Double = 16.0
         static let zoomFactor: Double = 1.5
     }
@@ -71,7 +71,7 @@ struct ImagePreviewMenuCommands: View {
 
     @ViewBuilder
     private var magnifierSection: some View {
-        // Magnifier panel toggle
+        // Magnifier panel toggle (⌘⇧M)
         Button {
             magnifierEnabled.toggle()
         } label: {
@@ -82,10 +82,10 @@ struct ImagePreviewMenuCommands: View {
                 Label("Magnifier Panel", systemImage: "rectangle.bottomhalf.inset.filled")
             }
         }
-        .keyboardShortcut("m", modifiers: [.command, .option])
+        .keyboardShortcut("m", modifiers: [.command, .shift])
         .disabled(!hasActiveImagePreview)
 
-        // Lock magnifier toggle (Shift + toggle shortcut)
+        // Lock magnifier (⌘⌥M — freezes focus point at last location)
         Button {
             magnifierLocked.toggle()
         } label: {
@@ -96,7 +96,7 @@ struct ImagePreviewMenuCommands: View {
                 Label("Lock Magnifier", systemImage: "lock")
             }
         }
-        .keyboardShortcut("m", modifiers: [.command, .shift])
+        .keyboardShortcut("m", modifiers: [.command, .option])
         .disabled(!hasActiveImagePreview || !magnifierEnabled)
 
         // Magnifier zoom in
