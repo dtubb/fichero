@@ -50,7 +50,7 @@ class FeatureManager: ObservableObject {
     @AppStorage("fichero.features.integrations") private var integrationsEnabledInternal: Bool = false
     @AppStorage("fichero.features.activity") private var activityEnabledInternal: Bool = false
     @AppStorage("fichero.features.settings_general_tab")
-    private var settingsGeneralTabEnabledInternal: Bool = false
+    private var settingsGeneralTabEnabledInternal: Bool = true
     @AppStorage("fichero.features.settings_backend_tab")
     private var settingsBackendTabEnabledInternal: Bool = false
     @AppStorage("fichero.features.settings_models_tab")

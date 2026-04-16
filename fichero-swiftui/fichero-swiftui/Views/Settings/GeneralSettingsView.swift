@@ -5,6 +5,7 @@ import SwiftUI
 /// General application settings
 struct GeneralSettingsView: View {
     @AppStorage("thumbnailSize") private var thumbnailSize: Double = 120
+    @AppStorage("defaultImportMode") private var defaultImportMode: String = IngestMode.link.rawValue
     @AppStorage("autoExtractText") private var autoExtractText: Bool = true
     @AppStorage("autoCreateEmbeddings") private var autoCreateEmbeddings: Bool = true
 
@@ -55,6 +56,19 @@ struct GeneralSettingsView: View {
                 Slider(value: $marginV, in: 0...80, step: 4) {
                     Text("Vertical")
                 }
+            }
+
+            Section("Import") {
+                Picker("When adding files", selection: $defaultImportMode) {
+                    Text(IngestMode.link.displayName).tag(IngestMode.link.rawValue)
+                    Text(IngestMode.copy.displayName).tag(IngestMode.copy.rawValue)
+                    Text(IngestMode.move.displayName).tag(IngestMode.move.rawValue)
+                }
+                Text(
+                    (IngestMode(rawValue: defaultImportMode) ?? .link).description
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
 
             Section("Ingestion") {

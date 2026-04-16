@@ -254,9 +254,11 @@ class MagnifierPanelNSView: NSView {
         let sourceWidth = bounds.width / magnification
         let sourceHeight = bounds.height / magnification
 
-        // Center on cursor position
+        // Center on cursor position.
+        // cursorPosition.y is top-down (0=top, 1=bottom) but NSImage uses
+        // AppKit coordinates (Y=0 at bottom), so flip the Y axis.
         let centerX = cursorPosition.x * image.size.width
-        let centerY = cursorPosition.y * image.size.height
+        let centerY = (1 - cursorPosition.y) * image.size.height
 
         var sourceRect = NSRect(
             x: centerX - sourceWidth / 2,

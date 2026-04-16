@@ -80,63 +80,57 @@ struct AISettingsView: View {
 
     @ViewBuilder
     private var defaultsTab: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                categoryGroupBox(
-                    title: "Text",
-                    description: "Used by Summarize, Extract, and Classify tools.",
-                    providerBinding: $defaults.textProvider,
-                    modelBinding: $defaults.textModel,
-                    models: textModels
-                )
-
-                categoryGroupBox(
-                    title: "Vision",
-                    description: "Used by Describe and Analyze tools for image understanding.",
-                    providerBinding: $defaults.visionProvider,
-                    modelBinding: $defaults.visionModel,
-                    models: visionModels
-                )
-
-                if featureManager.isWorkflowToolsAudioEnabled {
-                    categoryGroupBox(
-                        title: "Audio",
-                        description: "Used by Transcription tools for speech-to-text.",
-                        providerBinding: $defaults.audioProvider,
-                        modelBinding: $defaults.audioModel,
-                        models: audioModels
-                    )
-                }
-
-                if featureManager.isWorkflowToolsVideoEnabled {
-                    categoryGroupBox(
-                        title: "Video",
-                        description: "Used by video analysis tools.",
-                        providerBinding: $defaults.videoProvider,
-                        modelBinding: $defaults.videoModel,
-                        models: videoModels
-                    )
-                }
-
-                HStack {
-                    Label(
-                        "Per-tool overrides in the workflow editor take precedence over these defaults.",
-                        systemImage: "info.circle"
-                    )
+        Form {
+            Section("Text") {
+                Text("Used by Summarize, Extract, and Classify tools.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    Spacer()
-                }
+                providerPicker(selection: $defaults.textProvider)
+                modelPicker(selection: $defaults.textModel, models: textModels)
+            }
 
-                HStack {
-                    Button("Reset All Defaults", role: .destructive) {
-                        Task { await resetDefaults() }
-                    }
-                    Spacer()
+            Section("Vision") {
+                Text("Used by Describe and Analyze tools for image understanding.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                providerPicker(selection: $defaults.visionProvider)
+                modelPicker(selection: $defaults.visionModel, models: visionModels)
+            }
+
+            if featureManager.isWorkflowToolsAudioEnabled {
+                Section("Audio") {
+                    Text("Used by Transcription tools for speech-to-text.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    providerPicker(selection: $defaults.audioProvider)
+                    modelPicker(selection: $defaults.audioModel, models: audioModels)
                 }
             }
-            .padding()
+
+            if featureManager.isWorkflowToolsVideoEnabled {
+                Section("Video") {
+                    Text("Used by video analysis tools.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    providerPicker(selection: $defaults.videoProvider)
+                    modelPicker(selection: $defaults.videoModel, models: videoModels)
+                }
+            }
+
+            Section {
+                Label(
+                    "Per-tool overrides in the workflow editor take precedence.",
+                    systemImage: "info.circle"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                Button("Reset All Defaults", role: .destructive) {
+                    Task { await resetDefaults() }
+                }
+            }
         }
+        .padding()
         .onChange(of: defaults.textProvider) { _, newValue in
             loadModels(for: newValue, into: $textModels)
         }
@@ -148,29 +142,6 @@ struct AISettingsView: View {
         }
         .onChange(of: defaults.videoProvider) { _, newValue in
             loadModels(for: newValue, into: $videoModels)
-        }
-    }
-
-    @ViewBuilder
-    func categoryGroupBox(
-        title: String,
-        description: String,
-        providerBinding: Binding<String>,
-        modelBinding: Binding<String>,
-        models: [ModelInfo]
-    ) -> some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                providerPicker(selection: providerBinding)
-                modelPicker(selection: modelBinding, models: models)
-            }
-        } label: {
-            Text(title)
-                .font(.headline)
         }
     }
 
