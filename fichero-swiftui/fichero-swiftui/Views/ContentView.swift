@@ -186,6 +186,7 @@ struct ContentView: View {
         } detail: {
             HStack(spacing: 0) {
                 centerContent
+                    .frame(minWidth: CGFloat(ContentView.contentMinWidth), maxWidth: .infinity)
                 if showInspectorSidebar {
                     InspectorDivider(
                         width: $inspectorWidth,
