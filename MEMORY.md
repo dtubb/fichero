@@ -257,6 +257,19 @@ for link in links:
 - `git worktree remove --force` still fails if the directory has content git can't delete itself. Follow up with `git worktree prune && rm -rf <path>`.
 - `.kreuzberg/extraction/*.msgpack` binary files appear as modified during cherry-picks of branches that processed documents. Always resolve with `--theirs` — these are cache files.
 
+## SwiftUI Drop-Zone Visual Feedback — 2026-04-16
+
+- `.listRowBackground(dynamicColor)` with dynamic @State in sidebar-style Lists **does NOT reliably re-render** on hover-state flips. The List caches the row background view per-row identity; only identity changes (tag/id) invalidate the cache. Selection highlighting works because `selectedItemId` change triggers re-identification; drop-hover state doesn't have that.
+- **Fix for dynamic drop-hover highlights**: put `.background(RoundedRectangle.fill(dropTint))` *inside* the row view (where the drop-destination is), not via `.listRowBackground` on the outer DisclosureGroup/row. A plain body re-render repaints it — no caching middleman.
+- **Drop hit-region follows view frame, not `.contentShape`**: a `Label { icon; text }` has a narrow natural size — dropDestination on it only fires when the cursor is over the icon/text. Wrap in `.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())` before `.dropDestination(...)` so the entire row responds.
+- **Between-row drops**: use `.onInsert(of: [UTType.fileURL, UTType.utf8PlainText]) { offset, providers in ... }` on the `ForEach`. SwiftUI draws a native blue insertion line for free; handler fires on release with the 0-based offset and `[NSItemProvider]`. Works inside `DisclosureGroup { ForEach ... }`.
+
+## Xcode.app + Manual pbxproj Edits — 2026-04-16
+
+- When Xcode.app has the project open AND you edit `project.pbxproj` by hand, `git status` may show *unintentional* deletions Xcode made on its own (e.g. removing missing `FicheroBackend.app` references, pruning orphaned groups).
+- Workflow: `git diff project.pbxproj` BEFORE staging. If the diff shows more than your intentional changes, `git checkout HEAD -- project.pbxproj` and re-apply only what you wanted. Don't trust `git commit -a`.
+- Adding a new `.swift` file to the main `Fichero` target requires 4 pbxproj entries with a unique 24-char hex UID: PBXBuildFile (Sources build phase ref), PBXFileReference (file description), PBXGroup children member, Sources build phase member. Pattern is in MEMORY under "Swift main target not file-sync'd".
+
 ## Swift Target File Sync — 2026-04-16
 
 - Only `fichero-swiftui-tests/` and `fichero-swiftui-ui-tests/` are `PBXFileSystemSynchronizedRootGroup`. The **main `Fichero` target is not** — new `.swift` files inside `fichero-swiftui/fichero-swiftui/…` must be added to `project.pbxproj` explicitly or they won't compile into the app (SourceKit will even error with `Cannot find type 'X' in scope`).

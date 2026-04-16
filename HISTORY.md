@@ -636,3 +636,16 @@ Decision: remove Quick Look entirely. Preview pane is always visible and provide
 0.0.2 bug count remains at 0. Only #520 Sparkle task left before release.
 
 - Swift test coverage added: `PDFHandlingTests.swift` with 14 tests guarding `Document.isNavigableContainer` (9 cases incl. a `FileType.allCases` tripwire) and `PDFThumbnailView.renderThumbnail` (5 cases, including a different-color-per-page pixel-diff guard that catches "renderer ignores pageIndex" regressions). Tests build their PDFs in-memory from `NSColor`/`NSImage` + `PDFPage(image:)` — no binary fixtures.
+
+## 2026-04-16 (late evening) — Sidebar drag-drop overhaul
+
+- #571 closed. Four commits restoring visual feedback + between-row drops on the sidebar:
+  - `1d981975` (first attempt, visually invisible)
+  - `caa68bbc` (switched to `.listRowBackground` — still not reliable)
+  - `829955ed` (settled on `.background` inside `fullWidthLabel` + `.onInsert(of:)` on DisclosureGroup children ForEach for between-row drops)
+  - `de9a40b6` (added `.onInsert` at library root too — new `SidebarView+DropHandlers.swift`, manually registered in `project.pbxproj` with 4 entries)
+- Discovered: Xcode.app with the project open occasionally rewrites pbxproj on its own (e.g. removes missing file references). When editing pbxproj manually, always `git diff` before staging and `git checkout HEAD -- project.pbxproj` + re-apply if unintended deletions appear.
+- Discovered: `.listRowBackground` in sidebar-style List caches its view per-row and does NOT reliably re-render when a plain `@State Bool` flips. Selection works because changing `selectedItemId` invalidates the cache; drop-hover has no such invalidator. Use `.background` inside the row view itself for dynamic hover state.
+- Discovered: `.draggable` hit region uses the view's frame, not its `.contentShape`. On a Label, that means only the icon+text area fires drop-hover callbacks. Wrap with `.frame(maxWidth: .infinity, alignment: .leading)` before the dropDestination for full-row hit.
+- Reorder persistence scoped out to #572 (0.0.6): backend `Document` model lacks a `sort_order` field; `Workflow`, `SavedSearch`, `Conversation` already have one.
+- New bugs filed during testing: #569 (AI Providers menu icon, 0.0.6), #570 (drag-drop PDF invisible in sidebar, 0.0.2 blocker), #571 (sidebar drag-drop — now closed), #572 (sort-order persistence, 0.0.6). #556 reopened (settings layout fix was cosmetic window-resize, not real).

@@ -20,11 +20,11 @@ Nothing active.
 
 ## Next Session — Start Here
 
-1. **Daniel: import a multi-page PDF** and verify — grid shows one thumbnail per page rendered by `PDFThumbnailView`, double-clicking the PDF drills into it, preview pane shows the correct page full-size.
-2. **Verify magnifier** — ⌘⌥[ zooms below 1x, ⌘⇧M toggles panel, ⌘⌥M toggles lock.
-3. **#520 Sparkle** — last open 0.0.2 item. Needs SDK wire-up, appcast signing, update-check UI.
-4. **If all clean:** `/release 0.0.2`, then rebase 0.0.3 onto it.
-5. **In `~/code/fichero-0.0.3`:** resume Wire: Search v1 (`/session-start-auto`).
+1. **Daniel: test sidebar drag-drop end-to-end** — Finder→folder (highlight expected), Finder→leaf (lighter highlight, imports as sibling), Finder→between rows at any level (blue line), grid→sidebar folder (existing `.draggable(doc.id)` path).
+2. **#556 settings layout** — still broken; reopened with root-cause fix plan (remove inner `.frame(width: 550, height: 450)` at `GeneralSettingsView.swift:114` + audit other settings tabs).
+3. **#570 drag-drop PDF invisible in sidebar** — regression in c3ad9d24; debug checklist in the issue body (curl `/api/documents` after drop first).
+4. **#572 manual reorder persistence** — needs `Document.sort_order` backend column + migration; tracked for 0.0.6.
+5. **#520 Sparkle** — last untouched 0.0.2 item.
 
 ## Parallel Workflow
 
