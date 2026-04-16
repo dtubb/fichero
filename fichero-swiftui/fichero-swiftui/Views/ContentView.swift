@@ -197,7 +197,6 @@ struct ContentView: View {
                         .frame(width: CGFloat(inspectorWidth))
                 }
             }
-            .animation(.easeInOut(duration: 0.2), value: showInspectorSidebar)
         }
         // Avoid duplicate generic per-column title pills in macOS split view.
         .navigationTitle(toolbarTitle)
@@ -270,7 +269,9 @@ struct ContentView: View {
         }
         .onChange(of: viewSettings.showInspector) { _, newValue in
             if showInspectorSidebar != newValue {
-                showInspectorSidebar = newValue
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showInspectorSidebar = newValue
+                }
             }
         }
         .toolbar {
@@ -358,7 +359,9 @@ struct ContentView: View {
             if showInspectorToggle {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        showInspectorSidebar.toggle()
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showInspectorSidebar.toggle()
+                        }
                     } label: {
                         Image(systemName: "info.circle")
                     }

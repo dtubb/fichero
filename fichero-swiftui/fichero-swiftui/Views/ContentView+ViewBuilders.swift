@@ -281,13 +281,16 @@ struct ResizableDivider: View {
                 }
             }
             .gesture(
-                DragGesture(minimumDistance: 1)
+                // Use global coordinate space so the delta is stable even when
+                // the divider moves during drag (the classic SwiftUI oscillation bug).
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
                     .onChanged { value in
                         if initialWidth == nil { initialWidth = width }
                         guard let start = initialWidth else { return }
+                        let delta = value.location.x - value.startLocation.x
                         let newWidth = edge == .trailing
-                            ? start - value.translation.width
-                            : start + value.translation.width
+                            ? start - delta
+                            : start + delta
                         width = min(max(newWidth, minWidth), maxWidth)
                     }
                     .onEnded { _ in
