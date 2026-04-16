@@ -145,7 +145,14 @@ struct SidebarItemRow: View {
                     handleDropBesideItem(itemIDs: droppedIDs, targetItem: item)
                 }
                 .dropDestination(for: URL.self) { droppedURLs, _ in
-                    handleExternalFileDrop(urls: droppedURLs, targetFolder: nil)
+                    // Drop on a leaf file (e.g. a PDF) imports the new file into
+                    // the leaf's parent folder — "drop beside" semantics, matching
+                    // Finder. Non-document leaves (searches, workflows) fall
+                    // through to library root.
+                    handleExternalFileDrop(
+                        urls: droppedURLs,
+                        targetFolder: parentFolderItem(of: item)
+                    )
                 } isTargeted: { isTargeted in
                     isDropTargeted = isTargeted
                 }

@@ -34,6 +34,17 @@ extension SidebarItemRow {
                 isPulsing = true
             }
         }
+        // Visual feedback during drag-hover — matches SidebarSectionHeader's pattern.
+        // Folders get a stronger wash (drop imports *into* them); leaf rows get a
+        // lighter tint to signal "drop here imports beside this item".
+        .background(
+            RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
+                .fill(
+                    isDropTargeted
+                        ? Color.accentColor.opacity(isFolder ? 0.25 : 0.15)
+                        : Color.clear
+                )
+        )
     }
 
     var renameField: some View {

@@ -41,6 +41,21 @@ extension SidebarItemRow {
         return prefixedId
     }
 
+    /// Resolve the folder-row that should receive a file-drop when the user drops
+    /// onto a leaf non-folder row (e.g. a PDF or image file). Returns nil if the
+    /// item has no parent folder (drop should fall through to library root) or if
+    /// the item isn't a Document at all (searches, workflows — drop to root).
+    ///
+    /// Used so that dropping a file onto `page1.pdf` imports the new file next to
+    /// it (into the same folder), matching Finder's sibling-drop behaviour.
+    func parentFolderItem(of item: SidebarItem) -> SidebarItem? {
+        guard case .document(let doc) = item.itemType,
+              let parentId = doc.parentId else {
+            return nil
+        }
+        return findItemById("doc:\(parentId)", in: allCachedItems)
+    }
+
     func moveItemToFolder(itemId: String, targetFolderId: String) async {
         sidebarRowLogger.debug(" moveItemToFolder: \(itemId) → \(targetFolderId)")
 
