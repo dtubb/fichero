@@ -157,10 +157,12 @@ extension ContentView {
                     .focused($focusedPane, equals: .content)
                     .focusEffectDisabled()
 
-                previewView
+                // No header in widescreen — the selected document is already
+                // visible in the icon list. Hiding the header also removes the
+                // horizontal line that formed at the HSplitView divider junction.
+                EditorView(document: detailDocument, showHeader: false)
                     .overlay { paneFocusIndicator(for: .preview) }
                     .frame(minWidth: 420, idealWidth: 760, maxWidth: .infinity)
-                    .clipped()
                     .focusable()
                     .focused($focusedPane, equals: .preview)
                     .focusEffectDisabled()

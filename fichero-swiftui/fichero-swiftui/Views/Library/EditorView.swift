@@ -5,6 +5,7 @@ import SwiftUI
 /// Document preview/editor view
 struct EditorView: View {
     let document: Document?
+    var showHeader: Bool = true
 
     var body: some View {
         Group {
@@ -22,12 +23,10 @@ struct EditorView: View {
     @ViewBuilder
     private func documentPreview(_ doc: Document) -> some View {
         VStack(spacing: 0) {
-            // Header bar
-            headerBar(doc)
-
-            Divider()
-
-            // Preview content based on file type
+            if showHeader {
+                headerBar(doc)
+                Divider()
+            }
             previewContent(doc)
         }
     }
