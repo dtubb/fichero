@@ -253,10 +253,10 @@ struct ContentView: View {
                 itemId: storedViewModeItemId
             )
         }
-        .onChange(of: documentStore.currentDocuments) { oldDocs, newDocs in
-            // On initial load, populate preview with restored selection
-            guard oldDocs.isEmpty, !newDocs.isEmpty, detailDocument == nil else { return }
-            if let firstSelectedId = browserSelection.first,
+        .onChange(of: documentStore.currentDocuments) { _, newDocs in
+            // Populate preview from restored selection whenever documents load
+            if detailDocument == nil,
+               let firstSelectedId = browserSelection.first,
                let doc = newDocs.first(where: { $0.id == firstSelectedId }) {
                 detailDocument = doc
             }
@@ -503,6 +503,13 @@ struct ContentView: View {
             // Persist browser selection to @SceneStorage
             if let encoded = try? JSONEncoder().encode(newSelection) {
                 browserSelectionData = encoded
+            }
+            // Sync preview with selection (covers both user clicks and restoration)
+            if let firstId = newSelection.first,
+               let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }) {
+                if detailDocument?.id != firstId {
+                    detailDocument = doc
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
