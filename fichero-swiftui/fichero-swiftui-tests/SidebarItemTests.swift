@@ -336,26 +336,23 @@ struct SidebarItemBuilderTests {
         #expect(result[0].children == nil, "PDF without pages has no children")
     }
 
-    @Test("buildLibraryHierarchy nests pages under parent PDF, sorted by sequence")
-    func pagesNestUnderPdf() {
+    @Test("buildLibraryHierarchy: PDF pages do NOT appear in the sidebar (#581)")
+    func pagesNotInSidebar() {
         let pdf = makeDocument(id: "pdf-1", name: "paper.pdf", docType: .file, fileType: .pdf)
-        let page3 = makeDocument(id: "p3", name: "paper.pdf - Page 3", docType: .page, parentId: "pdf-1", sequence: 3)
         let page1 = makeDocument(id: "p1", name: "paper.pdf - Page 1", docType: .page, parentId: "pdf-1", sequence: 1)
         let page2 = makeDocument(id: "p2", name: "paper.pdf - Page 2", docType: .page, parentId: "pdf-1", sequence: 2)
+        let page3 = makeDocument(id: "p3", name: "paper.pdf - Page 3", docType: .page, parentId: "pdf-1", sequence: 3)
 
-        // Input order intentionally shuffled — the builder must sort by sequence
         let result = SidebarItemBuilder.buildLibraryHierarchy(
             from: [page3, pdf, page1, page2],
             libraryId: testLibraryId
         )
 
+        // PDF appears (it's navigable), pages don't (they render in the grid via
+        // loadChildren when the PDF is selected, not as sidebar sub-rows).
         #expect(result.count == 1)
-        let pdfItem = result[0]
-        #expect(pdfItem.name == "paper.pdf")
-        #expect(pdfItem.children?.count == 3)
-        #expect(pdfItem.children?[0].name.hasSuffix("Page 1") == true)
-        #expect(pdfItem.children?[1].name.hasSuffix("Page 2") == true)
-        #expect(pdfItem.children?[2].name.hasSuffix("Page 3") == true)
+        #expect(result[0].name == "paper.pdf")
+        #expect(result[0].children == nil, "PDF sidebar row must not expand pages as children")
     }
 
     @Test("buildLibraryHierarchy — PDF in a folder shows under its folder")

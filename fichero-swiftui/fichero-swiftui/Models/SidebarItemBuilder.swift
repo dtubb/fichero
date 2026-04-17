@@ -47,16 +47,20 @@ enum SidebarItemBuilder {
     ///
     /// Included in the sidebar:
     ///   - Folders (navigation containers)
-    ///   - PDFs (first-class containers per #568; each PDF drills into its
-    ///     page children)
-    ///   - Pages (children under their parent PDF)
+    ///   - PDFs (first-class containers per #568 — appear as leaf rows with
+    ///     no children; their pages show up in the main grid when selected,
+    ///     via `loadChildren(of:)` in `ContentViewModifiers`)
     ///
-    /// Everything else (images, text, etc.) stays in the main grid only —
-    /// the sidebar is for containers, not every file.
+    /// **Not** included in the sidebar:
+    ///   - Pages — they're PDF children that show only in the icon view,
+    ///     not duplicated as sidebar sub-rows (#581). Dumping all pages of
+    ///     a 200-page PDF into the sidebar tree was too noisy.
+    ///   - Images, text, docx — stay in the main grid only.
+    ///
+    /// The sidebar is for containers, one level of drill-in at a time, like
+    /// Finder.
     static func buildLibraryHierarchy(from documents: [Document], libraryId: UUID) -> [SidebarItem] {
-        let visibleDocs = documents.filter {
-            $0.isNavigableContainer || $0.docType == .page
-        }
+        let visibleDocs = documents.filter { $0.isNavigableContainer }
 
         // Build a map of parentId -> children
         var childrenMap: [String: [Document]] = [:]
