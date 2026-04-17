@@ -34,17 +34,36 @@ enum SidebarItemBuilder {
         return allItems
     }
 
-    /// Build hierarchical library items from documents using parentId
-    static func buildLibraryHierarchy(from documents: [Document], libraryId: UUID) -> [SidebarItem] {
-        // Only show folders in the sidebar, not individual files
-        let folders = documents.filter { $0.docType == .folder }
+    /// Comparator for sidebar sibling docs: prefer `sequence` (PDF page order)
+    /// when both sides have it, otherwise case-insensitive name ordering.
+    private static func childOrder(_ lhs: Document, _ rhs: Document) -> Bool {
+        if let lSeq = lhs.sequence, let rSeq = rhs.sequence {
+            return lSeq < rSeq
+        }
+        return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+    }
 
-        // Build a map of parentId -> children (folders only)
+    /// Build hierarchical library items from documents using parentId.
+    ///
+    /// Included in the sidebar:
+    ///   - Folders (navigation containers)
+    ///   - PDFs (first-class containers per #568; each PDF drills into its
+    ///     page children)
+    ///   - Pages (children under their parent PDF)
+    ///
+    /// Everything else (images, text, etc.) stays in the main grid only —
+    /// the sidebar is for containers, not every file.
+    static func buildLibraryHierarchy(from documents: [Document], libraryId: UUID) -> [SidebarItem] {
+        let visibleDocs = documents.filter {
+            $0.isNavigableContainer || $0.docType == .page
+        }
+
+        // Build a map of parentId -> children
         var childrenMap: [String: [Document]] = [:]
         var rootDocuments: [Document] = []
         var inboxDocument: Document?
 
-        for doc in folders {
+        for doc in visibleDocs {
             if let parentId = doc.parentId {
                 childrenMap[parentId, default: []].append(doc)
             } else {
@@ -57,15 +76,18 @@ enum SidebarItemBuilder {
             }
         }
 
-        // Recursively build tree (only folders)
+        // Recursively build tree. Pages are sorted by sequence so PDF children
+        // render in page order; folders/PDFs fall back to name ordering.
         func buildItem(_ doc: Document) -> SidebarItem {
-            let children = childrenMap[doc.id]?.map { buildItem($0) }
+            let raw = childrenMap[doc.id] ?? []
+            let children = raw.isEmpty ? nil : raw.sorted(by: childOrder).map { buildItem($0) }
             return SidebarItem.fromDocument(doc, libraryId: libraryId, children: children)
         }
 
         // Build Inbox with custom icon
         func buildInboxItem(_ doc: Document) -> SidebarItem {
-            let children = childrenMap[doc.id]?.map { buildItem($0) }
+            let raw = childrenMap[doc.id] ?? []
+            let children = raw.isEmpty ? nil : raw.sorted(by: childOrder).map { buildItem($0) }
             return SidebarItem(
                 id: "doc:\(doc.id)",
                 name: doc.name,

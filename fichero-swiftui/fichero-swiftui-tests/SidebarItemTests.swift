@@ -263,16 +263,18 @@ struct SidebarItemBuilderTests {
         id: String,
         name: String,
         docType: DocType = .folder,
-        parentId: String? = nil
+        fileType: FileType? = nil,
+        parentId: String? = nil,
+        sequence: Int? = nil
     ) -> Document {
         Document(
             id: id,
             parentId: parentId,
             docType: docType,
-            fileType: nil,
+            fileType: fileType,
             name: name,
             path: nil,
-            sequence: nil,
+            sequence: sequence,
             bbox: nil,
             status: .completed,
             metadata: [:],
@@ -312,11 +314,64 @@ struct SidebarItemBuilderTests {
         #expect(result.isEmpty)
     }
 
-    @Test("buildLibraryHierarchy excludes non-folder documents")
-    func excludesFiles() {
-        let file = makeDocument(id: "f1", name: "file.pdf", docType: .file)
-        let result = SidebarItemBuilder.buildLibraryHierarchy(from: [file], libraryId: testLibraryId)
-        #expect(result.isEmpty)
+    @Test("buildLibraryHierarchy excludes non-container files (images, text)")
+    func excludesNonContainerFiles() {
+        // Generic file with no fileType — not a container, not a page
+        let generic = makeDocument(id: "f1", name: "notes.txt", docType: .file, fileType: .text)
+        let image = makeDocument(id: "f2", name: "photo.jpg", docType: .file, fileType: .image)
+        let result = SidebarItemBuilder.buildLibraryHierarchy(
+            from: [generic, image],
+            libraryId: testLibraryId
+        )
+        #expect(result.isEmpty, "non-container files must not appear in the sidebar")
+    }
+
+    @Test("buildLibraryHierarchy includes PDFs as containers (#568, #570)")
+    func includesPdfs() {
+        let pdf = makeDocument(id: "pdf-1", name: "paper.pdf", docType: .file, fileType: .pdf)
+        let result = SidebarItemBuilder.buildLibraryHierarchy(from: [pdf], libraryId: testLibraryId)
+
+        #expect(result.count == 1, "PDF should appear in the sidebar as a container")
+        #expect(result[0].name == "paper.pdf")
+        #expect(result[0].children == nil, "PDF without pages has no children")
+    }
+
+    @Test("buildLibraryHierarchy nests pages under parent PDF, sorted by sequence")
+    func pagesNestUnderPdf() {
+        let pdf = makeDocument(id: "pdf-1", name: "paper.pdf", docType: .file, fileType: .pdf)
+        let page3 = makeDocument(id: "p3", name: "paper.pdf - Page 3", docType: .page, parentId: "pdf-1", sequence: 3)
+        let page1 = makeDocument(id: "p1", name: "paper.pdf - Page 1", docType: .page, parentId: "pdf-1", sequence: 1)
+        let page2 = makeDocument(id: "p2", name: "paper.pdf - Page 2", docType: .page, parentId: "pdf-1", sequence: 2)
+
+        // Input order intentionally shuffled — the builder must sort by sequence
+        let result = SidebarItemBuilder.buildLibraryHierarchy(
+            from: [page3, pdf, page1, page2],
+            libraryId: testLibraryId
+        )
+
+        #expect(result.count == 1)
+        let pdfItem = result[0]
+        #expect(pdfItem.name == "paper.pdf")
+        #expect(pdfItem.children?.count == 3)
+        #expect(pdfItem.children?[0].name.hasSuffix("Page 1") == true)
+        #expect(pdfItem.children?[1].name.hasSuffix("Page 2") == true)
+        #expect(pdfItem.children?[2].name.hasSuffix("Page 3") == true)
+    }
+
+    @Test("buildLibraryHierarchy — PDF in a folder shows under its folder")
+    func pdfNestedInsideFolder() {
+        let folder = makeDocument(id: "folder-1", name: "Papers", docType: .folder)
+        let pdf = makeDocument(id: "pdf-1", name: "paper.pdf", docType: .file, fileType: .pdf, parentId: "folder-1")
+
+        let result = SidebarItemBuilder.buildLibraryHierarchy(
+            from: [folder, pdf],
+            libraryId: testLibraryId
+        )
+
+        #expect(result.count == 1)
+        #expect(result[0].name == "Papers")
+        #expect(result[0].children?.count == 1)
+        #expect(result[0].children?[0].name == "paper.pdf")
     }
 
     @Test("buildLibraryHierarchy places Inbox first with tray.fill icon")
