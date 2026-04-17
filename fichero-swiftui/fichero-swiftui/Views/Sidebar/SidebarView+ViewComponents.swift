@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -145,7 +146,30 @@ extension SidebarView {
                     LibrarySectionHeader(
                         library: library,
                         itemCount: totalCount,
-                        isCurrentLibrary: library.id == windowState.libraryId
+                        isCurrentLibrary: library.id == windowState.libraryId,
+                        onFileDrop: { urls in
+                            // Import Finder drops at library root. Previously
+                            // these went nowhere (#582) — no drop destination
+                            // existed on the library header.
+                            let fileURLs = urls.filter { $0.isFileURL }
+                            guard !fileURLs.isEmpty else { return false }
+                            Task {
+                                do {
+                                    _ = try await library.importService.importFiles(
+                                        fileURLs,
+                                        mode: .link,
+                                        parentId: nil
+                                    )
+                                    await library.documentStore.refresh()
+                                    try? await Task.sleep(for: .milliseconds(500))
+                                    await library.documentStore.refresh()
+                                } catch {
+                                    Logger(subsystem: "com.tubb.Fichero", category: "LibraryHeaderDrop")
+                                        .error("Library root drop failed: \(error.localizedDescription)")
+                                }
+                            }
+                            return true
+                        }
                     )
                     .contextMenu {
                         if library.id != LibraryManager.globalLibraryId {
@@ -172,7 +196,30 @@ extension SidebarView {
                     LibrarySectionHeader(
                         library: library,
                         itemCount: totalCount,
-                        isCurrentLibrary: library.id == windowState.libraryId
+                        isCurrentLibrary: library.id == windowState.libraryId,
+                        onFileDrop: { urls in
+                            // Import Finder drops at library root. Previously
+                            // these went nowhere (#582) — no drop destination
+                            // existed on the library header.
+                            let fileURLs = urls.filter { $0.isFileURL }
+                            guard !fileURLs.isEmpty else { return false }
+                            Task {
+                                do {
+                                    _ = try await library.importService.importFiles(
+                                        fileURLs,
+                                        mode: .link,
+                                        parentId: nil
+                                    )
+                                    await library.documentStore.refresh()
+                                    try? await Task.sleep(for: .milliseconds(500))
+                                    await library.documentStore.refresh()
+                                } catch {
+                                    Logger(subsystem: "com.tubb.Fichero", category: "LibraryHeaderDrop")
+                                        .error("Library root drop failed: \(error.localizedDescription)")
+                                }
+                            }
+                            return true
+                        }
                     )
                     .contextMenu {
                         if library.id != LibraryManager.globalLibraryId {
