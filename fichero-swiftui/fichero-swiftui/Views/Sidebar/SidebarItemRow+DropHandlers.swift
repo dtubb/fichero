@@ -241,18 +241,31 @@ extension SidebarItemRow {
         sidebarRowLogger.debug("Target folder ID: \(targetFolder.id)")
         sidebarRowLogger.debug("Target folder itemType: \(String(describing: targetFolder.itemType))")
 
-        guard case .document(let targetDoc) = targetFolder.itemType,
-              targetDoc.docType == .folder else {
+        // #585 / sidebar plan Step 9: accept any folder row as a drop target
+        // (document folders, search folders, workflow folders, chat folders).
+        // `SidebarItem.folderKind` returns the enum kind the target accepts
+        // and nil for anything that isn't a folder.
+        guard let targetKind = targetFolder.folderKind else {
             sidebarRowLogger.warning("❌ Drop rejected: target \(targetFolder.name) is not a folder")
             return false
         }
 
-        let docTypeDesc = String(describing: targetDoc.docType)
-        sidebarRowLogger.debug("Target \(targetFolder.name) is valid folder (docType: \(docTypeDesc))")
-        sidebarRowLogger.debug("Target document ID from doc: \(targetDoc.id)")
+        sidebarRowLogger.debug("Target \(targetFolder.name) is a \(String(describing: targetKind)) folder")
 
         for itemID in itemIDs {
-            sidebarRowLogger.debug(" Processing drop of item ID: \(itemID)")
+            let sourceKind = SidebarItemKind(prefixedId: itemID)
+            sidebarRowLogger.debug(" Processing drop of item ID: \(itemID) (kind=\(String(describing: sourceKind)))")
+
+            // Cross-section drops aren't meaningful — e.g. dropping a
+            // document onto a search folder has no backend contract. Reject
+            // silently so the user can try again rather than getting a
+            // spurious success toast.
+            guard sourceKind == targetKind else {
+                let src = String(describing: sourceKind)
+                let tgt = String(describing: targetKind)
+                sidebarRowLogger.debug(" ⚠️ Drop rejected: source (\(src)) and target (\(tgt)) sections differ")
+                continue
+            }
 
             guard itemID != targetFolder.id else {
                 sidebarRowLogger.debug(" ⚠️ Drop rejected: cannot drop item onto itself")
@@ -264,11 +277,11 @@ extension SidebarItemRow {
                 continue
             }
 
-            sidebarRowLogger.debug(" ✅ Validation passed, calling moveItemToFolder")
+            sidebarRowLogger.debug(" ✅ Validation passed, calling routeMove")
             sidebarRowLogger.debug("    Source ID: \(itemID)")
             sidebarRowLogger.debug("    Target ID: \(targetFolder.id)")
             Task {
-                await moveItemToFolder(itemId: itemID, targetFolderId: targetFolder.id)
+                await routeMove(itemId: itemID, targetFolder: targetFolder)
             }
         }
         sidebarRowLogger.debug(" ========== DROP COMPLETED ==========")

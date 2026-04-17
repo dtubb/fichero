@@ -68,6 +68,36 @@ struct SidebarItem: Identifiable, Hashable {
         children != nil && !children!.isEmpty
     }
 
+    /// What kind of items can this item accept as drop targets, if any?
+    ///
+    /// Returns:
+    /// - `.document` for document folders (real `.folder` docType with a
+    ///   backing `Document` record).
+    /// - `.savedSearch` / `.conversation` / `.workflow` for virtual folders
+    ///   in the corresponding sections (type is `.folder(folderPath:)`,
+    ///   category distinguishes which section owns the folder).
+    /// - `nil` for everything else (leaves, library headers, non-folder
+    ///   items) — the drop handler uses that to reject the drop.
+    ///
+    /// Used by `SidebarItemRow+DropHandlers.swift:handleDropIntoFolder` to
+    /// decide whether a drop on this item is valid and which backend
+    /// service to call for the move. Sidebar plan Step 9 (#585).
+    var folderKind: SidebarItemKind? {
+        switch itemType {
+        case .document(let doc) where doc.docType == .folder:
+            return .document
+        case .folder:
+            switch category {
+            case .search: return .savedSearch
+            case .chat: return .conversation
+            case .workflow: return .workflow
+            default: return nil
+            }
+        default:
+            return nil
+        }
+    }
+
     // Convenience initializers
     static func fromDocument(_ doc: Document, libraryId: UUID, children: [SidebarItem]? = nil) -> SidebarItem {
         SidebarItem(

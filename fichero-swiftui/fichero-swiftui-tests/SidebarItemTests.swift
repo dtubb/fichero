@@ -246,6 +246,79 @@ struct SidebarItemFactoryTests {
         #expect(item.icon == "folder")
     }
 
+    // MARK: - SidebarItem.folderKind (#585, sidebar plan Step 9)
+
+    @Test("#585 folderKind: document folder → .document")
+    func folderKindDocumentFolder() {
+        let doc = makeDocument(docType: .folder)
+        let item = SidebarItem.fromDocument(doc, libraryId: testLibraryId)
+        #expect(item.folderKind == .document)
+    }
+
+    @Test("#585 folderKind: document file (not folder) → nil")
+    func folderKindDocumentFile() {
+        let doc = makeDocument(docType: .file)
+        let item = SidebarItem.fromDocument(doc, libraryId: testLibraryId)
+        #expect(item.folderKind == nil)
+    }
+
+    @Test("#585 folderKind: virtual folder in search section → .savedSearch")
+    func folderKindSearchFolder() {
+        let item = SidebarItem.folder(
+            name: "Production",
+            folderPath: "/production",
+            category: .search,
+            libraryId: testLibraryId
+        )
+        #expect(item.folderKind == .savedSearch)
+    }
+
+    @Test("#585 folderKind: virtual folder in chat section → .conversation")
+    func folderKindChatFolder() {
+        let item = SidebarItem.folder(
+            name: "Research",
+            folderPath: "/research",
+            category: .chat,
+            libraryId: testLibraryId
+        )
+        #expect(item.folderKind == .conversation)
+    }
+
+    @Test("#585 folderKind: virtual folder in workflow section → .workflow")
+    func folderKindWorkflowFolder() {
+        let item = SidebarItem.folder(
+            name: "Automation",
+            folderPath: "/automation",
+            category: .workflow,
+            libraryId: testLibraryId
+        )
+        #expect(item.folderKind == .workflow)
+    }
+
+    @Test("#585 folderKind: saved search leaf (not folder) → nil")
+    func folderKindSavedSearchLeaf() {
+        let search = makeSearch(id: "s-1")
+        let item = SidebarItem.fromSearch(search, libraryId: testLibraryId)
+        #expect(item.folderKind == nil)
+    }
+
+    @Test("#585 folderKind: library header → nil")
+    func folderKindLibraryHeader() {
+        let item = SidebarItem(
+            id: "lib:abc",
+            name: "Library",
+            icon: "book",
+            category: .library,
+            itemType: .libraryHeader,
+            children: nil,
+            libraryId: testLibraryId,
+            folderPath: "/",
+            sortOrder: 0,
+            isFolder: false
+        )
+        #expect(item.folderKind == nil)
+    }
+
     // MARK: - isExpandable
 
     @Test("isExpandable true when children exist")

@@ -121,6 +121,54 @@ extension SidebarItemRow {
         return findItemById("doc:\(parentId)", in: allCachedItems)
     }
 
+    /// Dispatch a sidebar drag-drop move to the appropriate backend service
+    /// based on the source item's kind. Sidebar plan Step 9 (#585).
+    ///
+    /// For documents: calls `documentStore.moveDocument` with `parent_id`.
+    /// For non-documents (searches, conversations, workflows): calls the
+    /// corresponding service's folder-path update. Each virtual folder
+    /// carries its `folderPath` inside `ItemType.folder(folderPath:)`, so
+    /// the target's folder path becomes the new `folder_path` for the
+    /// moved item.
+    ///
+    /// Cross-section moves (e.g. dropping a document onto a search folder)
+    /// are rejected upstream in `handleDropIntoFolder`; this method assumes
+    /// the caller has already validated source-kind vs target-kind.
+    func routeMove(itemId: String, targetFolder: SidebarItem) async {
+        let kind = SidebarItemKind(prefixedId: itemId)
+        let actualItemId = extractActualId(from: itemId)
+        sidebarRowLogger.debug(" routeMove: \(itemId) (kind=\(String(describing: kind))) → \(targetFolder.name)")
+
+        do {
+            switch kind {
+            case .document:
+                guard let documentStore = documentStore else { return }
+                let actualTargetId = extractActualId(from: targetFolder.id)
+                _ = try await documentStore.moveDocument(actualItemId, toParent: actualTargetId)
+            case .savedSearch:
+                guard let service = savedSearchService,
+                      case .folder(let folderPath) = targetFolder.itemType else { return }
+                _ = try await service.updateSavedSearch(actualItemId, folderPath: folderPath)
+            case .conversation:
+                guard let service = conversationService,
+                      case .folder(let folderPath) = targetFolder.itemType else { return }
+                _ = try await service.moveToFolder(actualItemId, folderPath: folderPath)
+            case .workflow:
+                guard let store = workflowStore,
+                      case .folder(let folderPath) = targetFolder.itemType else { return }
+                try await store.moveWorkflow(actualItemId, toFolder: folderPath)
+            default:
+                sidebarRowLogger.debug(" ⚠️ routeMove: kind \(String(describing: kind)) has no move handler")
+                return
+            }
+            sidebarRowLogger.debug(" ✅ Move successful — UI updates via @Published")
+        } catch {
+            sidebarRowLogger.debug(" ❌ Move failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Legacy single-target mover retained so existing call sites keep
+    /// compiling while we migrate them to `routeMove`. Documents-only.
     func moveItemToFolder(itemId: String, targetFolderId: String) async {
         sidebarRowLogger.debug(" moveItemToFolder: \(itemId) → \(targetFolderId)")
 

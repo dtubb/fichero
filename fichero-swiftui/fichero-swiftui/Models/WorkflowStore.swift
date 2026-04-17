@@ -134,6 +134,36 @@ class WorkflowStore: ObservableObject {
         }
     }
 
+    /// Move a workflow into a different folder path.
+    ///
+    /// Thin wrapper over `WorkflowServiceGenerated.moveToFolder` which
+    /// patches the backend `folder_path` field (`PATCH /api/workflows/{id}`
+    /// accepts a partial body with `folder_path` — see `workflows.py:649`).
+    /// Updates the local `workflows` array on success so the sidebar
+    /// rebuilds without waiting for the next `loadWorkflows` round-trip.
+    /// Sidebar plan Step 9 (#585).
+    func moveWorkflow(_ id: String, toFolder folderPath: String) async throws {
+        guard isValidWorkflowId(id) else {
+            throw WorkflowStoreError.notFound("Invalid workflow ID format")
+        }
+        let response = try await workflowService.moveToFolder(id, folderPath: folderPath)
+        if let index = workflows.firstIndex(where: { $0.id == id }) {
+            let old = workflows[index]
+            workflows[index] = WorkflowSidebarItem(
+                id: old.id,
+                name: old.name,
+                description: old.description,
+                nodeCount: old.nodeCount,
+                edgeCount: old.edgeCount,
+                isEnabled: old.isEnabled,
+                folderPath: response.folderPath,
+                sortOrder: old.sortOrder,
+                createdAt: old.createdAt,
+                updatedAt: Date()
+            )
+        }
+    }
+
     func deleteWorkflow(_ id: String) async throws {
         // Validate ID format
         guard isValidWorkflowId(id) else {
