@@ -5,42 +5,30 @@ import UniformTypeIdentifiers
 let sidebarRowLogger = Logger(subsystem: "com.fichero.app", category: "SidebarRow")
 
 extension View {
-    /// Applies the sidebar drop-target highlight to any view. Placed on the
-    /// OUTER expression of a SidebarItemRow body branch so it covers the
-    /// full List row — including the DisclosureGroup chevron/indent area
-    /// that `fullWidthLabel` alone can't reach.
-    ///
-    /// Finder-style: when the drop is on a folder row (stronger=true), fill
-    /// the full row with the accent colour — the same bold blue-fill Finder
-    /// uses for an "on-folder" drop target. For non-folder rows (stronger=
-    /// false) we render a subtler accent stroke so the user can still see
-    /// which row the cursor is over without suggesting it's a valid
-    /// container drop target.
+    /// Applies the sidebar drop-target highlight (accent fill + stroke) to
+    /// any view. Placed on the OUTER expression of a SidebarItemRow body
+    /// branch so it covers the full List row — including the DisclosureGroup
+    /// chevron/indent area that `fullWidthLabel` alone can't reach.
     ///
     /// `.overlay` + `.allowsHitTesting(false)` so the wash renders on top of
     /// whatever chrome the sidebar-style List draws, without blocking drops.
-    ///
-    /// Reference images (Finder sidebar drop, macOS 14) — Daniel preferred
-    /// the solid-fill look over the old rounded-stroke overlay. Sidebar
-    /// robustness plan — drop-highlight polish (#585).
     @ViewBuilder
     func sidebarDropHighlight(_ active: Bool, stronger: Bool) -> some View {
-        self.background(
+        self.overlay(
             RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
                 .fill(
                     active
-                        ? (stronger
-                            ? Color.accentColor.opacity(0.85)   // Finder-style solid blue for on-folder drop
-                            : Color.accentColor.opacity(0.18))  // Subtle wash for leaf/"drop beside"
+                        ? Color.accentColor.opacity(stronger ? 0.45 : 0.25)
                         : Color.clear
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
                         .stroke(
-                            active && !stronger ? Color.accentColor : Color.clear,
-                            lineWidth: (active && !stronger) ? 1 : 0
+                            active ? Color.accentColor : Color.clear,
+                            lineWidth: active ? 2 : 0
                         )
                 )
+                .allowsHitTesting(false)
         )
     }
 }
