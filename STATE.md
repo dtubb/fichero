@@ -2,29 +2,31 @@
 
 ## Current Focus
 
-**Branch:** `0.0.2` — pushed and clean.
+**Branch:** `0.0.2` — pushed, clean.
 
 **Active worktrees:**
 - `~/code/fichero-0.0.2` — bug fixes, Daniel testing
 - `~/code/fichero-0.0.3` — Wire: Search v1 (Claude loop, branch `0.0.3`)
 
-**Status:** All type:bug issues on 0.0.2 milestone closed. Only #520 (Sparkle task) remains. Ready for Daniel to verify before release.
+**Status:** 9 bugs closed this session. 0.0.2 open items narrowed to 3: two awaiting Daniel's verification retest, one task (#520 Sparkle), one new feature ask (#588 PDFView pinch).
 
 ## In Progress
 
-Nothing active.
+Nothing actively coding. Ready for Daniel's test cycle on last shipped commit `413b6614` (PDF preview↔grid sync, folder drop fix, settings `.formStyle(.grouped)`).
 
 ## Test Health
 
-**190+ passing, 13 pre-existing failures** (missing `endpoints.json` at test runtime + missing `export_api_schemas.py` script — infrastructure issues, not code).
+**Swift Testing suite:** 25+ passing (SidebarItemBuilder, DocumentNavigation, PDFThumbnailRendering, DragDropModel). No regressions introduced this session.
+
+**Python backend tests:** 190+ passing, 13 pre-existing infra failures (missing `endpoints.json`/`export_api_schemas.py` — separate from 0.0.2 work).
 
 ## Next Session — Start Here
 
-1. **Daniel: verify #556 settings layout** — all 4 settings tabs now use `.formStyle(.grouped)`. Expected: proper grouped sections, left-aligned labels, nothing clipped. If still wrong, fresh screenshot.
-2. **Daniel: verify #570 PDFs in sidebar** — drop a PDF → should appear as sidebar row with disclosure triangle; open it → pages listed as children sorted by page number.
-3. **Daniel: test sidebar drag-drop end-to-end** — Finder→folder (blue wash), Finder→leaf (lighter wash, imports as sibling), Finder→between rows (native blue line), grid→sidebar folder (move).
-4. **#520 Sparkle** — last untouched 0.0.2 item. Needs SDK wire-up + appcast signing + update-check UI.
-5. **#572 (0.0.6)** — sort-order persistence once Daniel wants manual reordering to stick.
+1. **Daniel: end-to-end smoke test of 413b6614.** Drop folder from Finder → folder should appear as a row with its children inside. Click a PDF → grid shows pages. Scroll the preview → grid selection follows. If any of these fail, file a focused bug.
+2. **#556 verify** — settings layout fix (`.formStyle(.grouped)`) still awaiting Daniel's screenshot retest.
+3. **#588 PDF pinch-zoom** — quick audit: grep `.gesture`/`.simultaneousGesture`/`MagnificationGesture` in ancestors of `PDFPageView`; test trackpad pinch. If blocked, add `.highPriorityGesture(MagnificationGesture())` that proxies to PDFKit's zoom.
+4. **#580 between-row drops (0.0.6)** — when Daniel confirms 0.0.2 is ready to ship, start on `DropDelegate` + `CGPoint` implementation. Dormant helpers (`handleInsertBetweenChildren`, `handleLibraryRootInsert`) are pre-wired in the code for reuse.
+5. **#520 Sparkle** — last 0.0.2 task; needs SDK wire-up, appcast signing, update-check UI.
 
 ## Parallel Workflow
 
@@ -32,4 +34,4 @@ Daniel tests N → Claude builds N+1 in a separate worktree.
 Gate: Claude never merges without Daniel's `/release N`.
 
 ---
-*Last updated: 2026-04-16 (evening, post PDF-as-container)* — #568, #566, #567 closed; Swift test coverage added for PDF navigation + per-page thumbnail rendering. Only #520 remains on 0.0.2.
+*Last updated: 2026-04-17* — PDF as first-class container now fully wired: data model (#568), sidebar (#570/#581), single-click drill-in (#577), interactive preview (#578), preview↔grid sync (#586). Folder drops preserve URLs (#587). Awaiting Daniel's verification pass before cutting 0.0.2.

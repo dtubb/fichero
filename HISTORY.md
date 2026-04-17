@@ -655,3 +655,33 @@ Decision: remove Quick Look entirely. Preview pane is always visible and provide
 - #556 settings layout — ACTUAL root cause: all four settings Forms used bare `Form { Section... }.padding()` with no `.formStyle(...)`. On macOS 14+ the default `.automatic` style pushes labels to a right-aligned column that crams content into the right ~40% of the window. Fix: `.formStyle(.grouped)` on all four (`GeneralSettingsView`, `BackendSettingsView`, `AISettingsView` x4 Forms, `LocalModelsSettingsView`). Left open pending Daniel's verification.
 - #570 PDF-invisible in sidebar — root cause: `SidebarItemBuilder.buildLibraryHierarchy:40` filtered on `$0.docType == .folder` only. After #568 made PDFs first-class containers, they still didn't appear in the sidebar. Fix: filter now uses `$0.isNavigableContainer || $0.docType == .page` — PDFs show as sidebar rows with pages nested underneath, sorted by `sequence` via new `childOrder` comparator. 4 new tests: `excludesNonContainerFiles`, `includesPdfs`, `pagesNestUnderPdf`, `pdfNestedInsideFolder`. Closed.
 - Learnt: `.listRowBackground` + dynamic @State doesn't re-render reliably in sidebar-style Lists (earlier discovery this session); `.formStyle(.grouped)` is the idiomatic macOS Settings pattern; SidebarItemBuilder has been quietly filtering out files — any future "show files in sidebar" work needs to touch this one method.
+
+## 2026-04-17 — Marathon sidebar + PDF session
+
+Bugs closed on 0.0.2:
+- #573 auto-select new folder
+- #574 PDF icon uses `fileType?.icon`
+- #575 iconsView focus ring suppressed (`.focusEffectDisabled()`)
+- #577 single-click PDF → pages in grid (broadened `isFolder` gate to `isNavigableContainer`)
+- #578 interactive `PDFPageView` (PDFKit; selection, copy, find)
+- #581 PDF pages NOT nested in sidebar (removed `|| $0.docType == .page` filter clause)
+- #582 library root Finder drops (added `.onFileDrop` closure to `LibrarySectionHeader`)
+- #586 PDF preview ↔ grid selection sync via `PDFViewPageChanged` notification + Coordinator
+- #587 folder drops preserve folder URL — Transferable→NSItemProvider swap on all URL drop sites
+
+Refinements:
+- `PDFPageView` gained `allowAllPages: Bool` — scrollable multi-page for top-level PDFs and `.page` children
+- `DocumentStore.refresh()` now reloads `selectedCollection`'s children in addition to `collections`
+- `SidebarSectionHeader` struct removed (was dead code); `LibrarySectionHeader` kept
+
+Issues filed for follow-up:
+- #579 PDF annotations as Artifacts (0.0.9)
+- #580 restore between-row drops via `DropDelegate` (0.0.6)
+- #583 sidebar test coverage sprint — top 10 missing tests (0.0.6)
+- #584 sidebar accessibility pass — zero coverage today (0.0.9)
+- #585 sidebar structural cleanup — split SidebarItemRow, consolidate state managers (0.0.6)
+- #588 PDFView pinch-zoom gesture audit (0.0.2)
+
+Skills added to fichero-skills: `/feature` and `/feature-future`.
+
+0.0.2 open at session end: #556 settings (awaiting verify), #520 Sparkle (task), #571 sidebar drop highlight (awaiting verify), #588 pinch-zoom.

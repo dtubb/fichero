@@ -269,6 +269,48 @@ for link in links:
 - Any future work on "which doc types appear in the sidebar" goes in exactly one place: the `visibleDocs` filter at the top of `buildLibraryHierarchy`. Don't scatter filter logic across the tree-building functions.
 - Sidebar children sort via shared `childOrder(_:_:)` comparator: `sequence` (page number) first, case-insensitive name fallback.
 
+## NSItemProvider vs Transferable for file drops — 2026-04-17
+
+- **Folder drops**: `.dropDestination(for: URL.self)` (Transferable) **unwraps a Finder folder drag into the child-file URLs**. URL-as-Transferable expects a file resource; SwiftUI enumerates the folder's contents instead of giving you the folder itself. Result: folder drops import the images but not the folder — #587.
+- **The older `.onDrop(of: [UTType.fileURL], isTargeted:, perform: ([NSItemProvider]) -> Bool)` preserves the folder URL.** `provider.loadObject(ofClass: URL.self)` returns the folder URL intact; `FileManager.fileExists(atPath:isDirectory:)` correctly reports `isDirectory == true`; the import service routes to `importFolderAndWait(recursive: true)`.
+- **Rule:** use `.onDrop(of:isTargeted:perform:)` for ANY URL drop target. Keep `.dropDestination(for: String.self)` for internal sidebar drags (String Transferable has no unwrap issue).
+
+## `.onInsert(of:)` inside DisclosureGroup crashes on macOS 14+ — 2026-04-16
+
+- `.onInsert(of:perform:)` on a nested `ForEach` **inside a `DisclosureGroup` inside a `List`** triggers `SwiftUICore/HomogeneousCollection.swift:179: Fatal error: index -1 out of bounds` on external folder drops. Reliably reproducible; Apple's radar.
+- Don't use `.onInsert` in that nesting shape. For between-row drop UX, use either `DropDelegate` (with `DropInfo.location.y` thresholds for above/on/below regions) or `.onDrop(of:isTargeted:perform:)` with the `([NSItemProvider], CGPoint) -> Bool` variant that gives drop location. Both paths avoid the crash.
+
+## `.focusEffectDisabled()` for keyboard-handler views — 2026-04-16
+
+- When you need `.focusable()` on a container (so `.onKeyPress` handlers fire — ScrollView would otherwise swallow arrow keys), macOS 14+ also draws the system focus ring around that whole container. That's visually misleading if per-cell selection is expressed separately (e.g., accent overlay on the selected cell).
+- **`.focusEffectDisabled()`** (macOS 14+) suppresses the container ring while keeping `.focusable()` behavior. Applied to `iconsView` in `LibraryView+DisplayModes.swift` (#575).
+
+## `.formStyle(.grouped)` for macOS Settings — 2026-04-16
+
+- Bare `Form { Section(...) }` in a TabView-based Settings window renders with the default `.automatic` style on macOS 14+, which right-aligns labels in an invisible column and pushes content into the right ~40% of the window. Fix: `.formStyle(.grouped)` on each Form. Drop the outer `.padding()` since `.grouped` provides its own insets.
+
+## `.listRowBackground` caches per-row view — 2026-04-16
+
+- `.listRowBackground(dynamicColor)` in a sidebar-style List **does not reliably re-render** when the color is driven by a plain `@State Bool` inside a row (e.g., drop-hover state). The List caches the row background view per-row identity; only identity changes (tag/id) invalidate it.
+- Drop-target highlight: use `.overlay` inside the row view itself with `.allowsHitTesting(false)`. Overlay redraws on every body re-evaluation and layers on top of any sidebar List chrome.
+
+## SidebarItemBuilder is the single source of truth for "what appears in the sidebar" — 2026-04-17
+
+- `SidebarItemBuilder.buildLibraryHierarchy` has one filter (`$0.isNavigableContainer`) that decides which Documents become sidebar rows. Folders + PDFs currently qualify; everything else lives in the main grid only.
+- `Document.isNavigableContainer` (defined in `Document.swift`) is also the gate for double-click routing (`canNavigateInto`) AND single-click-drills-into-pages (`ContentViewModifiers.swift:242`). Three call sites, one definition — always grep that property when changing drill-in semantics.
+- Pages (`docType=.page`) are **not** in the sidebar; they appear in the main grid when their parent PDF is selected (via `loadChildren(of: pdf)`).
+
+## PDFView page-change notification — 2026-04-17
+
+- `PDFViewPageChanged` is the notification PDFView posts on every page navigation. Prefer this over `PDFViewDelegate.pdfViewPageChanged(_:)` — the delegate method's availability varies across PDFKit versions on macOS.
+- For an `NSViewRepresentable<PDFView>`, install a `Coordinator` as delegate + notification observer in `makeNSView`, tear down in `dismantleNSView` via `NotificationCenter.removeObserver`.
+- To distinguish genuine page changes from the initial programmatic navigation, compare against `owner.pageIndex` in the observer and skip when equal.
+
+## `xcodebuild` lock when Xcode.app is open — 2026-04-17
+
+- Xcode.app holds an exclusive lock on `build/xcode/Intermediates/XCBuildData/build.db`. Raw `xcodebuild build` fails with "database is locked" even when `-derivedDataPath /tmp/...` is specified (Xcode's build system may still touch the project's default build dir).
+- Workaround: `xcodebuild ... clean build -IDEBuildOperationQueueDisableLogging=YES` — the `clean` phase recreates the build db fresh. Slower on first run but reliable. Don't ask Daniel to quit Xcode.
+
 ## SwiftUI Drop-Zone Visual Feedback — 2026-04-16
 
 - `.listRowBackground(dynamicColor)` with dynamic @State in sidebar-style Lists **does NOT reliably re-render** on hover-state flips. The List caches the row background view per-row identity; only identity changes (tag/id) invalidate the cache. Selection highlighting works because `selectedItemId` change triggers re-identification; drop-hover state doesn't have that.
