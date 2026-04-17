@@ -111,17 +111,6 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                 self.visibleRect = rect
             }
         }
-        // #596: keep the @Binding in sync with the AppKit scrollView's
-        // actual magnification. Skipped when they already match (within
-        // 0.01) to avoid self-triggering updateNSView → boundsDidChange
-        // loops during the initial fit-to-window cascade.
-        context.coordinator.onScaleChanged = { newScale in
-            Task { @MainActor in
-                if abs(self.scale - newScale) > 0.01 {
-                    self.scale = newScale
-                }
-            }
-        }
 
         // Initial center will happen in updateNSView after layout
         context.coordinator.needsInitialCenter = true
@@ -247,14 +236,6 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         var imageView: NSView?
         var currentURL: URL?
         var onVisibleRectChanged: ((CGRect) -> Void)?
-        /// #596: fires whenever `scrollView.magnification` changes so the
-        /// owning `ImageWithCursorTracking` can write the new value back
-        /// to its `@Binding var scale`. Without this, a trackpad pinch
-        /// mutates `scrollView.magnification` directly, `scale` stays at
-        /// its old value, and the next `updateNSView` sync-check reverts
-        /// magnification → scale (the stale value), making the zoom look
-        /// like it's snapping back instantly.
-        var onScaleChanged: ((CGFloat) -> Void)?
         var magnifyGesture: NSMagnificationGestureRecognizer?
         var doubleClickGesture: NSClickGestureRecognizer?
         var onZoomIn: (() -> Void)?
@@ -265,9 +246,6 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         @objc func boundsDidChange(_ notification: Notification) {
             updateContentInsetsForCurrentLayout()
             updateVisibleRect()
-            if let scrollView = scrollView {
-                onScaleChanged?(scrollView.magnification)
-            }
         }
 
         @MainActor
