@@ -68,24 +68,53 @@ struct SidebarItemRow: View {
     }
 
     /// Wraps itemLabel so both the drop hit-region AND the drop-highlight
-    /// visual fill the entire row width, not just the Label's natural
-    /// icon+text bounds.
+    /// visual fill the entire row width.
     ///
-    /// - `.frame(maxWidth: .infinity)` expands the view frame to full row width.
-    /// - `.contentShape(Rectangle())` extends the hit area to that full frame.
-    /// - `.background(...)` then draws the drop-target wash across the whole
-    ///   expanded frame. Using `.background` here (not `.listRowBackground`)
-    ///   because the latter caches its view per-row in sidebar-style Lists
-    ///   and doesn't reliably re-render on @State changes in our setup.
+    /// Highlight uses `.overlay` (not `.background`) with `.allowsHitTesting(false)`:
+    /// overlays draw ON TOP of any row chrome macOS 14's sidebar-style List
+    /// paints over our content, so the wash is guaranteed visible. Fill + stroke
+    /// together make it unmistakable even on a translucent sidebar background
+    /// (a 0.25 fill alone was invisible against the existing 0.18 selection
+    /// highlight — see Daniel's testing of 829955ed).
     private var fullWidthLabel: some View {
         itemLabel
             .padding(.vertical, 2)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
-            .background(
+            .overlay(
                 RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
-                    .fill(dropTint)
+                    .fill(dropFill)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
+                            .stroke(dropStroke, lineWidth: isDropTargeted ? 2 : 0)
+                    )
+                    .allowsHitTesting(false)
             )
+    }
+
+    /// Overlay fill when this row is a drop target. Stronger for folders
+    /// (drop imports *into*) than for leaves (drop imports *beside*).
+    private var dropFill: Color {
+        guard isDropTargeted else { return .clear }
+        return Color.accentColor.opacity(isFolder ? 0.45 : 0.25)
+    }
+
+    /// Accent-colored border that wraps the entire row when it's a drop target —
+    /// reinforces the fill so the highlight is impossible to miss.
+    private var dropStroke: Color {
+        isDropTargeted ? Color.accentColor : .clear
+    }
+
+    /// Update the drop-target state and log the transition. The log lets Daniel
+    /// (or anyone) verify the SwiftUI dropDestination callback is actually
+    /// firing via `log stream --subsystem com.fichero.app --predicate
+    /// 'category == "SidebarRow"'` — if this line never appears during a drag,
+    /// the drop destination isn't registering the hover.
+    private func setDropTargeted(_ targeted: Bool) {
+        if isDropTargeted != targeted {
+            sidebarRowLogger.debug("🎯 \(item.name): dropTargeted=\(targeted)")
+            isDropTargeted = targeted
+        }
     }
 
     private var rowContextMenu: some View {
@@ -143,7 +172,7 @@ struct SidebarItemRow: View {
                     .dropDestination(for: URL.self) { droppedURLs, _ in
                         handleExternalFileDrop(urls: droppedURLs, targetFolder: item)
                     } isTargeted: { isTargeted in
-                        isDropTargeted = isTargeted
+                        setDropTargeted(isTargeted)
                     }
                     .contextMenu { rowContextMenu }
             }
@@ -156,7 +185,7 @@ struct SidebarItemRow: View {
                 .dropDestination(for: URL.self) { droppedURLs, _ in
                     handleExternalFileDrop(urls: droppedURLs, targetFolder: item)
                 } isTargeted: { isTargeted in
-                    isDropTargeted = isTargeted
+                    setDropTargeted(isTargeted)
                 }
                 .contextMenu { rowContextMenu }
             } else {
@@ -175,7 +204,7 @@ struct SidebarItemRow: View {
                         targetFolder: parentFolderItem(of: item)
                     )
                 } isTargeted: { isTargeted in
-                    isDropTargeted = isTargeted
+                    setDropTargeted(isTargeted)
                 }
                 .contextMenu { rowContextMenu }
             }

@@ -36,14 +36,6 @@ extension SidebarItemRow {
         }
     }
 
-    /// Tint color used by `.listRowBackground` when this row is a drag-drop target.
-    /// Folders get a stronger wash (drop imports *into* them); leaf rows get a
-    /// lighter tint to signal "drop here imports beside this item".
-    var dropTint: Color {
-        guard isDropTargeted else { return .clear }
-        return Color.accentColor.opacity(isFolder ? 0.25 : 0.15)
-    }
-
     var renameField: some View {
         TextField("Name", text: $renameState.editingName)
             .textFieldStyle(.plain)
