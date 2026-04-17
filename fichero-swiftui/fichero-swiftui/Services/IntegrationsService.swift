@@ -4,7 +4,7 @@ import OSLog
 /// Service for interacting with app integrations (DEVONthink, Bookends, Tinderbox)
 @MainActor
 final class IntegrationsService: ObservableObject {
-    private let logger = Logger(subsystem: "com.fichero.app", category: "IntegrationsService")
+    private let logger = Logger(subsystem: "com.tubb.Fichero", category: "IntegrationsService")
 
     @Published var integrations: [AppIntegration] = []
     @Published var isLoading = false

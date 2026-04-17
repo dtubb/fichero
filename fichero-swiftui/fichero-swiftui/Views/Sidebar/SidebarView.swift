@@ -4,7 +4,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// Structured logger for sidebar operations
-let sidebarViewLogger = Logger(subsystem: "com.fichero.app", category: "Sidebar")
+let sidebarViewLogger = Logger(subsystem: "com.tubb.Fichero", category: "Sidebar")
 
 /// Universal Sidebar with Xcode-style mode switching
 /// Mode bar at top, content changes based on selected mode

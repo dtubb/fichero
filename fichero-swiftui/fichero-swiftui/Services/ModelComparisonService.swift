@@ -4,7 +4,7 @@ import OSLog
 /// Service for model comparison API interactions
 @MainActor
 final class ModelComparisonService: ObservableObject {
-    private let logger = Logger(subsystem: "com.fichero.app", category: "ModelComparisonService")
+    private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ModelComparisonService")
 
     @Published var isComparing = false
     @Published var lastResult: ComparisonResult?

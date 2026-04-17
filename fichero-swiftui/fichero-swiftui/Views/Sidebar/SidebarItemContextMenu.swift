@@ -2,7 +2,7 @@ import OSLog
 import SwiftUI
 
 /// Structured logger for context menu operations.
-private let logger = Logger(subsystem: "com.fichero.app", category: "SidebarContextMenu")
+private let logger = Logger(subsystem: "com.tubb.Fichero", category: "SidebarContextMenu")
 
 /// Context menu for sidebar items (rename, delete, and type-specific actions).
 ///

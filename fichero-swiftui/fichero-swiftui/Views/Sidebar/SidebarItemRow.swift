@@ -2,7 +2,7 @@ import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 
-let sidebarRowLogger = Logger(subsystem: "com.fichero.app", category: "SidebarRow")
+let sidebarRowLogger = Logger(subsystem: "com.tubb.Fichero", category: "SidebarRow")
 
 extension View {
     /// Applies the sidebar drop-target highlight (accent fill + stroke) to
@@ -108,7 +108,7 @@ struct SidebarItemRow: View {
 
     /// Update the drop-target state and log the transition. The log lets Daniel
     /// (or anyone) verify the SwiftUI dropDestination callback is actually
-    /// firing via `log stream --subsystem com.fichero.app --predicate
+    /// firing via `log stream --subsystem com.tubb.Fichero --predicate
     /// 'category == "SidebarRow"'` — if this line never appears during a drag,
     /// the drop destination isn't registering the hover.
     private func setDropTargeted(_ targeted: Bool) {

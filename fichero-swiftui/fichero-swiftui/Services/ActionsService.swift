@@ -4,7 +4,7 @@ import OSLog
 /// Service for interacting with the Action Library
 @MainActor
 final class ActionsService: ObservableObject {
-    private let logger = Logger(subsystem: "com.fichero.app", category: "ActionsService")
+    private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ActionsService")
 
     @Published var actions: [ActionItem] = []
     @Published var categories: [String] = []

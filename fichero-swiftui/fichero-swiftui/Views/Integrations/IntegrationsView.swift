@@ -11,7 +11,7 @@ struct IntegrationsView: View {
     @State private var isLoadingItems = false
     @State private var itemsError: String?
 
-    private let logger = Logger(subsystem: "com.fichero.app", category: "IntegrationsView")
+    private let logger = Logger(subsystem: "com.tubb.Fichero", category: "IntegrationsView")
 
     private var availableIntegrations: [AppIntegration] {
         service.integrations.filter { $0.isAvailable }
