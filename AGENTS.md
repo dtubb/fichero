@@ -23,6 +23,12 @@ Run `/session-start` first. It reads SOUL.md → MEMORY.md → STATE.md and repo
 
 ---
 
+## Additional Guidance
+
+- `agents/AGENTS.md` — Xcode-specific guidance (DocumentationSearch for new APIs like Liquid Glass / FoundationModels, Swift code style, validation tools like `XcodeRefreshCodeIssuesInFile`). Read this when doing any SwiftUI work.
+
+---
+
 ## Skills Available
 
 Run skills with `/skill-name`.
@@ -51,6 +57,59 @@ Run skills with `/skill-name`.
 
 ---
 
+## Agent Team — Delegate to Preserve Context
+
+The main session context fills up fast when reading large files, running test suites, or trawling git history. Delegate these kinds of work to specialized subagents via the `Agent` tool (subagent_type=…). The subagent reads what it needs in its own context, returns a concise summary, and the main session stays lean.
+
+### When to delegate vs. do-it-yourself
+
+**Do it yourself (main session):**
+- Small targeted edits where you already know the file/line.
+- Decisions that require the whole conversation's context (user intent, trade-offs, previous corrections).
+- Short commands (`git status`, `gh issue view 588`).
+
+**Delegate to a subagent:**
+- Any task that produces large intermediate output (test logs, search results, build logs) you only need a summary of.
+- Any task where the *goal* is clear but the *path* requires exploring the codebase (subagents burn their own context on the search).
+- Independent parallel work — spawn multiple subagents in one message so they run concurrently.
+
+### Role → Agent mapping
+
+| Role | Agent(s) | When |
+|---|---|---|
+| **Planning / architecture** | `Plan`, `feature-dev:code-architect` | Non-trivial features, multi-file changes, anything needing a blueprint before code |
+| **Exploring the codebase** | `Explore`, `feature-dev:code-explorer` | "How does X work?", tracing execution paths, mapping architecture — cheaper than grepping from main session |
+| **Writing feature code** | `general-purpose` or main session | Well-scoped features with a clear plan; main session when the work is small or highly interactive |
+| **Testing** | `test-runner` | Running the Xcode unit tests or Python pytest; returns pass/fail summary without flooding main-session context |
+| **Linting** | `test-runner` (or inline `Bash`) | `swiftlint lint …` and `ruff check …` — delegate when output is likely to be long |
+| **Building** | `test-runner` (or `mcp__xcode__BuildProject` directly) | `xcodebuild` or `BuildProject`; delegate when the build log is likely to have many warnings |
+| **Code review / QA** | `code-reviewer`, `feature-dev:code-reviewer`, `pr-review-toolkit:code-reviewer`, `superpowers:code-reviewer` | Before marking work complete — independent second read; flags correctness, style, security, silent failures |
+| **Second opinion on a plan** | `critic` | After writing a plan but before coding — looks for gaps, unstated assumptions, missing edge cases |
+| **Library / API research** | `researcher`, `context7` MCP | Third-party library docs, Apple API details; returns summarized findings, not raw docs |
+| **Guarded alignment check** | `guardian` | Before pushing a branch — compares diff against SOUL/CONSTITUTION/MEMORY |
+
+### Typical feature loop (delegation pattern)
+
+1. `Plan` or `feature-dev:code-architect` → produces implementation blueprint.
+2. `critic` (optional) → reviews the plan, flags issues.
+3. Main session (or `general-purpose`) → writes the code.
+4. `test-runner` → build + Xcode unit tests + SwiftLint (or pytest + ruff on the Python side).
+5. Peekaboo (main session) → visual check of the running app for UI changes.
+6. `code-reviewer` → independent QA pass before commit.
+7. Main session → commit + push.
+
+### Parallelization
+
+If tasks are independent, spawn subagents **in a single message with multiple Agent tool uses** so they run concurrently. Example: kick off `test-runner` for the Swift test suite and a separate `test-runner` for Python tests at the same time, rather than serially.
+
+### Anti-patterns
+
+- **Don't delegate understanding.** Never write "based on your findings, fix the bug" — that pushes synthesis onto the subagent. The subagent should return facts/summaries; the main session decides.
+- **Don't duplicate work.** If you've delegated research, don't also grep from the main session — trust the summary.
+- **Don't over-delegate trivial tasks.** A one-line bash command or a targeted file read is cheaper done inline than through a subagent.
+
+---
+
 ## Build Commands — Both Stacks
 
 **Python backend:**
@@ -67,15 +126,81 @@ PYTHONPATH=fichero-api/src .venv/bin/ruff check fichero-api/src/
 PYTHONPATH=fichero-api/src .venv/bin/ruff format fichero-api/src/
 ```
 
-**Swift frontend:**
+**Swift frontend — the three-leg check (run ALL three every time, in this order):**
+
 ```bash
-# Lint (must pass before any commit)
+# 1. Lint (must pass before anything else)
 swiftlint lint fichero-swiftui/fichero-swiftui/
 
-# Xcode build
+# 2. Xcode build
 xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj \
   -scheme fichero-swiftui -configuration Debug -sdk macosx build
+
+# 3. Xcode unit tests (FicheroTests, 220 tests as of 0.0.2)
+xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj \
+  -scheme fichero-swiftui -configuration Debug -sdk macosx test
 ```
+
+When the Xcode MCP is available, prefer these (faster, no Xcode.app build-db lock):
+- `mcp__xcode__BuildProject` → `mcp__xcode__RunAllTests` → `mcp__xcode__GetBuildLog` (on failure) → `mcp__xcode__XcodeListNavigatorIssues` (for warnings)
+
+**Xcode.app build-db lock workaround** — if the CLI fails with "database is locked" while Xcode.app is open (see MEMORY.md):
+```bash
+xcodebuild ... -IDEBuildOperationQueueDisableLogging=YES \
+  -derivedDataPath /tmp/fichero-test-dd clean build test
+```
+
+### Test-as-You-Go — Stop UI Regressions at the Source
+
+Every feature or bug fix that touches SwiftUI **must land with unit test coverage added or updated in the same commit**. This is the single most effective defense against the UI-regression cycle we've been in (same bug class reappearing across releases). "Tests in a follow-up issue" is how regressions happen.
+
+**What to test, by change type:**
+
+| Change type | Required tests |
+|---|---|
+| Bug fix (UI) | Add a failing test that reproduces the bug *first*, confirm it fails, then fix. Test must live alongside the fix. |
+| New SwiftUI view | Model/view-model tests for all state transitions and decision logic. If the view owns logic (not just layout), it needs tests. |
+| New gesture / drop handler | Test the decision function directly (what accept/reject/highlight state does this input produce?). Don't test SwiftUI's rendering — test the logic that drives it. |
+| Sidebar / filter / selection logic | Unit test the predicate/builder. `SidebarItemBuilder` and `buildLibraryHierarchy` must have test coverage for every new case. |
+| Refactor | All existing tests continue to pass. If behavior changes intentionally, update tests in the same commit. |
+
+**What goes in a unit test vs. a visual check:**
+
+- **Unit test (XCTest/Testing framework, fast, committed)** — state logic, filters, builders, decoders, URL handling, drop-decision logic, predicate evaluation, ID parsing. Anything expressible as "input → expected output" or "before state + action → after state."
+- **Visual check (peekaboo, manual, not committed as a test)** — rendered pixels, highlight colors, drag-preview images, layout overflow, font rendering. These fail the "input → output" shape, so don't force them into XCTest.
+
+**Rule of thumb:** if a bug recurs because it wasn't caught by a test, the test was missing. Add it now. See MEMORY.md for the bug classes we keep hitting (NSItemProvider vs. Transferable, SidebarItem ID parsing, `.onInsert(of:)` crash, etc.) — each of these should have regression tests pinned to it.
+
+**Writing the test:**
+1. Find the existing test target (`FicheroTests` — 220 tests as of 0.0.2).
+2. Put the test next to its peers: `ActivityItemTests.swift` style, colocated by domain.
+3. Use Swift Testing framework (`@Test`, `#expect`) for new tests — it's what the rest of the suite uses.
+4. Reference the issue in the test name: `@Test("#571 sidebar drop highlight stays during folder drop")`.
+5. Run `RunAllTests` and confirm the new test appears in the pass list.
+6. **Commit the test in the same commit as the fix/feature** — not separately.
+
+### Visual Verification with Peekaboo
+
+Unit tests catch logic regressions but not UI regressions. After a SwiftUI change, run the built Fichero and screenshot it to verify the actual rendered UI. Peekaboo MCP (`mcp__peekaboo__*`) is the third verification leg *for app behavior*, not for Xcode itself.
+
+| Tool | Use |
+|---|---|
+| `mcp__peekaboo__list` with `app: "Fichero"` | Find Fichero's windows once running |
+| `mcp__peekaboo__image` | Screenshot to `/tmp/*.png` with `capture_focus: "background"` so focus stays in iTerm2 |
+| `mcp__peekaboo__see` | Screenshot + element map (`B1`, `T1`…) for follow-up clicks/typing |
+| `mcp__peekaboo__click` / `type` / `hotkey` / `drag` | Drive Fichero to a specific state before capture |
+
+**Ground-truth rule:** after peekaboo writes a PNG, use `Read` on the file path — Claude Code displays images directly into context, which is more reliable than peekaboo's inline vision-model description (the AI caption can hallucinate). Use the inline `question:` parameter only for bulk/headless triage.
+
+**Gotchas:**
+- `path` is a *prefix* — one PNG per window, suffixed with title/index. Target a specific window (`PID:…`) or use `frontmost` to get one file.
+- Use the built product (Xcode → Product → Build, then launch the binary), not Xcode's Run — otherwise peekaboo captures the Xcode debug chrome.
+
+**Use for these 0.0.2 bugs specifically** (issues that are visual-only and hard to test with XCTest):
+- `#571` sidebar drop highlight — drag a folder onto the sidebar, screenshot the blue outline.
+- `#588` PDF pinch-zoom audit — open a doc, screenshot PDFView at varying zooms.
+- `#556` settings `.formStyle(.grouped)` — open Settings, screenshot each tab.
+- PDF ↔ grid selection sync (commit `413b6614`) — select a page, screenshot, confirm thumbnail highlights match.
 
 **CRITICAL:** `PYTHONPATH=fichero-api/src` must be set for ALL Python commands.
 
@@ -151,8 +276,9 @@ GitHub Issues + Milestones are authoritative for scope and status.
 1. Never push to `main` — all work goes to `0.0.2`
 2. Never deploy or publish without permission
 3. Never edit generated files (`*Generated.swift`, `openapi.json`, api-client)
-4. Never skip SwiftLint, ruff, pytest before completing work
-5. Never start coding on unapproved scope (GitHub milestone/issues are the approval boundary)
-6. `PYTHONPATH=fichero-api/src` on all Python commands
-7. One concern per commit, conventional commit format
-8. `trash` over `rm`
+4. Never skip the three-leg Swift check (swiftlint + `xcodebuild build` + `xcodebuild test`) or Python check (ruff + pytest) before completing work. Add peekaboo visual verification for any SwiftUI change that has a rendered UI surface.
+5. **Every SwiftUI bug fix or feature must land with new/updated unit tests in the same commit** — no "tests in a follow-up." This is how we stop UI regressions from recurring.
+6. Never start coding on unapproved scope (GitHub milestone/issues are the approval boundary)
+7. `PYTHONPATH=fichero-api/src` on all Python commands
+8. One concern per commit, conventional commit format
+9. `trash` over `rm`
