@@ -79,14 +79,16 @@ struct EditorView: View {
         } else if doc.docType == .page,
                   let pdfPath = doc.metadata["pdf_path"]?.value as? String,
                   !pdfPath.isEmpty {
-            // PDF page child — render the specific page full-size.
+            // PDF page child — render the specific page with an interactive
+            // PDFView so the user can select text, copy, and find (#578).
+            // Thumbnails for the grid/sidebar still use PDFThumbnailView
+            // (flat NSImage) — that's deliberately cheap.
             let pageIndex = max(0, (doc.sequence ?? 1) - 1)
-            PDFThumbnailView(
-                path: pdfPath,
-                size: CGSize(width: 1600, height: 2100),
-                pageIndex: pageIndex
-            )
-            .background(Color(nsColor: NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)))
+            PDFPageView(path: pdfPath, pageIndex: pageIndex)
+        } else if doc.fileType == .pdf, let path = doc.path, !path.isEmpty {
+            // Top-level PDF file — show the whole document in an interactive
+            // PDFView scrolled to page 0. Same text-selection affordances.
+            PDFPageView(path: path, pageIndex: 0)
         } else {
             QuickLookDownloadView(document: doc)
         }

@@ -45,3 +45,48 @@ struct PDFThumbnailView: View {
         }.value
     }
 }
+
+/// Interactive PDF page preview using PDFKit's `PDFView`.
+///
+/// Where `PDFThumbnailView` renders a flat `NSImage` (cheap, cacheable, fine
+/// for grid/sidebar thumbnails), `PDFPageView` uses the full AppKit `PDFView`
+/// so users get **selectable text, copy, find, and links** — everything a real
+/// PDF reader provides. Used in the main preview pane for `.page` documents
+/// (see #578). Future annotation/highlight work hooks into this view's
+/// `currentSelection` / `PDFAnnotation` APIs (#579).
+struct PDFPageView: NSViewRepresentable {
+    let path: String
+    let pageIndex: Int
+
+    func makeNSView(context: Context) -> PDFView {
+        let view = PDFView()
+        view.displayMode = .singlePage
+        view.displaysPageBreaks = false
+        view.autoScales = true
+        view.backgroundColor = NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)
+        loadAndNavigate(view)
+        return view
+    }
+
+    func updateNSView(_ view: PDFView, context: Context) {
+        loadAndNavigate(view)
+    }
+
+    /// Load the PDF document (if not already loaded) and navigate to the
+    /// requested page. Only replaces `document` when the path actually changes
+    /// — re-assigning the same document resets the user's zoom/selection state.
+    private func loadAndNavigate(_ view: PDFView) {
+        let fileURL = URL(fileURLWithPath: path)
+        if view.document?.documentURL != fileURL {
+            view.document = PDFDocument(url: fileURL)
+        }
+        guard let doc = view.document,
+              pageIndex >= 0, pageIndex < doc.pageCount,
+              let page = doc.page(at: pageIndex) else {
+            return
+        }
+        if view.currentPage != page {
+            view.go(to: page)
+        }
+    }
+}
