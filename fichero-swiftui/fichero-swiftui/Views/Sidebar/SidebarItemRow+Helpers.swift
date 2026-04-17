@@ -1,6 +1,27 @@
 import OSLog
 import SwiftUI
 
+/// Strip the type-prefix from a sidebar-item or drag-source ID.
+///
+/// Sidebar items carry typed IDs (`doc:UUID`, `folder:path`, `workflow:wf-42`
+/// etc.) so the tree can distinguish kinds at lookup time. Drag sources in
+/// other views (notably the library grid at
+/// `LibraryView+DisplayModes.swift:25,110`) emit the raw UUID directly. This
+/// helper normalises both forms to the bare identifier the backend API
+/// expects.
+///
+/// - Returns: everything after the first `:` if present; the unchanged input
+///   otherwise (so bare UUIDs from cross-view drags pass through).
+///
+/// Free function rather than a method so tests can call the real logic
+/// directly — see `IDPrefixStrippingTests` in `DragDropTests.swift`.
+func extractActualId(from prefixedId: String) -> String {
+    if prefixedId.contains(":") {
+        return String(prefixedId.split(separator: ":")[1])
+    }
+    return prefixedId
+}
+
 extension SidebarItemRow {
     func isDescendant(_ potentialDescendant: String, of ancestorId: String) -> Bool {
         guard let ancestorItem = findItemById(ancestorId, in: allCachedItems) else {
@@ -32,13 +53,6 @@ extension SidebarItemRow {
             }
         }
         return false
-    }
-
-    func extractActualId(from prefixedId: String) -> String {
-        if prefixedId.contains(":") {
-            return String(prefixedId.split(separator: ":")[1])
-        }
-        return prefixedId
     }
 
     /// Resolve the folder-row that should receive a file-drop when the user drops

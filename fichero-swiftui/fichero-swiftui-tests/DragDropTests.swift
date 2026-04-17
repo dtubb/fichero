@@ -11,9 +11,9 @@
 //  These tests cover the logic exercised by Section 12.1 of the QA checklist
 //  without requiring a live network connection or SwiftUI view instantiation.
 
+@testable import Fichero
 import Foundation
 import Testing
-@testable import Fichero
 
 // MARK: - DragDropModel Tests
 
@@ -167,15 +167,9 @@ struct DropURLValidationTests {
 
 // MARK: - ID Prefix Stripping Tests
 
-/// Replicates the logic from SidebarItemRow.extractActualId(from:)
+/// Exercises the real `extractActualId(from:)` in
+/// `SidebarItemRow+Helpers.swift` (free function, not a replica).
 struct IDPrefixStrippingTests {
-
-    private func extractActualId(from prefixedId: String) -> String {
-        if prefixedId.contains(":") {
-            return String(prefixedId.split(separator: ":")[1])
-        }
-        return prefixedId
-    }
 
     @Test("doc-prefixed ID strips to raw ID")
     func stripDocPrefix() {
@@ -195,6 +189,17 @@ struct IDPrefixStrippingTests {
     @Test("workflow-prefixed ID strips to raw ID")
     func stripWorkflowPrefix() {
         #expect(extractActualId(from: "workflow:wf-42") == "wf-42")
+    }
+
+    @Test("Cross-view drag: bare UUID from library grid passes through unchanged")
+    func crossViewDragBareUUID() {
+        // The library grid's `.draggable(doc.id)` (LibraryView+DisplayModes
+        // .swift:25,110) emits the bare UUID as its Transferable payload.
+        // When the sidebar's `.dropDestination(for: String.self)` receives
+        // it, the same `extractActualId` normaliser must leave a bare UUID
+        // untouched so `moveDocument` gets the right identifier.
+        let bareUUID = "8B2F4D6A-1C3E-4F5B-9A7D-0E2C6F8B4A9D"
+        #expect(extractActualId(from: bareUUID) == bareUUID)
     }
 }
 
