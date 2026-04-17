@@ -73,7 +73,10 @@ struct SidebarItem: Identifiable, Hashable {
         SidebarItem(
             id: "doc:\(doc.id)",
             name: doc.name,
-            icon: doc.docType.icon,
+            // Prefer the file-type-specific icon (e.g. "doc.richtext" for PDFs)
+            // over the generic docType icon ("doc" for any .file) — makes
+            // PDFs visually distinct in the sidebar (#574).
+            icon: doc.fileType?.icon ?? doc.docType.icon,
             category: .folder,
             itemType: .document(doc),
             children: children,
