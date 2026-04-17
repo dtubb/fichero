@@ -32,6 +32,28 @@ class TestDetectFileType:
         assert detect_file_type(Path("test.tiff")) == FileType.image
         assert detect_file_type(Path("test.heic")) == FileType.image
 
+    def test_image_types_case_insensitive(self):
+        """Uppercase extensions must resolve the same as lowercase.
+
+        Regression guard: the SwiftUI file picker previously filtered
+        `.JPG` / `.PNG` etc. through a UTType list that excluded `.image`,
+        making uppercase-extension images appear rejected. The fix (in the
+        Swift side) is `allowedContentTypes: [.item]`. This test pins the
+        backend side of the contract — `detect_file_type` normalises
+        extensions via `.suffix.lower()` and must stay case-insensitive.
+        """
+        from fichero.ingest import detect_file_type
+        from fichero.models import FileType
+
+        assert detect_file_type(Path("test.JPG")) == FileType.image
+        assert detect_file_type(Path("test.JPEG")) == FileType.image
+        assert detect_file_type(Path("test.PNG")) == FileType.image
+        assert detect_file_type(Path("test.TIFF")) == FileType.image
+        assert detect_file_type(Path("test.HEIC")) == FileType.image
+        assert detect_file_type(Path("Document.PDF")) == FileType.pdf
+        assert detect_file_type(Path("song.MP3")) == FileType.audio
+        assert detect_file_type(Path("Photo.Jpg")) == FileType.image
+
     def test_pdf_type(self):
         """Should detect PDF file type."""
         from fichero.ingest import detect_file_type

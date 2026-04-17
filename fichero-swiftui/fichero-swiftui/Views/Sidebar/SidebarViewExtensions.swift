@@ -387,13 +387,19 @@ private struct SidebarNewFolderDialogModifier: ViewModifier {
 
 extension View {
     /// Adds file importer for importing files into the library.
+    ///
+    /// Accepts `[.item]` (public.item, the root of all file/folder UTTypes) so
+    /// case variants like `photo.JPG`, `paper.PDF`, or custom extensions are
+    /// not silently filtered by the picker UI. The backend's `detect_file_type`
+    /// normalises extensions to lower case (see `ingest.py:154`), so anything
+    /// admitted here is classified correctly downstream.
     func sidebarFileImporter(
         isPresented: Binding<Bool>,
         importFiles: @escaping ([URL]) async -> Void
     ) -> some View {
         self.fileImporter(
             isPresented: isPresented,
-            allowedContentTypes: [.item, .folder, .pdf, .audio],
+            allowedContentTypes: [.item],
             allowsMultipleSelection: true
         ) { result in
             switch result {
