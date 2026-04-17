@@ -197,9 +197,13 @@ extension SidebarView {
         }
         logger.info("Creating folder '\(name)' in library: \(library.displayName)")
         do {
-            _ = try await library.documentStore.createCollection(name: name)
+            let newFolder = try await library.documentStore.createCollection(name: name)
             logger.info("Created folder: \(name)")
             rebuildCaches()
+            // Select the just-created folder so the user can immediately see its
+            // contents (empty) in the grid — matches the behavior for newly
+            // created searches/chats/workflows (#573).
+            selectedItemId = "doc:\(newFolder.id)"
         } catch {
             logger.error("Failed to create folder: \(error)")
             sidebarState.newFolderErrorMessage = error.localizedDescription
