@@ -8,6 +8,17 @@ extension SidebarItemRow {
             } else {
                 Text(item.name)
                     .lineLimit(1)
+                    // Double-click on the label name starts inline rename.
+                    // Sidebar plan Step 8. Attaches only to the Text so
+                    // the disclosure chevron (outside the Label) and the
+                    // icon tap-through to the outer selection tap are
+                    // unaffected. Single-click continues to propagate to
+                    // the row's outer `.onTapGesture` (selection change)
+                    // because SwiftUI prefers the more specific gesture
+                    // only when the count matches.
+                    .onTapGesture(count: 2) {
+                        renameState.startRename(itemId: item.id, currentName: item.name)
+                    }
             }
         } icon: {
             ZStack {
