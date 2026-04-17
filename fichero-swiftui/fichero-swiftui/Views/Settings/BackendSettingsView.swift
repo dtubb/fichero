@@ -34,6 +34,6 @@ struct BackendSettingsView: View {
                 }
             }
         }
-        .padding()
+        .formStyle(.grouped)
     }
 }

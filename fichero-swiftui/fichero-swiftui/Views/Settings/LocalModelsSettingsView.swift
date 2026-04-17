@@ -63,7 +63,7 @@ struct LocalModelsSettingsView: View {
                 }
             }
         }
-        .padding()
+        .formStyle(.grouped)
         .task {
             guard !Task.isCancelled else { return }
             await loadModels()

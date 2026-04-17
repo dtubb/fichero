@@ -31,14 +31,14 @@ struct AISettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .padding()
+                .formStyle(.grouped)
             } else if isLoading {
                 Form {
                     Section {
                         ProgressView("Loading defaults...")
                     }
                 }
-                .padding()
+                .formStyle(.grouped)
             } else {
                 if featureManager.isSettingsAIAdvancedTabEnabled {
                     Picker("", selection: $selectedTab) {
@@ -130,7 +130,7 @@ struct AISettingsView: View {
                 }
             }
         }
-        .padding()
+        .formStyle(.grouped)
         .onChange(of: defaults.textProvider) { _, newValue in
             loadModels(for: newValue, into: $textModels)
         }
@@ -180,7 +180,7 @@ struct AISettingsView: View {
                     .lineLimit(3...6)
             }
         }
-        .padding()
+        .formStyle(.grouped)
     }
 }
 

@@ -89,7 +89,14 @@ struct GeneralSettingsView: View {
                 }
             }
         }
-        .padding()
+        // `.formStyle(.grouped)` is the macOS idiomatic Settings-panel style —
+        // gives labels a proper leading column, section headers styled as
+        // grouped-form titles, and native insets. Without it, the default
+        // `.automatic` style on macOS 14+ renders labels right-aligned against
+        // an invisible column that pushes all content to the right half of
+        // the window (#556). `.padding()` intentionally dropped — .grouped
+        // provides its own insets.
+        .formStyle(.grouped)
     }
 
     @ViewBuilder
