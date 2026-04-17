@@ -156,9 +156,15 @@ extension SidebarView {
                     steps: []
                 )
 
-                // Switch to workflows mode and select the new chain
+                // Switch to workflows mode and select the new chain.
+                // ID must be `chain:<id>` (colon separator) to match
+                // SidebarItem.fromChain's prefix convention. The previous
+                // `chain-<id>` (dash) form broke extractActualId's
+                // colon-split and caused SidebarItemKind to misclassify
+                // new chains as .document, silently misrouting every
+                // drag/rename/lookup on them. Sidebar review 2026-04-17.
                 sidebarMode = .workflows
-                selectedItemId = "chain-\(newChain.id)"  // Match the tag format in WorkflowsSidebarContent
+                selectedItemId = "chain:\(newChain.id)"
                 viewMode = .chain(newChain)
                 logger.info("Created new chain: \(newChain.id)")
             } catch {
