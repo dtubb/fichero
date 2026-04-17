@@ -347,6 +347,7 @@ class ImportServiceGenerated: ObservableObject {
         let extras = generated.additionalProperties.value
         let parentId = extras["parent_id"] as? String
         let fileType = extras["file_type"] as? String
+        let sortOrder = extras["sort_order"] as? Int ?? 0
 
         return Document(
             id: generated.id ?? UUID().uuidString,
@@ -360,6 +361,7 @@ class ImportServiceGenerated: ObservableObject {
             status: convertFromGeneratedStatus(generated.status),
             metadata: convertMetadata(generated.metadata),
             pageContent: extras["page_content"] as? String,
+            sortOrder: sortOrder,
             createdAt: generated.createdAt ?? Date(),
             updatedAt: generated.updatedAt ?? Date(),
             expectedThumbnailPath: generated.expectedThumbnailPath,

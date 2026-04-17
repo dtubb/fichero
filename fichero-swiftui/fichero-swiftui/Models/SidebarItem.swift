@@ -84,7 +84,7 @@ struct SidebarItem: Identifiable, Hashable {
             showProgress: false,
             libraryId: libraryId,
             folderPath: doc.parentId ?? "/",  // Documents use parentId for hierarchy
-            sortOrder: 0,  // Documents don't have sort_order (yet)
+            sortOrder: doc.sortOrder,  // backed by backend /documents/reorder (#572)
             isFolder: doc.docType == .folder
         )
     }

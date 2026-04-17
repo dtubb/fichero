@@ -52,7 +52,8 @@ struct SidebarItemFactoryTests {
         id: String = "doc-1",
         name: String = "Test Doc",
         docType: DocType = .file,
-        parentId: String? = nil
+        parentId: String? = nil,
+        sortOrder: Int = 0
     ) -> Document {
         Document(
             id: id,
@@ -66,6 +67,7 @@ struct SidebarItemFactoryTests {
             status: .completed,
             metadata: [:],
             pageContent: nil,
+            sortOrder: sortOrder,
             createdAt: now,
             updatedAt: now,
             expectedThumbnailPath: nil,
@@ -173,6 +175,26 @@ struct SidebarItemFactoryTests {
         let doc = makeDocument(parentId: nil)
         let item = SidebarItem.fromDocument(doc, libraryId: testLibraryId)
         #expect(item.folderPath == "/")
+    }
+
+    @Test("#572 fromDocument propagates sortOrder from Document to SidebarItem")
+    func fromDocumentPropagatesSortOrder() {
+        // Before #572 / sidebar plan Step 3, `SidebarItem.fromDocument`
+        // hardcoded sortOrder to 0 with the comment "Documents don't have
+        // sort_order (yet)". Sibling types (searches, workflows, chats)
+        // already propagated it from the backend. This test pins the
+        // Document path so a future regression can't silently drop the
+        // field back to zero.
+        let doc = makeDocument(id: "doc-42", sortOrder: 7)
+        let item = SidebarItem.fromDocument(doc, libraryId: testLibraryId)
+        #expect(item.sortOrder == 7)
+    }
+
+    @Test("#572 fromDocument defaults sortOrder to 0 when Document has default")
+    func fromDocumentDefaultSortOrder() {
+        let doc = makeDocument(id: "doc-99")
+        let item = SidebarItem.fromDocument(doc, libraryId: testLibraryId)
+        #expect(item.sortOrder == 0)
     }
 
     // MARK: - fromWorkflow
