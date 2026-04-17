@@ -111,6 +111,17 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                 self.visibleRect = rect
             }
         }
+        // #596 (2nd attempt): fires once at gesture end with the final
+        // magnification. Writes the @Binding so updateNSView's sync-check
+        // matches and doesn't revert the zoom. Gate on epsilon to avoid
+        // a self-triggering re-render loop on the initial fit cascade.
+        context.coordinator.onScaleChanged = { newScale in
+            Task { @MainActor in
+                if abs(self.scale - newScale) > 0.01 {
+                    self.scale = newScale
+                }
+            }
+        }
 
         // Initial center will happen in updateNSView after layout
         context.coordinator.needsInitialCenter = true
@@ -135,7 +146,14 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                 scrollView.alphaValue = 1
             }
         }
-        if abs(scrollView.magnification - scale) > 0.01 {
+        // #596: skip the magnification→scale sync while a pinch is active.
+        // NSMagnificationGestureRecognizer mutates scrollView.magnification
+        // directly; writing `scale` back on every frame would race with
+        // that write and effectively pin the zoom to the pre-pinch value.
+        // The binding gets its write-back at gesture `.ended` via
+        // `Coordinator.onScaleChanged` instead.
+        if !context.coordinator.isUserMagnifying,
+           abs(scrollView.magnification - scale) > 0.01 {
             scrollView.magnification = scale
         }
 
@@ -236,6 +254,19 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         var imageView: NSView?
         var currentURL: URL?
         var onVisibleRectChanged: ((CGRect) -> Void)?
+        /// #596 (2nd attempt): fires once at gesture `.ended` with the final
+        /// magnification. The owning `ImageWithCursorTracking` writes it
+        /// back to its `@Binding var scale` so `updateNSView`'s sync-check
+        /// sees matching values and doesn't reset magnification on the next
+        /// redraw. The first attempt (commit `fc01d393`, reverted in
+        /// `8eeabee3`) fired this on every `boundsDidChange`, which raced
+        /// with `updateNSView` during active gestures and broke pinch
+        /// entirely (#599).
+        var onScaleChanged: ((CGFloat) -> Void)?
+        /// True while the user is actively pinching. `updateNSView`'s
+        /// sync-check (line 138-140) is skipped while this is set so the
+        /// scroll view's magnification isn't reverted mid-gesture.
+        var isUserMagnifying: Bool = false
         var magnifyGesture: NSMagnificationGestureRecognizer?
         var doubleClickGesture: NSClickGestureRecognizer?
         var onZoomIn: (() -> Void)?
@@ -330,6 +361,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             guard let scrollView = scrollView else { return }
             switch gesture.state {
             case .began:
+                isUserMagnifying = true
                 initialMagnification = scrollView.magnification
             case .changed:
                 let newMag = initialMagnification * (1 + gesture.magnification)
@@ -338,6 +370,12 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                 // feels anchored under the cursor.
                 let location = gesture.location(in: scrollView.contentView)
                 scrollView.setMagnification(clamped, centeredAt: location)
+            case .ended, .cancelled, .failed:
+                // #596: write the final magnification back to the @Binding
+                // so the next updateNSView sync-check sees matching values
+                // and doesn't snap the zoom back to the pre-pinch scale.
+                isUserMagnifying = false
+                onScaleChanged?(scrollView.magnification)
             default:
                 break
             }
