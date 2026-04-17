@@ -175,10 +175,12 @@ struct SidebarItemRow: View {
                     .dropDestination(for: String.self) { droppedIDs, _ in
                         handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
                     }
-                    .dropDestination(for: URL.self) { droppedURLs, _ in
-                        handleExternalFileDrop(urls: droppedURLs, targetFolder: item)
-                    } isTargeted: { isTargeted in
-                        setDropTargeted(isTargeted)
+                    // NSItemProvider-based URL drop — preserves folder URLs
+                    // for Finder folder drags. Transferable `.dropDestination
+                    // (for: URL.self)` unwraps folder drags into child file
+                    // URLs (#587), flattening the hierarchy.
+                    .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
+                        handleProvidersDrop(providers, targetFolder: item)
                     }
                     .contextMenu { rowContextMenu }
             }
@@ -188,10 +190,8 @@ struct SidebarItemRow: View {
                 .dropDestination(for: String.self) { droppedIDs, _ in
                     handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
                 }
-                .dropDestination(for: URL.self) { droppedURLs, _ in
-                    handleExternalFileDrop(urls: droppedURLs, targetFolder: item)
-                } isTargeted: { isTargeted in
-                    setDropTargeted(isTargeted)
+                .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
+                    handleProvidersDrop(providers, targetFolder: item)
                 }
                 .contextMenu { rowContextMenu }
             } else {
@@ -200,17 +200,15 @@ struct SidebarItemRow: View {
                 .dropDestination(for: String.self) { droppedIDs, _ in
                     handleDropBesideItem(itemIDs: droppedIDs, targetItem: item)
                 }
-                .dropDestination(for: URL.self) { droppedURLs, _ in
-                    // Drop on a leaf file (e.g. a PDF) imports the new file into
-                    // the leaf's parent folder — "drop beside" semantics, matching
-                    // Finder. Non-document leaves (searches, workflows) fall
-                    // through to library root.
-                    handleExternalFileDrop(
-                        urls: droppedURLs,
+                .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
+                    // Drop on a leaf file (e.g. a PDF) imports into the
+                    // leaf's parent folder — "drop beside" semantics.
+                    // Non-document leaves (searches, workflows) fall through
+                    // to library root.
+                    handleProvidersDrop(
+                        providers,
                         targetFolder: parentFolderItem(of: item)
                     )
-                } isTargeted: { isTargeted in
-                    setDropTargeted(isTargeted)
                 }
                 .contextMenu { rowContextMenu }
             }

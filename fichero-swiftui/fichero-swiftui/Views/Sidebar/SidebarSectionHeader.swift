@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 // Note: The previous `SidebarSectionHeader` (a Label-styled header with a
 // String-only drop target) was removed after a code review confirmed it had
@@ -18,6 +19,11 @@ import SwiftUI
 /// did nothing (#582). `onFileDrop` callers pass a closure that imports
 /// the URLs into the library root via `importService.importFiles(...,
 /// parentId: nil)`.
+///
+/// Uses `.onDrop(of: [.fileURL])` (NSItemProvider API) rather than
+/// `.dropDestination(for: URL.self)` (Transferable API) so Finder folder
+/// drags preserve the folder URL instead of being flattened into the
+/// folder's child files (#587).
 struct LibrarySectionHeader: View {
     let library: LibraryManager.LibraryReference
     let itemCount: Int
@@ -55,10 +61,36 @@ struct LibrarySectionHeader: View {
             RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
                 .fill(isDropTargeted ? Color.accentColor.opacity(0.25) : Color.clear)
         )
-        .dropDestination(for: URL.self) { urls, _ in
-            onFileDrop?(urls) ?? false
-        } isTargeted: { targeted in
-            isDropTargeted = targeted
+        .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
+            let fileProviders = providers.filter {
+                $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
+            }
+            guard !fileProviders.isEmpty, let onFileDrop else { return false }
+            Task {
+                var urls: [URL] = []
+                for provider in fileProviders {
+                    if let url = try? await Self.loadURL(from: provider) {
+                        urls.append(url)
+                    }
+                }
+                guard !urls.isEmpty else { return }
+                _ = await MainActor.run { onFileDrop(urls) }
+            }
+            return true
+        }
+    }
+
+    private static func loadURL(from provider: NSItemProvider) async throws -> URL {
+        try await withCheckedThrowingContinuation { continuation in
+            _ = provider.loadObject(ofClass: URL.self) { url, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let url {
+                    continuation.resume(returning: url)
+                } else {
+                    continuation.resume(throwing: NSError(domain: "LibraryHeaderDrop", code: -1))
+                }
+            }
         }
     }
 }

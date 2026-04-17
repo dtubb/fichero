@@ -3,6 +3,41 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension SidebarItemRow {
+    // MARK: - NSItemProvider-based file drop (preserves folder URLs, #587)
+
+    /// Handles `.onDrop(of: [.fileURL])` — the NSItemProvider-based API.
+    ///
+    /// The Transferable-based `.dropDestination(for: URL.self)` unwraps a
+    /// Finder folder drag into individual child-file URLs (the Transferable
+    /// protocol expects URL to be a file resource). With NSItemProvider we
+    /// get whatever the drag source contributed — for a folder drag, that's
+    /// one provider holding the folder URL intact. `importService.importFiles`
+    /// then correctly detects `isDirectory` and recurses.
+    ///
+    /// Closure returns `true` immediately while URLs load asynchronously; the
+    /// actual import fires from within the Task so the drop destination
+    /// contract (sync-return `Bool`) stays honored.
+    func handleProvidersDrop(
+        _ providers: [NSItemProvider],
+        targetFolder: SidebarItem?
+    ) -> Bool {
+        let fileProviders = providers.filter {
+            $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
+        }
+        guard !fileProviders.isEmpty else { return false }
+        Task {
+            var urls: [URL] = []
+            for provider in fileProviders {
+                if let url = try? await Self.loadURL(from: provider) {
+                    urls.append(url)
+                }
+            }
+            guard !urls.isEmpty else { return }
+            _ = handleExternalFileDrop(urls: urls, targetFolder: targetFolder)
+        }
+        return true
+    }
+
     // MARK: - Between-row insertion (`.onInsert`)
 
     /// Handles drops between rows inside a folder's children.
