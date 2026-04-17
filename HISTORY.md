@@ -685,3 +685,18 @@ Issues filed for follow-up:
 Skills added to fichero-skills: `/feature` and `/feature-future`.
 
 0.0.2 open at session end: #556 settings (awaiting verify), #520 Sparkle (task), #571 sidebar drop highlight (awaiting verify), #588 pinch-zoom.
+
+## 2026-04-17 — Peekaboo MCP + Agent Process Hardening
+
+- Disabled tbx-doc / tbx-nav / tinderbox MCPs per-project via `~/.claude.json` `disabledMcpServers` (fichero-0.0.2 scope). User-level MCPs stay enabled for other projects.
+- Configured peekaboo MCP (`@steipete/peekaboo`): absolute npx path, missing `mcp` subcommand added, env-var fallback chain `ollama/qwen3.5:cloud,openai/gpt-5.1,anthropic/claude-opus-4`. Registered Ollama as custom AI provider pointing at `http://localhost:11434/v1`.
+- Verified end-to-end: peekaboo captures Xcode / Fichero windows, inline vision model returns captions (with hallucination risk), `Read` tool on saved PNG gives ground-truth.
+- **`AGENTS.md` rewrite** (commit `05b409c0`):
+  - Three-leg Swift check (swiftlint + `xcodebuild build` + `xcodebuild test` via `RunAllTests`) required every time.
+  - Test-as-you-go discipline — every SwiftUI fix/feature lands with unit tests in the same commit (hard rule #5).
+  - Visual verification section for peekaboo (with ground-truth rule).
+  - Agent-team delegation section: Plan → critic → (code) → test-runner → peekaboo → code-reviewer feature loop.
+  - Cross-link from root `AGENTS.md` to `agents/AGENTS.md` so Xcode-specific guidance (Liquid Glass, FoundationModels, DocumentationSearch) reaches sessions started outside Xcode.
+- **`agents/AGENTS.md` update** (same commit): split validation into primary checks (required every time) vs. exploratory tools; added peekaboo guidance.
+- **Bug filed: #589** — Kreuzberg extraction cache writes to cwd (`.kreuzberg/`) instead of app data directory; polluting `git status`. Pattern exists in `db_embeddings.py` / `local_models.py` using `MODELS_BASE`.
+- **Band-aid shipped** (commit `8d2ed415`): `.kreuzberg/` + `fichero-api/.kreuzberg/` gitignored; one previously-tracked cache msgpack untracked.

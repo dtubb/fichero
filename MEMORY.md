@@ -1,5 +1,19 @@
 # Durable Lessons Learned / Decisions
 
+## MCP / Peekaboo Setup — 2026-04-17
+
+**`disabledMcpServers` is scope-agnostic.** In `~/.claude.json`, each project key holds a `disabledMcpServers` array that overrides servers from *any* scope — user-level, project `.mcp.json`, or plugin. Don't confuse with `disabledMcpjsonServers`, which only filters project `.mcp.json` entries. To disable a user-scope MCP for one project (e.g., tbx/tinderbox here), add its ID to the per-project `disabledMcpServers` array.
+
+**npm-packaged MCPs usually need a subcommand.** `npx -y @steipete/peekaboo` launches the CLI which prints help and exits — that's why Claude Code reported "Failed to reconnect to peekaboo" repeatedly. The MCP server mode is `npx -y @steipete/peekaboo mcp`. **Debug pattern:** when an MCP shows "failed to reconnect" immediately on launch, run the command manually; if it prints usage text and exits cleanly, a subcommand is missing.
+
+**MCP spawn PATH doesn't include `/opt/homebrew/bin`.** Use absolute `command` paths (`/opt/homebrew/bin/npx`) in `.mcp.json`. Same applies to any tool installed via Homebrew.
+
+**Peekaboo vision-model captions can hallucinate.** The inline `question:` parameter on `mcp__peekaboo__image` feeds the screenshot to Ollama/OpenAI/Anthropic and returns a caption. In testing, it fabricated a file path ("ProvidersView+ProviderSettingsRow.swift compiling for arm64") that wasn't on screen. **Ground-truth rule:** when a claim matters, use `Read` on the saved PNG — Claude Code displays images into context directly, no middle layer. Reserve the caption path for headless/bulk triage.
+
+**Peekaboo `path` is a prefix, not a filename.** Apps with multiple windows (Xcode has 8) produce one PNG per window, suffixed `<prefix>-<AppName>-<WindowTitle>-<index>.png`. For a single file, target a specific window ID, use `app_target: "frontmost"`, or target by PID.
+
+**Ollama `:cloud` tags are remote-proxied pointers.** Local "model" file is ~380 bytes; every inference round-trips to ollama.com. `qwen3.5:cloud` resolves to the 397B flagship via `remote_model`. Not offline-capable. Good for large vision models you can't run locally, but treat latency like any remote API and reorder `PEEKABOO_AI_PROVIDERS` fallback chain if it's too slow for interactive use.
+
 ## File-Splitting Patterns — 2026-04-14
 
 **Mixin pattern for large class splits.** When splitting a large class (e.g., `TaskQueue`), extract method groups into a `*Mixin` class. The mixin references `self.database`, `self._save_task` etc. without owning them — Python resolves `self` at call time, so the mixin works as long as the concrete class provides those attributes. Pattern used in `task_workers.py` / `TaskWorkersMixin`.
