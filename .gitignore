@@ -67,3 +67,7 @@ dump.rdb
 .empty/
 .mcp.json
 .claude/settings.local.json
+
+# Kreuzberg extraction cache — cwd-relative by default; see #589
+.kreuzberg/
+fichero-api/.kreuzberg/
