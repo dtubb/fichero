@@ -181,7 +181,6 @@
 		A13E80A22F2AD75100EC9EE1 /* ModelComparisonService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E80A12F2AD75100EC9EE1 /* ModelComparisonService.swift */; };
 		A13E80A52F2AD78100EC9EE1 /* ModelComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E80A32F2AD78100EC9EE1 /* ModelComparisonView.swift */; };
 		A14AD1B92F2E2E07001CF205 /* EmbeddedBackendService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14AD1B82F2E2E07001CF205 /* EmbeddedBackendService.swift */; };
-		A1624FF82F2EE5880019C019 /* FicheroBackend.app in CopyFiles */ = {isa = PBXBuildFile; fileRef = A1624FF72F2EE5880019C019 /* FicheroBackend.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 		A1A3A9C02F1028480021909D /* MCPToolsCatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BE2F1028480021909D /* MCPToolsCatalogView.swift */; };
@@ -265,7 +264,6 @@
 		A1FB1D9B2F0420D50023093C /* SidebarItemContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D952F0420D50023093C /* SidebarItemContextMenu.swift */; };
 		A1FB1D9C2F0420D50023093C /* SidebarItemRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D962F0420D50023093C /* SidebarItemRow.swift */; };
 		A1FB1D9D2F0420D50023093C /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D992F0420D50023093C /* SidebarView.swift */; };
-		A1FB1D9E2F0420D50023093C /* SidebarEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D942F0420D50023093C /* SidebarEnvironment.swift */; };
 		A1FB1D9F2F0420D50023093C /* SidebarStateManagers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D982F0420D50023093C /* SidebarStateManagers.swift */; };
 		A1FB1DA02F0420D50023093C /* SidebarViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D9A2F0420D50023093C /* SidebarViewExtensions.swift */; };
 		A1FB1DA12F0420D50023093C /* SidebarSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D972F0420D50023093C /* SidebarSectionHeader.swift */; };
@@ -319,11 +317,9 @@
 		B6A0020100000000BATCH6C1 /* ComparisonDetailView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010100000000BATCH6C1 /* ComparisonDetailView+Actions.swift */; };
 		B6A0020200000000BATCH6C2 /* ComparisonDetailView+Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010200000000BATCH6C2 /* ComparisonDetailView+Models.swift */; };
 		B6A0020300000000BATCH6C3 /* ComparisonDetailView+Sections.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010300000000BATCH6C3 /* ComparisonDetailView+Sections.swift */; };
-		B6A0020400000000BATCH6S1 /* SidebarView+Environment.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010400000000BATCH6S1 /* SidebarView+Environment.swift */; };
 		B6A0020500000000BATCH6S2 /* SidebarView+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010500000000BATCH6S2 /* SidebarView+Helpers.swift */; };
 		B6A0020600000000BATCH6S3 /* SidebarView+SelectionHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010600000000BATCH6S3 /* SidebarView+SelectionHandling.swift */; };
 		B6A0020700000000BATCH6S4 /* SidebarView+ViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010700000000BATCH6S4 /* SidebarView+ViewComponents.swift */; };
-		B6A002FF00000000DROPS001 /* SidebarView+DropHandlers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A001FF00000000DROPS001 /* SidebarView+DropHandlers.swift */; };
 		B6A0020800000000BATCH6A1 /* AddProviderSheet+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010800000000BATCH6A1 /* AddProviderSheet+Helpers.swift */; };
 		B6A0020900000000BATCH6A2 /* AddProviderSheet+Step1.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010900000000BATCH6A2 /* AddProviderSheet+Step1.swift */; };
 		B6A0020A00000000BATCH6A3 /* AddProviderSheet+Step2.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010A00000000BATCH6A3 /* AddProviderSheet+Step2.swift */; };
@@ -370,7 +366,6 @@
 			dstPath = "";
 			dstSubfolder = Resources;
 			files = (
-				A1624FF82F2EE5880019C019 /* FicheroBackend.app in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 		};
@@ -562,7 +557,6 @@
 		A14AD1B82F2E2E07001CF205 /* EmbeddedBackendService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddedBackendService.swift; sourceTree = "<group>"; };
 		A151C6DE2EFDCD4300E46CE0 /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-tests.xctestplan"; sourceTree = "<group>"; };
 		A1624FD12F2ED7B50019C019 /* FicheroRelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FicheroRelease.entitlements; sourceTree = "<group>"; };
-		A1624FF72F2EE5880019C019 /* FicheroBackend.app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; name = FicheroBackend.app; path = "../fichero-api/build/fichero-backend/macos/app/FicheroBackend.app"; sourceTree = "<group>"; };
 		A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-tests.xctestplan"; sourceTree = "<group>"; };
 		A18B76672EFDCD6E001C9EC2 /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-tests.xctestplan"; sourceTree = "<group>"; };
 		A1A3A9BA2F1028480021909D /* AddMCPServerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddMCPServerSheet.swift; sourceTree = "<group>"; };
@@ -619,7 +613,6 @@
 		A1BFB2EA2F043F4500EAA55A /* ViewContexts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewContexts.swift; sourceTree = "<group>"; };
 		A1BFB2ED2F043F5800EAA55A /* DocumentTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentTabView.swift; sourceTree = "<group>"; };
 		A1BFB2EF2F043FA100EAA55A /* BackendConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendConnectionView.swift; sourceTree = "<group>"; };
-		A1BFB2F12F04420A00EAA55A /* t must be i.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "t must be i.plist"; sourceTree = "<group>"; };
 		A1BFB2F22F045C8A00EAA55A /* LibraryImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryImageView.swift; sourceTree = "<group>"; };
 		A1BFB3FA2F057B9300EAA55A /* CheckerboardPattern.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckerboardPattern.swift; sourceTree = "<group>"; };
 		A1BFB3FB2F057B9300EAA55A /* FolderAccessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderAccessManager.swift; sourceTree = "<group>"; };
@@ -645,7 +638,6 @@
 		A1FB1D7E2F0420A90023093C /* DocumentInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentInspector.swift; sourceTree = "<group>"; };
 		A1FB1D7F2F0420A90023093C /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		A1FB1D932F0420D50023093C /* SidebarConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarConstants.swift; sourceTree = "<group>"; };
-		A1FB1D942F0420D50023093C /* SidebarEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarEnvironment.swift; sourceTree = "<group>"; };
 		A1FB1D952F0420D50023093C /* SidebarItemContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemContextMenu.swift; sourceTree = "<group>"; };
 		A1FB1D962F0420D50023093C /* SidebarItemRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemRow.swift; sourceTree = "<group>"; };
 		A1FB1D972F0420D50023093C /* SidebarSectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarSectionHeader.swift; sourceTree = "<group>"; };
@@ -698,11 +690,9 @@
 		B6A0010100000000BATCH6C1 /* ComparisonDetailView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ComparisonDetailView+Actions.swift"; sourceTree = "<group>"; };
 		B6A0010200000000BATCH6C2 /* ComparisonDetailView+Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ComparisonDetailView+Models.swift"; sourceTree = "<group>"; };
 		B6A0010300000000BATCH6C3 /* ComparisonDetailView+Sections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ComparisonDetailView+Sections.swift"; sourceTree = "<group>"; };
-		B6A0010400000000BATCH6S1 /* SidebarView+Environment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarView+Environment.swift"; sourceTree = "<group>"; };
 		B6A0010500000000BATCH6S2 /* SidebarView+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarView+Helpers.swift"; sourceTree = "<group>"; };
 		B6A0010600000000BATCH6S3 /* SidebarView+SelectionHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarView+SelectionHandling.swift"; sourceTree = "<group>"; };
 		B6A0010700000000BATCH6S4 /* SidebarView+ViewComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarView+ViewComponents.swift"; sourceTree = "<group>"; };
-		B6A001FF00000000DROPS001 /* SidebarView+DropHandlers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarView+DropHandlers.swift"; sourceTree = "<group>"; };
 		B6A0010800000000BATCH6A1 /* AddProviderSheet+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Helpers.swift"; sourceTree = "<group>"; };
 		B6A0010900000000BATCH6A2 /* AddProviderSheet+Step1.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Step1.swift"; sourceTree = "<group>"; };
 		B6A0010A00000000BATCH6A3 /* AddProviderSheet+Step2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Step2.swift"; sourceTree = "<group>"; };
@@ -822,7 +812,6 @@
 		400 = {
 			isa = PBXGroup;
 			children = (
-				A1624FF72F2EE5880019C019 /* FicheroBackend.app */,
 				A18B76672EFDCD6E001C9EC2 /* fichero-tests.xctestplan */,
 				A151C6DE2EFDCD4300E46CE0 /* fichero-tests.xctestplan */,
 				A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */,
@@ -844,8 +833,6 @@
 				412 /* Models */,
 				414 /* Resources */,
 				413 /* Services */,
-				A1BFB2F12F04420A00EAA55A /* t must be i.plist */,
-				A1BFB4182F06A98700EAA55A /* Utilities */,
 				411 /* Views */,
 			);
 			path = "fichero-swiftui";
@@ -888,7 +875,6 @@
 			isa = PBXGroup;
 			children = (
 				A1FB1D932F0420D50023093C /* SidebarConstants.swift */,
-				A1FB1D942F0420D50023093C /* SidebarEnvironment.swift */,
 				A1FB1D952F0420D50023093C /* SidebarItemContextMenu.swift */,
 				A1FB1D962F0420D50023093C /* SidebarItemRow.swift */,
 				B2A0010100000000BATCH2S1 /* SidebarItemRow+Label.swift */,
@@ -898,11 +884,9 @@
 				A1FB1D972F0420D50023093C /* SidebarSectionHeader.swift */,
 				A1FB1D982F0420D50023093C /* SidebarStateManagers.swift */,
 				A1FB1D992F0420D50023093C /* SidebarView.swift */,
-				B6A0010400000000BATCH6S1 /* SidebarView+Environment.swift */,
 				B6A0010500000000BATCH6S2 /* SidebarView+Helpers.swift */,
 				B6A0010600000000BATCH6S3 /* SidebarView+SelectionHandling.swift */,
 				B6A0010700000000BATCH6S4 /* SidebarView+ViewComponents.swift */,
-				B6A001FF00000000DROPS001 /* SidebarView+DropHandlers.swift */,
 				A1FB1D9A2F0420D50023093C /* SidebarViewExtensions.swift */,
 				A13E7C1B2F27E01E00EC9EE1 /* Modes */,
 				A13E7C252F27E03300EC9EE1 /* SidebarModeBar.swift */,
@@ -1282,13 +1266,6 @@
 				A1BFB45B2F0AAC3700EAA55A /* WorkflowToolbar.swift */,
 			);
 			path = Toolbars;
-			sourceTree = "<group>";
-		};
-		A1BFB4182F06A98700EAA55A /* Utilities */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Utilities;
 			sourceTree = "<group>";
 		};
 		A1D8BCE72F2CD054006D91D7 /* Sheets */ = {
@@ -1824,7 +1801,6 @@
 				B4A002040000000000BATCH4 /* ModelPickerSheet.swift in Sources */,
 				B4A002050000000000BATCH4 /* PresetPickerSheet.swift in Sources */,
 				042 /* AppleScriptSupport.swift in Sources */,
-				A1FB1D9E2F0420D50023093C /* SidebarEnvironment.swift in Sources */,
 				A1FB1D9F2F0420D50023093C /* SidebarStateManagers.swift in Sources */,
 				A1FB1DA02F0420D50023093C /* SidebarViewExtensions.swift in Sources */,
 				A1FB1DA12F0420D50023093C /* SidebarSectionHeader.swift in Sources */,
@@ -1874,11 +1850,9 @@
 				B6A0020100000000BATCH6C1 /* ComparisonDetailView+Actions.swift in Sources */,
 				B6A0020200000000BATCH6C2 /* ComparisonDetailView+Models.swift in Sources */,
 				B6A0020300000000BATCH6C3 /* ComparisonDetailView+Sections.swift in Sources */,
-				B6A0020400000000BATCH6S1 /* SidebarView+Environment.swift in Sources */,
 				B6A0020500000000BATCH6S2 /* SidebarView+Helpers.swift in Sources */,
 				B6A0020600000000BATCH6S3 /* SidebarView+SelectionHandling.swift in Sources */,
 				B6A0020700000000BATCH6S4 /* SidebarView+ViewComponents.swift in Sources */,
-				B6A002FF00000000DROPS001 /* SidebarView+DropHandlers.swift in Sources */,
 				B6A0020800000000BATCH6A1 /* AddProviderSheet+Helpers.swift in Sources */,
 				B6A0020900000000BATCH6A2 /* AddProviderSheet+Step1.swift in Sources */,
 				B6A0020A00000000BATCH6A3 /* AddProviderSheet+Step2.swift in Sources */,

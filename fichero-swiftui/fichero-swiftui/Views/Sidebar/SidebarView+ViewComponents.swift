@@ -288,8 +288,7 @@ extension SidebarView {
     @ViewBuilder
     private func unifiedRows(
         _ items: [SidebarItem],
-        libraryId: UUID? = nil,
-        acceptsFileInsert: Bool = false
+        libraryId: UUID? = nil
     ) -> some View {
         ForEach(items) { item in
             SidebarItemRow(
@@ -338,11 +337,7 @@ extension SidebarView {
                     set: { setUnifiedSectionExpanded($0, libraryId: libraryId, sectionKey: sectionKey) }
                 ),
                 content: {
-                    unifiedRows(
-                        items,
-                        libraryId: libraryId,
-                        acceptsFileInsert: sectionKey == "library"
-                    )
+                    unifiedRows(items, libraryId: libraryId)
                 },
                 label: {
                     Text(title)
