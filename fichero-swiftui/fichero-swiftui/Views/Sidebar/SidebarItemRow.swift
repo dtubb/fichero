@@ -159,17 +159,16 @@ struct SidebarItemRow: View {
                     )
                     .tag(child.id)
                 }
-                // Native between-row drop zone — SwiftUI draws a blue insertion
-                // line as the cursor moves between rows, and fires this callback
-                // on release. Accepts Finder files (fileURL) and internal
-                // sidebar drags (utf8PlainText from `.draggable(item.id)`).
-                .onInsert(of: [UTType.fileURL, UTType.utf8PlainText]) { offset, providers in
-                    handleInsertBetweenChildren(
-                        at: offset,
-                        providers: providers,
-                        parentFolder: item
-                    )
-                }
+                // `.onInsert(of:)` on this nested ForEach inside
+                // DisclosureGroup inside List triggers a SwiftUICore crash
+                // (`HomogeneousCollection index -1 out of bounds`) during
+                // external folder drops. Apple's own radar; reproduces
+                // reliably on macOS 14+. Between-row drop UX (native blue
+                // insertion line) is disabled until we have a safer
+                // mechanism — either a custom DropDelegate with y-threshold
+                // regions, or waiting on an Apple fix. Per-row drops
+                // (see `.dropDestination` on the label below) still work —
+                // drops land on whatever folder/leaf row the cursor is over.
             } label: {
                 fullWidthLabel
                     .draggable(item.id)

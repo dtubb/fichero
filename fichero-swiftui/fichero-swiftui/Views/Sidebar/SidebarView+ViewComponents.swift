@@ -269,17 +269,12 @@ extension SidebarView {
             )
             .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 8))
         }
-        // Native between-row drop zone for file URLs at library root.
-        // Only the documents bucket opts in (not Saved Searches / Workflows,
-        // where dropping a file is meaningless). Offset is ignored until
-        // persistent sort-order lands — every insert routes to library root.
-        .onInsert(
-            of: acceptsFileInsert ? [UTType.fileURL] : []
-        ) { offset, providers in
-            if let libraryId {
-                handleLibraryRootInsert(libraryId: libraryId, offset: offset, providers: providers)
-            }
-        }
+        // `.onInsert(of:)` at this level crashes SwiftUICore on external
+        // folder drops (`HomogeneousCollection index -1 out of bounds`)
+        // — same combination issue as SidebarItemRow.swift. Disabled until
+        // a safer mechanism is available. Per-row drops still work; files
+        // dropped at library root go via the library-header drop
+        // destination on SidebarSectionHeader.
     }
 
     @ViewBuilder
