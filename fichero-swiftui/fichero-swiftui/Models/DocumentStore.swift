@@ -124,9 +124,18 @@ class DocumentStore: ObservableObject {
         isLoading = false
     }
 
-    /// Refresh collections from the backend.
+    /// Refresh collections AND the currently-selected collection's children
+    /// from the backend. Reloading both is important because most callers
+    /// ("I just imported a folder", "I just moved an item") want the grid
+    /// view (`currentDocuments`) to reflect the change too — not just the
+    /// sidebar tree (`collections`). Without the child reload, a drop into
+    /// the currently-viewed folder shows the new folder in the sidebar but
+    /// a stale empty grid (#576).
     func refresh() async {
         await loadCollections()
+        if let selected = selectedCollection {
+            await loadChildren(of: selected)
+        }
     }
 
     // MARK: - Selection
