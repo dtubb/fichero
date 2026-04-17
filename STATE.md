@@ -20,11 +20,11 @@ Nothing active.
 
 ## Next Session — Start Here
 
-1. **Daniel: test sidebar drag-drop end-to-end** — Finder→folder (highlight expected), Finder→leaf (lighter highlight, imports as sibling), Finder→between rows at any level (blue line), grid→sidebar folder (existing `.draggable(doc.id)` path).
-2. **#556 settings layout** — still broken; reopened with root-cause fix plan (remove inner `.frame(width: 550, height: 450)` at `GeneralSettingsView.swift:114` + audit other settings tabs).
-3. **#570 drag-drop PDF invisible in sidebar** — regression in c3ad9d24; debug checklist in the issue body (curl `/api/documents` after drop first).
-4. **#572 manual reorder persistence** — needs `Document.sort_order` backend column + migration; tracked for 0.0.6.
-5. **#520 Sparkle** — last untouched 0.0.2 item.
+1. **Daniel: verify #556 settings layout** — all 4 settings tabs now use `.formStyle(.grouped)`. Expected: proper grouped sections, left-aligned labels, nothing clipped. If still wrong, fresh screenshot.
+2. **Daniel: verify #570 PDFs in sidebar** — drop a PDF → should appear as sidebar row with disclosure triangle; open it → pages listed as children sorted by page number.
+3. **Daniel: test sidebar drag-drop end-to-end** — Finder→folder (blue wash), Finder→leaf (lighter wash, imports as sibling), Finder→between rows (native blue line), grid→sidebar folder (move).
+4. **#520 Sparkle** — last untouched 0.0.2 item. Needs SDK wire-up + appcast signing + update-check UI.
+5. **#572 (0.0.6)** — sort-order persistence once Daniel wants manual reordering to stick.
 
 ## Parallel Workflow
 

@@ -257,6 +257,18 @@ for link in links:
 - `git worktree remove --force` still fails if the directory has content git can't delete itself. Follow up with `git worktree prune && rm -rf <path>`.
 - `.kreuzberg/extraction/*.msgpack` binary files appear as modified during cherry-picks of branches that processed documents. Always resolve with `--theirs` — these are cache files.
 
+## macOS Settings Layout — 2026-04-16
+
+- `Form { Section(...) }` in a `TabView`-based Settings window **needs `.formStyle(.grouped)`** on macOS 14+. Without it, the default `.automatic` style renders labels right-aligned in an invisible column that pushes all content into the right ~40% of the window and clips right-edge content.
+- `.grouped` provides its own insets — remove `.padding()` when switching.
+- Matches the native macOS Settings.app look (System Settings → Appearance, Language & Region, etc.).
+
+## SidebarItemBuilder Filter — 2026-04-16
+
+- `SidebarItemBuilder.buildLibraryHierarchy` intentionally filters the document list — it does NOT show every doc. Current filter includes folders, PDFs (`.isNavigableContainer`), and `.page` children. Everything else (text, images, docx, mp3) lives in the main grid only.
+- Any future work on "which doc types appear in the sidebar" goes in exactly one place: the `visibleDocs` filter at the top of `buildLibraryHierarchy`. Don't scatter filter logic across the tree-building functions.
+- Sidebar children sort via shared `childOrder(_:_:)` comparator: `sequence` (page number) first, case-insensitive name fallback.
+
 ## SwiftUI Drop-Zone Visual Feedback — 2026-04-16
 
 - `.listRowBackground(dynamicColor)` with dynamic @State in sidebar-style Lists **does NOT reliably re-render** on hover-state flips. The List caches the row background view per-row identity; only identity changes (tag/id) invalidate the cache. Selection highlighting works because `selectedItemId` change triggers re-identification; drop-hover state doesn't have that.
