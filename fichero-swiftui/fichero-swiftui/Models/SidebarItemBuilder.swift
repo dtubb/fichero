@@ -35,8 +35,20 @@ enum SidebarItemBuilder {
     }
 
     /// Comparator for sidebar sibling docs: prefer `sequence` (PDF page order)
-    /// when both sides have it, otherwise case-insensitive name ordering.
-    private static func childOrder(_ lhs: Document, _ rhs: Document) -> Bool {
+    /// Sort order for document siblings inside a folder (sidebar plan, #572).
+    ///
+    /// Priority, most to least specific:
+    ///   1. User-defined `sortOrder` when the two siblings differ — the
+    ///      backend's `/documents/reorder` route assigns these sequentially
+    ///      so lower means earlier. A folder whose documents have never
+    ///      been reordered has every doc at `sortOrder == 0`; in that case
+    ///      the comparison ties and falls through to the next key.
+    ///   2. `sequence` on PDF page children (keeps page order stable).
+    ///   3. Case-insensitive name.
+    static func childOrder(_ lhs: Document, _ rhs: Document) -> Bool {
+        if lhs.sortOrder != rhs.sortOrder {
+            return lhs.sortOrder < rhs.sortOrder
+        }
         if let lSeq = lhs.sequence, let rSeq = rhs.sequence {
             return lSeq < rSeq
         }

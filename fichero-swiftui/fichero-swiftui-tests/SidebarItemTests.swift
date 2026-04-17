@@ -287,7 +287,8 @@ struct SidebarItemBuilderTests {
         docType: DocType = .folder,
         fileType: FileType? = nil,
         parentId: String? = nil,
-        sequence: Int? = nil
+        sequence: Int? = nil,
+        sortOrder: Int = 0
     ) -> Document {
         Document(
             id: id,
@@ -301,6 +302,7 @@ struct SidebarItemBuilderTests {
             status: .completed,
             metadata: [:],
             pageContent: nil,
+            sortOrder: sortOrder,
             createdAt: now,
             updatedAt: now,
             expectedThumbnailPath: nil,
@@ -416,6 +418,54 @@ struct SidebarItemBuilderTests {
         #expect(result[0].name == "Parent")
         #expect(result[0].children?.count == 1)
         #expect(result[0].children?[0].name == "Child")
+    }
+
+    // MARK: - childOrder sort priority (#572, sidebar plan Step 11)
+
+    @Test("childOrder: lower sortOrder comes before higher regardless of name")
+    func childOrderUsesSortOrderFirst() {
+        // Able has sortOrder=0, Zara has sortOrder=1. The backend assigns
+        // sortOrder sequentially from 0, so Able comes first despite coming
+        // last alphabetically's reverse — this pins the "lower means earlier"
+        // direction of the comparison.
+        let able = makeDocument(id: "a1", name: "Able", docType: .folder, sortOrder: 0)
+        let zara = makeDocument(id: "z1", name: "Zara", docType: .folder, sortOrder: 1)
+        #expect(SidebarItemBuilder.childOrder(able, zara) == true)
+        #expect(SidebarItemBuilder.childOrder(zara, able) == false)
+    }
+
+    @Test("childOrder: explicit reorder within parent respects sortOrder")
+    func childOrderExplicitReorder() {
+        let first = makeDocument(id: "f1", name: "B", docType: .folder, sortOrder: 2)
+        let second = makeDocument(id: "f2", name: "A", docType: .folder, sortOrder: 3)
+        // first (sortOrder 2) comes before second (sortOrder 3) despite
+        // "B" > "A" alphabetically.
+        #expect(SidebarItemBuilder.childOrder(first, second) == true)
+    }
+
+    @Test("childOrder: falls back to sequence when both sortOrders are 0 (PDF pages)")
+    func childOrderFallsBackToSequence() {
+        // Both pages default sortOrder 0 → sequence wins → page 2 before page 5
+        let page2 = makeDocument(id: "p2", name: "Page 2", docType: .page, sequence: 2)
+        let page5 = makeDocument(id: "p5", name: "Page 5", docType: .page, sequence: 5)
+        #expect(SidebarItemBuilder.childOrder(page2, page5) == true)
+    }
+
+    @Test("childOrder: falls back to name when sortOrder and sequence both absent")
+    func childOrderFallsBackToName() {
+        let alpha = makeDocument(id: "a1", name: "Alpha", docType: .folder)
+        let beta = makeDocument(id: "b1", name: "Beta", docType: .folder)
+        #expect(SidebarItemBuilder.childOrder(alpha, beta) == true)
+    }
+
+    @Test("childOrder: equal sortOrder values fall through to sequence/name (not stuck)")
+    func childOrderEqualSortOrderFallthrough() {
+        // Both sortOrder 7 — tie — must fall through to name comparison,
+        // not claim the first argument is "before" the second.
+        let alpha = makeDocument(id: "a1", name: "Alpha", docType: .folder, sortOrder: 7)
+        let beta = makeDocument(id: "b1", name: "Beta", docType: .folder, sortOrder: 7)
+        #expect(SidebarItemBuilder.childOrder(alpha, beta) == true)
+        #expect(SidebarItemBuilder.childOrder(beta, alpha) == false)
     }
 
     // MARK: - buildWorkflowHierarchy
