@@ -4,6 +4,35 @@ import UniformTypeIdentifiers
 
 let sidebarRowLogger = Logger(subsystem: "com.fichero.app", category: "SidebarRow")
 
+extension View {
+    /// Applies the sidebar drop-target highlight (accent fill + stroke) to
+    /// any view. Placed on the OUTER expression of a SidebarItemRow body
+    /// branch so it covers the full List row — including the DisclosureGroup
+    /// chevron/indent area that `fullWidthLabel` alone can't reach.
+    ///
+    /// `.overlay` + `.allowsHitTesting(false)` so the wash renders on top of
+    /// whatever chrome the sidebar-style List draws, without blocking drops.
+    @ViewBuilder
+    func sidebarDropHighlight(_ active: Bool, stronger: Bool) -> some View {
+        self.overlay(
+            RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
+                .fill(
+                    active
+                        ? Color.accentColor.opacity(stronger ? 0.45 : 0.25)
+                        : Color.clear
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
+                        .stroke(
+                            active ? Color.accentColor : Color.clear,
+                            lineWidth: active ? 2 : 0
+                        )
+                )
+                .allowsHitTesting(false)
+        )
+    }
+}
+
 struct SidebarItemRow: View {
     let item: SidebarItem
     let allCachedItems: [SidebarItem]
@@ -67,42 +96,14 @@ struct SidebarItemRow: View {
         )
     }
 
-    /// Wraps itemLabel so both the drop hit-region AND the drop-highlight
-    /// visual fill the entire row width.
-    ///
-    /// Highlight uses `.overlay` (not `.background`) with `.allowsHitTesting(false)`:
-    /// overlays draw ON TOP of any row chrome macOS 14's sidebar-style List
-    /// paints over our content, so the wash is guaranteed visible. Fill + stroke
-    /// together make it unmistakable even on a translucent sidebar background
-    /// (a 0.25 fill alone was invisible against the existing 0.18 selection
-    /// highlight — see Daniel's testing of 829955ed).
+    /// Widens `itemLabel`'s hit region to the full available width so the
+    /// dropDestination fires when the cursor is anywhere over the row, not
+    /// just the icon+text.
     private var fullWidthLabel: some View {
         itemLabel
             .padding(.vertical, 2)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
-            .overlay(
-                RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
-                    .fill(dropFill)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
-                            .stroke(dropStroke, lineWidth: isDropTargeted ? 2 : 0)
-                    )
-                    .allowsHitTesting(false)
-            )
-    }
-
-    /// Overlay fill when this row is a drop target. Stronger for folders
-    /// (drop imports *into*) than for leaves (drop imports *beside*).
-    private var dropFill: Color {
-        guard isDropTargeted else { return .clear }
-        return Color.accentColor.opacity(isFolder ? 0.45 : 0.25)
-    }
-
-    /// Accent-colored border that wraps the entire row when it's a drop target —
-    /// reinforces the fill so the highlight is impossible to miss.
-    private var dropStroke: Color {
-        isDropTargeted ? Color.accentColor : .clear
     }
 
     /// Update the drop-target state and log the transition. The log lets Daniel
@@ -130,6 +131,12 @@ struct SidebarItemRow: View {
     }
 
     var body: some View {
+        bodyContent
+            .sidebarDropHighlight(isDropTargeted, stronger: isFolder)
+    }
+
+    @ViewBuilder
+    private var bodyContent: some View {
         if let children = item.children, !children.isEmpty {
             DisclosureGroup(isExpanded: isExpanded) {
                 ForEach(children) { child in

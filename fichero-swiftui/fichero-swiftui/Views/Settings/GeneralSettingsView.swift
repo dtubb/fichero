@@ -117,6 +117,8 @@ struct GeneralSettingsView: View {
 }
 
 #Preview("General Settings") {
+    // Frame matches the runtime SettingsView window (680x520) so the
+    // preview renders layout the way users actually see it.
     GeneralSettingsView()
-        .frame(width: 550, height: 450)
+        .frame(width: 680, height: 520)
 }
