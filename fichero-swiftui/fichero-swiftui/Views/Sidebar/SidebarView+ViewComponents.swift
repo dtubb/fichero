@@ -313,7 +313,7 @@ extension SidebarView {
                     ? Color.accentColor.opacity(0.18)
                     : Color.clear
             )
-            .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 8))
+            .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 8))
         }
         // `.onInsert(of:)` at this level crashes SwiftUICore on external
         // folder drops (`HomogeneousCollection index -1 out of bounds`)

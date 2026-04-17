@@ -98,10 +98,11 @@ struct SidebarItemRow: View {
 
     /// Widens `itemLabel`'s hit region to the full available width so the
     /// dropDestination fires when the cursor is anywhere over the row, not
-    /// just the icon+text.
+    /// just the icon+text. Tight vertical padding to match Xcode's dense
+    /// sidebar rhythm (~18pt row height).
     private var fullWidthLabel: some View {
         itemLabel
-            .padding(.vertical, 2)
+            .padding(.vertical, 1)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
     }
@@ -132,7 +133,6 @@ struct SidebarItemRow: View {
 
     var body: some View {
         bodyContent
-            .sidebarDropHighlight(isDropTargeted, stronger: isFolder)
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint(accessibilityHint)
             .accessibilityValue(accessibilityValue)
@@ -184,14 +184,41 @@ struct SidebarItemRow: View {
         return !children.isEmpty
     }
 
+    // Drop modifiers attach to `fullWidthLabel` — the PARENT row's label —
+    // not to the whole DisclosureGroup. Attaching to the DisclosureGroup
+    // made its hit region encompass expanded children, so hovering any
+    // descendant lit the parent's `isDropTargeted` too and the whole
+    // subtree highlighted in blue (reported 2026-04-17). The drop hit-
+    // region is still full-row-wide because `fullWidthLabel` stretches
+    // `maxWidth: .infinity`; the remaining dead zone is the chevron
+    // itself, which SwiftUI renders as a sibling of the label inside
+    // the DisclosureGroup's chrome. Accepted trade-off — most drops
+    // target the icon or text, not the chevron.
+    //
+    // `.onInsert(of:)` between-row drops remain disabled because of the
+    // SwiftUICore `HomogeneousCollection` crash on macOS 14+; sidebar
+    // plan Step 7 (#580) restores them via a custom DropDelegate.
     @ViewBuilder
     private var bodyContent: some View {
-        rowShape
+        if let children = item.children, !children.isEmpty {
+            DisclosureGroup(isExpanded: isExpanded) {
+                childrenList(children)
+            } label: {
+                labelWithDropTarget
+            }
+        } else {
+            labelWithDropTarget
+        }
+    }
+
+    /// `fullWidthLabel` wrapped with drag-source, drop-destination, and
+    /// context-menu modifiers. `sidebarDropHighlight` goes HERE (on the
+    /// label), not on the outer `bodyContent`, so the blue fill only
+    /// covers the current row — not any expanded children below.
+    private var labelWithDropTarget: some View {
+        fullWidthLabel
+            .sidebarDropHighlight(isDropTargeted, stronger: isFolder)
             .draggable(item.id)
-            // Internal sidebar-to-sidebar drags: the 3-param dropDestination
-            // variant (with the `isTargeted:` closure) is the one that drives
-            // hover feedback. The 2-param variant without it never updates
-            // @State — confirmed via Apple's docs (#598 root cause).
             .dropDestination(
                 for: String.self,
                 action: { droppedIDs, _ in
@@ -204,45 +231,14 @@ struct SidebarItemRow: View {
                     isDropTargeted = isHovering
                 }
             )
-            // Finder file drops — broader UTType list so drags that advertise
-            // only a content UTI (e.g. `.mov` → com.apple.quicktime-movie
-            // without always including public.fileURL) still activate the
-            // hit region and drive `isTargeted`. Handler-level filtering
-            // then picks the URL-producing providers via canLoadObject.
             .onDrop(
                 of: [UTType.fileURL, UTType.item, UTType.movie, UTType.audio, UTType.image],
                 isTargeted: $isDropTargeted
             ) { providers in
-                // Folder drop → import into this folder. Leaf drop → import
-                // into the leaf's parent folder ("drop beside" semantics).
                 let target = isFolder ? item : parentFolderItem(of: item)
                 return handleProvidersDrop(providers, targetFolder: target)
             }
             .contextMenu { rowContextMenu }
-    }
-
-    // Whole-row container. For folders with children, wraps the label
-    // in a `DisclosureGroup` so the chevron shows; for empty folders and
-    // leaves, renders just the label. Drop/drag modifiers attach to
-    // `rowShape` itself (not inside the DisclosureGroup's label closure)
-    // so the chevron/indent area is a full-width drop target — fix for
-    // the 2026-04-17 review finding that drops missed the chevron
-    // because modifiers were bound to the label subview only (#598).
-    //
-    // `.onInsert(of:)` between-row drops remain disabled because of the
-    // SwiftUICore `HomogeneousCollection` crash on macOS 14+. Sidebar
-    // plan Step 7 (#580) restores them via a custom DropDelegate.
-    @ViewBuilder
-    private var rowShape: some View {
-        if let children = item.children, !children.isEmpty {
-            DisclosureGroup(isExpanded: isExpanded) {
-                childrenList(children)
-            } label: {
-                fullWidthLabel
-            }
-        } else {
-            fullWidthLabel
-        }
     }
 
     @ViewBuilder
