@@ -212,33 +212,96 @@ struct SidebarItemRow: View {
     }
 
     /// `fullWidthLabel` wrapped with drag-source, drop-destination, and
-    /// context-menu modifiers. `sidebarDropHighlight` goes HERE (on the
-    /// label), not on the outer `bodyContent`, so the blue fill only
-    /// covers the current row — not any expanded children below.
+    /// context-menu modifiers. Using a single `.onDrop(of:isTargeted:
+    /// perform:)` that accepts BOTH UTIs (utf8PlainText for internal
+    /// sidebar item IDs and fileURL for Finder drags) because attaching
+    /// both `.dropDestination(for: String.self)` and `.onDrop(of:
+    /// [.fileURL])` to the same view caused SwiftUI to route Finder
+    /// drags through the String handler first (where they'd silently
+    /// reject) before ever reaching `.onDrop`. Unifying on the older
+    /// NSItemProvider API uses one modifier end-to-end.
+    ///
+    /// `sidebarDropHighlight` goes HERE (on the label), not on the outer
+    /// `bodyContent`, so the blue fill only covers the current row —
+    /// not any expanded children below.
     private var labelWithDropTarget: some View {
         fullWidthLabel
             .sidebarDropHighlight(isDropTargeted, stronger: isFolder)
             .draggable(item.id)
-            .dropDestination(
-                for: String.self,
-                action: { droppedIDs, _ in
-                    if isFolder {
-                        return handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
-                    }
-                    return handleDropBesideItem(itemIDs: droppedIDs, targetItem: item)
-                },
-                isTargeted: { isHovering in
-                    isDropTargeted = isHovering
-                }
-            )
             .onDrop(
-                of: [UTType.fileURL, UTType.item, UTType.movie, UTType.audio, UTType.image],
+                of: [
+                    UTType.utf8PlainText,  // internal sidebar drags (item.id)
+                    UTType.fileURL,        // Finder file-URL drags
+                    UTType.item,           // broadly-typed drags (images, movies, etc.)
+                    UTType.movie,
+                    UTType.audio,
+                    UTType.image
+                ],
                 isTargeted: $isDropTargeted
             ) { providers in
-                let target = isFolder ? item : parentFolderItem(of: item)
-                return handleProvidersDrop(providers, targetFolder: target)
+                handleRowDrop(providers)
             }
             .contextMenu { rowContextMenu }
+    }
+
+    /// Routes a drop on this row to the right handler based on provider
+    /// contents: sidebar-internal String drags → documentStore move /
+    /// service folder-path update; Finder URL drags → ingestion import
+    /// into the correct target folder.
+    private func handleRowDrop(_ providers: [NSItemProvider]) -> Bool {
+        let textProviders = providers.filter {
+            $0.canLoadObject(ofClass: NSString.self)
+        }
+        let urlProviders = providers.filter {
+            $0.canLoadObject(ofClass: URL.self)
+                && !$0.canLoadObject(ofClass: NSString.self)  // prefer text when both advertise
+        }
+
+        // Internal sidebar drag — our `.draggable(item.id)` emits the
+        // ID as a String (utf8PlainText UTI).
+        if !textProviders.isEmpty {
+            Task {
+                var ids: [String] = []
+                for provider in textProviders {
+                    if let str = try? await Self.loadString(from: provider) {
+                        ids.append(str)
+                    }
+                }
+                guard !ids.isEmpty else { return }
+                if isFolder {
+                    _ = handleDropIntoFolder(itemIDs: ids, targetFolder: item)
+                } else {
+                    _ = handleDropBesideItem(itemIDs: ids, targetItem: item)
+                }
+            }
+            return true
+        }
+
+        // Finder file drop — use the existing handler, which already
+        // loads URLs via NSItemProvider and routes to the correct
+        // target folder based on folder-vs-leaf.
+        if !urlProviders.isEmpty {
+            let target = isFolder ? item : parentFolderItem(of: item)
+            return handleProvidersDrop(urlProviders, targetFolder: target)
+        }
+
+        return false
+    }
+
+    /// Async helper to unwrap a plain-text NSItemProvider into a String.
+    /// Matches the `loadURL` helper's pattern on `SidebarItemRow+DropHandlers`.
+    private static func loadString(from provider: NSItemProvider) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            _ = provider.loadObject(ofClass: NSString.self) { value, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let nsString = value as? NSString {
+                    continuation.resume(returning: nsString as String)
+                } else {
+                    continuation.resume(throwing: NSError(domain: "SidebarRowDrop", code: -1))
+                }
+            }
+        }
     }
 
     @ViewBuilder
