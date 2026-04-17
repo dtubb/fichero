@@ -62,9 +62,10 @@ struct LibrarySectionHeader: View {
                 .fill(isDropTargeted ? Color.accentColor.opacity(0.25) : Color.clear)
         )
         .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
-            let fileProviders = providers.filter {
-                $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
-            }
+            // #600: UTI-agnostic filter — see SidebarItemRow+DropHandlers
+            // for the rationale (.mov NSItemProvider may omit public.fileURL
+            // while still being URL-loadable).
+            let fileProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
             guard !fileProviders.isEmpty, let onFileDrop else { return false }
             Task {
                 var urls: [URL] = []

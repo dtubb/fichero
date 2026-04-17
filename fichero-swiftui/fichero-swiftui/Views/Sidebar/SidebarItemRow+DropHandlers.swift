@@ -21,9 +21,15 @@ extension SidebarItemRow {
         _ providers: [NSItemProvider],
         targetFolder: SidebarItem?
     ) -> Bool {
-        let fileProviders = providers.filter {
-            $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
-        }
+        // #600: use `canLoadObject(ofClass: URL.self)` — UTI-agnostic —
+        // rather than `hasItemConformingToTypeIdentifier(fileURL)`. Some
+        // Finder drag sources advertise only the content UTI (e.g. `.mov`
+        // advertises `com.apple.quicktime-movie` but not always
+        // `public.fileURL`), so the old UTI filter silently dropped the
+        // provider before the URL-load even attempted. `canLoadObject`
+        // asks the provider directly whether it can produce a URL, which
+        // works for every file type Finder can drag, including `.mov`.
+        let fileProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
         guard !fileProviders.isEmpty else { return false }
         Task {
             var urls: [URL] = []
