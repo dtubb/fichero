@@ -184,55 +184,46 @@ struct SidebarItemRow: View {
         return !children.isEmpty
     }
 
-    // Drop modifiers attach to `fullWidthLabel` — the PARENT row's label —
-    // not to the whole DisclosureGroup. Attaching to the DisclosureGroup
-    // made its hit region encompass expanded children, so hovering any
-    // descendant lit the parent's `isDropTargeted` too and the whole
-    // subtree highlighted in blue (reported 2026-04-17). The drop hit-
-    // region is still full-row-wide because `fullWidthLabel` stretches
-    // `maxWidth: .infinity`; the remaining dead zone is the chevron
-    // itself, which SwiftUI renders as a sibling of the label inside
-    // the DisclosureGroup's chrome. Accepted trade-off — most drops
-    // target the icon or text, not the chevron.
-    //
-    // `.onInsert(of:)` between-row drops remain disabled because of the
-    // SwiftUICore `HomogeneousCollection` crash on macOS 14+; sidebar
-    // plan Step 7 (#580) restores them via a custom DropDelegate.
+    // Folders (with or without children) are drop targets; leaves
+    // (PDFs, images, saved searches, etc.) are drag sources only.
+    // Matches Finder semantics: you can drag a file out, but you
+    // can't drop anything onto a file.
     @ViewBuilder
     private var bodyContent: some View {
         if let children = item.children, !children.isEmpty {
             DisclosureGroup(isExpanded: isExpanded) {
                 childrenList(children)
             } label: {
-                labelWithDropTarget
+                folderLabel
             }
+        } else if isFolder {
+            folderLabel
         } else {
-            labelWithDropTarget
+            leafLabel
         }
     }
 
-    /// `fullWidthLabel` wrapped with drag-source, drop-destination, and
-    /// context-menu modifiers. Using a single `.onDrop(of:isTargeted:
-    /// perform:)` that accepts BOTH UTIs (utf8PlainText for internal
-    /// sidebar item IDs and fileURL for Finder drags) because attaching
-    /// both `.dropDestination(for: String.self)` and `.onDrop(of:
-    /// [.fileURL])` to the same view caused SwiftUI to route Finder
-    /// drags through the String handler first (where they'd silently
-    /// reject) before ever reaching `.onDrop`. Unifying on the older
-    /// NSItemProvider API uses one modifier end-to-end.
+    /// Folder row: full drag + drop support. Single `.onDrop(of:
+    /// isTargeted:perform:)` unifies both internal sidebar drags
+    /// (utf8PlainText) and Finder file drags (fileURL and friends)
+    /// — attaching both `.dropDestination(for: String.self)` and a
+    /// separate `.onDrop(of: [.fileURL])` on the same view causes
+    /// SwiftUI to route Finder drags through the String handler
+    /// first and silently reject them. One modifier, branching on
+    /// advertised UTI inside `handleRowDrop`.
     ///
-    /// `sidebarDropHighlight` goes HERE (on the label), not on the outer
-    /// `bodyContent`, so the blue fill only covers the current row —
-    /// not any expanded children below.
-    private var labelWithDropTarget: some View {
+    /// Highlight + drop target attach to `fullWidthLabel` (not to
+    /// the DisclosureGroup's outer body), so the blue hover fill
+    /// only covers this row — not expanded children below.
+    private var folderLabel: some View {
         fullWidthLabel
-            .sidebarDropHighlight(isDropTargeted, stronger: isFolder)
+            .sidebarDropHighlight(isDropTargeted, stronger: true)
             .draggable(item.id)
             .onDrop(
                 of: [
-                    UTType.utf8PlainText,  // internal sidebar drags (item.id)
+                    UTType.utf8PlainText,  // internal sidebar drags
                     UTType.fileURL,        // Finder file-URL drags
-                    UTType.item,           // broadly-typed drags (images, movies, etc.)
+                    UTType.item,           // broadly-typed fallback
                     UTType.movie,
                     UTType.audio,
                     UTType.image
@@ -244,45 +235,51 @@ struct SidebarItemRow: View {
             .contextMenu { rowContextMenu }
     }
 
-    /// Routes a drop on this row to the right handler based on provider
-    /// contents: sidebar-internal String drags → documentStore move /
-    /// service folder-path update; Finder URL drags → ingestion import
-    /// into the correct target folder.
+    /// Leaf row: drag source only. PDFs, images, saved searches,
+    /// conversations, workflows can all be DRAGGED to another
+    /// folder, but dropping anything onto a leaf doesn't match
+    /// Finder semantics — you can't drop a file onto a file.
+    private var leafLabel: some View {
+        fullWidthLabel
+            .draggable(item.id)
+            .contextMenu { rowContextMenu }
+    }
+
+    /// Routes a drop on THIS FOLDER row to the right handler based on
+    /// advertised UTI (not `canLoadObject`) — Finder drags commonly
+    /// advertise BOTH public.file-url AND public.utf8-plain-text for
+    /// the URL's string representation, so class-based filtering
+    /// would misroute Finder drops through the internal path.
+    ///
+    /// Only called from `folderLabel` — leaves don't accept drops.
     private func handleRowDrop(_ providers: [NSItemProvider]) -> Bool {
-        let textProviders = providers.filter {
-            $0.canLoadObject(ofClass: NSString.self)
-        }
-        let urlProviders = providers.filter {
-            $0.canLoadObject(ofClass: URL.self)
-                && !$0.canLoadObject(ofClass: NSString.self)  // prefer text when both advertise
+        let fileURLTypeID = UTType.fileURL.identifier
+        let textTypeID = UTType.utf8PlainText.identifier
+
+        let urlProviders = providers.filter { $0.hasItemConformingToTypeIdentifier(fileURLTypeID) }
+        let textOnlyProviders = providers.filter {
+            $0.hasItemConformingToTypeIdentifier(textTypeID)
+                && !$0.hasItemConformingToTypeIdentifier(fileURLTypeID)
         }
 
-        // Internal sidebar drag — our `.draggable(item.id)` emits the
-        // ID as a String (utf8PlainText UTI).
-        if !textProviders.isEmpty {
+        // Finder file drop → existing import pipeline.
+        if !urlProviders.isEmpty {
+            return handleProvidersDrop(urlProviders, targetFolder: item)
+        }
+
+        // Internal sidebar drag → move source into this folder.
+        if !textOnlyProviders.isEmpty {
             Task {
                 var ids: [String] = []
-                for provider in textProviders {
+                for provider in textOnlyProviders {
                     if let str = try? await Self.loadString(from: provider) {
                         ids.append(str)
                     }
                 }
                 guard !ids.isEmpty else { return }
-                if isFolder {
-                    _ = handleDropIntoFolder(itemIDs: ids, targetFolder: item)
-                } else {
-                    _ = handleDropBesideItem(itemIDs: ids, targetItem: item)
-                }
+                _ = handleDropIntoFolder(itemIDs: ids, targetFolder: item)
             }
             return true
-        }
-
-        // Finder file drop — use the existing handler, which already
-        // loads URLs via NSItemProvider and routes to the correct
-        // target folder based on folder-vs-leaf.
-        if !urlProviders.isEmpty {
-            let target = isFolder ? item : parentFolderItem(of: item)
-            return handleProvidersDrop(urlProviders, targetFolder: target)
         }
 
         return false
@@ -321,51 +318,25 @@ struct SidebarItemRow: View {
             .onTapGesture { onItemTapped?(child) }
             .listRowBackground(
                 // Finder / Mail sidebar highlight: muted grey rather
-                // than accent blue. Adapts to light/dark mode via the
-                // semantic `secondary` colour (similar to
-                // NSColor.tertiaryLabelColor blended with the
-                // background).
+                // than accent blue. Adapts to light/dark via the
+                // semantic `secondary` colour.
                 child.id == selectedItemId
                     ? Color.secondary.opacity(0.18)
                     : Color.clear
             )
             .tag(child.id)
         }
-        // Native Apple-provided blue insertion line for sibling reorder
-        // (#580 / sidebar plan Step 7 delivered via SwiftUI's .onMove —
-        // the right primitive, despite earlier confusion with the
-        // .onInsert(of:) crash). Computes the new ID ordering and
-        // persists it via `documentStore.reorderDocuments`, which writes
-        // back `sort_order` on each document (#572). The sidebar's
-        // `SidebarItemBuilder.childOrder` already sorts by sortOrder
-        // first, so the next cache rebuild reflects the new order.
-        .onMove { source, destination in
-            Task { await reorderChildren(children, source: source, destination: destination) }
-        }
-    }
-
-    /// Compute the reordered sibling list and persist via the backend
-    /// reorder endpoint. Only moves documents — non-document children
-    /// (saved searches, workflows, chats) don't go through the
-    /// documents reorder API and silently return.
-    private func reorderChildren(
-        _ children: [SidebarItem],
-        source: IndexSet,
-        destination: Int
-    ) async {
-        guard let documentStore else { return }
-        var reordered = children
-        reordered.move(fromOffsets: source, toOffset: destination)
-        let docIds = reordered.compactMap { sibling -> String? in
-            if case .document(let doc) = sibling.itemType { return doc.id }
-            return nil
-        }
-        guard !docIds.isEmpty else { return }
-        do {
-            try await documentStore.reorderDocuments(docIds)
-            sidebarRowLogger.debug("✅ Reordered \(docIds.count) siblings under \(item.name)")
-        } catch {
-            sidebarRowLogger.error("❌ Reorder failed: \(error.localizedDescription)")
-        }
+        // `.onMove` removed — it expects synchronous mutation of the
+        // ForEach's data source, but `children` here is a parameter
+        // computed from `SidebarItemBuilder.buildLibraryHierarchy`,
+        // not a binding to mutable state. When the closure returned
+        // without mutating the collection, SwiftUI interpreted that
+        // as a rejected move and disabled subsequent reorder attempts
+        // (reported symptom: blue insertion line flashed once then
+        // never appeared again). A correct implementation needs a
+        // `@State` shadow of the children that `.onMove` mutates
+        // optimistically, with the backend call + cache refresh
+        // syncing it back afterwards. Filed separately for a follow-
+        // up; not shipping half-working reorder in 0.0.2.
     }
 }
