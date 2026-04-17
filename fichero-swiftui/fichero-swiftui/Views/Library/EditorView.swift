@@ -86,9 +86,11 @@ struct EditorView: View {
             let pageIndex = max(0, (doc.sequence ?? 1) - 1)
             PDFPageView(path: pdfPath, pageIndex: pageIndex)
         } else if doc.fileType == .pdf, let path = doc.path, !path.isEmpty {
-            // Top-level PDF file — show the whole document in an interactive
-            // PDFView scrolled to page 0. Same text-selection affordances.
-            PDFPageView(path: path, pageIndex: 0)
+            // Top-level PDF file — full multi-page reader with scroll, starts
+            // at page 0. `allowAllPages: true` gives the user
+            // `.singlePageContinuous` display so they can scroll the whole
+            // document, not just see page 1 locked.
+            PDFPageView(path: path, pageIndex: 0, allowAllPages: true)
         } else {
             QuickLookDownloadView(document: doc)
         }

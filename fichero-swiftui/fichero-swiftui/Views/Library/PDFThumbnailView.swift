@@ -46,22 +46,33 @@ struct PDFThumbnailView: View {
     }
 }
 
-/// Interactive PDF page preview using PDFKit's `PDFView`.
+/// Interactive PDF preview using PDFKit's `PDFView`.
 ///
 /// Where `PDFThumbnailView` renders a flat `NSImage` (cheap, cacheable, fine
 /// for grid/sidebar thumbnails), `PDFPageView` uses the full AppKit `PDFView`
 /// so users get **selectable text, copy, find, and links** — everything a real
 /// PDF reader provides. Used in the main preview pane for `.page` documents
-/// (see #578). Future annotation/highlight work hooks into this view's
-/// `currentSelection` / `PDFAnnotation` APIs (#579).
+/// (#578) and for top-level `.file`+`.pdf` documents.
+///
+/// Future annotation/highlight work hooks into `currentSelection` /
+/// `PDFAnnotation` APIs (#579).
+///
+/// **Two display modes:**
+/// - `pageIndex` + `allowAllPages == false` (default): single-page focus.
+///   User sees exactly `pageIndex`, no scroll to neighbors. Used when
+///   previewing a specific page child of a PDF.
+/// - `allowAllPages == true`: scrollable multi-page reader (`singlePage
+///   Continuous` + `displaysPageBreaks`). Scroll position starts at
+///   `pageIndex`. Used for top-level PDF file previews so the user can
+///   read the whole document without drilling into each page separately.
 struct PDFPageView: NSViewRepresentable {
     let path: String
     let pageIndex: Int
+    var allowAllPages: Bool = false
 
     func makeNSView(context: Context) -> PDFView {
         let view = PDFView()
-        view.displayMode = .singlePage
-        view.displaysPageBreaks = false
+        applyDisplayMode(view)
         view.autoScales = true
         view.backgroundColor = NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)
         loadAndNavigate(view)
@@ -69,7 +80,18 @@ struct PDFPageView: NSViewRepresentable {
     }
 
     func updateNSView(_ view: PDFView, context: Context) {
+        applyDisplayMode(view)
         loadAndNavigate(view)
+    }
+
+    private func applyDisplayMode(_ view: PDFView) {
+        if allowAllPages {
+            view.displayMode = .singlePageContinuous
+            view.displaysPageBreaks = true
+        } else {
+            view.displayMode = .singlePage
+            view.displaysPageBreaks = false
+        }
     }
 
     /// Load the PDF document (if not already loaded) and navigate to the
