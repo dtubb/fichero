@@ -79,6 +79,21 @@ struct LibrarySectionHeader: View {
             }
             return true
         }
+        // Sidebar plan Step 10 (#584): VoiceOver label reads e.g.
+        // "Global, library, 42 documents". Hint guides users toward the
+        // Finder-drop behaviour that isn't obvious without visual cues.
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint("Drag files from Finder here to import into this library.")
+    }
+
+    private var accessibilityLabel: String {
+        let name = library.id == LibraryManager.globalLibraryId ? "Global" : library.displayName
+        let kind = "library"
+        if itemCount > 0 {
+            let plural = itemCount == 1 ? "document" : "documents"
+            return "\(name), \(kind), \(itemCount) \(plural)"
+        }
+        return "\(name), \(kind)"
     }
 
     private static func loadURL(from provider: NSItemProvider) async throws -> URL {
