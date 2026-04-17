@@ -236,11 +236,15 @@ struct MainContentModifiers: ViewModifier {
             }
         }
 
-        // Load children from backend when library folder selected
+        // Load children from backend when a library container is selected.
+        // Containers = folders (contents) + PDFs (pages, per #568/#570). Using
+        // Document.isNavigableContainer keeps this check in sync with
+        // double-click routing and sidebar-filter semantics — one property,
+        // one definition of "container." Everything else (plain files) shows
+        // as a single item in the gallery.
         if case .library(let doc) = newMode, let document = doc {
-            // Only load children for folders, not files
-            if document.docType == .folder {
-                logger.info("Loading children for folder: \(document.name) (id: \(document.id))")
+            if document.isNavigableContainer {
+                logger.info("Loading children for container: \(document.name) (id: \(document.id))")
                 Task {
                     await documentStore.selectCollection(document)
                     let docCount = documentStore.currentDocuments.count
@@ -248,7 +252,6 @@ struct MainContentModifiers: ViewModifier {
                 }
             } else {
                 logger.info("Showing single file in gallery: \(document.name)")
-                // Show the selected file as a single item in the gallery
                 documentStore.currentDocuments = [document]
             }
         } else if case .library(nil) = newMode {
