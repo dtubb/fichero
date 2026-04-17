@@ -18,7 +18,7 @@ class ErrorService: ObservableObject {
     private let maxErrorHistoryCount = 100
 
     // Logger for error service
-    private let logger = Logger(subsystem: "com.fichero.sidebar", category: "ErrorService")
+    private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ErrorService")
 
     // Private initializer for singleton pattern
     private init() {}
