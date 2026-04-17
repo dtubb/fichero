@@ -188,19 +188,33 @@ struct SidebarItemRow: View {
     private var bodyContent: some View {
         rowShape
             .draggable(item.id)
-            .dropDestination(for: String.self) { droppedIDs, _ in
-                if isFolder {
-                    handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
-                } else {
-                    handleDropBesideItem(itemIDs: droppedIDs, targetItem: item)
+            // Internal sidebar-to-sidebar drags: the 3-param dropDestination
+            // variant (with the `isTargeted:` closure) is the one that drives
+            // hover feedback. The 2-param variant without it never updates
+            // @State — confirmed via Apple's docs (#598 root cause).
+            .dropDestination(
+                for: String.self,
+                action: { droppedIDs, _ in
+                    if isFolder {
+                        return handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
+                    }
+                    return handleDropBesideItem(itemIDs: droppedIDs, targetItem: item)
+                },
+                isTargeted: { isHovering in
+                    isDropTargeted = isHovering
                 }
-            }
-            .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
+            )
+            // Finder file drops — broader UTType list so drags that advertise
+            // only a content UTI (e.g. `.mov` → com.apple.quicktime-movie
+            // without always including public.fileURL) still activate the
+            // hit region and drive `isTargeted`. Handler-level filtering
+            // then picks the URL-producing providers via canLoadObject.
+            .onDrop(
+                of: [UTType.fileURL, UTType.item, UTType.movie, UTType.audio, UTType.image],
+                isTargeted: $isDropTargeted
+            ) { providers in
                 // Folder drop → import into this folder. Leaf drop → import
-                // into the leaf's parent folder ("drop beside" semantics
-                // for sibling imports next to a file). Non-document leaves
-                // fall through to the library root when parentFolderItem
-                // returns nil.
+                // into the leaf's parent folder ("drop beside" semantics).
                 let target = isFolder ? item : parentFolderItem(of: item)
                 return handleProvidersDrop(providers, targetFolder: target)
             }
