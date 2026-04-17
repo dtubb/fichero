@@ -81,6 +81,10 @@ struct PDFPageView: NSViewRepresentable {
     func makeNSView(context: Context) -> PDFView {
         let view = PDFView()
         applyDisplayMode(view)
+        // #588: autoScales re-fits the document to the pane on every layout
+        // pass, which silently undoes user pinch-zoom. We keep autoScales=true
+        // only long enough for PDFKit to compute the initial fit; the scale
+        // observer below flips it off the first time scaleFactor changes.
         view.autoScales = true
         view.backgroundColor = NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)
         view.delegate = context.coordinator
@@ -91,6 +95,12 @@ struct PDFPageView: NSViewRepresentable {
             context.coordinator,
             selector: #selector(Coordinator.pageDidChange(_:)),
             name: .PDFViewPageChanged,
+            object: view
+        )
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(Coordinator.scaleDidChange(_:)),
+            name: .PDFViewScaleChanged,
             object: view
         )
         loadAndNavigate(view)
@@ -123,6 +133,11 @@ struct PDFPageView: NSViewRepresentable {
     private func loadAndNavigate(_ view: PDFView) {
         let fileURL = URL(fileURLWithPath: path)
         if view.document?.documentURL != fileURL {
+            // #588: re-engage autoScales for the new document's initial fit.
+            // The scale observer will flip it back off once PDFKit computes
+            // and applies the fit scale, so user pinch-zoom on the new doc
+            // still sticks.
+            view.autoScales = true
             view.document = PDFDocument(url: fileURL)
         }
         guard let doc = view.document,
@@ -154,6 +169,19 @@ struct PDFPageView: NSViewRepresentable {
             // programmatically navigate to `pageIndex`.
             guard index != owner.pageIndex else { return }
             owner.onPageIndexChange?(index)
+        }
+
+        /// #588: PDFKit's `autoScales` keeps re-fitting the document to the
+        /// pane on every layout pass, which undoes user pinch-zoom. The first
+        /// scale change (PDFKit computing the initial fit OR the user pinching)
+        /// disables autoScales so the current `scaleFactor` sticks through
+        /// subsequent resizes and layout passes. When `loadAndNavigate` swaps
+        /// to a new document it re-enables autoScales so the new doc still
+        /// gets an initial fit.
+        @objc
+        func scaleDidChange(_ notification: Notification) {
+            guard let view = notification.object as? PDFView else { return }
+            view.autoScales = false
         }
     }
 }

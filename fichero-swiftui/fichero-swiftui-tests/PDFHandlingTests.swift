@@ -13,10 +13,10 @@
 //
 
 import AppKit
+@testable import Fichero
 import Foundation
 import PDFKit
 import Testing
-@testable import Fichero
 
 // MARK: - Document.isNavigableContainer
 
@@ -89,7 +89,7 @@ struct PDFThumbnailRenderingTests {
     /// Build a multi-page PDF at a temp path. Each page is a different solid
     /// color so we can distinguish which page was rendered (pages are tiny
     /// NSImage sources drawn straight onto a PDFPage).
-    private static func makeMultiPagePDF(
+    fileprivate static func makeMultiPagePDF(
         pageColors: [NSColor],
         size: CGSize = CGSize(width: 100, height: 140)
     ) throws -> URL {
@@ -191,5 +191,69 @@ struct PDFThumbnailRenderingTests {
             size: CGSize(width: 200, height: 280)
         )
         #expect(image == nil)
+    }
+}
+
+// MARK: - PDFPageView Zoom Behavior (#588)
+
+/// Regression guard for #588: PDFKit's `autoScales` property keeps re-fitting
+/// the document to the pane on every layout pass, which silently undoes user
+/// pinch-zoom. The fix is a notification observer on `.PDFViewScaleChanged`
+/// that disables `autoScales` as soon as any scale change happens — either
+/// PDFKit's initial fit computation or the user's first pinch. These tests
+/// exercise the coordinator's scale-change handler directly.
+///
+/// `@MainActor` because `PDFView`, `PDFPageView`, and `PDFPageView.Coordinator`
+/// all touch AppKit/SwiftUI main-actor state.
+@MainActor
+struct PDFPageViewZoomTests {
+
+    @Test("#588 scaleDidChange disables autoScales so user pinch-zoom sticks")
+    func scaleDidChangeDisablesAutoScales() throws {
+        let url = try PDFThumbnailRenderingTests.makeMultiPagePDF(pageColors: [.red])
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let view = PDFView()
+        view.document = PDFDocument(url: url)
+        view.autoScales = true
+
+        let owner = PDFPageView(path: url.path, pageIndex: 0)
+        let coordinator = PDFPageView.Coordinator(owner: owner)
+
+        let notification = Notification(name: .PDFViewScaleChanged, object: view)
+        coordinator.scaleDidChange(notification)
+
+        #expect(
+            view.autoScales == false,
+            "autoScales must be false after any scale change, otherwise PDFKit will snap user zoom back to fit-to-pane on the next layout"
+        )
+    }
+
+    @Test("#588 scaleDidChange preserves the user's current scaleFactor")
+    func scaleDidChangePreservesScaleFactor() throws {
+        let url = try PDFThumbnailRenderingTests.makeMultiPagePDF(pageColors: [.red])
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let view = PDFView()
+        view.document = PDFDocument(url: url)
+        view.autoScales = false
+        view.scaleFactor = 2.5
+
+        let owner = PDFPageView(path: url.path, pageIndex: 0)
+        let coordinator = PDFPageView.Coordinator(owner: owner)
+
+        let notification = Notification(name: .PDFViewScaleChanged, object: view)
+        coordinator.scaleDidChange(notification)
+
+        #expect(view.autoScales == false)
+        #expect(view.scaleFactor == 2.5, "handler must not modify scaleFactor")
+    }
+
+    @Test("#588 scaleDidChange ignores notifications whose object is not a PDFView")
+    func scaleDidChangeIgnoresNonPDFViewNotifications() {
+        let owner = PDFPageView(path: "/tmp/unused.pdf", pageIndex: 0)
+        let coordinator = PDFPageView.Coordinator(owner: owner)
+        let notification = Notification(name: .PDFViewScaleChanged, object: "not a PDFView")
+        coordinator.scaleDidChange(notification)
     }
 }
