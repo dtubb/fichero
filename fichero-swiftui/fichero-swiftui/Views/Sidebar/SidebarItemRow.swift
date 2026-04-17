@@ -133,6 +133,55 @@ struct SidebarItemRow: View {
     var body: some View {
         bodyContent
             .sidebarDropHighlight(isDropTargeted, stronger: isFolder)
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityHint(accessibilityHint)
+            .accessibilityValue(accessibilityValue)
+    }
+
+    /// VoiceOver label — the row's displayed name plus its kind so users
+    /// who navigate the sidebar non-visually can tell sections apart.
+    /// Sidebar plan Step 10 (#584).
+    private var accessibilityLabel: String {
+        switch item.itemType {
+        case .document(let doc):
+            return doc.docType == .folder
+                ? "\(item.name), folder"
+                : "\(item.name), \(doc.fileType?.rawValue ?? "file")"
+        case .savedSearch: return "\(item.name), saved search"
+        case .conversation: return "\(item.name), conversation"
+        case .workflow: return "\(item.name), workflow"
+        case .chain: return "\(item.name), workflow chain"
+        case .schedule: return "\(item.name), schedule"
+        case .trigger: return "\(item.name), trigger"
+        case .folder: return "\(item.name), \(item.category.rawValue) folder"
+        case .libraryHeader: return "\(item.name), library"
+        case .batch, .comparison, .activityRun:
+            return item.name
+        }
+    }
+
+    /// Available actions callable via the context menu. Kept terse so
+    /// VoiceOver users don't hear a long recitation each time they land
+    /// on a row; power actions like export/duplicate stay discoverable
+    /// via `.accessibilityAction` on the context menu itself.
+    private var accessibilityHint: String {
+        if item.itemType.canBeRenamed {
+            return "Double-click to rename. Drag to reorder or move to a folder. Right-click for more actions."
+        }
+        return "Right-click for actions."
+    }
+
+    /// Expansion state for folder rows — read as "expanded"/"collapsed"
+    /// so arrow-key navigation via VoiceOver correctly reflects the
+    /// DisclosureGroup state.
+    private var accessibilityValue: String {
+        guard isExpandable else { return "" }
+        return expandedItems.contains(item.id) ? "expanded" : "collapsed"
+    }
+
+    private var isExpandable: Bool {
+        guard let children = item.children else { return false }
+        return !children.isEmpty
     }
 
     @ViewBuilder
