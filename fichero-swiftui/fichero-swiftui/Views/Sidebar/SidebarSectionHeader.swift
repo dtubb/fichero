@@ -33,34 +33,13 @@ struct LibrarySectionHeader: View {
     @State private var isDropTargeted = false
 
     var body: some View {
-        HStack(spacing: 4) {
-            // Current library indicator (checkmark)
-            if isCurrentLibrary {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(Color.accentColor)
-            }
-
-            if library.id == LibraryManager.globalLibraryId {
-                Text("Global")
-            } else {
-                Text(library.displayName)
-            }
-
-            Spacer()
-
-            if itemCount > 0 {
-                Text("\(itemCount)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.vertical, 2)
-        .contentShape(Rectangle())
-        .background(
-            RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
-                .fill(isDropTargeted ? Color.accentColor.opacity(0.25) : Color.clear)
-        )
+        headerContent
+            .padding(.vertical, 2)
+            .contentShape(Rectangle())
+            .background(
+                RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
+                    .fill(isDropTargeted ? Color.accentColor.opacity(0.25) : Color.clear)
+            )
         .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
             // #600: UTI-agnostic filter — see SidebarItemRow+DropHandlers
             // for the rationale (.mov NSItemProvider may omit public.fileURL
@@ -86,14 +65,41 @@ struct LibrarySectionHeader: View {
         .accessibilityHint("Drag files from Finder here to import into this library.")
     }
 
+    /// Display name for this library row. "Global" for the global library,
+    /// the user's display name otherwise.
+    private var libraryName: String {
+        library.id == LibraryManager.globalLibraryId ? "Global" : library.displayName
+    }
+
+    /// Row content — extracted into a `@ViewBuilder` to keep the body
+    /// expression small enough for SourceKit to type-check in bounded
+    /// time. The combined HStack with three conditional branches used
+    /// to trip the "compiler unable to type-check this expression in
+    /// reasonable time" warning (2026-04-17 review).
+    @ViewBuilder
+    private var headerContent: some View {
+        HStack(spacing: 4) {
+            if isCurrentLibrary {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(Color.accentColor)
+            }
+            Text(libraryName)
+            Spacer()
+            if itemCount > 0 {
+                Text("\(itemCount)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
     private var accessibilityLabel: String {
-        let name = library.id == LibraryManager.globalLibraryId ? "Global" : library.displayName
-        let kind = "library"
         if itemCount > 0 {
             let plural = itemCount == 1 ? "document" : "documents"
-            return "\(name), \(kind), \(itemCount) \(plural)"
+            return "\(libraryName), library, \(itemCount) \(plural)"
         }
-        return "\(name), \(kind)"
+        return "\(libraryName), library"
     }
 
     private static func loadURL(from provider: NSItemProvider) async throws -> URL {
