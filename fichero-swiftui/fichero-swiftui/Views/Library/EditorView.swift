@@ -6,6 +6,10 @@ import SwiftUI
 struct EditorView: View {
     let document: Document?
     var showHeader: Bool = true
+    /// Optional callback fired when the user scrolls to a different page within
+    /// a PDF preview. Parent wires this to update grid selection to the
+    /// matching page sibling (#586).
+    var onPDFPageIndexChange: ((Int) -> Void)?
 
     var body: some View {
         Group {
@@ -79,18 +83,25 @@ struct EditorView: View {
         } else if doc.docType == .page,
                   let pdfPath = doc.metadata["pdf_path"]?.value as? String,
                   !pdfPath.isEmpty {
-            // PDF page child — render the specific page with an interactive
-            // PDFView so the user can select text, copy, and find (#578).
-            // Thumbnails for the grid/sidebar still use PDFThumbnailView
-            // (flat NSImage) — that's deliberately cheap.
+            // PDF page child — scrollable multi-page reader starting at the
+            // specific page the user selected (#586). `.singlePageContinuous`
+            // so user can flip pages; `onPageIndexChange` wires back up so
+            // the grid's selected thumbnail follows the visible page.
             let pageIndex = max(0, (doc.sequence ?? 1) - 1)
-            PDFPageView(path: pdfPath, pageIndex: pageIndex)
+            PDFPageView(
+                path: pdfPath,
+                pageIndex: pageIndex,
+                allowAllPages: true,
+                onPageIndexChange: onPDFPageIndexChange
+            )
         } else if doc.fileType == .pdf, let path = doc.path, !path.isEmpty {
-            // Top-level PDF file — full multi-page reader with scroll, starts
-            // at page 0. `allowAllPages: true` gives the user
-            // `.singlePageContinuous` display so they can scroll the whole
-            // document, not just see page 1 locked.
-            PDFPageView(path: path, pageIndex: 0, allowAllPages: true)
+            // Top-level PDF file — full multi-page reader, starts at page 0.
+            PDFPageView(
+                path: path,
+                pageIndex: 0,
+                allowAllPages: true,
+                onPageIndexChange: onPDFPageIndexChange
+            )
         } else {
             QuickLookDownloadView(document: doc)
         }

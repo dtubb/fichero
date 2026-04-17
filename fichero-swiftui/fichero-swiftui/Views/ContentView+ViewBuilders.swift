@@ -146,12 +146,35 @@ extension ContentView {
                     edge: .leading
                 )
 
-                EditorView(document: detailDocument, showHeader: false)
-                    .overlay { paneFocusIndicator(for: .preview) }
-                    .frame(maxWidth: .infinity)
-                    // Focus tracking without .focusable() — avoids swallowing first click
+                EditorView(
+                    document: detailDocument,
+                    showHeader: false,
+                    onPDFPageIndexChange: { index in
+                        syncGridSelectionToPDFPage(index: index)
+                    }
+                )
+                .overlay { paneFocusIndicator(for: .preview) }
+                .frame(maxWidth: .infinity)
+                // Focus tracking without .focusable() — avoids swallowing first click
             }
             .frame(maxWidth: .infinity)
+        }
+    }
+
+    /// Sync grid selection to the PDF page at `index`. Fired from
+    /// PDFPageView's coordinator when the user scrolls to a different page
+    /// in multi-page mode (#586). Finds the matching page Document among
+    /// `documentStore.currentDocuments` (populated when the parent PDF was
+    /// selected via `selectCollection`) and updates `detailDocument`.
+    ///
+    /// The `sequence - 1 == index` formula converts our 1-based `sequence`
+    /// (page_number) to PDFKit's 0-based index.
+    func syncGridSelectionToPDFPage(index: Int) {
+        let match = documentStore.currentDocuments.first { doc in
+            doc.docType == .page && (doc.sequence ?? 0) == index + 1
+        }
+        if let match, detailDocument?.id != match.id {
+            detailDocument = match
         }
     }
 
@@ -162,7 +185,12 @@ extension ContentView {
     var previewView: some View {
         switch viewMode {
         case .library, .search:
-            EditorView(document: detailDocument)
+            EditorView(
+                document: detailDocument,
+                onPDFPageIndexChange: { index in
+                    syncGridSelectionToPDFPage(index: index)
+                }
+            )
 
         case .chat, .comparison:
             EmptyView()

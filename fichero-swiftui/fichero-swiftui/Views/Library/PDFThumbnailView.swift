@@ -69,19 +69,42 @@ struct PDFPageView: NSViewRepresentable {
     let path: String
     let pageIndex: Int
     var allowAllPages: Bool = false
+    /// Fires when the user scrolls to a different page in multi-page mode.
+    /// Callers use this to sync the grid selection to the visible page (#586).
+    /// The index is 0-based into the PDF document.
+    var onPageIndexChange: ((Int) -> Void)?
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(owner: self)
+    }
 
     func makeNSView(context: Context) -> PDFView {
         let view = PDFView()
         applyDisplayMode(view)
         view.autoScales = true
         view.backgroundColor = NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)
+        view.delegate = context.coordinator
+        // Observer for currentPage — delegate's `pdfViewPageChanged(_:)`
+        // doesn't exist in all PDFKit versions; PDFView posts a
+        // `PDFViewPageChanged` notification we observe instead.
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(Coordinator.pageDidChange(_:)),
+            name: .PDFViewPageChanged,
+            object: view
+        )
         loadAndNavigate(view)
         return view
     }
 
     func updateNSView(_ view: PDFView, context: Context) {
+        context.coordinator.owner = self
         applyDisplayMode(view)
         loadAndNavigate(view)
+    }
+
+    static func dismantleNSView(_ view: PDFView, coordinator: Coordinator) {
+        NotificationCenter.default.removeObserver(coordinator)
     }
 
     private func applyDisplayMode(_ view: PDFView) {
@@ -109,6 +132,28 @@ struct PDFPageView: NSViewRepresentable {
         }
         if view.currentPage != page {
             view.go(to: page)
+        }
+    }
+
+    /// Bridges AppKit notifications / delegate into the SwiftUI callback.
+    final class Coordinator: NSObject, PDFViewDelegate {
+        var owner: PDFPageView
+
+        init(owner: PDFPageView) {
+            self.owner = owner
+        }
+
+        @objc
+        func pageDidChange(_ notification: Notification) {
+            guard let view = notification.object as? PDFView,
+                  let page = view.currentPage,
+                  let doc = view.document else { return }
+            let index = doc.index(for: page)
+            // Only fire if actually different from what SwiftUI told us —
+            // avoids the callback firing during initial setup when we
+            // programmatically navigate to `pageIndex`.
+            guard index != owner.pageIndex else { return }
+            owner.onPageIndexChange?(index)
         }
     }
 }
