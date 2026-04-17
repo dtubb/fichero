@@ -203,6 +203,56 @@ struct IDPrefixStrippingTests {
     }
 }
 
+// MARK: - SidebarItemKind Classification Tests (Step 9)
+
+struct SidebarItemKindTests {
+
+    @Test("doc: prefix → .document")
+    func docPrefix() {
+        #expect(SidebarItemKind(prefixedId: "doc:abc-123") == .document)
+    }
+
+    @Test("search: prefix → .savedSearch")
+    func searchPrefix() {
+        #expect(SidebarItemKind(prefixedId: "search:sv-42") == .savedSearch)
+    }
+
+    @Test("chat: prefix → .conversation")
+    func chatPrefix() {
+        #expect(SidebarItemKind(prefixedId: "chat:c-99") == .conversation)
+    }
+
+    @Test("workflow: prefix → .workflow")
+    func workflowPrefix() {
+        #expect(SidebarItemKind(prefixedId: "workflow:wf-1") == .workflow)
+    }
+
+    @Test("chain/schedule/trigger/folder prefixes each resolve to their kind")
+    func otherPrefixes() {
+        #expect(SidebarItemKind(prefixedId: "chain:x") == .chain)
+        #expect(SidebarItemKind(prefixedId: "schedule:s1") == .schedule)
+        #expect(SidebarItemKind(prefixedId: "trigger:t1") == .trigger)
+        #expect(SidebarItemKind(prefixedId: "folder:/archive") == .folder)
+    }
+
+    @Test("bare UUID (no colon) → .document (library grid cross-view drag)")
+    func bareUUIDIsDocument() {
+        // Library grid emits `doc.id` as a bare UUID via `.draggable`.
+        // Classify as .document so the drop handler routes via documentStore.
+        #expect(SidebarItemKind(prefixedId: "8B2F4D6A-1C3E-4F5B-9A7D-0E2C6F8B4A9D") == .document)
+    }
+
+    @Test("empty string → .unknown")
+    func emptyString() {
+        #expect(SidebarItemKind(prefixedId: "") == .unknown)
+    }
+
+    @Test("unrecognised prefix → .unknown (defensive default)")
+    func unknownPrefix() {
+        #expect(SidebarItemKind(prefixedId: "asteroid:xyz") == .unknown)
+    }
+}
+
 // MARK: - Circular Drop Detection Tests
 
 /// Replicates the logic from SidebarItemRow.containsDescendant(_:in:)

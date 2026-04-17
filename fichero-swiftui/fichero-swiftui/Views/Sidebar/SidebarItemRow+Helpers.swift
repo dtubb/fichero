@@ -22,6 +22,57 @@ func extractActualId(from prefixedId: String) -> String {
     return prefixedId
 }
 
+/// Classify a drag-source ID by its type prefix so the drop handler can
+/// route the move to the right service (sidebar plan Step 9, #585).
+///
+/// Cross-section drops make sense only when the source kind matches the
+/// target folder's section (e.g. dropping a saved search onto a
+/// saved-search folder). The dispatcher in
+/// `SidebarItemRow+DropHandlers.swift` uses this to pick between
+/// `documentStore.moveDocument`, `savedSearchService.updateSavedSearch`,
+/// `conversationService.moveToFolder`, and `workflowStore.moveWorkflow`.
+enum SidebarItemKind: Equatable {
+    case document
+    case savedSearch
+    case conversation
+    case workflow
+    case chain
+    case schedule
+    case trigger
+    case folder
+    case unknown
+
+    /// Prefix → kind lookup. Kept as a static so callers constructing many
+    /// SidebarItemKinds in a tight loop (drop handler iterating dropped
+    /// item IDs) don't rebuild the dictionary per call.
+    private static let prefixes: [String: SidebarItemKind] = [
+        "doc": .document,
+        "search": .savedSearch,
+        "chat": .conversation,
+        "workflow": .workflow,
+        "chain": .chain,
+        "schedule": .schedule,
+        "trigger": .trigger,
+        "folder": .folder
+    ]
+
+    init(prefixedId: String) {
+        if prefixedId.isEmpty {
+            self = .unknown
+            return
+        }
+        guard prefixedId.contains(":") else {
+            // Bare UUIDs (no colon) arrive from cross-view drags out of
+            // the library grid (`LibraryView+DisplayModes.swift:25,110`)
+            // — those always represent documents.
+            self = .document
+            return
+        }
+        let prefix = String(prefixedId.split(separator: ":", maxSplits: 1)[0])
+        self = Self.prefixes[prefix] ?? .unknown
+    }
+}
+
 extension SidebarItemRow {
     func isDescendant(_ potentialDescendant: String, of ancestorId: String) -> Bool {
         guard let ancestorItem = findItemById(ancestorId, in: allCachedItems) else {
