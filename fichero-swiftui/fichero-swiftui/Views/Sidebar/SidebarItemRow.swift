@@ -326,5 +326,41 @@ struct SidebarItemRow: View {
             )
             .tag(child.id)
         }
+        // Native Apple-provided blue insertion line for sibling reorder
+        // (#580 / sidebar plan Step 7 delivered via SwiftUI's .onMove —
+        // the right primitive, despite earlier confusion with the
+        // .onInsert(of:) crash). Computes the new ID ordering and
+        // persists it via `documentStore.reorderDocuments`, which writes
+        // back `sort_order` on each document (#572). The sidebar's
+        // `SidebarItemBuilder.childOrder` already sorts by sortOrder
+        // first, so the next cache rebuild reflects the new order.
+        .onMove { source, destination in
+            Task { await reorderChildren(children, source: source, destination: destination) }
+        }
+    }
+
+    /// Compute the reordered sibling list and persist via the backend
+    /// reorder endpoint. Only moves documents — non-document children
+    /// (saved searches, workflows, chats) don't go through the
+    /// documents reorder API and silently return.
+    private func reorderChildren(
+        _ children: [SidebarItem],
+        source: IndexSet,
+        destination: Int
+    ) async {
+        guard let documentStore else { return }
+        var reordered = children
+        reordered.move(fromOffsets: source, toOffset: destination)
+        let docIds = reordered.compactMap { sibling -> String? in
+            if case .document(let doc) = sibling.itemType { return doc.id }
+            return nil
+        }
+        guard !docIds.isEmpty else { return }
+        do {
+            try await documentStore.reorderDocuments(docIds)
+            sidebarRowLogger.debug("✅ Reordered \(docIds.count) siblings under \(item.name)")
+        } catch {
+            sidebarRowLogger.error("❌ Reorder failed: \(error.localizedDescription)")
+        }
     }
 }

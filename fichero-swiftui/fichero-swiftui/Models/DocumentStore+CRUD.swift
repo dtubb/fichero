@@ -251,4 +251,25 @@ extension DocumentStore {
 
         return updated
     }
+
+    /// Persist a new sort order for a set of sibling documents.
+    ///
+    /// The backend's `POST /documents/reorder` route accepts an ordered
+    /// list of document IDs and assigns `sort_order = index` to each.
+    /// The Swift-side `sortOrder` field (#572) then drives
+    /// `SidebarItemBuilder.childOrder` on the next rebuild so the
+    /// sidebar displays the new order.
+    ///
+    /// Used by the between-row drop handler (#580 spacer-row approach)
+    /// so drops onto the blue insertion line reorder siblings within
+    /// their parent folder.
+    func reorderDocuments(_ idsInOrder: [String]) async throws {
+        logger.info("Reordering \(idsInOrder.count) documents")
+        let _: Empty = try await api.post("/documents/reorder", body: idsInOrder)
+        await refresh()
+    }
 }
+
+/// Decodes an empty `{}` response body — the reorder endpoint returns
+/// 200 OK with no useful JSON payload.
+private struct Empty: Decodable {}
