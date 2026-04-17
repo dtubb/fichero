@@ -186,58 +186,48 @@ struct SidebarItemRow: View {
 
     @ViewBuilder
     private var bodyContent: some View {
+        rowShape
+            .draggable(item.id)
+            .dropDestination(for: String.self) { droppedIDs, _ in
+                if isFolder {
+                    handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
+                } else {
+                    handleDropBesideItem(itemIDs: droppedIDs, targetItem: item)
+                }
+            }
+            .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
+                // Folder drop → import into this folder. Leaf drop → import
+                // into the leaf's parent folder ("drop beside" semantics
+                // for sibling imports next to a file). Non-document leaves
+                // fall through to the library root when parentFolderItem
+                // returns nil.
+                let target = isFolder ? item : parentFolderItem(of: item)
+                return handleProvidersDrop(providers, targetFolder: target)
+            }
+            .contextMenu { rowContextMenu }
+    }
+
+    // Whole-row container. For folders with children, wraps the label
+    // in a `DisclosureGroup` so the chevron shows; for empty folders and
+    // leaves, renders just the label. Drop/drag modifiers attach to
+    // `rowShape` itself (not inside the DisclosureGroup's label closure)
+    // so the chevron/indent area is a full-width drop target — fix for
+    // the 2026-04-17 review finding that drops missed the chevron
+    // because modifiers were bound to the label subview only (#598).
+    //
+    // `.onInsert(of:)` between-row drops remain disabled because of the
+    // SwiftUICore `HomogeneousCollection` crash on macOS 14+. Sidebar
+    // plan Step 7 (#580) restores them via a custom DropDelegate.
+    @ViewBuilder
+    private var rowShape: some View {
         if let children = item.children, !children.isEmpty {
             DisclosureGroup(isExpanded: isExpanded) {
                 childrenList(children)
-                // `.onInsert(of:)` on this nested ForEach inside
-                // DisclosureGroup inside List triggers a SwiftUICore crash
-                // (`HomogeneousCollection index -1 out of bounds`) during
-                // external folder drops. Apple's own radar; reproduces
-                // reliably on macOS 14+. Between-row drop UX (native blue
-                // insertion line) is disabled until we have a safer
-                // mechanism — a custom DropDelegate (#580, sidebar plan
-                // Step 7) will add back the insertion line with y-threshold
-                // regions. Per-row drops (the `.onDrop` below) still work
-                // — drops land on whatever folder/leaf row the cursor is
-                // over.
             } label: {
                 fullWidthLabel
-                    .draggable(item.id)
-                    .dropDestination(for: String.self) { droppedIDs, _ in
-                        handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
-                    }
-                    .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
-                        handleProvidersDrop(providers, targetFolder: item)
-                    }
-                    .contextMenu { rowContextMenu }
             }
-        } else if isFolder {
-            fullWidthLabel
-                .draggable(item.id)
-                .dropDestination(for: String.self) { droppedIDs, _ in
-                    handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
-                }
-                .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
-                    handleProvidersDrop(providers, targetFolder: item)
-                }
-                .contextMenu { rowContextMenu }
         } else {
             fullWidthLabel
-                .draggable(item.id)
-                .dropDestination(for: String.self) { droppedIDs, _ in
-                    handleDropBesideItem(itemIDs: droppedIDs, targetItem: item)
-                }
-                .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
-                    // Drop on a leaf file (e.g. a PDF) imports into the
-                    // leaf's parent folder — "drop beside" semantics.
-                    // Non-document leaves (searches, workflows) fall through
-                    // to library root.
-                    handleProvidersDrop(
-                        providers,
-                        targetFolder: parentFolderItem(of: item)
-                    )
-                }
-                .contextMenu { rowContextMenu }
         }
     }
 
