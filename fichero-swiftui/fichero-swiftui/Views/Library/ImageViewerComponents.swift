@@ -339,7 +339,27 @@ struct ZoomableImagePreview: View {
     }
 
     private func actualSize() {
-        scale = 1.0
+        // #599: pixel 1:1 — one image pixel per display point. Setting
+        // `scale = 1.0` (NSScrollView.magnification = 1.0) shows the image
+        // at NSImage.size, which on TIFF files with DPI metadata is
+        // *smaller* than the actual pixel dimensions — a 300 DPI TIFF at
+        // 1200×900 pixels reports `size == 288×216 points`, so
+        // magnification=1.0 shrinks the image to DPI-logical size, not
+        // actual pixels. The ratio of pixelsWide to size.width gives the
+        // magnification that maps one image pixel to one display point,
+        // matching Preview.app's Actual Size / ⌘⌥0 behaviour on macOS.
+        // Falls back to 1.0 if the image has no representations (vector
+        // or corrupt TIFF) or if pixel ratio exceeds the current clamp
+        // — maxScale=10 is a reasonable ceiling for a UI affordance.
+        let pixelRatio: CGFloat
+        if let image,
+           let rep = image.representations.first,
+           image.size.width > 0 {
+            pixelRatio = CGFloat(rep.pixelsWide) / image.size.width
+        } else {
+            pixelRatio = 1.0
+        }
+        scale = min(max(pixelRatio, minScale), maxScale)
         DispatchQueue.main.async {
             imageCoordinator?.centerContent()
         }
