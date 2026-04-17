@@ -40,19 +40,25 @@ Be sure to limit your changes to the things that I ask for. For example, if I as
 
 ## Validating your work
 
-When validating work and experimenting with ideas in Xcode, you have a number of tools at your disposal, each for specific kinds of situations. **For any SwiftUI change, run all three of the primary checks before declaring work complete: SwiftLint, Build, and Unit Tests.** Then add a visual check with peekaboo if the change affects UI pixels.
+**The three-leg Swift check is mandatory for every SwiftUI change. Run ALL three in this order before declaring work complete:**
 
-**Primary checks (run every time):**
+1. **SwiftLint** — `swiftlint lint fichero-swiftui/fichero-swiftui/` from the shell. Must be clean (zero warnings/errors) before anything else runs. Hard-rule: lint-clean commits.
+2. **Build** — `BuildProject` (or `xcodebuild … build` from the shell). Must succeed with no errors. Warnings should be addressed or explicitly acknowledged.
+3. **Unit tests** — `RunAllTests` on the full FicheroTests suite (~220 tests). **Required, not optional.** If the full suite is slow for iteration, use `RunSomeTests` while developing, but `RunAllTests` must pass before you commit.
 
-- `XcodeRefreshCodeIssuesInFile` - A fast way to get "live" diagnostics from Xcode about many compiler errors you would normally see in Swift files. While you won't learn about build errors in other files or problems with things like linking, you will often be able to see if types are incorrect/unresolvable, if you have hallucinated/mistyped APIs, or if you've forgotten to import something. Use this to quickly verify your work, since it's not allowed to take more than a couple seconds to run.
+A build log alone is not evidence of done. A green test run alone is not evidence of done. All three legs must pass. Then add a peekaboo visual check if the change affects rendered UI pixels.
 
-- `BuildProject` - Build the project in Xcode. Fully compiles and assembles binaries and resources using Xcode's build system. You can use this to check that work compiles and builds correctly. An extremely powerful tool, but builds can take a long time.
+**Primary tools (run every time, in the order above):**
 
-- `RunAllTests` - Run the full FicheroTests suite (~220 tests). **Required before completing any SwiftUI task** — not optional. If only a subset is relevant and the full suite is slow, use `RunSomeTests` with a `targetName` + `testIdentifier`, but run the full suite at least once before committing.
+- `XcodeRefreshCodeIssuesInFile` — fast "live" diagnostics from Xcode for compiler errors in a single file (types, hallucinated APIs, missing imports). Completes in seconds. Useful for inner-loop iteration *before* running BuildProject, but does **not** substitute for a full build.
 
-- `GetBuildLog` / `XcodeListNavigatorIssues` - Read these on failure, or to surface warnings that didn't fail the build but still need addressing.
+- `BuildProject` — full Xcode build. Catches errors that `XcodeRefreshCodeIssuesInFile` misses (linking, cross-file type resolution, resource compilation). Slower, but authoritative.
 
-- SwiftLint (`swiftlint lint fichero-swiftui/fichero-swiftui/`) - Run from the shell before every commit. The project hard rule is lint-clean commits.
+- `RunAllTests` — the full FicheroTests suite. **Required before completing any SwiftUI task.** No exceptions. If only a subset is relevant during development, iterate with `RunSomeTests` (`targetName` + `testIdentifier`), but `RunAllTests` must pass at least once before commit.
+
+- `GetBuildLog` / `XcodeListNavigatorIssues` — read on build/test failure to diagnose. Also useful for surfacing warnings that didn't fail the build but still need addressing.
+
+- SwiftLint (`swiftlint lint fichero-swiftui/fichero-swiftui/`) — run from the shell. The Xcode MCP does not run SwiftLint for you.
 
 **Experimental / exploratory:**
 

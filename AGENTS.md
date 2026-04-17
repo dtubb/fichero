@@ -126,23 +126,27 @@ PYTHONPATH=fichero-api/src .venv/bin/ruff check fichero-api/src/
 PYTHONPATH=fichero-api/src .venv/bin/ruff format fichero-api/src/
 ```
 
-**Swift frontend — the three-leg check (run ALL three every time, in this order):**
+**Swift frontend — the three-leg check is MANDATORY. Run ALL three, every time, in this order. Skipping any leg is a hard-rule violation (see Hard Rule #4). "Build passed" is not evidence of "done" without a test run; "tests passed" is not evidence of "done" without SwiftLint clean.**
 
 ```bash
-# 1. Lint (must pass before anything else)
+# 1. SwiftLint (must pass — zero warnings/errors before anything else)
 swiftlint lint fichero-swiftui/fichero-swiftui/
 
 # 2. Xcode build
 xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj \
   -scheme fichero-swiftui -configuration Debug -sdk macosx build
 
-# 3. Xcode unit tests (FicheroTests, 220 tests as of 0.0.2)
+# 3. Xcode unit tests (FicheroTests, 220 tests as of 0.0.2) — REQUIRED, not optional
 xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj \
   -scheme fichero-swiftui -configuration Debug -sdk macosx test
 ```
 
-When the Xcode MCP is available, prefer these (faster, no Xcode.app build-db lock):
-- `mcp__xcode__BuildProject` → `mcp__xcode__RunAllTests` → `mcp__xcode__GetBuildLog` (on failure) → `mcp__xcode__XcodeListNavigatorIssues` (for warnings)
+When the Xcode MCP is available, prefer these (faster, no Xcode.app build-db lock) — same mandatory order:
+1. `mcp__xcode__BuildProject` — build the project
+2. `mcp__xcode__RunAllTests` — run the full FicheroTests suite (never skip; if the suite is slow use `RunSomeTests` for iteration, but `RunAllTests` must pass before commit)
+3. `mcp__xcode__GetBuildLog` / `XcodeListNavigatorIssues` — only on failure, to diagnose errors/warnings
+
+SwiftLint still runs from the shell (`swiftlint lint fichero-swiftui/fichero-swiftui/`) — the Xcode MCP does not substitute for it.
 
 **Xcode.app build-db lock workaround** — if the CLI fails with "database is locked" while Xcode.app is open (see MEMORY.md):
 ```bash
@@ -276,7 +280,7 @@ GitHub Issues + Milestones are authoritative for scope and status.
 1. Never push to `main` — all work goes to `0.0.2`
 2. Never deploy or publish without permission
 3. Never edit generated files (`*Generated.swift`, `openapi.json`, api-client)
-4. Never skip the three-leg Swift check (swiftlint + `xcodebuild build` + `xcodebuild test`) or Python check (ruff + pytest) before completing work. Add peekaboo visual verification for any SwiftUI change that has a rendered UI surface.
+4. **Three-leg Swift check is mandatory** — for any SwiftUI change, run ALL three before marking work complete, in this exact order: (1) `swiftlint lint fichero-swiftui/fichero-swiftui/`, (2) Xcode build (`xcodebuild … build` or `mcp__xcode__BuildProject`), (3) Xcode unit tests (`xcodebuild … test` or `mcp__xcode__RunAllTests`). None of these are optional. "Build passed" alone is not evidence of done. Python work requires the equivalent two-leg check (ruff + pytest). Add peekaboo visual verification for any SwiftUI change that has a rendered UI surface.
 5. **Every SwiftUI bug fix or feature must land with new/updated unit tests in the same commit** — no "tests in a follow-up." This is how we stop UI regressions from recurring.
 6. Never start coding on unapproved scope (GitHub milestone/issues are the approval boundary)
 7. `PYTHONPATH=fichero-api/src` on all Python commands
