@@ -148,16 +148,47 @@ struct SidebarItemRow: View {
                 // insertion line) is disabled until we have a safer
                 // mechanism — a custom DropDelegate (#580, sidebar plan
                 // Step 7) will add back the insertion line with y-threshold
-                // regions. Per-row drops (see `folderDropTarget` below)
-                // still work — drops land on whatever folder/leaf row
-                // the cursor is over.
+                // regions. Per-row drops (the `.onDrop` below) still work
+                // — drops land on whatever folder/leaf row the cursor is
+                // over.
             } label: {
-                fullWidthLabel.folderDropTarget(for: self)
+                fullWidthLabel
+                    .draggable(item.id)
+                    .dropDestination(for: String.self) { droppedIDs, _ in
+                        handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
+                    }
+                    .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
+                        handleProvidersDrop(providers, targetFolder: item)
+                    }
+                    .contextMenu { rowContextMenu }
             }
         } else if isFolder {
-            fullWidthLabel.folderDropTarget(for: self)
+            fullWidthLabel
+                .draggable(item.id)
+                .dropDestination(for: String.self) { droppedIDs, _ in
+                    handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: item)
+                }
+                .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
+                    handleProvidersDrop(providers, targetFolder: item)
+                }
+                .contextMenu { rowContextMenu }
         } else {
-            fullWidthLabel.leafDropTarget(for: self)
+            fullWidthLabel
+                .draggable(item.id)
+                .dropDestination(for: String.self) { droppedIDs, _ in
+                    handleDropBesideItem(itemIDs: droppedIDs, targetItem: item)
+                }
+                .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
+                    // Drop on a leaf file (e.g. a PDF) imports into the
+                    // leaf's parent folder — "drop beside" semantics.
+                    // Non-document leaves (searches, workflows) fall through
+                    // to library root.
+                    handleProvidersDrop(
+                        providers,
+                        targetFolder: parentFolderItem(of: item)
+                    )
+                }
+                .contextMenu { rowContextMenu }
         }
     }
 
@@ -183,62 +214,5 @@ struct SidebarItemRow: View {
             )
             .tag(child.id)
         }
-    }
-}
-
-// MARK: - Drop Target Modifiers
-//
-// Extracted so the two folder branches (with/without children) share a
-// single drop-target modifier, and the leaf branch has its own with
-// "drop beside" semantics. Keeps the three `bodyContent` branches
-// small and makes it obvious which shape accepts which drop. Step 7
-// (DropDelegate for between-row insertion) only needs to augment the
-// `folderDropTarget` — leaf rows never receive between-row drops.
-
-extension View {
-    /// Drop modifier for folder rows (both has-children and empty
-    /// folders). Accepts:
-    /// - Internal sidebar item IDs (`.draggable(item.id)` payload) via
-    ///   `dropDestination(for: String.self)` → `handleDropIntoFolder`.
-    /// - Finder file URLs via `.onDrop(of: [.fileURL])` → `handleProvidersDrop`.
-    ///   Uses NSItemProvider (not Transferable `URL.self`) to preserve
-    ///   folder URLs intact (#587, MEMORY.md).
-    fileprivate func folderDropTarget(for row: SidebarItemRow) -> some View {
-        self.draggable(row.item.id)
-            .dropDestination(for: String.self) { droppedIDs, _ in
-                row.handleDropIntoFolder(itemIDs: droppedIDs, targetFolder: row.item)
-            }
-            .onDrop(of: [UTType.fileURL], isTargeted: row.$isDropTargeted) { providers in
-                row.handleProvidersDrop(providers, targetFolder: row.item)
-            }
-            .contextMenu { row.rowContextMenuPublic }
-    }
-
-    /// Drop modifier for leaf (non-folder) rows. Accepts:
-    /// - Internal sidebar item IDs via `handleDropBesideItem` — sibling
-    ///   reparent rather than nesting.
-    /// - Finder file URLs that flow to the leaf's parent folder (or the
-    ///   library root if the leaf has no parent).
-    fileprivate func leafDropTarget(for row: SidebarItemRow) -> some View {
-        self.draggable(row.item.id)
-            .dropDestination(for: String.self) { droppedIDs, _ in
-                row.handleDropBesideItem(itemIDs: droppedIDs, targetItem: row.item)
-            }
-            .onDrop(of: [UTType.fileURL], isTargeted: row.$isDropTargeted) { providers in
-                row.handleProvidersDrop(
-                    providers,
-                    targetFolder: row.parentFolderItem(of: row.item)
-                )
-            }
-            .contextMenu { row.rowContextMenuPublic }
-    }
-}
-
-extension SidebarItemRow {
-    /// Re-expose the context-menu builder so the drop-modifier extensions
-    /// (which can't see `private`) can attach it. Same content, same
-    /// identity — just a public alias.
-    var rowContextMenuPublic: some View {
-        rowContextMenu
     }
 }
