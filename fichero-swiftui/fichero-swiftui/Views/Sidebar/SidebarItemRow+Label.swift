@@ -8,6 +8,11 @@ extension SidebarItemRow {
             } else {
                 Text(item.name)
                     .lineLimit(1)
+                    // Selected row text tints to accent colour, matching
+                    // Finder / Mail / Music sidebar convention. Unselected
+                    // rows use `.primary` (system label colour — black in
+                    // light mode, white in dark).
+                    .foregroundColor(item.id == selectedItemId ? .accentColor : .primary)
                     // Double-click on the label name starts inline rename.
                     // Sidebar plan Step 8. Attaches only to the Text so
                     // the disclosure chevron (outside the Label) and the
@@ -70,24 +75,13 @@ extension SidebarItemRow {
             }
     }
 
+    /// Finder / Mail sidebar convention: icons are monochrome (adapts to
+    /// light/dark via `.primary`) when the row is unselected, and tint to
+    /// the system accent colour when the row is the current selection.
+    /// Previously per-category colours (folder=blue, search=orange, etc.)
+    /// read as visually loud compared to Apple's apps — Daniel asked for
+    /// the black-and-white look matching Finder / Mail / Music.
     var iconColor: Color {
-        switch item.category {
-        case .folder:
-            return .accentColor
-        case .search:
-            return .orange
-        case .chat:
-            return .green
-        case .workflow:
-            return .purple
-        case .automation:
-            return .teal
-        case .batch:
-            return .indigo
-        case .activity:
-            return .cyan
-        case .library:
-            return .blue
-        }
+        item.id == selectedItemId ? .accentColor : .primary
     }
 }

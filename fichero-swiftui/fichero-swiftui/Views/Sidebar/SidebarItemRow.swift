@@ -320,8 +320,13 @@ struct SidebarItemRow: View {
             .contentShape(Rectangle())
             .onTapGesture { onItemTapped?(child) }
             .listRowBackground(
+                // Finder / Mail sidebar highlight: muted grey rather
+                // than accent blue. Adapts to light/dark mode via the
+                // semantic `secondary` colour (similar to
+                // NSColor.tertiaryLabelColor blended with the
+                // background).
                 child.id == selectedItemId
-                    ? Color.accentColor.opacity(0.18)
+                    ? Color.secondary.opacity(0.18)
                     : Color.clear
             )
             .tag(child.id)

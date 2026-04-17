@@ -309,8 +309,9 @@ extension SidebarView {
                 handleUnifiedRowTap(item)
             }
             .listRowBackground(
+                // Muted Finder/Mail-style grey highlight, not accent blue.
                 (item.id == selectedItemId || selectedActivityItemIds.contains(item.id))
-                    ? Color.accentColor.opacity(0.18)
+                    ? Color.secondary.opacity(0.18)
                     : Color.clear
             )
             .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 8))
