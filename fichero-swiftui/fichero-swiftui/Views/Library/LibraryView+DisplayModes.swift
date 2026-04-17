@@ -61,7 +61,16 @@ extension LibraryView {
                 .onMoveCommand { direction in
                     handleMoveCommand(direction)
                 }
+                // .focusable() here so the .onKeyPress handlers above receive
+                // arrow keys (ScrollView would otherwise swallow them). But
+                // the default focus ring draws around this whole scroll area
+                // at the top of the view — visually misleading since the
+                // "focus" semantically belongs to the selected cell.
+                // `.focusEffectDisabled()` suppresses the container ring;
+                // per-cell focus is already expressed via the accent overlay
+                // in DocumentThumbnailView based on `isSelected` (#575).
                 .focusable()
+                .focusEffectDisabled()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onChange(of: geometry.size.width) { _, newWidth in
                     let cellWidth = CGFloat(120 * iconViewScale) + 20
