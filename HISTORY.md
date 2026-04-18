@@ -749,3 +749,12 @@ Skills added to fichero-skills: `/feature` and `/feature-future`.
 - Insertion lines inside subfolder DisclosureGroups (SwiftUI doesn't render `.onMove` indicator inside DisclosureGroup)
 - Right-hover chevron on category headers (requires abandoning DisclosureGroup entirely, not just a custom style)
 - Residual click-wait latency beyond thumbnail fix (SidebarObservers / other main-thread work; needs Instruments)
+
+## 2026-04-18 — Session Summary (mini-session follow-up)
+
+Two commits after the earlier session-end checkpoint (5a307f8e):
+
+- `855cb5f2` feat: cross-hierarchy insertion-line drop in top-level `unifiedRows` — lets users drag a folder OUT of its parent to become a peer of that parent at library root. `.dropDestination(for: String.self)` on the ForEach alongside existing `.onMove`; handler reparents to root then reorders at drop offset.
+- `429bcb18` feat: extended to nested folder children with cycle guard — Daniel reverted this next (see below) after testing; the nested version stays in git history for reference but was removed from HEAD.
+
+Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop` + `childrenList`'s `.dropDestination`) — uncommitted diff that's being committed in this checkpoint. The top-level version (`855cb5f2`) remains. Net: users can drag any folder OUT to library root but nested-to-nested moves at arbitrary levels are still via the per-row `.onDrop` (drop onto a folder row → move INTO that folder).
