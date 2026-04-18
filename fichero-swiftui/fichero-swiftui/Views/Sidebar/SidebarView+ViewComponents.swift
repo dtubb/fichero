@@ -325,11 +325,8 @@ extension SidebarView {
         ForEach(items) { item in
             unifiedRow(for: item)
         }
-        // `.onMove` gives SwiftUI's native blue insertion line for
-        // reordering top-level items inside a category (documents at
-        // library root, saved searches, etc.). Gated on documentStore
-        // availability; sidebarReorderedDocIds is a no-op if the list
-        // contains non-document items.
+        // `.onMove`: reorder within this list (same-ForEach reorder).
+        // Gives native blue insertion line for siblings already in items.
         .onMove { source, destination in
             guard let libraryId = libraryId,
                   let library = libraryManager.getLibrary(id: libraryId),
@@ -339,6 +336,62 @@ extension SidebarView {
                       to: destination
                   ) else { return }
             library.documentStore.reorderChildrenOptimistically(orderedIds: orderedIds)
+        }
+        // `.dropDestination(for: String.self)`: insertion-line drops
+        // from OUTSIDE this list (e.g. dragging a folder OUT of its
+        // parent folder to become a sibling of that parent at
+        // library root). SwiftUI binds the two handlers so same-list
+        // reorders fire `.onMove` and cross-hierarchy drops fire
+        // `.dropDestination` — they don't double-fire.
+        //
+        // Handler: reparent each dropped doc to library root (parentId
+        // nil for top-level unifiedRows), then reorder the root's
+        // children to place the new docs at the drop offset.
+        .dropDestination(for: String.self) { droppedIds, offset in
+            handleExternalInsertionDrop(
+                droppedIds: droppedIds,
+                at: offset,
+                into: items,
+                libraryId: libraryId
+            )
+        }
+    }
+
+    /// Reparent sidebar-dragged documents to the library root (or the
+    /// unifiedRows' implicit parent — currently always root since
+    /// unifiedRows is only called for top-level rendering) and reorder
+    /// so the new docs sit at `offset` within the parent's children.
+    private func handleExternalInsertionDrop(
+        droppedIds: [String],
+        at offset: Int,
+        into items: [SidebarItem],
+        libraryId: UUID?
+    ) {
+        guard let libraryId = libraryId,
+              let library = libraryManager.getLibrary(id: libraryId) else { return }
+
+        let bareIds = droppedIds.map { extractActualId(from: $0) }
+
+        // Compute the new ordered doc IDs: existing docs in items,
+        // with the new bareIds inserted at the given offset.
+        let existingDocIds = items.compactMap { item -> String? in
+            if case .document(let doc) = item.itemType { return doc.id }
+            return nil
+        }
+        var newOrder = existingDocIds.filter { !bareIds.contains($0) }
+        let insertAt = min(offset, newOrder.count)
+        newOrder.insert(contentsOf: bareIds, at: insertAt)
+
+        Task {
+            // Reparent each dropped doc to root (parentId nil for top-
+            // level unifiedRows). Fire-and-forget — reorderChildren
+            // Optimistically below will refresh from server on success.
+            for bareId in bareIds {
+                _ = try? await library.documentStore.moveDocument(bareId, toParent: nil)
+            }
+            await MainActor.run {
+                library.documentStore.reorderChildrenOptimistically(orderedIds: newOrder)
+            }
         }
     }
 
