@@ -133,6 +133,18 @@ struct SidebarItemRow: View {
 
     var body: some View {
         bodyContent
+            // Hoisted `.draggable` to the row-body level. When this
+            // modifier lived inside `folderLabel` (which is wrapped in
+            // a `DisclosureGroup { ... } label: { folderLabel }` for
+            // folders with children), macOS List's drag-detection
+            // machinery never armed — the label closure's gesture
+            // area is treated as DisclosureGroup chrome, not row
+            // content. At body level the draggable wraps the entire
+            // SidebarItemRow; children render their own nested
+            // SidebarItemRows each with their own `.draggable`, and
+            // SwiftUI's gesture dispatcher prefers the innermost
+            // match, so dragging a child still drags the child.
+            .draggable(item.id)
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint(accessibilityHint)
             .accessibilityValue(accessibilityValue)
@@ -218,7 +230,6 @@ struct SidebarItemRow: View {
     private var folderLabel: some View {
         fullWidthLabel
             .sidebarDropHighlight(isDropTargeted, stronger: true)
-            .draggable(item.id)
             .onDrop(
                 of: [
                     UTType.utf8PlainText,  // internal sidebar drags
@@ -241,7 +252,6 @@ struct SidebarItemRow: View {
     /// Finder semantics — you can't drop a file onto a file.
     private var leafLabel: some View {
         fullWidthLabel
-            .draggable(item.id)
             .contextMenu { rowContextMenu }
     }
 
