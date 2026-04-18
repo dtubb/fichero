@@ -210,6 +210,7 @@ extension SidebarView {
                             }
                         }
                     }
+                    .selectionDisabled()
                 }
             } else {
                 DisclosureGroup(
@@ -260,6 +261,7 @@ extension SidebarView {
                             }
                         }
                     }
+                    .selectionDisabled()
                 }
                 .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
             }
@@ -388,14 +390,10 @@ extension SidebarView {
                     unifiedRows(items, libraryId: libraryId)
                 },
                 label: {
-                    // SimpleSidebar-style section header: compact,
-                    // bold, primary-foreground so it reads as a clear
-                    // section marker rather than greyed-out filler.
-                    // Matches SimpleSidebarUI's
-                    // `.font(.system(size: 10)).fontWeight(.bold)`.
                     Text(title)
                         .font(.caption)
                         .fontWeight(.bold)
+                        .selectionDisabled()
                 }
             )
         }
