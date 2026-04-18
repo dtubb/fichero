@@ -253,7 +253,6 @@ struct SidebarItemKindTests {
     }
 }
 
-
 // MARK: - Sidebar Reorder Helper Tests
 
 /// Covers the pure helper that translates a SwiftUI `.onMove` event into
@@ -344,12 +343,49 @@ struct SidebarReorderedDocIdsTests {
         ) == nil)
     }
 
-    @Test("Mixed children (doc + saved search) rejected — no reorder endpoint")
-    func mixedKindsRejected() {
-        // The reorder endpoint today accepts document IDs only. Rows
-        // under a virtual-folder header (e.g. saved searches) must
-        // not try to call it — the backend would 404 or mis-sort.
-        let children = [doc("a", name: "A"), savedSearch("s", name: "S")]
+    @Test("Mixed children: non-doc items keep position, docs get reordered")
+    func mixedKindsReturnsDocIdsOnly() throws {
+        // Top-level unifiedRows renders both documents (with docType =
+        // .folder or file) and virtual-folder partitions (itemType ==
+        // .folder(folderPath:)). `.onMove` fires on the full mixed list
+        // but only documents have a sortOrder — helper returns just the
+        // document IDs in their new relative order, ignoring the virtual
+        // folder. Caller calls reorderChildrenOptimistically with only
+        // the document IDs.
+        let children = [
+            doc("a", name: "A"),
+            savedSearch("s", name: "S"),  // virtual folder partition
+            doc("b", name: "B")
+        ]
+        // Move doc "a" from index 0 to index 3 (after all others).
+        let result = try #require(sidebarReorderedDocIds(
+            children: children,
+            moving: IndexSet(integer: 0),
+            to: 3
+        ))
+        // Post-move: [S, b, a] → documents in new order are [b, a].
+        #expect(result == ["b", "a"])
+    }
+
+    @Test("Moving a non-document item among docs is a no-op for reorder")
+    func movingNonDocAmongDocsIsNoop() {
+        // Drag the virtual folder partition across — doc relative order
+        // is unchanged, so helper returns nil (no reorder to persist).
+        let children = [
+            doc("a", name: "A"),
+            doc("b", name: "B"),
+            savedSearch("s", name: "S")
+        ]
+        #expect(sidebarReorderedDocIds(
+            children: children,
+            moving: IndexSet(integer: 2),  // moving the saved search
+            to: 0
+        ) == nil)
+    }
+
+    @Test("List with no documents returns nil regardless of move")
+    func noDocumentsReturnsNil() {
+        let children = [savedSearch("s1", name: "S1"), savedSearch("s2", name: "S2")]
         #expect(sidebarReorderedDocIds(
             children: children,
             moving: IndexSet(integer: 0),

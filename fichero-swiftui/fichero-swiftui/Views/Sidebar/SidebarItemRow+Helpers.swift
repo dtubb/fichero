@@ -73,40 +73,45 @@ enum SidebarItemKind: Equatable {
     }
 }
 
-/// Compute the ordered list of document IDs for a `.onMove` reorder
-/// operation. Returns nil when the reorder should be rejected — either
-/// because the children aren't all documents (the only kind with a
-/// reorder endpoint today), or because the move is a no-op.
+/// Compute the new ordered list of document IDs for a `.onMove` reorder.
+/// Tolerates mixed-kind children: non-document items (virtual folders,
+/// saved-search partitions, etc.) move along with the reorder but are
+/// ignored for the reorder-endpoint payload — only documents have a
+/// sortOrder to persist, so only their IDs are returned.
 ///
-/// Pure function so the index-math + kind-gate is unit-testable without
-/// standing up a SwiftUI List or DocumentStore. Used by
-/// `SidebarItemRow.handleChildrenMove(from:to:in:)`.
+/// Returns nil when the resulting document order equals the original —
+/// i.e., the move was a no-op in terms of document positions (e.g. the
+/// user dragged a non-document item, or dragged a document zero net
+/// positions relative to other documents).
 ///
-/// - Parameters:
-///   - children: the displayed children array (post-sort, pre-move).
-///   - source: SwiftUI's `IndexSet` from `.onMove`.
-///   - destination: SwiftUI's `Int` insertion index from `.onMove`.
-/// - Returns: the new ordered list of document IDs, or nil if the
-///   reorder should be skipped.
+/// Pure function so the index-math is unit-testable without standing
+/// up a SwiftUI List or DocumentStore.
 func sidebarReorderedDocIds(
     children: [SidebarItem],
     moving source: IndexSet,
     to destination: Int
 ) -> [String]? {
-    let docIds = children.map { item -> String? in
+    guard !source.isEmpty else { return nil }
+
+    // Apply the move on the full child array so non-document items
+    // (virtual folder partitions) keep their relative position in the
+    // displayed list while documents get their new positions.
+    var reordered = children
+    reordered.move(fromOffsets: source, toOffset: destination)
+
+    let beforeDocIds = children.compactMap { item -> String? in
         if case .document(let doc) = item.itemType { return doc.id }
         return nil
     }
-    guard docIds.allSatisfy({ $0 != nil }) else { return nil }
-    guard !source.isEmpty else { return nil }
+    let afterDocIds = reordered.compactMap { item -> String? in
+        if case .document(let doc) = item.itemType { return doc.id }
+        return nil
+    }
 
-    var ids = docIds.compactMap { $0 }
-    ids.move(fromOffsets: source, toOffset: destination)
+    guard !afterDocIds.isEmpty else { return nil }
+    guard afterDocIds != beforeDocIds else { return nil }
 
-    let before = docIds.compactMap { $0 }
-    guard ids != before else { return nil }
-
-    return ids
+    return afterDocIds
 }
 
 extension SidebarItemRow {
