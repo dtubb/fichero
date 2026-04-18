@@ -245,21 +245,29 @@ struct SidebarItemRow: View {
             .contextMenu { rowContextMenu }
     }
 
-    /// Routes a drop on THIS FOLDER row to the right handler based on
-    /// advertised UTI (not `canLoadObject`) — Finder drags commonly
-    /// advertise BOTH public.file-url AND public.utf8-plain-text for
-    /// the URL's string representation, so class-based filtering
-    /// would misroute Finder drops through the internal path.
+    /// Routes a drop on THIS FOLDER row to the right handler.
+    ///
+    /// Uses `canLoadObject(ofClass:)` rather than UTI advertisement
+    /// checks: Finder drags of specific file types (`.jpg`, `.mov`,
+    /// HEIC, etc.) don't always advertise `public.file-url` alongside
+    /// their content UTI, so a `hasItemConformingToTypeIdentifier`
+    /// filter misses them and the OS visually rejects the drop
+    /// (#600-shaped bug Daniel hit again 2026-04-17).
+    ///
+    /// `canLoadObject(ofClass: URL.self)` asks the provider directly
+    /// whether it can produce a URL, regardless of advertised UTIs —
+    /// that's what we actually care about. SwiftUI's `.draggable(_:
+    /// String)` uses `String`'s Transferable conformance, which
+    /// advertises `public.utf8-plain-text` only and cannot produce
+    /// a URL, so internal sidebar drags remain unambiguously
+    /// separable from Finder drags.
     ///
     /// Only called from `folderLabel` — leaves don't accept drops.
     private func handleRowDrop(_ providers: [NSItemProvider]) -> Bool {
-        let fileURLTypeID = UTType.fileURL.identifier
-        let textTypeID = UTType.utf8PlainText.identifier
-
-        let urlProviders = providers.filter { $0.hasItemConformingToTypeIdentifier(fileURLTypeID) }
-        let textOnlyProviders = providers.filter {
-            $0.hasItemConformingToTypeIdentifier(textTypeID)
-                && !$0.hasItemConformingToTypeIdentifier(fileURLTypeID)
+        let urlProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
+        let textProviders = providers.filter {
+            !$0.canLoadObject(ofClass: URL.self)
+                && $0.canLoadObject(ofClass: NSString.self)
         }
 
         // Finder file drop → existing import pipeline.
@@ -268,10 +276,10 @@ struct SidebarItemRow: View {
         }
 
         // Internal sidebar drag → move source into this folder.
-        if !textOnlyProviders.isEmpty {
+        if !textProviders.isEmpty {
             Task {
                 var ids: [String] = []
-                for provider in textOnlyProviders {
+                for provider in textProviders {
                     if let str = try? await Self.loadString(from: provider) {
                         ids.append(str)
                     }
