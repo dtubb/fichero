@@ -319,6 +319,21 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
     Returns:
         Path to generated image, or None on failure
     """
+    # Skip non-image suffixes up-front — PIL would raise
+    # UnidentifiedImageError and the traceback clutters the log.
+    # Thumbnail generation for videos, audio, office docs, etc. is
+    # handled by different pipelines (or absent entirely); letting
+    # the storage endpoint return 404 is the right behaviour.
+    _non_image_suffixes = {
+        ".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm",
+        ".mp3", ".wav", ".aiff", ".m4a", ".flac",
+        ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+        ".zip", ".tar", ".gz",
+    }
+    if source.suffix.lower() in _non_image_suffixes:
+        logger.debug(f"Skipping thumbnail for non-image type: {source.name}")
+        return None
+
     try:
         dest.parent.mkdir(parents=True, exist_ok=True)
 

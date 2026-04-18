@@ -110,10 +110,12 @@ class Database(DatabaseEmbeddingMixin):
 
         # Migrate tables if needed
         from fichero.db_migrations import (
+            migrate_document_table,
             migrate_workflow_table,
             migrate_saved_search_table,
             migrate_provider_refs_table,
         )
+        migrate_document_table(self.conn)
         migrate_workflow_table(self.conn)
         migrate_saved_search_table(self.conn)
         migrate_provider_refs_table(self.conn)

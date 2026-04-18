@@ -90,6 +90,52 @@ def migrate_workflow_table(conn) -> None:
         raise
 
 
+def migrate_document_table(conn) -> None:
+    """Migrate documents table to add the sort_order column.
+
+    Older installations (pre-0.0.2 reorder work, pre-`#607`) created the
+    documents table without `sort_order`. The Pydantic Document model
+    now includes `sort_order: int = 0`, so every `INSERT OR REPLACE INTO
+    documents` fails with a DuckDB Binder Error ("does not have a column
+    with name sort_order"). Seen in Daniel's 2026-04-18 repro:
+
+        _duckdb.BinderException: Binder Error: Table "documents" does
+        not have a column with name "sort_order". Did you mean: "id"
+
+    Fix: ALTER TABLE the existing documents table to add the column
+    with default 0. Idempotent — skips if the column already exists,
+    or if the table hasn't been created yet (first-launch path uses
+    `_ensure_table` which picks up the current schema automatically).
+    """
+    try:
+        table_exists = (
+            conn.execute("""
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_name = 'documents'
+        """).fetchone()[0]
+            > 0
+        )
+
+        if not table_exists:
+            logger.debug("Documents table does not exist, skipping migration")
+            return
+
+        result = conn.execute("PRAGMA table_info('documents')").fetchall()
+        columns = {row[1]: row for row in result}
+
+        if "sort_order" not in columns:
+            logger.info("Migrating documents table: adding sort_order column...")
+            conn.execute("""
+                ALTER TABLE documents
+                ADD COLUMN sort_order INTEGER DEFAULT 0
+            """)
+
+        logger.info("Documents table migration completed")
+
+    except Exception as e:
+        logger.warning(f"Documents migration check failed: {e}")
+
+
 def migrate_saved_search_table(conn) -> None:
     """Migrate saved_searches table to add missing columns."""
     try:
