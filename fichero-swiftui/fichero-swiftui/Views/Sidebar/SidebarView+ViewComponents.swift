@@ -167,6 +167,14 @@ extension SidebarView {
 
             if library.id == LibraryManager.globalLibraryId {
                 // Global library stays always expanded.
+                // `.selectionDisabled()` on the Section prevents the
+                // outer ForEach's implicit `libraryHeader.id` (which is
+                // `library:UUID`) from becoming a selection tag when
+                // the user clicks the library header chrome. Without
+                // this, clicking the header wrote `library:UUID` into
+                // selectedItemId, producing the stray "library:..."
+                // selection Daniel was seeing (and the associated
+                // highlight spread across category labels).
                 Section {
                     unifiedLibrarySections(
                         libraryId: libraryId,
@@ -211,6 +219,7 @@ extension SidebarView {
                         }
                     }
                 }
+                .selectionDisabled()
             } else {
                 DisclosureGroup(
                     isExpanded: Binding(
@@ -262,6 +271,7 @@ extension SidebarView {
                     }
                 }
                 .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+                .selectionDisabled()
             }
         }
     }
