@@ -232,18 +232,16 @@ struct SidebarItemRow: View {
         }
         #endif
 
-        let capabilities = providers.map {
-            SidebarDropProviderCapability(
-                canLoadURL: $0.canLoadObject(ofClass: URL.self),
-                canLoadString: $0.canLoadObject(ofClass: NSString.self)
-            )
+        guard !providers.isEmpty else { return false }
+
+        // Providers that can ONLY load String (not URL) are internal
+        // sidebar drags — `.draggable(item.id)` advertises the String via
+        // utf8PlainText. Route them through the sidebar-internal path.
+        let textOnly = providers.filter {
+            !$0.canLoadObject(ofClass: URL.self) && $0.canLoadObject(ofClass: NSString.self)
         }
 
-        switch sidebarDropRoute(for: capabilities) {
-        case .internalMove:
-            let textOnly = providers.filter {
-                !$0.canLoadObject(ofClass: URL.self) && $0.canLoadObject(ofClass: NSString.self)
-            }
+        if !textOnly.isEmpty {
             Task {
                 var ids: [String] = []
                 for provider in textOnly {
@@ -255,14 +253,12 @@ struct SidebarItemRow: View {
                 _ = handleDropIntoFolder(itemIDs: ids, targetFolder: item)
             }
             return true
-
-        case .finderImport:
-            _ = handleProvidersDrop(providers, targetFolder: item)
-            return true
-
-        case .reject:
-            return false
         }
+
+        // Anything else — Finder drags with URL or content UTIs — goes
+        // through the optimistic Finder-import path.
+        _ = handleProvidersDrop(providers, targetFolder: item)
+        return true
     }
 
     /// Async helper to unwrap a plain-text NSItemProvider into a String.

@@ -69,31 +69,18 @@ extension SidebarItemRow {
     /// supplied a temp path) or throws if no representation yields
     /// anything readable.
     static func loadAnyFileURL(from provider: NSItemProvider) async throws -> URL {
-        let strategy = urlLoadStrategy(
-            canLoadURL: provider.canLoadObject(ofClass: URL.self),
-            utis: provider.registeredTypeIdentifiers
-        )
-        switch strategy {
-        case .useLoadObject:
+        // Cheapest path first: direct URL load if the provider advertises it.
+        if provider.canLoadObject(ofClass: URL.self) {
             return try await loadURL(from: provider)
-        case .tryRepresentations(let identifiers):
-            for identifier in identifiers {
-                if let url = try? await loadFileRepresentation(
-                    from: provider,
-                    typeIdentifier: identifier
-                ) {
-                    return url
-                }
-            }
-            throw NSError(
-                domain: "SidebarDrop",
-                code: -1,
-                userInfo: [
-                    NSLocalizedDescriptionKey:
-                        "No representation yielded a file URL; advertised UTIs: \(identifiers)"
-                ]
-            )
-        case .reject:
+        }
+
+        // Otherwise iterate the provider's registered UTIs and ask each
+        // for a file representation until one produces a URL. This is the
+        // case for Finder drags advertising only a content UTI like
+        // `public.jpeg` — they don't respond to `loadObject(URL.self)`
+        // but do respond to `loadFileRepresentation(forTypeIdentifier:)`.
+        let utis = provider.registeredTypeIdentifiers
+        guard !utis.isEmpty else {
             throw NSError(
                 domain: "SidebarDrop",
                 code: -1,
@@ -103,6 +90,22 @@ extension SidebarItemRow {
                 ]
             )
         }
+        for identifier in utis {
+            if let url = try? await loadFileRepresentation(
+                from: provider,
+                typeIdentifier: identifier
+            ) {
+                return url
+            }
+        }
+        throw NSError(
+            domain: "SidebarDrop",
+            code: -1,
+            userInfo: [
+                NSLocalizedDescriptionKey:
+                    "No representation yielded a file URL; advertised UTIs: \(utis)"
+            ]
+        )
     }
 
     /// Wraps `NSItemProvider.loadFileRepresentation(forTypeIdentifier:
