@@ -247,39 +247,43 @@ struct SidebarItemRow: View {
 
     /// Routes a drop on THIS FOLDER row to the right handler.
     ///
-    /// Uses `canLoadObject(ofClass:)` rather than UTI advertisement
-    /// checks: Finder drags of specific file types (`.jpg`, `.mov`,
-    /// HEIC, etc.) don't always advertise `public.file-url` alongside
-    /// their content UTI, so a `hasItemConformingToTypeIdentifier`
-    /// filter misses them and the OS visually rejects the drop
-    /// (#600-shaped bug Daniel hit again 2026-04-17).
+    /// Strategy is optimistic: if ANY provider on the pasteboard can
+    /// produce a URL OR a String, return true immediately and do the
+    /// actual work asynchronously. Previous revisions classified
+    /// providers up front via `canLoadObject` or
+    /// `hasItemConformingToTypeIdentifier` and returned false when the
+    /// filter came up empty — and the OS responded with a bounce-back
+    /// animation that looked like a rejected drop. macOS's drag
+    /// pasteboard advertises capabilities asynchronously for some drag
+    /// sources, so a synchronous filter can miss URL-producing items
+    /// that are truly importable.
     ///
-    /// `canLoadObject(ofClass: URL.self)` asks the provider directly
-    /// whether it can produce a URL, regardless of advertised UTIs —
-    /// that's what we actually care about. SwiftUI's `.draggable(_:
-    /// String)` uses `String`'s Transferable conformance, which
-    /// advertises `public.utf8-plain-text` only and cannot produce
-    /// a URL, so internal sidebar drags remain unambiguously
-    /// separable from Finder drags.
+    /// Diagnostic logs list every advertised UTI so the source of any
+    /// future rejection can be inspected via:
+    ///   log stream --subsystem com.tubb.Fichero --predicate 'category == "SidebarRow"'
     ///
     /// Only called from `folderLabel` — leaves don't accept drops.
     private func handleRowDrop(_ providers: [NSItemProvider]) -> Bool {
-        let urlProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
-        let textProviders = providers.filter {
+        sidebarRowLogger.debug("📥 handleRowDrop fired on \(item.name) with \(providers.count) provider(s)")
+        for (idx, provider) in providers.enumerated() {
+            let utis = provider.registeredTypeIdentifiers.joined(separator: ", ")
+            let canURL = provider.canLoadObject(ofClass: URL.self)
+            let canString = provider.canLoadObject(ofClass: NSString.self)
+            sidebarRowLogger.debug("  [\(idx)] UTIs: [\(utis)]  URL:\(canURL)  String:\(canString)")
+        }
+
+        // Text-only providers are internal sidebar drags (`.draggable
+        // (item.id)` emits item.id on the utf8-plain-text pasteboard
+        // only). Route them to the internal move handler.
+        let textOnlyProviders = providers.filter {
             !$0.canLoadObject(ofClass: URL.self)
                 && $0.canLoadObject(ofClass: NSString.self)
         }
-
-        // Finder file drop → existing import pipeline.
-        if !urlProviders.isEmpty {
-            return handleProvidersDrop(urlProviders, targetFolder: item)
-        }
-
-        // Internal sidebar drag → move source into this folder.
-        if !textProviders.isEmpty {
+        if !textOnlyProviders.isEmpty {
+            sidebarRowLogger.debug("  → internal sidebar move (\(textOnlyProviders.count))")
             Task {
                 var ids: [String] = []
-                for provider in textProviders {
+                for provider in textOnlyProviders {
                     if let str = try? await Self.loadString(from: provider) {
                         ids.append(str)
                     }
@@ -290,6 +294,19 @@ struct SidebarItemRow: View {
             return true
         }
 
+        // Anything else with ≥1 provider — likely a Finder file/folder
+        // drag. Accept optimistically and let handleProvidersDrop load
+        // URLs asynchronously. If no URL materialises, the import
+        // pipeline no-ops silently; the drop still doesn't bounce-
+        // back, which matches the user's expectation of "if I can
+        // drag it here, it should land".
+        if !providers.isEmpty {
+            sidebarRowLogger.debug("  → Finder import (optimistic)")
+            _ = handleProvidersDrop(providers, targetFolder: item)
+            return true
+        }
+
+        sidebarRowLogger.debug("  ⚠️ no providers — drop rejected")
         return false
     }
 
