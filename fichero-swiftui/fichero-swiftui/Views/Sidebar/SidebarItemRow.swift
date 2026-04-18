@@ -369,14 +369,9 @@ struct SidebarItemRow: View {
             // still initiate drags while this callback fires on a true
             // click. Same fix as feedback_focusable_swallows_click.md.
             .simultaneousGesture(TapGesture().onEnded { onItemTapped?(child) })
-            .listRowBackground(
-                // Finder / Mail sidebar highlight: muted grey rather
-                // than accent blue. Adapts to light/dark via the
-                // semantic `secondary` colour.
-                child.id == selectedItemId
-                    ? Color.secondary.opacity(0.18)
-                    : Color.clear
-            )
+            // Native SidebarListStyle selection (accent-rounded fill)
+            // renders when listRowBackground is NOT overridden.
+            // Matches SimpleSidebar aesthetic (#614).
             .tag(child.id)
         }
         // `.onMove` intentionally NOT attached here: on macOS, adding

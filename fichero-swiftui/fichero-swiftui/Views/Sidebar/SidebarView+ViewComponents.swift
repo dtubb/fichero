@@ -315,12 +315,10 @@ extension SidebarView {
             .simultaneousGesture(TapGesture().onEnded {
                 handleUnifiedRowTap(item)
             })
-            .listRowBackground(
-                // Muted Finder/Mail-style grey highlight, not accent blue.
-                (item.id == selectedItemId || selectedActivityItemIds.contains(item.id))
-                    ? Color.secondary.opacity(0.18)
-                    : Color.clear
-            )
+            // Native SidebarListStyle selection (accent-rounded fill)
+            // renders through when we DON'T override listRowBackground.
+            // Earlier grey override is reverted per Daniel's updated
+            // preference — SimpleSidebar-style blue rounded highlight.
             .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 8))
         }
         // `.onInsert(of:)` at this level crashes SwiftUICore on external
@@ -348,9 +346,14 @@ extension SidebarView {
                     unifiedRows(items, libraryId: libraryId)
                 },
                 label: {
+                    // SimpleSidebar-style section header: compact,
+                    // bold, primary-foreground so it reads as a clear
+                    // section marker rather than greyed-out filler.
+                    // Matches SimpleSidebarUI's
+                    // `.font(.system(size: 10)).fontWeight(.bold)`.
                     Text(title)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .fontWeight(.bold)
                 }
             )
         }
