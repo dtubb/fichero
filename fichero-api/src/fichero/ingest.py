@@ -596,18 +596,28 @@ def ingest_folder(
     if db is None:
         raise ValueError("db parameter is required")
 
-    # Create folder if requested
+    # Create folder Document, nested under the caller's parent_id if
+    # one was given. Previously the `and not parent_id` guard caused
+    # folder drops with a target to import files FLAT into the target
+    # (#610): dropping `myFolder/` onto `Inbox/` landed the files
+    # directly in Inbox without a container row. Now the folder always
+    # gets its own Document when `create_collection=True`; callers that
+    # explicitly want files imported flat can pass `create_collection=False`.
     folder_id = parent_id
-    if create_collection and not parent_id:
+    if create_collection:
         folder_doc = Document(
             name=folder.name,
             path=str(folder),
             doc_type=DocType.folder,
             status=Status.completed,
+            parent_id=parent_id,
         )
         db.save(folder_doc)
         folder_id = folder_doc.id
-        logger.info(f"Created folder: {folder.name}")
+        logger.info(
+            f"Created folder: {folder.name} "
+            f"(parent_id={parent_id or 'root'})"
+        )
 
     # Gather files
     if recursive:
