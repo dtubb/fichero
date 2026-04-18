@@ -268,6 +268,48 @@ extension DocumentStore {
         let _: Empty = try await api.post("/documents/reorder", body: idsInOrder)
         await refresh()
     }
+
+    /// Optimistic, observer-driven reorder for a set of sibling documents.
+    ///
+    /// Mutates `sortOrder` in every local cache in-place so the sidebar's
+    /// `SidebarItemBuilder.childOrder` comparator produces the new order
+    /// on the very next render pass. This satisfies SwiftUI's `.onMove`
+    /// contract — which expects the data source to reflect the move
+    /// synchronously — without requiring a `@State` shadow in the view.
+    ///
+    /// The backend persist fires asynchronously afterwards. On success,
+    /// the trailing `refresh()` in `reorderDocuments` pulls server state,
+    /// which will match what we just wrote locally — no visual change.
+    /// On failure, `refresh()` in the catch block overwrites our
+    /// optimistic write with the server's canonical order and the
+    /// sidebar snaps back.
+    ///
+    /// Used by #607 sidebar folder reorder via native `.onMove` insertion
+    /// lines — see SidebarItemRow.childrenList.
+    func reorderChildrenOptimistically(orderedIds: [String]) {
+        for (index, id) in orderedIds.enumerated() {
+            if let idx = collections.firstIndex(where: { $0.id == id }) {
+                collections[idx].sortOrder = index
+            }
+            if let idx = currentDocuments.firstIndex(where: { $0.id == id }) {
+                currentDocuments[idx].sortOrder = index
+            }
+            for parentId in childrenCache.keys {
+                if let idx = childrenCache[parentId]?.firstIndex(where: { $0.id == id }) {
+                    childrenCache[parentId]?[idx].sortOrder = index
+                }
+            }
+        }
+        collections = collections.map { $0 }
+        Task {
+            do {
+                try await reorderDocuments(orderedIds)
+            } catch {
+                logger.error("reorderDocuments failed — reverting: \(error.localizedDescription)")
+                await refresh()
+            }
+        }
+    }
 }
 
 /// Decodes an empty `{}` response body — the reorder endpoint returns

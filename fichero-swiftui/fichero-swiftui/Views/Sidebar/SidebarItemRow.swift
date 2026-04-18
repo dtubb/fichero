@@ -349,17 +349,40 @@ struct SidebarItemRow: View {
             )
             .tag(child.id)
         }
-        // `.onMove` removed — it expects synchronous mutation of the
-        // ForEach's data source, but `children` here is a parameter
-        // computed from `SidebarItemBuilder.buildLibraryHierarchy`,
-        // not a binding to mutable state. When the closure returned
-        // without mutating the collection, SwiftUI interpreted that
-        // as a rejected move and disabled subsequent reorder attempts
-        // (reported symptom: blue insertion line flashed once then
-        // never appeared again). A correct implementation needs a
-        // `@State` shadow of the children that `.onMove` mutates
-        // optimistically, with the backend call + cache refresh
-        // syncing it back afterwards. Filed separately for a follow-
-        // up; not shipping half-working reorder in 0.0.2.
+        .onMove { source, destination in
+            handleChildrenMove(from: source, to: destination, in: children)
+        }
+    }
+
+    /// `.onMove` handler: computes the new ordered doc IDs and hands
+    /// them to the store's optimistic reorder method.
+    ///
+    /// SwiftUI expects the `.onMove` closure to mutate the data source
+    /// synchronously — the insertion-line animation "sticks" only if
+    /// `collections` already reflects the new order by the next render
+    /// cycle. `reorderChildrenOptimistically` does exactly that: it
+    /// rewrites `sortOrder` in-place across every local cache (which
+    /// `@Published collections` fires), then persists to the backend
+    /// in the background. If the backend rejects, a trailing
+    /// `refresh()` brings the canonical order back.
+    private func handleChildrenMove(
+        from source: IndexSet,
+        to destination: Int,
+        in children: [SidebarItem]
+    ) {
+        guard let documentStore else {
+            sidebarRowLogger.debug("🔀 onMove: no documentStore — skip")
+            return
+        }
+        guard let orderedIds = sidebarReorderedDocIds(
+            children: children,
+            moving: source,
+            to: destination
+        ) else {
+            sidebarRowLogger.debug("🔀 onMove: rejected (non-doc children or no-op)")
+            return
+        }
+        sidebarRowLogger.debug("🔀 onMove: reorder \(orderedIds.count) docs → \(orderedIds)")
+        documentStore.reorderChildrenOptimistically(orderedIds: orderedIds)
     }
 }

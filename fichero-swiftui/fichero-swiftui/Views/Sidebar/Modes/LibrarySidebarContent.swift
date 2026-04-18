@@ -47,7 +47,7 @@ struct LibrarySidebarContent: View {
             let documents = documentItems(from: libraryHeader.children ?? [])
 
             Section {
-                renderDocumentItems(documents)
+                renderDocumentItems(documents, in: library)
             } header: {
                 LibrarySectionHeader(
                     library: library,
@@ -68,7 +68,10 @@ struct LibrarySidebarContent: View {
     }
 
     @ViewBuilder
-    private func renderDocumentItems(_ items: [SidebarItem]) -> some View {
+    private func renderDocumentItems(
+        _ items: [SidebarItem],
+        in library: LibraryManager.LibraryReference
+    ) -> some View {
         ForEach(items) { item in
             SidebarItemRow(
                 item: item,
@@ -83,6 +86,14 @@ struct LibrarySidebarContent: View {
                 libraryManager: libraryManager
             )
             .tag(item.id)
+        }
+        .onMove { source, destination in
+            guard let orderedIds = sidebarReorderedDocIds(
+                children: items,
+                moving: source,
+                to: destination
+            ) else { return }
+            library.documentStore.reorderChildrenOptimistically(orderedIds: orderedIds)
         }
     }
 }

@@ -164,6 +164,42 @@ func urlLoadStrategy(canLoadURL: Bool, utis: [String]) -> URLLoadStrategy {
     return .tryRepresentations(utis)
 }
 
+/// Compute the ordered list of document IDs for a `.onMove` reorder
+/// operation. Returns nil when the reorder should be rejected — either
+/// because the children aren't all documents (the only kind with a
+/// reorder endpoint today), or because the move is a no-op.
+///
+/// Pure function so the index-math + kind-gate is unit-testable without
+/// standing up a SwiftUI List or DocumentStore. Used by
+/// `SidebarItemRow.handleChildrenMove(from:to:in:)`.
+///
+/// - Parameters:
+///   - children: the displayed children array (post-sort, pre-move).
+///   - source: SwiftUI's `IndexSet` from `.onMove`.
+///   - destination: SwiftUI's `Int` insertion index from `.onMove`.
+/// - Returns: the new ordered list of document IDs, or nil if the
+///   reorder should be skipped.
+func sidebarReorderedDocIds(
+    children: [SidebarItem],
+    moving source: IndexSet,
+    to destination: Int
+) -> [String]? {
+    let docIds = children.map { item -> String? in
+        if case .document(let doc) = item.itemType { return doc.id }
+        return nil
+    }
+    guard docIds.allSatisfy({ $0 != nil }) else { return nil }
+    guard !source.isEmpty else { return nil }
+
+    var ids = docIds.compactMap { $0 }
+    ids.move(fromOffsets: source, toOffset: destination)
+
+    let before = docIds.compactMap { $0 }
+    guard ids != before else { return nil }
+
+    return ids
+}
+
 extension SidebarItemRow {
     func isDescendant(_ potentialDescendant: String, of ancestorId: String) -> Bool {
         guard let ancestorItem = findItemById(ancestorId, in: allCachedItems) else {

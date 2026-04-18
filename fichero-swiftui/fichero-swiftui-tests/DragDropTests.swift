@@ -412,6 +412,135 @@ struct URLLoadStrategyTests {
     }
 }
 
+// MARK: - Sidebar Reorder Helper Tests
+
+/// Covers the pure helper that translates a SwiftUI `.onMove` event into
+/// the ordered list of document IDs to persist. Keeps the index-math
+/// and kind-gate logic out of the view layer so regressions (e.g. the
+/// "flash-once-then-dies" symptom the old `.onMove` impl had) can be
+/// caught by the test suite before hitting Daniel's build.
+struct SidebarReorderedDocIdsTests {
+
+    private let libraryId = UUID()
+
+    private func doc(_ id: String, name: String, sortOrder: Int = 0) -> SidebarItem {
+        SidebarItem(
+            id: "doc:\(id)",
+            name: name,
+            icon: "doc",
+            category: .folder,
+            itemType: .document(Document(
+                id: id,
+                docType: .file,
+                name: name,
+                sortOrder: sortOrder
+            )),
+            children: nil,
+            progress: nil,
+            showProgress: false,
+            libraryId: libraryId,
+            folderPath: "/",
+            sortOrder: sortOrder,
+            isFolder: false
+        )
+    }
+
+    private func savedSearch(_ id: String, name: String) -> SidebarItem {
+        SidebarItem(
+            id: "search:\(id)",
+            name: name,
+            icon: "magnifyingglass",
+            category: .search,
+            itemType: .savedSearch(SavedSearch(id: id, name: name, query: "")),
+            children: nil,
+            progress: nil,
+            showProgress: false,
+            libraryId: libraryId,
+            folderPath: "/",
+            sortOrder: 0,
+            isFolder: false
+        )
+    }
+
+    @Test("Moving a single document down yields the new ordered IDs")
+    func moveOneDown() throws {
+        let children = [doc("a", name: "A"), doc("b", name: "B"), doc("c", name: "C")]
+        // Move index 0 to after index 2 → ["b", "c", "a"]
+        let result = try #require(sidebarReorderedDocIds(
+            children: children,
+            moving: IndexSet(integer: 0),
+            to: 3
+        ))
+        #expect(result == ["b", "c", "a"])
+    }
+
+    @Test("Moving a document up yields the new ordered IDs")
+    func moveOneUp() throws {
+        let children = [doc("a", name: "A"), doc("b", name: "B"), doc("c", name: "C")]
+        // Move index 2 to before index 0 → ["c", "a", "b"]
+        let result = try #require(sidebarReorderedDocIds(
+            children: children,
+            moving: IndexSet(integer: 2),
+            to: 0
+        ))
+        #expect(result == ["c", "a", "b"])
+    }
+
+    @Test("No-op move (same position) returns nil")
+    func noOpMoveReturnsNil() {
+        let children = [doc("a", name: "A"), doc("b", name: "B")]
+        // Moving index 0 to position 0 or 1 (either side of itself) → no change
+        #expect(sidebarReorderedDocIds(
+            children: children,
+            moving: IndexSet(integer: 0),
+            to: 0
+        ) == nil)
+        #expect(sidebarReorderedDocIds(
+            children: children,
+            moving: IndexSet(integer: 0),
+            to: 1
+        ) == nil)
+    }
+
+    @Test("Mixed children (doc + saved search) rejected — no reorder endpoint")
+    func mixedKindsRejected() {
+        // The reorder endpoint today accepts document IDs only. Rows
+        // under a virtual-folder header (e.g. saved searches) must
+        // not try to call it — the backend would 404 or mis-sort.
+        let children = [doc("a", name: "A"), savedSearch("s", name: "S")]
+        #expect(sidebarReorderedDocIds(
+            children: children,
+            moving: IndexSet(integer: 0),
+            to: 2
+        ) == nil)
+    }
+
+    @Test("Empty source IndexSet returns nil")
+    func emptySourceReturnsNil() {
+        let children = [doc("a", name: "A"), doc("b", name: "B")]
+        #expect(sidebarReorderedDocIds(
+            children: children,
+            moving: IndexSet(),
+            to: 1
+        ) == nil)
+    }
+
+    @Test("Moving multiple siblings together preserves group order")
+    func multiMove() throws {
+        let children = [
+            doc("a", name: "A"), doc("b", name: "B"),
+            doc("c", name: "C"), doc("d", name: "D")
+        ]
+        // Move indices {0, 1} to after index 3 → ["c", "d", "a", "b"]
+        let result = try #require(sidebarReorderedDocIds(
+            children: children,
+            moving: IndexSet([0, 1]),
+            to: 4
+        ))
+        #expect(result == ["c", "d", "a", "b"])
+    }
+}
+
 // MARK: - Circular Drop Detection Tests
 
 /// Replicates the logic from SidebarItemRow.containsDescendant(_:in:)
