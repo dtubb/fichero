@@ -44,6 +44,7 @@
 		200BCF382F3D548000D7851A /* ContentView+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF372F3D548000D7851A /* ContentView+Persistence.swift */; };
 		200BCF3A2F3D548000D7851A /* ContentView+Navigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF392F3D548000D7851A /* ContentView+Navigation.swift */; };
 		200BCF3C2F3D548000D7851A /* ContentView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF3B2F3D548000D7851A /* ContentView+Actions.swift */; };
+		2011E35A2F93ADF700606651 /* ComparisonTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2011E3592F93ADF700606651 /* ComparisonTypes.swift */; };
 		202674952F475B1D008EAB5D /* NodeConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674942F475B1D008EAB5D /* NodeConfigView.swift */; };
 		202674972F475B23008EAB5D /* CollectionNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674962F475B23008EAB5D /* CollectionNodeConfig.swift */; };
 		202674992F475B33008EAB5D /* SearchNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674982F475B33008EAB5D /* SearchNodeConfig.swift */; };
@@ -149,12 +150,7 @@
 		898AABCC531843909C0C6AA8 /* TriggerEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75371C597B1E4689B6E1803F /* TriggerEditorView.swift */; };
 		8C35E319E4B9A46AB0383C10 /* TriggerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C69898938F25CFEA64385A16 /* TriggerDetailView.swift */; };
 		9D71A811170D438B938FC1DA /* LibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */; };
-		A13E7C1E2F27E01E00EC9EE1 /* ActivitySidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C142F27E01E00EC9EE1 /* ActivitySidebarContent.swift */; };
 		A13E7C1F2F27E01E00EC9EE1 /* ActivityRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C122F27E01E00EC9EE1 /* ActivityRun.swift */; };
-		A13E7C202F27E01E00EC9EE1 /* SearchSidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C192F27E01E00EC9EE1 /* SearchSidebarContent.swift */; };
-		A13E7C212F27E01E00EC9EE1 /* AutomationSidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C152F27E01E00EC9EE1 /* AutomationSidebarContent.swift */; };
-		A13E7C222F27E01E00EC9EE1 /* WorkflowsSidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C1A2F27E01E00EC9EE1 /* WorkflowsSidebarContent.swift */; };
-		A13E7C242F27E01E00EC9EE1 /* ChatSidebarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C172F27E01E00EC9EE1 /* ChatSidebarContent.swift */; };
 		A13E7C272F27E03300EC9EE1 /* SidebarModeIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C262F27E03300EC9EE1 /* SidebarModeIcon.swift */; };
 		A13E7C282F27E03300EC9EE1 /* SidebarModeBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C252F27E03300EC9EE1 /* SidebarModeBar.swift */; };
 		A13E7C2A2F27E04300EC9EE1 /* ActivityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C292F27E04300EC9EE1 /* ActivityDetailView.swift */; };
@@ -296,10 +292,7 @@
 		B3A002050000000000BATCH3 /* ChatInspector+Header.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001050000000000BATCH3 /* ChatInspector+Header.swift */; };
 		B3A002060000000000BATCH3 /* ChatInspector+ScopedDocuments.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001060000000000BATCH3 /* ChatInspector+ScopedDocuments.swift */; };
 		B3A002070000000000BATCH3 /* ChatInspector+Search.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001070000000000BATCH3 /* ChatInspector+Search.swift */; };
-		B3A002080000000000BATCH3 /* ActivitySidebarContent+DataProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001080000000000BATCH3 /* ActivitySidebarContent+DataProcessing.swift */; };
-		B3A002090000000000BATCH3 /* ActivitySidebarContent+RunDisclosure.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001090000000000BATCH3 /* ActivitySidebarContent+RunDisclosure.swift */; };
-		B3A0020A0000000000BATCH3 /* ActivitySidebarContent+SelectionHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A0010A0000000000BATCH3 /* ActivitySidebarContent+SelectionHandling.swift */; };
-		B3A0020B0000000000BATCH3 /* ActivitySidebarContent+WorkflowSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A0010B0000000000BATCH3 /* ActivitySidebarContent+WorkflowSection.swift */; };
+		B3A002080000000000BATCH3 /* ActivityDataProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001080000000000BATCH3 /* ActivityDataProcessing.swift */; };
 		B4A002010000000000BATCH4 /* ModelComparisonView+Sidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001010000000000BATCH4 /* ModelComparisonView+Sidebar.swift */; };
 		B4A002020000000000BATCH4 /* ComparisonResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001020000000000BATCH4 /* ComparisonResultView.swift */; };
 		B4A002030000000000BATCH4 /* ModelResultCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001030000000000BATCH4 /* ModelResultCard.swift */; };
@@ -415,6 +408,7 @@
 		200BCF392F3D548000D7851A /* ContentView+Navigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+Navigation.swift"; sourceTree = "<group>"; };
 		200BCF3B2F3D548000D7851A /* ContentView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+Actions.swift"; sourceTree = "<group>"; };
 		201 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		2011E3592F93ADF700606651 /* ComparisonTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComparisonTypes.swift; sourceTree = "<group>"; };
 		202 /* Fichero.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Fichero.entitlements; sourceTree = "<group>"; };
 		202674942F475B1D008EAB5D /* NodeConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeConfigView.swift; sourceTree = "<group>"; };
 		202674962F475B23008EAB5D /* CollectionNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionNodeConfig.swift; sourceTree = "<group>"; };
@@ -523,11 +517,6 @@
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A13E7C122F27E01E00EC9EE1 /* ActivityRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityRun.swift; sourceTree = "<group>"; };
-		A13E7C142F27E01E00EC9EE1 /* ActivitySidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivitySidebarContent.swift; sourceTree = "<group>"; };
-		A13E7C152F27E01E00EC9EE1 /* AutomationSidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationSidebarContent.swift; sourceTree = "<group>"; };
-		A13E7C172F27E01E00EC9EE1 /* ChatSidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSidebarContent.swift; sourceTree = "<group>"; };
-		A13E7C192F27E01E00EC9EE1 /* SearchSidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchSidebarContent.swift; sourceTree = "<group>"; };
-		A13E7C1A2F27E01E00EC9EE1 /* WorkflowsSidebarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowsSidebarContent.swift; sourceTree = "<group>"; };
 		A13E7C252F27E03300EC9EE1 /* SidebarModeBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarModeBar.swift; sourceTree = "<group>"; };
 		A13E7C262F27E03300EC9EE1 /* SidebarModeIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarModeIcon.swift; sourceTree = "<group>"; };
 		A13E7C292F27E04300EC9EE1 /* ActivityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityDetailView.swift; sourceTree = "<group>"; };
@@ -668,10 +657,7 @@
 		B3A001050000000000BATCH3 /* ChatInspector+Header.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatInspector+Header.swift"; sourceTree = "<group>"; };
 		B3A001060000000000BATCH3 /* ChatInspector+ScopedDocuments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatInspector+ScopedDocuments.swift"; sourceTree = "<group>"; };
 		B3A001070000000000BATCH3 /* ChatInspector+Search.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatInspector+Search.swift"; sourceTree = "<group>"; };
-		B3A001080000000000BATCH3 /* ActivitySidebarContent+DataProcessing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivitySidebarContent+DataProcessing.swift"; sourceTree = "<group>"; };
-		B3A001090000000000BATCH3 /* ActivitySidebarContent+RunDisclosure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivitySidebarContent+RunDisclosure.swift"; sourceTree = "<group>"; };
-		B3A0010A0000000000BATCH3 /* ActivitySidebarContent+SelectionHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivitySidebarContent+SelectionHandling.swift"; sourceTree = "<group>"; };
-		B3A0010B0000000000BATCH3 /* ActivitySidebarContent+WorkflowSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivitySidebarContent+WorkflowSection.swift"; sourceTree = "<group>"; };
+		B3A001080000000000BATCH3 /* ActivityDataProcessing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityDataProcessing.swift; sourceTree = "<group>"; };
 		B4A001010000000000BATCH4 /* ModelComparisonView+Sidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ModelComparisonView+Sidebar.swift"; sourceTree = "<group>"; };
 		B4A001020000000000BATCH4 /* ComparisonResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComparisonResultView.swift; sourceTree = "<group>"; };
 		B4A001030000000000BATCH4 /* ModelResultCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelResultCard.swift; sourceTree = "<group>"; };
@@ -890,6 +876,7 @@
 				A13E7C252F27E03300EC9EE1 /* SidebarModeBar.swift */,
 				A13E7C262F27E03300EC9EE1 /* SidebarModeIcon.swift */,
 				202674B92F478626008EAB5D /* Components */,
+				B3A001080000000000BATCH3 /* ActivityDataProcessing.swift */,
 			);
 			path = Sidebar;
 			sourceTree = "<group>";
@@ -1022,6 +1009,7 @@
 				20D8ED6E2F48E633006950A3 /* SidebarSearchTypes.swift */,
 				20D8ED702F48E63B006950A3 /* DocumentStoreTypes.swift */,
 				20D8ED722F48E644006950A3 /* SidebarViewTypes.swift */,
+				2011E3592F93ADF700606651 /* ComparisonTypes.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -1103,15 +1091,6 @@
 			isa = PBXGroup;
 			children = (
 				A13E7C122F27E01E00EC9EE1 /* ActivityRun.swift */,
-				A13E7C142F27E01E00EC9EE1 /* ActivitySidebarContent.swift */,
-				B3A001080000000000BATCH3 /* ActivitySidebarContent+DataProcessing.swift */,
-				B3A001090000000000BATCH3 /* ActivitySidebarContent+RunDisclosure.swift */,
-				B3A0010A0000000000BATCH3 /* ActivitySidebarContent+SelectionHandling.swift */,
-				B3A0010B0000000000BATCH3 /* ActivitySidebarContent+WorkflowSection.swift */,
-				A13E7C152F27E01E00EC9EE1 /* AutomationSidebarContent.swift */,
-				A13E7C172F27E01E00EC9EE1 /* ChatSidebarContent.swift */,
-				A13E7C192F27E01E00EC9EE1 /* SearchSidebarContent.swift */,
-				A13E7C1A2F27E01E00EC9EE1 /* WorkflowsSidebarContent.swift */,
 			);
 			path = Modes;
 			sourceTree = "<group>";
@@ -1537,17 +1516,9 @@
 				202674D02F4789BF008EAB5D /* LibraryViewComponents.swift in Sources */,
 				0EB90A1DBB324F96AE256464 /* PDFThumbnailView.swift in Sources */,
 				20D8EE202F4BBFAF006950A3 /* AppleScriptCommands.swift in Sources */,
-				A13E7C1E2F27E01E00EC9EE1 /* ActivitySidebarContent.swift in Sources */,
-				B3A002080000000000BATCH3 /* ActivitySidebarContent+DataProcessing.swift in Sources */,
-				B3A002090000000000BATCH3 /* ActivitySidebarContent+RunDisclosure.swift in Sources */,
-				B3A0020A0000000000BATCH3 /* ActivitySidebarContent+SelectionHandling.swift in Sources */,
-				B3A0020B0000000000BATCH3 /* ActivitySidebarContent+WorkflowSection.swift in Sources */,
+				B3A002080000000000BATCH3 /* ActivityDataProcessing.swift in Sources */,
 				A13E7C1F2F27E01E00EC9EE1 /* ActivityRun.swift in Sources */,
-				A13E7C202F27E01E00EC9EE1 /* SearchSidebarContent.swift in Sources */,
-				A13E7C212F27E01E00EC9EE1 /* AutomationSidebarContent.swift in Sources */,
-				A13E7C222F27E01E00EC9EE1 /* WorkflowsSidebarContent.swift in Sources */,
 				20D8ED712F48E63B006950A3 /* DocumentStoreTypes.swift in Sources */,
-				A13E7C242F27E01E00EC9EE1 /* ChatSidebarContent.swift in Sources */,
 				A1BFB4042F057B9300EAA55A /* ScrollWheelZoom.swift in Sources */,
 				A1BFB4052F057B9300EAA55A /* FolderAccessManager.swift in Sources */,
 				A1BFB4062F057B9300EAA55A /* MagnifierPanel.swift in Sources */,
@@ -1730,6 +1701,7 @@
 				20D8EDFC2F4BBC1A006950A3 /* WorkflowStreamService+Parsing.swift in Sources */,
 				018 /* ChatView.swift in Sources */,
 				202674A22F4762E6008EAB5D /* ImageZoomToolbar.swift in Sources */,
+				2011E35A2F93ADF700606651 /* ComparisonTypes.swift in Sources */,
 				202674992F475B33008EAB5D /* SearchNodeConfig.swift in Sources */,
 				200BCF2C2F3D501800D7851A /* ContentView+State.swift in Sources */,
 				20D8EDCE2F48F4AE006950A3 /* WelcomeView.swift in Sources */,

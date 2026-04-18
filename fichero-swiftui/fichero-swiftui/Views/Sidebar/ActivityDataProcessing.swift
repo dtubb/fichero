@@ -1,5 +1,20 @@
 import SwiftUI
 
+// MARK: - Activity Workflow Group
+
+/// Groups activity runs by workflow ID (falls back to name-based key when
+/// the workflow ID is absent) for sidebar display. Previously lived in
+/// `ActivitySidebarContent.swift`; moved here when the pre-unified
+/// mode-sidebar files were retired.
+struct ActivityWorkflowGroup: Hashable, Identifiable {
+    let id: String  // workflowId (or fallback key for runs without ID)
+    let displayName: String
+
+    static func key(workflowId: String?, workflowName: String) -> String {
+        workflowId ?? "name:\(workflowName)"
+    }
+}
+
 // MARK: - Data Processing (File-level functions)
 
 // All runs grouped by workflow ID for a specific library
