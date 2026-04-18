@@ -338,7 +338,13 @@ struct SidebarItemRow: View {
                 onItemTapped: onItemTapped
             )
             .contentShape(Rectangle())
-            .onTapGesture { onItemTapped?(child) }
+            // `.simultaneousGesture` instead of `.onTapGesture`: on macOS,
+            // an outer `.onTapGesture` on the parent of a `.draggable`
+            // view wins the initial press, so the inner drag threshold
+            // never arms. Using a simultaneous tap lets the draggable
+            // still initiate drags while this callback fires on a true
+            // click. Same fix as feedback_focusable_swallows_click.md.
+            .simultaneousGesture(TapGesture().onEnded { onItemTapped?(child) })
             .listRowBackground(
                 // Finder / Mail sidebar highlight: muted grey rather
                 // than accent blue. Adapts to light/dark via the

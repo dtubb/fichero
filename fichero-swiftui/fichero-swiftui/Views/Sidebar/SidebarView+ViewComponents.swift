@@ -305,9 +305,16 @@ extension SidebarView {
                 onItemTapped: { tappedItem in handleUnifiedRowTap(tappedItem) }
             )
             .contentShape(Rectangle())
-            .onTapGesture {
+            // `.simultaneousGesture` instead of `.onTapGesture`: on macOS,
+            // an outer `.onTapGesture` on the parent of a `.draggable`
+            // view wins the initial press — the drag threshold never
+            // arms, and rows can't be dragged. This was Daniel's
+            // "I can't grab a folder" symptom post `.onMove` revert.
+            // Simultaneous tap fires on true clicks without blocking
+            // the row's inner `.draggable(item.id)`.
+            .simultaneousGesture(TapGesture().onEnded {
                 handleUnifiedRowTap(item)
-            }
+            })
             .listRowBackground(
                 // Muted Finder/Mail-style grey highlight, not accent blue.
                 (item.id == selectedItemId || selectedActivityItemIds.contains(item.id))
