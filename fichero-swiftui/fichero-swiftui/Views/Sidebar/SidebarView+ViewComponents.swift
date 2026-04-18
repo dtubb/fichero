@@ -21,10 +21,6 @@ extension SidebarView {
     @ViewBuilder
     var sidebarContent: some View {
         VStack(spacing: 0) {
-            #if DEBUG
-            sidebarDebugHUD
-            #endif
-
             unifiedContent
 
             // Bottom toolbar
@@ -43,30 +39,6 @@ extension SidebarView {
             }
         }
     }
-
-    #if DEBUG
-    /// Real-time debug readout at the top of the sidebar so we can see
-    /// exactly what `selectedItemId` is after each click. Only compiled
-    /// in DEBUG builds.
-    @ViewBuilder
-    private var sidebarDebugHUD: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("selectedItemId")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(.secondary)
-            Text(selectedItemId ?? "(nil)")
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.yellow.opacity(0.15))
-        .overlay(Rectangle().frame(height: 1).foregroundStyle(.separator), alignment: .bottom)
-    }
-    #endif
 
     /// Whether to show the bottom toolbar.
     var shouldShowBottomToolbar: Bool {
@@ -348,10 +320,6 @@ extension SidebarView {
         // nil for top-level unifiedRows), then reorder the root's
         // children to place the new docs at the drop offset.
         .dropDestination(for: String.self) { droppedIds, offset in
-            #if DEBUG
-            Logger(subsystem: "com.tubb.Fichero", category: "SidebarDrop")
-                .info("🎯 TOP-LEVEL .dropDestination fired: ids=\(droppedIds) offset=\(offset) items.count=\(items.count) libraryId=\(libraryId?.uuidString ?? "nil")")
-            #endif
             handleExternalInsertionDrop(
                 droppedIds: droppedIds,
                 at: offset,
@@ -380,37 +348,22 @@ extension SidebarView {
         into items: [SidebarItem],
         libraryId: UUID?
     ) {
-        let log = Logger(subsystem: "com.tubb.Fichero", category: "SidebarDrop")
         guard let libraryId = libraryId,
-              let library = libraryManager.getLibrary(id: libraryId) else {
-            log.warning("⚠️ handleExternalInsertionDrop: no libraryId or library")
-            return
-        }
+              let library = libraryManager.getLibrary(id: libraryId) else { return }
 
         let bareIds = droppedIds
             .filter { $0.hasPrefix("doc:") }
             .map { extractActualId(from: $0) }
 
-        log.info("  bareIds=\(bareIds) (from droppedIds=\(droppedIds))")
-
         guard let newOrder = sidebarReorderedDocIdsWithInsert(
             children: items,
             inserting: bareIds,
             at: offset
-        ) else {
-            log.warning("  ⚠️ sidebarReorderedDocIdsWithInsert returned nil — no-op")
-            return
-        }
+        ) else { return }
 
-        log.info("  newOrder=\(newOrder) — reparenting + reordering")
         Task {
             for bareId in bareIds {
-                do {
-                    _ = try await library.documentStore.moveDocument(bareId, toParent: nil)
-                    log.info("  ✅ moveDocument(\(bareId), toParent: nil) succeeded")
-                } catch {
-                    log.error("  ❌ moveDocument(\(bareId), toParent: nil) failed: \(error.localizedDescription)")
-                }
+                _ = try? await library.documentStore.moveDocument(bareId, toParent: nil)
             }
             await MainActor.run {
                 library.documentStore.reorderChildrenOptimistically(orderedIds: newOrder)
