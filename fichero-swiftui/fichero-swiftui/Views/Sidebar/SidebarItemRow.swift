@@ -133,31 +133,53 @@ struct SidebarItemRow: View {
 
     var body: some View {
         bodyContent
-            // `.draggable` and `.onDrop` MUST live at the same view
-            // level. Daniel's symptom at commit 60a849dc: PDFs drag,
-            // folders don't. Reason: `.onDrop` on an inner descendant
-            // (folderLabel's `fullWidthLabel`) wins the press hit-test
-            // before the outer body-level `.draggable` can arm. At the
-            // same level, SwiftUI's gesture arbiter resolves them via
-            // press/move/release timing: press-hold-move → drag fires;
-            // press-hold-release-over-drop-target → drop fires.
+            // Canonical SwiftUI drag-and-drop pattern (Apple sample
+            // ArticleAccelerator, Apple docs "Adopting drag and drop
+            // using SwiftUI"): `.draggable(_:)` + `.dropDestination
+            // (for:action:isTargeted:)`, both Transferable-based.
+            //
+            // Earlier revisions mixed `.draggable` (Transferable) with
+            // legacy `.onDrop(of: [UTType])` (NSItemProvider). That
+            // combination causes SwiftUI's gesture arbiter to fight
+            // itself — Daniel's symptom at 658ca7d2: PDFs drag but
+            // folders don't, because only folder rows had the legacy
+            // `.onDrop` attached.
+            //
+            // Two stacked `.dropDestination` calls give clean type
+            // dispatch: String for internal sidebar moves, URL for
+            // Finder file drags. No more UTI filter logic — the
+            // framework routes by Transferable type.
             .draggable(item.id)
-            .onDrop(
-                of: [
-                    UTType.utf8PlainText,  // internal sidebar drags
-                    UTType.fileURL,        // Finder file-URL drags
-                    UTType.item,           // broadly-typed fallback
-                    UTType.movie,
-                    UTType.audio,
-                    UTType.image
-                ],
-                isTargeted: $isDropTargeted
-            ) { providers in
-                handleRowDrop(providers)
+            .dropDestination(for: String.self) { ids, _ in
+                handleInternalIDDrop(ids: ids)
+            } isTargeted: { isTargeted in
+                setDropTargeted(isTargeted)
+            }
+            .dropDestination(for: URL.self) { urls, _ in
+                handleFinderURLDrop(urls: urls)
+            } isTargeted: { isTargeted in
+                setDropTargeted(isTargeted)
             }
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint(accessibilityHint)
             .accessibilityValue(accessibilityValue)
+    }
+
+    /// Internal sidebar drags arrive as strings (sidebar item IDs).
+    /// Route them through the existing `handleDropIntoFolder` pipeline.
+    /// Non-folder rows no-op via the `folderKind == nil` guard inside
+    /// the handler.
+    private func handleInternalIDDrop(ids: [String]) -> Bool {
+        sidebarRowLogger.debug("📥 internal ID drop on \(item.name): \(ids)")
+        return handleDropIntoFolder(itemIDs: ids, targetFolder: item)
+    }
+
+    /// Finder drags arrive as URLs thanks to the Transferable URL
+    /// representation. Routes through `handleExternalFileDrop` — same
+    /// import pipeline the legacy `.onDrop` path used.
+    private func handleFinderURLDrop(urls: [URL]) -> Bool {
+        sidebarRowLogger.debug("📥 Finder URL drop on \(item.name): \(urls.map(\.lastPathComponent))")
+        return handleExternalFileDrop(urls: urls, targetFolder: item)
     }
 
     /// VoiceOver label — the row's displayed name plus its kind so users
