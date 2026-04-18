@@ -357,10 +357,19 @@ extension SidebarView {
         }
     }
 
-    /// Reparent sidebar-dragged documents to the library root (or the
-    /// unifiedRows' implicit parent — currently always root since
-    /// unifiedRows is only called for top-level rendering) and reorder
-    /// so the new docs sit at `offset` within the parent's children.
+    /// Reparent sidebar-dragged documents to the library root and reorder
+    /// so the new docs sit at `offset` within the root's children.
+    /// Target is always library root here (parentId = nil) since
+    /// unifiedRows is only called for top-level rendering.
+    ///
+    /// Guards:
+    ///   - Only "doc:" prefixed ids (documents / folders) are accepted —
+    ///     saved searches, workflows, etc. have distinct reorder paths.
+    ///   - No cycle check needed: library root has no ancestors, so
+    ///     moving any item to root can't create a cycle.
+    ///
+    /// Shares its insertion-math with `handleNestedInsertionDrop` via
+    /// the pure `sidebarReorderedDocIdsWithInsert` helper.
     private func handleExternalInsertionDrop(
         droppedIds: [String],
         at offset: Int,
@@ -370,22 +379,17 @@ extension SidebarView {
         guard let libraryId = libraryId,
               let library = libraryManager.getLibrary(id: libraryId) else { return }
 
-        let bareIds = droppedIds.map { extractActualId(from: $0) }
+        let bareIds = droppedIds
+            .filter { $0.hasPrefix("doc:") }
+            .map { extractActualId(from: $0) }
 
-        // Compute the new ordered doc IDs: existing docs in items,
-        // with the new bareIds inserted at the given offset.
-        let existingDocIds = items.compactMap { item -> String? in
-            if case .document(let doc) = item.itemType { return doc.id }
-            return nil
-        }
-        var newOrder = existingDocIds.filter { !bareIds.contains($0) }
-        let insertAt = min(offset, newOrder.count)
-        newOrder.insert(contentsOf: bareIds, at: insertAt)
+        guard let newOrder = sidebarReorderedDocIdsWithInsert(
+            children: items,
+            inserting: bareIds,
+            at: offset
+        ) else { return }
 
         Task {
-            // Reparent each dropped doc to root (parentId nil for top-
-            // level unifiedRows). Fire-and-forget — reorderChildren
-            // Optimistically below will refresh from server on success.
             for bareId in bareIds {
                 _ = try? await library.documentStore.moveDocument(bareId, toParent: nil)
             }

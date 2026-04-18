@@ -292,11 +292,10 @@ struct SidebarItemRow: View {
             .contentShape(Rectangle())
             .tag(child.id)
         }
-        // `.onMove` gives SwiftUI's native insertion line between rows
-        // for reorder within the parent folder's child list. Pure helper
-        // `sidebarReorderedDocIds` rejects mixed-kind children and
-        // no-op moves; only documents have a reorder endpoint today so
-        // search/workflow/chat children move through this path as a no-op.
+        // Same-list reorder within this folder's children. SwiftUI routes
+        // drags whose id IS already present in `children` through
+        // `.onMove`; cross-hierarchy drops of NEW ids fire
+        // `.dropDestination` below — they don't double-fire.
         .onMove { source, destination in
             guard let store = documentStore,
                   let orderedIds = sidebarReorderedDocIds(
@@ -305,6 +304,57 @@ struct SidebarItemRow: View {
                       to: destination
                   ) else { return }
             store.reorderChildrenOptimistically(orderedIds: orderedIds)
+        }
+        // Cross-hierarchy insertion drop: drag a folder/PDF from ANOTHER
+        // part of the tree and drop it at `offset` to become a child of
+        // THIS folder at that position. Guards:
+        //   - Only "doc:" prefixed ids (documents / folders) are accepted;
+        //     saved searches, workflows, etc. have their own reorder paths.
+        //   - Cycle rejection via `isDescendant(item.id, of: "doc:<bareId>")`:
+        //     this catches both self-drop (A onto A) AND ancestor-as-child
+        //     (A onto B where A is B's ancestor), because `containsDescendant`
+        //     treats self as descendant.
+        //   - Only folder parents accept child drops — PDFs and leaf file
+        //     rows don't reach this code path since they render via
+        //     `leafLabel` (no DisclosureGroup wrapper, no `childrenList`).
+        .dropDestination(for: String.self) { droppedIds, offset in
+            handleNestedInsertionDrop(droppedIds: droppedIds, at: offset, into: children)
+        }
+    }
+
+    private func handleNestedInsertionDrop(
+        droppedIds: [String],
+        at offset: Int,
+        into children: [SidebarItem]
+    ) {
+        guard case .document(let parentDoc) = item.itemType,
+              parentDoc.docType == .folder,
+              let store = documentStore else {
+            return
+        }
+
+        let bareIds = droppedIds
+            .filter { $0.hasPrefix("doc:") }
+            .map { extractActualId(from: $0) }
+            .filter { bareId in
+                // Reject cycle: can't make self a child of self, nor make an
+                // ancestor a child of its descendant.
+                !isDescendant(item.id, of: "doc:\(bareId)")
+            }
+
+        guard let newOrder = sidebarReorderedDocIdsWithInsert(
+            children: children,
+            inserting: bareIds,
+            at: offset
+        ) else { return }
+
+        Task {
+            for bareId in bareIds {
+                _ = try? await store.moveDocument(bareId, toParent: parentDoc.id)
+            }
+            await MainActor.run {
+                store.reorderChildrenOptimistically(orderedIds: newOrder)
+            }
         }
     }
 }

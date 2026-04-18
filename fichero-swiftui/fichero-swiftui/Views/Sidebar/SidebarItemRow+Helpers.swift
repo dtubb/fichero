@@ -73,6 +73,34 @@ enum SidebarItemKind: Equatable {
     }
 }
 
+/// Compute the new ordered list of doc IDs for a cross-hierarchy drop
+/// (drag a folder/PDF from ANOTHER part of the tree and drop it at
+/// `offset` within `children`). Dedupes items being moved — if a
+/// dropped id is already present in children, it's removed from its
+/// current position before being inserted at the new offset (so same-
+/// list reorders via this path work too).
+///
+/// Returns nil when there's nothing to insert OR when the insertion
+/// would be a no-op relative to the original order.
+///
+/// Pure function — unit-tested below without SwiftUI / DocumentStore.
+func sidebarReorderedDocIdsWithInsert(
+    children: [SidebarItem],
+    inserting bareIds: [String],
+    at offset: Int
+) -> [String]? {
+    guard !bareIds.isEmpty else { return nil }
+    let existingDocIds = children.compactMap { item -> String? in
+        if case .document(let doc) = item.itemType { return doc.id }
+        return nil
+    }
+    var newOrder = existingDocIds.filter { !bareIds.contains($0) }
+    let insertAt = min(max(offset, 0), newOrder.count)
+    newOrder.insert(contentsOf: bareIds, at: insertAt)
+    guard newOrder != existingDocIds else { return nil }
+    return newOrder
+}
+
 /// Compute the new ordered list of document IDs for a `.onMove` reorder.
 /// Tolerates mixed-kind children: non-document items (virtual folders,
 /// saved-search partitions, etc.) move along with the reorder but are

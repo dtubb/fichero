@@ -113,7 +113,7 @@ struct SidebarSelectionInfoEqualityTests {
             progress: nil,
             showProgress: false,
             libraryId: nil,
-            folderPath: nil,
+            folderPath: "/",
             sortOrder: 0,
             isFolder: true
         )

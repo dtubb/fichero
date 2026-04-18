@@ -419,6 +419,193 @@ struct SidebarReorderedDocIdsTests {
     }
 }
 
+// MARK: - Cross-Hierarchy Insertion Tests
+
+/// Covers `sidebarReorderedDocIdsWithInsert` — the helper that backs
+/// `.dropDestination(for: String.self) { ids, offset in }` on both
+/// `unifiedRows` (library-root insertion) and `childrenList` (nested
+/// folder-children insertion). Cycle prevention is tested separately
+/// via `CircularDropDetectionTests` since it lives in `isDescendant`.
+struct SidebarReorderedDocIdsWithInsertTests {
+
+    private func doc(_ id: String, name: String) -> SidebarItem {
+        SidebarItem(
+            id: "doc:\(id)",
+            name: name,
+            icon: "doc",
+            category: .folder,
+            itemType: .document(
+                Document(
+                    id: id,
+                    parentId: nil,
+                    docType: .folder,
+                    fileType: nil,
+                    name: name,
+                    status: .completed,
+                    metadata: [:],
+                    sortOrder: 0
+                )
+            ),
+            children: nil,
+            progress: nil,
+            showProgress: false,
+            libraryId: nil,
+            folderPath: "/",
+            sortOrder: 0,
+            isFolder: true
+        )
+    }
+
+    private func savedSearch(_ id: String, name: String) -> SidebarItem {
+        SidebarItem(
+            id: "search:\(id)",
+            name: name,
+            icon: "magnifyingglass",
+            category: .search,
+            itemType: .folder(folderPath: "/"),
+            children: nil,
+            progress: nil,
+            showProgress: false,
+            libraryId: nil,
+            folderPath: "/",
+            sortOrder: 0,
+            isFolder: false
+        )
+    }
+
+    @Test("Empty bareIds → nil (nothing to insert)")
+    func emptyBareIdsReturnsNil() {
+        let children = [doc("a", name: "A"), doc("b", name: "B")]
+        #expect(sidebarReorderedDocIdsWithInsert(
+            children: children,
+            inserting: [],
+            at: 1
+        ) == nil)
+    }
+
+    @Test("Insert new id at beginning → [new, a, b]")
+    func insertAtBeginning() throws {
+        let children = [doc("a", name: "A"), doc("b", name: "B")]
+        let result = try #require(sidebarReorderedDocIdsWithInsert(
+            children: children,
+            inserting: ["new"],
+            at: 0
+        ))
+        #expect(result == ["new", "a", "b"])
+    }
+
+    @Test("Insert new id at end → [a, b, new]")
+    func insertAtEnd() throws {
+        let children = [doc("a", name: "A"), doc("b", name: "B")]
+        let result = try #require(sidebarReorderedDocIdsWithInsert(
+            children: children,
+            inserting: ["new"],
+            at: 2
+        ))
+        #expect(result == ["a", "b", "new"])
+    }
+
+    @Test("Insert new id in middle → [a, new, b]")
+    func insertInMiddle() throws {
+        let children = [doc("a", name: "A"), doc("b", name: "B")]
+        let result = try #require(sidebarReorderedDocIdsWithInsert(
+            children: children,
+            inserting: ["new"],
+            at: 1
+        ))
+        #expect(result == ["a", "new", "b"])
+    }
+
+    @Test("Moving an existing id dedupes — [a, b, c], move 'a' to offset 3 → [b, c, a]")
+    func moveExistingDedup() throws {
+        let children = [doc("a", name: "A"), doc("b", name: "B"), doc("c", name: "C")]
+        let result = try #require(sidebarReorderedDocIdsWithInsert(
+            children: children,
+            inserting: ["a"],
+            at: 3
+        ))
+        #expect(result == ["b", "c", "a"])
+    }
+
+    @Test("Insert multiple new ids at offset → [a, x, y, b]")
+    func insertMultipleNew() throws {
+        let children = [doc("a", name: "A"), doc("b", name: "B")]
+        let result = try #require(sidebarReorderedDocIdsWithInsert(
+            children: children,
+            inserting: ["x", "y"],
+            at: 1
+        ))
+        #expect(result == ["a", "x", "y", "b"])
+    }
+
+    @Test("Mixed: insert two ids, one already present → dedupe + re-insert")
+    func mixedInsertAndDedup() throws {
+        let children = [doc("a", name: "A"), doc("b", name: "B"), doc("c", name: "C")]
+        let result = try #require(sidebarReorderedDocIdsWithInsert(
+            children: children,
+            inserting: ["new", "b"],
+            at: 3
+        ))
+        // Existing: [a, b, c]. Remove b, append [new, b] at offset 3 (clamped to 2).
+        // → [a, c, new, b]
+        #expect(result == ["a", "c", "new", "b"])
+    }
+
+    @Test("Offset beyond count clamps to end")
+    func offsetClampedToEnd() throws {
+        let children = [doc("a", name: "A"), doc("b", name: "B")]
+        let result = try #require(sidebarReorderedDocIdsWithInsert(
+            children: children,
+            inserting: ["new"],
+            at: 9999
+        ))
+        #expect(result == ["a", "b", "new"])
+    }
+
+    @Test("Negative offset clamps to 0")
+    func negativeOffsetClampedToZero() throws {
+        let children = [doc("a", name: "A"), doc("b", name: "B")]
+        let result = try #require(sidebarReorderedDocIdsWithInsert(
+            children: children,
+            inserting: ["new"],
+            at: -5
+        ))
+        #expect(result == ["new", "a", "b"])
+    }
+
+    @Test("Mixed-kind children: non-document partition preserved, docs reordered")
+    func mixedKindChildren() throws {
+        // children render documents + a virtual-folder partition mid-list.
+        // The helper only returns document IDs in their new order; the
+        // virtual folder's visual position is irrelevant to the reorder payload.
+        let children = [
+            doc("a", name: "A"),
+            savedSearch("s", name: "Searches"),
+            doc("b", name: "B")
+        ]
+        let result = try #require(sidebarReorderedDocIdsWithInsert(
+            children: children,
+            inserting: ["new"],
+            at: 2
+        ))
+        // Documents in original order: [a, b]. Filter (nothing matches new),
+        // then insert "new" at min(2, 2) = 2 → [a, b, new]
+        #expect(result == ["a", "b", "new"])
+    }
+
+    @Test("No-op: inserting an id already at the same position returns nil")
+    func noOpInsertReturnsNil() {
+        let children = [doc("a", name: "A"), doc("b", name: "B"), doc("c", name: "C")]
+        // Moving "b" from index 1 to offset 1 after dedup produces [a, b, c] —
+        // identical to original.
+        #expect(sidebarReorderedDocIdsWithInsert(
+            children: children,
+            inserting: ["b"],
+            at: 1
+        ) == nil)
+    }
+}
+
 // MARK: - Circular Drop Detection Tests
 
 /// Replicates the logic from SidebarItemRow.containsDescendant(_:in:)
