@@ -148,6 +148,16 @@ class Document(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
+    # User-defined order within parent folder. Set by /documents/reorder;
+    # consumed by `SidebarItemBuilder.childOrder` Swift-side (lower =
+    # earlier). Every document defaults to 0; once a folder is reordered,
+    # its children get sequential values. Reorder-unaware folders tie at
+    # 0 and fall through to name-based sort. Without this field declared
+    # on the Pydantic model, the reorder endpoint's `doc.sort_order = i`
+    # assignment is dropped silently by `model_dump()` (only declared
+    # fields are serialized), so reorder never persists to DB.
+    sort_order: int = 0
+
     # =========================================================================
     # Typed accessors for common metadata
     # =========================================================================
