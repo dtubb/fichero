@@ -318,6 +318,9 @@ struct SidebarItemRow: View {
         //     rows don't reach this code path since they render via
         //     `leafLabel` (no DisclosureGroup wrapper, no `childrenList`).
         .dropDestination(for: String.self) { droppedIds, offset in
+            #if DEBUG
+            sidebarRowLogger.info("🎯 NESTED .dropDestination fired on \(item.name): ids=\(droppedIds) offset=\(offset) childrenCount=\(children.count)")
+            #endif
             handleNestedInsertionDrop(droppedIds: droppedIds, at: offset, into: children)
         }
     }

@@ -348,6 +348,10 @@ extension SidebarView {
         // nil for top-level unifiedRows), then reorder the root's
         // children to place the new docs at the drop offset.
         .dropDestination(for: String.self) { droppedIds, offset in
+            #if DEBUG
+            Logger(subsystem: "com.tubb.Fichero", category: "SidebarDrop")
+                .info("🎯 TOP-LEVEL .dropDestination fired: ids=\(droppedIds) offset=\(offset) items.count=\(items.count) libraryId=\(libraryId?.uuidString ?? "nil")")
+            #endif
             handleExternalInsertionDrop(
                 droppedIds: droppedIds,
                 at: offset,
@@ -376,22 +380,37 @@ extension SidebarView {
         into items: [SidebarItem],
         libraryId: UUID?
     ) {
+        let log = Logger(subsystem: "com.tubb.Fichero", category: "SidebarDrop")
         guard let libraryId = libraryId,
-              let library = libraryManager.getLibrary(id: libraryId) else { return }
+              let library = libraryManager.getLibrary(id: libraryId) else {
+            log.warning("⚠️ handleExternalInsertionDrop: no libraryId or library")
+            return
+        }
 
         let bareIds = droppedIds
             .filter { $0.hasPrefix("doc:") }
             .map { extractActualId(from: $0) }
 
+        log.info("  bareIds=\(bareIds) (from droppedIds=\(droppedIds))")
+
         guard let newOrder = sidebarReorderedDocIdsWithInsert(
             children: items,
             inserting: bareIds,
             at: offset
-        ) else { return }
+        ) else {
+            log.warning("  ⚠️ sidebarReorderedDocIdsWithInsert returned nil — no-op")
+            return
+        }
 
+        log.info("  newOrder=\(newOrder) — reparenting + reordering")
         Task {
             for bareId in bareIds {
-                _ = try? await library.documentStore.moveDocument(bareId, toParent: nil)
+                do {
+                    _ = try await library.documentStore.moveDocument(bareId, toParent: nil)
+                    log.info("  ✅ moveDocument(\(bareId), toParent: nil) succeeded")
+                } catch {
+                    log.error("  ❌ moveDocument(\(bareId), toParent: nil) failed: \(error.localizedDescription)")
+                }
             }
             await MainActor.run {
                 library.documentStore.reorderChildrenOptimistically(orderedIds: newOrder)
