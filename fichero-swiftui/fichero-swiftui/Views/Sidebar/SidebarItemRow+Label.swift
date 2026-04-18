@@ -13,17 +13,16 @@ extension SidebarItemRow {
                     // rows use `.primary` (system label colour — black in
                     // light mode, white in dark).
                     .foregroundColor(item.id == selectedItemId ? .accentColor : .primary)
-                    // Double-click on the label name starts inline rename.
-                    // Sidebar plan Step 8. Attaches only to the Text so
-                    // the disclosure chevron (outside the Label) and the
-                    // icon tap-through to the outer selection tap are
-                    // unaffected. Single-click continues to propagate to
-                    // the row's outer `.onTapGesture` (selection change)
-                    // because SwiftUI prefers the more specific gesture
-                    // only when the count matches.
-                    .onTapGesture(count: 2) {
+                    // `simultaneousGesture` rather than `.onTapGesture(count: 2)`:
+                    // a plain double-tap recognizer on Text can delay drag
+                    // initiation on macOS because SwiftUI waits for a
+                    // possible second click before deciding the gesture
+                    // outcome. `simultaneousGesture` lets the parent's
+                    // `.draggable(item.id)` arm independently. Same fix
+                    // pattern as the outer row tap; see commit 8813d037.
+                    .simultaneousGesture(TapGesture(count: 2).onEnded {
                         renameState.startRename(itemId: item.id, currentName: item.name)
-                    }
+                    })
             }
         } icon: {
             ZStack {
