@@ -261,6 +261,49 @@ struct SidebarItemRow: View {
         return true
     }
 
+    /// Reparent dropped sidebar items to become children of THIS folder
+    /// (self.item), then place them at the drop offset within the
+    /// reordered children. Called from `childrenList`'s
+    /// `.dropDestination(for: String.self)`.
+    ///
+    /// Silently skips items that would create a circular reference (e.g.
+    /// dragging a folder onto one of its own descendants). Matches the
+    /// guard in `handleDropIntoFolder`.
+    private func handleNestedInsertionDrop(
+        droppedIds: [String],
+        at offset: Int,
+        into children: [SidebarItem]
+    ) {
+        guard case .document(let parentDoc) = item.itemType else { return }
+        guard let store = documentStore else { return }
+
+        let bareIds = droppedIds
+            .map { extractActualId(from: $0) }
+            .filter { bareId in
+                // Reject drops that would place self (or an ancestor of self)
+                // as a child of self — that would make the tree cyclic.
+                !isDescendant(item.id, of: "doc:\(bareId)")
+            }
+        guard !bareIds.isEmpty else { return }
+
+        let existingDocIds = children.compactMap { child -> String? in
+            if case .document(let doc) = child.itemType { return doc.id }
+            return nil
+        }
+        var newOrder = existingDocIds.filter { !bareIds.contains($0) }
+        let insertAt = min(offset, newOrder.count)
+        newOrder.insert(contentsOf: bareIds, at: insertAt)
+
+        Task {
+            for bareId in bareIds {
+                _ = try? await store.moveDocument(bareId, toParent: parentDoc.id)
+            }
+            await MainActor.run {
+                store.reorderChildrenOptimistically(orderedIds: newOrder)
+            }
+        }
+    }
+
     /// Async helper to unwrap a plain-text NSItemProvider into a String.
     /// Matches the `loadURL` helper's pattern on `SidebarItemRow+DropHandlers`.
     private static func loadString(from provider: NSItemProvider) async throws -> String {
@@ -291,6 +334,15 @@ struct SidebarItemRow: View {
             )
             .contentShape(Rectangle())
             .tag(child.id)
+        }
+        // Cross-hierarchy insertion drop — handles "drag a folder OUT of
+        // its grandparent and into this folder's children" + reorder
+        // within the children. SwiftUI doesn't render the blue insertion
+        // line visual inside a DisclosureGroup's content on macOS, but
+        // the drop target still works functionally: dropping a folder
+        // between any two visible children reparents it here.
+        .dropDestination(for: String.self) { droppedIds, offset in
+            handleNestedInsertionDrop(droppedIds: droppedIds, at: offset, into: children)
         }
         // `.onMove` gives SwiftUI's native insertion line between rows
         // for reorder within the parent folder's child list. Pure helper
