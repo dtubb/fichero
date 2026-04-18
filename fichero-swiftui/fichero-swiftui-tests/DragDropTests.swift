@@ -253,6 +253,92 @@ struct SidebarItemKindTests {
     }
 }
 
+// MARK: - Sidebar Drop Classifier Tests
+
+/// Covers the routing-decision logic that was iterating every few minutes
+/// on 2026-04-17 (`.mov` bounces, folder bounces, `.jpg` bounces). Pure
+/// classification with no NSItemProvider instantiation so the decision
+/// is pinned here instead of being rediscovered each time a new UTI
+/// pattern turns up.
+struct SidebarDropRouteTests {
+
+    private func capability(url: Bool, string: Bool) -> SidebarDropProviderCapability {
+        SidebarDropProviderCapability(canLoadURL: url, canLoadString: string)
+    }
+
+    @Test("Empty provider list → .reject (no bounce unless there's truly nothing)")
+    func emptyProviderList() {
+        #expect(sidebarDropRoute(for: []) == .reject)
+    }
+
+    @Test("Internal sidebar drag: text-only provider → .internalMove")
+    func textOnlyIsInternalMove() {
+        // `.draggable(item.id)` emits String via Transferable's utf8-
+        // plain-text representation — no URL conformance.
+        let providers = [capability(url: false, string: true)]
+        #expect(sidebarDropRoute(for: providers) == .internalMove)
+    }
+
+    @Test("Finder file drag: URL-loadable provider → .finderImport")
+    func urlProviderIsFinderImport() {
+        // Finder drags of common file types always expose a URL.
+        let providers = [capability(url: true, string: false)]
+        #expect(sidebarDropRoute(for: providers) == .finderImport)
+    }
+
+    @Test("Finder drag that also advertises string representation → .finderImport")
+    func urlAndStringIsStillFinderImport() {
+        // Finder drags of URL-backed items commonly also advertise a
+        // text representation (the URL's absolute string). The classifier
+        // must route these as .finderImport, not .internalMove — earlier
+        // revisions got this wrong and JPG drags bounced back.
+        let providers = [capability(url: true, string: true)]
+        #expect(sidebarDropRoute(for: providers) == .finderImport)
+    }
+
+    @Test("Mixed providers: ANY text-only provider → .internalMove")
+    func mixedWithTextOnlyPrefersInternal() {
+        // Edge case: internal sidebar drag while a Finder drag is also
+        // somehow on the pasteboard. The text-only provider (sidebar
+        // item ID) is the unambiguous signal of internal intent, so
+        // prefer internal routing.
+        let providers = [
+            capability(url: true, string: true),   // Finder-shaped
+            capability(url: false, string: true)   // internal-shaped
+        ]
+        #expect(sidebarDropRoute(for: providers) == .internalMove)
+    }
+
+    @Test("Provider that can't load URL OR string → .finderImport (optimistic)")
+    func unknownProviderAccepted() {
+        // Some macOS drag sources delay capability advertisement; the
+        // canLoadObject flags can both return false but the provider
+        // could still produce bytes if asked. Optimistic accept — let
+        // the async loader figure it out rather than bouncing the
+        // drop up front.
+        let providers = [capability(url: false, string: false)]
+        #expect(sidebarDropRoute(for: providers) == .finderImport)
+    }
+
+    @Test("Finder .mov / .jpg / folder all route as .finderImport")
+    func commonFinderFormatsImport() {
+        // Pinning the specific regressions Daniel hit:
+        //   - .mov originally missed because provider didn't advertise
+        //     public.file-url up front (#600).
+        //   - folder originally missed because of the same asymmetry.
+        //   - .jpg bounced because UTI-based filtering missed it.
+        // All three arrive with canLoadURL=true; the classifier should
+        // send every one of them through .finderImport.
+        for advertised in [
+            capability(url: true, string: false),  // .mov Finder drag
+            capability(url: true, string: true),   // .jpg Finder drag (has URL string repr)
+            capability(url: true, string: false)   // folder Finder drag
+        ] {
+            #expect(sidebarDropRoute(for: [advertised]) == .finderImport)
+        }
+    }
+}
+
 // MARK: - Circular Drop Detection Tests
 
 /// Replicates the logic from SidebarItemRow.containsDescendant(_:in:)

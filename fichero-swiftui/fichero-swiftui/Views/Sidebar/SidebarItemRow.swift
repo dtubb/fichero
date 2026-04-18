@@ -272,18 +272,22 @@ struct SidebarItemRow: View {
             sidebarRowLogger.debug("  [\(idx)] UTIs: [\(utis)]  URL:\(canURL)  String:\(canString)")
         }
 
-        // Text-only providers are internal sidebar drags (`.draggable
-        // (item.id)` emits item.id on the utf8-plain-text pasteboard
-        // only). Route them to the internal move handler.
-        let textOnlyProviders = providers.filter {
-            !$0.canLoadObject(ofClass: URL.self)
-                && $0.canLoadObject(ofClass: NSString.self)
+        let capabilities = providers.map {
+            SidebarDropProviderCapability(
+                canLoadURL: $0.canLoadObject(ofClass: URL.self),
+                canLoadString: $0.canLoadObject(ofClass: NSString.self)
+            )
         }
-        if !textOnlyProviders.isEmpty {
-            sidebarRowLogger.debug("  → internal sidebar move (\(textOnlyProviders.count))")
+
+        switch sidebarDropRoute(for: capabilities) {
+        case .internalMove:
+            sidebarRowLogger.debug("  → internal sidebar move")
+            let textOnly = providers.filter {
+                !$0.canLoadObject(ofClass: URL.self) && $0.canLoadObject(ofClass: NSString.self)
+            }
             Task {
                 var ids: [String] = []
-                for provider in textOnlyProviders {
+                for provider in textOnly {
                     if let str = try? await Self.loadString(from: provider) {
                         ids.append(str)
                     }
@@ -292,22 +296,16 @@ struct SidebarItemRow: View {
                 _ = handleDropIntoFolder(itemIDs: ids, targetFolder: item)
             }
             return true
-        }
 
-        // Anything else with ≥1 provider — likely a Finder file/folder
-        // drag. Accept optimistically and let handleProvidersDrop load
-        // URLs asynchronously. If no URL materialises, the import
-        // pipeline no-ops silently; the drop still doesn't bounce-
-        // back, which matches the user's expectation of "if I can
-        // drag it here, it should land".
-        if !providers.isEmpty {
+        case .finderImport:
             sidebarRowLogger.debug("  → Finder import (optimistic)")
             _ = handleProvidersDrop(providers, targetFolder: item)
             return true
-        }
 
-        sidebarRowLogger.debug("  ⚠️ no providers — drop rejected")
-        return false
+        case .reject:
+            sidebarRowLogger.debug("  ⚠️ no providers — drop rejected")
+            return false
+        }
     }
 
     /// Async helper to unwrap a plain-text NSItemProvider into a String.
