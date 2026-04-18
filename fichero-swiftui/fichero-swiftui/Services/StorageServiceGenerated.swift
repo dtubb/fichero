@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import OSLog
+import ImageIO
 import FicheroAPIClient
 import OpenAPIRuntime
 import OpenAPIURLSession
@@ -37,65 +38,52 @@ class StorageServiceGenerated: ObservableObject {
     /// Get thumbnail image for a document
     func getThumbnail(_ docId: String) async throws -> Image {
         logger.info("Loading thumbnail for document: \(docId)")
-
-        let url = thumbnailURL(for: docId)
-        var request = URLRequest(url: url)
-
-        // Add library path header
-        if let libraryPath = client.currentLibraryPath {
-            request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-        }
-
-        let (data, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            throw StorageServiceError.invalidResponse
-        }
-
-        #if canImport(AppKit)
-        guard let nsImage = NSImage(data: data) else {
-            throw StorageServiceError.invalidImageData
-        }
-        return Image(nsImage: nsImage)
-        #else
-        guard let uiImage = UIImage(data: data) else {
-            throw StorageServiceError.invalidImageData
-        }
-        return Image(uiImage: uiImage)
-        #endif
+        let data = try await fetchImageData(from: thumbnailURL(for: docId))
+        return try await Self.decodeImage(from: data)
     }
 
     /// Get display-quality image for a document
     func getDisplayImage(_ docId: String) async throws -> Image {
         logger.info("Loading display image for document: \(docId)")
+        let data = try await fetchImageData(from: displayURL(for: docId))
+        return try await Self.decodeImage(from: data)
+    }
 
-        let url = displayURL(for: docId)
+    /// Fetch raw image bytes from the backend. Suspends during the
+    /// network call; doesn't block main thread.
+    private func fetchImageData(from url: URL) async throws -> Data {
         var request = URLRequest(url: url)
-
-        // Add library path header
         if let libraryPath = client.currentLibraryPath {
             request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
         }
-
         let (data, response) = try await session.data(for: request)
-
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
             throw StorageServiceError.invalidResponse
         }
+        return data
+    }
 
-        #if canImport(AppKit)
-        guard let nsImage = NSImage(data: data) else {
-            throw StorageServiceError.invalidImageData
-        }
-        return Image(nsImage: nsImage)
-        #else
-        guard let uiImage = UIImage(data: data) else {
-            throw StorageServiceError.invalidImageData
-        }
-        return Image(uiImage: uiImage)
-        #endif
+    /// Decode image bytes into a SwiftUI `Image` off the main thread.
+    ///
+    /// `NSImage(data:)` and the underlying CGImageSource decode path both
+    /// parse the full bitmap synchronously — a 2MB JPG can take 10-50 ms
+    /// per image. Done on the main actor (where `LibraryImageView.task`
+    /// runs), 250+ thumbnails per folder click stack up and block clicks
+    /// + gestures for seconds. #605.
+    ///
+    /// `Task.detached` runs the decode on a background executor, then
+    /// hands back a `Sendable` `Image` value. `Image(decorative:scale:)`
+    /// wraps a CGImage for SwiftUI display; it's safe to construct off
+    /// the main actor and the resulting `Image` can cross actor boundaries.
+    nonisolated private static func decodeImage(from data: Data) async throws -> Image {
+        try await Task.detached(priority: .userInitiated) {
+            guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+                  let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+                throw StorageServiceError.invalidImageData
+            }
+            return Image(decorative: cgImage, scale: 1.0)
+        }.value
     }
 
     // MARK: - URL Providers
