@@ -700,3 +700,52 @@ Skills added to fichero-skills: `/feature` and `/feature-future`.
 - **`agents/AGENTS.md` update** (same commit): split validation into primary checks (required every time) vs. exploratory tools; added peekaboo guidance.
 - **Bug filed: #589** — Kreuzberg extraction cache writes to cwd (`.kreuzberg/`) instead of app data directory; polluting `git status`. Pattern exists in `db_embeddings.py` / `local_models.py` using `MODELS_BASE`.
 - **Band-aid shipped** (commit `8d2ed415`): `.kreuzberg/` + `fichero-api/.kreuzberg/` gitignored; one previously-tracked cache msgpack untracked.
+
+## 2026-04-18 — Session Summary (sidebar deep overhaul)
+
+28 commits on 0.0.2, mostly resolving #612 (sidebar drag/drop/select flakiness) plus #610 (backend folder flatten) and parts of #605 (click-then-wait).
+
+**Drag/drop + selection (#612):**
+- `73b9b0e0` drop-stacking fix: single `.onDrop(of: [UTType])` instead of stacked `.dropDestination(for: String.self)` + `.dropDestination(for: URL.self)` (SwiftUI arbitrates only the outer, inner silently rejected)
+- `20b98949` removed redundant row `.simultaneousGesture(TapGesture())` that competed with `.draggable` on selected rows (3-way race with AppKit → 2-way)
+- `8af9f06e` added missing `selection: $selectedItemId` to unified List (gesture was masking the missing binding)
+- `182df54a` restored `.tag(item.id)` on top-level rows (dropped by accident in 20b98949 refactor; caused "click Library highlights 3 sections" fuzzy matching)
+- `e94c149d` removed inline double-tap-to-rename `.simultaneousGesture(TapGesture(count:2))` on Text — it held every single click for 500ms and blocked selection (Daniel: "I can click the icon but not the name")
+- `bafb150a` wired Return key as rename shortcut (Finder convention)
+- `fbd168d2` removed `.foregroundColor(.accentColor)` on selected text (blue-on-blue unreadable against native sidebar highlight)
+- `0848a58a` + `0433c60d` Equatable on SidebarSelectionInfo + SidebarActions (`== true`) to silence "FocusedValue update tried to update multiple times per frame" warning
+
+**Backend folder drop (#610):**
+- `14146f8e` `ingest_folder` creates a folder Document when `parent_id` is given (was only creating when no parent — caused Finder folder drops to flatten children into the drop target)
+
+**Performance (#605 partial):**
+- `48a738da` moved `NSImage(data:)` thumbnail decode off main via `Task.detached` + `CGImageSource` (250+ main-thread decodes per folder click → off-main) — Daniel reports "feels fast" after this
+- `23559dbf` in-memory thumbnail cache on `StorageServiceGenerated` (repeated `.task` fires for same docId now return cached Image)
+
+**Reorder pipeline (#607):**
+- `c6317de9` added `.onMove` on `childrenList` + `unifiedRows` for native insertion-line reorder; included regression tests (SidebarActionsEqualityTests, SidebarSelectionInfoEqualityTests)
+- `4dd9d310` `sidebarReorderedDocIds` tolerates mixed-kind siblings (documents + virtual-folder partitions) — extracts doc IDs preserving their new relative order instead of rejecting
+- `85985325` DB migration adds `sort_order` column to documents table for older installations + skip thumbnail generation for non-image file types (.mp4 etc. no longer crash PIL)
+- `2a400cc9` declared `sort_order: int = 0` on Document Pydantic model — without it `model_dump()` silently dropped the value, reorder POST returned 200 but DB stored 0
+
+**Dead code purge (−1,400 LOC):**
+- `828d066e` deleted LibrarySidebarContent (orphaned alt render path)
+- `a5c0d973` deleted 8 more dead mode-sidebar files (ActivitySidebarContent, ChatSidebarContent, etc. from pre-unified era). Extracted ComparisonTypes + ActivityDataProcessing + ActivityWorkflowGroup to preserve the handful of types still referenced
+- `2882e256` trimmed historical comment blocks; gated debug logs behind `#if DEBUG`; reduced folderLabel's .onDrop UTType list from 6 to 2 (.utf8PlainText + .item)
+- `a131e48a` inlined sidebarDropRoute + urlLoadStrategy classifier helpers into their single callers (−250 LOC + 14 tests removed as no longer relevant)
+
+**Reverts (false starts):**
+- `3da524f0` — reverted `.selectionDisabled()` on whole Section (cascaded and killed all row selection)
+- `7f3368cd` — reverted flatten of category DisclosureGroups (mixed-ForEach Section broke internal drag)
+- `1c532cdd` — reverted custom RightHoverDisclosureStyle (wrapping content in VStack broke List row semantics)
+
+**Memory updates (durable lessons added):**
+- `feedback_tapgesture_swallows_clicks.md` — double-tap on Text holds single clicks
+- `feedback_disclosure_group_custom_style.md` — custom DisclosureGroupStyle breaks List
+- `feedback_pydantic_field_must_be_declared.md` — extra="allow" isn't enough for DB serialization
+- Updated `feedback_onmove_breaks_draggable.md` — it was partly provisional; .onMove coexists with per-row .onDrop now but has limitations
+
+**Still parked (future work):**
+- Insertion lines inside subfolder DisclosureGroups (SwiftUI doesn't render `.onMove` indicator inside DisclosureGroup)
+- Right-hover chevron on category headers (requires abandoning DisclosureGroup entirely, not just a custom style)
+- Residual click-wait latency beyond thumbnail fix (SidebarObservers / other main-thread work; needs Instruments)

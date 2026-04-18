@@ -29413,6 +29413,11 @@
             "format": "date-time",
             "title": "Updated At"
           },
+          "sort_order": {
+            "type": "integer",
+            "title": "Sort Order",
+            "default": 0
+          },
           "expected_thumbnail_path": {
             "type": "string",
             "title": "Expected Thumbnail Path",
