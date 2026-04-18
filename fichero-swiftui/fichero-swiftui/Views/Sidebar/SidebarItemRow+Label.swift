@@ -14,15 +14,14 @@ extension SidebarItemRow {
             } else {
                 Text(item.name)
                     .lineLimit(1)
-                    // `simultaneousGesture` rather than `.onTapGesture(count: 2)`:
-                    // a plain double-tap recognizer on Text can delay drag
-                    // initiation on macOS because SwiftUI waits for a
-                    // possible second click before deciding the gesture
-                    // outcome. `simultaneousGesture` lets the parent's
-                    // `.draggable(item.id)` arm independently.
-                    .simultaneousGesture(TapGesture(count: 2).onEnded {
-                        renameState.startRename(itemId: item.id, currentName: item.name)
-                    })
+                // No inline double-tap-to-rename gesture: `.simultaneousGesture
+                // (TapGesture(count: 2))` causes SwiftUI to hold every single
+                // click for ~0.5s waiting for a potential second click, which
+                // blocks List's native selection binding. Symptom: first click
+                // does nothing; second click does nothing; double-click either
+                // renames or nothing; later clicks finally select. Daniel #612.
+                // Rename is still reachable via right-click → Rename (see
+                // SidebarItemContextMenu).
             }
         } icon: {
             if workflowIsRunning {
