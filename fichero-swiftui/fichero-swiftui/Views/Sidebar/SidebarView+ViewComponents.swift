@@ -3,6 +3,8 @@ import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 
+// swiftlint:disable file_length
+
 // MARK: - View Components
 
 extension SidebarView {
@@ -59,7 +61,7 @@ extension SidebarView {
     }
 
     @ViewBuilder
-    // swiftlint:disable:next function_body_length
+    // swiftlint:disable:next function_body_length cyclomatic_complexity
     private func unifiedLibrarySection(_ libraryHeader: SidebarItem) -> some View {
         if let libraryId = libraryHeader.libraryId,
            let library = libraryManager.getLibrary(id: libraryId) {

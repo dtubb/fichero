@@ -155,7 +155,8 @@ extension ContentView {
         }
 
         // Show a transient status line so the user sees the dispatch happened.
-        importProgress = "Starting workflow on \(selectedIds.count) \(selectedIds.count == 1 ? "document" : "documents")…"
+        let noun = selectedIds.count == 1 ? "document" : "documents"
+        importProgress = "Starting workflow on \(selectedIds.count) \(noun)…"
 
         Task { @MainActor in
             defer {

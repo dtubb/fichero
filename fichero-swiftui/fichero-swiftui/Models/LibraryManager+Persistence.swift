@@ -44,7 +44,10 @@ extension LibraryManager {
         let overallStart = Date()
         defer {
             let overallMs = Date().timeIntervalSince(overallStart) * 1000
-            libraryManagerLogger.info("⏱ restoreSavedLibraries total: \(overallMs, format: .fixed(precision: 1))ms for \(paths.count) libraries")
+            let libraryCount = paths.count
+            libraryManagerLogger.info(
+                "⏱ restoreSavedLibraries total: \(overallMs, format: .fixed(precision: 1))ms for \(libraryCount) libs"
+            )
         }
 
         var validPaths: [String] = []
@@ -73,7 +76,9 @@ extension LibraryManager {
                 let perLibraryStart = Date()
                 let library = openLibrary(at: url)
                 let perLibraryMs = Date().timeIntervalSince(perLibraryStart) * 1000
-                libraryManagerLogger.info("⏱ Restored \(library.displayName): \(perLibraryMs, format: .fixed(precision: 1))ms")
+                libraryManagerLogger.info(
+                    "⏱ Restored \(library.displayName): \(perLibraryMs, format: .fixed(precision: 1))ms"
+                )
                 validPaths.append(path)
             } else {
                 libraryManagerLogger.warning("Pruning missing saved library: \(path)")
