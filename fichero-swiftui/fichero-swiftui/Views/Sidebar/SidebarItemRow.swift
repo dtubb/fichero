@@ -133,23 +133,16 @@ struct SidebarItemRow: View {
 
     var body: some View {
         bodyContent
-            // Canonical SwiftUI drag-and-drop pattern (Apple sample
-            // ArticleAccelerator, Apple docs "Adopting drag and drop
-            // using SwiftUI"): `.draggable(_:)` + `.dropDestination
-            // (for:action:isTargeted:)`, both Transferable-based.
-            //
-            // Earlier revisions mixed `.draggable` (Transferable) with
-            // legacy `.onDrop(of: [UTType])` (NSItemProvider). That
-            // combination causes SwiftUI's gesture arbiter to fight
-            // itself — Daniel's symptom at 658ca7d2: PDFs drag but
-            // folders don't, because only folder rows had the legacy
-            // `.onDrop` attached.
-            //
-            // Two stacked `.dropDestination` calls give clean type
-            // dispatch: String for internal sidebar moves, URL for
-            // Finder file drags. No more UTI filter logic — the
-            // framework routes by Transferable type.
-            .draggable(item.id)
+            // `.dropDestination` stays at the body level so it covers
+            // the whole row including the DisclosureGroup chrome.
+            // `.draggable` moved down into `folderLabel` / `leafLabel`
+            // — per Apple's ArticleAccelerator sample which puts
+            // `.draggable(article.id)` inside `NavigationLink`'s label
+            // closure on the content view. A body-level `.draggable`
+            // outside the DisclosureGroup wrapper fought DisclosureGroup's
+            // own gesture handling; the press on the label area was
+            // caught by DisclosureGroup before the outer drag threshold
+            // could arm. Daniel: folders-with-children didn't drag.
             .dropDestination(for: String.self) { ids, _ in
                 handleInternalIDDrop(ids: ids)
             } isTargeted: { isTargeted in
@@ -262,6 +255,7 @@ struct SidebarItemRow: View {
     private var folderLabel: some View {
         fullWidthLabel
             .sidebarDropHighlight(isDropTargeted, stronger: true)
+            .draggable(item.id)
             .contextMenu { rowContextMenu }
     }
 
@@ -271,6 +265,7 @@ struct SidebarItemRow: View {
     /// Finder semantics — you can't drop a file onto a file.
     private var leafLabel: some View {
         fullWidthLabel
+            .draggable(item.id)
             .contextMenu { rowContextMenu }
     }
 
