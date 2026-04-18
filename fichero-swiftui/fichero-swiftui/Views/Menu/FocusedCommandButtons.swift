@@ -17,8 +17,19 @@ struct ImageZoomActionsKey: FocusedValueKey {
     typealias Value = ImageZoomActions
 }
 
-/// Actions that can be performed on the sidebar selection
-struct SidebarActions {
+/// Actions that can be performed on the sidebar selection.
+///
+/// Equatable returns `true` unconditionally: all instances constructed by
+/// `sidebarFocusedValues(config:)` capture closures over the SAME parent
+/// @State bindings, so they're functionally interchangeable. Without this,
+/// every body re-evaluation publishes a "new" `SidebarActions` to the
+/// focus system (closures aren't Equatable by default), tripping the
+/// "FocusedValue update tried to update multiple times per frame"
+/// runtime warning that shows in red in Xcode's console. With `== true`,
+/// SwiftUI short-circuits the republish and the menu commands still
+/// work correctly because the captured bindings read current state
+/// regardless of which SidebarActions instance holds the closure.
+struct SidebarActions: Equatable {
     let createFolder: () -> Void
     let importFiles: (IngestMode) -> Void
     let renameItem: () -> Void
@@ -26,10 +37,14 @@ struct SidebarActions {
     let createSearch: () -> Void
     let createChat: () -> Void
     let createWorkflow: () -> Void
-    let createChain: () -> Void          // No longer optional
-    let createComparison: () -> Void     // No longer optional
-    let createSchedule: () -> Void       // No longer optional
-    let createTrigger: () -> Void        // No longer optional
+    let createChain: () -> Void
+    let createComparison: () -> Void
+    let createSchedule: () -> Void
+    let createTrigger: () -> Void
+
+    static func == (lhs: SidebarActions, rhs: SidebarActions) -> Bool {
+        true
+    }
 }
 
 /// Information about the current sidebar selection.
