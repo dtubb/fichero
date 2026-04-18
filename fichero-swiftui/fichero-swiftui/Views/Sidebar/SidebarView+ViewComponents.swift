@@ -52,8 +52,7 @@ extension SidebarView {
     /// unclickable. Previously the outer `.simultaneousGesture(TapGesture
     /// ())` in `unifiedRow(for:)` wrote `selectedItemId` manually, which
     /// masked the missing binding. After removing that gesture wrap for
-    /// #612, native List selection is load-bearing. `LibrarySidebarContent`
-    /// uses the same pattern (`List(selection: $selectedItemId)`).
+    /// #612, native List selection is load-bearing.
     @ViewBuilder
     var unifiedContent: some View {
         List(selection: $selectedItemId) {
