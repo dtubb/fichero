@@ -133,18 +133,28 @@ struct SidebarItemRow: View {
 
     var body: some View {
         bodyContent
-            // Hoisted `.draggable` to the row-body level. When this
-            // modifier lived inside `folderLabel` (which is wrapped in
-            // a `DisclosureGroup { ... } label: { folderLabel }` for
-            // folders with children), macOS List's drag-detection
-            // machinery never armed — the label closure's gesture
-            // area is treated as DisclosureGroup chrome, not row
-            // content. At body level the draggable wraps the entire
-            // SidebarItemRow; children render their own nested
-            // SidebarItemRows each with their own `.draggable`, and
-            // SwiftUI's gesture dispatcher prefers the innermost
-            // match, so dragging a child still drags the child.
+            // `.draggable` and `.onDrop` MUST live at the same view
+            // level. Daniel's symptom at commit 60a849dc: PDFs drag,
+            // folders don't. Reason: `.onDrop` on an inner descendant
+            // (folderLabel's `fullWidthLabel`) wins the press hit-test
+            // before the outer body-level `.draggable` can arm. At the
+            // same level, SwiftUI's gesture arbiter resolves them via
+            // press/move/release timing: press-hold-move → drag fires;
+            // press-hold-release-over-drop-target → drop fires.
             .draggable(item.id)
+            .onDrop(
+                of: [
+                    UTType.utf8PlainText,  // internal sidebar drags
+                    UTType.fileURL,        // Finder file-URL drags
+                    UTType.item,           // broadly-typed fallback
+                    UTType.movie,
+                    UTType.audio,
+                    UTType.image
+                ],
+                isTargeted: $isDropTargeted
+            ) { providers in
+                handleRowDrop(providers)
+            }
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint(accessibilityHint)
             .accessibilityValue(accessibilityValue)
@@ -230,19 +240,6 @@ struct SidebarItemRow: View {
     private var folderLabel: some View {
         fullWidthLabel
             .sidebarDropHighlight(isDropTargeted, stronger: true)
-            .onDrop(
-                of: [
-                    UTType.utf8PlainText,  // internal sidebar drags
-                    UTType.fileURL,        // Finder file-URL drags
-                    UTType.item,           // broadly-typed fallback
-                    UTType.movie,
-                    UTType.audio,
-                    UTType.image
-                ],
-                isTargeted: $isDropTargeted
-            ) { providers in
-                handleRowDrop(providers)
-            }
             .contextMenu { rowContextMenu }
     }
 
