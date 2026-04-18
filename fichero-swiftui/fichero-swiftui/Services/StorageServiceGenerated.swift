@@ -1,10 +1,10 @@
-import Foundation
-import SwiftUI
-import OSLog
-import ImageIO
 import FicheroAPIClient
+import Foundation
+import ImageIO
 import OpenAPIRuntime
 import OpenAPIURLSession
+import OSLog
+import SwiftUI
 
 private let logger = Logger(subsystem: "com.tubb.Fichero", category: "StorageServiceGenerated")
 
@@ -22,6 +22,16 @@ class StorageServiceGenerated: ObservableObject {
     private let session = URLSession.shared
     private let baseURL: URL
 
+    /// In-memory cache keyed by `docId`. Prevents the "Loading thumbnail
+    /// for document: X" storms Daniel was seeing — `.task` re-fires on
+    /// every grid view identity reset (e.g., when filteredDocuments
+    /// re-computes or LazyVGrid re-lays out), each firing a fresh
+    /// network request + byte decode. With the cache, re-fires return
+    /// instantly. Scoped to this service instance (one per library), so
+    /// switching libraries naturally resets.
+    private var thumbnailCache: [String: Image] = [:]
+    private var displayCache: [String: Image] = [:]
+
     init(ficheroClient: FicheroClient, baseURL: URL = URL(string: "http://127.0.0.1:8765/api")!) {
         self.client = ficheroClient
         self.baseURL = baseURL
@@ -35,18 +45,35 @@ class StorageServiceGenerated: ObservableObject {
 
     // MARK: - Image Loading
 
-    /// Get thumbnail image for a document
+    /// Get thumbnail image for a document. Memoised per-service-instance.
     func getThumbnail(_ docId: String) async throws -> Image {
+        if let cached = thumbnailCache[docId] {
+            return cached
+        }
         logger.info("Loading thumbnail for document: \(docId)")
         let data = try await fetchImageData(from: thumbnailURL(for: docId))
-        return try await Self.decodeImage(from: data)
+        let image = try await Self.decodeImage(from: data)
+        thumbnailCache[docId] = image
+        return image
     }
 
-    /// Get display-quality image for a document
+    /// Get display-quality image for a document. Memoised per-service-instance.
     func getDisplayImage(_ docId: String) async throws -> Image {
+        if let cached = displayCache[docId] {
+            return cached
+        }
         logger.info("Loading display image for document: \(docId)")
         let data = try await fetchImageData(from: displayURL(for: docId))
-        return try await Self.decodeImage(from: data)
+        let image = try await Self.decodeImage(from: data)
+        displayCache[docId] = image
+        return image
+    }
+
+    /// Evict a document's cached images — call when the user knows a
+    /// thumbnail has changed (e.g., after a rebuild/reindex).
+    func invalidateImageCache(for docId: String) {
+        thumbnailCache.removeValue(forKey: docId)
+        displayCache.removeValue(forKey: docId)
     }
 
     /// Fetch raw image bytes from the backend. Suspends during the
