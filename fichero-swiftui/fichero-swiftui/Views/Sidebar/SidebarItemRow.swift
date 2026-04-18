@@ -62,7 +62,6 @@ struct SidebarItemRow: View {
     @State var isCommittingRename = false
     @State var isPulsing = false
 
-    var onItemTapped: ((SidebarItem) -> Void)?
     var onAutomationPause: (() -> Void)?
     var onAutomationResume: (() -> Void)?
     var onAutomationTrigger: (() -> Void)?
@@ -329,20 +328,20 @@ struct SidebarItemRow: View {
                 selectedItemId: $selectedItemId,
                 renameState: renameState,
                 deleteState: deleteState,
-                libraryManager: libraryManager,
-                onItemTapped: onItemTapped
+                libraryManager: libraryManager
             )
             .contentShape(Rectangle())
-            // `.simultaneousGesture` instead of `.onTapGesture`: on macOS,
-            // an outer `.onTapGesture` on the parent of a `.draggable`
-            // view wins the initial press, so the inner drag threshold
-            // never arms. Using a simultaneous tap lets the draggable
-            // still initiate drags while this callback fires on a true
-            // click. Same fix as feedback_focusable_swallows_click.md.
-            .simultaneousGesture(TapGesture().onEnded { onItemTapped?(child) })
             // Native SidebarListStyle selection (accent-rounded fill)
-            // renders when listRowBackground is NOT overridden.
-            // Matches SimpleSidebar aesthetic (#614).
+            // renders via `.tag(child.id)` against the List's
+            // `selection: $selectedItemId` binding. NO outer
+            // `.simultaneousGesture(TapGesture())` — an outer tap
+            // gesture competes with the inner `.draggable(item.id)`
+            // on macOS and causes intermittent drag failures,
+            // especially on already-selected rows (#612). The
+            // `.onChange(of: selectedItemId)` observer in
+            // `SidebarView.swift` picks up selection changes from
+            // List's binding and fires `handleSelection` for view-
+            // mode switching — no tap handler needed here.
             .tag(child.id)
         }
         // `.onMove` intentionally NOT attached here: on macOS, adding

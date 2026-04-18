@@ -293,35 +293,7 @@ extension SidebarView {
         libraryId: UUID? = nil
     ) -> some View {
         ForEach(items) { item in
-            SidebarItemRow(
-                item: item,
-                allCachedItems: allCachedItems,
-                expandedItems: Binding(
-                    get: { sidebarState.expandedItems },
-                    set: { sidebarState.expandedItems = $0 }
-                ),
-                selectedItemId: $selectedItemId,
-                renameState: renameState,
-                deleteState: deleteState,
-                libraryManager: libraryManager,
-                onItemTapped: { tappedItem in handleUnifiedRowTap(tappedItem) }
-            )
-            .contentShape(Rectangle())
-            // `.simultaneousGesture` instead of `.onTapGesture`: on macOS,
-            // an outer `.onTapGesture` on the parent of a `.draggable`
-            // view wins the initial press — the drag threshold never
-            // arms, and rows can't be dragged. This was Daniel's
-            // "I can't grab a folder" symptom post `.onMove` revert.
-            // Simultaneous tap fires on true clicks without blocking
-            // the row's inner `.draggable(item.id)`.
-            .simultaneousGesture(TapGesture().onEnded {
-                handleUnifiedRowTap(item)
-            })
-            // Native SidebarListStyle selection (accent-rounded fill)
-            // renders through when we DON'T override listRowBackground.
-            // Earlier grey override is reverted per Daniel's updated
-            // preference — SimpleSidebar-style blue rounded highlight.
-            .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 8))
+            unifiedRow(for: item)
         }
         // `.onInsert(of:)` at this level crashes SwiftUICore on external
         // folder drops (`HomogeneousCollection index -1 out of bounds`)
@@ -329,6 +301,50 @@ extension SidebarView {
         // a safer mechanism is available. Per-row drops still work; files
         // dropped at library root go via the library-header drop
         // destination on SidebarSectionHeader.
+    }
+
+    /// Build a single sidebar row. Activity-category rows get an outer
+    /// `.simultaneousGesture(TapGesture())` so `handleUnifiedRowTap` can
+    /// read `NSApp.currentEvent?.modifierFlags` for cmd-click multi-
+    /// select — List's `String?` selection binding can't express a
+    /// Set<String>. ALL OTHER rows get no outer gesture wrap: List's
+    /// native selection via `.tag()` and the `.onChange(of:
+    /// selectedItemId)` observer in `SidebarView.swift` already handle
+    /// click-to-select + view-mode switch.
+    ///
+    /// The previous unconditional `.simultaneousGesture(TapGesture())`
+    /// on every row was the root cause of #612's intermittent drag
+    /// failures: on a selected row, AppKit + SwiftUI's TapGesture + the
+    /// inner `.draggable`'s own drag detector all competed for the same
+    /// press. Removing the TapGesture from non-activity rows drops the
+    /// competition from 3-way to 2-way (AppKit vs `.draggable`) and
+    /// makes drag deterministic. Matches Apple's ArticleAccelerator +
+    /// TrainingPlanView samples — neither attaches a TapGesture to List
+    /// rows.
+    @ViewBuilder
+    private func unifiedRow(for item: SidebarItem) -> some View {
+        let row = SidebarItemRow(
+            item: item,
+            allCachedItems: allCachedItems,
+            expandedItems: Binding(
+                get: { sidebarState.expandedItems },
+                set: { sidebarState.expandedItems = $0 }
+            ),
+            selectedItemId: $selectedItemId,
+            renameState: renameState,
+            deleteState: deleteState,
+            libraryManager: libraryManager
+        )
+        .contentShape(Rectangle())
+        .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 8))
+
+        if item.category == .activity {
+            row.simultaneousGesture(
+                TapGesture().onEnded { handleUnifiedRowTap(item) }
+            )
+        } else {
+            row
+        }
     }
 
     @ViewBuilder
@@ -375,26 +391,27 @@ extension SidebarView {
         sidebarState.unifiedSectionExpansionStates[key] = expanded
     }
 
+    /// Called ONLY from `unifiedRow(for:)`'s activity-category tap
+    /// gesture — non-activity rows have no outer gesture wrap (see
+    /// rationale on `unifiedRow`). The defensive early-return guards
+    /// against accidental re-use by future callers; List's native
+    /// selection binding + `.onChange(of: selectedItemId)` handles
+    /// selection for everything else.
     private func handleUnifiedRowTap(_ item: SidebarItem) {
-        if item.category == .activity {
-            let isCommandDown = NSApp.currentEvent?.modifierFlags.contains(.command) ?? false
-            if isCommandDown {
-                if selectedActivityItemIds.contains(item.id) {
-                    selectedActivityItemIds.remove(item.id)
-                } else {
-                    selectedActivityItemIds.insert(item.id)
-                }
-                selectedItemId = selectedActivityItemIds.count == 1 ? selectedActivityItemIds.first : nil
-                return
-            }
+        guard item.category == .activity else { return }
 
-            selectedActivityItemIds = [item.id]
-            selectedItemId = item.id
+        let isCommandDown = NSApp.currentEvent?.modifierFlags.contains(.command) ?? false
+        if isCommandDown {
+            if selectedActivityItemIds.contains(item.id) {
+                selectedActivityItemIds.remove(item.id)
+            } else {
+                selectedActivityItemIds.insert(item.id)
+            }
+            selectedItemId = selectedActivityItemIds.count == 1 ? selectedActivityItemIds.first : nil
             return
         }
 
-        // Selecting any non-activity row resets activity multi-selection.
-        selectedActivityItemIds.removeAll()
+        selectedActivityItemIds = [item.id]
         selectedItemId = item.id
     }
 
