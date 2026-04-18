@@ -118,6 +118,52 @@ func sidebarDropRoute(for providers: [SidebarDropProviderCapability]) -> Sidebar
     return .finderImport
 }
 
+// MARK: - URL-Load Strategy (for NSItemProvider fallback)
+
+/// Decision returned by `urlLoadStrategy(canLoadURL:utis:)` for a
+/// single NSItemProvider. Pure enum so the loading-fallback logic is
+/// testable without instantiating NSItemProvider.
+///
+/// Background: Finder drag providers come in different shapes —
+///   - Some advertise `public.file-url` and respond to
+///     `loadObject(ofClass: URL.self)` directly.
+///   - Some advertise only a content UTI like `public.jpeg` (Daniel's
+///     2026-04-17 log) and DON'T respond to `loadObject(URL.self)`,
+///     but DO respond to `loadFileRepresentation(forTypeIdentifier:)`
+///     with that content UTI.
+///
+/// Every rewrite of the drop handler in this session has hit the
+/// wrong branch of this decision tree. The strategy tests below lock
+/// the rules in.
+enum URLLoadStrategy: Equatable {
+    /// Call `loadObject(ofClass: URL.self)` — the cheapest path.
+    case useLoadObject
+
+    /// Iterate these UTIs in order, calling `loadFileRepresentation
+    /// (forTypeIdentifier:)` on each until one yields a URL.
+    case tryRepresentations([String])
+
+    /// No viable loading path — provider can't produce a URL.
+    case reject
+}
+
+/// Decide how to attempt a URL load from an NSItemProvider given its
+/// advertised capabilities. Prefer the direct `loadObject` path when
+/// available; otherwise fall back to iterating the provider's
+/// registered type identifiers for `loadFileRepresentation`.
+///
+/// - Parameters:
+///   - canLoadURL: `provider.canLoadObject(ofClass: URL.self)`
+///   - utis: `provider.registeredTypeIdentifiers` — ordered as the
+///           provider advertised them.
+/// - Returns: the strategy to try first. If that fails at runtime,
+///   callers can fall through to `tryRepresentations(utis)`.
+func urlLoadStrategy(canLoadURL: Bool, utis: [String]) -> URLLoadStrategy {
+    if canLoadURL { return .useLoadObject }
+    if utis.isEmpty { return .reject }
+    return .tryRepresentations(utis)
+}
+
 extension SidebarItemRow {
     func isDescendant(_ potentialDescendant: String, of ancestorId: String) -> Bool {
         guard let ancestorItem = findItemById(ancestorId, in: allCachedItems) else {

@@ -69,25 +69,40 @@ extension SidebarItemRow {
     /// supplied a temp path) or throws if no representation yields
     /// anything readable.
     static func loadAnyFileURL(from provider: NSItemProvider) async throws -> URL {
-        if provider.canLoadObject(ofClass: URL.self) {
-            return try await loadURL(from: provider)
-        }
-        for identifier in provider.registeredTypeIdentifiers {
-            if let url = try? await loadFileRepresentation(
-                from: provider,
-                typeIdentifier: identifier
-            ) {
-                return url
-            }
-        }
-        throw NSError(
-            domain: "SidebarDrop",
-            code: -1,
-            userInfo: [
-                NSLocalizedDescriptionKey:
-                    "No representation yielded a file URL; advertised UTIs: \(provider.registeredTypeIdentifiers)"
-            ]
+        let strategy = urlLoadStrategy(
+            canLoadURL: provider.canLoadObject(ofClass: URL.self),
+            utis: provider.registeredTypeIdentifiers
         )
+        switch strategy {
+        case .useLoadObject:
+            return try await loadURL(from: provider)
+        case .tryRepresentations(let identifiers):
+            for identifier in identifiers {
+                if let url = try? await loadFileRepresentation(
+                    from: provider,
+                    typeIdentifier: identifier
+                ) {
+                    return url
+                }
+            }
+            throw NSError(
+                domain: "SidebarDrop",
+                code: -1,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "No representation yielded a file URL; advertised UTIs: \(identifiers)"
+                ]
+            )
+        case .reject:
+            throw NSError(
+                domain: "SidebarDrop",
+                code: -1,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Provider advertises neither URL nor any type identifiers"
+                ]
+            )
+        }
     }
 
     /// Wraps `NSItemProvider.loadFileRepresentation(forTypeIdentifier:

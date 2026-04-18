@@ -339,6 +339,79 @@ struct SidebarDropRouteTests {
     }
 }
 
+// MARK: - URL-Load Strategy Tests
+
+/// Pins the NSItemProvider URL-load decision tree. Daniel's 2026-04-17
+/// log captured a Finder JPG drag whose provider advertised only
+/// `public.jpeg` — `canLoadObject(URL.self)` returned false even
+/// though `loadFileRepresentation(forTypeIdentifier: "public.jpeg")`
+/// DID produce a file URL. Each rewrite of the drop handler has
+/// flipped between getting this decision right and wrong; these tests
+/// lock the rules in so the regression can't sneak back.
+struct URLLoadStrategyTests {
+
+    @Test("canLoadURL=true → .useLoadObject (preferred fast path)")
+    func canLoadURLPrefersLoadObject() {
+        let strategy = urlLoadStrategy(canLoadURL: true, utis: [])
+        #expect(strategy == .useLoadObject)
+    }
+
+    @Test("canLoadURL=true with UTIs still prefers loadObject")
+    func canLoadURLPrefersLoadObjectEvenWithUTIs() {
+        // If the provider says it can yield URL directly, use that —
+        // don't bother with the representation-iteration fallback.
+        let strategy = urlLoadStrategy(
+            canLoadURL: true,
+            utis: ["public.file-url", "public.image", "public.jpeg"]
+        )
+        #expect(strategy == .useLoadObject)
+    }
+
+    @Test("canLoadURL=false with content UTI → .tryRepresentations([uti])")
+    func contentUTIFallback() {
+        // The exact shape from Daniel's 2026-04-17 Finder JPG drag:
+        //   [0] UTIs: [public.jpeg]  URL:false  String:false
+        // Must fall through to loadFileRepresentation(forTypeIdentifier:).
+        let strategy = urlLoadStrategy(canLoadURL: false, utis: ["public.jpeg"])
+        #expect(strategy == .tryRepresentations(["public.jpeg"]))
+    }
+
+    @Test("canLoadURL=false, no UTIs → .reject")
+    func nothingAdvertisedRejects() {
+        // Degenerate provider: can't load URL, advertises no UTIs.
+        // Nothing we can try — reject deterministically.
+        let strategy = urlLoadStrategy(canLoadURL: false, utis: [])
+        #expect(strategy == .reject)
+    }
+
+    @Test("Multiple UTIs preserve provider's advertisement order")
+    func multiUTIOrderPreserved() {
+        // Iteration order matters: providers often list their
+        // preferred representation first. Don't sort or dedupe —
+        // the caller iterates in order and returns on first success.
+        let utis = ["public.file-url", "public.image", "public.jpeg"]
+        let strategy = urlLoadStrategy(canLoadURL: false, utis: utis)
+        #expect(strategy == .tryRepresentations(utis))
+    }
+
+    @Test("Movie content UTI (public.movie) falls through to representations")
+    func movieContentUTIFallback() {
+        // Daniel's .mov-bounce regression (#600): Finder advertised
+        // `public.movie` but not public.file-url. Without the
+        // representation fallback the drop silently bounced.
+        let strategy = urlLoadStrategy(canLoadURL: false, utis: ["public.movie"])
+        #expect(strategy == .tryRepresentations(["public.movie"]))
+    }
+
+    @Test("Folder content UTI (public.folder) falls through to representations")
+    func folderContentUTIFallback() {
+        // Finder folder drags sometimes advertise only `public.folder`
+        // without URL conformance. Representation fallback picks it up.
+        let strategy = urlLoadStrategy(canLoadURL: false, utis: ["public.folder"])
+        #expect(strategy == .tryRepresentations(["public.folder"]))
+    }
+}
+
 // MARK: - Circular Drop Detection Tests
 
 /// Replicates the logic from SidebarItemRow.containsDescendant(_:in:)
