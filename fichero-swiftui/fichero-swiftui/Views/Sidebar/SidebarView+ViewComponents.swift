@@ -243,48 +243,48 @@ extension SidebarView {
         libraryId: UUID,
         buckets: UnifiedLibraryBuckets
     ) -> some View {
-        // Documents are the primary content — no subheader, just rows.
-        unifiedRows(buckets.documentItems, libraryId: libraryId)
+        unifiedDisclosureSection(
+            title: "Library",
+            sectionKey: "library",
+            libraryId: libraryId,
+            items: buckets.documentItems
+        )
 
-        if FeatureManager.shared.isSearchEnabled && !buckets.searchItems.isEmpty {
-            categoryLabel("Saved Searches")
-            unifiedRows(buckets.searchItems, libraryId: libraryId)
+        if FeatureManager.shared.isSearchEnabled {
+            unifiedDisclosureSection(
+                title: "Saved Searches",
+                sectionKey: "search",
+                libraryId: libraryId,
+                items: buckets.searchItems
+            )
         }
 
         if FeatureManager.shared.isWorkflowsEnabled {
-            let workflowItems = buckets.workflowItems + buckets.chainItems
-            if !workflowItems.isEmpty {
-                categoryLabel("Workflows")
-                unifiedRows(workflowItems, libraryId: libraryId)
-            }
+            unifiedDisclosureSection(
+                title: "Workflows",
+                sectionKey: "workflows",
+                libraryId: libraryId,
+                items: buckets.workflowItems + buckets.chainItems
+            )
         }
 
         if FeatureManager.shared.isAutomationEnabled {
-            let automationItems = buckets.scheduleItems + buckets.triggerItems
-            if !automationItems.isEmpty {
-                categoryLabel("Automation")
-                unifiedRows(automationItems, libraryId: libraryId)
-            }
+            unifiedDisclosureSection(
+                title: "Automation",
+                sectionKey: "automation",
+                libraryId: libraryId,
+                items: buckets.scheduleItems + buckets.triggerItems
+            )
         }
 
-        if FeatureManager.shared.isActivityEnabled && !buckets.activityItems.isEmpty {
-            categoryLabel("Activity")
-            unifiedRows(buckets.activityItems, libraryId: libraryId)
+        if FeatureManager.shared.isActivityEnabled {
+            unifiedDisclosureSection(
+                title: "Activity",
+                sectionKey: "activity",
+                libraryId: libraryId,
+                items: buckets.activityItems
+            )
         }
-    }
-
-    /// Category subheader row — bold caption within a library Section.
-    /// Replaces the prior per-category DisclosureGroup; users still get
-    /// per-library collapse via the library's outer DisclosureGroup.
-    @ViewBuilder
-    private func categoryLabel(_ title: String) -> some View {
-        Text(title)
-            .font(.caption)
-            .fontWeight(.bold)
-            .foregroundStyle(.secondary)
-            .padding(.top, 6)
-            .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 8))
-            .selectionDisabled()
     }
 
     @ViewBuilder
@@ -326,6 +326,50 @@ extension SidebarView {
         } else {
             row
         }
+    }
+
+    @ViewBuilder
+    private func unifiedDisclosureSection(
+        title: String,
+        sectionKey: String,
+        libraryId: UUID,
+        items: [SidebarItem]
+    ) -> some View {
+        if !items.isEmpty {
+            DisclosureGroup(
+                isExpanded: Binding(
+                    get: { isUnifiedSectionExpanded(libraryId: libraryId, sectionKey: sectionKey) },
+                    set: { setUnifiedSectionExpanded($0, libraryId: libraryId, sectionKey: sectionKey) }
+                ),
+                content: {
+                    unifiedRows(items, libraryId: libraryId)
+                },
+                label: {
+                    // SimpleSidebar-style section header: compact,
+                    // bold, primary-foreground so it reads as a clear
+                    // section marker rather than greyed-out filler.
+                    // Matches SimpleSidebarUI's
+                    // `.font(.system(size: 10)).fontWeight(.bold)`.
+                    Text(title)
+                        .font(.caption)
+                        .fontWeight(.bold)
+                }
+            )
+        }
+    }
+
+    private func unifiedSectionStorageKey(libraryId: UUID, sectionKey: String) -> String {
+        "unified-section:\(libraryId.uuidString):\(sectionKey)"
+    }
+
+    private func isUnifiedSectionExpanded(libraryId: UUID, sectionKey: String) -> Bool {
+        let key = unifiedSectionStorageKey(libraryId: libraryId, sectionKey: sectionKey)
+        return sidebarState.unifiedSectionExpansionStates[key] ?? true
+    }
+
+    private func setUnifiedSectionExpanded(_ expanded: Bool, libraryId: UUID, sectionKey: String) {
+        let key = unifiedSectionStorageKey(libraryId: libraryId, sectionKey: sectionKey)
+        sidebarState.unifiedSectionExpansionStates[key] = expanded
     }
 
     private func handleUnifiedRowTap(_ item: SidebarItem) {
