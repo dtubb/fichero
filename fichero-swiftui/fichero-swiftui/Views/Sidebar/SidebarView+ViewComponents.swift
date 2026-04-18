@@ -396,7 +396,6 @@ extension SidebarView {
                         .selectionDisabled()
                 }
             )
-            .disclosureGroupStyle(RightHoverDisclosureStyle())
         }
     }
 
@@ -496,48 +495,4 @@ extension SidebarView {
         return nil
     }
 
-}
-
-// MARK: - Right-Hover Disclosure Style
-
-/// Custom DisclosureGroupStyle for sidebar category headers:
-///   - Chevron rendered on the RIGHT side of the label row
-///   - Chevron hidden (opacity 0) until the mouse hovers the header
-///   - Taps anywhere on the label row toggle expansion
-///   - Matches Finder / Mail sidebar conventions
-struct RightHoverDisclosureStyle: DisclosureGroupStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            LabelRow(configuration: configuration)
-            if configuration.isExpanded {
-                configuration.content
-            }
-        }
-    }
-
-    private struct LabelRow: View {
-        let configuration: DisclosureGroupStyleConfiguration
-        @State private var isHovering = false
-
-        var body: some View {
-            HStack(spacing: 4) {
-                configuration.label
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .rotationEffect(.degrees(configuration.isExpanded ? 0 : -90))
-                    .opacity(isHovering ? 1 : 0)
-                    .animation(.easeInOut(duration: 0.12), value: isHovering)
-                    .animation(.easeInOut(duration: 0.15), value: configuration.isExpanded)
-            }
-            .contentShape(Rectangle())
-            .onHover { isHovering = $0 }
-            .onTapGesture {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    configuration.isExpanded.toggle()
-                }
-            }
-        }
-    }
 }
