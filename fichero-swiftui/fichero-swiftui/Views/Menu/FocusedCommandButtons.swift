@@ -32,8 +32,14 @@ struct SidebarActions {
     let createTrigger: () -> Void        // No longer optional
 }
 
-/// Information about the current sidebar selection
-struct SidebarSelectionInfo {
+/// Information about the current sidebar selection.
+///
+/// `Equatable` so `.focusedValue(\.sidebarSelectionInfo, ...)` short-circuits
+/// when the selection hasn't actually changed between body evaluations —
+/// otherwise the machinery trips the "FocusedValue update tried to update
+/// multiple times per frame" warning on every body re-evaluation, since
+/// SwiftUI otherwise treats each fresh struct instance as a new value.
+struct SidebarSelectionInfo: Equatable {
     let selectedItem: SidebarItem?
     let canRename: Bool
     let canDelete: Bool
