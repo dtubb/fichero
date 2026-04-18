@@ -21,6 +21,7 @@ extension SidebarItemRow {
         _ providers: [NSItemProvider],
         targetFolder: SidebarItem?
     ) -> Bool {
+        sidebarRowLogger.debug("📦 handleProvidersDrop: \(providers.count) provider(s), target=\(targetFolder?.name ?? "root")")
         // #600: use `canLoadObject(ofClass: URL.self)` — UTI-agnostic —
         // rather than `hasItemConformingToTypeIdentifier(fileURL)`. Some
         // Finder drag sources advertise only the content UTI (e.g. `.mov`
@@ -30,15 +31,26 @@ extension SidebarItemRow {
         // asks the provider directly whether it can produce a URL, which
         // works for every file type Finder can drag, including `.mov`.
         let fileProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
-        guard !fileProviders.isEmpty else { return false }
+        sidebarRowLogger.debug("  filtered to \(fileProviders.count) URL-loadable provider(s)")
+        guard !fileProviders.isEmpty else {
+            sidebarRowLogger.warning("  ⚠️ no URL-loadable providers — import won't fire")
+            return false
+        }
         Task {
             var urls: [URL] = []
-            for provider in fileProviders {
-                if let url = try? await Self.loadURL(from: provider) {
+            for (idx, provider) in fileProviders.enumerated() {
+                do {
+                    let url = try await Self.loadURL(from: provider)
+                    sidebarRowLogger.debug("  [\(idx)] loaded URL: \(url.lastPathComponent)")
                     urls.append(url)
+                } catch {
+                    sidebarRowLogger.error("  [\(idx)] URL load failed: \(error.localizedDescription)")
                 }
             }
-            guard !urls.isEmpty else { return }
+            guard !urls.isEmpty else {
+                sidebarRowLogger.warning("  ⚠️ all URL loads failed — import won't fire")
+                return
+            }
             _ = handleExternalFileDrop(urls: urls, targetFolder: targetFolder)
         }
         return true
