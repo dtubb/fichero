@@ -21,6 +21,10 @@ extension SidebarView {
     @ViewBuilder
     var sidebarContent: some View {
         VStack(spacing: 0) {
+            #if DEBUG
+            sidebarDebugHUD
+            #endif
+
             unifiedContent
 
             // Bottom toolbar
@@ -39,6 +43,30 @@ extension SidebarView {
             }
         }
     }
+
+    #if DEBUG
+    /// Real-time debug readout at the top of the sidebar so we can see
+    /// exactly what `selectedItemId` is after each click. Only compiled
+    /// in DEBUG builds.
+    @ViewBuilder
+    private var sidebarDebugHUD: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("selectedItemId")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.secondary)
+            Text(selectedItemId ?? "(nil)")
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.yellow.opacity(0.15))
+        .overlay(Rectangle().frame(height: 1).foregroundStyle(.separator), alignment: .bottom)
+    }
+    #endif
 
     /// Whether to show the bottom toolbar.
     var shouldShowBottomToolbar: Bool {
