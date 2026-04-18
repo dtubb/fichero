@@ -46,9 +46,17 @@ extension SidebarView {
     }
 
     /// Unified sidebar content with feature-gated sections per library.
+    ///
+    /// `selection: $selectedItemId` is REQUIRED — without it, `.tag()`'d
+    /// rows don't register click-to-select and the sidebar becomes
+    /// unclickable. Previously the outer `.simultaneousGesture(TapGesture
+    /// ())` in `unifiedRow(for:)` wrote `selectedItemId` manually, which
+    /// masked the missing binding. After removing that gesture wrap for
+    /// #612, native List selection is load-bearing. `LibrarySidebarContent`
+    /// uses the same pattern (`List(selection: $selectedItemId)`).
     @ViewBuilder
     var unifiedContent: some View {
-        List {
+        List(selection: $selectedItemId) {
             ForEach(cachedLibraryHeaders) { libraryHeader in
                 unifiedLibrarySection(libraryHeader)
             }
