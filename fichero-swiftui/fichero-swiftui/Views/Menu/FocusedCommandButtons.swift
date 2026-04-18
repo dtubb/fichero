@@ -162,7 +162,12 @@ struct FocusedImportFilesButton: View {
     }
 }
 
-/// Button that calls the focused sidebar's renameItem action
+/// Button that calls the focused sidebar's renameItem action.
+///
+/// Keyboard shortcut: plain Return (no modifier) — matches Finder's
+/// sidebar convention where pressing Return on a selected row starts
+/// rename. Scoped via `@FocusedValue` so the shortcut is only active
+/// when the sidebar has focus.
 struct FocusedRenameButton: View {
     @FocusedValue(\.sidebarActions) private var sidebarActions
     @FocusedValue(\.sidebarSelectionInfo) private var selectionInfo
@@ -171,6 +176,7 @@ struct FocusedRenameButton: View {
         Button("Rename") {
             sidebarActions?.renameItem()
         }
+        .keyboardShortcut(.return, modifiers: [])
         .disabled(!(selectionInfo?.canRename ?? false))
     }
 }
