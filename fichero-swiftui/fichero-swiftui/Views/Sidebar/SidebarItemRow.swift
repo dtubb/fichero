@@ -190,38 +190,16 @@ struct SidebarItemRow: View {
         }
     }
 
-    /// Folder row: drag source + drop target. One `.onDrop(of:
-    /// [UTType]...)` accepts BOTH internal sidebar drags
-    /// (`.draggable(item.id)` advertises the String via
-    /// `utf8PlainText`) and Finder file drags (advertising `fileURL`
-    /// or a content UTI like `jpeg`/`movie`). Routing happens inside
-    /// `handleRowDrop` via `sidebarDropRoute` + `urlLoadStrategy`.
-    ///
-    /// Why NOT two `.dropDestination(for: T.self)` calls (String +
-    /// URL) stacked on the same view: Apple's docs show one
-    /// `dropDestination` per view, and the Contacts sample uses a
-    /// single custom-Transferable with multiple `TransferRepresentation`s
-    /// when accepting multiple input types. Stacking two calls caused
-    /// SwiftUI to resolve the outer type first and silently reject the
-    /// inner — same class of bug a23ba39b warned about when mixing
-    /// `.dropDestination(for: String.self)` with `.onDrop(of: [.fileURL])`.
-    ///
-    /// Highlight + drop target attach to `fullWidthLabel` (not to the
-    /// DisclosureGroup's outer body) so the blue hover fill only
-    /// covers this row — not expanded children below.
+    /// Folder row: drag source + drop target.
+    /// `.utf8PlainText` handles internal sidebar drags; `.item` is the
+    /// root UTType conforming to every file / folder type so Finder
+    /// drops match without enumerating each concrete UTI.
     private var folderLabel: some View {
         fullWidthLabel
             .sidebarDropHighlight(isDropTargeted, stronger: true)
             .draggable(item.id)
             .onDrop(
-                of: [
-                    UTType.utf8PlainText,  // internal sidebar drags (.draggable emits String)
-                    UTType.fileURL,        // Finder file URL drags
-                    UTType.item,           // broadly-typed content drags
-                    UTType.movie,
-                    UTType.audio,
-                    UTType.image
-                ],
+                of: [UTType.utf8PlainText, UTType.item],
                 isTargeted: $isDropTargeted
             ) { providers in
                 handleRowDrop(providers)
@@ -239,25 +217,12 @@ struct SidebarItemRow: View {
             .contextMenu { rowContextMenu }
     }
 
-    /// Routes a drop on THIS FOLDER row to the right handler.
-    ///
-    /// Strategy is optimistic: if ANY provider on the pasteboard can
-    /// produce a URL OR a String, return true immediately and do the
-    /// actual work asynchronously. Previous revisions classified
-    /// providers up front via `canLoadObject` or
-    /// `hasItemConformingToTypeIdentifier` and returned false when the
-    /// filter came up empty — and the OS responded with a bounce-back
-    /// animation that looked like a rejected drop. macOS's drag
-    /// pasteboard advertises capabilities asynchronously for some drag
-    /// sources, so a synchronous filter can miss URL-producing items
-    /// that are truly importable.
-    ///
-    /// Diagnostic logs list every advertised UTI so the source of any
-    /// future rejection can be inspected via:
-    ///   log stream --subsystem com.tubb.Fichero --predicate 'category == "SidebarRow"'
-    ///
-    /// Only called from `folderLabel` — leaves don't accept drops.
+    /// Optimistic accept: any provider that can produce a URL or String
+    /// returns true immediately; async loading continues in background.
+    /// Synchronous `canLoadObject` pre-filtering misses URL-producing
+    /// items because macOS advertises some capabilities asynchronously.
     private func handleRowDrop(_ providers: [NSItemProvider]) -> Bool {
+        #if DEBUG
         sidebarRowLogger.debug("📥 handleRowDrop fired on \(item.name) with \(providers.count) provider(s)")
         for (idx, provider) in providers.enumerated() {
             let utis = provider.registeredTypeIdentifiers.joined(separator: ", ")
@@ -265,6 +230,7 @@ struct SidebarItemRow: View {
             let canString = provider.canLoadObject(ofClass: NSString.self)
             sidebarRowLogger.debug("  [\(idx)] UTIs: [\(utis)]  URL:\(canURL)  String:\(canString)")
         }
+        #endif
 
         let capabilities = providers.map {
             SidebarDropProviderCapability(
@@ -275,7 +241,6 @@ struct SidebarItemRow: View {
 
         switch sidebarDropRoute(for: capabilities) {
         case .internalMove:
-            sidebarRowLogger.debug("  → internal sidebar move")
             let textOnly = providers.filter {
                 !$0.canLoadObject(ofClass: URL.self) && $0.canLoadObject(ofClass: NSString.self)
             }
@@ -292,12 +257,10 @@ struct SidebarItemRow: View {
             return true
 
         case .finderImport:
-            sidebarRowLogger.debug("  → Finder import (optimistic)")
             _ = handleProvidersDrop(providers, targetFolder: item)
             return true
 
         case .reject:
-            sidebarRowLogger.debug("  ⚠️ no providers — drop rejected")
             return false
         }
     }
@@ -331,31 +294,8 @@ struct SidebarItemRow: View {
                 libraryManager: libraryManager
             )
             .contentShape(Rectangle())
-            // Native SidebarListStyle selection (accent-rounded fill)
-            // renders via `.tag(child.id)` against the List's
-            // `selection: $selectedItemId` binding. NO outer
-            // `.simultaneousGesture(TapGesture())` — an outer tap
-            // gesture competes with the inner `.draggable(item.id)`
-            // on macOS and causes intermittent drag failures,
-            // especially on already-selected rows (#612). The
-            // `.onChange(of: selectedItemId)` observer in
-            // `SidebarView.swift` picks up selection changes from
-            // List's binding and fires `handleSelection` for view-
-            // mode switching — no tap handler needed here.
             .tag(child.id)
         }
-        // `.onMove` intentionally NOT attached here: on macOS, adding
-        // `.onMove` to a List's ForEach replaces the row's generic
-        // `.draggable` with a move-within-this-list gesture, which
-        // breaks the ability to drag a folder OUT of the sidebar (e.g.
-        // onto another folder, or into the library grid). The
-        // insertion-line reorder UX will be rebuilt on top of custom
-        // GeometryReader hit zones + between-row spacers so it can
-        // coexist with `.draggable`. Pure helper
-        // `sidebarReorderedDocIds(_:_:_:)` and
-        // `DocumentStore.reorderChildrenOptimistically(_:)` are kept in
-        // place and unit-tested so the eventual custom wiring only has
-        // to call them. See #607.
     }
 }
 
