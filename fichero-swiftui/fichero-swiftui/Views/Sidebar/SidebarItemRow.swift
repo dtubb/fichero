@@ -292,6 +292,20 @@ struct SidebarItemRow: View {
             .contentShape(Rectangle())
             .tag(child.id)
         }
+        // `.onMove` gives SwiftUI's native insertion line between rows
+        // for reorder within the parent folder's child list. Pure helper
+        // `sidebarReorderedDocIds` rejects mixed-kind children and
+        // no-op moves; only documents have a reorder endpoint today so
+        // search/workflow/chat children move through this path as a no-op.
+        .onMove { source, destination in
+            guard let store = documentStore,
+                  let orderedIds = sidebarReorderedDocIds(
+                      children: children,
+                      moving: source,
+                      to: destination
+                  ) else { return }
+            store.reorderChildrenOptimistically(orderedIds: orderedIds)
+        }
     }
 }
 

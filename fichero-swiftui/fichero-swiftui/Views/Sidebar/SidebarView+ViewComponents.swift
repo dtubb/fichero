@@ -323,6 +323,21 @@ extension SidebarView {
         ForEach(items) { item in
             unifiedRow(for: item)
         }
+        // `.onMove` gives SwiftUI's native blue insertion line for
+        // reordering top-level items inside a category (documents at
+        // library root, saved searches, etc.). Gated on documentStore
+        // availability; sidebarReorderedDocIds is a no-op if the list
+        // contains non-document items.
+        .onMove { source, destination in
+            guard let libraryId = libraryId,
+                  let library = libraryManager.getLibrary(id: libraryId),
+                  let orderedIds = sidebarReorderedDocIds(
+                      children: items,
+                      moving: source,
+                      to: destination
+                  ) else { return }
+            library.documentStore.reorderChildrenOptimistically(orderedIds: orderedIds)
+        }
     }
 
     /// Activity rows need a tap gesture to read `modifierFlags` for
