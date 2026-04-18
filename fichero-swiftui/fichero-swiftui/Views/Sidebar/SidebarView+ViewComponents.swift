@@ -344,6 +344,18 @@ extension SidebarView {
         )
         .contentShape(Rectangle())
         .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 8))
+        // `.tag(item.id)` is REQUIRED for List(selection: $selectedItemId)
+        // to match this row against the binding. Without it, SwiftUI
+        // falls back to the ForEach identifier — which works for
+        // unique-per-row cases but breaks when rows render inside
+        // multiple sections (clicking "Library" header was highlighting
+        // Library + Saved Searches + Workflows simultaneously because
+        // no explicit tag meant SwiftUI's fuzzy section-matching took
+        // over). This was dropped accidentally during the 20b98949
+        // refactor that extracted `unifiedRow(for:)` from the inline
+        // ForEach body. Nested children (SidebarItemRow.childrenList)
+        // have always had `.tag(child.id)` — keep parity here.
+        .tag(item.id)
 
         if item.category == .activity {
             row.simultaneousGesture(
