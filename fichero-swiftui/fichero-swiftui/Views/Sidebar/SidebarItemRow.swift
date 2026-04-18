@@ -107,18 +107,6 @@ struct SidebarItemRow: View {
             .contentShape(Rectangle())
     }
 
-    /// Update the drop-target state and log the transition. The log lets Daniel
-    /// (or anyone) verify the SwiftUI dropDestination callback is actually
-    /// firing via `log stream --subsystem com.tubb.Fichero --predicate
-    /// 'category == "SidebarRow"'` — if this line never appears during a drag,
-    /// the drop destination isn't registering the hover.
-    private func setDropTargeted(_ targeted: Bool) {
-        if isDropTargeted != targeted {
-            sidebarRowLogger.debug("🎯 \(item.name): dropTargeted=\(targeted)")
-            isDropTargeted = targeted
-        }
-    }
-
     private var rowContextMenu: some View {
         SidebarItemContextMenu(
             item: item,
@@ -133,46 +121,9 @@ struct SidebarItemRow: View {
 
     var body: some View {
         bodyContent
-            // `.dropDestination` stays at the body level so it covers
-            // the whole row including the DisclosureGroup chrome.
-            // `.draggable` moved down into `folderLabel` / `leafLabel`
-            // — per Apple's ArticleAccelerator sample which puts
-            // `.draggable(article.id)` inside `NavigationLink`'s label
-            // closure on the content view. A body-level `.draggable`
-            // outside the DisclosureGroup wrapper fought DisclosureGroup's
-            // own gesture handling; the press on the label area was
-            // caught by DisclosureGroup before the outer drag threshold
-            // could arm. Daniel: folders-with-children didn't drag.
-            .dropDestination(for: String.self) { ids, _ in
-                handleInternalIDDrop(ids: ids)
-            } isTargeted: { isTargeted in
-                setDropTargeted(isTargeted)
-            }
-            .dropDestination(for: URL.self) { urls, _ in
-                handleFinderURLDrop(urls: urls)
-            } isTargeted: { isTargeted in
-                setDropTargeted(isTargeted)
-            }
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint(accessibilityHint)
             .accessibilityValue(accessibilityValue)
-    }
-
-    /// Internal sidebar drags arrive as strings (sidebar item IDs).
-    /// Route them through the existing `handleDropIntoFolder` pipeline.
-    /// Non-folder rows no-op via the `folderKind == nil` guard inside
-    /// the handler.
-    private func handleInternalIDDrop(ids: [String]) -> Bool {
-        sidebarRowLogger.debug("📥 internal ID drop on \(item.name): \(ids)")
-        return handleDropIntoFolder(itemIDs: ids, targetFolder: item)
-    }
-
-    /// Finder drags arrive as URLs thanks to the Transferable URL
-    /// representation. Routes through `handleExternalFileDrop` — same
-    /// import pipeline the legacy `.onDrop` path used.
-    private func handleFinderURLDrop(urls: [URL]) -> Bool {
-        sidebarRowLogger.debug("📥 Finder URL drop on \(item.name): \(urls.map(\.lastPathComponent))")
-        return handleExternalFileDrop(urls: urls, targetFolder: item)
     }
 
     /// VoiceOver label — the row's displayed name plus its kind so users
@@ -240,22 +191,42 @@ struct SidebarItemRow: View {
         }
     }
 
-    /// Folder row: full drag + drop support. Single `.onDrop(of:
-    /// isTargeted:perform:)` unifies both internal sidebar drags
-    /// (utf8PlainText) and Finder file drags (fileURL and friends)
-    /// — attaching both `.dropDestination(for: String.self)` and a
-    /// separate `.onDrop(of: [.fileURL])` on the same view causes
-    /// SwiftUI to route Finder drags through the String handler
-    /// first and silently reject them. One modifier, branching on
-    /// advertised UTI inside `handleRowDrop`.
+    /// Folder row: drag source + drop target. One `.onDrop(of:
+    /// [UTType]...)` accepts BOTH internal sidebar drags
+    /// (`.draggable(item.id)` advertises the String via
+    /// `utf8PlainText`) and Finder file drags (advertising `fileURL`
+    /// or a content UTI like `jpeg`/`movie`). Routing happens inside
+    /// `handleRowDrop` via `sidebarDropRoute` + `urlLoadStrategy`.
     ///
-    /// Highlight + drop target attach to `fullWidthLabel` (not to
-    /// the DisclosureGroup's outer body), so the blue hover fill
-    /// only covers this row — not expanded children below.
+    /// Why NOT two `.dropDestination(for: T.self)` calls (String +
+    /// URL) stacked on the same view: Apple's docs show one
+    /// `dropDestination` per view, and the Contacts sample uses a
+    /// single custom-Transferable with multiple `TransferRepresentation`s
+    /// when accepting multiple input types. Stacking two calls caused
+    /// SwiftUI to resolve the outer type first and silently reject the
+    /// inner — same class of bug a23ba39b warned about when mixing
+    /// `.dropDestination(for: String.self)` with `.onDrop(of: [.fileURL])`.
+    ///
+    /// Highlight + drop target attach to `fullWidthLabel` (not to the
+    /// DisclosureGroup's outer body) so the blue hover fill only
+    /// covers this row — not expanded children below.
     private var folderLabel: some View {
         fullWidthLabel
             .sidebarDropHighlight(isDropTargeted, stronger: true)
             .draggable(item.id)
+            .onDrop(
+                of: [
+                    UTType.utf8PlainText,  // internal sidebar drags (.draggable emits String)
+                    UTType.fileURL,        // Finder file URL drags
+                    UTType.item,           // broadly-typed content drags
+                    UTType.movie,
+                    UTType.audio,
+                    UTType.image
+                ],
+                isTargeted: $isDropTargeted
+            ) { providers in
+                handleRowDrop(providers)
+            }
             .contextMenu { rowContextMenu }
     }
 

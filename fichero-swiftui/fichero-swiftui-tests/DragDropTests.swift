@@ -195,7 +195,7 @@ struct IDPrefixStrippingTests {
     func crossViewDragBareUUID() {
         // The library grid's `.draggable(doc.id)` (LibraryView+DisplayModes
         // .swift:25,110) emits the bare UUID as its Transferable payload.
-        // When the sidebar's `.dropDestination(for: String.self)` receives
+        // When the sidebar's `.onDrop(of: [.utf8PlainText, ...])` receives
         // it, the same `extractActualId` normaliser must leave a bare UUID
         // untouched so `moveDocument` gets the right identifier.
         let bareUUID = "8B2F4D6A-1C3E-4F5B-9A7D-0E2C6F8B4A9D"
