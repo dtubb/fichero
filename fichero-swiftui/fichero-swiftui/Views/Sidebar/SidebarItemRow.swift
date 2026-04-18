@@ -349,40 +349,17 @@ struct SidebarItemRow: View {
             )
             .tag(child.id)
         }
-        .onMove { source, destination in
-            handleChildrenMove(from: source, to: destination, in: children)
-        }
-    }
-
-    /// `.onMove` handler: computes the new ordered doc IDs and hands
-    /// them to the store's optimistic reorder method.
-    ///
-    /// SwiftUI expects the `.onMove` closure to mutate the data source
-    /// synchronously — the insertion-line animation "sticks" only if
-    /// `collections` already reflects the new order by the next render
-    /// cycle. `reorderChildrenOptimistically` does exactly that: it
-    /// rewrites `sortOrder` in-place across every local cache (which
-    /// `@Published collections` fires), then persists to the backend
-    /// in the background. If the backend rejects, a trailing
-    /// `refresh()` brings the canonical order back.
-    private func handleChildrenMove(
-        from source: IndexSet,
-        to destination: Int,
-        in children: [SidebarItem]
-    ) {
-        guard let documentStore else {
-            sidebarRowLogger.debug("🔀 onMove: no documentStore — skip")
-            return
-        }
-        guard let orderedIds = sidebarReorderedDocIds(
-            children: children,
-            moving: source,
-            to: destination
-        ) else {
-            sidebarRowLogger.debug("🔀 onMove: rejected (non-doc children or no-op)")
-            return
-        }
-        sidebarRowLogger.debug("🔀 onMove: reorder \(orderedIds.count) docs → \(orderedIds)")
-        documentStore.reorderChildrenOptimistically(orderedIds: orderedIds)
+        // `.onMove` intentionally NOT attached here: on macOS, adding
+        // `.onMove` to a List's ForEach replaces the row's generic
+        // `.draggable` with a move-within-this-list gesture, which
+        // breaks the ability to drag a folder OUT of the sidebar (e.g.
+        // onto another folder, or into the library grid). The
+        // insertion-line reorder UX will be rebuilt on top of custom
+        // GeometryReader hit zones + between-row spacers so it can
+        // coexist with `.draggable`. Pure helper
+        // `sidebarReorderedDocIds(_:_:_:)` and
+        // `DocumentStore.reorderChildrenOptimistically(_:)` are kept in
+        // place and unit-tested so the eventual custom wiring only has
+        // to call them. See #607.
     }
 }
