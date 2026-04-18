@@ -22,29 +22,19 @@ extension SidebarItemRow {
         targetFolder: SidebarItem?
     ) -> Bool {
         sidebarRowLogger.debug("📦 handleProvidersDrop: \(providers.count) provider(s), target=\(targetFolder?.name ?? "root")")
-        // #600: use `canLoadObject(ofClass: URL.self)` — UTI-agnostic —
-        // rather than `hasItemConformingToTypeIdentifier(fileURL)`. Some
-        // Finder drag sources advertise only the content UTI (e.g. `.mov`
-        // advertises `com.apple.quicktime-movie` but not always
-        // `public.fileURL`), so the old UTI filter silently dropped the
-        // provider before the URL-load even attempted. `canLoadObject`
-        // asks the provider directly whether it can produce a URL, which
-        // works for every file type Finder can drag, including `.mov`.
-        let fileProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
-        sidebarRowLogger.debug("  filtered to \(fileProviders.count) URL-loadable provider(s)")
-        guard !fileProviders.isEmpty else {
-            sidebarRowLogger.warning("  ⚠️ no URL-loadable providers — import won't fire")
+        guard !providers.isEmpty else {
+            sidebarRowLogger.warning("  ⚠️ no providers")
             return false
         }
         Task {
             var urls: [URL] = []
-            for (idx, provider) in fileProviders.enumerated() {
-                do {
-                    let url = try await Self.loadURL(from: provider)
+            for (idx, provider) in providers.enumerated() {
+                if let url = try? await Self.loadAnyFileURL(from: provider) {
                     sidebarRowLogger.debug("  [\(idx)] loaded URL: \(url.lastPathComponent)")
                     urls.append(url)
-                } catch {
-                    sidebarRowLogger.error("  [\(idx)] URL load failed: \(error.localizedDescription)")
+                } else {
+                    let utis = provider.registeredTypeIdentifiers.joined(separator: ", ")
+                    sidebarRowLogger.warning("  [\(idx)] URL load failed for provider with UTIs: [\(utis)]")
                 }
             }
             guard !urls.isEmpty else {
@@ -54,6 +44,92 @@ extension SidebarItemRow {
             _ = handleExternalFileDrop(urls: urls, targetFolder: targetFolder)
         }
         return true
+    }
+
+    /// Load a file URL from an NSItemProvider using whichever API works
+    /// for the provider's advertised UTIs.
+    ///
+    /// Finder drag providers come in multiple shapes and require
+    /// different loading strategies:
+    ///   - Providers advertising `public.file-url` or conformant UTIs
+    ///     respond to `loadObject(ofClass: URL.self)` directly.
+    ///   - Providers advertising only content UTIs like `public.jpeg`
+    ///     or `public.movie` do NOT respond to `loadObject(URL.self)`
+    ///     — `canLoadObject(URL.self)` returns false — but DO respond
+    ///     to `loadFileRepresentation(forTypeIdentifier:)` with their
+    ///     advertised UTI. This is the case Daniel hit 2026-04-17
+    ///     with a Finder .JPG drag advertising only `public.jpeg`.
+    ///
+    /// This helper tries `loadObject(URL.self)` first (cheapest and
+    /// works for most drags), then falls back to iterating the
+    /// provider's registered UTIs and asking each for a file
+    /// representation until one produces a URL.
+    ///
+    /// Returns the URL (copied into a stable location if the provider
+    /// supplied a temp path) or throws if no representation yields
+    /// anything readable.
+    static func loadAnyFileURL(from provider: NSItemProvider) async throws -> URL {
+        if provider.canLoadObject(ofClass: URL.self) {
+            return try await loadURL(from: provider)
+        }
+        for identifier in provider.registeredTypeIdentifiers {
+            if let url = try? await loadFileRepresentation(
+                from: provider,
+                typeIdentifier: identifier
+            ) {
+                return url
+            }
+        }
+        throw NSError(
+            domain: "SidebarDrop",
+            code: -1,
+            userInfo: [
+                NSLocalizedDescriptionKey:
+                    "No representation yielded a file URL; advertised UTIs: \(provider.registeredTypeIdentifiers)"
+            ]
+        )
+    }
+
+    /// Wraps `NSItemProvider.loadFileRepresentation(forTypeIdentifier:
+    /// completionHandler:)` as async/throws. The provider hands us a
+    /// temporary file URL valid only until the completion returns, so
+    /// we copy the file to Fichero's caches directory before resolving
+    /// — otherwise the import pipeline would race against the temp
+    /// file being deleted.
+    private static func loadFileRepresentation(
+        from provider: NSItemProvider,
+        typeIdentifier: String
+    ) async throws -> URL {
+        try await withCheckedThrowingContinuation { continuation in
+            _ = provider.loadFileRepresentation(
+                forTypeIdentifier: typeIdentifier
+            ) { temporaryURL, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let temporaryURL else {
+                    continuation.resume(throwing: NSError(
+                        domain: "SidebarDrop",
+                        code: -2,
+                        userInfo: [NSLocalizedDescriptionKey: "Empty URL from loadFileRepresentation"]
+                    ))
+                    return
+                }
+                // Copy to a stable caches path — the temporaryURL is
+                // deleted as soon as this closure returns.
+                let destinationDir = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("fichero-drop-\(UUID().uuidString)")
+                do {
+                    try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true)
+                    let destination = destinationDir.appendingPathComponent(temporaryURL.lastPathComponent)
+                    try FileManager.default.copyItem(at: temporaryURL, to: destination)
+                    continuation.resume(returning: destination)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 
     private static func loadURL(from provider: NSItemProvider) async throws -> URL {
