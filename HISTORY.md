@@ -831,3 +831,13 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 
 - **#594 closed**: Contract/endpoint validation tests already converted to skip-when-fixtures-absent in `61afdbe2`. Closed with reference; deeper fix (write `export_api_schemas.py` + build phase) deferred to 0.0.3+.
 - **#619/#605 instrumented** (`4c9d0d32`): Added ⏱ OSLog breadcrumbs at `AppState.init` entry/exit, `checkBackendHealth` request-start and response-received, `LibraryManager.loadLibraryData` per-phase with counts, `SidebarItemBuilder.buildLibraryGroup` entry/exit with doc count, and `ContentView` first-frame `.onAppear`. Subsystem `com.tubb.Fichero`. Issues left open for Daniel's on-device log analysis.
+
+## 2026-04-20 — #600 Cannot drag-drop a .mov file from Finder into Fichero
+
+- PR: N/A
+- Branch: 0.0.2
+- Task completed in session
+
+## 2026-04-20 — Session Summary
+
+- #600 fix: `canLoadObject(URL.self)` fallthrough — when the provider returns `true` but the actual load fails (observed with some `.mov` Finder drags), code now catches and falls through to `loadFileRepresentation`. Added verbose OSLog breadcrumbs throughout `loadAnyFileURL`, `loadFileRepresentation`, and `loadURL`. Closed #600; on-device `.mov` verify deferred to Daniel.
