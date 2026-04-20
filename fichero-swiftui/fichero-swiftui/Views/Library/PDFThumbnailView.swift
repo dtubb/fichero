@@ -103,21 +103,6 @@ struct PDFPageView: NSViewRepresentable {
             name: .PDFViewScaleChanged,
             object: view
         )
-        // #591: scrollbar drags in .singlePageContinuous mode don't
-        // fire PDFViewPageChanged, so the grid never learns the user
-        // scrolled past the original page. Observe the document view's
-        // bounds changes — each scroll emits one — and recompute the
-        // top-visible page ourselves.
-        if let contentView = view.documentView?.enclosingScrollView?.contentView {
-            contentView.postsBoundsChangedNotifications = true
-            NotificationCenter.default.addObserver(
-                context.coordinator,
-                selector: #selector(Coordinator.scrollBoundsChanged(_:)),
-                name: NSView.boundsDidChangeNotification,
-                object: contentView
-            )
-            context.coordinator.owningPDFView = view
-        }
         loadAndNavigate(view)
         return view
     }
@@ -168,8 +153,6 @@ struct PDFPageView: NSViewRepresentable {
     /// Bridges AppKit notifications / delegate into the SwiftUI callback.
     final class Coordinator: NSObject, PDFViewDelegate {
         var owner: PDFPageView
-        weak var owningPDFView: PDFView?
-        private var lastReportedPage: Int = -1
 
         init(owner: PDFPageView) {
             self.owner = owner
@@ -199,20 +182,6 @@ struct PDFPageView: NSViewRepresentable {
         func scaleDidChange(_ notification: Notification) {
             guard let view = notification.object as? PDFView else { return }
             view.autoScales = false
-        }
-
-        /// #591: recompute top-visible page on every scroll so grid
-        /// selection follows scrollbar drags in .singlePageContinuous
-        /// mode (where PDFViewPageChanged doesn't fire for scrolling).
-        @objc
-        func scrollBoundsChanged(_ notification: Notification) {
-            guard let view = owningPDFView,
-                  let doc = view.document,
-                  let firstVisible = view.visiblePages.first else { return }
-            let index = doc.index(for: firstVisible)
-            guard index != lastReportedPage, index != owner.pageIndex else { return }
-            lastReportedPage = index
-            owner.onPageIndexChange?(index)
         }
     }
 }
