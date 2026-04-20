@@ -339,7 +339,13 @@ struct ContentView: View {
                             Label("Run Workflow", systemImage: "play.square.stack")
                         }
                         .help("Run Workflow on Selection")
-                        .disabled(browserSelection.isEmpty || workflowStore.workflows.isEmpty)
+                        // Fall through to the open preview document when
+                        // the grid has no explicit selection — matches the
+                        // same fallback in `runWorkflowOnSelection` so the
+                        // menu is enabled whenever a doc can be targeted
+                        // (#609).
+                        .disabled((browserSelection.isEmpty && detailDocument == nil)
+                                  || workflowStore.workflows.isEmpty)
                     }
                 }
             }
