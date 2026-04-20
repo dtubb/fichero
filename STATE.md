@@ -2,7 +2,7 @@
 
 ## Current Focus
 
-**Branch:** `0.0.2` — tip `4c9d0d32`. 17 open issues remain; #594 closed, #619/#605 instrumented (open pending Daniel log analysis).
+**Branch:** `0.0.2` — tip `46c3e7fb`. 16 open issues remain; #594 closed, #600 fixed (canLoadObject fallthrough + OSLog), #619/#605 instrumented (open pending Daniel log analysis).
 
 **Goal:** close 0.0.2 and ship. Plan below batches by effort and tags each item `[autonomous]` (loop-safe) or `[needs-daniel]` (on-device / judgment / credentials).
 
@@ -26,7 +26,7 @@ Work these top-to-bottom. Each is one concern, one commit.
 
 3. ~~**#619 / #605 startup instrumentation** — DONE `4c9d0d32`. ⏱ breadcrumbs at AppState.init, checkBackendHealth, loadLibraryData, SidebarItemBuilder.build, ContentView.onAppear. Issues left open pending Daniel's on-device log analysis.~~ ✓
 
-4. **#600 .mov drag-drop investigation** `[autonomous]` — code-only. Read `SidebarItemRow+DropHandlers.swift` carefully; add verbose debug logging around `loadAnyFileURL` / `loadFileRepresentation` branches so a `.mov` drag prints every UTI and every load-result. Ship only the instrumentation. If a clear code bug surfaces (e.g. a branch that filters video UTIs), fix it; otherwise leave the repro hooks for Daniel.
+4. ~~**#600 .mov drag-drop** — DONE `46c3e7fb`. Fixed canLoadObject fallthrough (provider lied about URL support for .mov); added OSLog breadcrumbs throughout. Closed #600. Needs Daniel on-device verify.~~ ✓
 
 5. **#603 ingest-mode badges + delete-copy** `[autonomous]` — path-heuristic approach, no DB schema change. In `SidebarItemRow+Label.swift` (or wherever the Label icon renders), check whether the document's `path` starts with the library package path — if yes, it's COPY/MOVE; otherwise LINK. Overlay `arrow.up.right.square` SF Symbol (bottom-trailing, small) when LINK. Same heuristic in the delete-confirmation dialog: if LINK → "Remove the Fichero reference to X? The original at Y will stay on disk." If non-LINK → keep the current "cannot be undone" copy (good enough for 0.0.2; COPY vs MOVE distinction moves to 0.0.3 when we add the schema field).
 
@@ -61,10 +61,10 @@ Don't attempt these from a loop. They sit here for Daniel's next on-device sessi
 
 ## Next Session — Start Here
 
-1. Pick up at **#600** (.mov drag-drop): read `SidebarItemRow+DropHandlers.swift`, add debug logging around `loadAnyFileURL`/`loadFileRepresentation` for UTI and load-result traces.
-2. **#619/#605 stay open** — Daniel needs to tail `log stream --predicate 'eventMessage CONTAINS "⏱"'` on device and report the bottleneck.
-3. After #600, continue with **#603** (ingest-mode badges) and **#616** (hide icon-grid panel toggle).
-4. Do NOT write BLOCK.md until all autonomous items (#600, #603, #591/#592, #616) are done or blocked.
+1. ~~#600 done~~ ✓ — Next: **#603** (ingest-mode badges, path-heuristic, no schema change).
+2. **#619/#605 stay open** — Daniel needs to tail `log stream --predicate 'eventMessage CONTAINS "⏱"'` on device.
+3. After #603, continue with **#591/#592** (PDF scroll sync, flag-guarded) and **#616** (hide icon-grid panel toggle).
+4. Do NOT write BLOCK.md until all autonomous items (#603, #591/#592, #616) are done or blocked.
 
 ## Parallel Workflow
 
@@ -72,4 +72,4 @@ Don't attempt these from a loop. They sit here for Daniel's next on-device sessi
 
 ---
 
-*Last updated: 2026-04-20 (session-end)* — 5 autonomous items remaining (#600, #603, #591/#592, #616), 6 needs-Daniel items waiting. Next: #600 (.mov drag-drop debug logging).
+*Last updated: 2026-04-20 (session)* — 4 autonomous items remaining (#603, #591/#592, #616), 6 needs-Daniel items waiting. Next: #603 (ingest-mode badges).
