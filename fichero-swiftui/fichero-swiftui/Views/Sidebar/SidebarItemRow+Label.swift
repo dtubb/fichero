@@ -34,6 +34,14 @@ extension SidebarItemRow {
                         .controlSize(.small)
                         .scaleEffect(0.8)
                 }
+            } else if case .document(let doc) = item.itemType, doc.isLinked {
+                ZStack(alignment: .bottomTrailing) {
+                    Image(systemName: item.icon)
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.system(size: 6, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .offset(x: 2, y: 2)
+                }
             } else {
                 Image(systemName: item.icon)
             }

@@ -62,7 +62,11 @@ extension LibraryView {
                 }
             } message: {
                 if documentsToDelete.count == 1, let doc = documentsToDelete.first {
-                    Text("Are you sure you want to delete \"\(doc.name)\"? This cannot be undone.")
+                    if doc.isLinked, let path = doc.path {
+                        Text("Remove the Fichero reference to \"\(doc.name)\"? The original file at \(path) will stay on disk.")
+                    } else {
+                        Text("Are you sure you want to delete \"\(doc.name)\"? This cannot be undone.")
+                    }
                 } else {
                     Text("Are you sure you want to delete \(documentsToDelete.count) documents? This cannot be undone.")
                 }

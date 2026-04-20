@@ -31,6 +31,12 @@ struct MailStyleRow: View {
                         .truncationMode(.middle)
                         .fixedSize(horizontal: false, vertical: true)
 
+                    if document.isLinked {
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
                     Spacer()
 
                     Text(document.createdAt, style: .date)
@@ -281,6 +287,13 @@ struct DocumentThumbnailView: View {
                 VStack {
                     Spacer()
                     HStack {
+                        if document.isLinked {
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .shadow(color: Color(.windowBackgroundColor), radius: 1)
+                                .padding(5)
+                        }
                         Spacer()
                         statusIndicator
                             .padding(4)
