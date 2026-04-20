@@ -215,7 +215,14 @@ private struct SidebarDeleteAlertsModifier: ViewModifier {
                     deleteState.cancelDelete()
                 }
             } message: {
-                Text("This action cannot be undone.")
+                if let item = deleteState.itemToDelete,
+                   case .document(let doc) = item.itemType,
+                   doc.isLinked,
+                   let path = doc.path {
+                    Text("Remove the Fichero reference to \"\(item.name)\"? The original file at \(path) will stay on disk.")
+                } else {
+                    Text("This action cannot be undone.")
+                }
             }
             .alert("Delete Failed", isPresented: $deleteState.showingDeleteError) {
                 Button("OK", role: .cancel) {}

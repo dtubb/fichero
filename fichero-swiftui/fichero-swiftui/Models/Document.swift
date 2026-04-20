@@ -324,6 +324,17 @@ struct EmbeddingStats: Codable {
     }
 }
 
+// MARK: - Ingest Mode
+
+extension Document {
+    /// True when this document was imported via LINK mode (bookmark reference; original stays on disk).
+    /// Detected by the presence of a "bookmark" metadata key, which is set exclusively by the LINK
+    /// ingest path. COPY/MOVE docs live inside the library package and have no bookmark entry.
+    var isLinked: Bool {
+        metadata["bookmark"]?.value != nil
+    }
+}
+
 // MARK: - Navigation
 
 extension Document {
