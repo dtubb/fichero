@@ -198,10 +198,13 @@ struct LibraryView: View {
                     .help("Reset Zoom")
 
                     Button {
+                        // Raised from 3.0 → 5.0 so users can inspect
+                        // fine detail (stamps, handwriting) without the
+                        // zoom pegging too early (#604).
                         if displayMode == .icon {
-                            iconViewScale = min(3.0, iconViewScale + 0.25)
+                            iconViewScale = min(5.0, iconViewScale + 0.25)
                         } else {
-                            mapCanvasScale = min(3.0, mapCanvasScale + 0.25)
+                            mapCanvasScale = min(5.0, mapCanvasScale + 0.25)
                         }
                     } label: {
                         Image(systemName: "plus.magnifyingglass")
