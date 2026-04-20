@@ -1,4 +1,7 @@
 import Foundation
+import OSLog
+
+private let sidebarBuilderLogger = Logger(subsystem: "com.tubb.Fichero", category: "Startup")
 
 /// Helper functions for building hierarchical sidebar items
 enum SidebarItemBuilder {
@@ -9,6 +12,8 @@ enum SidebarItemBuilder {
     static func buildLibraryGroup(
         library: LibraryManager.LibraryReference
     ) -> [SidebarItem] {
+        let docCount = library.documentStore.collections.count
+        sidebarBuilderLogger.info("⏱ SidebarItemBuilder.build entry — \(docCount) docs in \(library.displayName)")
         var allItems: [SidebarItem] = []
 
         // Add document folders first
@@ -31,6 +36,7 @@ enum SidebarItemBuilder {
         let workflowItems = buildWorkflowHierarchy(from: workflows, libraryId: library.id)
         allItems.append(contentsOf: workflowItems)
 
+        sidebarBuilderLogger.info("⏱ SidebarItemBuilder.build exit — \(allItems.count) total items")
         return allItems
     }
 

@@ -78,19 +78,22 @@ extension LibraryManager {
 
     /// Load all data for a library (documents, searches, conversations, workflows)
     func loadLibraryData(for library: LibraryReference) async {
+        libraryManagerLogger.info("⏱ loadLibraryData entry — library: \(library.displayName)")
         guard !Task.isCancelled else { return }
         await library.documentStore.loadCollections()
+        libraryManagerLogger.info("⏱ loadLibraryData documents loaded (\(library.documentStore.collections.count) items)")
 
         guard !Task.isCancelled else { return }
         await library.workflowStore.loadWorkflows()
+        libraryManagerLogger.info("⏱ loadLibraryData workflows loaded")
 
         guard !Task.isCancelled else { return }
         try? await library.conversationServiceGenerated.loadConversations()
+        libraryManagerLogger.info("⏱ loadLibraryData conversations loaded")
 
         guard !Task.isCancelled else { return }
         try? await library.savedSearchServiceGenerated.loadSavedSearches()
-
-        libraryManagerLogger.info("Loaded all data for library: \(library.displayName)")
+        libraryManagerLogger.info("⏱ loadLibraryData exit — library: \(library.displayName)")
     }
 
     /// Ensure every library has a default "Inbox" folder

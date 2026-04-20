@@ -44,10 +44,12 @@ class AppState: ObservableObject {
     // MARK: - Initialization
 
     init() {
+        logger.info("⏱ AppState.init entry")
         // Initialize services with app-wide clients
         self.providerService = ProviderServiceGenerated(ficheroClient: ficheroClient)
         self.mcpService = MCPService(apiClient: apiClient)
         self.modelService = ModelServiceGenerated(ficheroClient: ficheroClient)
+        logger.info("⏱ AppState.init services ready — queuing health check")
 
         // Check API health on launch
         Task { @MainActor in
@@ -59,6 +61,7 @@ class AppState: ObservableObject {
 
     /// Check if the Python API is running
     func checkBackendHealth() async {
+        logger.info("⏱ checkBackendHealth entry")
         isCheckingBackend = true
         defer { isCheckingBackend = false }
 
@@ -68,8 +71,10 @@ class AppState: ObservableObject {
             return
         }
 
+        logger.info("⏱ checkBackendHealth request-start → \(url.absoluteString)")
         do {
             let (data, response) = try await URLSession.shared.data(from: url)
+            logger.info("⏱ checkBackendHealth response-received")
 
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200 else {

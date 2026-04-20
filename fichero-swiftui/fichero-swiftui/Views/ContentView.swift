@@ -145,6 +145,9 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 mainContentView
+                    .onAppear {
+                        logger.info("⏱ ContentView first-frame — main content visible")
+                    }
             }
         }
         .onKeyPress(.tab, phases: .down) { keyPress in
