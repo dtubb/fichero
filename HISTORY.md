@@ -841,3 +841,8 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 ## 2026-04-20 — Session Summary
 
 - #600 fix: `canLoadObject(URL.self)` fallthrough — when the provider returns `true` but the actual load fails (observed with some `.mov` Finder drags), code now catches and falls through to `loadFileRepresentation`. Added verbose OSLog breadcrumbs throughout `loadAnyFileURL`, `loadFileRepresentation`, and `loadURL`. Closed #600; on-device `.mov` verify deferred to Daniel.
+
+## 2026-04-20 — Ingest Badges + PDF Scroll Sync
+
+- **#603 Ingest-mode badges + delete-copy**: Added `Document.isLinked` heuristic (metadata["bookmark"] != nil = LINK mode). Overlay `arrow.up.right.square` badge on sidebar icon, grid thumbnail, and list row for LINK docs. Delete confirmation copy branches by mode: LINK shows "reference stays on disk" message, others keep "cannot be undone". Branch: `feature/issue-603`.
+- **#591/#592 PDF scroll→grid/inspector sync**: Added `NSScrollView.didEndLiveScrollNotification` observer in `PDFPageView.Coordinator`. `PDFViewPageChanged` only fires on explicit `go(to:)`, not scrollbar drags in `singlePageContinuous` mode — the new observer fires once when drag completes and calls `onPageIndexChange`. Guarded by `pdfScrollGridSync` feature flag (default OFF). Branch: `feature/issue-591`.
