@@ -279,7 +279,15 @@ struct SidebarItemRow: View {
 
     @ViewBuilder
     private func childrenList(_ children: [SidebarItem]) -> some View {
-        ForEach(children) { child in
+        // Insertion spacers between each nested child row + one at the
+        // end so users can drop a dragged folder/PDF at a precise
+        // position inside THIS folder. Same pattern as unifiedRows;
+        // see `SidebarInsertionSpacer` for why we use manual per-view
+        // .onDrop rather than ForEach's .dropDestination.
+        ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
+            SidebarInsertionSpacer(offset: index) { droppedIds, offset in
+                handleNestedInsertionDrop(droppedIds: droppedIds, at: offset, into: children)
+            }
             SidebarItemRow(
                 item: child,
                 allCachedItems: allCachedItems,
@@ -292,10 +300,9 @@ struct SidebarItemRow: View {
             .contentShape(Rectangle())
             .tag(child.id)
         }
-        // Same-list reorder within this folder's children. SwiftUI routes
-        // drags whose id IS already present in `children` through
-        // `.onMove`; cross-hierarchy drops of NEW ids fire
-        // `.dropDestination` below — they don't double-fire.
+        // Same-list reorder. Cycle guards in `handleNestedInsertionDrop`
+        // reject self-drop + ancestor-as-child for cross-hierarchy drops
+        // via the spacers.
         .onMove { source, destination in
             guard let store = documentStore,
                   let orderedIds = sidebarReorderedDocIds(
@@ -305,19 +312,8 @@ struct SidebarItemRow: View {
                   ) else { return }
             store.reorderChildrenOptimistically(orderedIds: orderedIds)
         }
-        // Cross-hierarchy insertion drop: drag a folder/PDF from ANOTHER
-        // part of the tree and drop it at `offset` to become a child of
-        // THIS folder at that position. Guards:
-        //   - Only "doc:" prefixed ids (documents / folders) are accepted;
-        //     saved searches, workflows, etc. have their own reorder paths.
-        //   - Cycle rejection via `isDescendant(item.id, of: "doc:<bareId>")`:
-        //     this catches both self-drop (A onto A) AND ancestor-as-child
-        //     (A onto B where A is B's ancestor), because `containsDescendant`
-        //     treats self as descendant.
-        //   - Only folder parents accept child drops — PDFs and leaf file
-        //     rows don't reach this code path since they render via
-        //     `leafLabel` (no DisclosureGroup wrapper, no `childrenList`).
-        .dropDestination(for: String.self) { droppedIds, offset in
+        // Trailing spacer after the last child.
+        SidebarInsertionSpacer(offset: children.count) { droppedIds, offset in
             handleNestedInsertionDrop(droppedIds: droppedIds, at: offset, into: children)
         }
     }
