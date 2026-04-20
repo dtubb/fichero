@@ -294,26 +294,19 @@ extension SidebarView {
         _ items: [SidebarItem],
         libraryId: UUID? = nil
     ) -> some View {
-        // Insertion spacers between each row + one at the end so users
-        // can drop a dragged folder/PDF at a precise position to
-        // become a sibling at THIS level (reparenting to library root).
-        // Visual + drop-target via `SidebarInsertionSpacer` because
-        // SwiftUI's `.dropDestination(for:)` on ForEach doesn't render
-        // insertion lines inside DisclosureGroup content.
-        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-            SidebarInsertionSpacer(offset: index) { droppedIds, offset in
-                handleExternalInsertionDrop(
-                    droppedIds: droppedIds,
-                    at: offset,
-                    into: items,
-                    libraryId: libraryId
-                )
-            }
+        // Plain ForEach — no between-row spacer rows. macOS List's native
+        // row separators are perfect as-is; any extra rendered row (even
+        // 2pt tall) inflates to the default minimum row height and shows
+        // as a visible gap (#620).
+        //
+        // `.onMove` handles same-list reorder with the native blue
+        // insertion indicator; per-row `.onDrop` handles drop-into-folder.
+        // Cross-hierarchy drop-as-sibling is not supported — users
+        // reparent by dropping ONTO the target parent folder (Finder
+        // semantics).
+        ForEach(items, id: \.id) { item in
             unifiedRow(for: item)
         }
-        // `.onMove` on the ForEach for same-list reorder (native
-        // insertion indicator works for reorder even without the
-        // spacer hack).
         .onMove { source, destination in
             guard let libraryId = libraryId,
                   let library = libraryManager.getLibrary(id: libraryId),
@@ -323,58 +316,6 @@ extension SidebarView {
                       to: destination
                   ) else { return }
             library.documentStore.reorderChildrenOptimistically(orderedIds: orderedIds)
-        }
-        // Trailing spacer after the last row so users can drop past the
-        // final sibling to insert at the end.
-        SidebarInsertionSpacer(offset: items.count) { droppedIds, offset in
-            handleExternalInsertionDrop(
-                droppedIds: droppedIds,
-                at: offset,
-                into: items,
-                libraryId: libraryId
-            )
-        }
-    }
-
-    /// Reparent sidebar-dragged documents to the library root and reorder
-    /// so the new docs sit at `offset` within the root's children.
-    /// Target is always library root here (parentId = nil) since
-    /// unifiedRows is only called for top-level rendering.
-    ///
-    /// Guards:
-    ///   - Only "doc:" prefixed ids (documents / folders) are accepted —
-    ///     saved searches, workflows, etc. have distinct reorder paths.
-    ///   - No cycle check needed: library root has no ancestors, so
-    ///     moving any item to root can't create a cycle.
-    ///
-    /// Shares its insertion-math with `handleNestedInsertionDrop` via
-    /// the pure `sidebarReorderedDocIdsWithInsert` helper.
-    private func handleExternalInsertionDrop(
-        droppedIds: [String],
-        at offset: Int,
-        into items: [SidebarItem],
-        libraryId: UUID?
-    ) {
-        guard let libraryId = libraryId,
-              let library = libraryManager.getLibrary(id: libraryId) else { return }
-
-        let bareIds = droppedIds
-            .filter { $0.hasPrefix("doc:") }
-            .map { extractActualId(from: $0) }
-
-        guard let newOrder = sidebarReorderedDocIdsWithInsert(
-            children: items,
-            inserting: bareIds,
-            at: offset
-        ) else { return }
-
-        Task {
-            for bareId in bareIds {
-                _ = try? await library.documentStore.moveDocument(bareId, toParent: nil)
-            }
-            await MainActor.run {
-                library.documentStore.reorderChildrenOptimistically(orderedIds: newOrder)
-            }
         }
     }
 
@@ -531,68 +472,4 @@ extension SidebarView {
         return nil
     }
 
-}
-
-// MARK: - Insertion Spacer
-
-/// Thin horizontal drop target between sibling rows. Enables precise
-/// insertion-line drops that SwiftUI's `.dropDestination(for:)` on
-/// ForEach doesn't provide inside DisclosureGroup content.
-///
-/// Payload: `utf8PlainText` (matches `.draggable(item.id)` String
-/// Transferable). 2pt tall at rest, 3pt accent-blue while targeted.
-struct SidebarInsertionSpacer: View {
-    let offset: Int
-    let onDrop: (_ droppedIds: [String], _ at: Int) -> Void
-
-    @State private var isTargeted = false
-
-    var body: some View {
-        Rectangle()
-            .fill(isTargeted ? Color.accentColor : Color.clear)
-            .frame(height: isTargeted ? 3 : 2)
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
-            .onDrop(of: [UTType.utf8PlainText], isTargeted: $isTargeted) { providers in
-                let textProviders = providers.filter {
-                    $0.canLoadObject(ofClass: NSString.self)
-                }
-                guard !textProviders.isEmpty else { return false }
-                Task {
-                    var ids: [String] = []
-                    for provider in textProviders {
-                        if let str = try? await Self.loadString(from: provider) {
-                            ids.append(str)
-                        }
-                    }
-                    guard !ids.isEmpty else { return }
-                    await MainActor.run {
-                        onDrop(ids, offset)
-                    }
-                }
-                return true
-            }
-            // EdgeInsets() (all zero) lets macOS List collapse the row to
-            // fit the 2pt Rectangle. Any non-zero inset (even horizontal)
-            // causes List to apply its default minimum row height — which
-            // inflates every spacer into a visible ~24pt gap (#620).
-            .listRowInsets(EdgeInsets())
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
-            .selectionDisabled()
-    }
-
-    private static func loadString(from provider: NSItemProvider) async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
-            _ = provider.loadObject(ofClass: NSString.self) { value, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let nsString = value as? NSString {
-                    continuation.resume(returning: nsString as String)
-                } else {
-                    continuation.resume(throwing: NSError(domain: "SidebarInsertionSpacer", code: -1))
-                }
-            }
-        }
-    }
 }
