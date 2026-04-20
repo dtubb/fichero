@@ -851,3 +851,9 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 
 - **#616 Hide icon-grid panel toggle**: Added `@SceneStorage("showDocumentGrid")` to ContentView. `centerContent` now bypasses the layout switcher when false, showing `previewView` directly so the editor expands to fill the full content area. Toolbar button with `rectangle.split.2x1` / `rectangle` icons, ⌘⇧G shortcut, `.easeInOut` animation matching sidebar/inspector pattern. Branch: `feature/issue-616`.
 - **All autonomous 0.0.2 items complete.** BLOCK.md written. 3 feature branches await Daniel's review.
+
+## 2026-04-20 — Session (merge + loop)
+
+- Merged feature/issue-603 (ingest-mode badges), feature/issue-591 (PDF scroll sync, flag OFF), feature/issue-616 (hide grid toggle) into 0.0.2
+- Removed BLOCK.md — loop resumed
+- All 7 autonomous 0.0.2 items now on main branch

@@ -2,55 +2,44 @@
 
 ## Current Focus
 
-**Branch:** `0.0.2` — all autonomous items shipped. 3 feature branches await Daniel's review + merge. BLOCK.md written.
+**Branch:** `0.0.2` — tip `31e146d6`. All autonomous code work done and merged. Waiting for Daniel's on-device verification sweep before release.
 
-**Goal:** Daniel reviews and merges the 3 feature branches, then runs on-device verification sweep before cutting the release.
+**Goal:** Daniel runs on-device sweep → closes Batch A issues → cuts 0.0.2 release.
 
-## Autonomous items — ALL DONE ✓
+## What's Merged (all on 0.0.2)
 
-1. ~~**#622 icon/list grid column min-width** — DONE, merged to `0.0.2`~~ ✓
-2. ~~**#594 close-as-skipped** — CLOSED~~ ✓
-3. ~~**#619/#605 startup instrumentation** — DONE, open pending log analysis~~ ✓
-4. ~~**#600 .mov drag-drop** — DONE, merged to `0.0.2`~~ ✓
-5. ~~**#603 ingest-mode badges + delete-copy** — DONE `feature/issue-603`~~ ✓
-6. ~~**#591/#592 PDF scroll→grid/inspector sync** — DONE `feature/issue-591` (flag OFF)~~ ✓
-7. ~~**#616 hide icon-grid panel toggle** — DONE `feature/issue-616`~~ ✓
-
-## Feature Branches Awaiting Review
-
-| Branch | Issue | What |
-|---|---|---|
-| `feature/issue-603` | #603 | Ingest-mode badges (arrow.up.right.square on LINK docs) + delete copy |
-| `feature/issue-591` | #591/#592 | PDF scroll→grid sync (NSScrollView observer, flag OFF by default) |
-| `feature/issue-616` | #616 | Hide document grid toggle (⌘⇧G, @SceneStorage, per-window) |
-
-## Needs Daniel On Device
-
-- **Batch A verify-then-close sweep** — 30 min with app running:
-  - #598 drops route to cursor target
-  - #599 pinch-zoom + TIFF 1:1
-  - #607 folder reorder
-  - #610 Finder folder drop
-  - #612 folder drag-out
-  - #614 sidebar section header weight
-  - #609 Run Workflow button
-- **#619/#605** stay open — tail `log stream --predicate 'eventMessage CONTAINS "⏱"'`
-- **#556 settings tab layout** — screenshot if still crammed
-- **#595 PDF one-page + swipe** — Daniel's call on architecture
-- **#520 Sparkle** — needs release-signing cert
-- **#590 PDF hover loupe** — probably 0.0.3
+1. ✓ #622 icon/list grid column min-width
+2. ✓ #594 close-as-skipped (tests skip when fixtures absent)
+3. ✓ #619/#605 startup instrumentation (⏱ OSLog breadcrumbs)
+4. ✓ #600 .mov drag-drop fix (canLoadObject fallthrough + OSLog)
+5. ✓ #603 ingest-mode badges + delete-copy dialog
+6. ✓ #591/#592 PDF scroll→grid/inspector sync (flag OFF by default)
+7. ✓ #616 hide document grid toggle (⌘⇧G, @SceneStorage, per-window)
 
 ## Next Session — Start Here
 
-1. **BLOCK.md is active** — no autonomous work until Daniel merges + clears it.
-2. When Daniel merges branches: delete BLOCK.md and run on-device sweep.
-3. After sweep closes Batch A: run `/milestone-check` — 0.0.2 may be shippable.
+1. **Daniel does on-device sweep** (see checklist below).
+2. After sweep, close verified issues and run `/milestone-check`.
+3. If milestone passes → proceed to #520 (Sparkle, needs cert) and cut release.
 4. Do NOT start 0.0.3 until Daniel approves 0.0.2.
 
-## Parallel Workflow
+## Remaining open issues (all need Daniel on device)
 
-0.0.3 (Wire: Search v1) queued at `~/code/fichero-0.0.3` — on hold until 0.0.2 approved.
+| # | What | Notes |
+|---|---|---|
+| #598 | Sidebar drops land on selected row not cursor target | Batch A |
+| #599 | Image pinch-zoom + TIFF 1:1 broken | Batch A |
+| #607 | Folder reorder by drag | Batch A |
+| #610 | Finder folder drop flattens children | Batch A |
+| #612 | Sidebar folder drag-out broken | Batch A |
+| #614 | Sidebar section headers bolder + accent selection | Batch A — code-only fix, safe to do next autonomous session |
+| #609 | Run Workflow toolbar button | Batch A |
+| #556 | Settings tab layout crammed | Screenshot if still broken |
+| #619/#605 | Startup slow — tail ⏱ logs | `log stream --predicate 'eventMessage CONTAINS "⏱"'` |
+| #595 | PDF one-page + swipe | Daniel's architecture call |
+| #590 | PDF hover loupe | Likely 0.0.3 |
+| #520 | Sparkle auto-update | Needs release-signing cert |
 
 ---
 
-*Last updated: 2026-04-20* — All autonomous items done. 3 branches for review. BLOCK.md active.
+*Last updated: 2026-04-20* — All code merged. On-device sweep is the gate.
