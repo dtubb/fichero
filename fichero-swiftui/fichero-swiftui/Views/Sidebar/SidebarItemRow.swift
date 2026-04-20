@@ -297,11 +297,11 @@ struct SidebarItemRow: View {
 
     @ViewBuilder
     private func childrenList(_ children: [SidebarItem]) -> some View {
-        // Plain ForEach — see `unifiedRows` for why we dropped
-        // between-row spacers. Reparenting into this folder happens via
-        // the parent row's `.onDrop` (drop-into-folder). Same-list
-        // reorder uses SwiftUI's native `.onMove` insertion line.
-        ForEach(children, id: \.id) { child in
+        // Cross-hierarchy insertion lines via `.overlay` strips on
+        // each row's top + bottom edge (3pt hit region, 2pt accent
+        // line when targeted). Overlays live inside each row's frame
+        // so they don't allocate new List rows (#620).
+        ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
             SidebarItemRow(
                 item: child,
                 allCachedItems: allCachedItems,
@@ -312,9 +312,29 @@ struct SidebarItemRow: View {
                 libraryManager: libraryManager
             )
             .contentShape(Rectangle())
+            .moveDisabled(child.icon == "tray.fill")
             .tag(child.id)
+            .overlay(alignment: .top) {
+                SidebarInsertionLine { droppedIds in
+                    handleNestedInsertionDrop(droppedIds: droppedIds, at: index, into: children)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if index == children.count - 1 {
+                    SidebarInsertionLine { droppedIds in
+                        handleNestedInsertionDrop(
+                            droppedIds: droppedIds,
+                            at: index + 1,
+                            into: children
+                        )
+                    }
+                }
+            }
         }
         .onMove { source, destination in
+            if source.contains(where: { children[$0].icon == "tray.fill" }) {
+                return
+            }
             guard let store = documentStore,
                   let orderedIds = sidebarReorderedDocIds(
                       children: children,
@@ -322,6 +342,44 @@ struct SidebarItemRow: View {
                       to: destination
                   ) else { return }
             store.reorderChildrenOptimistically(orderedIds: orderedIds)
+        }
+    }
+
+    /// Cross-hierarchy insert into THIS folder's children at `offset`.
+    /// Cycle-prevented: any dropped item that is an ancestor of this
+    /// folder is silently skipped (can't make a folder a child of its
+    /// own descendant).
+    private func handleNestedInsertionDrop(
+        droppedIds: [String],
+        at offset: Int,
+        into children: [SidebarItem]
+    ) {
+        guard case .document(let parentDoc) = item.itemType,
+              parentDoc.docType == .folder,
+              let store = documentStore else {
+            return
+        }
+
+        let bareIds = droppedIds
+            .filter { $0.hasPrefix("doc:") }
+            .map { extractActualId(from: $0) }
+            .filter { bareId in
+                !isDescendant(item.id, of: "doc:\(bareId)")
+            }
+
+        guard let newOrder = sidebarReorderedDocIdsWithInsert(
+            children: children,
+            inserting: bareIds,
+            at: offset
+        ) else { return }
+
+        Task {
+            for bareId in bareIds {
+                _ = try? await store.moveDocument(bareId, toParent: parentDoc.id)
+            }
+            await MainActor.run {
+                store.reorderChildrenOptimistically(orderedIds: newOrder)
+            }
         }
     }
 

@@ -294,20 +294,49 @@ extension SidebarView {
         _ items: [SidebarItem],
         libraryId: UUID? = nil
     ) -> some View {
-        // Plain ForEach — no between-row spacer rows. macOS List's native
-        // row separators are perfect as-is; any extra rendered row (even
-        // 2pt tall) inflates to the default minimum row height and shows
-        // as a visible gap (#620).
+        // Plain ForEach — no between-row spacer rows (rejected in #620
+        // because they inflated into visible empty gaps).
         //
-        // `.onMove` handles same-list reorder with the native blue
-        // insertion indicator; per-row `.onDrop` handles drop-into-folder.
-        // Cross-hierarchy drop-as-sibling is not supported — users
-        // reparent by dropping ONTO the target parent folder (Finder
-        // semantics).
-        ForEach(items, id: \.id) { item in
+        // Cross-hierarchy insertion lines come from `.overlay` drop
+        // strips on the row's top + bottom edges (3pt each). Overlays
+        // live INSIDE each row's existing frame so they don't allocate
+        // new List rows. The top strip on row N = "insert at offset N";
+        // the bottom strip on the LAST row = "insert at end". Non-last
+        // bottom strips are redundant with the next row's top, so we
+        // skip them.
+        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
             unifiedRow(for: item)
+                .overlay(alignment: .top) {
+                    SidebarInsertionLine { droppedIds in
+                        handleExternalInsertionDrop(
+                            droppedIds: droppedIds,
+                            at: index,
+                            into: items,
+                            libraryId: libraryId
+                        )
+                    }
+                }
+                .overlay(alignment: .bottom) {
+                    if index == items.count - 1 {
+                        SidebarInsertionLine { droppedIds in
+                            handleExternalInsertionDrop(
+                                droppedIds: droppedIds,
+                                at: index + 1,
+                                into: items,
+                                libraryId: libraryId
+                            )
+                        }
+                    }
+                }
         }
         .onMove { source, destination in
+            // Defensive: even with `.moveDisabled` on the Inbox row,
+            // reject any source set that includes the Inbox index.
+            // Belt + suspenders — if SwiftUI ever regresses the
+            // moveDisabled behavior we still won't reorder Inbox.
+            if source.contains(where: { items[$0].icon == "tray.fill" }) {
+                return
+            }
             guard let libraryId = libraryId,
                   let library = libraryManager.getLibrary(id: libraryId),
                   let orderedIds = sidebarReorderedDocIds(
@@ -325,6 +354,10 @@ extension SidebarView {
     /// List selection via `.tag(item.id)`.
     @ViewBuilder
     private func unifiedRow(for item: SidebarItem) -> some View {
+        // `.moveDisabled` blocks AppKit-level reorder drag on Inbox
+        // (#621). `.draggable` alone is insufficient because `.onMove`
+        // on the ForEach lets the List's underlying NSTableView drag
+        // any row for reorder, bypassing the `.draggable` gate.
         let row = SidebarItemRow(
             item: item,
             allCachedItems: allCachedItems,
@@ -339,6 +372,7 @@ extension SidebarView {
         )
         .contentShape(Rectangle())
         .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 8))
+        .moveDisabled(item.icon == "tray.fill")
         .tag(item.id)
 
         if item.category == .activity {
@@ -347,6 +381,43 @@ extension SidebarView {
             )
         } else {
             row
+        }
+    }
+
+    /// Cross-hierarchy insert: reparent dragged docs to library root
+    /// and drop them at position `offset` in the root's children.
+    /// Called by overlay insertion-line strips in `unifiedRows`.
+    ///
+    /// Guards:
+    ///   - Only "doc:" prefixed IDs (documents / folders) accepted.
+    ///   - No cycle check needed: library root has no ancestors, so
+    ///     any item can become a root child without forming a loop.
+    private func handleExternalInsertionDrop(
+        droppedIds: [String],
+        at offset: Int,
+        into items: [SidebarItem],
+        libraryId: UUID?
+    ) {
+        guard let libraryId = libraryId,
+              let library = libraryManager.getLibrary(id: libraryId) else { return }
+
+        let bareIds = droppedIds
+            .filter { $0.hasPrefix("doc:") }
+            .map { extractActualId(from: $0) }
+
+        guard let newOrder = sidebarReorderedDocIdsWithInsert(
+            children: items,
+            inserting: bareIds,
+            at: offset
+        ) else { return }
+
+        Task {
+            for bareId in bareIds {
+                _ = try? await library.documentStore.moveDocument(bareId, toParent: nil)
+            }
+            await MainActor.run {
+                library.documentStore.reorderChildrenOptimistically(orderedIds: newOrder)
+            }
         }
     }
 
@@ -472,4 +543,61 @@ extension SidebarView {
         return nil
     }
 
+}
+
+// MARK: - Insertion Line Overlay
+
+/// Edge-aligned overlay strip that acts as a cross-hierarchy
+/// drop target. Lives INSIDE a row's own frame (no new List row =
+/// no empty gap regression from #620). 3pt hit region; paints a
+/// 2pt accent line when targeted so it reads as an insertion
+/// indicator between rows.
+///
+/// Only internal sidebar drags (utf8PlainText from `.draggable(item.id)`)
+/// route through this handler — Finder drops still hit the inner
+/// row's `.onDrop` and go through the file-import path.
+struct SidebarInsertionLine: View {
+    let onDrop: (_ droppedIds: [String]) -> Void
+
+    @State private var isTargeted = false
+
+    var body: some View {
+        Rectangle()
+            .fill(isTargeted ? Color.accentColor : Color.clear)
+            .frame(height: isTargeted ? 2 : 3)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .allowsHitTesting(true)
+            .onDrop(of: [UTType.utf8PlainText], isTargeted: $isTargeted) { providers in
+                let textProviders = providers.filter {
+                    $0.canLoadObject(ofClass: NSString.self)
+                }
+                guard !textProviders.isEmpty else { return false }
+                Task {
+                    var ids: [String] = []
+                    for provider in textProviders {
+                        if let str = try? await Self.loadString(from: provider) {
+                            ids.append(str)
+                        }
+                    }
+                    guard !ids.isEmpty else { return }
+                    await MainActor.run { onDrop(ids) }
+                }
+                return true
+            }
+    }
+
+    private static func loadString(from provider: NSItemProvider) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            _ = provider.loadObject(ofClass: NSString.self) { value, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let nsString = value as? NSString {
+                    continuation.resume(returning: nsString as String)
+                } else {
+                    continuation.resume(throwing: NSError(domain: "SidebarInsertionLine", code: -1))
+                }
+            }
+        }
+    }
 }
