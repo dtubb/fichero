@@ -758,3 +758,19 @@ Two commits after the earlier session-end checkpoint (5a307f8e):
 - `429bcb18` feat: extended to nested folder children with cycle guard — Daniel reverted this next (see below) after testing; the nested version stays in git history for reference but was removed from HEAD.
 
 Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop` + `childrenList`'s `.dropDestination`) — uncommitted diff that's being committed in this checkpoint. The top-level version (`855cb5f2`) remains. Net: users can drag any folder OUT to library root but nested-to-nested moves at arbitrary levels are still via the per-row `.onDrop` (drop onto a folder row → move INTO that folder).
+
+## 2026-04-20 — Session Summary (insertion-line drops landed)
+
+4 commits completing the cross-hierarchy + between-row drop feature for #607:
+
+- `ff94ff7e` feat: nested cross-hierarchy insertion drop on childrenList + cycle guard via `isDescendant`. Extracted `sidebarReorderedDocIdsWithInsert(children:, inserting:, at:)` pure helper shared by both top-level and nested handlers. 11 new unit tests in `SidebarReorderedDocIdsWithInsertTests` covering insert-at-beginning/middle/end, dedup-on-move, mixed-kind children, offset clamping, no-op detection.
+
+- `3cdf6db2` chore(debug): instrumented `.dropDestination` handlers with 🎯 log lines to trace routing. Daniel's log confirmed the handlers DON'T fire for between-row drops inside DisclosureGroup content — SwiftUI limitation confirmed.
+
+- `d8c5ac40` chore: removed debug HUD (Daniel's request) + removed the 🎯 instrumentation. Filed the DisclosureGroup+dropDestination limitation as a known constraint requiring a different architecture.
+
+- `b8a1e483` feat: `SidebarInsertionSpacer` — thin 2pt-tall per-view drop target interleaved between sibling rows and at the end of each sibling list. Paints accent-blue 3pt fill when `isTargeted`. Uses per-view `.onDrop(of: [UTType.utf8PlainText])` which is NOT affected by the DisclosureGroup bug. Wired into both `unifiedRows` (top-level) and `childrenList` (nested).
+
+**Memory update:** new `feedback_spacer_row_insertion_drops.md` documenting the SwiftUI DisclosureGroup limitation + the spacer workaround pattern.
+
+**Status per Daniel's request, end of mini-session:** cross-hierarchy drops work top-level and nested (drop onto folder row = move into; drop between rows via spacer = reparent to level with offset). Cycle guard via `isDescendant` prevents self-drop and ancestor-as-child for nested drops. Daniel's Bug 1 ("can drop parent onto child") requires repro to diagnose whether it's via `handleDropIntoFolder` or a path that bypasses cycle checks — needs logs.
