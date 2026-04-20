@@ -816,3 +816,13 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 - #614 bolder section headers + accent selection — already matches SimpleSidebar pattern.
 
 14 commits to `0.0.2` branch. Nothing released.
+
+## 2026-04-20 — #622 Icon/list view column minimum width too wide
+
+- PR: N/A
+- Branch: feature/issue-622
+- Task completed in session
+
+## 2026-04-20 — Session Summary
+
+- #622 fixed: lowered icon/list grid column minimum width 260→180pt (clamp + ResizableDivider aligned) — branch feature/issue-622

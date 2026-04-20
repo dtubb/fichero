@@ -2,7 +2,7 @@
 
 ## Current Focus
 
-**Branch:** `0.0.2` — tip `00c7f3d2`. 20 issues remain on milestone 8.
+**Branch:** `0.0.2` — tip `0ec4c213`. 19 issues remain on milestone 8.
 
 **Goal:** close 0.0.2 and ship. Plan below batches by effort and tags each item `[autonomous]` (loop-safe) or `[needs-daniel]` (on-device / judgment / credentials).
 
@@ -20,7 +20,7 @@ All `[autonomous]` items have been scoped so they can ship without opening the r
 
 Work these top-to-bottom. Each is one concern, one commit.
 
-1. **#622 icon/list grid column min-width** `[autonomous]` — same pattern as #615. Find the middle-column `.frame(minWidth:)` / `.navigationSplitViewColumnWidth(min:)` in `ContentView.swift` or `ContentView+ViewBuilders.swift`, lower from current value (likely 250-ish) to 180. Build, commit.
+1. ~~**#622 icon/list grid column min-width** — DONE `60e5c967` (feature/issue-622)~~ ✓
 
 2. **#594 close-as-skipped** `[autonomous]` — this session's `61afdbe2` already converts the failing tests to silent skips. Close the issue on GitHub with a reference; the deeper fix (write `export_api_schemas.py` + wire a build phase) moves to a 0.0.3+ infrastructure ticket. No code change needed beyond closing.
 
