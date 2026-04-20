@@ -330,21 +330,54 @@ extension SidebarView {
                 }
         }
         .onMove { source, destination in
-            // Defensive: even with `.moveDisabled` on the Inbox row,
-            // reject any source set that includes the Inbox index.
-            // Belt + suspenders — if SwiftUI ever regresses the
-            // moveDisabled behavior we still won't reorder Inbox.
+            // Defensive Inbox guard (belt + suspenders with `.moveDisabled`).
             if source.contains(where: { items[$0].icon == "tray.fill" }) {
                 return
             }
             guard let libraryId = libraryId,
-                  let library = libraryManager.getLibrary(id: libraryId),
-                  let orderedIds = sidebarReorderedDocIds(
-                      children: items,
-                      moving: source,
-                      to: destination
-                  ) else { return }
-            library.documentStore.reorderChildrenOptimistically(orderedIds: orderedIds)
+                  let library = libraryManager.getLibrary(id: libraryId) else { return }
+
+            // Dispatch by section kind: documents, saved searches, and
+            // workflows each have their own reorder endpoint (#611).
+            // Items in a DisclosureGroup section are homogeneous, so we
+            // pick the kind from the first movable item and route
+            // accordingly.
+            var reordered = items
+            reordered.move(fromOffsets: source, toOffset: destination)
+            let kind = items.first.map { SidebarItemKind(prefixedId: $0.id) } ?? .unknown
+
+            switch kind {
+            case .document, .folder:
+                if let orderedIds = sidebarReorderedDocIds(
+                    children: items,
+                    moving: source,
+                    to: destination
+                ) {
+                    library.documentStore.reorderChildrenOptimistically(orderedIds: orderedIds)
+                }
+            case .savedSearch:
+                let ordered = reordered.compactMap { item -> String? in
+                    guard case .savedSearch(let search) = item.itemType else { return nil }
+                    return search.id
+                }
+                guard !ordered.isEmpty else { return }
+                Task {
+                    try? await library.savedSearchServiceGenerated.reorderSavedSearches(ordered)
+                    try? await library.savedSearchServiceGenerated.loadSavedSearches()
+                }
+            case .workflow, .chain:
+                let ordered = reordered.compactMap { item -> String? in
+                    if case .workflow(let workflow) = item.itemType { return workflow.id }
+                    return nil
+                }
+                guard !ordered.isEmpty else { return }
+                Task {
+                    try? await library.workflowServiceGenerated.reorderWorkflows(ordered)
+                    try? await library.workflowStore.loadWorkflows()
+                }
+            default:
+                return
+            }
         }
     }
 
