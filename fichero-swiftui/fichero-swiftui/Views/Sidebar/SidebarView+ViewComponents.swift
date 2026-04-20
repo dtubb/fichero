@@ -572,7 +572,11 @@ struct SidebarInsertionSpacer: View {
                 }
                 return true
             }
-            .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 8))
+            // EdgeInsets() (all zero) lets macOS List collapse the row to
+            // fit the 2pt Rectangle. Any non-zero inset (even horizontal)
+            // causes List to apply its default minimum row height — which
+            // inflates every spacer into a visible ~24pt gap (#620).
+            .listRowInsets(EdgeInsets())
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
             .selectionDisabled()

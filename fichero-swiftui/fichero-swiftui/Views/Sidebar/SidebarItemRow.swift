@@ -72,6 +72,14 @@ struct SidebarItemRow: View {
         return doc.docType == .folder
     }
 
+    /// Inbox is a protected root-level folder (like Finder's "Downloads"
+    /// or Mail's "Inbox") — always at the top, never a drag source.
+    /// Matches the `buildInboxItem` builder in `SidebarItemBuilder` that
+    /// stamps the "tray.fill" icon onto the library's Inbox doc.
+    var isInboxFolder: Bool {
+        item.icon == "tray.fill"
+    }
+
     var workflowIsRunning: Bool {
         guard case .workflow(let workflow) = item.itemType else { return false }
         return executionObserver.isRunning(workflowId: workflow.id)
@@ -190,14 +198,18 @@ struct SidebarItemRow: View {
         }
     }
 
-    /// Folder row: drag source + drop target.
+    /// Folder row: drop target always; drag source EXCEPT for the
+    /// protected Inbox folder (#621). Inbox stays anchored at the top;
+    /// users can drag files INTO it but not drag Inbox itself to
+    /// another position or parent.
+    ///
     /// `.utf8PlainText` handles internal sidebar drags; `.item` is the
     /// root UTType conforming to every file / folder type so Finder
     /// drops match without enumerating each concrete UTI.
+    @ViewBuilder
     private var folderLabel: some View {
-        fullWidthLabel
+        let labelBase = fullWidthLabel
             .sidebarDropHighlight(isDropTargeted, stronger: true)
-            .draggable(item.id)
             .onDrop(
                 of: [UTType.utf8PlainText, UTType.item],
                 isTargeted: $isDropTargeted
@@ -205,6 +217,12 @@ struct SidebarItemRow: View {
                 handleRowDrop(providers)
             }
             .contextMenu { rowContextMenu }
+
+        if isInboxFolder {
+            labelBase
+        } else {
+            labelBase.draggable(item.id)
+        }
     }
 
     /// Leaf row: drag source only. PDFs, images, saved searches,
