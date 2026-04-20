@@ -164,6 +164,13 @@ final class EmbeddedBackendService: ObservableObject {
         let startTime = Date()
         let healthURL = backendURL.appendingPathComponent("api/health")
 
+        // Poll aggressively at first (100ms) so we catch the backend
+        // as soon as it's ready — local FastAPI typically answers
+        // within 200-400ms. The previous 1s sleep padded perceived
+        // startup time by ~1s on the common path (#619). Back off to
+        // 500ms after the first second to avoid log spam if the
+        // backend is genuinely slow/stuck.
+        var pollInterval: Duration = .milliseconds(100)
         while Date().timeIntervalSince(startTime) < timeout {
             if Task.isCancelled {
                 throw CancellationError()
@@ -180,7 +187,10 @@ final class EmbeddedBackendService: ObservableObject {
                 // Backend not ready yet, continue waiting
             }
 
-            try await Task.sleep(for: .seconds(1))
+            try await Task.sleep(for: pollInterval)
+            if Date().timeIntervalSince(startTime) > 1 {
+                pollInterval = .milliseconds(500)
+            }
         }
 
         throw BackendError.timeout
