@@ -69,9 +69,22 @@ extension SidebarItemRow {
     /// supplied a temp path) or throws if no representation yields
     /// anything readable.
     static func loadAnyFileURL(from provider: NSItemProvider) async throws -> URL {
+        let utis = provider.registeredTypeIdentifiers
+        let canURL = provider.canLoadObject(ofClass: URL.self)
+        sidebarRowLogger.debug("🔍 loadAnyFileURL: canLoadURL=\(canURL) UTIs=[\(utis.joined(separator: ", "))]")
+
         // Cheapest path first: direct URL load if the provider advertises it.
-        if provider.canLoadObject(ofClass: URL.self) {
-            return try await loadURL(from: provider)
+        if canURL {
+            sidebarRowLogger.debug("  → trying direct URL load (canLoadObject=true)")
+            do {
+                let url = try await loadURL(from: provider)
+                sidebarRowLogger.debug("  ✅ direct URL load succeeded: \(url.lastPathComponent) [\(url.pathExtension)]")
+                return url
+            } catch {
+                sidebarRowLogger.warning("  ⚠️ direct URL load failed despite canLoadObject=true: \(error.localizedDescription)")
+                // Fall through to representation-based fallback rather than throwing,
+                // in case the provider lied about canLoadObject (seen with some .mov drags).
+            }
         }
 
         // Otherwise iterate the provider's registered UTIs and ask each
@@ -79,8 +92,8 @@ extension SidebarItemRow {
         // case for Finder drags advertising only a content UTI like
         // `public.jpeg` — they don't respond to `loadObject(URL.self)`
         // but do respond to `loadFileRepresentation(forTypeIdentifier:)`.
-        let utis = provider.registeredTypeIdentifiers
         guard !utis.isEmpty else {
+            sidebarRowLogger.warning("  ✗ provider has no UTIs and canLoadObject=false — no path available")
             throw NSError(
                 domain: "SidebarDrop",
                 code: -1,
@@ -90,14 +103,20 @@ extension SidebarItemRow {
                 ]
             )
         }
+        sidebarRowLogger.debug("  → trying loadFileRepresentation fallback for \(utis.count) UTI(s)")
         for identifier in utis {
+            sidebarRowLogger.debug("    trying UTI: \(identifier)")
             if let url = try? await loadFileRepresentation(
                 from: provider,
                 typeIdentifier: identifier
             ) {
+                sidebarRowLogger.debug("    ✅ representation succeeded for UTI \(identifier): \(url.lastPathComponent)")
                 return url
+            } else {
+                sidebarRowLogger.debug("    ✗ representation failed for UTI \(identifier)")
             }
         }
+        sidebarRowLogger.warning("  ✗ all \(utis.count) UTI representation(s) failed; UTIs=[\(utis.joined(separator: ", "))]")
         throw NSError(
             domain: "SidebarDrop",
             code: -1,
@@ -123,10 +142,12 @@ extension SidebarItemRow {
                 forTypeIdentifier: typeIdentifier
             ) { temporaryURL, error in
                 if let error {
+                    sidebarRowLogger.debug("      loadFileRepresentation(\(typeIdentifier)) callback error: \(error.localizedDescription)")
                     continuation.resume(throwing: error)
                     return
                 }
                 guard let temporaryURL else {
+                    sidebarRowLogger.debug("      loadFileRepresentation(\(typeIdentifier)) callback: nil URL, no error")
                     continuation.resume(throwing: NSError(
                         domain: "SidebarDrop",
                         code: -2,
@@ -134,6 +155,7 @@ extension SidebarItemRow {
                     ))
                     return
                 }
+                sidebarRowLogger.debug("      loadFileRepresentation(\(typeIdentifier)) temp URL: \(temporaryURL.path)")
                 // Copy to a stable caches path — the temporaryURL is
                 // deleted as soon as this closure returns.
                 let destinationDir = FileManager.default.temporaryDirectory
@@ -142,8 +164,10 @@ extension SidebarItemRow {
                     try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true)
                     let destination = destinationDir.appendingPathComponent(temporaryURL.lastPathComponent)
                     try FileManager.default.copyItem(at: temporaryURL, to: destination)
+                    sidebarRowLogger.debug("      copied to stable path: \(destination.path)")
                     continuation.resume(returning: destination)
                 } catch {
+                    sidebarRowLogger.debug("      copy to stable path failed: \(error.localizedDescription)")
                     continuation.resume(throwing: error)
                 }
             }
@@ -154,10 +178,13 @@ extension SidebarItemRow {
         try await withCheckedThrowingContinuation { continuation in
             _ = provider.loadObject(ofClass: URL.self) { url, error in
                 if let error {
+                    sidebarRowLogger.debug("      loadObject(URL) error: \(error.localizedDescription)")
                     continuation.resume(throwing: error)
                 } else if let url {
+                    sidebarRowLogger.debug("      loadObject(URL) → \(url.absoluteString)")
                     continuation.resume(returning: url)
                 } else {
+                    sidebarRowLogger.debug("      loadObject(URL) → nil URL, no error")
                     continuation.resume(throwing: NSError(domain: "SidebarInsertDrop", code: -1))
                 }
             }
