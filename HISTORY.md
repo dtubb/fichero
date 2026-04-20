@@ -846,3 +846,8 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 
 - **#603 Ingest-mode badges + delete-copy**: Added `Document.isLinked` heuristic (metadata["bookmark"] != nil = LINK mode). Overlay `arrow.up.right.square` badge on sidebar icon, grid thumbnail, and list row for LINK docs. Delete confirmation copy branches by mode: LINK shows "reference stays on disk" message, others keep "cannot be undone". Branch: `feature/issue-603`.
 - **#591/#592 PDF scroll→grid/inspector sync**: Added `NSScrollView.didEndLiveScrollNotification` observer in `PDFPageView.Coordinator`. `PDFViewPageChanged` only fires on explicit `go(to:)`, not scrollbar drags in `singlePageContinuous` mode — the new observer fires once when drag completes and calls `onPageIndexChange`. Guarded by `pdfScrollGridSync` feature flag (default OFF). Branch: `feature/issue-591`.
+
+## 2026-04-20 — Focus Mode Toggle (#616)
+
+- **#616 Hide icon-grid panel toggle**: Added `@SceneStorage("showDocumentGrid")` to ContentView. `centerContent` now bypasses the layout switcher when false, showing `previewView` directly so the editor expands to fill the full content area. Toolbar button with `rectangle.split.2x1` / `rectangle` icons, ⌘⇧G shortcut, `.easeInOut` animation matching sidebar/inspector pattern. Branch: `feature/issue-616`.
+- **All autonomous 0.0.2 items complete.** BLOCK.md written. 3 feature branches await Daniel's review.
