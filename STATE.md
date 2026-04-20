@@ -20,7 +20,7 @@ All `[autonomous]` items have been scoped so they can ship without opening the r
 
 Work these top-to-bottom. Each is one concern, one commit.
 
-1. ~~**#622 icon/list grid column min-width** — DONE `60e5c967` (feature/issue-622)~~ ✓
+1. ~~**#622 icon/list grid column min-width** — DONE `8792074b` on `0.0.2`~~ ✓
 
 2. **#594 close-as-skipped** `[autonomous]` — this session's `61afdbe2` already converts the failing tests to silent skips. Close the issue on GitHub with a reference; the deeper fix (write `export_api_schemas.py` + wire a build phase) moves to a 0.0.3+ infrastructure ticket. No code change needed beyond closing.
 
