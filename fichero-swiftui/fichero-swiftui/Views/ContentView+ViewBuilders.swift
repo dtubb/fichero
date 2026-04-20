@@ -51,7 +51,10 @@ extension ContentView {
         .focusable()
         .focused($focusedPane, equals: .sidebar)
         .focusEffectDisabled()
-        .navigationSplitViewColumnWidth(min: 250, ideal: sidebarWidth, max: 350)
+        // min: 180 lets the sidebar collapse tight enough that the mode
+        // icons dominate the column with minimal wasted space (#615).
+        // Was 250 — felt bloated on small screens.
+        .navigationSplitViewColumnWidth(min: 180, ideal: sidebarWidth, max: 360)
         .focusedSceneValue(\.sidebarMode, $sidebarMode)
     }
 
