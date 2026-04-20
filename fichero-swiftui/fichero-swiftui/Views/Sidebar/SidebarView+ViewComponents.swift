@@ -138,52 +138,15 @@ extension SidebarView {
                 scheduleItems.count + triggerItems.count + activityItems.count
 
             if library.id == LibraryManager.globalLibraryId {
-                // Global library stays always expanded.
-                Section {
-                    unifiedLibrarySections(
-                        libraryId: libraryId,
-                        buckets: buckets
-                    )
-                } header: {
-                    LibrarySectionHeader(
-                        library: library,
-                        itemCount: totalCount,
-                        isCurrentLibrary: library.id == windowState.libraryId,
-                        onFileDrop: { urls in
-                            // Import Finder drops at library root. Previously
-                            // these went nowhere (#582) — no drop destination
-                            // existed on the library header.
-                            let fileURLs = urls.filter { $0.isFileURL }
-                            guard !fileURLs.isEmpty else { return false }
-                            Task {
-                                do {
-                                    _ = try await library.importService.importFiles(
-                                        fileURLs,
-                                        mode: .link,
-                                        parentId: nil
-                                    )
-                                    await library.documentStore.refresh()
-                                    try? await Task.sleep(for: .milliseconds(500))
-                                    await library.documentStore.refresh()
-                                } catch {
-                                    Logger(subsystem: "com.tubb.Fichero", category: "LibraryHeaderDrop")
-                                        .error("Library root drop failed: \(error.localizedDescription)")
-                                }
-                            }
-                            return true
-                        }
-                    )
-                    .contextMenu {
-                        if library.id != LibraryManager.globalLibraryId {
-                            Button("Rename Library…") {
-                                libraryToRenameId = library.id
-                                pendingLibraryName = library.displayName
-                                showingRenameLibraryPrompt = true
-                            }
-                        }
-                    }
-                    .selectionDisabled()
-                }
+                // Global library is headless — with a single library in
+                // 0.0.2 there's nothing to switch between, so the
+                // "Global" row was dead chrome (#608). Library-root
+                // Finder drops still work via the section headers
+                // inside (Library / Saved Searches / etc.).
+                unifiedLibrarySections(
+                    libraryId: libraryId,
+                    buckets: buckets
+                )
             } else {
                 DisclosureGroup(
                     isExpanded: Binding(
