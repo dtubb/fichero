@@ -110,57 +110,65 @@ extension ContentView {
 
     @ViewBuilder
     var centerContent: some View {
-        switch currentLayoutMode {
-        case .none:
-            // None: Just content, no preview
-            contentWithOptionalModeRail
-                .overlay { paneFocusIndicator(for: .content) }
-                .frame(maxWidth: .infinity)
-                // Focus tracking without .focusable() — avoids swallowing first click
-
-        case .standard:
-            // Standard: Content stacked above preview (vertical split)
-            VSplitView {
-                contentWithOptionalModeRail
-                    .overlay { paneFocusIndicator(for: .content) }
-                    .frame(minHeight: 150, idealHeight: 180)
-
-                previewView
-                    .overlay { paneFocusIndicator(for: .preview) }
-                    .frame(minHeight: 400, idealHeight: 720)
-            }
-            .frame(maxWidth: .infinity)
-
-        case .widescreen:
-            // Widescreen: Content and preview side-by-side.
-            // Uses HStack + ResizableDivider (same pattern as inspector) so the
-            // content pane width is explicitly stored and only changes on user drag.
-            // HSplitView was replaced because NSSplitView ignores idealWidth and
-            // GeometryReader race-conditions overwrite the saved width on restart.
-            HStack(spacing: 0) {
-                contentWithOptionalModeRail
-                    .overlay { paneFocusIndicator(for: .content) }
-                    .frame(width: clampedWidescreenContentPaneWidth)
-
-                ResizableDivider(
-                    width: $widescreenContentPaneWidth,
-                    minWidth: 180,
-                    maxWidth: 900,
-                    edge: .leading
-                )
-
-                EditorView(
-                    document: detailDocument,
-                    showHeader: false,
-                    onPDFPageIndexChange: { index in
-                        syncGridSelectionToPDFPage(index: index)
-                    }
-                )
+        // When the grid is hidden (#616), bypass the layout switcher and show
+        // just the preview so the editor fills the full content area.
+        if !showDocumentGrid {
+            previewView
                 .overlay { paneFocusIndicator(for: .preview) }
                 .frame(maxWidth: .infinity)
-                // Focus tracking without .focusable() — avoids swallowing first click
+        } else {
+            switch currentLayoutMode {
+            case .none:
+                // None: Just content, no preview
+                contentWithOptionalModeRail
+                    .overlay { paneFocusIndicator(for: .content) }
+                    .frame(maxWidth: .infinity)
+                    // Focus tracking without .focusable() — avoids swallowing first click
+
+            case .standard:
+                // Standard: Content stacked above preview (vertical split)
+                VSplitView {
+                    contentWithOptionalModeRail
+                        .overlay { paneFocusIndicator(for: .content) }
+                        .frame(minHeight: 150, idealHeight: 180)
+
+                    previewView
+                        .overlay { paneFocusIndicator(for: .preview) }
+                        .frame(minHeight: 400, idealHeight: 720)
+                }
+                .frame(maxWidth: .infinity)
+
+            case .widescreen:
+                // Widescreen: Content and preview side-by-side.
+                // Uses HStack + ResizableDivider (same pattern as inspector) so the
+                // content pane width is explicitly stored and only changes on user drag.
+                // HSplitView was replaced because NSSplitView ignores idealWidth and
+                // GeometryReader race-conditions overwrite the saved width on restart.
+                HStack(spacing: 0) {
+                    contentWithOptionalModeRail
+                        .overlay { paneFocusIndicator(for: .content) }
+                        .frame(width: clampedWidescreenContentPaneWidth)
+
+                    ResizableDivider(
+                        width: $widescreenContentPaneWidth,
+                        minWidth: 180,
+                        maxWidth: 900,
+                        edge: .leading
+                    )
+
+                    EditorView(
+                        document: detailDocument,
+                        showHeader: false,
+                        onPDFPageIndexChange: { index in
+                            syncGridSelectionToPDFPage(index: index)
+                        }
+                    )
+                    .overlay { paneFocusIndicator(for: .preview) }
+                    .frame(maxWidth: .infinity)
+                    // Focus tracking without .focusable() — avoids swallowing first click
+                }
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
         }
     }
 

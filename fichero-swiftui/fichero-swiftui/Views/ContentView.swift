@@ -71,6 +71,7 @@ struct ContentView: View {
     @SceneStorage("widescreenContentPaneWidth") var widescreenContentPaneWidth: Double = 320
     @SceneStorage("showSidebar") var showSidebar: Bool = true
     @SceneStorage("showInspectorSidebar") var showInspectorSidebar: Bool = true
+    @SceneStorage("showDocumentGrid") var showDocumentGrid: Bool = true
 
     // Map view persistence (latitude, longitude, zoom)
     @SceneStorage("mapLatitude") var mapLatitude: Double = 0.0
@@ -375,6 +376,20 @@ struct ContentView: View {
                             .fill(Color(nsColor: .controlBackgroundColor))
                     )
                 }
+            }
+
+            // Document grid toggle — hides/shows the icon-grid/list middle column
+            // so the preview pane can fill the full content area (#616).
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showDocumentGrid.toggle()
+                    }
+                } label: {
+                    Image(systemName: showDocumentGrid ? "rectangle.split.2x1" : "rectangle")
+                }
+                .help(showDocumentGrid ? "Hide Document Grid (⌘⇧G)" : "Show Document Grid (⌘⇧G)")
+                .keyboardShortcut("g", modifiers: [.command, .shift])
             }
 
             // Inspector toggle at the trailing edge of the toolbar (standard macOS placement).
