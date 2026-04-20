@@ -12,6 +12,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from fichero.loaders import kreuzberg_cache  # noqa: F401 — env-var side effect
 from fichero.loaders.base import MediaContent, MediaLoader
 
 logger = logging.getLogger(__name__)

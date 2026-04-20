@@ -7,6 +7,7 @@ Handles: DOCX, XLSX, PPTX, EPUB, RTF, ODT, ODS, ODP
 import logging
 from pathlib import Path
 
+from fichero.loaders import kreuzberg_cache  # noqa: F401 — env-var side effect
 from fichero.loaders.base import MediaContent, MediaLoader
 
 logger = logging.getLogger(__name__)
