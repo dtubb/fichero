@@ -2,7 +2,7 @@
 
 ## Current Focus
 
-**Branch:** `0.0.2` — tip `0ec4c213`. 19 issues remain on milestone 8.
+**Branch:** `0.0.2` — tip `4c9d0d32`. 17 open issues remain; #594 closed, #619/#605 instrumented (open pending Daniel log analysis).
 
 **Goal:** close 0.0.2 and ship. Plan below batches by effort and tags each item `[autonomous]` (loop-safe) or `[needs-daniel]` (on-device / judgment / credentials).
 
@@ -22,15 +22,9 @@ Work these top-to-bottom. Each is one concern, one commit.
 
 1. ~~**#622 icon/list grid column min-width** — DONE `8792074b` on `0.0.2`~~ ✓
 
-2. **#594 close-as-skipped** `[autonomous]` — this session's `61afdbe2` already converts the failing tests to silent skips. Close the issue on GitHub with a reference; the deeper fix (write `export_api_schemas.py` + wire a build phase) moves to a 0.0.3+ infrastructure ticket. No code change needed beyond closing.
+2. ~~**#594 close-as-skipped** — CLOSED. Tests skip when fixtures absent (`61afdbe2`). Deeper fix deferred to 0.0.3+.~~ ✓
 
-3. **#619 / #605 startup instrumentation** `[autonomous]` — add `⏱` OSLog breadcrumbs at:
-   - `AppState.init` entry and exit
-   - `checkBackendHealth` request-start and response-received
-   - `LibraryManager.loadLibraries` entry and exit
-   - `SidebarItemBuilder.build` entry and exit (log input size)
-   - First frame paint of `ContentView.body`
-   Use subsystem `com.tubb.Fichero`, category `Startup`. Ship the instrumentation alone — don't guess at a fix. Daniel tails `log stream --subsystem com.tubb.Fichero --predicate 'eventMessage CONTAINS "⏱"'` and reports the bottleneck in the next session.
+3. ~~**#619 / #605 startup instrumentation** — DONE `4c9d0d32`. ⏱ breadcrumbs at AppState.init, checkBackendHealth, loadLibraryData, SidebarItemBuilder.build, ContentView.onAppear. Issues left open pending Daniel's on-device log analysis.~~ ✓
 
 4. **#600 .mov drag-drop investigation** `[autonomous]` — code-only. Read `SidebarItemRow+DropHandlers.swift` carefully; add verbose debug logging around `loadAnyFileURL` / `loadFileRepresentation` branches so a `.mov` drag prints every UTI and every load-result. Ship only the instrumentation. If a clear code bug surfaces (e.g. a branch that filters video UTIs), fix it; otherwise leave the repro hooks for Daniel.
 
@@ -71,4 +65,4 @@ Don't attempt these from a loop. They sit here for Daniel's next on-device sessi
 
 ---
 
-*Last updated: 2026-04-20 (session-end — autonomous-loop friendly)* — 7 autonomous items queued, 6 needs-Daniel items waiting. Loop exits cleanly via `BLOCK.md` when the autonomous queue is exhausted.
+*Last updated: 2026-04-20 (session-end — autonomous-loop friendly)* — 5 autonomous items remaining (#600, #603, #591/#592, #616), 6 needs-Daniel items waiting. Next task: #600 (.mov drag-drop debug logging). Loop exits cleanly via `BLOCK.md` when the autonomous queue is exhausted.
