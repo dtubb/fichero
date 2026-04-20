@@ -192,27 +192,31 @@ private struct SidebarDeleteAlertsModifier: ViewModifier {
     @ObservedObject var deleteState: DeleteStateManager
     let performDelete: @MainActor (SidebarItem) async -> Void
 
+    // `confirmationDialog` is more reliable than `.alert(presenting:)`
+    // on macOS inside List(selection:) — the `presenting:`/`isPresented:`
+    // pair can race and skip presentation when both @Published fields
+    // update in the same tick (#613). The dialog reads itemToDelete at
+    // action-fire time, so we only need a single isPresented binding.
     func body(content: Content) -> some View {
         content
-            .alert(
-                "Delete \"\(deleteState.itemToDelete?.name ?? "")\"?",
+            .confirmationDialog(
+                deleteState.itemToDelete.map { "Delete \"\($0.name)\"?" } ?? "Delete?",
                 isPresented: $deleteState.showingDeleteConfirmation,
-                presenting: deleteState.itemToDelete,
-                actions: { itemToDelete in
-                    Button("Delete", role: .destructive) {
-                        Task { @MainActor in
-                            await performDelete(itemToDelete)
-                        }
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    guard let item = deleteState.itemToDelete else { return }
+                    Task { @MainActor in
+                        await performDelete(item)
                     }
-                    .keyboardShortcut(.defaultAction)
-                    Button("Cancel", role: .cancel) {
-                        deleteState.cancelDelete()
-                    }
-                },
-                message: { _ in
-                    Text("This action cannot be undone.")
                 }
-            )
+                .keyboardShortcut(.defaultAction)
+                Button("Cancel", role: .cancel) {
+                    deleteState.cancelDelete()
+                }
+            } message: {
+                Text("This action cannot be undone.")
+            }
             .alert("Delete Failed", isPresented: $deleteState.showingDeleteError) {
                 Button("OK", role: .cancel) {}
             } message: {
