@@ -88,6 +88,7 @@ struct PDFPageView: NSViewRepresentable {
         view.autoScales = true
         view.backgroundColor = NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)
         view.delegate = context.coordinator
+        context.coordinator.pdfView = view
         // Observer for currentPage — delegate's `pdfViewPageChanged(_:)`
         // doesn't exist in all PDFKit versions; PDFView posts a
         // `PDFViewPageChanged` notification we observe instead.
@@ -111,6 +112,12 @@ struct PDFPageView: NSViewRepresentable {
         context.coordinator.owner = self
         applyDisplayMode(view)
         loadAndNavigate(view)
+        // Hook scroll-end sync after document loads (no-op if already hooked).
+        // Only in multi-page mode and when the feature flag is on (#591/#592).
+        if allowAllPages {
+            let syncEnabled = FeatureManager.shared.isPdfScrollGridSyncEnabled
+            context.coordinator.hookScrollSyncIfNeeded(view: view, syncEnabled: syncEnabled)
+        }
     }
 
     static func dismantleNSView(_ view: PDFView, coordinator: Coordinator) {
@@ -153,6 +160,8 @@ struct PDFPageView: NSViewRepresentable {
     /// Bridges AppKit notifications / delegate into the SwiftUI callback.
     final class Coordinator: NSObject, PDFViewDelegate {
         var owner: PDFPageView
+        weak var pdfView: PDFView?
+        private var scrollSyncHooked = false
 
         init(owner: PDFPageView) {
             self.owner = owner
@@ -182,6 +191,41 @@ struct PDFPageView: NSViewRepresentable {
         func scaleDidChange(_ notification: Notification) {
             guard let view = notification.object as? PDFView else { return }
             view.autoScales = false
+        }
+
+        /// #591/#592: observe NSScrollView.didEndLiveScrollNotification on PDFKit's
+        /// internal scroll view so scrollbar drags update the grid/inspector selection.
+        /// PDFViewPageChanged only fires on explicit go(to:) calls, not scroll drags.
+        /// Guarded by `pdfScrollGridSync` feature flag (default OFF).
+        func hookScrollSyncIfNeeded(view: PDFView, syncEnabled: Bool) {
+            guard !scrollSyncHooked,
+                  syncEnabled,
+                  let scrollView = Self.findDescendantScrollView(in: view) else { return }
+            scrollSyncHooked = true
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(scrollDidEnd(_:)),
+                name: NSScrollView.didEndLiveScrollNotification,
+                object: scrollView
+            )
+        }
+
+        @objc
+        private func scrollDidEnd(_ notification: Notification) {
+            guard let view = pdfView,
+                  let page = view.currentPage,
+                  let doc = view.document else { return }
+            let index = doc.index(for: page)
+            guard index != owner.pageIndex else { return }
+            owner.onPageIndexChange?(index)
+        }
+
+        private static func findDescendantScrollView(in view: NSView) -> NSScrollView? {
+            for sub in view.subviews {
+                if let sv = sub as? NSScrollView { return sv }
+                if let sv = findDescendantScrollView(in: sub) { return sv }
+            }
+            return nil
         }
     }
 }
