@@ -774,3 +774,45 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 **Memory update:** new `feedback_spacer_row_insertion_drops.md` documenting the SwiftUI DisclosureGroup limitation + the spacer workaround pattern.
 
 **Status per Daniel's request, end of mini-session:** cross-hierarchy drops work top-level and nested (drop onto folder row = move into; drop between rows via spacer = reparent to level with offset). Cycle guard via `isDescendant` prevents self-drop and ancestor-as-child for nested drops. Daniel's Bug 1 ("can drop parent onto child") requires repro to diagnose whether it's via `handleDropIntoFolder` or a path that bypasses cycle checks — needs logs.
+
+## 2026-04-20 — Session Summary (0.0.2 bug sprint)
+
+### Shipped + verified on device
+- #621 Inbox not draggable — `.moveDisabled(icon == "tray.fill")` + defensive guard in `.onMove`
+- #606 cross-hierarchy drop-line — overlay strips on top/bottom of each row (3pt hit regions, 2pt accent line when targeted). Replaced the spacer-row pattern from earlier today (#620) which rendered as visible empty List rows.
+- #620 spacer-row padding — root-caused and removed; overlay-inside-row replaces it without allocating new List rows.
+- #613 Sidebar Delete — swapped `.alert(isPresented:presenting:)` for `.confirmationDialog(isPresented:)`. The old API was racing @Published updates on macOS inside List(selection:).
+- #611 reorder saved searches + workflows — `.onMove` dispatcher routes to `savedSearchServiceGenerated.reorderSavedSearches` or `workflowServiceGenerated.reorderWorkflows` based on `SidebarItemKind(prefixedId:)`.
+- #589 Kreuzberg cache — routed to `~/Library/Application Support/com.tubb.fichero/kreuzberg` via `KREUZBERG_CACHE_DIR` env var set in a side-effect-only `loaders/kreuzberg_cache.py` imported by both PDF and document loaders.
+- #615 sidebar column min — 250 → 180.
+- #604 grid zoom cap — 3x → 5x on icon/map views.
+- #594 test hygiene — contract/endpoint tests now skip missing fixtures instead of failing, restoring a clean test baseline.
+- #608 dropped the "Global" library header row — single-library chrome in 0.0.2 doesn't earn its keep.
+
+### Shipped, not yet verified
+- #619 backend health poll 1s → 100ms — Daniel reports startup "not much faster" on his machine. Either the remaining cost is elsewhere (DB open, library hierarchy build, embeddings init) or the backend genuinely takes >1s cold. Needs profiling not speculation.
+- #609 Run Workflow button enabled when preview doc is open — Daniel hasn't tested yet.
+
+### Shipped then reverted
+- #591 PDF scroll → grid sync via `contentView.postsBoundsChangedNotifications` — reverted in `9db9b539`. "PDF is not ready yet" per Daniel. Keep the idea; may need a different observation path (PDFView.visiblePages polled, or a different notification).
+
+### Filed this session
+- #622 icon/list view column minimum width too wide — filed after the 0.0.2 sprint but not addressed.
+
+### Didn't touch (intentionally deferred)
+- #600 `.mov` drag-drop — no filter found in Swift or Python side; needs repro.
+- #603 ingest-mode badges — requires DB schema change (new `ingest_mode` column on Document).
+- #605 startup perf — needs profiling, not speculation.
+- #590 PDF hover loupe — new feature (image-loupe parity).
+- #595 PDF one-page-at-a-time + swipe — large rewrite.
+- #616 hide icon grid panel — layout plumbing, risky.
+- #520 Sparkle auto-update — integration feature.
+- #609 part b (workflow input-kind field) — schema + editor UI.
+
+### Assumed-already-fixed, pending verification
+- #598 drops route to cursor target — closure captures `item` in the ForEach.
+- #599 pinch-zoom regression + TIFF 1:1 — already have `isUserMagnifying` guard and `pixelsWide / size.width`.
+- #610 Finder folder drop flatten — `ingest_folder` with `create_collection=True` creates parent Document.
+- #614 bolder section headers + accent selection — already matches SimpleSidebar pattern.
+
+14 commits to `0.0.2` branch. Nothing released.
