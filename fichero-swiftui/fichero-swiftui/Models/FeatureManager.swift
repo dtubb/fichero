@@ -89,6 +89,8 @@ class FeatureManager: ObservableObject {
     private var workflowFilesToolbarEnabledInternal: Bool = false
     @AppStorage("fichero.features.workflow_run_on_selection")
     private var workflowRunOnSelectionEnabledInternal: Bool = false
+    @AppStorage("fichero.features.pdf_scroll_grid_sync")
+    private var pdfScrollGridSyncEnabledInternal: Bool = false
     @AppStorage("fichero.features.release_profile_version")
     private var releaseProfileVersionApplied: Int = 0
 
@@ -150,6 +152,9 @@ class FeatureManager: ObservableObject {
     var isWorkflowRunOnSelectionEnabled: Bool {
         allFeaturesEnabled || workflowRunOnSelectionEnabledInternal
     }
+    /// PDF scroll → grid/inspector sync. Defaulted OFF; enable via Settings or `FICHERO_ALL_FEATURES=1`.
+    /// Guards the NSScrollView live-scroll observer added in PDFPageView (#591/#592).
+    var isPdfScrollGridSyncEnabled: Bool { allFeaturesEnabled || pdfScrollGridSyncEnabledInternal }
 
     private init() {
         applyReleaseProfileDefaultsIfNeeded()
