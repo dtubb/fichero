@@ -826,3 +826,8 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 ## 2026-04-20 — Session Summary
 
 - #622 fixed: lowered icon/list grid column minimum width 260→180pt (clamp + ResizableDivider aligned) — branch feature/issue-622
+
+## 2026-04-20 — Startup Instrumentation + Test Cleanup
+
+- **#594 closed**: Contract/endpoint validation tests already converted to skip-when-fixtures-absent in `61afdbe2`. Closed with reference; deeper fix (write `export_api_schemas.py` + build phase) deferred to 0.0.3+.
+- **#619/#605 instrumented** (`4c9d0d32`): Added ⏱ OSLog breadcrumbs at `AppState.init` entry/exit, `checkBackendHealth` request-start and response-received, `LibraryManager.loadLibraryData` per-phase with counts, `SidebarItemBuilder.buildLibraryGroup` entry/exit with doc count, and `ContentView` first-frame `.onAppear`. Subsystem `com.tubb.Fichero`. Issues left open for Daniel's on-device log analysis.

@@ -59,10 +59,17 @@ Don't attempt these from a loop. They sit here for Daniel's next on-device sessi
 - **Startup (#619)** — poll-interval tighten didn't help per Daniel. Real bottleneck is downstream of the health check. The autonomous step 3 above ships instrumentation; Daniel reads the output.
 - **PDF scroll sync (#591/#592)** — first attempt reverted. Second attempt (step 6) is flag-guarded to avoid regression.
 
+## Next Session — Start Here
+
+1. Pick up at **#600** (.mov drag-drop): read `SidebarItemRow+DropHandlers.swift`, add debug logging around `loadAnyFileURL`/`loadFileRepresentation` for UTI and load-result traces.
+2. **#619/#605 stay open** — Daniel needs to tail `log stream --predicate 'eventMessage CONTAINS "⏱"'` on device and report the bottleneck.
+3. After #600, continue with **#603** (ingest-mode badges) and **#616** (hide icon-grid panel toggle).
+4. Do NOT write BLOCK.md until all autonomous items (#600, #603, #591/#592, #616) are done or blocked.
+
 ## Parallel Workflow
 
 0.0.2 is the first public release gate. 0.0.3 (Wire: Search v1) is queued at `~/code/fichero-0.0.3` and stays on hold until Daniel approves 0.0.2. Semantic search UI is 0.0.3 scope.
 
 ---
 
-*Last updated: 2026-04-20 (session-end — autonomous-loop friendly)* — 5 autonomous items remaining (#600, #603, #591/#592, #616), 6 needs-Daniel items waiting. Next task: #600 (.mov drag-drop debug logging). Loop exits cleanly via `BLOCK.md` when the autonomous queue is exhausted.
+*Last updated: 2026-04-20 (session-end)* — 5 autonomous items remaining (#600, #603, #591/#592, #616), 6 needs-Daniel items waiting. Next: #600 (.mov drag-drop debug logging).
