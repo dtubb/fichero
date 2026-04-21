@@ -243,8 +243,7 @@ extension SidebarView {
         }
 
         if FeatureManager.shared.isActivityEnabled {
-            unifiedDisclosureSection(
-                title: "Activity",
+            activityDisclosureSection(
                 sectionKey: "activity",
                 libraryId: libraryId,
                 items: buckets.activityItems
@@ -417,6 +416,54 @@ extension SidebarView {
         }
     }
 
+    // MARK: - Compact Activity Grid
+
+    @ViewBuilder
+    private func activityDisclosureSection(
+        sectionKey: String,
+        libraryId: UUID,
+        items: [SidebarItem]
+    ) -> some View {
+        if !items.isEmpty {
+            DisclosureGroup(
+                isExpanded: Binding(
+                    get: { isUnifiedSectionExpanded(libraryId: libraryId, sectionKey: sectionKey) },
+                    set: { setUnifiedSectionExpanded($0, libraryId: libraryId, sectionKey: sectionKey) }
+                ),
+                content: {
+                    // Entire run history in one list row — compact icon grid
+                    activityRunsGrid(items)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 8))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                },
+                label: {
+                    Text("Activity")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.primary)
+                        .selectionDisabled()
+                }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func activityRunsGrid(_ items: [SidebarItem]) -> some View {
+        let columns = [GridItem(.adaptive(minimum: 46, maximum: 60), spacing: 4)]
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 6) {
+            ForEach(items) { item in
+                ActivityRunGridCell(
+                    item: item,
+                    isSelected: selectedItemId == item.id
+                )
+                .onTapGesture { handleUnifiedRowTap(item) }
+            }
+        }
+        .padding(.vertical, 4)
+        .animation(.default, value: items.map(\.id))
+    }
+
     @ViewBuilder
     private func unifiedDisclosureSection(
         title: String,
@@ -540,6 +587,54 @@ extension SidebarView {
         return nil
     }
 
+}
+
+// MARK: - Activity Run Grid Cell
+
+/// Compact icon cell for the Activity sidebar grid.
+/// Shows a status icon + short time (e.g. "7:05 PM") in a ~46pt square.
+struct ActivityRunGridCell: View {
+    let item: SidebarItem
+    let isSelected: Bool
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Image(systemName: item.icon)
+                .font(.system(size: 18))
+                .foregroundStyle(iconColor)
+            Text(shortTime)
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 5)
+        .padding(.horizontal, 3)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(isSelected ? Color.accentColor.opacity(0.5) : Color.clear, lineWidth: 1)
+        )
+    }
+
+    private var shortTime: String {
+        // "Today 7:05 PM" → "7:05 PM"; fall back to full name
+        let parts = item.name.split(separator: " ", maxSplits: 1)
+        return parts.count > 1 ? String(parts[1]) : item.name
+    }
+
+    private var iconColor: Color {
+        switch item.icon {
+        case "checkmark.circle.fill": return .green
+        case "xmark.circle.fill": return .red
+        case "play.circle.fill": return .blue
+        case "stop.circle.fill": return .orange
+        default: return .secondary
+        }
+    }
 }
 
 // MARK: - Insertion Line Overlay

@@ -74,12 +74,16 @@ class SystemicErrorDetected(WorkflowExecutionError):
     """
 
     def __init__(
-        self, message: str, error_count: int, total_count: int, errors: list[dict]
+        self,
+        message: str = "",
+        error_count: int = 0,
+        total_count: int = 0,
+        errors: list[dict] | None = None,
     ):
         super().__init__(message)
         self.error_count = error_count
         self.total_count = total_count
-        self.errors = errors
+        self.errors = errors or []
 
 
 def _generate_node_names(workflow: WorkflowDef) -> dict[str, str]:

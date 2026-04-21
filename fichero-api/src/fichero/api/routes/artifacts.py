@@ -117,13 +117,19 @@ async def list_document_artifacts(
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
 
-    # Build query kwargs
-    query_kwargs = {"document_id": doc_id}
-    if artifact_type:
-        query_kwargs["artifact_type"] = artifact_type
+    # Collect document IDs to query: the doc itself plus its direct children (pages)
+    child_ids = [d.id for d in db.query(Document, parent_id=doc_id)]
+    all_doc_ids = [doc_id] + child_ids
 
-    # Query artifacts
-    artifacts = db.query(Artifact, **query_kwargs)
+    # Query artifacts across the doc and its children
+    all_artifacts = []
+    for did in all_doc_ids:
+        query_kwargs: dict = {"document_id": did}
+        if artifact_type:
+            query_kwargs["artifact_type"] = artifact_type
+        all_artifacts.extend(db.query(Artifact, **query_kwargs))
+
+    artifacts = all_artifacts
 
     # Sort by created_at descending
     artifacts.sort(key=lambda a: a.created_at, reverse=True)
