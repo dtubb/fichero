@@ -418,6 +418,7 @@ private struct SidebarVisualPreview: View {
                     Text("Library")
                         .font(.caption)
                         .fontWeight(.bold)
+                        .foregroundStyle(.primary)
                 }
                 DisclosureGroup(isExpanded: $searchesExpanded) {
                     row(id: "search-a", name: "New Search", icon: "magnifyingglass")
@@ -427,6 +428,7 @@ private struct SidebarVisualPreview: View {
                     Text("Saved Searches")
                         .font(.caption)
                         .fontWeight(.bold)
+                        .foregroundStyle(.primary)
                 }
             }
         }

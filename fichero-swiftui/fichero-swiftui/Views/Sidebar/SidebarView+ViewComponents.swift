@@ -437,6 +437,7 @@ extension SidebarView {
                     Text(title)
                         .font(.caption)
                         .fontWeight(.bold)
+                        .foregroundStyle(.primary)
                         .selectionDisabled()
                 }
             )
