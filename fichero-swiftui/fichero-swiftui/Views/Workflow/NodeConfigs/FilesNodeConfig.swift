@@ -326,8 +326,11 @@ private extension FilesNodeConfig {
     func handleFileDrop(_ providers: [NSItemProvider]) -> Bool {
         for provider in providers {
             _ = provider.loadObject(ofClass: String.self) { string, _ in
-                guard let docId = string else { return }
+                guard let raw = string else { return }
+                let docId = raw.hasPrefix("doc:") ? String(raw.dropFirst(4)) : raw
                 Task { @MainActor in
+                    guard let doc = self.documentStore.collections.first(where: { $0.id == docId }),
+                          doc.docType == .file else { return }
                     if !self.selectedFileIds.contains(docId) {
                         self.selectedFileIds.append(docId)
                         self.syncConfig()
@@ -365,7 +368,7 @@ private extension FilesNodeConfig {
            case .array(let ids) = configValue {
             selectedFileIds = ids.compactMap {
                 if case .string(let id) = $0 {
-                    return id
+                    return id.hasPrefix("doc:") ? String(id.dropFirst(4)) : id
                 }
                 return nil
             }

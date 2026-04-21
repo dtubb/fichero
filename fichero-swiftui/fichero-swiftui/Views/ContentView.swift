@@ -37,6 +37,8 @@ struct ContentView: View {
     @EnvironmentObject var windowState: WindowState
     @EnvironmentObject var workflowStore: WorkflowStore
     @EnvironmentObject var savedSearchService: SavedSearchServiceGenerated
+    @EnvironmentObject var workflowStreamService: WorkflowStreamService
+    @Environment(WorkflowExecutionObserver.self) var executionObserver
 
     // MARK: - State (synced with @SceneStorage for persistence)
 
@@ -203,7 +205,7 @@ struct ContentView: View {
             HStack(spacing: 0) {
                 centerContent
                     .frame(minWidth: CGFloat(ContentView.contentMinWidth), maxWidth: .infinity)
-                if showInspectorSidebar {
+                if showInspectorSidebar && showInspectorForCurrentMode {
                     ResizableDivider(
                         width: $inspectorWidth,
                         minWidth: ContentView.inspectorMinWidth,

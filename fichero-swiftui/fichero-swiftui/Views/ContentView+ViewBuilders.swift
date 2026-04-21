@@ -9,6 +9,17 @@ extension ContentView {
         CGFloat(min(max(widescreenContentPaneWidth, 180), 900))
     }
 
+    /// Inspector only applies for modes that have inspectable content.
+    /// Activity, batch, and automation views manage their own detail pane.
+    var showInspectorForCurrentMode: Bool {
+        switch viewMode {
+        case .activity, .batches, .batch, .automation, .schedule, .trigger:
+            return false
+        default:
+            return true
+        }
+    }
+
     var effectiveCenterIdealWidth: Double {
         // .inspector() is now a sibling of NavigationSplitView, not nested inside the detail
         // column. The split view gets whatever width the inspector leaves, so the content
@@ -110,23 +121,25 @@ extension ContentView {
 
     @ViewBuilder
     var centerContent: some View {
-        // When the grid is hidden (#616), bypass the layout switcher and show
-        // just the preview so the editor fills the full content area.
-        if !showDocumentGrid {
+        // Non-library/search modes (activity, workflows, chat, etc.) never use the
+        // preview split — they own the full content area themselves.
+        if !showsPreviewPane {
+            contentWithOptionalModeRail
+                .overlay { paneFocusIndicator(for: .content) }
+                .frame(maxWidth: .infinity)
+        } else if !showDocumentGrid {
+            // Grid hidden (#616): show only the preview/editor at full width.
             previewView
                 .overlay { paneFocusIndicator(for: .preview) }
                 .frame(maxWidth: .infinity)
         } else {
             switch currentLayoutMode {
             case .none:
-                // None: Just content, no preview
                 contentWithOptionalModeRail
                     .overlay { paneFocusIndicator(for: .content) }
                     .frame(maxWidth: .infinity)
-                    // Focus tracking without .focusable() — avoids swallowing first click
 
             case .standard:
-                // Standard: Content stacked above preview (vertical split)
                 VSplitView {
                     contentWithOptionalModeRail
                         .overlay { paneFocusIndicator(for: .content) }
@@ -140,10 +153,8 @@ extension ContentView {
 
             case .widescreen:
                 // Widescreen: Content and preview side-by-side.
-                // Uses HStack + ResizableDivider (same pattern as inspector) so the
-                // content pane width is explicitly stored and only changes on user drag.
-                // HSplitView was replaced because NSSplitView ignores idealWidth and
-                // GeometryReader race-conditions overwrite the saved width on restart.
+                // Uses HStack + ResizableDivider so content pane width is stored
+                // and only changes on user drag (HSplitView ignores idealWidth).
                 HStack(spacing: 0) {
                     contentWithOptionalModeRail
                         .overlay { paneFocusIndicator(for: .content) }
@@ -165,7 +176,6 @@ extension ContentView {
                     )
                     .overlay { paneFocusIndicator(for: .preview) }
                     .frame(maxWidth: .infinity)
-                    // Focus tracking without .focusable() — avoids swallowing first click
                 }
                 .frame(maxWidth: .infinity)
             }

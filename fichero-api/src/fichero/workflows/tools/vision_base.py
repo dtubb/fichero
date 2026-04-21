@@ -122,6 +122,10 @@ def _render_pdf_page_to_cgimage(pdf_path: str, page_index: int = 0, dpi: int = 3
     """
     from Quartz import (
         CGPDFDocumentCreateWithURL,
+        CGPDFDocumentGetPage,
+        CGPDFDocumentGetNumberOfPages,
+        CGPDFPageGetBoxRect,
+        kCGPDFMediaBox,
         CGBitmapContextCreate,
         CGBitmapContextCreateImage,
         CGContextDrawPDFPage,
@@ -137,13 +141,13 @@ def _render_pdf_page_to_cgimage(pdf_path: str, page_index: int = 0, dpi: int = 3
     if not pdf_doc:
         raise ValueError(f"Could not open PDF: {pdf_path}")
 
-    # PDF pages are 1-indexed
-    page = pdf_doc.getPage(page_index + 1)
+    # PDF pages are 1-indexed; use C function (CGPDFDocumentRef is opaque)
+    page = CGPDFDocumentGetPage(pdf_doc, page_index + 1)
     if not page:
         raise ValueError(f"PDF page {page_index + 1} not found in: {pdf_path}")
 
     # Get page dimensions at 72 DPI (PDF default) and scale to target DPI
-    media_box = page.getBoxRect(0)  # kCGPDFMediaBox = 0
+    media_box = CGPDFPageGetBoxRect(page, kCGPDFMediaBox)
     scale = dpi / 72.0
     width = int(media_box.size.width * scale)
     height = int(media_box.size.height * scale)
@@ -175,7 +179,7 @@ def _render_pdf_page_to_cgimage(pdf_path: str, page_index: int = 0, dpi: int = 3
     if not cg_image:
         raise ValueError(f"Failed to render PDF page to image: {pdf_path}")
 
-    return cg_image, pdf_doc.getNumberOfPages()
+    return cg_image, CGPDFDocumentGetNumberOfPages(pdf_doc)
 
 
 def apple_vision_ocr(image_path: str, language: str = "en") -> str:
