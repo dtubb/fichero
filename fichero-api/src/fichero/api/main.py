@@ -73,9 +73,47 @@ def _validate_model_sync() -> bool:
         return True  # Don't block startup on validation errors
 
 
+def _seed_builtin_providers() -> None:
+    """Ensure Apple (on-device) provider exists — no API key, always available on macOS."""
+    try:
+        from fichero.app_db import get_app_db
+        from fichero.models import Provider, ProviderType
+
+        app_db = get_app_db()
+        existing = {p.provider_type for p in app_db.list_providers()}
+        if ProviderType.apple not in existing:
+            provider = Provider(
+                name="Apple",
+                provider_type=ProviderType.apple,
+                enabled=True,
+            )
+            app_db.save_provider(provider)
+            logger.info("Seeded built-in Apple provider (Vision + Transcribe)")
+    except Exception as exc:
+        logger.warning("Could not seed built-in providers: %s", exc)
+
+
+def _prewarm_embeddings() -> None:
+    """Download + initialise the embeddings model so it's ready before first use."""
+    try:
+        from fastembed import TextEmbedding
+        from fichero.db import DEFAULT_MODEL
+        from fichero.local_models import MODELS_BASE
+
+        cache_dir = MODELS_BASE / "embeddings"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        logger.info("Pre-warming embeddings model: %s", DEFAULT_MODEL)
+        TextEmbedding(model_name=DEFAULT_MODEL, cache_dir=str(cache_dir))
+        logger.info("Embeddings model ready")
+    except Exception as exc:
+        logger.warning("Embeddings pre-warm failed (will retry on first use): %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
+    import asyncio
+
     # Startup: optionally validate model sync
     if os.environ.get("FICHERO_VALIDATE_MODELS") == "1":
         logger.info("Validating Python/Swift model sync...")
@@ -83,11 +121,18 @@ async def lifespan(app: FastAPI):
             logger.warning(
                 "Model sync issues detected! Run './scripts/sync_openapi_schema.sh' to fix."
             )
-            # We log a warning but don't block startup
 
     # Startup: initialize database manager
     logger.info("Fichero API starting up...")
     logger.info("DatabaseManager initialized")
+
+    # Seed built-in providers (Apple Vision/Transcribe) on first run
+    _seed_builtin_providers()
+
+    # Pre-warm embeddings model in background — avoids 2+ GB download on first search
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, _prewarm_embeddings)
+
     yield
     # Shutdown: close all database connections
     logger.info("Fichero API shutting down...")
