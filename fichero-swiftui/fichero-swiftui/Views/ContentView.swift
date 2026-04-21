@@ -324,32 +324,44 @@ struct ContentView: View {
                         .help("Add new item (⌘N)")
 
                     if featureManager.isWorkflowsEnabled && featureManager.isWorkflowRunOnSelectionEnabled {
+                        let hasSelection = !browserSelection.isEmpty || detailDocument != nil
+                        let collectionFiles = documentStore.currentDocuments.filter { $0.docType == .file }
+                        let hasCollection = !collectionFiles.isEmpty
+                        let sortedWorkflows = workflowStore.workflows.sorted {
+                            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+                        }
                         Menu {
                             if workflowStore.workflows.isEmpty {
                                 Text("No workflows available")
                             } else {
-                                ForEach(
-                                    workflowStore.workflows.sorted(by: { lhs, rhs in
-                                        lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-                                    }),
-                                    id: \.id
-                                ) { workflow in
-                                    Button(workflow.name) {
-                                        runWorkflowOnSelection(workflowId: workflow.id)
+                                if hasSelection {
+                                    Section("On Selection") {
+                                        ForEach(sortedWorkflows, id: \.id) { workflow in
+                                            Button(workflow.name) {
+                                                runWorkflowOnSelection(workflowId: workflow.id)
+                                            }
+                                        }
                                     }
+                                }
+                                if hasCollection {
+                                    Section("On Collection (\(collectionFiles.count))") {
+                                        ForEach(sortedWorkflows, id: \.id) { workflow in
+                                            Button(workflow.name) {
+                                                runWorkflowOnCollection(workflowId: workflow.id)
+                                            }
+                                        }
+                                    }
+                                }
+                                if !hasSelection && !hasCollection {
+                                    Text("Select a document or open a collection")
+                                        .foregroundStyle(.secondary)
                                 }
                             }
                         } label: {
                             Label("Run Workflow", systemImage: "play.square.stack")
                         }
-                        .help("Run Workflow on Selection")
-                        // Fall through to the open preview document when
-                        // the grid has no explicit selection — matches the
-                        // same fallback in `runWorkflowOnSelection` so the
-                        // menu is enabled whenever a doc can be targeted
-                        // (#609).
-                        .disabled((browserSelection.isEmpty && detailDocument == nil)
-                                  || workflowStore.workflows.isEmpty)
+                        .help("Run Workflow on Selection or Collection")
+                        .disabled(workflowStore.workflows.isEmpty || (!hasSelection && !hasCollection))
                     }
                 }
             }
@@ -548,6 +560,11 @@ struct ContentView: View {
                     detailDocument = doc
                 }
             }
+        }
+        .onChange(of: detailDocument) { _, newDoc in
+            // Keep documentStore.selectedDocument in sync so WorkflowEditor
+            // toolbar button sees the current document at run time.
+            documentStore.selectedDocument = newDoc
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
             // Auto-save workflow when app quits

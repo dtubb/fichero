@@ -189,6 +189,51 @@ extension ContentView {
         }
     }
 
+    @MainActor
+    func runWorkflowOnCollection(workflowId: String) {
+        let collectionIds = documentStore.currentDocuments
+            .filter { $0.docType == .file }
+            .map { $0.id }
+        guard !collectionIds.isEmpty else { return }
+
+        let libraryManager = LibraryManager.shared
+        guard let library = libraryManager.getLibrary(id: windowState.libraryId)
+                ?? libraryManager.globalLibrary else {
+            logger.error("Run Workflow on Collection failed: no active library")
+            return
+        }
+
+        let items: [[String: any Sendable]] = collectionIds.map { ["document_id": $0] }
+        importProgress = "Starting workflow on \(collectionIds.count) documents in collection…"
+
+        Task { @MainActor in
+            defer {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(2))
+                    if importProgress?.hasPrefix("Starting workflow") == true {
+                        importProgress = nil
+                    }
+                }
+            }
+            do {
+                let batch = try await library.batchService.createBatch(
+                    workflowId: workflowId,
+                    items: items,
+                    maxConcurrent: 5
+                )
+                try await library.batchService.executeBatch(batchId: batch.batchId)
+                importProgress = "Workflow running — see Activity for progress"
+                logger.info(
+                    "Started batch \(batch.batchId) for workflow \(workflowId) with \(collectionIds.count) collection docs"
+                )
+            } catch {
+                importProgress = nil
+                logger.error("Run Workflow on Collection failed: \(error.localizedDescription)")
+                ErrorService.shared.reportError(error)
+            }
+        }
+    }
+
     // MARK: - Conversations
 
     func refreshConversations() {
