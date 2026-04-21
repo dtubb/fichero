@@ -103,6 +103,9 @@ extension WorkflowExecutionObserver {
             execution.processedFiles += 1
             execution.currentFilePath = nil  // Clear current file
 
+            // Signal inspectors to refresh artifacts for this file
+            fileCompletedCount += 1
+
         case .fileError(_, let nodeId, let filePath, let error, let progress):
             let fileName = (filePath as NSString).lastPathComponent
             workflowExecutionLogger.warning("File error: \(fileName) - \(error)")

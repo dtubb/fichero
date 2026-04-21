@@ -1,0 +1,619 @@
+Starting autonomous loop for: /Users/danieltubb/code/fichero-0.0.2
+Agent: claude
+Provider: ollama
+Model: (default)
+Effort: auto (CLI default)
+Max iterations: 25
+
+=== Iteration: 1 / 25 ===
+CONTINUE.md not found - starting fresh
+Checkpoint created at start of iteration
+
+==========================================
+=== Running start phase ===
+==========================================
+[init] model=claude-sonnet-4-6 · 113 commands · 85 skills · 25 agents · 25 plugins
+Starting autonomous session — running BLOCK gate check first.
+→ Bash · Run BLOCK gate check
+  ✓ (Bash completed with no output)
+No BLOCK gate. Loading context.
+→ Bash · Read STATE.md
+  ✓ # STATE.md — Fichero
+    
+    ## Current Focus
+  ... (42 more lines)
+→ Bash · List open GitHub issues for milestone 0.0.2
+  ✓ (Bash completed with no output)
+No milestone issues returned from GitHub. Let me check issues more broadly and look at #614 specifically since STATE.md flagged it as safe for autonomous work.
+→ Bash · List all open GitHub issues
+→ Bash · View issue #614
+  ✓ 619	OPEN	Backend connection on launch is slow — investigate handshake delay to localhost:8765	area:swiftui-app, type:bug	2026-04-20T13:01:13Z
+    618	OPEN	Sidebar: flatten row indentation to match NNW (items near-flush with section headers)	area:swiftui-library, type:task	2026-04-18T11:28:22Z
+    617	OPEN	Redesign toolbar layout: per-column toolbars tied to the pane below (NNW pattern)	area:swiftui-library, type:task, area:swiftui-app	2026-04-18T11:26...
+  ... (27 more lines)
+  ✓ title:	Sidebar: bolder section headers + SwiftUI-default accent selection (SimpleSidebar look)
+    state:	OPEN
+    author:	dtubb
+  ... (25 more lines)
+Issue #614 is the code-only safe fix. Let me check git state and then look at the files.
+→ Bash · Check git state
+  ✓ On branch 0.0.2
+    Your branch is up to date with 'origin/0.0.2'.
+    
+  ... (18 more lines)
+Git state is clean. Running loop sync.
+→ Bash · Run loop sync and branch hygiene
+→ Bash · Check inbox for pending items
+  ✓ (Bash completed with no output)
+  ✓ inbox empty
+Claiming task #614 and reading the relevant files.
+→ Skill
+  ✓ Launching skill: fs_tasks:claim-task
+→ Bash · Assign issue #614 to self
+  ✓ https://github.com/dtubb/fichero/issues/614
+Task #614 claimed. Now reading the sidebar files.
+→ Bash · Find sidebar source files
+  ✓ /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarItemRow.swift
+    /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarView+ViewComponents.swift
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarView+Vi...
+  ✓ 340	                }
+    341	            default:
+    342	                return
+  ... (37 more lines)
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarItemRow...
+  ✓ 335	            if source.contains(where: { children[$0].icon == "tray.fill" }) {
+    336	                return
+    337	            }
+  ... (27 more lines)
+The line numbers in the issue may have shifted. Let me search for the relevant code directly.
+→ Grep · caption|fontWeight|foregroundStyle.*secondary|section.*header|LIBRARY|Library.*section"
+  ✓ 141-                // Global library is headless — with a single library in
+    142-                // 0.0.2 there's nothing to switch between, so the
+    143-                // "Global" row was dead chrome (#608). Library-root
+  ... (13 more lines)
+→ Grep · listRowBackground|secondary.*opacity|selection.*background|selectedItemId
+  ✓ 37-    let item: SidebarItem
+    38-    let allCachedItems: [SidebarItem]
+    39-    @Binding var expandedItems: Set<String>
+  ... (12 more lines)
+Section headers already have `.fontWeight(.bold)`. Let me look at the full section header block and the selection area.
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarView+Vi...
+  ✓ 425	        items: [SidebarItem]
+    426	    ) -> some View {
+    427	        if !items.isEmpty {
+  ... (27 more lines)
+→ Grep · listRowBackground|\.secondary\.opacity|selectedItemId.*==.*item|isSelected
+  ✓ No matches found
+No `listRowBackground` found in ViewComponents. Let me search the full SidebarItemRow file for selection styling.
+→ Grep · listRowBackground|secondary.*opacity|selection|isSelected|selectedItemId
+  ✓ 38-    let allCachedItems: [SidebarItem]
+    39-    @Binding var expandedItems: Set<String>
+    40:    @Binding var selectedItemId: String?
+  ... (25 more lines)
+Let me read the full SidebarItemRow body to understand the current selection rendering.
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarItemRow...
+  ✓ 1	import OSLog
+    2	import SwiftUI
+    3	import UniformTypeIdentifiers
+  ... (117 more lines)
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarItemRow...
+  ✓ 120	            renameState: renameState,
+    121	            deleteState: deleteState,
+    122	            onPause: onAutomationPause,
+  ... (117 more lines)
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarItemRow...
+  ✓ 240	    /// Synchronous `canLoadObject` pre-filtering misses URL-producing
+    241	    /// items because macOS advertises some capabilities asynchronously.
+    242	    private func handleRowDrop(_ providers: [NSItemProvider]) -> Bool {
+  ... (97 more lines)
+→ Grep · itemLabel|var label|private var.*Label
+  ✓ 104-    }
+    105-
+    106:    /// Widens `itemLabel`'s hit region to the full available width so the
+  ... (25 more lines)
+→ Glob · **/SidebarItemRow+*.swift
+  ✓ fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarItemRow+Rename.swift
+    fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarItemRow+Helpers.swift
+    fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarItemRow+DropHandlers.swift
+  ... (1 more lines)
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarItemRow...
+  ✓ 1	import SwiftUI
+    2	
+    3	extension SidebarItemRow {
+  ... (80 more lines)
+Let me search more broadly for custom selection background styling across all sidebar files.
+→ Grep · listRowBackground|secondary\.opacity|selection.*color|Color.*secondary|foregroundStyle.*secondary
+  ✓ /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarSectionHeader.swift-90-                Text("\(itemCount)")
+    /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarSectionHeader.swift-91-                    .font(.caption)
+    fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarSectionHeader.swift:92:                    .foregroundStyle(.secondary)
+  ... (14 more lines)
+Let me check SidebarSectionHeader.swift — there might be an older section header implementation still in use.
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarSection...
+  ✓ 1	import SwiftUI
+    2	import UniformTypeIdentifiers
+    3	
+  ... (116 more lines)
+Let me look at the main SidebarView to understand the List configuration and where `.listStyle` is set.
+→ Glob · **/SidebarView.swift
+  ✓ fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarView.swift
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarView.swift
+  ✓ 1	import Combine
+    2	import OSLog
+    3	import SwiftUI
+  ... (243 more lines)
+Let me find the `.sidebarStyle()` modifier and check how the List itself is configured.
+→ Grep · sidebarStyle|listStyle|\.sidebar
+  ✓ /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarView.swift-88-
+    fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarView.swift-89-    var body: some View {
+    /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarView.swift-90-        sidebarContent
+  ... (85 more lines)
+Let me look at the full sidebarContent and the List/selection binding setup.
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarView+Vi...
+  ✓ 1	import AppKit
+    2	import OSLog
+    3	import SwiftUI
+  ... (97 more lines)
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarView+Vi...
+  ✓ 100	                        category: .activity,
+    101	                        itemType: .activityRun(
+    102	                            ActivityItem(
+  ... (117 more lines)
+Let me look at the preview and check what SimpleSidebar uses as a reference.
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarItemRow...
+  ✓ 388	// MARK: - Preview
+    389	
+    390	/// Self-contained visual preview of the sidebar's List + DisclosureGroup
+  ... (53 more lines)
+→ Bash · Check SimpleSidebar reference implementation
+  ✓ //
+    //  SidebarView.swift
+    //  SimpleSidebarUI
+  ... (76 more lines)
+Let me render the preview to see the current visual state of the sidebar.
+
+`★ Insight ─────────────────────────────────────`
+SwiftUI's `.listStyle(.sidebar)` on macOS applies system-controlled foreground colors to `DisclosureGroup` labels — they often render as `.tertiary` by default. Explicitly adding `.foregroundStyle(.primary)` overrides this so section headers appear prominently, matching the SimpleSidebar reference. The native selection highlight (accent-blue rounded fill) comes "free" from `List(selection:)` + `.listStyle(.sidebar)` + `.tag()` — but only if no `listRowBackground` override intercepts it.
+`─────────────────────────────────────────────────`
+→ ToolSearch
+  ✓ (no output)
+→ TodoWrite
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+Let me quickly check the git log for recent changes to these files.
+→ Bash · Git log for SidebarView+ViewComponents.swift
+→ Bash · Git log for SidebarItemRow.swift
+  ✓ 3c3dc0ed fix: drop 'Global' library header row (#608)
+    058a3e61 feat: reorder saved searches and workflows in sidebar (#611)
+    e1f2cd94 fix: Inbox not reorderable + restore cross-hierarchy drop lines (#621, #606)
+  ... (7 more lines)
+  ✓ e1f2cd94 fix: Inbox not reorderable + restore cross-hierarchy drop lines (#621, #606)
+    c4af068b fix: remove insertion-spacer rows from sidebar (#620)
+    e983607f fix: Inbox not draggable (#621) + collapse spacer row padding (#620)
+  ... (7 more lines)
+Let me try rendering the sidebar preview to see the current visual state before making changes.
+→ ToolSearch
+  ✓ No matching deferred tools found
+→ ToolSearch
+  ✓ (no output)
+The Xcode preview MCP isn't available in this session. Let me read the `unifiedDisclosureSection` function in full before making the change.
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarView+Vi...
+  ✓ 415	                library.documentStore.reorderChildrenOptimistically(orderedIds: newOrder)
+    416	            }
+    417	        }
+  ... (42 more lines)
+→ Grep · unifiedRows|listRowBackground|listRowInsets
+  ✓ 199-                    .selectionDisabled()
+    200-                }
+    201:                .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+  ... (26 more lines)
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarView+Vi...
+  ✓ 255	    @ViewBuilder
+    256	    private func unifiedRows(
+    257	        _ items: [SidebarItem],
+  ... (117 more lines)
+The code is clean — no custom `listRowBackground` overrides anywhere. The only remaining fix is adding `.foregroundStyle(.primary)` to section header labels so macOS's sidebar list doesn't apply its default secondary/tertiary tint to `DisclosureGroup` labels. Making the change now.
+
+`★ Insight ─────────────────────────────────────`
+In `List(selection:)` with `.listStyle(.sidebar)`, SwiftUI on macOS applies `.secondary` foreground tinting to `DisclosureGroup` labels by default — treating them as non-interactive headers. Explicitly setting `.foregroundStyle(.primary)` overrides this, giving the bold-but-dark appearance of apps like Reeder and the SimpleSidebar reference. The `.selectionDisabled()` modifier on the `Text` is correctly placed inside the label closure — it marks the header row as non-selectable in the list's selection model.
+`─────────────────────────────────────────────────`
+→ Edit · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarView+Vi...
+  ✓ The file /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarView+ViewComponents.swift has been updated successfully.
+Now update the preview in `SidebarItemRow.swift` to stay in sync.
+→ Edit · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarItemRow...
+  ✓ The file /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarItemRow.swift has been updated successfully.
+Those are spurious SourceKit isolation errors (extensions need full project context). Running validation now.
+→ TodoWrite
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+→ Bash · Run swiftlint on Swift source
+  ✓ Linting 'APIEndpoints.swift' (315/333)
+    Linting 'WorkflowRunResponse.swift' (316/333)
+    Linting 'ChatService.swift' (317/333)
+  ... (17 more lines)
+→ Bash · Show only lint violations
+  ✓ /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarView+ViewComponents.swift:256:13: warning: Cyclomatic Complexity Vi...
+    /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarView+ViewComponents.swift:256:13: warning: Function Body Length Vio...
+    /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarViewExtensions.swift:2:33: warning: Superfluous Disable Command Vio...
+  ... (5 more lines)
+All 8 violations are pre-existing warnings, none from my changes. Building now.
+→ ToolSearch
+  ✓ (no output)
+→ mcp__XcodeBuildMCP__discover_projs
+  ✓ Discovery finished. Found 2 projects and 0 workspaces.
+    ---
+    Projects found:
+  ... (8 more lines)
+→ ToolSearch
+  ✓ (no output)
+XcodeBuildMCP is for iOS — Fichero is a macOS app. Building directly with xcodebuild.
+→ Bash · Build macOS app with xcodebuild
+  ✓ Creating working copy of package ‘swift-numerics’
+    
+    Creating working copy of package ‘swift-openapi-generator’
+  ... (26 more lines)
+→ Bash · List available Xcode schemes
+  ✓ Command line invocation:
+        /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -list
+    
+  ... (34 more lines)
+→ Bash · Build Fichero scheme for macOS
+  ✓ 2026-04-21 07:22:48.066 appintentsmetadataprocessor[8273:18709419] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+    ** BUILD SUCCEEDED **
+Build succeeded. Now running tests.
+→ Bash · Run Python unit tests
+  ✓ -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+    =========================== short test summary info ============================
+    FAILED fichero-api/tests/unit/test_api_providers.py::TestProviderCRUD::test_list_configured_providers
+  ... (11 more lines)
+The 10 failures are in Python backend tests (providers + settings routes) — unrelated to my Swift UI changes. Let me confirm they predate this session.
+→ Bash · Verify test failures predate my changes by stashing and running
+  ✓ Saved working directory and index state WIP on 0.0.2: 49bf5148 chore(session-end): checkpoint state — #591/#592 done, #616 remains
+    FAILED fichero-api/tests/unit/test_routes_settings.py::TestSetAIDefaults::test_set_model_fields
+    FAILED fichero-api/tests/unit/test_routes_settings.py::TestSetAIDefaults::test_set_then_get_roundtrip
+  ... (20 more lines)
+All test failures predate my changes. Swiftlint clean, build succeeded, pre-existing failures confirmed. Committing.
+
+`★ Insight ─────────────────────────────────────`
+Stashing changes before running tests is a reliable way to isolate "did I break this?" from "was it already broken?" — faster than bisecting git history and works even with uncommitted work. Here the 8 failures exist on the base commit, confirming they're pre-existing provider/settings route regressions unrelated to this UI change.
+`─────────────────────────────────────────────────`
+→ TodoWrite
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+→ Bash · Commit the #614 fix
+  ✓ [0.0.2 ba00d904] fix: bolder sidebar section headers with primary foreground (#614)
+     2 files changed, 3 insertions(+)
+→ Bash · Push to origin/0.0.2
+  ✓ remote: 
+    remote: GitHub found 9 vulnerabilities on dtubb/fichero's default branch (3 high, 5 moderate, 1 low). To find out more, visit:        
+    remote:      https://github.com/dtubb/fichero/security/dependabot        
+  ... (3 more lines)
+Pushed. Now completing the task on GitHub.
+→ Skill
+  ✓ Launching skill: fs_tasks:complete-task
+→ Bash · Close GitHub issue #614 with completion comment
+  ✓ ✓ Closed issue dtubb/fichero#614 (Sidebar: bolder section headers + SwiftUI-default accent selection (SimpleSidebar look))
+→ TodoWrite
+  ✓ Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
+Now updating STATE.md and running session-end.
+→ Read · /Users/danieltubb/code/fichero-0.0.2/STATE.md
+  ✓ 1	# STATE.md — Fichero
+    2	
+    3	## Current Focus
+  ... (43 more lines)
+→ Edit · /Users/danieltubb/code/fichero-0.0.2/STATE.md
+  ✓ The file /Users/danieltubb/code/fichero-0.0.2/STATE.md has been updated successfully.
+→ Edit · /Users/danieltubb/code/fichero-0.0.2/STATE.md
+  ✓ The file /Users/danieltubb/code/fichero-0.0.2/STATE.md has been updated successfully.
+→ Edit · /Users/danieltubb/code/fichero-0.0.2/STATE.md
+  ✓ The file /Users/danieltubb/code/fichero-0.0.2/STATE.md has been updated successfully.
+→ Edit · /Users/danieltubb/code/fichero-0.0.2/STATE.md
+  ✓ The file /Users/danieltubb/code/fichero-0.0.2/STATE.md has been updated successfully.
+→ Bash · Commit STATE.md update
+  ✓ [0.0.2 e898b978] chore(session-end): STATE.md — #614 done, on-device sweep gate
+     1 file changed, 3 insertions(+), 3 deletions(-)
+→ Bash · Archive completed task to HISTORY.md
+  ✓ (Bash completed with no output)
+→ Bash · Push final state commit
+  ✓ remote: 
+    remote: GitHub found 9 vulnerabilities on dtubb/fichero's default branch (3 high, 5 moderate, 1 low). To find out more, visit:        
+    remote:      https://github.com/dtubb/fichero/security/dependabot        
+  ... (3 more lines)
+Now running session-end.
+→ Skill
+  ✓ Launching skill: fs_session:session-end
+→ Bash · Check end of HISTORY.md
+  ✓ ## 2026-04-21 — #614 Sidebar: bolder section headers + SwiftUI-default accent selection
+    
+    - PR: N/A
+  ... (2 more lines)
+→ Bash · Append session summary to HISTORY.md
+  ✓ (Bash completed with no output)
+No new durable memory to add — the `.foregroundStyle(.primary)` pattern for DisclosureGroup labels in `.listStyle(.sidebar)` is worth preserving.
+→ Read · /Users/danieltubb/.claude/projects/-Users-danieltubb-code-fichero-0-0-2/memory/MEMORY.md
+  ✓ 1	# MEMORY.md
+    2	
+    3	- [Bug milestone during testing](feedback_bug_milestone.md) — All bugs filed during active milestone testing go on that milestone, not a future one
+  ... (25 more lines)
+Adding a durable memory about the DisclosureGroup label foreground behavior.
+→ Write · /Users/danieltubb/.claude/projects/-Users-danieltubb-code-fichero-0-0-2/memory/feedback_disclosur...
+  ✓ File created successfully at: /Users/danieltubb/.claude/projects/-Users-danieltubb-code-fichero-0-0-2/memory/feedback_disclosuregroup_label_foreground.md
+→ Edit · /Users/danieltubb/.claude/projects/-Users-danieltubb-code-fichero-0-0-2/memory/MEMORY.md
+  ✓ The file /Users/danieltubb/.claude/projects/-Users-danieltubb-code-fichero-0-0-2/memory/MEMORY.md has been updated successfully.
+→ Bash · Commit and push HISTORY.md update
+  ✓ [0.0.2 3d476ef9] chore(session-end): archive #614 session to HISTORY.md
+     1 file changed, 10 insertions(+)
+    To https://github.com/dtubb/fichero.git
+  ... (1 more lines)
+→ Bash · Write session-end sentinel
+  ✓ (Bash completed with no output)
+---
+
+```
+SESSION END — Fichero — 2026-04-21
+
+COMPLETED:
+  1. #614 — Sidebar section headers bolder + accent selection (SimpleSidebar look)
+     Fix: .foregroundStyle(.primary) on DisclosureGroup labels in unifiedDisclosureSection
+     Build: ✓  Swiftlint: ✓ (0 new)  Tests: ✓ (pre-existing failures confirmed unrelated)
+
+MEMORY UPDATED: yes — DisclosureGroup label foreground behaviour in sidebar List
+STATE UPDATED:  yes — tip bumped to ba00d904, #614 removed from open issues list
+TASKS UPDATED:  yes — GitHub #614 closed
+UNCOMMITTED:    no
+
+Next session: Daniel's on-device sweep is the gate for 0.0.2 release — remaining
+open issues (#598, #599, #607, #609, #610, #612, #556) all need on-device verification.
+```
+[done] ---
+
+```
+SESSION END — Fichero — 2026-04-21
+
+COMPLETED:
+  1. #614 — Sidebar section headers bolder + accent selection (SimpleSidebar look)
+     Fix: .foregroundStyle(.primary) on DisclosureGroup labels in unifiedDisclosureSection
+     Build: ✓  Swiftlint: ✓ (0 new)  Tests: ✓ (pre-existing failures confirmed unrelated)
+
+MEMORY UPDATED: yes — DisclosureGroup label foreground behaviour in sidebar List
+STATE UPDATED:  yes — tip bumped to ba00d904, #614 removed from open issues list
+TASKS UPDATED:  yes — GitHub #614 closed
+UNCOMMITTED:    no
+
+Next session: Daniel's on-device sweep is the gate for 0.0.2 release — remaining
+open issues (#598, #599, #607, #609, #610, #612, #556) all need on-device verification.
+``` (81 turns · 766784ms · $2.0808)
+  tokens: 4.810M total · in 0.000M · out 0.020M · cache-read 4.690M · cache-write 0.100M · hit 98%
+Skipping end phase — start skill already ran /session-end (.session-end-complete present).
+Iteration completed successfully - next iteration starts fresh
+
+=== Iteration: 2 / 25 ===
+CONTINUE.md not found - starting fresh
+Checkpoint created at start of iteration
+
+==========================================
+=== Running start phase ===
+==========================================
+[init] model=claude-sonnet-4-6 · 113 commands · 85 skills · 25 agents · 25 plugins
+Starting autonomous session — running the block gate check first.
+→ Bash · Check for BLOCK.md gate
+  ✓ (Bash completed with no output)
+No BLOCK.md — continuing. Loading project context now.
+→ Bash · Read current STATE.md
+  ✓ # STATE.md — Fichero
+    
+    ## Current Focus
+  ... (42 more lines)
+→ Bash · Read SOUL.md identity section
+  ✓ # SOUL.md — Fichero
+    
+    ## Identity
+  ... (37 more lines)
+STATE.md shows we're waiting on Daniel's on-device sweep. Let me check the inbox and git state, and also look at CONTINUE.md.
+→ Bash · Check inbox for new tasks
+  ✓ inbox empty
+→ Bash · Read CONTINUE.md for session instructions
+  ✓ CONTINUE: Tue Apr 21 07:26:42 2026
+→ Bash · Check git state for dirty files
+  ✓ On branch 0.0.2
+    Your branch is up to date with 'origin/0.0.2'.
+    
+  ... (18 more lines)
+Git is clean. Now running loop sync and checking GitHub issues.
+→ Bash · Run loop sync for branch hygiene
+→ Bash · List open GitHub issues for milestone 0.0.2
+  ✓ (Bash completed with no output)
+  ✓ []
+→ Bash · List all open GitHub issues with milestone info
+  ✓ [{"labels":[{"id":"LA_kwDOLJDzMs8AAAACYzKlhQ","name":"area:swiftui-app","description":"","color":"ededed"},{"id":"LA_kwDOLJDzMs8AAAACZGuZiA","name":"type:bug...
+Let me check the details for issues that might be workable without on-device testing.
+→ Bash · Get details for issue #556 settings layout bug
+→ Bash · Get details for issue #609 Run Workflow button
+  ✓ title:	General settings tab: all content crammed to right edge, labels off-screen
+    state:	OPEN
+    author:	dtubb
+  ... (37 more lines)
+  ✓ title:	Toolbar 'Run Workflow' doesn't execute on current selection; add workflow input-kind field
+    state:	OPEN
+    author:	dtubb
+  ... (61 more lines)
+Issue #556 (settings layout) is fixable with Xcode previews — let me investigate the current code.
+→ Bash · Find GeneralSettingsView source file
+→ Bash · Find SettingsView source file
+  ✓ /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Settings/SettingsView.swift
+  ✓ /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Settings/GeneralSettingsView.swift
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Settings/GeneralSettin...
+  ✓ 1	import SwiftUI
+    2	
+    3	// MARK: - General Settings
+  ... (122 more lines)
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Settings/SettingsView....
+  ✓ 1	import SwiftUI
+    2	
+    3	// MARK: - Settings View
+  ... (38 more lines)
+The fix looks already applied (`.formStyle(.grouped)` and 680px width). Let me check the issue comments to see its current status.
+→ Bash · Check comments on issue #556
+  ✓ author:	dtubb
+    association:	owner
+    edited:	false
+  ... (52 more lines)
+Let me check if #609's regression part can be investigated in code before I look at #556's preview.
+→ ToolSearch
+  ✓ (no output)
+→ Bash · Find files related to workflow execution
+  ✓ /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/build/xcode/Intermediates/fichero-swiftui.build/Debug/Fichero.build/Objects-normal/arm64/SidebarItemRow....
+    /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/App/LibraryWindow.swift
+    /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Models/WorkflowStore.swift
+  ... (17 more lines)
+→ Bash · Find toolbar-related Swift files
+  ✓ /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Library/ImageViewer/ImageZoomToolbar.swift
+    /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Toolbars/SearchViewToolbar.swift
+    /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Toolbars/WorkflowToolbar.swift
+  ... (3 more lines)
+→ Bash · Check LibraryWindow for workflow run button handler
+  ✓ (Bash completed with no output)
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Toolbars/MainToolbar.s...
+  ✓ 1	import SwiftUI
+    2	
+    3	/// Main application toolbar with all controls
+  ... (132 more lines)
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Toolbars/WorkflowToolb...
+  ✓ 1	import SwiftUI
+    2	
+    3	/// Toolbar for Workflow editor with run controls, canvas controls, and export
+  ... (85 more lines)
+→ Bash · Search for workflow run invocations in views
+  ✓ /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/ActivityDataProcessing.swift:5:/// Groups activity runs by workflow ID (fa...
+    /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/ActivityDataProcessing.swift:20:// All runs grouped by workflow ID for a s...
+    /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Sidebar/SidebarView+ViewComponents.swift:107:                                messa...
+  ... (27 more lines)
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Library/LibraryView.swift
+  ✓ 1	import SwiftUI
+    2	import UniformTypeIdentifiers
+    3	
+  ... (157 more lines)
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/ContentView+Actions.swift
+  ✓ 130	    }
+    131	
+    132	    // MARK: - Navigation
+  ... (77 more lines)
+→ Bash · Check MiniToolbar for workflow run button
+  ✓ 9:///     MiniToolbar {
+    17:struct MiniToolbar<Content: View>: View {
+    53:            MiniToolbar(content: content)
+  ... (14 more lines)
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Library/LibraryView+Fi...
+  ✓ 185	        }
+    186	
+    187	        if let path = document.path, !path.isEmpty {
+  ... (47 more lines)
+→ Bash · Check FeatureManager for workflow run on selection flag
+  ✓ 152:    var isWorkflowRunOnSelectionEnabled: Bool {
+→ Bash · Check isWorkflowRunOnSelectionEnabled feature flag value
+  ✓ 152:    var isWorkflowRunOnSelectionEnabled: Bool {
+    153-        allFeaturesEnabled || workflowRunOnSelectionEnabledInternal
+    154-    }
+  ... (3 more lines)
+→ Bash · Check default value for workflow run on selection feature flag
+  ✓ 91:    private var workflowRunOnSelectionEnabledInternal: Bool = false
+    152:    var isWorkflowRunOnSelectionEnabled: Bool {
+    153:        allFeaturesEnabled || workflowRunOnSelectionEnabledInternal
+  ... (1 more lines)
+→ Bash · Find where runWorkflowOnSelection is consumed in toolbar
+  ✓ (Bash completed with no output)
+→ Bash · Find all references to runWorkflowOnSelection focused value
+  ✓ /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Library/LibraryView.swift:136:                \.runWorkflowOnSelection,
+    /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/ContentView+Actions.swift:140:    func runWorkflowOnSelection(workflowId: String) {
+    /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Menu/FocusedCommandButtons.swift:134:    var runWorkflowOnSelection: RunWorkflowOn...
+  ... (5 more lines)
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/Menu/FocusedCommandBut...
+  ✓ 380	/// Button that creates a new trigger
+    381	struct FocusedNewTriggerButton: View {
+    382	    @FocusedValue(\.sidebarActions) private var sidebarActions
+  ... (25 more lines)
+→ Read · /Users/danieltubb/code/fichero-0.0.2/fichero-swiftui/fichero-swiftui/Views/ContentView.swift
+  ✓ 325	
+    326	                    if featureManager.isWorkflowsEnabled && featureManager.isWorkflowRunOnSelectionEnabled {
+    327	                        Menu {
+  ... (47 more lines)
+The `runWorkflowOnSelection` path looks already patched with the fallback. Let me check if the app is running and use Peekaboo to verify #556's settings layout fix.
+→ Bash · Check if Fichero app is running
+  ✓ not running
+All remaining 0.0.2 issues require on-device verification. Checking current git state before exiting.
+
+`★ Insight ─────────────────────────────────────`
+- `runWorkflowOnSelection` uses `.focusedSceneValue` — SwiftUI's scene-scoped environment that persists across focus changes between toolbar and content. This is why `browserSelection` doesn't go nil when clicking the toolbar.
+- `allFeaturesEnabled || flagEnabledInternal` is a clean feature-flag pattern — one master switch (`FICHERO_ALL_FEATURES=1`) overrides all individual flags, perfect for testing environments.
+`─────────────────────────────────────────────────`
+→ Bash · Check git status before session end
+  ✓ ?? .claude/loop-logs/
+    ?? .claude/worktrees/
+    ?? CONTINUE.md
+No code changes needed — running session end.
+→ Skill
+  ✓ Launching skill: fs_session:session-end
+→ Bash · Read recent HISTORY.md entries
+→ Read · /Users/danieltubb/code/fichero-0.0.2/STATE.md
+  ✓ 1	# STATE.md — Fichero
+    2	
+    3	## Current Focus
+  ... (43 more lines)
+  ✓ ## 2026-04-20 — Session Summary
+    
+    - #600 fix: `canLoadObject(URL.self)` fallthrough — when the provider returns `true` but the actual load fails (observed with some `.mov` Finder drags), code...
+  ... (26 more lines)
+STATE.md is current. Archiving session to HISTORY.md, then creating BLOCK.md since no autonomous tasks remain.
+→ Bash · Append session summary to HISTORY.md
+  ✓ (Bash completed with no output)
+→ Bash · Write BLOCK.md to pause autonomous loop
+  ✓ (Bash completed with no output)
+→ Bash · Commit session artifacts and push to 0.0.2
+  ✓ Already on '0.0.2'
+    M	HISTORY.md
+    Your branch is up to date with 'origin/0.0.2'.
+  ... (10 more lines)
+→ Bash · Write session-end completion sentinel
+  ✓ (Bash completed with no output)
+---
+
+```
+SESSION END — Fichero — 2026-04-21
+
+COMPLETED: Nothing fully complete (no unblocked autonomous tasks existed)
+MEMORY UPDATED: No (nothing new to add — existing entries are accurate)
+STATE UPDATED: No (STATE.md was already accurate)
+TASKS UPDATED: No (no tasks were closed; BLOCK.md written to pause loop)
+UNCOMMITTED: No (HISTORY.md + BLOCK.md committed and pushed to 0.0.2)
+
+Next session: Daniel runs on-device sweep → closes verified Batch A issues →
+  /milestone-check → #520 (Sparkle) → cut 0.0.2 release.
+```
+
+**What I found:** All remaining open 0.0.2 issues have their code fixes already merged. The two I investigated most closely:
+- **#556** (settings layout): `.formStyle(.grouped)` is in the code at `GeneralSettingsView.swift:99`; Daniel just needs to screenshot the running app.
+- **#609** (Run Workflow): The `runWorkflowOnSelection` function already has the `browserSelection → detailDocument` fallback; the feature flag `isWorkflowRunOnSelectionEnabled` gates the toolbar button. Needs runtime verification.
+
+BLOCK.md written — the loop will pause until Daniel clears it after his on-device sweep.
+[done] ---
+
+```
+SESSION END — Fichero — 2026-04-21
+
+COMPLETED: Nothing fully complete (no unblocked autonomous tasks existed)
+MEMORY UPDATED: No (nothing new to add — existing entries are accurate)
+STATE UPDATED: No (STATE.md was already accurate)
+TASKS UPDATED: No (no tasks were closed; BLOCK.md written to pause loop)
+UNCOMMITTED: No (HISTORY.md + BLOCK.md committed and pushed to 0.0.2)
+
+Next session: Daniel runs on-device sweep → closes verified Batch A issues →
+  /milestone-check → #520 (Sparkle) → cut 0.0.2 release.
+```
+
+**What I found:** All remaining open 0.0.2 issues have their code fixes already merged. The two I investigated most closely:
+- **#556** (settings layout): `.formStyle(.grouped)` is in the code at `GeneralSettingsView.swift:99`; Daniel just needs to screenshot the running app.
+- **#609** (Run Workflow): The `runWorkflowOnSelection` function already has the `browserSelection → detailDocument` fallback; the feature flag `isWorkflowRunOnSelectionEnabled` gates the toolbar button. Needs runtime verification.
+
+BLOCK.md written — the loop will pause until Daniel clears it after his on-device sweep. (45 turns · 266336ms · $0.9384)
+  tokens: 1.789M total · in 0.001M · out 0.013M · cache-read 1.715M · cache-write 0.060M · hit 97%
+Skipping end phase — start skill already ran /session-end (.session-end-complete present).
+BLOCKED: BLOCKED: All remaining 0.0.2 tasks require Daniel's on-device verification
+Loop ended - session-end created BLOCK.md
+Loop finished after 1 iteration(s)
+Tokens: 6.599M total across 1 iter (6.599M/iter) · in 0.001M · out 0.033M · cache-read 6.404M · cache-write 0.160M · hit 98% · $3.0193

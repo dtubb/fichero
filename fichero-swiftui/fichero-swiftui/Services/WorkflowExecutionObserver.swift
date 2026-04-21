@@ -21,6 +21,10 @@ class WorkflowExecutionObserver {
     /// Active executions by workflow ID (supports multiple concurrent)
     var activeExecutions: [String: WorkflowExecution] = [:]
 
+    /// Incremented each time any file completes — lets inspectors re-fetch
+    /// artifacts without polling. Observed by DocumentInspector.
+    var fileCompletedCount: Int = 0
+
     /// Cancel handlers for each workflow (not observable - internal use)
     private var cancelHandlers: [String: () -> Void] = [:]
 

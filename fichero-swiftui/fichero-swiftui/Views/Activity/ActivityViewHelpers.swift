@@ -58,3 +58,162 @@ enum ActivityViewHelpers {
         }
     }
 }
+import SwiftUI
+
+// MARK: - Activity Browser
+
+/// Two-column activity layout: this view is the left-column run list.
+/// Fetches its own data so it doesn't depend on SidebarView state.
+struct ActivityBrowserView: View {
+    let selectedRunId: String?
+    let onSelectRun: (SelectedActivityRun) -> Void
+
+    @Environment(WorkflowExecutionObserver.self) private var executionObserver
+    @EnvironmentObject private var libraryManager: LibraryManager
+
+    @State private var runs: [ActivityRun] = []
+    @State private var isLoading = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Activity")
+                    .font(.headline)
+                Spacer()
+                if isLoading {
+                    ProgressView().scaleEffect(0.6)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+
+            Divider()
+
+            if runs.isEmpty && !isLoading {
+                ContentUnavailableView(
+                    "No Runs Yet",
+                    systemImage: "clock",
+                    description: Text("Run a workflow to see activity here")
+                )
+            } else {
+                List(selection: .constant(selectedRunId)) {
+                    ForEach(runs) { run in
+                        ActivityBrowserRow(run: run)
+                            .tag(run.runId)
+                            .onTapGesture { onSelectRun(run.toSelectedRun()) }
+                            .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
+                            .listRowSeparator(.hidden)
+                    }
+                }
+                .listStyle(.plain)
+            }
+        }
+        .task { await loadRuns() }
+        .onChange(of: executionObserver.activeExecutions.count) { _, _ in
+            Task { await loadRuns() }
+        }
+    }
+
+    private func loadRuns() async {
+        isLoading = true
+        defer { isLoading = false }
+
+        var result: [ActivityRun] = []
+
+        // Live executions first
+        for execution in executionObserver.activeExecutions.values {
+            let run = ActivityRun(
+                id: execution.threadId,
+                runId: execution.threadId,
+                workflowId: execution.id,
+                threadId: execution.threadId,
+                workflowName: activityCleanWorkflowName(execution.name),
+                timestamp: execution.startTime,
+                status: .running,
+                progress: execution.overallProgress,
+                currentStep: execution.currentNodeName,
+                errorCount: execution.nodeStates.values.reduce(0) { $0 + $1.errorCount },
+                fileCount: execution.totalFiles,
+                isLive: true
+            )
+            result.append(run)
+        }
+
+        let seenThreadIds = Set(result.map { $0.runId })
+        let types = ["workflow_completed", "workflow_failed", "workflow_cancelled"]
+        let since = Date().addingTimeInterval(-7 * 24 * 3600)
+
+        for library in libraryManager.openLibraries {
+            guard !Task.isCancelled else { break }
+            do {
+                let items = try await library.activityService.queryActivities(
+                    types: types,
+                    since: since,
+                    limit: 100
+                )
+                for item in items {
+                    let threadId = item.threadId ?? item.batchId.map { "batch:\($0)" }
+                    guard let threadId, !seenThreadIds.contains(threadId) else { continue }
+                    let status = activityMapActivityType(item.type)
+                    let run = ActivityRun(
+                        id: threadId,
+                        runId: threadId,
+                        workflowId: item.workflowId,
+                        threadId: threadId,
+                        workflowName: activityCleanWorkflowName(activityExtractWorkflowName(from: item)),
+                        timestamp: item.parsedTimestamp ?? Date(),
+                        status: status,
+                        progress: nil,
+                        currentStep: nil,
+                        errorCount: 0,
+                        fileCount: 0,
+                        isLive: false
+                    )
+                    result.append(run)
+                }
+            } catch {
+                // Individual library failure is non-fatal
+            }
+        }
+
+        runs = result.sorted { $0.timestamp > $1.timestamp }
+    }
+}
+
+// MARK: - Activity Browser Row
+
+private struct ActivityBrowserRow: View {
+    let run: ActivityRun
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: run.status.icon)
+                .font(.system(size: 16))
+                .foregroundStyle(run.status.color)
+                .frame(width: 20)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(run.workflowName)
+                    .font(.subheadline)
+                    .lineLimit(1)
+
+                HStack(spacing: 4) {
+                    Text(run.timestamp, style: .relative)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if run.isLive, let progress = run.progress, progress > 0 {
+                        ProgressView(value: progress)
+                            .frame(maxWidth: 60)
+                            .scaleEffect(y: 0.7)
+                    }
+                }
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+    }
+}

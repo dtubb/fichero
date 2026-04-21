@@ -133,14 +133,26 @@ extension ContentView {
             }
 
         case .activity(let selectedRun):
-            if let run = selectedRun {
-                ActivityDetailView(selectedRun: run)
-            } else {
-                ContentUnavailableView(
-                    "Activity",
-                    systemImage: "clock",
-                    description: Text("Select a workflow run in the sidebar to view details")
+            HStack(spacing: 0) {
+                ActivityBrowserView(
+                    selectedRunId: selectedRun?.id,
+                    onSelectRun: { run in viewMode = .activity(run) }
                 )
+                .frame(minWidth: 200, maxWidth: 280)
+
+                Divider()
+
+                if let run = selectedRun {
+                    ActivityDetailView(selectedRun: run)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    ContentUnavailableView(
+                        "Select a Run",
+                        systemImage: "clock",
+                        description: Text("Choose a workflow run from the list")
+                    )
+                    .frame(maxWidth: .infinity)
+                }
             }
         }
     }

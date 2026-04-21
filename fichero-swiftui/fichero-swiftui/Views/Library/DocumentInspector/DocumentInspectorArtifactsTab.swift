@@ -5,6 +5,7 @@ struct DocumentInspectorArtifactsTab: View {
     let documentId: String
 
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
+    @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @State private var artifacts: [Artifact] = []
     @State private var isLoadingArtifacts = false
     @State private var expandedArtifactTypes: Set<String> = []
@@ -54,6 +55,10 @@ struct DocumentInspectorArtifactsTab: View {
         }
         .task(id: documentId) {
             await loadArtifacts(for: documentId)
+        }
+        .onChange(of: executionObserver.fileCompletedCount) { _, _ in
+            // Re-fetch whenever any file completes so artifacts appear mid-run
+            Task { await loadArtifacts(for: documentId) }
         }
     }
 

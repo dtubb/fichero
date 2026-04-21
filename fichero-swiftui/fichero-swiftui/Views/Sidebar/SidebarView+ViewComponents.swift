@@ -243,11 +243,7 @@ extension SidebarView {
         }
 
         if FeatureManager.shared.isActivityEnabled {
-            activityDisclosureSection(
-                sectionKey: "activity",
-                libraryId: libraryId,
-                items: buckets.activityItems
-            )
+            activityNavigationRow()
         }
     }
 
@@ -416,7 +412,49 @@ extension SidebarView {
         }
     }
 
-    // MARK: - Compact Activity Grid
+    // MARK: - Activity Navigation Row
+
+    /// Single non-expandable "Activity" row — clicking navigates to the activity browser.
+    /// Styled like a section header so it sits naturally below Workflows.
+    @ViewBuilder
+    private func activityNavigationRow() -> some View {
+        let isActive: Bool = {
+            if case .activity = viewMode { return true }
+            return false
+        }()
+
+        Button {
+            sidebarMode = .activity
+            viewMode = .activity(nil)
+            selectedItemId = "activity-browser"
+        } label: {
+            HStack(spacing: 0) {
+                Text("Activity")
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.primary)
+                Spacer()
+                if executionObserver.isAnyWorkflowRunning {
+                    Image(systemName: "play.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.blue)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 3)
+        .padding(.horizontal, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(isActive ? Color.accentColor.opacity(0.15) : Color.clear)
+        )
+        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+    }
+
+    // MARK: - Compact Activity Grid (no longer used for section — struct kept for reuse)
 
     @ViewBuilder
     private func activityDisclosureSection(
