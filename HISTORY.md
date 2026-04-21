@@ -867,3 +867,10 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 ## 2026-04-21 — Session Summary
 
 - #614 Sidebar section headers now render with `.foregroundStyle(.primary)` — bold and dark, matching SimpleSidebar reference. No listRowBackground override was needed; native accent-blue selection already worked via List(selection:) + .listStyle(.sidebar).
+
+## 2026-04-21 — Session Summary (investigation only)
+
+- Audited all remaining open 0.0.2 issues. Confirmed: all have code fixes already merged; none have autonomous tasks available.
+- #556 (settings layout): `.formStyle(.grouped)` + 680px window width already in code — awaiting Daniel on-device screenshot.
+- #609 (Run Workflow toolbar): `runWorkflowOnSelection` already has fallback to `detailDocument` when `browserSelection` is empty; `focusedSceneValue` wiring verified in ContentView — awaiting Daniel on-device test.
+- All remaining issues are Daniel's verification gate. Writing BLOCK.md to pause loop.
