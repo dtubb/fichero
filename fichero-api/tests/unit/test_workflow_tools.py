@@ -1107,6 +1107,7 @@ async def test_files_tool_selected_doc_ids_skips_missing(mock_state, mock_llm_co
 
     assert result["count"] == 1
     assert result["files"] == [mock_documents[1].path]
+    assert len(result["documents"]) == 1
 
 
 @pytest.mark.asyncio
