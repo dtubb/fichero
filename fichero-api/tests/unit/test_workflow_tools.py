@@ -1067,5 +1067,63 @@ class TestProcessTextSave:
             assert result["artifacts"] == []  # No save without documents
 
 
+# =============================================================================
+# Tests: files_tool with selected_doc_ids
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_files_tool_uses_selected_doc_ids(mock_state, mock_llm_config, mock_documents):
+    """files_tool resolves documents from selected_doc_ids in state."""
+    doc = mock_documents[0]  # doc1, path="/test/image1.jpg"
+    state = {**mock_state, "selected_doc_ids": [doc.id]}
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = doc
+
+    with patch("fichero.workflows.tools.sources.db_manager") as mock_dm:
+        mock_dm.get_database.return_value = mock_db
+        from fichero.workflows.tools.sources import files_tool
+        result = await files_tool(inputs={}, state=state, llm_config=mock_llm_config)
+
+    assert result["files"] == ["/test/image1.jpg"]
+    assert result["count"] == 1
+    assert result["documents"][0]["id"] == doc.id
+
+
+@pytest.mark.asyncio
+async def test_files_tool_selected_doc_ids_skips_missing(mock_state, mock_llm_config, mock_documents):
+    """files_tool skips doc IDs that the DB cannot resolve."""
+    state = {**mock_state, "selected_doc_ids": ["missing-id", mock_documents[1].id]}
+
+    mock_db = MagicMock()
+    # First call returns None (not found), second returns a real doc
+    mock_db.get.side_effect = [None, mock_documents[1]]
+
+    with patch("fichero.workflows.tools.sources.db_manager") as mock_dm:
+        mock_dm.get_database.return_value = mock_db
+        from fichero.workflows.tools.sources import files_tool
+        result = await files_tool(inputs={}, state=state, llm_config=mock_llm_config)
+
+    assert result["count"] == 1
+    assert result["files"] == [mock_documents[1].path]
+
+
+@pytest.mark.asyncio
+async def test_files_tool_explicit_inputs_override_selected_doc_ids(mock_state, mock_llm_config, mock_documents):
+    """Explicit inputs['files'] takes priority over selected_doc_ids."""
+    state = {**mock_state, "selected_doc_ids": [mock_documents[0].id]}
+
+    from fichero.workflows.tools.sources import files_tool
+    result = await files_tool(
+        inputs={"files": ["/explicit/override.pdf"]},
+        state=state,
+        llm_config=mock_llm_config,
+    )
+
+    assert result["files"] == ["/explicit/override.pdf"]
+    assert result["count"] == 1
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
