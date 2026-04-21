@@ -48,12 +48,20 @@ extension WorkflowEditor {
                 // Single source of truth: all events go through executionObserver
                 let workflowId = editingWorkflow.id  // Capture ID before closure
 
+                // Capture current selection — the Files node reads this from state["selected_doc_ids"]
+                let selectedIds: [String]
+                if let docId = documentStore.selectedDocument?.id {
+                    selectedIds = [docId]
+                } else {
+                    selectedIds = []
+                }
+
                 // Track completion with a continuation
                 var streamCompleted = false
 
                 let response = try await workflowStreamService.execute(
                     workflowId: workflowId,
-                    inputs: [:],
+                    inputs: ["selected_doc_ids": selectedIds],
                     onEvent: { [weak documentStore] event in
                         // Debug: Log every event (using info level for visibility)
                         let eventDesc = String(String(describing: event).prefix(100))
