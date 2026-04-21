@@ -73,29 +73,46 @@ async def files_tool(
 
     Priority:
     1. Explicit inputs["files"] from mapped upstream data
-    2. state["input_files"] from executor initialization
+    2. state["selected_doc_ids"] — document IDs passed from the UI selection
+    3. state["input_files"] from executor initialization
     """
+    # Priority 1: explicit upstream mapping
     raw_files = inputs.get("files")
-    if raw_files is None:
-        raw_files = state.get("input_files", [])
+    if raw_files is not None:
+        if isinstance(raw_files, str):
+            files = [raw_files]
+        else:
+            files = list(raw_files or [])
+        raw_documents = inputs.get("documents") or state.get("documents", [])
+        documents = list(raw_documents or [])
+        logger.info(f"Files source tool: {len(files)} files from explicit inputs")
+        return {"files": files, "documents": documents, "count": len(files)}
 
+    # Priority 2: UI selection passed via execute inputs
+    selected_doc_ids = state.get("selected_doc_ids", [])
+    if selected_doc_ids:
+        library_path = state.get("library_path")
+        if library_path:
+            db = db_manager.get_database(library_path)
+            docs = [db.get(Document, doc_id) for doc_id in selected_doc_ids]
+            docs = [d for d in docs if d is not None]
+            files = [d.path for d in docs if d.path]
+            documents = [d.model_dump() for d in docs]
+            logger.info(f"Files source tool: {len(files)} files from selected_doc_ids")
+            return {"files": files, "documents": documents, "count": len(files)}
+
+    # Priority 3: executor-level input_files
+    raw_files = state.get("input_files", [])
     if isinstance(raw_files, str):
         files = [raw_files]
     else:
         files = list(raw_files or [])
 
-    raw_documents = inputs.get("documents")
-    if raw_documents is None:
-        raw_documents = state.get("documents", [])
+    raw_documents = state.get("documents", [])
     documents = list(raw_documents or [])
 
-    logger.info(f"Files source tool: received {len(files)} files")
-
-    return {
-        "files": files,
-        "documents": documents,
-        "count": len(files),
-    }
+    logger.info(f"Files source tool: {len(files)} files from input_files")
+    return {"files": files, "documents": documents, "count": len(files)}
 
 
 # =============================================================================
