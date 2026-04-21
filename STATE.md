@@ -2,7 +2,7 @@
 
 ## Current Focus
 
-**Branch:** `0.0.2` — tip `31e146d6`. All autonomous code work done and merged. Waiting for Daniel's on-device verification sweep before release.
+**Branch:** `0.0.2` — tip `ba00d904`. All autonomous code work done and merged. Waiting for Daniel's on-device verification sweep before release.
 
 **Goal:** Daniel runs on-device sweep → closes Batch A issues → cuts 0.0.2 release.
 
@@ -15,6 +15,7 @@
 5. ✓ #603 ingest-mode badges + delete-copy dialog
 6. ✓ #591/#592 PDF scroll→grid/inspector sync (flag OFF by default)
 7. ✓ #616 hide document grid toggle (⌘⇧G, @SceneStorage, per-window)
+8. ✓ #614 sidebar section headers bolder (.foregroundStyle(.primary))
 
 ## Next Session — Start Here
 
@@ -32,7 +33,6 @@
 | #607 | Folder reorder by drag | Batch A |
 | #610 | Finder folder drop flattens children | Batch A |
 | #612 | Sidebar folder drag-out broken | Batch A |
-| #614 | Sidebar section headers bolder + accent selection | Batch A — code-only fix, safe to do next autonomous session |
 | #609 | Run Workflow toolbar button | Batch A |
 | #556 | Settings tab layout crammed | Screenshot if still broken |
 | #619/#605 | Startup slow — tail ⏱ logs | `log stream --predicate 'eventMessage CONTAINS "⏱"'` |
@@ -42,4 +42,4 @@
 
 ---
 
-*Last updated: 2026-04-20* — All code merged. On-device sweep is the gate.
+*Last updated: 2026-04-21* — All autonomous code merged. On-device sweep is the gate.
