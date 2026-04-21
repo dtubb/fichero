@@ -92,7 +92,9 @@ async def files_tool(
     selected_doc_ids = state.get("selected_doc_ids", [])
     if selected_doc_ids:
         library_path = state.get("library_path")
-        if library_path:
+        if not library_path:
+            logger.warning("files_tool: selected_doc_ids present but library_path missing — falling through to input_files")
+        else:
             db = db_manager.get_database(library_path)
             docs = [db.get(Document, doc_id) for doc_id in selected_doc_ids]
             docs = [d for d in docs if d is not None]

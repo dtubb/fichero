@@ -1126,5 +1126,21 @@ async def test_files_tool_explicit_inputs_override_selected_doc_ids(mock_state, 
     assert result["count"] == 1
 
 
+@pytest.mark.asyncio
+async def test_files_tool_selected_doc_ids_falls_through_without_library_path(mock_llm_config):
+    """files_tool falls through to input_files when selected_doc_ids present but library_path missing."""
+    state = {
+        "selected_doc_ids": ["some-doc-id"],
+        "input_files": ["/fallback/file.pdf"],
+        "documents": [],
+        # no library_path key
+    }
+    from fichero.workflows.tools.sources import files_tool
+    result = await files_tool(inputs={}, state=state, llm_config=mock_llm_config)
+
+    assert result["files"] == ["/fallback/file.pdf"]
+    assert result["count"] == 1
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
