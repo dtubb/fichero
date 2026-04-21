@@ -857,3 +857,13 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 - Merged feature/issue-603 (ingest-mode badges), feature/issue-591 (PDF scroll sync, flag OFF), feature/issue-616 (hide grid toggle) into 0.0.2
 - Removed BLOCK.md — loop resumed
 - All 7 autonomous 0.0.2 items now on main branch
+
+## 2026-04-21 — #614 Sidebar: bolder section headers + SwiftUI-default accent selection
+
+- PR: N/A
+- Branch: 0.0.2
+- Task completed in session
+
+## 2026-04-21 — Session Summary
+
+- #614 Sidebar section headers now render with `.foregroundStyle(.primary)` — bold and dark, matching SimpleSidebar reference. No listRowBackground override was needed; native accent-blue selection already worked via List(selection:) + .listStyle(.sidebar).
