@@ -353,7 +353,7 @@ extension ContentView {
             do {
                 _ = try await library.importService.importFiles(
                     urls,
-                    mode: .link,
+                    mode: .copy,
                     parentId: targetParentId
                 ) { current, total in
                     importProgress = "Importing \(current) of \(total)..."

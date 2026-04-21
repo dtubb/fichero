@@ -359,11 +359,54 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
         return dest
 
     except Exception as e:
-        logger.error(
-            f"Image generation failed for {source.name} ({source.suffix}): {e}",
-            exc_info=True,
+        # PIL can't handle some JPEGs (CMYK, unusual encodings, old-format).
+        # On macOS, try sips as a fallback normalisation step (#624).
+        if source.suffix.lower() in (".jpg", ".jpeg"):
+            converted = _sips_convert(source)
+            if converted:
+                try:
+                    with Image.open(converted) as img:
+                        img.thumbnail(size, Image.Resampling.LANCZOS)
+                        if img.mode not in ("RGB", "L"):
+                            img = img.convert("RGB")
+                        img.save(dest, "JPEG", quality=settings.quality)
+                    logger.info(f"Generated thumbnail via sips fallback: {source.name}")
+                    return dest
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        converted.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+
+        logger.warning(
+            f"Image generation failed for {source.name} ({source.suffix}): {e}"
         )
         return None
+
+
+def _sips_convert(source: Path) -> Path | None:
+    """Use macOS sips to re-encode a JPEG that PIL can't open.
+
+    Returns a temp path to the converted file, or None if sips is unavailable
+    or the conversion fails. Caller is responsible for deleting the temp file.
+    """
+    import subprocess
+    import tempfile
+
+    try:
+        tmp = Path(tempfile.mktemp(suffix=".jpg"))
+        result = subprocess.run(
+            ["sips", "-s", "format", "jpeg", str(source), "--out", str(tmp)],
+            capture_output=True,
+            timeout=30,
+        )
+        if result.returncode == 0 and tmp.exists():
+            return tmp
+    except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
+        pass
+    return None
 
 
 # =============================================================================

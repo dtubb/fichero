@@ -221,18 +221,24 @@ struct SidebarItemRow: View {
         if isInboxFolder {
             labelBase
         } else {
-            labelBase.draggable(item.id)
+            labelBase.onDrag { sidebarInternalDrag() }
         }
     }
 
-    /// Leaf row: drag source only. PDFs, images, saved searches,
-    /// conversations, workflows can all be DRAGGED to another
-    /// folder, but dropping anything onto a leaf doesn't match
-    /// Finder semantics — you can't drop a file onto a file.
+    /// Leaf row: drag source only.
     private var leafLabel: some View {
         fullWidthLabel
-            .draggable(item.id)
+            .onDrag { sidebarInternalDrag() }
             .contextMenu { rowContextMenu }
+    }
+
+    /// Returns an NSItemProvider that is invisible to other processes.
+    /// This prevents drag-out to external apps (which was depositing
+    /// an HTML link artifact — #623) while keeping in-app reordering intact.
+    private func sidebarInternalDrag() -> NSItemProvider {
+        let provider = NSItemProvider()
+        provider.registerObject(item.id as NSString, visibility: .ownProcess)
+        return provider
     }
 
     /// Optimistic accept: any provider that can produce a URL or String
