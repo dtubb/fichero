@@ -212,6 +212,7 @@ extension SidebarView {
     ) -> some View {
         unifiedDisclosureSection(
             title: "Library",
+            icon: "books.vertical",
             sectionKey: "library",
             libraryId: libraryId,
             items: buckets.documentItems
@@ -220,6 +221,7 @@ extension SidebarView {
         if FeatureManager.shared.isSearchEnabled {
             unifiedDisclosureSection(
                 title: "Saved Searches",
+                icon: "magnifyingglass",
                 sectionKey: "search",
                 libraryId: libraryId,
                 items: buckets.searchItems
@@ -229,6 +231,7 @@ extension SidebarView {
         if FeatureManager.shared.isWorkflowsEnabled {
             unifiedDisclosureSection(
                 title: "Workflows",
+                icon: "bolt",
                 sectionKey: "workflows",
                 libraryId: libraryId,
                 items: buckets.workflowItems + buckets.chainItems
@@ -238,6 +241,7 @@ extension SidebarView {
         if FeatureManager.shared.isAutomationEnabled {
             unifiedDisclosureSection(
                 title: "Automation",
+                icon: "gearshape.2",
                 sectionKey: "automation",
                 libraryId: libraryId,
                 items: buckets.scheduleItems + buckets.triggerItems
@@ -495,6 +499,7 @@ extension SidebarView {
     @ViewBuilder
     private func unifiedDisclosureSection(
         title: String,
+        icon: String,
         sectionKey: String,
         libraryId: UUID,
         items: [SidebarItem]
@@ -509,9 +514,9 @@ extension SidebarView {
                     unifiedRows(items, libraryId: libraryId)
                 },
                 label: {
-                    Text(title)
+                    Label(title, systemImage: icon)
                         .font(.caption)
-                        .fontWeight(.bold)
+                        .fontWeight(.semibold)
                         .foregroundStyle(.primary)
                         .selectionDisabled()
                 }
