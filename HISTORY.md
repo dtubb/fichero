@@ -1018,3 +1018,10 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 - **#639 Settings embeddings picker**: Added `embeddings_provider` to `AIDefaults` (backend Pydantic + Swift struct + CodingKeys). Moved embeddings section from feature-flagged Advanced tab to the always-visible Defaults tab, matching the Text/Vision/Audio/Video provider+model picker pattern. Removed the now-redundant hardcoded local-model list from Advanced tab.
 - **#635 Node log file context**: Parallel workflow nodes (using LangGraph Send API) fired one `on_chain_start` per file with no context. Now extracts `parallel_file`, `parallel_index`, `parallel_total` from event input state and logs "Node 'X' — filename.pdf (k/N)" per file.
 - **#633 Artifacts missing in inspector after transcription**: Transcription workflows process the parent PDF and store one artifact with `document_id=parent.id`. When a page document was selected, the inspector queried only `page.id` → found nothing. Fixed artifacts endpoint to also return parent artifacts when the queried document has a `parent_id`.
+
+## 2026-04-22 — #626 Drag-drop ingest stores temp path instead of copying file to library
+
+- PR: N/A
+- Branch: 0.0.2
+- Task completed in session
+- Detected temp URLs via `url.path.contains("/fichero-drop-")` in `handleProvidersDrop`; routed to COPY mode; added temp dir cleanup after successful import.
