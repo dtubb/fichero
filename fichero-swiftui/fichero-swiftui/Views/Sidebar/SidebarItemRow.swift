@@ -128,6 +128,14 @@ struct SidebarItemRow: View {
 
     var body: some View {
         bodyContent
+            // DisclosureGroup label and .onDrag both watch mouse-down and
+            // compete with List(selection:) for the tap event, causing
+            // intermittent click failures on icon/text (#645). A
+            // simultaneousGesture forces the selection binding to update
+            // regardless of which other handler wins the gesture arena.
+            .simultaneousGesture(TapGesture().onEnded {
+                selectedItemId = item.id
+            })
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint(accessibilityHint)
             .accessibilityValue(accessibilityValue)
