@@ -239,6 +239,11 @@ extension SidebarItemRow {
                 } else {
                     sidebarRowLogger.debug("✅ Imported \(fileURLs.count) external file(s) to library root")
                 }
+                // Clean up fichero-drop-UUID temp dirs created by loadFileRepresentation.
+                for url in fileURLs where url.path.contains("/fichero-drop-") {
+                    let tempDir = url.deletingLastPathComponent()
+                    try? FileManager.default.removeItem(at: tempDir)
+                }
                 // Refresh twice: once immediately, again after 500ms to catch
                 // the race where the backend hasn't finished indexing new
                 // documents when the first refresh fires.
