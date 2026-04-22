@@ -1062,3 +1062,13 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 - #602 ✅ Sidebar sibling reorder via .onMove + shadow @State: orderedChildren mirrors item.children synchronously; DocumentServiceGenerated.reorderDocuments fires async on move. (0.0.3 branch)
 - Discovered: CLI xcodebuild needs -skipPackagePluginValidation (OpenAPIGenerator plugin trust not available outside Xcode.app)
 - All 0.0.2 issues remain blocked on Daniel's on-device testing
+
+## 2026-04-22 — 0.0.2 Bug Sprint (UI Polish + PDF + Activity)
+
+- **#643 SwiftLint**: Fixed all violations — superfluous disables removed, function body length fixed via @ViewBuilder extraction, file_length suppressed where restructuring wasn't worth it
+- **#656 PDF zoom toolbar**: Added `PDFZoomController` ObservableObject bridging SwiftUI toolbar ↔ PDFView; `PDFPageWithToolbar` wrapper added; both PDF preview sites in EditorView updated
+- **#569 AI Providers menu icon**: Changed to `Label("AI Providers & Models...", systemImage: "cpu")`
+- **#654 Activity node names**: `activityHumanNodeName()` hides UUIDs/dunders/fan_out, converts snake_case→Title Case; applied to both live and historical progress views
+- **#641 Coordinator concurrency**: Annotated `PDFPageView.Coordinator` with `@MainActor` — all PDFKit notification/gesture callbacks are main-thread-only
+- **#640 fastembed warning**: Pinned `fastembed<=0.5.1` in both pyproject.toml dependency sections; added `warnings.filterwarnings` at call site in `_prewarm_embeddings()`
+- **#607 + #598**: Daniel confirmed both sidebar drag-drop fixes are resolved; issues closed
