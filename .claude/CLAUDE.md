@@ -13,7 +13,7 @@ AUTONOMOUS_PRS: true
 TASK_TRACKING: github
 ```
 
-**Branch discipline**: Each milestone gets its own branch and worktree at `~/code/fichero-<version>/`. Do NOT create per-task branches within a milestone — commit all milestone work directly to the milestone branch. When finishing a branch, push and create a PR; Daniel merges it.
+**Branch discipline**: Each milestone gets its own branch and worktree at `~/code/fichero-<version>/`. Do NOT create per-task branches within a milestone — commit all milestone work directly to the milestone branch. When finishing a branch, push, create a PR, then merge it yourself.
 
 **Worktree pattern**: `git worktree add ~/code/fichero-0.0.3 -b 0.0.3`
 Convention: `~/code/fichero-<version>` (e.g. `~/code/fichero-0.0.3`, `~/code/fichero-0.0.4`)
@@ -109,7 +109,7 @@ Full architecture: `docs/CLAUDE.md`, `docs/architecture/`
 
 ## Rules I Don't Break
 
-1. Never merge directly to `main` — always create a PR and let Daniel merge it.
+1. Never push directly to `main` — always go through a PR (create it and merge it yourself).
 2. Never skip build, test, lint before marking work complete.
 3. Never modify generated files manually (`*Generated.swift`, `openapi.json`, the api-client package).
 4. Never start coding before a plan exists for non-trivial work.
