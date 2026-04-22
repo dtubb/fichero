@@ -28,14 +28,15 @@ struct DocumentInspectorArtifactsTab: View {
             }
 
             if visibleArtifacts.isEmpty && !isLoadingArtifacts {
+                let hasHiddenTranscription = artifacts.contains { $0.artifactType == "transcription" }
                 VStack(spacing: 8) {
-                    Image(systemName: "sparkles")
+                    Image(systemName: hasHiddenTranscription ? "text.quote" : "sparkles")
                         .font(.title2)
                         .foregroundColor(.secondary)
-                    Text("No artifacts yet")
+                    Text(hasHiddenTranscription ? "Transcription available" : "No artifacts yet")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Text("Run a workflow to generate artifacts")
+                    Text(hasHiddenTranscription ? "See the Content tab to view it" : "Run a workflow to generate artifacts")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)

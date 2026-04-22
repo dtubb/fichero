@@ -6,6 +6,7 @@ struct DocumentInspectorContentTab: View {
     let document: Document
     @EnvironmentObject private var documentService: DocumentServiceGenerated
     @EnvironmentObject private var documentStore: DocumentStore
+    @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @AppStorage("editor.rulersVisible") private var rulersVisible = true
     @AppStorage("editor.fontName") private var fontName: String = "System"
     @AppStorage("editor.fontSize") private var fontSize: Double = 14
@@ -123,6 +124,14 @@ struct DocumentInspectorContentTab: View {
             loadDraft(from: document)
             saveError = nil
         }
+        .onChange(of: executionObserver.fileCompletedCount) { _, _ in
+            Task { await refreshDocumentFromBackend() }
+        }
+    }
+
+    private func refreshDocumentFromBackend() async {
+        guard let fresh = try? await documentService.getDocument(document.id) else { return }
+        documentStore.updateLocal(fresh)
     }
 
     // MARK: - Persistence
