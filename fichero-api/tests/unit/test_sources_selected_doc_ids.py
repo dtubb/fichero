@@ -1,6 +1,6 @@
 """Tests that collection_tool respects selected_doc_ids when present."""
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from fichero.workflows.tools.sources import collection_tool
 from fichero.models import Document, DocType
@@ -67,4 +67,4 @@ async def test_collection_tool_selected_ids_missing_library_path_falls_through()
         )
 
     # Falls through to collection (which also has no library_path and returns error)
-    assert "error" in result or result["count"] >= 0
+    assert result.get("count", -1) >= 0  # fell through to collection path without crashing
