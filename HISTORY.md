@@ -1012,3 +1012,9 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 - **PR workflow clarified**: Claude creates PR and merges it; CLAUDE.md updated (`AUTONOMOUS_PRS: true`).
 - **#639 filed**: Settings → show default embeddings model + picker in provider dialogue.
 - PR #638 created and merged into main.
+
+## 2026-04-22 — Settings + Workflow Logging + Artifact Bug Batch
+
+- **#639 Settings embeddings picker**: Added `embeddings_provider` to `AIDefaults` (backend Pydantic + Swift struct + CodingKeys). Moved embeddings section from feature-flagged Advanced tab to the always-visible Defaults tab, matching the Text/Vision/Audio/Video provider+model picker pattern. Removed the now-redundant hardcoded local-model list from Advanced tab.
+- **#635 Node log file context**: Parallel workflow nodes (using LangGraph Send API) fired one `on_chain_start` per file with no context. Now extracts `parallel_file`, `parallel_index`, `parallel_total` from event input state and logs "Node 'X' — filename.pdf (k/N)" per file.
+- **#633 Artifacts missing in inspector after transcription**: Transcription workflows process the parent PDF and store one artifact with `document_id=parent.id`. When a page document was selected, the inspector queried only `page.id` → found nothing. Fixed artifacts endpoint to also return parent artifacts when the queried document has a `parent_id`.
