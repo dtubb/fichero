@@ -83,23 +83,20 @@ struct EditorView: View {
         } else if doc.docType == .page,
                   let pdfPath = doc.metadata["pdf_path"]?.value as? String,
                   !pdfPath.isEmpty {
-            // PDF page child — scrollable multi-page reader starting at the
-            // specific page the user selected (#586). `.singlePageContinuous`
-            // so user can flip pages; `onPageIndexChange` wires back up so
-            // the grid's selected thumbnail follows the visible page.
+            // PDF page child — single-page view at the specific page (#595).
+            // Swipe left/right at fit-scale to turn pages; onPageIndexChange
+            // wires back so the grid's selected thumbnail follows (#586).
             let pageIndex = max(0, (doc.sequence ?? 1) - 1)
             PDFPageView(
                 path: pdfPath,
                 pageIndex: pageIndex,
-                allowAllPages: true,
                 onPageIndexChange: onPDFPageIndexChange
             )
         } else if doc.fileType == .pdf, let path = doc.path, !path.isEmpty {
-            // Top-level PDF file — full multi-page reader, starts at page 0.
+            // Top-level PDF file — single-page view, starts at page 0 (#595).
             PDFPageView(
                 path: path,
                 pageIndex: 0,
-                allowAllPages: true,
                 onPageIndexChange: onPDFPageIndexChange
             )
         } else {

@@ -54,23 +54,13 @@ struct PDFThumbnailView: View {
 /// PDF reader provides. Used in the main preview pane for `.page` documents
 /// (#578) and for top-level `.file`+`.pdf` documents.
 ///
-/// Future annotation/highlight work hooks into `currentSelection` /
-/// `PDFAnnotation` APIs (#579).
-///
-/// **Two display modes:**
-/// - `pageIndex` + `allowAllPages == false` (default): single-page focus.
-///   User sees exactly `pageIndex`, no scroll to neighbors. Used when
-///   previewing a specific page child of a PDF.
-/// - `allowAllPages == true`: scrollable multi-page reader (`singlePage
-///   Continuous` + `displaysPageBreaks`). Scroll position starts at
-///   `pageIndex`. Used for top-level PDF file previews so the user can
-///   read the whole document without drilling into each page separately.
+/// Always uses `.singlePage` mode (#595): the page is the canonical unit.
+/// Horizontal trackpad swipe navigates to the next/previous page when the
+/// document is at fit-scale; when zoomed in, swipe pans normally.
 struct PDFPageView: NSViewRepresentable {
     let path: String
     let pageIndex: Int
-    var allowAllPages: Bool = false
-    /// Fires when the user scrolls to a different page in multi-page mode.
-    /// Callers use this to sync the grid selection to the visible page (#586).
+    /// Fires when the user swipes to a different page.
     /// The index is 0-based into the PDF document.
     var onPageIndexChange: ((Int) -> Void)?
 
@@ -80,7 +70,8 @@ struct PDFPageView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> PDFView {
         let view = PDFView()
-        applyDisplayMode(view)
+        view.displayMode = .singlePage
+        view.displaysPageBreaks = false
         // #588: autoScales re-fits the document to the pane on every layout
         // pass, which silently undoes user pinch-zoom. We keep autoScales=true
         // only long enough for PDFKit to compute the initial fit; the scale
@@ -89,9 +80,6 @@ struct PDFPageView: NSViewRepresentable {
         view.backgroundColor = NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)
         view.delegate = context.coordinator
         context.coordinator.pdfView = view
-        // Observer for currentPage — delegate's `pdfViewPageChanged(_:)`
-        // doesn't exist in all PDFKit versions; PDFView posts a
-        // `PDFViewPageChanged` notification we observe instead.
         NotificationCenter.default.addObserver(
             context.coordinator,
             selector: #selector(Coordinator.pageDidChange(_:)),
@@ -104,34 +92,24 @@ struct PDFPageView: NSViewRepresentable {
             name: .PDFViewScaleChanged,
             object: view
         )
+        // Horizontal pan at fit-scale = page turn (#595).
+        let pan = NSPanGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handlePan(_:))
+        )
+        pan.delegate = context.coordinator
+        view.addGestureRecognizer(pan)
         loadAndNavigate(view)
         return view
     }
 
     func updateNSView(_ view: PDFView, context: Context) {
         context.coordinator.owner = self
-        applyDisplayMode(view)
         loadAndNavigate(view)
-        // Hook scroll-end sync after document loads (no-op if already hooked).
-        // Only in multi-page mode and when the feature flag is on (#591/#592).
-        if allowAllPages {
-            let syncEnabled = FeatureManager.shared.isPdfScrollGridSyncEnabled
-            context.coordinator.hookScrollSyncIfNeeded(view: view, syncEnabled: syncEnabled)
-        }
     }
 
     static func dismantleNSView(_ view: PDFView, coordinator: Coordinator) {
         NotificationCenter.default.removeObserver(coordinator)
-    }
-
-    private func applyDisplayMode(_ view: PDFView) {
-        if allowAllPages {
-            view.displayMode = .singlePageContinuous
-            view.displaysPageBreaks = true
-        } else {
-            view.displayMode = .singlePage
-            view.displaysPageBreaks = false
-        }
     }
 
     /// Load the PDF document (if not already loaded) and navigate to the
@@ -141,9 +119,6 @@ struct PDFPageView: NSViewRepresentable {
         let fileURL = URL(fileURLWithPath: path)
         if view.document?.documentURL != fileURL {
             // #588: re-engage autoScales for the new document's initial fit.
-            // The scale observer will flip it back off once PDFKit computes
-            // and applies the fit scale, so user pinch-zoom on the new doc
-            // still sticks.
             view.autoScales = true
             view.document = PDFDocument(url: fileURL)
         }
@@ -158,10 +133,11 @@ struct PDFPageView: NSViewRepresentable {
     }
 
     /// Bridges AppKit notifications / delegate into the SwiftUI callback.
-    final class Coordinator: NSObject, PDFViewDelegate {
+    final class Coordinator: NSObject, PDFViewDelegate, NSGestureRecognizerDelegate {
         var owner: PDFPageView
         weak var pdfView: PDFView?
-        private var scrollSyncHooked = false
+        // Accumulated horizontal translation for the current pan gesture.
+        private var panAccumulated: CGFloat = 0
 
         init(owner: PDFPageView) {
             self.owner = owner
@@ -173,59 +149,56 @@ struct PDFPageView: NSViewRepresentable {
                   let page = view.currentPage,
                   let doc = view.document else { return }
             let index = doc.index(for: page)
-            // Only fire if actually different from what SwiftUI told us —
-            // avoids the callback firing during initial setup when we
-            // programmatically navigate to `pageIndex`.
             guard index != owner.pageIndex else { return }
+            // PDFViewPageChanged is always posted on the main thread.
             owner.onPageIndexChange?(index)
         }
 
         /// #588: PDFKit's `autoScales` keeps re-fitting the document to the
         /// pane on every layout pass, which undoes user pinch-zoom. The first
-        /// scale change (PDFKit computing the initial fit OR the user pinching)
-        /// disables autoScales so the current `scaleFactor` sticks through
-        /// subsequent resizes and layout passes. When `loadAndNavigate` swaps
-        /// to a new document it re-enables autoScales so the new doc still
-        /// gets an initial fit.
+        /// scale change disables autoScales so the current `scaleFactor`
+        /// sticks through subsequent resizes and layout passes.
         @objc
         func scaleDidChange(_ notification: Notification) {
             guard let view = notification.object as? PDFView else { return }
             view.autoScales = false
         }
 
-        /// #591/#592: observe NSScrollView.didEndLiveScrollNotification on PDFKit's
-        /// internal scroll view so scrollbar drags update the grid/inspector selection.
-        /// PDFViewPageChanged only fires on explicit go(to:) calls, not scroll drags.
-        /// Guarded by `pdfScrollGridSync` feature flag (default OFF).
-        func hookScrollSyncIfNeeded(view: PDFView, syncEnabled: Bool) {
-            guard !scrollSyncHooked,
-                  syncEnabled,
-                  let scrollView = Self.findDescendantScrollView(in: view) else { return }
-            scrollSyncHooked = true
-            NotificationCenter.default.addObserver(
-                self,
-                selector: #selector(scrollDidEnd(_:)),
-                name: NSScrollView.didEndLiveScrollNotification,
-                object: scrollView
-            )
-        }
-
+        /// Horizontal pan at fit-scale turns pages; at zoom-in PDFKit pans normally.
+        /// A 60pt horizontal threshold prevents accidental flips on small swipes.
         @objc
-        private func scrollDidEnd(_ notification: Notification) {
-            guard let view = pdfView,
-                  let page = view.currentPage,
-                  let doc = view.document else { return }
-            let index = doc.index(for: page)
-            guard index != owner.pageIndex else { return }
-            owner.onPageIndexChange?(index)
+        func handlePan(_ recognizer: NSPanGestureRecognizer) {
+            guard let view = pdfView else { return }
+            let fitScale = view.scaleFactorForSizeToFit
+            // Only intercept when not meaningfully zoomed in (within 10%).
+            guard view.scaleFactor <= fitScale * 1.1 else { return }
+
+            let translation = recognizer.translation(in: view)
+            switch recognizer.state {
+            case .began:
+                panAccumulated = 0
+            case .changed:
+                panAccumulated += translation.x
+                recognizer.setTranslation(.zero, in: view)
+                if panAccumulated < -60 {
+                    panAccumulated = 0
+                    view.goToNextPage(nil)
+                } else if panAccumulated > 60 {
+                    panAccumulated = 0
+                    view.goToPreviousPage(nil)
+                }
+            default:
+                panAccumulated = 0
+            }
         }
 
-        private static func findDescendantScrollView(in view: NSView) -> NSScrollView? {
-            for sub in view.subviews {
-                if let sv = sub as? NSScrollView { return sv }
-                if let sv = findDescendantScrollView(in: sub) { return sv }
-            }
-            return nil
+        /// Allow the pan recognizer to coexist with PDFKit's built-in gestures
+        /// so pinch-zoom and text selection still work.
+        func gestureRecognizer(
+            _ gestureRecognizer: NSGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith other: NSGestureRecognizer
+        ) -> Bool {
+            true
         }
     }
 }
