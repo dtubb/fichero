@@ -15,10 +15,12 @@ struct ActivityDetailView: View {
     @State private var error: String?
     @State private var selectedSectionId: String = "overview"
 
-    /// Get the live execution if this run is currently active
+    /// Live/completed execution looked up by workflowId (the actual key in activeExecutions).
+    /// Falls back to completedExecutions so post-run tabs keep their data.
     private var liveExecution: WorkflowExecution? {
-        guard selectedRun.isLive else { return nil }
-        return executionObserver.activeExecutions[selectedRun.id]
+        guard let workflowId = selectedRun.workflowId else { return nil }
+        return executionObserver.activeExecutions[workflowId]
+            ?? executionObserver.completedExecutions[workflowId]
     }
 
     /// Error count from live execution or activity items

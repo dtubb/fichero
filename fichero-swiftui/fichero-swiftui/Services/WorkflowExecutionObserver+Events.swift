@@ -160,14 +160,6 @@ extension WorkflowExecutionObserver {
             }
             execution.isRunning = false
 
-            // Remove from active executions after a delay (let UI update first)
-            let completedWorkflowId = workflowId
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(2))
-                self.activeExecutions.removeValue(forKey: completedWorkflowId)
-                workflowExecutionLogger.info("Removed completed execution: \(completedWorkflowId)")
-            }
-
         case .pause:
             workflowExecutionLogger.info("Workflow paused")
             execution.status = .paused
@@ -178,25 +170,11 @@ extension WorkflowExecutionObserver {
             execution.workflowError = error
             execution.isRunning = false
 
-            // Remove from active executions after a delay
-            let failedWorkflowId = workflowId
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(2))
-                self.activeExecutions.removeValue(forKey: failedWorkflowId)
-            }
-
         case .systemicError(_, let error, let errorCount, let totalCount):
             workflowExecutionLogger.error("Systemic error: \(error) (\(errorCount)/\(totalCount) failures)")
             execution.status = .failed
             execution.workflowError = "Systemic error: \(error) (\(errorCount)/\(totalCount) failures)"
             execution.isRunning = false
-
-            // Remove from active executions after a delay
-            let systemicFailedWorkflowId = workflowId
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(2))
-                self.activeExecutions.removeValue(forKey: systemicFailedWorkflowId)
-            }
 
         case .log(_, let line):
             execution.logLines.append(line)

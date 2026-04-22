@@ -14,10 +14,11 @@ struct ActivityLogView: View {
     @State private var isLoading = false
     @State private var error: String?
 
-    /// Get live execution if this run is currently active
+    /// Live/completed execution looked up by workflowId — the actual key.
     private var liveExecution: WorkflowExecution? {
-        guard selectedRun.isLive else { return nil }
-        return executionObserver.activeExecutions[selectedRun.id]
+        guard let workflowId = selectedRun.workflowId else { return nil }
+        return executionObserver.activeExecutions[workflowId]
+            ?? executionObserver.completedExecutions[workflowId]
     }
 
     var body: some View {

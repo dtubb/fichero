@@ -25,6 +25,10 @@ class WorkflowExecutionObserver {
     /// artifacts without polling. Observed by DocumentInspector.
     var fileCompletedCount: Int = 0
 
+    /// Completed/failed executions archived for the session so Activity tabs
+    /// remain populated after a run finishes. Keyed by workflowId.
+    var completedExecutions: [String: WorkflowExecution] = [:]
+
     /// Cancel handlers for each workflow (not observable - internal use)
     private var cancelHandlers: [String: () -> Void] = [:]
 
@@ -119,15 +123,15 @@ class WorkflowExecutionObserver {
         if var execution = activeExecutions[workflowId] {
             execution.status = status
             execution.isRunning = false
-            // Keep in activeExecutions so UI can show final state
             activeExecutions[workflowId] = execution
 
-            // Remove after a longer delay to allow animations to complete
-            // and let the user see the final state
-            Task { [weak self] in
-                try? await Task.sleep(for: .seconds(30))
-                guard !Task.isCancelled else { return }
-                self?.activeExecutions.removeValue(forKey: workflowId)
+            // Archive to completedExecutions so Activity tabs remain readable
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1))
+                if let finished = self.activeExecutions.removeValue(forKey: workflowId) {
+                    self.completedExecutions[workflowId] = finished
+                    workflowExecutionLogger.info("Archived completed execution: \(workflowId)")
+                }
             }
         }
     }
