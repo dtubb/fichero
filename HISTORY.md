@@ -1079,3 +1079,13 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 - **Workflow editor navigation**: Fixed `.workflow` case in `ContentView+Navigation.swift` to use Activity-style split layout (WorkflowListView left / WorkflowEditor right). Fixed `WorkflowListView.listView` to call `openWorkflow` via `onChange(of: selectedWorkflowId)` — previously clicking a row did nothing.
 - **Root cause of "no artifacts": `browserSelection` not forwarded to WorkflowEditor**: `WorkflowEditor.runWorkflow()` read only `documentStore.selectedDocument` (single item, often nil in workflow mode). Added `selectedDocumentIds: [String]` property to `WorkflowEditor`; wired from `ContentView+Navigation` with `Array(browserSelection)`. Fallback chain: multi-selection > single detail doc > empty (with warning log). This is the real reason no OCR ran — `selected_doc_ids` was `[]` so the Files node returned nothing and fan_out got 0 files.
 - **#667 filed**: Add Selection source node to workflow editor (milestone 0.0.2)
+
+## 2026-04-22 — #666 Root Cause + UX Fixes
+
+- **`files_tool` empty-list short-circuit (sources.py)**: Changed `if raw_files is not None:` → `if raw_files:` — empty `[]` from node config was blocking `selected_doc_ids` Priority 2 fallback, causing fan_out to get 0 files and Transcribe to never run
+- **Parent-resolution for page docs**: Added `doc.parent_id` lookup in `files_tool` for docs with `path=None` (PDF page children) — resolves to parent PDF before fan_out
+- **browserSelection wiring**: `WorkflowEditor` now receives `selectedDocumentIds: [String]` from `ContentView+Navigation` via `Array(browserSelection)` — previously @State was invisible across the view boundary
+- **Removed Activity navigation jump**: Stripped 3 lines from `executeWorkflowViaSSE` that forced `viewMode = .activity` on every workflow run — user stays on current view
+- **Files node UI**: Empty state shows teal "Uses library selection at run time" banner instead of ambiguous drop zone
+- **Activity timestamps**: Completed runs show stable `coarseTimeAgo()` string instead of SwiftUI `.relative` style that ticks every second
+- **Still pending**: Server must be restarted to apply sources.py fix — as of session end, running server still has old `is not None` code and completes in 69ms with no files processed
