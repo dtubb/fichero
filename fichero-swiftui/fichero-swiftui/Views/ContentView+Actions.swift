@@ -180,6 +180,7 @@ extension ContentView {
     /// Shared SSE execution path used by both selection and collection runs.
     /// Registers with executionObserver so Activity view shows live progress.
     @MainActor
+    // swiftlint:disable:next function_body_length
     private func executeWorkflowViaSSE(
         workflowId: String,
         workflowName: String,

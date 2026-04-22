@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
@@ -33,6 +34,7 @@ extension View {
     }
 }
 
+// swiftlint:disable:next type_body_length
 struct SidebarItemRow: View {
     let item: SidebarItem
     let allCachedItems: [SidebarItem]

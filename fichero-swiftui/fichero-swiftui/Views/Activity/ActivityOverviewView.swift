@@ -94,30 +94,34 @@ struct ActivityOverviewView: View {
 
             if !execution.documentProgress.isEmpty {
                 Divider()
-
-                Text("Files")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.secondary)
-
-                ForEach(execution.orderedDocumentProgress.prefix(8)) { doc in
-                    HStack(spacing: 6) {
-                        docStatusIcon(doc)
-                        Text(doc.documentName)
-                            .font(.caption)
-                            .lineLimit(1)
-                        Spacer()
-                    }
-                }
-
-                if execution.documentProgress.count > 8 {
-                    Text("+ \(execution.documentProgress.count - 8) more")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
+                documentProgressList(execution)
             }
         }
         .padding()
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    @ViewBuilder
+    private func documentProgressList(_ execution: WorkflowExecution) -> some View {
+        Text("Files")
+            .font(.subheadline.bold())
+            .foregroundStyle(.secondary)
+
+        ForEach(execution.orderedDocumentProgress.prefix(8)) { doc in
+            HStack(spacing: 6) {
+                docStatusIcon(doc)
+                Text(doc.documentName)
+                    .font(.caption)
+                    .lineLimit(1)
+                Spacer()
+            }
+        }
+
+        if execution.documentProgress.count > 8 {
+            Text("+ \(execution.documentProgress.count - 8) more")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
     }
 
     @ViewBuilder

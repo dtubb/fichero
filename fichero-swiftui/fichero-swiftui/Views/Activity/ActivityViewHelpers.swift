@@ -118,31 +118,34 @@ struct ActivityBrowserView: View {
         isLoading = true
         defer { isLoading = false }
 
-        var result: [ActivityRun] = []
-
-        // Live executions first
-        for execution in executionObserver.activeExecutions.values {
-            let run = ActivityRun(
-                id: execution.threadId,
-                runId: execution.threadId,
-                workflowId: execution.id,
-                threadId: execution.threadId,
-                workflowName: activityCleanWorkflowName(execution.name),
-                timestamp: execution.startTime,
-                status: .running,
-                progress: execution.overallProgress,
-                currentStep: execution.currentNodeName,
-                errorCount: execution.nodeStates.values.reduce(0) { $0 + $1.errorCount },
-                fileCount: execution.totalFiles,
-                isLive: true
-            )
-            result.append(run)
-        }
-
+        var result = executionObserver.activeExecutions.values.map { liveRunFromExecution($0) }
         let seenThreadIds = Set(result.map { $0.runId })
+        let historical = await loadHistoricalRuns(excluding: seenThreadIds)
+        result.append(contentsOf: historical)
+        runs = result.sorted { $0.timestamp > $1.timestamp }
+    }
+
+    private func liveRunFromExecution(_ execution: WorkflowExecution) -> ActivityRun {
+        ActivityRun(
+            id: execution.threadId,
+            runId: execution.threadId,
+            workflowId: execution.id,
+            threadId: execution.threadId,
+            workflowName: activityCleanWorkflowName(execution.name),
+            timestamp: execution.startTime,
+            status: .running,
+            progress: execution.overallProgress,
+            currentStep: execution.currentNodeName,
+            errorCount: execution.nodeStates.values.reduce(0) { $0 + $1.errorCount },
+            fileCount: execution.totalFiles,
+            isLive: true
+        )
+    }
+
+    private func loadHistoricalRuns(excluding seenThreadIds: Set<String>) async -> [ActivityRun] {
         let types = ["workflow_completed", "workflow_failed", "workflow_cancelled"]
         let since = Date().addingTimeInterval(-7 * 24 * 3600)
-
+        var result: [ActivityRun] = []
         for library in libraryManager.openLibraries {
             guard !Task.isCancelled else { break }
             do {
@@ -154,29 +157,26 @@ struct ActivityBrowserView: View {
                 for item in items {
                     let threadId = item.threadId ?? item.batchId.map { "batch:\($0)" }
                     guard let threadId, !seenThreadIds.contains(threadId) else { continue }
-                    let status = activityMapActivityType(item.type)
-                    let run = ActivityRun(
+                    result.append(ActivityRun(
                         id: threadId,
                         runId: threadId,
                         workflowId: item.workflowId,
                         threadId: threadId,
                         workflowName: activityCleanWorkflowName(activityExtractWorkflowName(from: item)),
                         timestamp: item.parsedTimestamp ?? Date(),
-                        status: status,
+                        status: activityMapActivityType(item.type),
                         progress: nil,
                         currentStep: nil,
                         errorCount: 0,
                         fileCount: 0,
                         isLive: false
-                    )
-                    result.append(run)
+                    ))
                 }
             } catch {
                 // Individual library failure is non-fatal
             }
         }
-
-        runs = result.sorted { $0.timestamp > $1.timestamp }
+        return result
     }
 }
 

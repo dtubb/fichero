@@ -1,5 +1,4 @@
 import SwiftUI
-// swiftlint:disable file_length
 
 // MARK: - Sidebar Bottom Toolbar
 
