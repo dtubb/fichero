@@ -69,6 +69,17 @@ struct ActivityOverviewView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+            } else if !execution.documentProgress.isEmpty {
+                Text("\(execution.processedFiles) files processed")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                HStack(spacing: 8) {
+                    ProgressView().scaleEffect(0.7)
+                    Text("Starting…")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if let currentFile = execution.currentFileName {
@@ -80,9 +91,62 @@ struct ActivityOverviewView: View {
                 }
                 .font(.caption)
             }
+
+            if !execution.documentProgress.isEmpty {
+                Divider()
+
+                Text("Files")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.secondary)
+
+                ForEach(execution.orderedDocumentProgress.prefix(8)) { doc in
+                    HStack(spacing: 6) {
+                        docStatusIcon(doc)
+                        Text(doc.documentName)
+                            .font(.caption)
+                            .lineLimit(1)
+                        Spacer()
+                    }
+                }
+
+                if execution.documentProgress.count > 8 {
+                    Text("+ \(execution.documentProgress.count - 8) more")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
         }
         .padding()
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    @ViewBuilder
+    private func docStatusIcon(_ doc: DocumentProgress) -> some View {
+        let hasFailed = doc.stepStatuses.values.contains {
+            if case .failed = $0 { return true }
+            return false
+        }
+        let isRunning = doc.stepStatuses.values.contains {
+            if case .running = $0 { return true }
+            return false
+        }
+        if hasFailed {
+            Image(systemName: "xmark.circle.fill")
+                .foregroundStyle(.red)
+                .font(.caption)
+        } else if isRunning {
+            ProgressView()
+                .scaleEffect(0.5)
+                .frame(width: 12, height: 12)
+        } else if !doc.stepStatuses.isEmpty {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .font(.caption)
+        } else {
+            Image(systemName: "circle")
+                .foregroundStyle(.secondary)
+                .font(.caption)
+        }
     }
 
     @ViewBuilder
