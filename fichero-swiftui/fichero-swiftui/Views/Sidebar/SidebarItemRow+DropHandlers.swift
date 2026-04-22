@@ -27,21 +27,35 @@ extension SidebarItemRow {
             return false
         }
         Task {
-            var urls: [URL] = []
+            var stableURLs: [URL] = []
+            var tempURLs: [URL] = []
             for (idx, provider) in providers.enumerated() {
                 if let url = try? await Self.loadAnyFileURL(from: provider) {
                     sidebarRowLogger.debug("  [\(idx)] loaded URL: \(url.lastPathComponent)")
-                    urls.append(url)
+                    // URLs from loadFileRepresentation land in a fichero-drop-UUID temp dir
+                    // that macOS cleans up after the drop; they must be COPY-ingested so the
+                    // backend moves them to permanent library storage before the dir disappears.
+                    if url.path.contains("/fichero-drop-") {
+                        tempURLs.append(url)
+                    } else {
+                        stableURLs.append(url)
+                    }
                 } else {
                     let utis = provider.registeredTypeIdentifiers.joined(separator: ", ")
                     sidebarRowLogger.warning("  [\(idx)] URL load failed for provider with UTIs: [\(utis)]")
                 }
             }
-            guard !urls.isEmpty else {
+            guard !stableURLs.isEmpty || !tempURLs.isEmpty else {
                 sidebarRowLogger.warning("  ⚠️ all URL loads failed — import won't fire")
                 return
             }
-            _ = handleExternalFileDrop(urls: urls, targetFolder: targetFolder)
+            if !stableURLs.isEmpty {
+                _ = handleExternalFileDrop(urls: stableURLs, targetFolder: targetFolder, mode: .link)
+            }
+            if !tempURLs.isEmpty {
+                sidebarRowLogger.debug("  \(tempURLs.count) temp-copy URL(s) → importing as COPY")
+                _ = handleExternalFileDrop(urls: tempURLs, targetFolder: targetFolder, mode: .copy)
+            }
         }
         return true
     }
@@ -191,7 +205,7 @@ extension SidebarItemRow {
         }
     }
 
-    func handleExternalFileDrop(urls: [URL], targetFolder: SidebarItem?) -> Bool {
+    func handleExternalFileDrop(urls: [URL], targetFolder: SidebarItem?, mode: IngestMode = .link) -> Bool {
         guard let importService else {
             sidebarRowLogger.warning("❌ External drop rejected: no import service for library")
             return false
@@ -217,7 +231,7 @@ extension SidebarItemRow {
             do {
                 _ = try await importService.importFiles(
                     fileURLs,
-                    mode: .link,
+                    mode: mode,
                     parentId: targetFolderId
                 )
                 if let targetFolderId {
