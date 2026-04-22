@@ -1041,3 +1041,9 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 - Investigated startup slowness code (#605/#619): instrumentation already in, thumbnail fix landed, remaining bottleneck needs Instruments on-device.
 - Committed CONTINUE.md timestamp (sole dirty file).
 - STATE.md already accurate; no code changes made.
+
+## 2026-04-22 — Auto session: no unblocked tasks (second pass)
+
+- Re-ran session-start-auto: confirmed STATE.md is accurate, all 6 open 0.0.2 issues still blocked.
+- Committed CONTINUE.md update; no code changes made.
+- No new learnings — session was a clean no-op.
