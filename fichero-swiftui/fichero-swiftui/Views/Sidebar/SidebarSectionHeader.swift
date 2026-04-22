@@ -29,6 +29,7 @@ struct LibrarySectionHeader: View {
     let itemCount: Int
     var isCurrentLibrary: Bool = false
     var onFileDrop: (([URL]) -> Bool)?
+    var onTap: (() -> Void)?
 
     @State private var isDropTargeted = false
 
@@ -78,12 +79,10 @@ struct LibrarySectionHeader: View {
     /// reasonable time" warning (2026-04-17 review).
     @ViewBuilder
     private var headerContent: some View {
-        HStack(spacing: 4) {
-            if isCurrentLibrary {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(Color.accentColor)
-            }
+        HStack(spacing: 6) {
+            Image(systemName: "books.vertical")
+                .foregroundStyle(isCurrentLibrary ? Color.accentColor : Color.primary)
+                .font(.system(size: 13))
             Text(libraryName)
             Spacer()
             if itemCount > 0 {
@@ -92,6 +91,7 @@ struct LibrarySectionHeader: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .simultaneousGesture(TapGesture().onEnded { onTap?() })
     }
 
     private var accessibilityLabel: String {

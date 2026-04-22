@@ -159,48 +159,37 @@ extension SidebarView {
                         buckets: buckets
                     )
                 } label: {
-                    LibrarySectionHeader(
-                        library: library,
-                        itemCount: totalCount,
-                        isCurrentLibrary: library.id == windowState.libraryId,
-                        onFileDrop: { urls in
-                            let fileURLs = urls.filter { $0.isFileURL }
-                            guard !fileURLs.isEmpty else { return false }
-                            // Route to Inbox — bare files at library root are
-                            // invisible in the sidebar since only folders appear there.
-                            let inboxId = library.documentStore.collections.first(where: {
-                                $0.name == "Inbox" && $0.parentId == nil && $0.docType == .folder
-                            })?.id
-                            Task {
-                                do {
-                                    _ = try await library.importService.importFiles(
-                                        fileURLs,
-                                        mode: .link,
-                                        parentId: inboxId
-                                    )
-                                    await library.documentStore.refresh()
-                                    try? await Task.sleep(for: .milliseconds(500))
-                                    await library.documentStore.refresh()
-                                } catch {
-                                    Logger(subsystem: "com.tubb.Fichero", category: "LibraryHeaderDrop")
-                                        .error("Library root drop failed: \(error.localizedDescription)")
-                                }
-                            }
-                            return true
-                        }
-                    )
-                    .contextMenu {
-                        if library.id != LibraryManager.globalLibraryId {
-                            Button("Rename Library…") {
-                                libraryToRenameId = library.id
-                                pendingLibraryName = library.displayName
-                                showingRenameLibraryPrompt = true
-                            }
-                        }
-                    }
-                    .selectionDisabled()
+                    libraryDisclosureLabel(library: library, totalCount: totalCount)
+                        .selectionDisabled()
                 }
                 .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func libraryDisclosureLabel(
+        library: LibraryManager.LibraryReference,
+        totalCount: Int
+    ) -> some View {
+        LibrarySectionHeader(
+            library: library,
+            itemCount: totalCount,
+            isCurrentLibrary: library.id == windowState.libraryId,
+            onFileDrop: { [library] urls in handleLibraryHeaderDrop(urls, library: library) },
+            onTap: {
+                if windowState.libraryId != library.id { windowState.libraryId = library.id }
+                sidebarMode = .library
+                viewMode = .library(nil)
+            }
+        )
+        .contextMenu {
+            if library.id != LibraryManager.globalLibraryId {
+                Button("Rename Library…") {
+                    libraryToRenameId = library.id
+                    pendingLibraryName = library.displayName
+                    showingRenameLibraryPrompt = true
+                }
             }
         }
     }
@@ -228,14 +217,14 @@ extension SidebarView {
             )
         }
 
+        // Visual separator between document library and tools section
+        Divider()
+            .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+
         if FeatureManager.shared.isWorkflowsEnabled {
-            unifiedDisclosureSection(
-                title: "Workflows",
-                icon: "bolt",
-                sectionKey: "workflows",
-                libraryId: libraryId,
-                items: buckets.workflowItems + buckets.chainItems
-            )
+            workflowsNavigationRow()
         }
 
         if FeatureManager.shared.isAutomationEnabled {
@@ -446,6 +435,16 @@ extension SidebarView {
         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
+    }
+
+    private func workflowsNavigationRow() -> some View {
+        Label("Workflows", systemImage: "bolt")
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .tag("workflows-browser")
+            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
     }
 
     // MARK: - Compact Activity Grid (no longer used for section — struct kept for reuse)
@@ -667,6 +666,36 @@ struct ActivityRunGridCell: View {
         case "stop.circle.fill": return .orange
         default: return .secondary
         }
+    }
+}
+
+// MARK: - Library Header Helpers
+
+extension SidebarView {
+    /// Drop handler for the library disclosure-group header row.
+    /// Imports dropped files into the library Inbox (or root if no Inbox exists).
+    @discardableResult
+    func handleLibraryHeaderDrop(_ urls: [URL], library: LibraryManager.LibraryReference) -> Bool {
+        let fileURLs = urls.filter { $0.isFileURL }
+        guard !fileURLs.isEmpty else { return false }
+        let collections = library.documentStore.collections
+        var inboxId: String?
+        for col in collections where col.name == "Inbox" && col.parentId == nil && col.docType == .folder {
+            inboxId = col.id
+            break
+        }
+        Task {
+            do {
+                _ = try await library.importService.importFiles(fileURLs, mode: .link, parentId: inboxId)
+                await library.documentStore.refresh()
+                try? await Task.sleep(for: .milliseconds(500))
+                await library.documentStore.refresh()
+            } catch {
+                Logger(subsystem: "com.tubb.Fichero", category: "LibraryHeaderDrop")
+                    .error("Library root drop failed: \(error.localizedDescription)")
+            }
+        }
+        return true
     }
 }
 

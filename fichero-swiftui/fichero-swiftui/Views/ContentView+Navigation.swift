@@ -79,11 +79,7 @@ extension ContentView {
                     displayMode: .icon
                 )
             } else {
-                ContentUnavailableView(
-                    "Workflows",
-                    systemImage: "flowchart",
-                    description: Text("Select a workflow or chain from the sidebar to edit")
-                )
+                WorkflowLibraryView(displayMode: .list)
             }
 
         case .chain(let chain):

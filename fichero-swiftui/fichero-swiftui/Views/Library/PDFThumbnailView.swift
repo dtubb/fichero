@@ -49,6 +49,7 @@ struct PDFThumbnailView: View {
 // MARK: - PDF Zoom Controller
 
 /// Bridges the SwiftUI zoom toolbar with PDFKit's AppKit PDFView.
+@MainActor
 final class PDFZoomController: ObservableObject {
     @Published var scale: CGFloat = 1.0
     weak var pdfView: PDFView?

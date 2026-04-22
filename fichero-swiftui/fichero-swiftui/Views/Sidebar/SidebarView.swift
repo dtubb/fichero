@@ -150,6 +150,11 @@ struct SidebarView: View {
                         viewMode = .activity(nil)
                         return
                     }
+                    if id == "workflows-browser" {
+                        sidebarMode = .workflows
+                        viewMode = .workflow(nil)
+                        return
+                    }
                     if id.hasPrefix("run:"),
                        let selectedRun = unifiedSelectedRun(forSidebarId: id) {
                         viewMode = .activity(selectedRun.toSelectedRun())

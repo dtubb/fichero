@@ -72,6 +72,7 @@ struct ActivityBrowserView: View {
 
     @State private var runs: [ActivityRun] = []
     @State private var isLoading = false
+    @State private var listSelection: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -96,22 +97,29 @@ struct ActivityBrowserView: View {
                     description: Text("Run a workflow to see activity here")
                 )
             } else {
-                List(selection: .constant(selectedRunId)) {
+                List(selection: $listSelection) {
                     ForEach(runs) { run in
                         ActivityBrowserRow(run: run)
                             .tag(run.runId)
-                            .onTapGesture { onSelectRun(run.toSelectedRun()) }
                             .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
                             .listRowSeparator(.hidden)
                     }
                 }
                 .listStyle(.plain)
+                .onChange(of: listSelection) { _, newId in
+                    guard let newId, let run = runs.first(where: { $0.runId == newId }) else { return }
+                    onSelectRun(run.toSelectedRun())
+                }
             }
         }
         .task { await loadRuns() }
         .onChange(of: executionObserver.activeExecutions.count) { _, _ in
             Task { await loadRuns() }
         }
+        .onChange(of: selectedRunId) { _, newId in
+            listSelection = newId
+        }
+        .onAppear { listSelection = selectedRunId }
     }
 
     private func loadRuns() async {
