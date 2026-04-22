@@ -103,7 +103,10 @@ def _prewarm_embeddings() -> None:
         cache_dir = MODELS_BASE / "embeddings"
         cache_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Pre-warming embeddings model: %s", DEFAULT_MODEL)
-        TextEmbedding(model_name=DEFAULT_MODEL, cache_dir=str(cache_dir))
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=".*multilingual-e5-large.*pooling.*")
+            TextEmbedding(model_name=DEFAULT_MODEL, cache_dir=str(cache_dir))
         logger.info("Embeddings model ready")
     except Exception as exc:
         logger.warning("Embeddings pre-warm failed (will retry on first use): %s", exc)

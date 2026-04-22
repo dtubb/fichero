@@ -78,7 +78,7 @@ requires = [
     "apscheduler",
     "watchdog",
     "kreuzberg",
-    "fastembed",
+    "fastembed<=0.5.1",
     "pykeen",
     # Document Processing
     "PyMuPDF",
@@ -153,7 +153,7 @@ dependencies = [
     "apscheduler",
     "watchdog",
     "kreuzberg",
-    "fastembed",
+    "fastembed<=0.5.1",
     "pykeen",
     "PyMuPDF",
     "Pillow",
