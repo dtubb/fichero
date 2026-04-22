@@ -998,3 +998,17 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 ## 2026-04-12 — Session End
 
 - No unblocked tasks — awaiting Daniel's review of 5 PRs
+
+## 2026-04-22 — Activity View Bug Batch (#627–#637) + PR Workflow Fix
+
+- **#627 #629 #630 #631**: Activity tabs (Console, Log, Progress, Overview) all empty during live runs — root cause: key mismatch, `selectedRun.id` (threadId) used to look up `activeExecutions` which is keyed by workflowId. Fixed in ActivityDetailView + ActivityLogView.
+- **#637**: Activity data disappeared after run — execution deleted from memory before user could view it. Added `completedExecutions` archive in `endExecution`; tabs persist post-run.
+- **#634**: "Run Workflow on Selection" ran entire folder — `collection_tool` didn't check `selected_doc_ids`. Added priority-0 check matching `files_tool` pattern.
+- **#636**: Activity Overview live card now shows per-file document progress grid with step status icons.
+- **#632**: Output Log "Collection" column always "-" — source tools don't emit per-file events. Filtered from column headers via `processingNodes` computed property.
+- **#628**: LangGraph internal names (`_aggregate`, `branch:to:`, `parallel_results`) leaked into Console/Graph tabs. Filtered in Swift event handler + ActivityGraphView.
+- Reviewer catch: `cancelExecution` also needed to archive to `completedExecutions` (mirrored `endExecution`). Fixed.
+- Reviewer catch: `ActivityLogView` had unstructured `Task` in `.onChange` — replaced with `.task(id:)` using tuple identity.
+- **PR workflow clarified**: Claude creates PR and merges it; CLAUDE.md updated (`AUTONOMOUS_PRS: true`).
+- **#639 filed**: Settings → show default embeddings model + picker in provider dialogue.
+- PR #638 created and merged into main.

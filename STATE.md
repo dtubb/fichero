@@ -2,50 +2,32 @@
 
 ## Current Focus
 
-**Branch:** `0.0.2` — tip `596b3aee`. Bug batch fixed and pushed. Waiting for Daniel's on-device sweep before release.
+**Branch:** `0.0.2` — PR #638 merged. Activity view bug batch complete.
 
-**Goal:** Daniel runs on-device sweep → closes verified issues → cuts 0.0.2 release.
+**Goal:** Close remaining open issues on 0.0.2 milestone via autonomous loop.
 
-## What's Merged (all on 0.0.2)
+## Open Issues (0.0.2 milestone)
 
-### Previous session
-1. ✓ #622 icon/list grid column min-width
-2. ✓ #594 close-as-skipped (tests skip when fixtures absent)
-3. ✓ #619/#605 startup instrumentation (⏱ OSLog breadcrumbs)
-4. ✓ #600 .mov drag-drop fix (canLoadObject fallthrough + OSLog)
-5. ✓ #603 ingest-mode badges + delete-copy dialog
-6. ✓ #591/#592 PDF scroll→grid/inspector sync (flag OFF by default)
-7. ✓ #616 hide document grid toggle (⌘⇧G, @SceneStorage, per-window)
-8. ✓ #614 sidebar section headers bolder (.foregroundStyle(.primary))
-
-### This session (2026-04-21)
-9. ✓ #623 sidebar drag-out HTML artifact (ownProcess visibility) — 6ef516cf
-10. ✓ #624 PIL JPEG crash — sips fallback — 6ef516cf
-11. ✓ #626 drag-drop stores temp path (.link → .copy) — 6ef516cf
-12. ✓ #609 toolbar Run Workflow: pre-capture selection + navigate to Activity — 8122a6e2
-13. ✓ #610 Finder folder drop flattens children — 14146f8e (backend, verified working, closed)
-14. ✓ #625 JSON/text file thumbnails via PIL ImageDraw — 596b3aee
-15. ✓ Activity sidebar: Mail-style two-column layout (runs list + detail) — prior commits
-16. ✓ Artifact mid-run refresh via fileCompletedCount observable — prior commits
-17. ✓ SystemicErrorDetected pickle compat (optional __init__ args) — prior commits
+| # | Title | Notes |
+|---|---|---|
+| #639 | Settings: show default embeddings model + picker | Just filed — good autonomous target |
+| #635 | Console log lacks filename per node | Needs backend logging change |
+| #633 | Output Log checkmarks but no artifacts | Deep investigation needed |
+| #619 | Backend connection slow on launch | OSLog ⏱ instrumentation already in; needs profiling |
+| #607 | Can't reorder folder in sidebar | Drag-drop |
+| #605 | App startup slow | Perf investigation |
+| #598 | Sidebar drag-drop lands on wrong row | Fix shipped in 31b6c53a — on-device verify needed |
+| #595 | PDF one-page + swipe navigation | Architecture call — 3 options in issue |
+| #520 | Sparkle auto-update integration | Needs SPARKLE_FEED_URL + SPARKLE_PUBLIC_ED_KEY in xcconfig |
 
 ## Next Session — Start Here
 
-1. **Daniel does on-device sweep** (see checklist below).
-2. After sweep, close verified issues and run `/milestone-check`.
-3. If milestone passes → proceed to #520 (Sparkle, needs cert) and cut release.
-4. Do NOT start 0.0.3 until Daniel approves 0.0.2.
-
-## Remaining open issues (need Daniel on device or a direction call)
-
-| # | What | Notes |
-|---|---|---|
-| #598 | Sidebar drops land on selected row not cursor target | Fix shipped in 31b6c53a — on-device verify needed |
-| #595 | PDF one-page + swipe | Daniel's architecture call (3 options in issue comments) |
-| #619/#605 | Startup slow — tail ⏱ logs | `log stream --predicate 'eventMessage CONTAINS "⏱"'` |
-| #520 | Sparkle auto-update | Needs Daniel to set SPARKLE_FEED_URL + SPARKLE_PUBLIC_ED_KEY in xcconfig |
-| #607 | Folder reorder by drag | Deprioritized by Daniel ("sort of works, leave it") |
+1. **Auto loop target**: #639 (embeddings model in Settings) is well-scoped and actionable — good first pick.
+2. For #598: may already be fixed (31b6c53a) — check issue comments before working on it.
+3. #633 and #635 need backend investigation before implementing; read issue + trace code first.
+4. PR workflow: push → `gh pr create` → `gh pr merge --merge` (Claude does all three).
+5. Do NOT start 0.0.3 until Daniel approves 0.0.2.
 
 ---
 
-*Last updated: 2026-04-21* — Bug batch complete. On-device sweep is the gate.
+*Last updated: 2026-04-22* — Activity bug batch merged. 9 issues remain on 0.0.2.
