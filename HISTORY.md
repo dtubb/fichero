@@ -1025,3 +1025,11 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 - Branch: 0.0.2
 - Task completed in session
 - Detected temp URLs via `url.path.contains("/fichero-drop-")` in `handleProvidersDrop`; routed to COPY mode; added temp dir cleanup after successful import.
+
+## 2026-04-22 — Triage audit: confirmed prior fixes, all remaining issues blocked
+
+- Assigned #623, #624, #625 to 0.0.2 milestone (filed during testing, had no milestone).
+- Confirmed all three were already fixed in prior commits (6ef516cf, 596b3aee) and properly closed.
+- Audited all remaining open 0.0.2 issues: all require Daniel's on-device input or an architecture decision.
+- Updated STATE.md with specific next-action prompts for each blocked issue.
+- No code changes needed — audit and triage only.
