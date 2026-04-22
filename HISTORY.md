@@ -1055,3 +1055,10 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 - Issues #623, #624, #625 already closed from prior sessions.
 - 0.0.3 worktree also complete and awaiting Daniel's review.
 - Committed CONTINUE.md doc update; no code changes needed.
+
+## 2026-04-22 — Session Summary
+
+- #618 ✅ Sidebar row indentation flattened: NNW-style 8pt top-level / 16pt child / 8pt section headers. SidebarConstants + SidebarItemRow + SidebarView+ViewComponents. (0.0.3 branch)
+- #602 ✅ Sidebar sibling reorder via .onMove + shadow @State: orderedChildren mirrors item.children synchronously; DocumentServiceGenerated.reorderDocuments fires async on move. (0.0.3 branch)
+- Discovered: CLI xcodebuild needs -skipPackagePluginValidation (OpenAPIGenerator plugin trust not available outside Xcode.app)
+- All 0.0.2 issues remain blocked on Daniel's on-device testing

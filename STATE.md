@@ -19,11 +19,11 @@
 
 ## Next Session — Start Here
 
-1. **#595** — Ask Daniel to pick Option 1, 2, or 3 from the issue. Option 1 is lightest. Once he picks, implementation can proceed immediately.
-2. **#598** — Ask Daniel to verify sidebar drag-drop on-device (drop highlight + target row correctness). If confirmed working, close.
-3. **#619/#605** — Run: `/usr/bin/log stream --predicate 'eventMessage CONTAINS "⏱"'` during app launch. Report the timing output to identify the bottleneck.
-4. Do NOT start 0.0.3 until Daniel approves 0.0.2.
+1. **All 0.0.2 blocked** — session pivoted to 0.0.3 worktree. Two 0.0.3 tasks completed: #618 (sidebar indentation) and #602 (sibling reorder).
+2. **0.0.3 next tasks:** #617 (toolbar redesign, large), #593 (swipe navigation, complex). Both need visual testing.
+3. **0.0.2 blockers still open** — Daniel must: verify #598 on-device, pick PDF architecture for #595, provide Sparkle certs for #520.
+4. Do NOT start 0.0.4 until Daniel approves 0.0.2.
 
 ---
 
-*Last updated: 2026-04-22* — Auto session. No unblocked tasks — all 0.0.2 issues await Daniel's on-device testing or architecture decisions.
+*Last updated: 2026-04-22* — No unblocked 0.0.2 work. Pivoted to 0.0.3; completed #618 + #602.
