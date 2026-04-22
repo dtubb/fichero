@@ -17,18 +17,13 @@
 | #595 | PDF one-page + swipe navigation | Architecture choice pending: Daniel must pick Option 1, 2, or 3 from issue comments |
 | #520 | Sparkle auto-update integration | Needs SPARKLE_FEED_URL + SPARKLE_PUBLIC_ED_KEY in xcconfig |
 
-## Resolved This Session
-
-- Confirmed #623 (drag-out sidebar), #624 (JPG PIL regression), #625 (JSON preview) were all fixed in prior commits and properly closed.
-- All were already committed on 0.0.2 branch.
-
 ## Next Session — Start Here
 
 1. **#595** — Ask Daniel to pick Option 1, 2, or 3 from the issue. Option 1 is lightest. Once he picks, implementation can proceed immediately.
 2. **#598** — Ask Daniel to verify sidebar drag-drop on-device (drop highlight + target row correctness). If confirmed working, close.
 3. **#619/#605** — Run: `/usr/bin/log stream --predicate 'eventMessage CONTAINS "⏱"'` during app launch. Report the timing output to identify the bottleneck.
-4. Do NOT start 0.0.3 until Daniel approves 0.0.2 (STATE.md rule — overrides CLAUDE.md two-ahead default per session guidance).
+4. Do NOT start 0.0.3 until Daniel approves 0.0.2.
 
 ---
 
-*Last updated: 2026-04-22* — Audit session. Confirmed all recent bug fixes landed; triaged remaining open issues. All blocked on Daniel's input.
+*Last updated: 2026-04-22* — Auto session. No unblocked tasks — all 0.0.2 issues await Daniel's on-device testing or architecture decisions.
