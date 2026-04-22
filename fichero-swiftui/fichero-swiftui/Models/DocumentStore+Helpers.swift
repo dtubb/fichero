@@ -55,6 +55,32 @@ extension DocumentStore {
         }
     }
 
+    /// Replace a document in all caches without folder-membership checks.
+    ///
+    /// Use this for content-only updates (page_content, metadata) where the
+    /// document's location hasn't changed. Unlike updateLocal(), this never
+    /// removes the document from currentDocuments based on parentId — that
+    /// removal logic exists only for cross-folder move operations.
+    func refreshLocalContent(_ document: Document) {
+        if let index = collections.firstIndex(where: { $0.id == document.id }) {
+            collections[index] = document
+        }
+        if let index = currentDocuments.firstIndex(where: { $0.id == document.id }) {
+            currentDocuments[index] = document
+        }
+        for parentId in childrenCache.keys {
+            if let index = childrenCache[parentId]?.firstIndex(where: { $0.id == document.id }) {
+                childrenCache[parentId]?[index] = document
+            }
+        }
+        if selectedDocument?.id == document.id {
+            selectedDocument = document
+        }
+        if selectedCollection?.id == document.id {
+            selectedCollection = document
+        }
+    }
+
     /// Clear all cached data.
     func clearCache() {
         childrenCache.removeAll()

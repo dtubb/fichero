@@ -131,7 +131,7 @@ struct DocumentInspectorContentTab: View {
 
     private func refreshDocumentFromBackend() async {
         guard let fresh = try? await documentService.getDocument(document.id) else { return }
-        documentStore.updateLocal(fresh)
+        documentStore.refreshLocalContent(fresh)
     }
 
     // MARK: - Persistence
