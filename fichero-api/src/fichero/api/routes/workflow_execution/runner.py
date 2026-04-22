@@ -9,6 +9,7 @@ Contains:
 import asyncio
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from fichero.db import Database
@@ -532,7 +533,22 @@ async def _run_workflow_in_background(
                     if node_name.endswith("_aggregate"):
                         continue
 
-                    await log_execution(f"Node '{original_id}' started")
+                    if node_name.endswith("_process"):
+                        # Each parallel file invocation fires its own on_chain_start.
+                        # Extract file context from state so the log shows filename + progress.
+                        input_state = event.get("data", {}).get("input", {})
+                        parallel_file = input_state.get("parallel_file", "")
+                        parallel_index = input_state.get("parallel_index")
+                        parallel_total = input_state.get("parallel_total")
+                        filename = Path(parallel_file).name if parallel_file else ""
+                        if filename and parallel_index is not None and parallel_total is not None:
+                            await log_execution(
+                                f"Node '{original_id}' — {filename} ({parallel_index + 1}/{parallel_total})"
+                            )
+                        else:
+                            await log_execution(f"Node '{original_id}' started")
+                    else:
+                        await log_execution(f"Node '{original_id}' started")
 
                     # Log activity: node started
                     activity_tracker.node_started(
