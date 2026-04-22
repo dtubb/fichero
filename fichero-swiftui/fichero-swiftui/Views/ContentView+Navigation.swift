@@ -72,14 +72,30 @@ extension ContentView {
             }
 
         case .workflow(let workflow):
-            if let selectedWorkflow = workflow {
-                WorkflowEditor(
-                    workflow: selectedWorkflow,
-                    editingWorkflow: $editingWorkflow,
-                    displayMode: .icon
+            HStack(spacing: 0) {
+                WorkflowListView(
+                    displayMode: .list,
+                    onOpenWorkflow: { w in viewMode = .workflow(w) }
                 )
-            } else {
-                WorkflowLibraryView(displayMode: .list)
+                .frame(minWidth: 200, maxWidth: 280)
+
+                Divider()
+
+                if let selectedWorkflow = workflow {
+                    WorkflowEditor(
+                        workflow: selectedWorkflow,
+                        editingWorkflow: $editingWorkflow,
+                        displayMode: .icon
+                    )
+                    .frame(maxWidth: .infinity)
+                } else {
+                    ContentUnavailableView(
+                        "Select a Workflow",
+                        systemImage: "flowchart",
+                        description: Text("Choose a workflow from the list to edit")
+                    )
+                    .frame(maxWidth: .infinity)
+                }
             }
 
         case .chain(let chain):

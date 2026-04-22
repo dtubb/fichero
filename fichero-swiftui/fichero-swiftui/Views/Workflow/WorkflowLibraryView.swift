@@ -233,6 +233,12 @@ struct WorkflowListView: View {
                     workflowContextMenu(for: workflow)
                 }
         }
+        .onChange(of: selectedWorkflowId) { _, newId in
+            if let id = newId,
+               let workflow = workflowStore.workflows.first(where: { $0.id == id }) {
+                openWorkflow(workflow)
+            }
+        }
     }
 
     // MARK: - Table View
