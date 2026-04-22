@@ -106,11 +106,12 @@ class WorkflowExecutionObserver {
             execution.workflowError = "Cancelled by user"
             activeExecutions[workflowId] = execution
 
-            // Remove after delay to let the user see the cancelled state
-            Task { [weak self] in
+            // Archive after delay so Activity tabs remain readable post-cancel
+            Task { @MainActor in
                 try? await Task.sleep(for: .seconds(30))
-                guard !Task.isCancelled else { return }
-                self?.activeExecutions.removeValue(forKey: workflowId)
+                if let finished = self.activeExecutions.removeValue(forKey: workflowId) {
+                    self.completedExecutions[workflowId] = finished
+                }
             }
         }
     }
