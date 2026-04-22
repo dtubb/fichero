@@ -145,6 +145,11 @@ struct SidebarView: View {
                         return
                     }
                     lastHandledSelectionId = id
+                    if id == "activity-browser" {
+                        sidebarMode = .activity
+                        viewMode = .activity(nil)
+                        return
+                    }
                     if id.hasPrefix("run:"),
                        let selectedRun = unifiedSelectedRun(forSidebarId: id) {
                         viewMode = .activity(selectedRun.toSelectedRun())
@@ -164,6 +169,11 @@ struct SidebarView: View {
                 setupServiceObservers()
             }
             .onChange(of: sidebarMode) { _, newMode in
+                // Switching sections should allow re-selecting the same item in the
+                // new section without onChange being blocked by lastHandledSelectionId
+                // (which only guards against same-tick duplicate events, not cross-section
+                // re-selection — #646).
+                lastHandledSelectionId = nil
                 // Refresh data when switching to mode-specific sidebars
                 // This ensures sidebar shows updated data after editor saves
                 if newMode == .automation {

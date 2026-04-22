@@ -425,32 +425,28 @@ extension SidebarView {
             return false
         }()
 
-        Button {
-            sidebarMode = .activity
-            viewMode = .activity(nil)
-            selectedItemId = "activity-browser"
-        } label: {
-            HStack(spacing: 0) {
-                Text("Activity")
+        HStack(spacing: 0) {
+            Text("Activity")
+                .font(.caption)
+                .fontWeight(.bold)
+                .foregroundStyle(.primary)
+            Spacer()
+            if executionObserver.isAnyWorkflowRunning {
+                Image(systemName: "play.circle.fill")
                     .font(.caption)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.primary)
-                Spacer()
-                if executionObserver.isAnyWorkflowRunning {
-                    Image(systemName: "play.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.blue)
-                }
+                    .foregroundStyle(.blue)
             }
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .contentShape(Rectangle())
         .padding(.vertical, 3)
         .padding(.horizontal, 4)
         .background(
             RoundedRectangle(cornerRadius: 4)
                 .fill(isActive ? Color.accentColor.opacity(0.15) : Color.clear)
         )
+        // Use .tag so List(selection:) owns the tap → onChange routes to activity view.
+        // A Button without .tag in sidebar List doesn't reliably fire on macOS (#647).
+        .tag("activity-browser")
         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)

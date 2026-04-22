@@ -58,7 +58,6 @@ enum ActivityViewHelpers {
         }
     }
 }
-import SwiftUI
 
 // MARK: - Activity Browser
 
@@ -199,9 +198,15 @@ private struct ActivityBrowserRow: View {
                     .lineLimit(1)
 
                 HStack(spacing: 4) {
-                    Text(run.timestamp, style: .relative)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if run.isLive {
+                        Text(run.timestamp, style: .relative)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        (Text(run.timestamp, style: .relative) + Text(" ago"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     if run.isLive, let progress = run.progress, progress > 0 {
                         ProgressView(value: progress)
