@@ -1033,3 +1033,11 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 - Audited all remaining open 0.0.2 issues: all require Daniel's on-device input or an architecture decision.
 - Updated STATE.md with specific next-action prompts for each blocked issue.
 - No code changes needed — audit and triage only.
+
+## 2026-04-22 — Session audit: all 0.0.2 issues blocked, no unblocked tasks
+
+- Ran session-start-auto: loaded context, checked all open 0.0.2 issues.
+- Confirmed all 6 remaining issues require Daniel's input (#619, #607, #605, #598, #595, #520).
+- Investigated startup slowness code (#605/#619): instrumentation already in, thumbnail fix landed, remaining bottleneck needs Instruments on-device.
+- Committed CONTINUE.md timestamp (sole dirty file).
+- STATE.md already accurate; no code changes made.
