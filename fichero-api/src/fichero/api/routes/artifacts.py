@@ -117,9 +117,13 @@ async def list_document_artifacts(
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
 
-    # Collect document IDs to query: the doc itself plus its direct children (pages)
+    # Collect document IDs to query: the doc itself plus its direct children (pages).
+    # Also include the parent when the queried doc is a page — transcription workflows
+    # run against the parent PDF and save artifacts there, not per page.
     child_ids = [d.id for d in db.query(Document, parent_id=doc_id)]
     all_doc_ids = [doc_id] + child_ids
+    if doc.parent_id:
+        all_doc_ids.append(doc.parent_id)
 
     # Query artifacts across the doc and its children
     all_artifacts = []

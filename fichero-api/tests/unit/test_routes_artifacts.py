@@ -67,6 +67,24 @@ class TestListDocumentArtifacts:
         r = client.get("/api/artifacts/document/nonexistent-id")
         assert r.status_code == 404
 
+    def test_page_doc_returns_parent_artifacts(self, client, db):
+        # Transcribe workflows save artifacts on the parent PDF, not per page.
+        # Querying a page document must surface the parent's artifacts.
+        parent = _make_doc(db, "report.pdf")
+        page = Document(
+            name="report.pdf - Page 1",
+            doc_type=DocType.page,
+            parent_id=parent.id,
+            status=Status.completed,
+        )
+        db.save(page)
+        _make_artifact(db, parent.id, "transcription", "full text")
+        r = client.get(f"/api/artifacts/document/{page.id}")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["total"] == 1
+        assert data["artifacts"][0]["artifact_type"] == "transcription"
+
     def test_filter_by_artifact_type(self, client, db):
         doc = _make_doc(db)
         _make_artifact(db, doc.id, "transcription")
