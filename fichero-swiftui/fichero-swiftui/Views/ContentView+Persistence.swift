@@ -119,10 +119,11 @@ extension ContentView {
 
         viewMode = restoreViewMode(type: storedViewModeType, itemId: storedViewModeItemId)
         if selectedSidebarItemId == nil {
-            selectedSidebarItemId = sidebarSelectionId(
+            let restoredId = sidebarSelectionId(
                 for: storedViewModeType,
                 itemId: storedViewModeItemId
             )
+            selectedSidebarItemId = restoredId ?? (storedViewModeType == "activity" ? "activity-browser" : nil)
         }
 
         logger.info("""

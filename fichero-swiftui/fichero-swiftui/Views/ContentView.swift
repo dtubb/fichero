@@ -266,10 +266,13 @@ struct ContentView: View {
             // Re-restore view mode once data loads (collections arrive after API responds)
             guard oldCollections.isEmpty, !newCollections.isEmpty else { return }
             viewMode = restoreViewMode(type: storedViewModeType, itemId: storedViewModeItemId)
-            selectedSidebarItemId = sidebarSelectionId(
+            let restoredId = sidebarSelectionId(
                 for: storedViewModeType,
                 itemId: storedViewModeItemId
             )
+            // sidebarSelectionId returns nil for "activity" with no run ID; use the
+            // fixed tag so the Activity row stays highlighted after relaunch (#648).
+            selectedSidebarItemId = restoredId ?? (storedViewModeType == "activity" ? "activity-browser" : nil)
         }
         .onChange(of: documentStore.currentDocuments) { _, newDocs in
             // Populate preview from restored selection whenever documents load

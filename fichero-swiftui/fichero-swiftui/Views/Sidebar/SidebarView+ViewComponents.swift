@@ -417,33 +417,25 @@ extension SidebarView {
     // MARK: - Activity Navigation Row
 
     /// Single non-expandable "Activity" row — clicking navigates to the activity browser.
-    /// Styled like a section header so it sits naturally below Workflows.
+    /// Styled as a regular sidebar leaf row (icon + normal-weight label) matching
+    /// Inbox / folder rows. Bold section-header style removed in #655.
     @ViewBuilder
     private func activityNavigationRow() -> some View {
-        let isActive: Bool = {
-            if case .activity = viewMode { return true }
-            return false
-        }()
-
-        HStack(spacing: 0) {
-            Text("Activity")
-                .font(.caption)
-                .fontWeight(.bold)
-                .foregroundStyle(.primary)
-            Spacer()
-            if executionObserver.isAnyWorkflowRunning {
-                Image(systemName: "play.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.blue)
+        Label {
+            HStack(spacing: 4) {
+                Text("Activity")
+                    .lineLimit(1)
+                if executionObserver.isAnyWorkflowRunning {
+                    Image(systemName: "play.circle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
+                }
             }
+        } icon: {
+            Image(systemName: "clock.arrow.circlepath")
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .padding(.vertical, 3)
-        .padding(.horizontal, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 4)
-                .fill(isActive ? Color.accentColor.opacity(0.15) : Color.clear)
-        )
         // Use .tag so List(selection:) owns the tap → onChange routes to activity view.
         // A Button without .tag in sidebar List doesn't reliably fire on macOS (#647).
         .tag("activity-browser")

@@ -207,7 +207,7 @@ private extension AISettingsView {
                 .values
         ).sorted(by: { $0.name < $1.name })
 
-        return Picker("Provider", selection: selection) {
+        Picker("Provider", selection: selection) {
             Text("None").tag("")
             ForEach(uniqueProviders, id: \.providerType) { provider in
                 Text(provider.name).tag(provider.providerType)
