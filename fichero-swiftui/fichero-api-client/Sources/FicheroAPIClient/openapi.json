@@ -25147,6 +25147,16 @@
             "title": "Video Model",
             "default": ""
           },
+          "embeddings_provider": {
+            "type": "string",
+            "title": "Embeddings Provider",
+            "default": ""
+          },
+          "embeddings_model": {
+            "type": "string",
+            "title": "Embeddings Model",
+            "default": ""
+          },
           "temperature": {
             "type": "string",
             "title": "Temperature",
@@ -25160,11 +25170,6 @@
           "prompt_prefix": {
             "type": "string",
             "title": "Prompt Prefix",
-            "default": ""
-          },
-          "embeddings_model": {
-            "type": "string",
-            "title": "Embeddings Model",
             "default": ""
           }
         },

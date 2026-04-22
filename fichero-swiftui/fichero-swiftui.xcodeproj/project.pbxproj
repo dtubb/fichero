@@ -366,7 +366,7 @@
 /* Begin PBXFileReference section */
 		004167806445469D9A3595E4 /* AttributedTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AttributedTextEditor.swift; path = "fichero-swiftui/Views/Library/DocumentInspector/AttributedTextEditor.swift"; sourceTree = SOURCE_ROOT; };
 		04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DynamicConfigView.swift; sourceTree = "<group>"; };
-		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		100 /* Fichero Research.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Fichero Research.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		101 /* FicheroApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FicheroApp.swift; sourceTree = "<group>"; };
 		102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		103 /* Document.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Document.swift; sourceTree = "<group>"; };
@@ -1080,7 +1080,7 @@
 		420 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				100 /* Fichero.app */,
+				100 /* Fichero Research.app */,
 				A10521A92EFDC92400B28C3E /* FicheroTests.xctest */,
 				A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */,
 			);
@@ -1357,7 +1357,7 @@
 				C10000310000000000000001 /* Sparkle */,
 			);
 			productName = Fichero;
-			productReference = 100 /* Fichero.app */;
+			productReference = 100 /* Fichero Research.app */;
 			productType = "com.apple.product-type.application";
 		};
 		A10521A82EFDC92400B28C3E /* FicheroTests */ = {
@@ -2015,7 +2015,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 0.1.0.dev1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.Fichero;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "Fichero Research";
 				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero/main/fichero-swiftui/appcast.xml";
 				SPARKLE_PUBLIC_ED_KEY = DEBUG_SPARKLE_KEY_NOT_REQUIRED;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -2062,7 +2062,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 0.1.0.dev1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.Fichero;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "Fichero Research";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero/main/fichero-swiftui/appcast.xml";
 				SPARKLE_PUBLIC_ED_KEY = SET_RELEASE_SPARKLE_PUBLIC_ED_KEY;
