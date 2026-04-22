@@ -13,8 +13,11 @@ struct ActivityOverviewView: View {
                 // Status card
                 statusCard
 
-                // Quick stats
-                if let execution = liveExecution {
+                // Quick stats — only show live progress card when data is present or run is active.
+                // A completed 0-file run has no progress data, so fall through to historicalStatsCard
+                // to avoid showing "Starting…" for an already-finished workflow.
+                if let execution = liveExecution,
+                   execution.isRunning || !execution.documentProgress.isEmpty || execution.overallProgress != nil {
                     liveStatsCard(execution)
                 } else {
                     historicalStatsCard

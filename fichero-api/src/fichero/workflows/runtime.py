@@ -125,6 +125,10 @@ def build_initial_state(
     state: dict[str, Any] = {
         **inputs,
         "library_path": library_path,
+        # Explicitly declare so LangGraph preserves this as a typed channel.
+        # Without this, selected_doc_ids gets dropped when LangGraph initialises
+        # channels from the State TypedDict.
+        "selected_doc_ids": inputs.get("selected_doc_ids") or [],
     }
     if metadata:
         state["metadata"] = metadata

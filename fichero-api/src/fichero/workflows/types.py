@@ -232,6 +232,9 @@ class State(TypedDict):
     # Library context (required for source tools)
     library_path: str  # Path to .fichero library package
 
+    # UI selection — document IDs selected when the user clicked Run
+    selected_doc_ids: list[str]
+
     # Input/Output
     inputs: dict[str, Any]  # Initial inputs to workflow
     outputs: Annotated[
