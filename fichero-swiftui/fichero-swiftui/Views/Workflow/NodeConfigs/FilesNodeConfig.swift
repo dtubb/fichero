@@ -1,5 +1,6 @@
 import OSLog
 import SwiftUI
+// swiftlint:disable file_length
 
 private let logger = Logger(subsystem: "com.tubb.Fichero", category: "FilesNodeConfig")
 
@@ -17,13 +18,12 @@ struct FilesNodeConfig: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Selected Files")
-                .font(.caption)
-                .foregroundColor(.secondary)
-
             if selectedFileIds.isEmpty {
-                dropZoneView
+                selectionBanner
             } else {
+                Text("Pinned Files")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
                 VStack(spacing: 4) {
                     ForEach(selectedFileIds, id: \.self) { fileId in
                         fileRow(fileId: fileId)
@@ -48,6 +48,36 @@ struct FilesNodeConfig: View {
 }
 
 private extension FilesNodeConfig {
+    var selectionBanner: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "cursorarrow.rays")
+                    .foregroundStyle(.teal)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Uses library selection at run time")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                    Text("Select documents in the library before running.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(8)
+            .background(.teal.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+
+            Button {
+                showFilePickerSheet()
+            } label: {
+                Label("Pin specific files…", systemImage: "pin")
+                    .font(.caption)
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
+        }
+    }
+
     var dropZoneView: some View {
         RoundedRectangle(cornerRadius: 6)
             .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [5]))
