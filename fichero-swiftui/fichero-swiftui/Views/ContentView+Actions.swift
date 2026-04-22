@@ -137,11 +137,17 @@ extension ContentView {
     }
 
     @MainActor
-    func runWorkflowOnSelection(workflowId: String) {
-        let selectedIds = !browserSelection.isEmpty
-            ? Array(browserSelection)
-            : (detailDocument.map { [$0.id] } ?? [])
-        guard !selectedIds.isEmpty else { return }
+    func runWorkflowOnSelection(workflowId: String, preselectedIds: [String] = []) {
+        let selectedIds = !preselectedIds.isEmpty
+            ? preselectedIds
+            : (!browserSelection.isEmpty
+                ? Array(browserSelection)
+                : (detailDocument.map { [$0.id] } ?? []))
+        guard !selectedIds.isEmpty else {
+            logger.warning("runWorkflowOnSelection: no selection — nothing to run")
+            importError = "Select one or more documents before running a workflow."
+            return
+        }
 
         let workflowName = workflowStore.workflows.first(where: { $0.id == workflowId })?.name ?? workflowId
         let noun = selectedIds.count == 1 ? "document" : "documents"
@@ -210,6 +216,10 @@ extension ContentView {
                 )
                 importProgress = nil
                 logger.info("Started SSE workflow \(workflowId) thread \(threadId) for \(docIds.count) docs")
+                // Navigate to Activity so the user sees live progress immediately.
+                sidebarMode = .activity
+                viewMode = .activity(nil)
+                selectedSidebarItemId = "activity-browser"
 
                 while !streamCompleted {
                     try await Task.sleep(for: .milliseconds(200))
@@ -228,8 +238,8 @@ extension ContentView {
 
             } catch {
                 importProgress = nil
+                importError = "Workflow failed to start: \(error.localizedDescription)"
                 logger.error("executeWorkflowViaSSE failed: \(error.localizedDescription)")
-                ErrorService.shared.reportError(error)
                 executionObserver.endExecution(workflowId: workflowId, status: .failed)
             }
         }

@@ -326,7 +326,11 @@ struct ContentView: View {
                         .help("Add new item (⌘N)")
 
                     if featureManager.isWorkflowsEnabled && featureManager.isWorkflowRunOnSelectionEnabled {
-                        let hasSelection = !browserSelection.isEmpty || detailDocument != nil
+                        // Snapshot selection at Menu-render time so Button actions use
+                        // these captured IDs even if focus shifts after the menu opens.
+                        let capturedSelectionIds: [String] = !browserSelection.isEmpty
+                            ? Array(browserSelection)
+                            : (detailDocument.map { [$0.id] } ?? [])
                         let collectionFiles = documentStore.currentDocuments.filter { $0.docType == .file }
                         let hasCollection = !collectionFiles.isEmpty
                         let sortedWorkflows = workflowStore.workflows.sorted {
@@ -336,11 +340,14 @@ struct ContentView: View {
                             if workflowStore.workflows.isEmpty {
                                 Text("No workflows available")
                             } else {
-                                if hasSelection {
+                                if !capturedSelectionIds.isEmpty {
                                     Section("On Selection") {
                                         ForEach(sortedWorkflows, id: \.id) { workflow in
                                             Button(workflow.name) {
-                                                runWorkflowOnSelection(workflowId: workflow.id)
+                                                runWorkflowOnSelection(
+                                                    workflowId: workflow.id,
+                                                    preselectedIds: capturedSelectionIds
+                                                )
                                             }
                                         }
                                     }
@@ -354,7 +361,7 @@ struct ContentView: View {
                                         }
                                     }
                                 }
-                                if !hasSelection && !hasCollection {
+                                if capturedSelectionIds.isEmpty && !hasCollection {
                                     Text("Select a document or open a collection")
                                         .foregroundStyle(.secondary)
                                 }
@@ -363,7 +370,7 @@ struct ContentView: View {
                             Label("Run Workflow", systemImage: "play.square.stack")
                         }
                         .help("Run Workflow on Selection or Collection")
-                        .disabled(workflowStore.workflows.isEmpty || (!hasSelection && !hasCollection))
+                        .disabled(workflowStore.workflows.isEmpty || (capturedSelectionIds.isEmpty && !hasCollection))
                     }
                 }
             }
