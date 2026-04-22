@@ -848,6 +848,20 @@ class Database(DatabaseEmbeddingMixin):
         for name, field_info in model.model_fields.items():
             value = data.get(name)
             if value is None:
+                # For non-Optional dict/list fields with a default_factory, use
+                # the default instead of None to prevent Pydantic ValidationError
+                # when a DB column is NULL (e.g. after schema migration).
+                annotation = field_info.annotation
+                raw_origin = get_origin(annotation)
+                is_optional = raw_origin is Union or raw_origin is UnionType
+                if not is_optional:
+                    inner = annotation
+                    inner_origin = get_origin(inner)
+                    if inner is dict or inner_origin is dict or inner is list or inner_origin is list:
+                        default_factory = getattr(field_info, "default_factory", None)
+                        if callable(default_factory):
+                            result[name] = default_factory()
+                            continue
                 result[name] = value
                 continue
 

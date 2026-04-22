@@ -359,17 +359,19 @@ async def save_artifact(
     Returns:
         Artifact ID if saved, None otherwise
     """
+    if not library_path:
+        return None
+
+    artifact_id: str | None = None
+    doc = None
+
     try:
         from fichero.db import db_manager
         from fichero.models import Document, Artifact, Status
 
-        if not library_path:
-            return None
-
         db = db_manager.get_database(library_path)
 
         # Find document
-        doc = None
         if document_id:
             doc = db.get(Document, document_id)
         if not doc and file_path:
@@ -385,6 +387,10 @@ async def save_artifact(
             )
             return None
 
+        # Ensure metadata is a mutable dict (NULL in DB parses as None)
+        if not isinstance(doc.metadata, dict):
+            doc.metadata = {}
+
         # Create Artifact
         artifact = Artifact(
             document_id=doc.id,
@@ -396,7 +402,8 @@ async def save_artifact(
             run_id=task_id,
         )
         db.save(artifact)
-        logger.info(f"Created {tool_config.artifact_type} artifact {artifact.id}")
+        artifact_id = artifact.id
+        logger.info(f"Created {tool_config.artifact_type} artifact {artifact_id}")
 
         # Update Document.page_content if configured
         if tool_config.update_page_content:
@@ -409,31 +416,28 @@ async def save_artifact(
                 db.embed(doc)
                 logger.info(f"Updated page_content and embedding for {doc.id}")
 
-        # Update metadata field (override or from tool_config)
-        final_metadata_field = metadata_field or tool_config.metadata_field
-        if final_metadata_field:
-            # For text, truncate; for data, store as-is
-            if data:
-                doc.metadata[final_metadata_field] = data
-            else:
-                doc.metadata[final_metadata_field] = content[:1000]
-            doc.updated_at = datetime.now()
-
-        # Add custom metadata if provided
-        if custom_metadata:
-            for key, value in custom_metadata.items():
-                doc.metadata[key] = value
-            doc.updated_at = datetime.now()
-
-        # Save if any metadata was updated
-        if final_metadata_field or custom_metadata:
-            db.save(doc)
-
-        return artifact.id
-
     except Exception as e:
         logger.error(f"Failed to save artifact: {e}")
-        return None
+        # Return artifact_id if the write succeeded before the exception
+        return artifact_id
+
+    # Metadata decoration is non-fatal — keep it isolated so it can never
+    # hide a successful artifact + page_content save.
+    try:
+        final_metadata_field = metadata_field or tool_config.metadata_field
+        if (final_metadata_field or custom_metadata) and doc is not None:
+            if not isinstance(doc.metadata, dict):
+                doc.metadata = {}
+            if final_metadata_field:
+                doc.metadata[final_metadata_field] = data if data else content[:1000]
+            if custom_metadata:
+                doc.metadata.update(custom_metadata)
+            doc.updated_at = datetime.now()
+            db.save(doc)
+    except Exception as meta_e:
+        logger.warning(f"Metadata decoration failed for artifact {artifact_id}: {meta_e}")
+
+    return artifact_id
 
 
 async def save_to_file(

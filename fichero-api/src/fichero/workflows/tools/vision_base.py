@@ -311,6 +311,75 @@ async def apple_vision_ocr_async(image_path: str, language: str = "en") -> str:
     return await loop.run_in_executor(None, apple_vision_ocr, image_path, language)
 
 
+def _apple_ocr_pdf_pages(pdf_path: str, language: str = "en") -> list[str]:
+    """OCR a PDF page by page, returning one text string per page (0-indexed).
+
+    Used to propagate per-page content to page child documents after
+    transcribing a PDF at the file level.
+    """
+    try:
+        first_image, num_pages = _render_pdf_page_to_cgimage(pdf_path, 0)
+    except Exception as e:
+        logger.error(f"PDF page OCR failed: {e}")
+        return []
+
+    pages: list[str] = []
+    for page_idx in range(num_pages):
+        try:
+            cg_image = first_image if page_idx == 0 else _render_pdf_page_to_cgimage(pdf_path, page_idx)[0]
+            pages.append(_vision_ocr_cgimage(cg_image, language) or "")
+        except Exception as e:
+            logger.warning(f"Page {page_idx} OCR failed: {e}")
+            pages.append("")
+    return pages
+
+
+async def apple_vision_ocr_pages_async(pdf_path: str, language: str = "en") -> list[str]:
+    """Async per-page OCR for PDFs. Returns list[str] (one entry per page)."""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _apple_ocr_pdf_pages, pdf_path, language)
+
+
+async def _propagate_to_page_children(
+    parent_id: str,
+    page_texts: list[str],
+    library_path: str,
+) -> None:
+    """Write per-page OCR text to page child documents and re-embed each one.
+
+    Call this after saving the combined transcript to the parent PDF document
+    so that semantic search can surface individual pages instead of only the file.
+    """
+    try:
+        from fichero.db import db_manager
+        from fichero.models import Document, Status
+
+        db = db_manager.get_database(library_path)
+        page_docs = sorted(
+            db.query(Document, parent_id=parent_id),
+            key=lambda d: d.sequence or 0,
+        )
+        if not page_docs:
+            return
+
+        for page_doc in page_docs:
+            # sequence is 1-based; page_texts is 0-indexed
+            page_idx = (page_doc.sequence or 1) - 1
+            if page_idx < len(page_texts) and page_texts[page_idx]:
+                if not isinstance(page_doc.metadata, dict):
+                    page_doc.metadata = {}
+                page_doc.page_content = page_texts[page_idx]
+                page_doc.status = Status.completed
+                db.save(page_doc)
+                db.embed(page_doc)
+
+        logger.info(
+            f"Propagated OCR to {len(page_docs)} page children of {parent_id}"
+        )
+    except Exception as e:
+        logger.warning(f"Failed to propagate OCR to page children of {parent_id}: {e}")
+
+
 # =============================================================================
 # Image Processing
 # =============================================================================
@@ -520,9 +589,22 @@ async def process_vision(
     for file_path in files:
         try:
             # Process with Apple Vision or LLM
+            per_page_texts: list[str] | None = None
             if vision_mode == "apple" and tool_config.supports_apple_vision:
                 logger.info(f"Apple Vision: {Path(file_path).name}")
-                text = await apple_vision_ocr_async(file_path, language)
+                if file_path.lower().endswith(".pdf"):
+                    # OCR page-by-page so we can propagate per-page content
+                    # to page child documents after saving the parent artifact.
+                    per_page_texts = await apple_vision_ocr_pages_async(file_path, language)
+                    parts = []
+                    for i, t in enumerate(per_page_texts):
+                        if t:
+                            if len(per_page_texts) > 1:
+                                parts.append(f"--- Page {i + 1} ---")
+                            parts.append(t)
+                    text = "\n\n".join(parts)
+                else:
+                    text = await apple_vision_ocr_async(file_path, language)
                 # Apple Vision doesn't use LLM params, parse as text
                 parsed = text
             else:
@@ -605,6 +687,15 @@ async def process_vision(
                 if artifact_id:
                     result["artifact_id"] = artifact_id
                     artifact_ids.append(artifact_id)
+
+                    # Propagate per-page OCR to page child documents so semantic
+                    # search can surface individual pages, not only the parent PDF.
+                    if per_page_texts and len(per_page_texts) > 1:
+                        parent_id = path_to_doc.get(file_path)
+                        if parent_id:
+                            await _propagate_to_page_children(
+                                parent_id, per_page_texts, library_path
+                            )
                 else:
                     logger.warning(f"save_artifact returned None for {file_path}")
 
