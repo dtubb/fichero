@@ -75,7 +75,7 @@ extension ContentView {
             HStack(spacing: 0) {
                 WorkflowListView(
                     displayMode: .list,
-                    onOpenWorkflow: { w in viewMode = .workflow(w) }
+                    onOpenWorkflow: { item in viewMode = .workflow(item) }
                 )
                 .frame(minWidth: 200, maxWidth: 280)
 
@@ -85,7 +85,8 @@ extension ContentView {
                     WorkflowEditor(
                         workflow: selectedWorkflow,
                         editingWorkflow: $editingWorkflow,
-                        displayMode: .icon
+                        displayMode: .icon,
+                        selectedDocumentIds: Array(browserSelection)
                     )
                     .frame(maxWidth: .infinity)
                 } else {

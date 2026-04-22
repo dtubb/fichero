@@ -49,11 +49,17 @@ extension WorkflowEditor {
                 let workflowId = editingWorkflow.id  // Capture ID before closure
 
                 // Capture current selection — the Files node reads this from state["selected_doc_ids"]
+                // Priority: multi-selection from library (passed in) > single detail doc > empty
                 let selectedIds: [String]
-                if let docId = documentStore.selectedDocument?.id {
+                if !selectedDocumentIds.isEmpty {
+                    selectedIds = selectedDocumentIds
+                } else if let docId = documentStore.selectedDocument?.id {
                     selectedIds = [docId]
                 } else {
                     selectedIds = []
+                }
+                if selectedIds.isEmpty {
+                    actionsLogger.warning("runWorkflow: no documents selected — Files node will return empty")
                 }
 
                 // Track completion with a continuation

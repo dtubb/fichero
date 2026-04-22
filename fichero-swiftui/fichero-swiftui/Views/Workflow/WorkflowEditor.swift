@@ -11,6 +11,9 @@ struct WorkflowEditor: View {
 
     let displayMode: ViewDisplayMode  // Universal view mode from toolbar
 
+    /// Document IDs currently selected in the library (plain UUIDs, no prefix)
+    let selectedDocumentIds: [String]
+
     @State var isRunning: Bool = false
     @State var isSaving: Bool = false
     @State var saveError: String?
@@ -49,11 +52,13 @@ struct WorkflowEditor: View {
     init(
         workflow: WorkflowSidebarItem?,
         editingWorkflow: Binding<Workflow>,
-        displayMode: ViewDisplayMode = .icon
+        displayMode: ViewDisplayMode = .icon,
+        selectedDocumentIds: [String] = []
     ) {
         self.selectedWorkflow = workflow
         self._editingWorkflow = editingWorkflow
         self.displayMode = displayMode
+        self.selectedDocumentIds = selectedDocumentIds
     }
 
     var body: some View {
