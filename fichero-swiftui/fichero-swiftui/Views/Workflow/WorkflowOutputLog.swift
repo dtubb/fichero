@@ -26,6 +26,15 @@ struct WorkflowOutputLog: View {
         return nil
     }
 
+    /// Source tools gather input files but do not process them per-file, so they
+    /// never emit fileStart/fileComplete events. Showing them as Output Log columns
+    /// produces an all-"-" column that adds noise without value.
+    private static let sourceTools: Set<String> = ["files", "collection", "folder", "search"]
+
+    private var processingNodes: [WorkflowNode] {
+        workflow.nodes.filter { !Self.sourceTools.contains($0.tool) }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             headerView
@@ -110,7 +119,7 @@ struct WorkflowOutputLog: View {
                 .frame(width: 150, alignment: .leading)
                 .padding(.horizontal, 8)
 
-            ForEach(workflow.nodes) { node in
+            ForEach(processingNodes) { node in
                 Text(node.label ?? node.tool)
                     .font(.caption)
                     .fontWeight(.semibold)
@@ -131,7 +140,7 @@ struct WorkflowOutputLog: View {
                 .frame(width: 150, alignment: .leading)
                 .padding(.horizontal, 8)
 
-            ForEach(workflow.nodes) { node in
+            ForEach(processingNodes) { node in
                 stepStatusCell(for: progress.stepStatuses[node.id])
                     .frame(width: 80)
             }
