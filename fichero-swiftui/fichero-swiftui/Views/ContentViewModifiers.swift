@@ -1,5 +1,6 @@
 import OSLog
 import SwiftUI
+import UniformTypeIdentifiers
 
 private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ContentViewModifiers")
 
@@ -118,11 +119,19 @@ struct DropTargetModifiers: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .dropDestination(for: URL.self) { urls, _ in
-                handleFileDrop(urls)
+            // Use the NSItemProvider path (same as SidebarItemRow) instead of
+            // the Transferable `.dropDestination(for: URL.self)`. The Transferable
+            // API fires independently of child `.onDrop` handlers and provides URLs
+            // that can fail the backend path check for root-level drops (#598).
+            .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
+                let fileProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
+                guard !fileProviders.isEmpty else { return false }
+                Task {
+                    let urls = await Self.loadURLs(from: fileProviders)
+                    guard !urls.isEmpty else { return }
+                    await MainActor.run { handleFileDrop(urls) }
+                }
                 return true
-            } isTargeted: { isTargeted in
-                self.isDropTargeted = isTargeted
             }
             // No full-window highlight overlay — sidebar folder rows show their own
             // per-folder drop targeting via SidebarItemRow's isDropTargeted state.
@@ -154,6 +163,26 @@ struct DropTargetModifiers: ViewModifier {
                     Text(error)
                 }
             }
+    }
+
+    private static func loadURLs(from providers: [NSItemProvider]) async -> [URL] {
+        var urls: [URL] = []
+        for provider in providers {
+            if let url = try? await withCheckedThrowingContinuation({ cont in
+                _ = provider.loadObject(ofClass: URL.self) { value, error in
+                    if let error {
+                        cont.resume(throwing: error)
+                    } else if let value {
+                        cont.resume(returning: value)
+                    } else {
+                        cont.resume(throwing: NSError(domain: "DropTarget", code: -1))
+                    }
+                }
+            }) as URL {
+                urls.append(url)
+            }
+        }
+        return urls
     }
 }
 

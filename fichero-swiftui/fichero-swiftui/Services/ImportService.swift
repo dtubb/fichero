@@ -88,12 +88,12 @@ struct ImportProgress {
 }
 
 /// Import error wrapper
-struct ImportError: Error, Identifiable {
+struct ImportError: Error, LocalizedError, Identifiable {
     let id = UUID()
     let url: URL
     let error: Error
 
-    var localizedDescription: String {
+    var errorDescription: String? {
         "Failed to import \(url.lastPathComponent): \(error.localizedDescription)"
     }
 }
