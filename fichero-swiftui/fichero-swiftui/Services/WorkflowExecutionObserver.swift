@@ -125,12 +125,16 @@ class WorkflowExecutionObserver {
             execution.isRunning = false
             activeExecutions[workflowId] = execution
 
+            cancelHandlers.removeValue(forKey: workflowId)
+
             // Archive to completedExecutions so Activity tabs remain readable
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(1))
                 if let finished = self.activeExecutions.removeValue(forKey: workflowId) {
                     self.completedExecutions[workflowId] = finished
                     workflowExecutionLogger.info("Archived completed execution: \(workflowId)")
+                } else {
+                    workflowExecutionLogger.warning("endExecution archive: \(workflowId) already removed — possible double-completion")
                 }
             }
         }

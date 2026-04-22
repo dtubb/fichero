@@ -70,18 +70,10 @@ struct ActivityLogView: View {
                 emptyView
             }
         }
-        .task {
+        .task(id: selectedRun.threadId) {
             guard !Task.isCancelled else { return }
-            // Only load for completed runs
             if !selectedRun.isLive {
                 await loadWorkflowRun()
-            }
-        }
-        .onChange(of: selectedRun.threadId) { _, _ in
-            if !selectedRun.isLive {
-                Task {
-                    await loadWorkflowRun()
-                }
             }
         }
         .onChange(of: selectedRun.isLive) { wasLive, isLive in

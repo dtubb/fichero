@@ -46,16 +46,10 @@ struct ActivityDetailView: View {
             contentView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .task {
+        .task(id: selectedRun.id) {
             guard !Task.isCancelled else { return }
             selectedSectionId = sectionId(for: selectedRun.childType)
             await loadActivityDetails()
-        }
-        .onChange(of: selectedRun.id) { _, _ in
-            Task {
-                selectedSectionId = sectionId(for: selectedRun.childType)
-                await loadActivityDetails()
-            }
         }
     }
 
