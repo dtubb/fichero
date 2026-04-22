@@ -319,6 +319,11 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
     Returns:
         Path to generated image, or None on failure
     """
+    # Text-based formats get a rendered text thumbnail.
+    _text_suffixes = {".json", ".txt", ".md", ".rst", ".csv", ".xml", ".yaml", ".yml", ".toml"}
+    if source.suffix.lower() in _text_suffixes:
+        return _generate_text_thumbnail(source, dest, size)
+
     # Skip non-image suffixes up-front — PIL would raise
     # UnidentifiedImageError and the traceback clutters the log.
     # Thumbnail generation for videos, audio, office docs, etc. is
@@ -383,6 +388,64 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
         logger.warning(
             f"Image generation failed for {source.name} ({source.suffix}): {e}"
         )
+        return None
+
+
+def _generate_text_thumbnail(source: Path, dest: Path, size: tuple[int, int]) -> Path | None:
+    """Render a text file's content as a thumbnail image.
+
+    Pretty-prints JSON; shows raw text for other formats. Renders up to the
+    first 60 lines in monospaced text on a white background.
+    """
+    if Image is None:
+        return None
+
+    try:
+        raw = source.read_text(encoding="utf-8", errors="replace")
+    except Exception as e:
+        logger.warning(f"Text thumbnail: could not read {source.name}: {e}")
+        return None
+
+    # Pretty-print JSON; strip to first 60 lines for all formats.
+    if source.suffix.lower() == ".json":
+        try:
+            import json
+            raw = json.dumps(json.loads(raw), indent=2, ensure_ascii=False)
+        except Exception:
+            pass  # fall through to plain text
+
+    lines = raw.splitlines()[:60]
+    text = "\n".join(lines)
+
+    try:
+        from PIL import ImageDraw, ImageFont
+
+        w, h = size
+        img = Image.new("RGB", (w, h), color=(255, 255, 255))
+        draw = ImageDraw.Draw(img)
+
+        # Use a basic monospaced font; fall back to default if unavailable.
+        font_size = max(8, w // 28)
+        font = None
+        for candidate in ("Courier New", "Courier", "Monaco", "monospace"):
+            try:
+                font = ImageFont.truetype(candidate, font_size)
+                break
+            except Exception:
+                pass
+        if font is None:
+            font = ImageFont.load_default()
+
+        # Draw text with a small left margin
+        margin = 6
+        draw.text((margin, margin), text, fill=(30, 30, 30), font=font)
+
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        img.save(dest, "JPEG", quality=settings.quality)
+        logger.info(f"Generated text thumbnail: {dest} from {source.name}")
+        return dest
+    except Exception as e:
+        logger.warning(f"Text thumbnail failed for {source.name}: {e}")
         return None
 
 
