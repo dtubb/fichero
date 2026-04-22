@@ -1047,3 +1047,11 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 - Re-ran session-start-auto: confirmed STATE.md is accurate, all 6 open 0.0.2 issues still blocked.
 - Committed CONTINUE.md update; no code changes made.
 - No new learnings — session was a clean no-op.
+
+## 2026-04-22 — Auto session: no unblocked tasks (third pass)
+
+- Ran session-start-auto --max-tasks 3.
+- Confirmed all 6 open 0.0.2 issues remain blocked on Daniel's on-device testing or decisions.
+- Issues #623, #624, #625 already closed from prior sessions.
+- 0.0.3 worktree also complete and awaiting Daniel's review.
+- Committed CONTINUE.md doc update; no code changes needed.
