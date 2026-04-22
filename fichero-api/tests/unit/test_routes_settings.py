@@ -18,8 +18,9 @@ class TestGetAIDefaults:
             "text_provider", "text_model",
             "audio_provider", "audio_model",
             "video_provider", "video_model",
+            "embeddings_provider", "embeddings_model",
             "temperature", "max_tokens",
-            "prompt_prefix", "embeddings_model",
+            "prompt_prefix",
         }
         assert expected_keys.issubset(data.keys())
 
@@ -42,10 +43,11 @@ class TestSetAIDefaults:
             "audio_model": "",
             "video_provider": "",
             "video_model": "",
+            "embeddings_provider": "",
+            "embeddings_model": "",
             "temperature": "0.7",
             "max_tokens": "1000",
             "prompt_prefix": "",
-            "embeddings_model": "",
         }
         r = client.put("/api/settings/ai-defaults", json=payload)
         assert r.status_code == 200
@@ -61,10 +63,11 @@ class TestSetAIDefaults:
             "audio_model": "",
             "video_provider": "",
             "video_model": "",
+            "embeddings_provider": "openai",
+            "embeddings_model": "text-embedding-3-small",
             "temperature": "",
             "max_tokens": "",
             "prompt_prefix": "",
-            "embeddings_model": "text-embedding-3-small",
         }
         client.put("/api/settings/ai-defaults", json=payload)
         r = client.get("/api/settings/ai-defaults")
@@ -72,6 +75,7 @@ class TestSetAIDefaults:
         data = r.json()
         assert data["vision_provider"] == "openai"
         assert data["vision_model"] == "gpt-4o"
+        assert data["embeddings_provider"] == "openai"
         assert data["embeddings_model"] == "text-embedding-3-small"
 
     def test_empty_values_clear_setting(self, client):
@@ -81,8 +85,9 @@ class TestSetAIDefaults:
             "text_provider": "", "text_model": "",
             "audio_provider": "", "audio_model": "",
             "video_provider": "", "video_model": "",
+            "embeddings_provider": "", "embeddings_model": "",
             "temperature": "", "max_tokens": "",
-            "prompt_prefix": "", "embeddings_model": "",
+            "prompt_prefix": "",
         }
         client.put("/api/settings/ai-defaults", json=payload_set)
         payload_clear = {k: "" for k in payload_set}
@@ -99,8 +104,9 @@ class TestResetAIDefaults:
             "text_provider": "anthropic", "text_model": "claude-3",
             "audio_provider": "", "audio_model": "",
             "video_provider": "", "video_model": "",
+            "embeddings_provider": "", "embeddings_model": "",
             "temperature": "0.5", "max_tokens": "",
-            "prompt_prefix": "", "embeddings_model": "",
+            "prompt_prefix": "",
         }
         client.put("/api/settings/ai-defaults", json=payload)
         r = client.delete("/api/settings/ai-defaults")

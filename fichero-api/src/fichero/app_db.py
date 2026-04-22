@@ -362,10 +362,11 @@ class AppDatabase:
             "default_audio_model",
             "default_video_provider",
             "default_video_model",
+            "default_embeddings_provider",
+            "default_embeddings_model",
             "default_temperature",
             "default_max_tokens",
             "default_prompt_prefix",
-            "default_embeddings_model",
         ]
         result = {}
         for key in keys:
@@ -412,10 +413,11 @@ class AppDatabase:
             "default_audio_model",
             "default_video_provider",
             "default_video_model",
+            "default_embeddings_provider",
+            "default_embeddings_model",
             "default_temperature",
             "default_max_tokens",
             "default_prompt_prefix",
-            "default_embeddings_model",
         ]
         for key in keys:
             self.delete_setting(key)

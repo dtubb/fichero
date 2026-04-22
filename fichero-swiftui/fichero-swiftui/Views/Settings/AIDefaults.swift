@@ -13,10 +13,11 @@ struct AIDefaults: Codable, Equatable {
     var audioModel: String = ""
     var videoProvider: String = ""
     var videoModel: String = ""
+    var embeddingsProvider: String = ""
+    var embeddingsModel: String = ""
     var temperature: String = ""
     var maxTokens: String = ""
     var promptPrefix: String = ""
-    var embeddingsModel: String = ""
 
     enum CodingKeys: String, CodingKey {
         case visionProvider = "vision_provider"
@@ -27,9 +28,10 @@ struct AIDefaults: Codable, Equatable {
         case audioModel = "audio_model"
         case videoProvider = "video_provider"
         case videoModel = "video_model"
+        case embeddingsProvider = "embeddings_provider"
+        case embeddingsModel = "embeddings_model"
         case temperature
         case maxTokens = "max_tokens"
         case promptPrefix = "prompt_prefix"
-        case embeddingsModel = "embeddings_model"
     }
 }

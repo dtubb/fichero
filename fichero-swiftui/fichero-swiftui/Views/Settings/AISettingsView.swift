@@ -21,6 +21,7 @@ struct AISettingsView: View {
     @State private var visionModels: [ModelInfo] = []
     @State private var audioModels: [ModelInfo] = []
     @State private var videoModels: [ModelInfo] = []
+    @State private var embeddingsModels: [ModelInfo] = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -117,6 +118,14 @@ struct AISettingsView: View {
                 }
             }
 
+            Section("Embeddings") {
+                Text("Used by Search to embed and index documents.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                providerPicker(selection: $defaults.embeddingsProvider)
+                modelPicker(selection: $defaults.embeddingsModel, models: embeddingsModels)
+            }
+
             Section {
                 Label(
                     "Per-tool overrides in the workflow editor take precedence.",
@@ -143,6 +152,9 @@ struct AISettingsView: View {
         .onChange(of: defaults.videoProvider) { _, newValue in
             loadModels(for: newValue, into: $videoModels)
         }
+        .onChange(of: defaults.embeddingsProvider) { _, newValue in
+            loadModels(for: newValue, into: $embeddingsModels)
+        }
     }
 
     // MARK: - Advanced Tab
@@ -150,19 +162,6 @@ struct AISettingsView: View {
     @ViewBuilder
     private var advancedTab: some View {
         Form {
-            Section("Embeddings") {
-                Picker("Model", selection: $defaults.embeddingsModel) {
-                    Text("multilingual-e5-large (default)").tag("")
-                    Text("multilingual-e5-large").tag("intfloat/multilingual-e5-large")
-                    Text("multilingual-e5-base (smaller)").tag("intfloat/multilingual-e5-base")
-                    Text("bge-small-en (fast, English)").tag("BAAI/bge-small-en-v1.5")
-                    Text("all-MiniLM-L6-v2 (tiny, English)").tag("all-MiniLM-L6-v2")
-                }
-                Text("Changing model requires re-indexing all documents")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
             Section("Generation") {
                 HStack {
                     Text("Temperature")
@@ -298,6 +297,9 @@ private extension AISettingsView {
             if !defaults.videoProvider.isEmpty {
                 loadModels(for: defaults.videoProvider, into: $videoModels)
             }
+            if !defaults.embeddingsProvider.isEmpty {
+                loadModels(for: defaults.embeddingsProvider, into: $embeddingsModels)
+            }
         } catch {
             logger.error("Failed to load AI defaults: \(error.localizedDescription)")
             errorMessage = "Failed to load: \(error.localizedDescription)"
@@ -325,6 +327,7 @@ private extension AISettingsView {
             visionModels = []
             audioModels = []
             videoModels = []
+            embeddingsModels = []
             errorMessage = nil
         } catch {
             logger.error("Failed to reset AI defaults: \(error.localizedDescription)")
