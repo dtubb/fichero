@@ -180,7 +180,6 @@ extension ContentView {
     /// Shared SSE execution path used by both selection and collection runs.
     /// Registers with executionObserver so Activity view shows live progress.
     @MainActor
-    // swiftlint:disable:next function_body_length
     private func executeWorkflowViaSSE(
         workflowId: String,
         workflowName: String,
@@ -217,10 +216,6 @@ extension ContentView {
                 )
                 importProgress = nil
                 logger.info("Started SSE workflow \(workflowId) thread \(threadId) for \(docIds.count) docs")
-                // Navigate to Activity so the user sees live progress immediately.
-                sidebarMode = .activity
-                viewMode = .activity(nil)
-                selectedSidebarItemId = "activity-browser"
 
                 while !streamCompleted {
                     try await Task.sleep(for: .milliseconds(200))
