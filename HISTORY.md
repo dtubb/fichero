@@ -874,3 +874,127 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 - #556 (settings layout): `.formStyle(.grouped)` + 680px window width already in code — awaiting Daniel on-device screenshot.
 - #609 (Run Workflow toolbar): `runWorkflowOnSelection` already has fallback to `detailDocument` when `browserSelection` is empty; `focusedSceneValue` wiring verified in ContentView — awaiting Daniel on-device test.
 - All remaining issues are Daniel's verification gate. Writing BLOCK.md to pause loop.
+## 2026-04-12 — Session End (PR #455 Created)
+
+- ✅ Created PR #455: Canonical FastAPI knowledge write path
+  - Branch: feature/issue-364 → main
+  - Changes: entities.py, claims.py, claim_links.py with CRUD endpoints
+  - Contract tests: test_canonical_knowledge_routes.py
+  - Status: Ready for review
+
+## 2026-04-12 — Session End Summary
+
+**Session Output:**
+- ✅ Created PR #455: Canonical FastAPI knowledge write path (Issue #364)
+  - entities.py: Entity CRUD, aliasing, resolution endpoints
+  - claims.py: Claim CRUD with referential integrity validation
+  - claim_links.py: Bidirectional claim link management
+  - Contract tests in test_canonical_knowledge_routes.py
+  - All routes registered in main.py _CORE_ROUTE_SPECS
+- ✅ Updated STATE.md: Next session entry point defined
+- ✅ Updated HISTORY.md: Session log archived
+- Branch: feature/issue-364 pushed to origin
+- PR URL: https://github.com/dtubb/fichero/pull/455
+
+**Status:** 0.0.2 milestone pending Daniel's PR review
+
+## 2026-04-12 — Session Summary (0.0.3 PRs Created)
+
+- ✅ Created PR #456: Knowledge migration/backfill (#368)
+  - URL: https://github.com/dtubb/fichero/pull/456
+  - Migration endpoints with dry-run and rollback
+- ✅ Created PR #457: Reindex/repair jobs (#369)
+  - URL: https://github.com/dtubb/fichero/pull/457
+  - VECTOR_REPAIR and KG_METRICS task workers
+- ✅ Created PR #458: Multilingual baseline (#370)
+  - URL: https://github.com/dtubb/fichero/pull/458
+  - Cross-language retrieval and entity aliases
+- ✅ Created PR #459: MCP adapters (#371)
+  - URL: https://github.com/dtubb/fichero/pull/459
+  - Thin MCP wrappers for canonical knowledge APIs
+
+**Total: 5 PRs ready for review (1 × 0.0.2 + 4 × 0.0.3)**
+
+## 2026-04-12 — Session End Summary
+
+**Completed:**
+- ✅ Created 5 GitHub PRs from completed feature branches
+- PR #455: Issue #364 - Canonical knowledge routes (0.0.2 milestone)
+- PR #456-#459: Issues #368-#371 - 0.0.3 milestone complete
+- All branches pushed, documentation updated
+
+**Status:** Awaiting Daniel's review for all 5 PRs
+
+## 2026-04-12 — Session End (No Unblocked Tasks)
+
+- No unblocked tasks — all 5 PRs awaiting Daniel's review
+- PR #455-#459: 0.0.2 and 0.0.3 milestones ready for merge
+
+## 2026-04-12 — Session End (No Unblocked Tasks)
+
+- No implementation tasks available — all 5 PRs awaiting human review
+- PR #455-#459: 0.0.2 and 0.0.3 milestones complete but pending merge
+
+## 2026-04-12 — Session End (No Unblocked Tasks)
+
+- Working tree clean, all changes pushed
+- 5 PRs awaiting Daniel's review (#455-#459)
+- 0.0.2 and 0.0.3 milestones complete pending merge
+
+## 2026-04-12 — Session End
+
+- No unblocked tasks — 5 PRs awaiting Daniel's review
+- CONTINUE.md timestamp updated
+
+## 2026-04-12 — Session End
+
+- No unblocked tasks — 5 PRs awaiting Daniel's review
+
+## 2026-04-12 — Session End
+
+- No unblocked tasks — awaiting Daniel's review of 5 PRs
+
+## 2026-04-12 — Session End
+
+- No unblocked tasks — 5 PRs awaiting Daniel's review
+
+## 2026-04-12 — Session End
+
+- No unblocked tasks — awaiting Daniel's review of 5 PRs
+
+## 2026-04-12 — Session End
+
+- No unblocked tasks — awaiting Daniel's review of 5 PRs
+
+## 2026-04-12 — Session End
+
+- Working tree clean
+- 5 PRs awaiting Daniel's review (#455-#459)
+
+## 2026-04-12 — Session End
+
+- No unblocked tasks — 5 PRs awaiting Daniel's review
+
+## 2026-04-12 — Session End
+
+- No unblocked tasks — awaiting Daniel's review of 5 PRs
+
+## 2026-04-12 — Session End
+
+- No unblocked tasks — awaiting Daniel's review of 5 PRs
+
+## 2026-04-12 — Session End
+
+- No unblocked tasks — awaiting Daniel's review of 5 PRs
+
+## 2026-04-12 — Session End
+
+- No unblocked tasks — awaiting Daniel's review of 5 PRs
+
+## 2026-04-12 — Session End
+
+- No unblocked tasks — awaiting Daniel's review of 5 PRs
+
+## 2026-04-12 — Session End
+
+- No unblocked tasks — awaiting Daniel's review of 5 PRs
