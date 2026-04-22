@@ -130,7 +130,12 @@ struct DocumentInspectorContentTab: View {
     }
 
     private func refreshDocumentFromBackend() async {
+        // Don't race with an in-flight save — the save's updateLocal call wins.
+        guard !isSaving else { return }
         guard let fresh = try? await documentService.getDocument(document.id) else { return }
+        // Only apply if the backend has strictly newer data than what we loaded last.
+        // This prevents a stale fetch from overwriting a just-completed user save.
+        guard fresh.updatedAt > document.updatedAt else { return }
         documentStore.refreshLocalContent(fresh)
     }
 
