@@ -149,6 +149,22 @@ func activityCleanWorkflowName(_ name: String) -> String {
     name.hasPrefix("Workflow ") ? String(name.dropFirst(9)) : name
 }
 
+/// Returns a human-readable display name for a LangGraph node ID, or nil
+/// if the node is internal plumbing that should be hidden from the UI.
+///
+/// Hidden: UUID thread slots, dunder names (__start__, __pregel_*), fan_out.
+/// Others: snake_case converted to Title Case.
+func activityHumanNodeName(_ nodeId: String) -> String? {
+    if UUID(uuidString: nodeId) != nil { return nil }
+    if nodeId.hasPrefix("__") { return nil }
+    let hiddenInternals: Set<String> = ["fan_out"]
+    if hiddenInternals.contains(nodeId) { return nil }
+    return nodeId
+        .split(separator: "_")
+        .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+        .joined(separator: " ")
+}
+
 func activityRunDisplayName(for run: ActivityRun) -> String {
     let formatter = DateFormatter()
     let daysSince = Calendar.current.dateComponents([.day], from: run.timestamp, to: Date()).day ?? 0

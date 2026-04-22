@@ -31,16 +31,16 @@ extension ActivityProgressView {
         .padding()
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
 
-        // Per-node progress
-        if !execution.nodeStates.isEmpty {
+        // Per-node progress (internal LangGraph nodes filtered out)
+        let visibleNodes = execution.nodeStates.values
+            .filter { activityHumanNodeName($0.nodeId) != nil }
+            .sorted { $0.nodeId < $1.nodeId }
+        if !visibleNodes.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Node Progress")
                     .font(.headline)
 
-                ForEach(
-                    Array(execution.nodeStates.values.sorted(by: { $0.nodeId < $1.nodeId })),
-                    id: \.nodeId
-                ) { state in
+                ForEach(visibleNodes, id: \.nodeId) { state in
                     nodeProgressRow(state)
                 }
             }
@@ -69,7 +69,7 @@ extension ActivityProgressView {
             // Status icon
             statusIcon(for: state.status)
 
-            Text(state.nodeId)
+            Text(activityHumanNodeName(state.nodeId) ?? state.nodeId)
                 .lineLimit(1)
 
             Spacer()

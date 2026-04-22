@@ -36,12 +36,15 @@ extension ActivityProgressView {
     func historicalTimelineView(_ timeline: ProgressTimeline) -> some View {
         VStack(alignment: .leading, spacing: 20) {
             // Node-level summary
-            if !timeline.nodes.isEmpty {
+            let visibleNodes = timeline.nodes.keys
+                .filter { activityHumanNodeName($0) != nil }
+                .sorted()
+            if !visibleNodes.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Node Summary")
                         .font(.headline)
 
-                    ForEach(Array(timeline.nodes.keys.sorted()), id: \.self) { nodeId in
+                    ForEach(visibleNodes, id: \.self) { nodeId in
                         if let stats = timeline.nodes[nodeId] {
                             nodeStatsRow(nodeId: nodeId, stats: stats)
                         }
@@ -51,18 +54,22 @@ extension ActivityProgressView {
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
             }
 
-            // Execution timeline (nodes + files)
-            if !timeline.steps.isEmpty {
+            // Execution timeline (nodes + files); internal nodes hidden
+            let visibleSteps = timeline.steps.filter { step in
+                if step.isNodeStep { return activityHumanNodeName(step.nodeId) != nil }
+                return true
+            }
+            if !visibleSteps.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Execution Timeline")
                         .font(.headline)
 
-                    ForEach(Array(timeline.steps.enumerated()), id: \.offset) { _, step in
+                    ForEach(Array(visibleSteps.enumerated()), id: \.offset) { _, step in
                         if step.isNodeStep {
                             nodeExecutionRow(step)
                         } else if step.isFileStep {
                             fileProgressRow(step)
-                                .padding(.leading, 20)  // Indent file steps
+                                .padding(.leading, 20)
                         }
                     }
                 }
@@ -79,7 +86,7 @@ extension ActivityProgressView {
                 .foregroundStyle(.blue)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(nodeId.prefix(8) + "...")
+                Text(activityHumanNodeName(nodeId) ?? nodeId)
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -107,7 +114,7 @@ extension ActivityProgressView {
                                     step.status == "error" ? .red : .secondary)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Node: \(step.nodeId.prefix(8))...")
+                Text(activityHumanNodeName(step.nodeId) ?? step.nodeId)
                     .font(.caption)
                     .fontWeight(.semibold)
 
