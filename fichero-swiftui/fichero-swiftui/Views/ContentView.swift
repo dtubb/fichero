@@ -328,9 +328,13 @@ struct ContentView: View {
                     if featureManager.isWorkflowsEnabled && featureManager.isWorkflowRunOnSelectionEnabled {
                         // Snapshot selection at Menu-render time so Button actions use
                         // these captured IDs even if focus shifts after the menu opens.
+                        // Exclude folder docs — passing a folder ID to the backend expands
+                        // it to all children, which is the "On Collection" path, not "On Selection".
                         let capturedSelectionIds: [String] = !browserSelection.isEmpty
-                            ? Array(browserSelection)
-                            : (detailDocument.map { [$0.id] } ?? [])
+                            ? browserSelection.filter { id in
+                                documentStore.currentDocuments.first { $0.id == id }?.docType != .folder
+                            }
+                            : (detailDocument.flatMap { $0.docType == .folder ? nil : [$0.id] } ?? [])
                         let collectionFiles = documentStore.currentDocuments.filter { $0.docType == .file }
                         let hasCollection = !collectionFiles.isEmpty
                         let sortedWorkflows = workflowStore.workflows.sorted {
