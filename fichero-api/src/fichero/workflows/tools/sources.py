@@ -76,9 +76,9 @@ async def files_tool(
     2. state["selected_doc_ids"] — document IDs passed from the UI selection
     3. state["input_files"] from executor initialization
     """
-    # Priority 1: explicit upstream mapping
+    # Priority 1: explicit upstream mapping (skip if empty — fall through to state-based selection)
     raw_files = inputs.get("files")
-    if raw_files is not None:
+    if raw_files:
         if isinstance(raw_files, str):
             files = [raw_files]
         else:
@@ -98,8 +98,24 @@ async def files_tool(
             db = db_manager.get_database(library_path)
             docs = [db.get(Document, doc_id) for doc_id in selected_doc_ids]
             docs = [d for d in docs if d is not None]
-            files = [d.path for d in docs if d.path]
-            documents = [d.model_dump() for d in docs]
+
+            # Page children have path=None — resolve to parent so the real file is used
+            resolved: dict[str, Document] = {}
+            for doc in docs:
+                if doc.path:
+                    resolved[doc.path] = doc
+                elif doc.parent_id:
+                    parent = db.get(Document, doc.parent_id)
+                    if parent and parent.path:
+                        resolved[parent.path] = parent
+                        logger.info(f"files_tool: resolved page {doc.id} → parent {parent.id}")
+                    else:
+                        logger.warning(f"files_tool: doc {doc.id} has no path; parent {doc.parent_id} also has no path")
+                else:
+                    logger.warning(f"files_tool: doc {doc.id} type={doc.doc_type} has no path and no parent — skipping")
+
+            files = list(resolved.keys())
+            documents = [d.model_dump() for d in resolved.values()]
             logger.info(f"Files source tool: {len(files)} files from selected_doc_ids")
             return {"files": files, "documents": documents, "count": len(files)}
 
@@ -210,8 +226,16 @@ async def collection_tool(
             db = db_manager.get_database(library_path)
             docs = [db.get(Document, doc_id) for doc_id in selected_doc_ids]
             docs = [d for d in docs if d is not None]
-            files = [d.path for d in docs if d.path]
-            documents = [d.model_dump() for d in docs]
+            resolved: dict[str, Document] = {}
+            for doc in docs:
+                if doc.path:
+                    resolved[doc.path] = doc
+                elif doc.parent_id:
+                    parent = db.get(Document, doc.parent_id)
+                    if parent and parent.path:
+                        resolved[parent.path] = parent
+            files = list(resolved.keys())
+            documents = [d.model_dump() for d in resolved.values()]
             logger.info(
                 f"collection_tool: {len(files)} files from selected_doc_ids "
                 f"(overriding collection {collection_id})"
