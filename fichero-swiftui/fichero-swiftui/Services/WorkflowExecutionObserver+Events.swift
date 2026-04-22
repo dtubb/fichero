@@ -29,6 +29,8 @@ extension WorkflowExecutionObserver {
 
         case .nodeBegin(_, let nodeId, let nodeName):
             workflowExecutionLogger.info("[EVENT] Node started: \(nodeName) (\(nodeId))")
+            // Skip LangGraph internal fan-out/fan-in nodes — not user-visible steps.
+            guard !nodeId.hasSuffix("_aggregate"), !nodeId.hasPrefix("branch:to:") else { break }
             var state = execution.nodeStates[nodeId] ?? NodeExecutionState(nodeId: nodeId)
             state.status = .running
             state.progress = 0

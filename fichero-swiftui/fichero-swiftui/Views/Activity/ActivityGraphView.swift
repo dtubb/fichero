@@ -95,9 +95,10 @@ struct ActivityGraphView: View {
                         .font(.subheadline)
                         .fontWeight(selectedCheckpoint?.id == checkpoint.id ? .semibold : .regular)
 
-                    // State summary
-                    if !checkpoint.writes.isEmpty {
-                        Text(checkpoint.writes.keys.joined(separator: ", "))
+                    // State summary — omit LangGraph internal keys
+                    let visibleWriteKeys = checkpoint.writes.keys.filter { !isInternalKey($0) }
+                    if !visibleWriteKeys.isEmpty {
+                        Text(visibleWriteKeys.sorted().joined(separator: ", "))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -190,14 +191,26 @@ struct ActivityGraphView: View {
         }
     }
 
+    // MARK: - Internal Key Filtering
+
+    private static let internalChannelKeys: Set<String> = [
+        "parallel_results", "__end__", "__start__"
+    ]
+
+    private func isInternalKey(_ key: String) -> Bool {
+        Self.internalChannelKeys.contains(key)
+            || key.hasSuffix("_aggregate")
+            || key.hasPrefix("branch:to:")
+    }
+
     @ViewBuilder
     private func stateSection(title: String, values: [String: CheckpointValue]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.headline)
 
-            // Create array with indices to ensure unique IDs
-            let sortedKeys = values.keys.sorted()
+            // Create array with indices to ensure unique IDs; hide LangGraph internal keys.
+            let sortedKeys = values.keys.sorted().filter { !isInternalKey($0) }
             ForEach(Array(sortedKeys.enumerated()), id: \.offset) { _, key in
                 if let value = values[key] {
                     HStack(alignment: .top) {
