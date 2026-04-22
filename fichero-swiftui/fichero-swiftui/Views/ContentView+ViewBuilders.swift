@@ -196,6 +196,7 @@ extension ContentView {
         }
         if let match, detailDocument?.id != match.id {
             detailDocument = match
+            browserSelection = [match.id]
         }
     }
 
