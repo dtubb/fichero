@@ -199,8 +199,10 @@ struct FicheroApp: App {
             CommandGroup(after: .appSettings) {
                 Divider()
 
-                Button("AI Providers & Models...") {
+                Button {
                     appState.showProvidersSettings = true
+                } label: {
+                    Label("AI Providers & Models...", systemImage: "cpu")
                 }
 
                 if featureManager.isMCPEnabled {

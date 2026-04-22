@@ -87,14 +87,14 @@ struct EditorView: View {
             // Swipe left/right at fit-scale to turn pages; onPageIndexChange
             // wires back so the grid's selected thumbnail follows (#586).
             let pageIndex = max(0, (doc.sequence ?? 1) - 1)
-            PDFPageView(
+            PDFPageWithToolbar(
                 path: pdfPath,
                 pageIndex: pageIndex,
                 onPageIndexChange: onPDFPageIndexChange
             )
         } else if doc.fileType == .pdf, let path = doc.path, !path.isEmpty {
             // Top-level PDF file — single-page view, starts at page 0 (#595).
-            PDFPageView(
+            PDFPageWithToolbar(
                 path: path,
                 pageIndex: 0,
                 onPageIndexChange: onPDFPageIndexChange

@@ -46,6 +46,30 @@ struct PDFThumbnailView: View {
     }
 }
 
+// MARK: - PDF Zoom Controller
+
+/// Bridges the SwiftUI zoom toolbar with PDFKit's AppKit PDFView.
+final class PDFZoomController: ObservableObject {
+    @Published var scale: CGFloat = 1.0
+    weak var pdfView: PDFView?
+
+    func zoomIn() { pdfView?.zoomIn(nil) }
+    func zoomOut() { pdfView?.zoomOut(nil) }
+    func fitToWindow() {
+        guard let view = pdfView else { return }
+        // Avoid re-enabling autoScales (#588) — compute fit scale directly.
+        view.autoScales = false
+        view.scaleFactor = view.scaleFactorForSizeToFit
+    }
+    func actualSize() {
+        guard let view = pdfView else { return }
+        view.autoScales = false
+        view.scaleFactor = 1.0
+    }
+}
+
+// MARK: - PDFPageView
+
 /// Interactive PDF preview using PDFKit's `PDFView`.
 ///
 /// Where `PDFThumbnailView` renders a flat `NSImage` (cheap, cacheable, fine
@@ -63,6 +87,8 @@ struct PDFPageView: NSViewRepresentable {
     /// Fires when the user swipes to a different page.
     /// The index is 0-based into the PDF document.
     var onPageIndexChange: ((Int) -> Void)?
+    /// Optional zoom controller — set by PDFPageWithToolbar to sync the toolbar.
+    var zoomController: PDFZoomController?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(owner: self)
@@ -80,6 +106,8 @@ struct PDFPageView: NSViewRepresentable {
         view.backgroundColor = NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)
         view.delegate = context.coordinator
         context.coordinator.pdfView = view
+        context.coordinator.zoomController = zoomController
+        zoomController?.pdfView = view
         NotificationCenter.default.addObserver(
             context.coordinator,
             selector: #selector(Coordinator.pageDidChange(_:)),
@@ -105,6 +133,8 @@ struct PDFPageView: NSViewRepresentable {
 
     func updateNSView(_ view: PDFView, context: Context) {
         context.coordinator.owner = self
+        context.coordinator.zoomController = zoomController
+        zoomController?.pdfView = view
         loadAndNavigate(view)
     }
 
@@ -136,6 +166,7 @@ struct PDFPageView: NSViewRepresentable {
     final class Coordinator: NSObject, PDFViewDelegate, NSGestureRecognizerDelegate {
         var owner: PDFPageView
         weak var pdfView: PDFView?
+        var zoomController: PDFZoomController?
         // Accumulated horizontal translation for the current pan gesture.
         private var panAccumulated: CGFloat = 0
 
@@ -162,6 +193,8 @@ struct PDFPageView: NSViewRepresentable {
         func scaleDidChange(_ notification: Notification) {
             guard let view = notification.object as? PDFView else { return }
             view.autoScales = false
+            // PDFViewScaleChanged fires on the main thread.
+            zoomController?.scale = view.scaleFactor
         }
 
         /// Horizontal pan at fit-scale turns pages; at zoom-in PDFKit pans normally.
@@ -200,5 +233,70 @@ struct PDFPageView: NSViewRepresentable {
         ) -> Bool {
             true
         }
+    }
+}
+
+// MARK: - PDFPageWithToolbar
+
+/// PDFPageView with a zoom toolbar matching the ZoomableImagePreview toolbar (#656).
+struct PDFPageWithToolbar: View {
+    let path: String
+    let pageIndex: Int
+    var onPageIndexChange: ((Int) -> Void)?
+
+    @StateObject private var zoom = PDFZoomController()
+
+    var body: some View {
+        VStack(spacing: 0) {
+            pdfZoomToolbar
+            Divider()
+            PDFPageView(
+                path: path,
+                pageIndex: pageIndex,
+                onPageIndexChange: onPageIndexChange,
+                zoomController: zoom
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var pdfZoomToolbar: some View {
+        HStack(spacing: 12) {
+            Button(action: zoom.zoomOut) {
+                Image(systemName: "minus.magnifyingglass")
+            }
+            .buttonStyle(.plain)
+            .help("Zoom Out")
+
+            Text("\(Int(zoom.scale * 100))%")
+                .font(.caption)
+                .monospacedDigit()
+                .frame(width: 50)
+
+            Button(action: zoom.zoomIn) {
+                Image(systemName: "plus.magnifyingglass")
+            }
+            .buttonStyle(.plain)
+            .help("Zoom In")
+
+            Divider().frame(height: 16)
+
+            Button(action: zoom.fitToWindow) {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+            }
+            .buttonStyle(.plain)
+            .help("Fit to Window")
+
+            Button(action: zoom.actualSize) {
+                Image(systemName: "1.square")
+            }
+            .buttonStyle(.plain)
+            .help("Actual Size (100%)")
+
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color(.windowBackgroundColor))
     }
 }
