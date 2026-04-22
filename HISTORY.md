@@ -1072,3 +1072,10 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 - **#641 Coordinator concurrency**: Annotated `PDFPageView.Coordinator` with `@MainActor` — all PDFKit notification/gesture callbacks are main-thread-only
 - **#640 fastembed warning**: Pinned `fastembed<=0.5.1` in both pyproject.toml dependency sections; added `warnings.filterwarnings` at call site in `_prewarm_embeddings()`
 - **#607 + #598**: Daniel confirmed both sidebar drag-drop fixes are resolved; issues closed
+
+## 2026-04-22 — #666 Transcription Save Root Cause + Fix
+
+- **#666 unit tests**: 13 pytest tests across 3 classes covering all three backend fixes — `_parse_json_fields` NULL dict, `save_artifact` non-dict metadata guard, `_propagate_to_page_children` per-page OCR propagation. All pass in 0.35s.
+- **Workflow editor navigation**: Fixed `.workflow` case in `ContentView+Navigation.swift` to use Activity-style split layout (WorkflowListView left / WorkflowEditor right). Fixed `WorkflowListView.listView` to call `openWorkflow` via `onChange(of: selectedWorkflowId)` — previously clicking a row did nothing.
+- **Root cause of "no artifacts": `browserSelection` not forwarded to WorkflowEditor**: `WorkflowEditor.runWorkflow()` read only `documentStore.selectedDocument` (single item, often nil in workflow mode). Added `selectedDocumentIds: [String]` property to `WorkflowEditor`; wired from `ContentView+Navigation` with `Array(browserSelection)`. Fallback chain: multi-selection > single detail doc > empty (with warning log). This is the real reason no OCR ran — `selected_doc_ids` was `[]` so the Files node returned nothing and fan_out got 0 files.
+- **#667 filed**: Add Selection source node to workflow editor (milestone 0.0.2)
