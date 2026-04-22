@@ -163,6 +163,9 @@ struct PDFPageView: NSViewRepresentable {
     }
 
     /// Bridges AppKit notifications / delegate into the SwiftUI callback.
+    /// All PDFKit notification and gesture callbacks fire on the main thread,
+    /// so @MainActor is correct and avoids nonisolated-context concurrency warnings.
+    @MainActor
     final class Coordinator: NSObject, PDFViewDelegate, NSGestureRecognizerDelegate {
         var owner: PDFPageView
         weak var pdfView: PDFView?
