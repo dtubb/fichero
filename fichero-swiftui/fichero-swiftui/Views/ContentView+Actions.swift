@@ -360,6 +360,14 @@ extension ContentView {
                 return
             }
 
+            // Route root-level drops to Inbox — bare files at library root
+            // are invisible in the sidebar since only folders appear there.
+            if targetParentId == nil {
+                targetParentId = library.documentStore.collections.first(where: {
+                    $0.name == "Inbox" && $0.parentId == nil && $0.docType == .folder
+                })?.id
+            }
+
             do {
                 _ = try await library.importService.importFiles(
                     urls,

@@ -217,14 +217,17 @@ extension SidebarItemRow {
             return false
         }
 
-        let targetFolderId: String?
+        var targetFolderId: String?
         if let targetFolder,
            case .document(let doc) = targetFolder.itemType,
            doc.docType == .folder {
-            // Use the actual document ID, not the sidebar item ID (which has a "doc:" prefix)
             targetFolderId = doc.id
         } else {
-            targetFolderId = nil
+            // No explicit folder target — route to Inbox so the file doesn't
+            // disappear (bare files at library root are invisible in the sidebar).
+            targetFolderId = documentStore?.collections.first(where: {
+                $0.name == "Inbox" && $0.parentId == nil && $0.docType == .folder
+            })?.id
         }
 
         Task {
@@ -237,7 +240,7 @@ extension SidebarItemRow {
                 if let targetFolderId {
                     sidebarRowLogger.debug("✅ Imported \(fileURLs.count) external file(s) to folder \(targetFolderId)")
                 } else {
-                    sidebarRowLogger.debug("✅ Imported \(fileURLs.count) external file(s) to library root")
+                    sidebarRowLogger.debug("✅ Imported \(fileURLs.count) external file(s) to library root (no Inbox found)")
                 }
                 // Clean up fichero-drop-UUID temp dirs created by loadFileRepresentation.
                 for url in fileURLs where url.path.contains("/fichero-drop-") {

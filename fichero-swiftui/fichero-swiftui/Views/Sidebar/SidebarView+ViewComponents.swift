@@ -164,17 +164,19 @@ extension SidebarView {
                         itemCount: totalCount,
                         isCurrentLibrary: library.id == windowState.libraryId,
                         onFileDrop: { urls in
-                            // Import Finder drops at library root. Previously
-                            // these went nowhere (#582) — no drop destination
-                            // existed on the library header.
                             let fileURLs = urls.filter { $0.isFileURL }
                             guard !fileURLs.isEmpty else { return false }
+                            // Route to Inbox — bare files at library root are
+                            // invisible in the sidebar since only folders appear there.
+                            let inboxId = library.documentStore.collections.first(where: {
+                                $0.name == "Inbox" && $0.parentId == nil && $0.docType == .folder
+                            })?.id
                             Task {
                                 do {
                                     _ = try await library.importService.importFiles(
                                         fileURLs,
                                         mode: .link,
-                                        parentId: nil
+                                        parentId: inboxId
                                     )
                                     await library.documentStore.refresh()
                                     try? await Task.sleep(for: .milliseconds(500))
