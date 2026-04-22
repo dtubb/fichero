@@ -201,6 +201,23 @@ async def collection_tool(
             "error": "No collection_id provided",
         }
 
+    # Priority 0: UI selection override — if specific doc IDs were selected,
+    # return only those docs instead of the whole collection.
+    selected_doc_ids = state.get("selected_doc_ids", [])
+    if selected_doc_ids:
+        library_path = state.get("library_path") or inputs.get("library_path")
+        if library_path:
+            db = db_manager.get_database(library_path)
+            docs = [db.get(Document, doc_id) for doc_id in selected_doc_ids]
+            docs = [d for d in docs if d is not None]
+            files = [d.path for d in docs if d.path]
+            documents = [d.model_dump() for d in docs]
+            logger.info(
+                f"collection_tool: {len(files)} files from selected_doc_ids "
+                f"(overriding collection {collection_id})"
+            )
+            return {"files": files, "documents": documents, "count": len(files)}
+
     recursive = inputs.get("recursive", True)
     file_types = inputs.get("file_types", [])
     status_filter = inputs.get("status_filter", "all")
