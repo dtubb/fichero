@@ -600,12 +600,12 @@ async def process_vision(
                     artifact_type=tool_config.artifact_type,
                     library_path=library_path,
                 )
-                if existing is not None and getattr(existing, "content", None):
+                cached_text = getattr(existing, "content", None) if existing else None
+                if isinstance(cached_text, str) and cached_text:
                     logger.info(
                         f"Skip-if-done: reusing cached {tool_config.artifact_type} "
                         f"artifact for {Path(file_path).name}"
                     )
-                    cached_text = existing.content
                     results.append(
                         {"file": file_path, "text": cached_text, "value": cached_text, "cached": True}
                     )

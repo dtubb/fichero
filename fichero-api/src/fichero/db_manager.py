@@ -70,12 +70,17 @@ class DatabaseManager:
 
                 # Seed default workflow presets (Transcribe, Catalogue). Idempotent
                 # by workflow name — a user who deleted a preset doesn't get it back.
-                try:
-                    seeded = seed_default_workflows(db)
-                    if seeded:
-                        logger.info(f"Seeded {seeded} default workflow preset(s)")
-                except Exception as exc:
-                    logger.warning(f"Default workflow seeding skipped: {exc}")
+                # Tests set FICHERO_SKIP_DEFAULT_WORKFLOWS=1 so fixtures that assert
+                # on "empty library" keep working without per-test cleanup.
+                import os
+
+                if os.environ.get("FICHERO_SKIP_DEFAULT_WORKFLOWS") != "1":
+                    try:
+                        seeded = seed_default_workflows(db)
+                        if seeded:
+                            logger.info(f"Seeded {seeded} default workflow preset(s)")
+                    except Exception as exc:
+                        logger.warning(f"Default workflow seeding skipped: {exc}")
 
                 self._databases[package_str] = db
                 logger.info(f"Database connection created: {db_path}")

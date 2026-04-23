@@ -14,6 +14,9 @@ from fastapi.testclient import TestClient
 
 # Keep existing route-heavy tests running against the broader dev API surface.
 os.environ.setdefault("FICHERO_FEATURE_TIER", "dev")
+# Tests assume a clean library by default — disable automatic preset seeding
+# so assertions like "GET /workflows returns []" keep working.
+os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 
 from fichero.api.main import app
 from fichero.db import db_manager
