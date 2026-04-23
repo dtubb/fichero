@@ -128,7 +128,7 @@ struct SidebarItemRow: View {
                 onCancel: onAutomationCancel
             )
 
-            if case .document(let doc) = item.itemType, doc.docType != .folder,
+            if case .document(let doc) = item.itemType,
                let workflows = workflowStore?.workflows, !workflows.isEmpty {
                 Divider()
                 Menu("Run Workflow") {

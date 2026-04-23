@@ -99,10 +99,24 @@ async def files_tool(
             docs = [db.get(Document, doc_id) for doc_id in selected_doc_ids]
             docs = [d for d in docs if d is not None]
 
-            # Page children have path=None — resolve to parent so the real file is used
+            # Page children have path=None — resolve to parent so the real file is used.
+            # Folders have no path — expand recursively to file descendants.
             resolved: dict[str, Document] = {}
+
+            def _expand_folder(folder: Document) -> None:
+                """Recursively collect file descendants of a folder."""
+                children = db.query(Document, parent_id=folder.id)
+                for child in children:
+                    if child.doc_type == DocType.folder:
+                        _expand_folder(child)
+                    elif child.path:
+                        resolved[child.path] = child
+
             for doc in docs:
-                if doc.path:
+                if doc.doc_type == DocType.folder:
+                    _expand_folder(doc)
+                    logger.info(f"files_tool: expanded folder {doc.id} → {len(resolved)} file(s) so far")
+                elif doc.path:
                     resolved[doc.path] = doc
                 elif doc.parent_id:
                     parent = db.get(Document, doc.parent_id)
