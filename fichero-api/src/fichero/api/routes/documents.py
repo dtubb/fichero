@@ -223,6 +223,20 @@ async def update_document(
                 )
         # parent_id=None is allowed (moves to root)
 
+    # Mark user edits to page_content BEFORE applying field updates, so
+    # downstream workflows (transcription, etc.) can detect and avoid
+    # silently overwriting what the user typed. Stored in metadata so no
+    # schema migration is needed. See issue #672.
+    if "page_content" in update_data:
+        existing_metadata = doc.metadata if isinstance(doc.metadata, dict) else {}
+        incoming_metadata = update_data.get("metadata")
+        if isinstance(incoming_metadata, dict):
+            merged_metadata = {**existing_metadata, **incoming_metadata}
+        else:
+            merged_metadata = dict(existing_metadata)
+        merged_metadata["page_content_user_edited_at"] = datetime.now().isoformat()
+        update_data["metadata"] = merged_metadata
+
     for field, value in update_data.items():
         setattr(doc, field, value)
 

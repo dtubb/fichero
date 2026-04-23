@@ -454,8 +454,19 @@ async def save_artifact(
         artifact_id = artifact.id
         logger.info(f"Created {tool_config.artifact_type} artifact {artifact_id}")
 
-        # Update Document.page_content if configured
-        if tool_config.update_page_content:
+        # Update Document.page_content if configured — but NEVER clobber
+        # user-edited page_content. The API update route sets
+        # metadata["page_content_user_edited_at"] whenever a user saves
+        # an edit to page_content; if that flag is present, a transcription
+        # or other tool that produced this artifact should leave the text
+        # alone. The artifact is still saved so the result is discoverable
+        # on the Artifacts tab — just not promoted over the user's edit.
+        # See issue #672.
+        user_edited = (
+            isinstance(doc.metadata, dict)
+            and doc.metadata.get("page_content_user_edited_at")
+        )
+        if tool_config.update_page_content and not user_edited:
             doc.page_content = content
             doc.status = Status.completed
             doc.updated_at = datetime.now()
@@ -464,6 +475,11 @@ async def save_artifact(
             if tool_config.trigger_embedding:
                 db.embed(doc)
                 logger.info(f"Updated page_content and embedding for {doc.id}")
+        elif tool_config.update_page_content and user_edited:
+            logger.info(
+                f"Preserved user-edited page_content on {doc.id}; "
+                f"artifact {artifact_id} saved but not promoted."
+            )
 
     except Exception as e:
         logger.error(f"Failed to save artifact: {e}")
