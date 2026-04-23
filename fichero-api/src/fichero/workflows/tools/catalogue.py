@@ -350,34 +350,61 @@ async def catalogue(
 
     markdown = _render_markdown(data) if data else response
 
-    # Save artifact on the container document.
+    # Save artifacts on the container document.
+    #
+    # Daniel's research workflow expects each section as its OWN artifact
+    # (e.g. "rivers" as a readable list, "people" as a table), not one big
+    # JSON blob you have to decode. So we split the nine-section output into
+    # individual per-section artifacts plus one combined "catalogue" artifact
+    # that holds the full markdown for export / overview.
     library_path = state.get("library_path", "")
     selected_doc_ids = state.get("selected_doc_ids") or []
-    artifact_id: str | None = None
+    saved_artifact_ids: list[str] = []
 
     container = _resolve_container_doc(selected_doc_ids, library_path)
-    if container and library_path:
+    if container and library_path and data is not None:
         try:
             db = db_manager.get_database(library_path)
-            artifact = Artifact(
+            provider = getattr(llm_config, "provider", None)
+            model = getattr(llm_config, "model", None)
+            run_id = state.get("task_id")
+
+            for section_type, section_data in _iter_section_artifacts(data):
+                artifact = Artifact(
+                    document_id=container.id,
+                    artifact_type=section_type,
+                    content=section_data["content"],
+                    data=section_data.get("data"),
+                    provider=provider,
+                    model=model,
+                    run_id=run_id,
+                )
+                db.save(artifact)
+                saved_artifact_ids.append(artifact.id)
+
+            # Combined catalogue artifact with the full markdown rendering —
+            # useful for exporting a single .docx matching the reference format.
+            combined = Artifact(
                 document_id=container.id,
                 artifact_type="catalogue",
                 content=markdown,
                 data=data,
-                provider=getattr(llm_config, "provider", None),
-                model=getattr(llm_config, "model", None),
-                run_id=state.get("task_id"),
+                provider=provider,
+                model=model,
+                run_id=run_id,
             )
-            db.save(artifact)
-            artifact_id = artifact.id
+            db.save(combined)
+            saved_artifact_ids.append(combined.id)
+
             logger.info(
-                f"Catalogue: saved artifact {artifact_id} on container {container.id} ({container.name})"
+                f"Catalogue: saved {len(saved_artifact_ids)} artifacts on container "
+                f"{container.id} ({container.name})"
             )
         except Exception as exc:
-            logger.error(f"Catalogue: failed to save artifact: {exc}")
-    else:
+            logger.error(f"Catalogue: failed to save artifacts: {exc}")
+    elif not container:
         logger.warning(
-            "Catalogue: no container doc resolved (selected_doc_ids=%s); artifact not saved",
+            "Catalogue: no container doc resolved (selected_doc_ids=%s); artifacts not saved",
             selected_doc_ids,
         )
 
@@ -385,6 +412,73 @@ async def catalogue(
         "text": markdown,
         "value": data,
         "results": [{"data": data, "markdown": markdown}],
-        "artifacts": [artifact_id] if artifact_id else [],
+        "artifacts": saved_artifact_ids,
         "container_id": container.id if container else None,
     }
+
+
+# =============================================================================
+# Per-section artifact extraction
+# =============================================================================
+
+
+def _iter_section_artifacts(data: dict[str, Any]):
+    """Yield (artifact_type, {content, data}) for each populated section.
+
+    Each section becomes its own artifact so researchers can browse them
+    independently in the inspector — e.g. a "rivers" artifact with a clean
+    list of rivers, not buried inside a JSON catalogue blob.
+    """
+    # Narrative resumen as its own artifact.
+    if resumen := data.get("resumen"):
+        yield "summary", {"content": str(resumen), "data": None}
+
+    # Keywords as a semicolon-joined string + original list in data.
+    if keywords := data.get("palabras_clave"):
+        if isinstance(keywords, list):
+            content = "; ".join(str(k) for k in keywords)
+            payload = {"keywords": keywords}
+        else:
+            content = str(keywords)
+            payload = {"keywords": [str(keywords)]}
+        yield "keywords", {"content": content, "data": payload}
+
+    # Table-shaped sections: each row rendered as one line, full rows in data.
+    _table_sections = [
+        ("personas_clave", "people", ["nombre", "contexto"]),
+        ("fechas", "dates", ["fecha_normalizada", "fecha", "contexto"]),
+        ("referencias_legales", "legal_references", ["nombre", "contexto"]),
+        ("rios", "rivers", ["nombre", "ortografias_alternativas", "contexto"]),
+        ("eventos_clave", "events", ["evento", "contexto"]),
+        ("minas", "mines", ["nombre", "contexto"]),
+        ("propiedades", "properties", ["nombre", "contexto"]),
+    ]
+
+    for src_key, artifact_type, preferred_order in _table_sections:
+        items = data.get(src_key) or []
+        if not items:
+            continue
+
+        # Readable content: one line per item, primary field first.
+        lines: list[str] = []
+        for item in items:
+            if not isinstance(item, dict):
+                lines.append(str(item))
+                continue
+            primary = item.get(preferred_order[0]) or item.get("nombre") or item.get("evento")
+            if not primary:
+                continue
+            extras: list[str] = []
+            for field in preferred_order[1:]:
+                val = item.get(field)
+                if not val:
+                    continue
+                if isinstance(val, list):
+                    val = ", ".join(str(v) for v in val)
+                extras.append(str(val))
+            if extras:
+                lines.append(f"{primary} — {' — '.join(extras)}")
+            else:
+                lines.append(str(primary))
+
+        yield artifact_type, {"content": "\n".join(lines), "data": {"items": items}}

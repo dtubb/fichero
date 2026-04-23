@@ -44,6 +44,7 @@ from fichero.workflows.tools.llm_base import (
     build_reference_section,
     build_thinking_preamble,
     apply_reference_matching,
+    find_existing_artifact,
     save_artifact as llm_save_artifact,
     save_to_file as llm_save_to_file,
 )
@@ -588,6 +589,31 @@ async def process_vision(
 
     for file_path in files:
         try:
+            # Skip-if-done: use the existing artifact if one already exists
+            # for this (document, artifact_type) and the tool config allows it.
+            # Avoids re-OCRing files already processed by a previous workflow
+            # run, making Catalogue idempotent when composed with Transcribe.
+            if tool_config.skip_if_artifact_exists and save_to_db and library_path:
+                existing = find_existing_artifact(
+                    document_id=path_to_doc.get(file_path),
+                    file_path=file_path,
+                    artifact_type=tool_config.artifact_type,
+                    library_path=library_path,
+                )
+                if existing is not None and getattr(existing, "content", None):
+                    logger.info(
+                        f"Skip-if-done: reusing cached {tool_config.artifact_type} "
+                        f"artifact for {Path(file_path).name}"
+                    )
+                    cached_text = existing.content
+                    results.append(
+                        {"file": file_path, "text": cached_text, "value": cached_text, "cached": True}
+                    )
+                    texts.append(cached_text)
+                    values.append(cached_text)
+                    artifact_ids.append(existing.id)
+                    continue
+
             # Process with Apple Vision or LLM
             per_page_texts: list[str] | None = None
             if vision_mode == "apple" and tool_config.supports_apple_vision:

@@ -321,6 +321,55 @@ class LLMToolConfig:
     # Default metadata field to update (None = don't update metadata)
     metadata_field: str | None = None
 
+    # If True (default), skip the LLM call when an artifact of the same
+    # artifact_type already exists for the input document. Makes workflows
+    # idempotent: re-running Catalogue on a folder with half the files
+    # already transcribed only transcribes the remaining half. Users can
+    # disable per-node in the config to force a re-run.
+    skip_if_artifact_exists: bool = True
+
+
+def find_existing_artifact(
+    document_id: str | None,
+    file_path: str | None,
+    artifact_type: str,
+    library_path: str,
+) -> Any | None:
+    """Return the most recent artifact of the given type for a document, or None.
+
+    Used by the skip-if-done branch of tool execution so we don't re-run
+    expensive LLM/OCR operations on inputs that already have an output artifact.
+    """
+    if not library_path or not artifact_type:
+        return None
+
+    try:
+        from fichero.db import db_manager
+        from fichero.models import Document as _Document, Artifact as _Artifact
+
+        db = db_manager.get_database(library_path)
+
+        doc = None
+        if document_id:
+            doc = db.get(_Document, document_id)
+        if not doc and file_path:
+            docs = db.query(_Document, path=file_path)
+            if docs:
+                doc = docs[0]
+        if not doc:
+            return None
+
+        artifacts = list(db.query(_Artifact, document_id=doc.id, artifact_type=artifact_type))
+        if not artifacts:
+            return None
+
+        # Prefer the newest artifact by created_at.
+        artifacts.sort(key=lambda a: getattr(a, "created_at", 0) or 0, reverse=True)
+        return artifacts[0]
+    except Exception as exc:
+        logger.warning(f"find_existing_artifact failed: {exc}")
+        return None
+
 
 # =============================================================================
 # Database Operations
