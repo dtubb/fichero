@@ -8,7 +8,7 @@ extension LibraryView {
         Logger(subsystem: "com.tubb.Fichero", category: "LibraryView")
     }
 
-    var libraryWorkflows: [Workflow] {
+    var libraryWorkflows: [WorkflowSidebarItem] {
         let lib = libraryManager.getLibrary(id: windowState.libraryId) ?? libraryManager.globalLibrary
         return lib?.workflowStore.workflows ?? []
     }
