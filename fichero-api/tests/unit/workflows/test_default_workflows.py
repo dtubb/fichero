@@ -36,11 +36,11 @@ class TestLoadPresetFiles:
         catalogue = presets["Catalogue"]
 
         node_tools = {n["id"]: n["tool"] for n in catalogue["nodes"]}
-        # Expected shape: source → per-file transcribe → several per-file
-        # extractors (entities, timeline, key_people, keywords) + catalogue
-        # synthesizer at the end.
-        for tool in ("files", "transcribe", "extract_entities", "timeline",
-                     "key_people", "keywords", "catalogue"):
+        # Minimal 0.0.2 preset: Files → Transcribe (per file) → Catalogue.
+        # Additional extractors are available in the palette but not in the
+        # preset — users add them as needed. Visual fan-out / aggregate
+        # markers come in 0.0.3.
+        for tool in ("files", "transcribe", "catalogue"):
             assert tool in node_tools.values(), f"preset missing {tool!r} node"
 
         # Edges use UI schema (source/target, source_port/target_port) so they
@@ -49,14 +49,15 @@ class TestLoadPresetFiles:
             for key in ("source", "target", "source_port", "target_port"):
                 assert key in edge, f"edge missing {key!r}: {edge}"
 
-        # Transcribe fans out to every downstream consumer — same source_port
-        # "text" on each outbound edge.
+        # Transcribe flows into Catalogue via text/text.
         transcribe_id = _node_id(catalogue, "transcribe")
-        downstream = [e for e in catalogue["edges"] if e["source"] == transcribe_id]
-        assert len(downstream) >= 5  # entities, timeline, key_people, keywords, catalogue
-        for edge in downstream:
-            assert edge["source_port"] == "text"
-            assert edge["target_port"] == "text"
+        catalogue_id = _node_id(catalogue, "catalogue")
+        cat_edge = next(
+            e for e in catalogue["edges"]
+            if e["source"] == transcribe_id and e["target"] == catalogue_id
+        )
+        assert cat_edge["source_port"] == "text"
+        assert cat_edge["target_port"] == "text"
 
 
 def _node_id(preset: dict, tool: str) -> str:
@@ -114,3 +115,50 @@ class TestSeedDefaultWorkflows:
         # Should not raise — seeding is best-effort and must not break library init.
         seeded = seed_default_workflows(db)
         assert seeded == 0
+
+    def test_force_deletes_and_reseeds_template_workflows(self):
+        """force=True must delete existing is_template=True presets by name
+        and re-insert from JSON so shipping a new preset version reaches
+        libraries that already have the old copy."""
+        from fichero.models import Workflow
+
+        db = MagicMock()
+        old_catalogue = Workflow(name="Catalogue")
+        old_catalogue.is_template = True
+        old_transcribe = Workflow(name="Transcribe")
+        old_transcribe.is_template = True
+        db.all.return_value = [old_catalogue, old_transcribe]
+        db.save = MagicMock()
+        db.delete = MagicMock()
+
+        seeded = seed_default_workflows(db, force=True)
+
+        # Both old presets deleted.
+        deleted_names = [call.args[0].name for call in db.delete.call_args_list]
+        assert "Catalogue" in deleted_names
+        assert "Transcribe" in deleted_names
+        # Re-inserted from JSON.
+        saved_names = [call.args[0].name for call in db.save.call_args_list]
+        assert "Catalogue" in saved_names
+        assert "Transcribe" in saved_names
+        assert seeded == len(saved_names)
+
+    def test_force_does_not_delete_user_duplicated_workflows(self):
+        """A user-duplicated workflow with a preset name but is_template=False
+        must NOT be deleted by force-reseed — that would destroy user work."""
+        from fichero.models import Workflow
+
+        db = MagicMock()
+        user_copy = Workflow(name="Catalogue")
+        user_copy.is_template = False  # user edited / duplicated
+        db.all.return_value = [user_copy]
+        db.save = MagicMock()
+        db.delete = MagicMock()
+
+        seed_default_workflows(db, force=True)
+
+        db.delete.assert_not_called()
+        # The preset also doesn't get re-seeded because the user's named
+        # copy still exists — seeding would create a duplicate name.
+        saved_names = [call.args[0].name for call in db.save.call_args_list]
+        assert "Catalogue" not in saved_names

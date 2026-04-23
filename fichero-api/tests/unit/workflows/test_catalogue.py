@@ -243,3 +243,24 @@ class TestResolveContainerDoc:
             # when no common parent exists.
             result = _resolve_container_doc(["F", "f1", "f2"], "/tmp")
         assert result is folder
+
+    def test_returns_none_when_no_container_in_selection(self):
+        """Files without a container in their selection or parents get None —
+        catalogue artifacts never go on files."""
+        from fichero.models import DocType
+        f1 = _FakeDoc("f1", DocType.file, parent_id=None)
+        f2 = _FakeDoc("f2", DocType.file, parent_id=None)
+        with self._patch_db({"f1": f1, "f2": f2}):
+            result = _resolve_container_doc(["f1", "f2"], "/tmp")
+        assert result is None
+
+    def test_parent_must_be_container_type(self):
+        """If the common parent is itself a file (group-like PDF with pages),
+        we don't try to save a catalogue on it — return None."""
+        from fichero.models import DocType
+        pdf = _FakeDoc("pdf", DocType.file)  # not a folder
+        page1 = _FakeDoc("p1", DocType.page, parent_id="pdf")
+        page2 = _FakeDoc("p2", DocType.page, parent_id="pdf")
+        with self._patch_db({"pdf": pdf, "p1": page1, "p2": page2}):
+            result = _resolve_container_doc(["p1", "p2"], "/tmp")
+        assert result is None

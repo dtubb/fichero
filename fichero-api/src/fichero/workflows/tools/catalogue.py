@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime
 from typing import Any
 
 from fichero.workflows.types import State, PortDef, DataType
@@ -77,11 +78,14 @@ CATALOGUE_INPUT_PORTS = merge_ports(
 # Prompt (ported from legacy Catalogue (English).jsonl)
 # =============================================================================
 
+# Schema template uses __LANG__ as the placeholder for the target language
+# rather than the string "{output_language}" to avoid accidental collisions
+# with future schema content that happens to contain the same literal.
 _CATALOGUE_SCHEMA = """{
-  "resumen": "string — narrative summary, 150-300 words in {output_language}",
+  "resumen": "string — narrative summary, 150-300 words in __LANG__",
   "palabras_clave": ["keyword1", "keyword2", "..."],
   "personas_clave": [
-    {"nombre": "...", "contexto": "role and importance in {output_language}"}
+    {"nombre": "...", "contexto": "role and importance in __LANG__"}
   ],
   "fechas": [
     {"fecha": "as written", "fecha_normalizada": "YYYY-MM-DD or YYYY-MM-DD/YYYY-MM-DD", "contexto": "..."}
@@ -111,7 +115,7 @@ def _build_prompt(output_language: str) -> str:
     transcriptions. Schema matches the reference .docx format used for the
     Archivo Judicial de Medellín catalogue.
     """
-    schema = _CATALOGUE_SCHEMA.replace("{output_language}", output_language)
+    schema = _CATALOGUE_SCHEMA.replace("__LANG__", output_language)
     return f"""You are cataloguing a collection of archival documents. You receive
 the aggregated transcriptions (possibly across many pages or files).
 
@@ -237,6 +241,9 @@ def _render_markdown(data: dict[str, Any]) -> str:
     return "\n".join(lines).strip()
 
 
+_CONTAINER_DOC_TYPES = {DocType.folder, DocType.group}
+
+
 def _resolve_container_doc(
     selected_doc_ids: list[str], library_path: str
 ) -> Document | None:
@@ -244,8 +251,13 @@ def _resolve_container_doc(
 
     Priority:
     1. If exactly one doc is a folder/group, use it.
-    2. If all docs share a common parent_id, use that parent.
-    3. Otherwise, use the first folder found among the selection or its parents.
+    2. If all selected docs share a common parent, and the parent is a
+       folder/group, use that parent.
+    3. If any selected doc is a folder/group, use the first such one.
+
+    Returns None rather than a file document — catalogue artifacts only
+    belong on containers (folders / groups), never on individual files.
+    Callers should warn and skip when this happens.
     """
     if not selected_doc_ids or not library_path:
         return None
@@ -256,22 +268,23 @@ def _resolve_container_doc(
     if not docs:
         return None
 
-    folders = [d for d in docs if d.doc_type == DocType.folder]
+    folders = [d for d in docs if d.doc_type in _CONTAINER_DOC_TYPES]
     if len(folders) == 1:
         return folders[0]
 
     parent_ids = {d.parent_id for d in docs if d.parent_id}
     if len(parent_ids) == 1:
         parent_id = next(iter(parent_ids))
-        if parent := db.get(Document, parent_id):
+        parent = db.get(Document, parent_id)
+        if parent and parent.doc_type in _CONTAINER_DOC_TYPES:
             return parent
 
-    # Fallback: return the first folder in selection, else the first doc's parent
+    # Fallback: first folder in selection.
     if folders:
         return folders[0]
-    if docs[0].parent_id:
-        return db.get(Document, docs[0].parent_id)
-    return docs[0]
+
+    # No container anywhere in the selection or its parents — nothing to save on.
+    return None
 
 
 # =============================================================================
@@ -400,8 +413,6 @@ async def catalogue(
             # page_content so the folder's Content tab shows the catalogue
             # entry directly. The individual per-section artifacts stay
             # available under the Artifacts tab once its UI lands.
-            from datetime import datetime
-
             container.page_content = markdown
             container.updated_at = datetime.now()
             db.save(container)
@@ -431,6 +442,19 @@ async def catalogue(
 # Per-section artifact extraction
 # =============================================================================
 
+# (input_key, artifact_type, field_order_for_rendering). Field order puts the
+# most identifying field first so the inspector's list view can render
+# "primary — detail — detail" rows.
+_TABLE_SECTIONS: list[tuple[str, str, list[str]]] = [
+    ("personas_clave", "people", ["nombre", "contexto"]),
+    ("fechas", "dates", ["fecha_normalizada", "fecha", "contexto"]),
+    ("referencias_legales", "legal_references", ["nombre", "contexto"]),
+    ("rios", "rivers", ["nombre", "ortografias_alternativas", "contexto"]),
+    ("eventos_clave", "events", ["evento", "contexto"]),
+    ("minas", "mines", ["nombre", "contexto"]),
+    ("propiedades", "properties", ["nombre", "contexto"]),
+]
+
 
 def _iter_section_artifacts(data: dict[str, Any]):
     """Yield (artifact_type, {content, data}) for each populated section.
@@ -454,17 +478,7 @@ def _iter_section_artifacts(data: dict[str, Any]):
         yield "keywords", {"content": content, "data": payload}
 
     # Table-shaped sections: each row rendered as one line, full rows in data.
-    _table_sections = [
-        ("personas_clave", "people", ["nombre", "contexto"]),
-        ("fechas", "dates", ["fecha_normalizada", "fecha", "contexto"]),
-        ("referencias_legales", "legal_references", ["nombre", "contexto"]),
-        ("rios", "rivers", ["nombre", "ortografias_alternativas", "contexto"]),
-        ("eventos_clave", "events", ["evento", "contexto"]),
-        ("minas", "mines", ["nombre", "contexto"]),
-        ("propiedades", "properties", ["nombre", "contexto"]),
-    ]
-
-    for src_key, artifact_type, preferred_order in _table_sections:
+    for src_key, artifact_type, preferred_order in _TABLE_SECTIONS:
         items = data.get(src_key) or []
         if not items:
             continue

@@ -485,6 +485,27 @@ async def export_workflow(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/reinstall-defaults")
+async def reinstall_default_workflows(
+    db: Database = Depends(get_library_database),
+) -> dict:
+    """Delete and re-seed the bundled default workflows (Transcribe, Catalogue).
+
+    Used when we ship a new preset version (new nodes, fixed edge schema, etc.)
+    and want users to pick it up without manually deleting their old copies.
+    Only workflows with is_template=True are touched — user-duplicated or
+    renamed workflows are untouched even if the name happens to match.
+    """
+    from fichero.workflows.default_workflows import seed_default_workflows
+
+    try:
+        seeded = seed_default_workflows(db, force=True)
+        return {"seeded": seeded, "status": "ok"}
+    except Exception as exc:
+        logger.exception("Failed to reinstall default workflows")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @router.get("")
 async def list_workflows(
     folder_path: str = "/",

@@ -45,12 +45,19 @@ def _load_preset_files() -> list[dict]:
     return presets
 
 
-def seed_default_workflows(db: "Database") -> int:
-    """Insert preset workflows into the library if they don't already exist.
+def seed_default_workflows(db: "Database", force: bool = False) -> int:
+    """Insert preset workflows into the library.
 
-    Matching is by workflow name (case-sensitive). A user who renames or
-    deletes a preset will not see it re-seeded — only truly-missing names
-    are inserted.
+    Default behaviour: match by workflow name (case-sensitive) and only insert
+    missing names. A user who renamed or deleted a preset will not see it
+    re-seeded — only truly-missing names are inserted.
+
+    With ``force=True``: delete any existing workflow whose name matches a
+    preset AND whose ``is_template`` flag is set, then re-insert from the
+    current JSON. Used by the reinstall-defaults action so shipping a new
+    preset version (new edges, new nodes, fixed schema) actually reaches
+    libraries that already have the old copy. User-duplicated / renamed
+    workflows are untouched because only is_template=True rows are deleted.
 
     Returns the number of workflows newly seeded.
     """
@@ -66,7 +73,21 @@ def seed_default_workflows(db: "Database") -> int:
         logger.warning(f"seed_default_workflows: cannot list workflows: {exc}")
         return 0
 
-    existing_names = {w.name for w in existing}
+    preset_names = {preset.get("name") for preset in presets if preset.get("name")}
+    existing_by_name = {w.name: w for w in existing}
+
+    if force:
+        for name in preset_names:
+            current = existing_by_name.get(name)
+            if current is not None and getattr(current, "is_template", False):
+                try:
+                    db.delete(current)
+                    logger.info(f"Removed stale default workflow '{name}' for reinstall")
+                except Exception as exc:
+                    logger.warning(f"Could not delete preset '{name}' during reinstall: {exc}")
+                existing_by_name.pop(name, None)
+
+    existing_names = set(existing_by_name.keys())
     seeded = 0
 
     for preset in presets:
