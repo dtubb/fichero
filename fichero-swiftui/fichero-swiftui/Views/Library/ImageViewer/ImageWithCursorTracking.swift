@@ -1,6 +1,28 @@
 import SwiftUI
 import AppKit
+import ImageIO
 import OSLog
+
+/// Load an image decoded to SDR so iPhone HEIC HDR gain maps don't elevate
+/// the window's EDR headroom and wash out surrounding UI. Setting
+/// `preferredImageDynamicRange = .standard` on NSImageView alone isn't
+/// sufficient — if the NSImage carries an HDR representation the system
+/// still raises headroom. Decoding via ImageIO with
+/// `kCGImageSourceDecodeRequest = kCGImageSourceDecodeToSDR` (macOS 14+)
+/// strips the HDR payload at load time.
+private func loadSDRImage(from url: URL) -> NSImage? {
+    guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
+        return NSImage(contentsOf: url)
+    }
+    let options: [CFString: Any] = [
+        kCGImageSourceDecodeRequest: kCGImageSourceDecodeToSDR,
+        kCGImageSourceShouldCache: true
+    ]
+    guard let cgImage = CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary) else {
+        return NSImage(contentsOf: url)
+    }
+    return NSImage(cgImage: cgImage, size: CGSize(width: cgImage.width, height: cgImage.height))
+}
 
 // This file requires large bodies due to complex AppKit integration
 /// NSViewRepresentable wrapper for an image view with cursor tracking and loupe functionality
@@ -87,7 +109,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         imageView.loupeMagnification = loupeMagnification
         imageView.loupeSize = loupeSize
 
-        if let image = NSImage(contentsOf: url) {
+        if let image = loadSDRImage(from: url) {
             imageView.image = image
             imageView.frame = NSRect(origin: .zero, size: image.size)
             Self.logger.info("makeNSView: Set image size=\(image.size.width)x\(image.size.height)")
@@ -184,7 +206,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             imageView.loupeSize = loupeSize
 
             if context.coordinator.currentURL != url {
-                if let image = NSImage(contentsOf: url) {
+                if let image = loadSDRImage(from: url) {
                     imageView.image = image
                     imageView.frame = NSRect(origin: .zero, size: image.size)
                     imageView.loupePosition = nil  // Reset loupe on image change
