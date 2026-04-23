@@ -133,24 +133,64 @@ struct DocumentInspectorArtifactsTab: View {
                 .opacity(artifact.content != nil ? 1 : 0.3)
             }
 
-            // Content preview
+            // Content preview — longer line limit for catalogue-scale artifacts
+            // (summary/narrative), tight limit for list-style artifacts where
+            // the structured data rendering below carries the real content.
             if let content = artifact.content, !content.isEmpty {
                 Text(content)
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .lineLimit(4)
+                    .lineLimit(lineLimitForArtifactType(artifact.artifactType))
                     .padding(6)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color(.textBackgroundColor))
                     .cornerRadius(4)
+                    .textSelection(.enabled)
             }
 
-            // Structured data preview for entities
-            if let data = artifact.data, artifact.artifactType == "entities" {
-                entitiesPreview(data)
+            // Structured data preview — each catalogue artifact type
+            // (people, dates, rivers, etc.) renders the structured items
+            // list as a clean table so researchers can browse without
+            // parsing JSON or markdown.
+            if let data = artifact.data {
+                structuredPreview(for: artifact.artifactType, data: data)
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private func lineLimitForArtifactType(_ type: String) -> Int {
+        switch type {
+        case "catalogue", "summary":
+            return 10  // narrative — give it room
+        case "people", "dates", "rivers", "events",
+             "legal_references", "mines", "properties":
+            return 3   // preview; structured view below carries the real list
+        default:
+            return 4
+        }
+    }
+
+    // MARK: - Structured Preview Router
+
+    @ViewBuilder
+    private func structuredPreview(for type: String, data: [String: AnyCodable]) -> some View {
+        switch type {
+        case "entities":
+            entitiesPreview(data)
+        case "people", "mines", "properties", "legal_references":
+            CatalogueArtifactPreviews.nameContext(data, primaryKey: "nombre")
+        case "events":
+            CatalogueArtifactPreviews.nameContext(data, primaryKey: "evento")
+        case "dates":
+            CatalogueArtifactPreviews.dates(data)
+        case "rivers":
+            CatalogueArtifactPreviews.rivers(data)
+        case "keywords":
+            CatalogueArtifactPreviews.keywords(data)
+        default:
+            EmptyView()
+        }
     }
 
     // MARK: - Entities Preview
@@ -202,30 +242,57 @@ struct DocumentInspectorArtifactsTab: View {
 
     // MARK: - Artifact Type Helpers
 
+    private static let iconByType: [String: String] = [
+        "transcription": "text.quote",
+        "entities": "person.3",
+        "catalogue": "books.vertical",
+        "summary": "doc.text",
+        "summary_file": "doc.text",
+        "summary_folder": "doc.text",
+        "summary_collection": "doc.text",
+        "keywords": "tag",
+        "people": "person.2",
+        "dates": "calendar",
+        "legal_references": "scale.3d",
+        "rivers": "water.waves",
+        "events": "star",
+        "mines": "pickaxe",
+        "properties": "building.columns",
+        "description": "eye"
+    ]
+
+    private static let displayNameByType: [String: String] = [
+        "transcription": "Transcription",
+        "entities": "Entities",
+        "catalogue": "Catalogue",
+        "summary": "Summary",
+        "summary_file": "Summary",
+        "summary_folder": "Folder Summary",
+        "summary_collection": "Collection Summary",
+        "keywords": "Keywords",
+        "people": "People",
+        "dates": "Dates",
+        "legal_references": "Legal References",
+        "rivers": "Rivers",
+        "events": "Events",
+        "mines": "Mines",
+        "properties": "Properties",
+        "description": "Description"
+    ]
+
     private func iconForArtifactType(_ type: String) -> String {
-        switch type {
-        case "transcription": return "text.quote"
-        case "entities": return "person.3"
-        case "summary_file", "summary_folder", "summary_collection": return "doc.text"
-        case "description": return "eye"
-        default: return "doc"
-        }
+        Self.iconByType[type] ?? "doc"
     }
 
     private func displayNameForArtifactType(_ type: String) -> String {
-        switch type {
-        case "transcription": return "Transcription"
-        case "entities": return "Entities"
-        case "summary_file": return "Summary"
-        case "summary_folder": return "Folder Summary"
-        case "summary_collection": return "Collection Summary"
-        case "description": return "Description"
-        default: return type.replacingOccurrences(of: "_", with: " ").capitalized
-        }
+        Self.displayNameByType[type]
+            ?? type.replacingOccurrences(of: "_", with: " ").capitalized
     }
 
     private func shouldHideArtifactType(_ type: String) -> Bool {
         let normalized = type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        // Transcription is shown on the document's Content tab as page_content,
+        // so hiding the artifact avoids showing the same text twice in the inspector.
         return normalized == "transcription"
             || normalized == "page_content_rtf"
             || normalized == "rtf"
