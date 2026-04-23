@@ -24,6 +24,49 @@ from fichero.llm import LLMConfig
 logger = logging.getLogger(__name__)
 
 
+def _resolve_page_to_parent(doc: "Document", db) -> "Document | None":
+    """Resolve a page document to its parent file, preserving page context.
+
+    Page documents have path=None; their parent (typically a PDF) holds the
+    file. Today no downstream tool supports per-page OCR — process_vision
+    OCRs the whole PDF regardless — so the user selecting "page 3" of a
+    100-page book ends up processing all 100 pages. Per-page fan-out is
+    tracked in the 0.0.3 #670 follow-up.
+
+    Until then, this helper at least makes the promotion observable:
+    - loud warning in the log so the behaviour isn't silent
+    - `requested_page` and `page_promotion_warning` on the returned
+      document's metadata so downstream tools that opt into the hint can
+      branch on it without a schema change
+    - returned doc is a deep copy so the cached parent Document in the DB
+      layer isn't mutated
+    """
+    if not doc.parent_id:
+        return None
+    parent = db.get(Document, doc.parent_id)
+    if not parent or not parent.path:
+        logger.warning(
+            "files_tool: doc %s has no path; parent %s also has no path",
+            doc.id, doc.parent_id,
+        )
+        return None
+    requested = parent
+    if doc.sequence is not None:
+        requested = parent.model_copy(deep=True)
+        requested.metadata = dict(parent.metadata or {})
+        requested.metadata["requested_page"] = doc.sequence
+        requested.metadata["page_promotion_warning"] = (
+            f"User selected page {doc.sequence + 1} but per-page OCR isn't "
+            f"wired in; processing whole parent file instead."
+        )
+    logger.warning(
+        "files_tool: page %s (seq=%s) promoted to parent %s — "
+        "tool will process the whole file. See #670 for per-page fan-out.",
+        doc.id, doc.sequence, parent.id,
+    )
+    return requested
+
+
 # =============================================================================
 # Files Tool
 # =============================================================================
@@ -119,12 +162,9 @@ async def files_tool(
                 elif doc.path:
                     resolved[doc.path] = doc
                 elif doc.parent_id:
-                    parent = db.get(Document, doc.parent_id)
-                    if parent and parent.path:
-                        resolved[parent.path] = parent
-                        logger.info(f"files_tool: resolved page {doc.id} → parent {parent.id}")
-                    else:
-                        logger.warning(f"files_tool: doc {doc.id} has no path; parent {doc.parent_id} also has no path")
+                    resolved_parent = _resolve_page_to_parent(doc, db)
+                    if resolved_parent is not None and resolved_parent.path:
+                        resolved[resolved_parent.path] = resolved_parent
                 else:
                     logger.warning(f"files_tool: doc {doc.id} type={doc.doc_type} has no path and no parent — skipping")
 
@@ -245,9 +285,9 @@ async def collection_tool(
                 if doc.path:
                     resolved[doc.path] = doc
                 elif doc.parent_id:
-                    parent = db.get(Document, doc.parent_id)
-                    if parent and parent.path:
-                        resolved[parent.path] = parent
+                    resolved_parent = _resolve_page_to_parent(doc, db)
+                    if resolved_parent is not None and resolved_parent.path:
+                        resolved[resolved_parent.path] = resolved_parent
             files = list(resolved.keys())
             documents = [d.model_dump() for d in resolved.values()]
             logger.info(
