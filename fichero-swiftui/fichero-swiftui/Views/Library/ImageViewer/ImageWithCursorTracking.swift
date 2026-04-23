@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import CoreImage
 import ImageIO
 import OSLog
 
@@ -10,6 +11,11 @@ import OSLog
 /// still raises headroom. Decoding via ImageIO with
 /// `kCGImageSourceDecodeRequest = kCGImageSourceDecodeToSDR` (macOS 14+)
 /// strips the HDR payload at load time.
+///
+/// We also apply the EXIF `Orientation` tag manually — `NSImage(contentsOf:)`
+/// does this automatically via its representation system, but the ImageIO
+/// path returns raw pixels. Without the manual rotate, iPhone photos taken
+/// in portrait or upside-down come in sideways.
 private func loadSDRImage(from url: URL) -> NSImage? {
     guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
         return NSImage(contentsOf: url)
@@ -21,7 +27,20 @@ private func loadSDRImage(from url: URL) -> NSImage? {
     guard let cgImage = CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary) else {
         return NSImage(contentsOf: url)
     }
-    return NSImage(cgImage: cgImage, size: CGSize(width: cgImage.width, height: cgImage.height))
+
+    let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+    let orientationRaw = (props?[kCGImagePropertyOrientation] as? UInt32) ?? 1
+    let orientation = CGImagePropertyOrientation(rawValue: orientationRaw) ?? .up
+    let finalCGImage: CGImage = {
+        guard orientation != .up else { return cgImage }
+        let ci = CIImage(cgImage: cgImage).oriented(orientation)
+        let ctx = CIContext(options: nil)
+        return ctx.createCGImage(ci, from: ci.extent) ?? cgImage
+    }()
+    return NSImage(
+        cgImage: finalCGImage,
+        size: CGSize(width: finalCGImage.width, height: finalCGImage.height)
+    )
 }
 
 // This file requires large bodies due to complex AppKit integration
