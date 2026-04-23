@@ -34,6 +34,8 @@ Fichero is designed for researchers, scholars, and anyone who works with large c
 
 **AI Workflows** — Build processing pipelines using a visual node editor. Connect steps like transcription, entity extraction, summarization, and classification into workflows that run across your entire collection. Workflows run in the background; the Activity monitor shows what's happening.
 
+**Pre-built Workflows** — Fichero ships with ready-to-run workflows: **Transcribe** (OCR every file in a selection) and **Catalogue** (produce a nine-section archival catalogue entry on a folder, including people, dates, places, legal references, and more). System workflows stay up to date automatically.
+
 **AI Providers** — Connect to local models via Ollama or any cloud provider. Fichero uses LiteLLM to support 100+ providers including OpenAI, Anthropic, and Google. For fully offline use, run Ollama locally.
 
 **Offline First** — Your documents and databases stay on your Mac. AI processing with local models works without an internet connection. Cloud providers are optional.
@@ -59,13 +61,25 @@ Fichero 0.0.2 is available for early access.
 
 ### 0.0.2 — April 2026
 
+**New**
+- **Catalogue workflow** — Run on any folder to produce a nine-section archival catalogue entry: people, dates, rivers, legal references, mines, properties, events, keywords, and a summary narrative
+- **Locked default workflows** — Transcribe and Catalogue ship as built-in presets that auto-update when the app launches. Duplicate them to customize; originals stay protected
+- **Folder inspector** — Click a folder in the sidebar to inspect its contents, metadata, and workflow artifacts in the right-hand panel
+- **Run Workflow from context menu** — Right-click any document selection and choose Run Workflow to execute a workflow directly
+- **Artifact previews** — Inspector Artifacts tab shows structured previews for catalogue sections (people, dates, rivers, etc.) as readable tables
+
+**Improved**
 - PDF preview now includes a zoom toolbar (zoom in/out, fit to window, 100%)
 - PDF pages navigate with horizontal trackpad swipe
 - Sidebar section headers now show system icons
 - AI Providers menu entry now shows an icon
 - Activity monitor shows human-readable workflow node names instead of internal IDs
-- Fixed sidebar drag-and-drop routing for files and folders dropped from Finder
-- Fixed workflow first-click and activity run display
+
+**Fixed**
+- Sidebar drag-and-drop routing for files and folders dropped from Finder
+- Workflow first-click and activity run display
+- Document inspector showing stale transcription after workflow completion
+- Catalogue artifacts not appearing after workflow run
 
 ### 0.0.1 — Initial Release
 
