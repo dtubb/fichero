@@ -69,6 +69,9 @@ from fichero.workflows.tools import mcp
 # Research tools
 from fichero.workflows.tools import research
 
+# Output tools
+from fichero.workflows.tools import write_file
+
 __all__ = [
     # Source
     "sources",
@@ -115,4 +118,6 @@ __all__ = [
     "mcp",
     # Research
     "research",
+    # Output
+    "write_file",
 ]
