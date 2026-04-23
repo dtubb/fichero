@@ -112,12 +112,19 @@ struct DocumentInspectorContentTab: View {
             loadDraft(from: document)
         }
         .onDisappear {
-            autoSaveTask?.cancel()
+            // NEVER cancel — let any pending debounce fire so the user's edits
+            // aren't silently lost on navigation. If there are unflushed changes,
+            // fire an immediate save that runs independently of this view's lifecycle.
             autoSaveTask = nil
+            if hasChanges {
+                Task { @MainActor in await saveContent() }
+            }
         }
         .onChange(of: documentSignature) { _, newSignature in
             guard newSignature != lastLoadedSignature else { return }
-            if isEditingText && hasChanges {
+            // Preserve any unsaved changes regardless of focus state — a user who
+            // clicked outside the text view still expects their draft to survive.
+            if hasChanges {
                 pendingExternalSignature = newSignature
                 return
             }
@@ -167,8 +174,10 @@ struct DocumentInspectorContentTab: View {
                 metadataPayload: metadataPayload,
                 pageContent: draftContent
             )
-            documentStore.updateLocal(updated)
-            documentStore.publish(.documentsUpdated(documentStore.currentDocuments))
+            // refreshLocalContent, not updateLocal — a content save never moves the
+            // document between folders, so don't run the cross-folder removal branch
+            // that updateLocal applies when parentId != selectedCollection.
+            documentStore.refreshLocalContent(updated)
             loadDraft(from: updated)
             lastSavedPayloadSignature = draftPayloadSignature
             pendingExternalSignature = nil
