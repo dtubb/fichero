@@ -396,9 +396,19 @@ async def catalogue(
             db.save(combined)
             saved_artifact_ids.append(combined.id)
 
+            # Also write the catalogue markdown into the container's
+            # page_content so the folder's Content tab shows the catalogue
+            # entry directly. The individual per-section artifacts stay
+            # available under the Artifacts tab once its UI lands.
+            from datetime import datetime
+
+            container.page_content = markdown
+            container.updated_at = datetime.now()
+            db.save(container)
+
             logger.info(
                 f"Catalogue: saved {len(saved_artifact_ids)} artifacts on container "
-                f"{container.id} ({container.name})"
+                f"{container.id} ({container.name}); updated page_content"
             )
         except Exception as exc:
             logger.error(f"Catalogue: failed to save artifacts: {exc}")
