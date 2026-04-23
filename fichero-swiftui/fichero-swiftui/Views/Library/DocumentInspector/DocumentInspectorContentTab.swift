@@ -46,10 +46,11 @@ struct DocumentInspectorContentTab: View {
     }
 
     private var documentSignature: String {
-        // Use only id + updatedAt for the diff key. pageContent and richTextBase64
-        // are potentially megabytes; updatedAt changes on every server write so
-        // it is sufficient to detect content changes without string-concat cost.
-        "\(document.id)|\(document.updatedAt.timeIntervalSince1970)"
+        // Include content hashes so a re-transcription that rewrites pageContent
+        // forces a reload even if updatedAt didn't advance (second-resolution
+        // timestamps can tie on fast backend round-trips). hashValue avoids the
+        // megabyte string concat the earlier version paid on every SwiftUI diff.
+        signature(for: document)
     }
 
     var body: some View {
@@ -147,9 +148,12 @@ struct DocumentInspectorContentTab: View {
         // Don't race with an in-flight save — the save's updateLocal call wins.
         guard !isSaving else { return }
         guard let fresh = try? await documentService.getDocument(document.id) else { return }
-        // Only apply if the backend has strictly newer data than what we loaded last.
-        // This prevents a stale fetch from overwriting a just-completed user save.
-        guard fresh.updatedAt > document.updatedAt else { return }
+        // Apply if the backend is at least as new AND the content actually differs.
+        // `>=` (not `>`) because DuckDB timestamps can tie to the second on fast
+        // round-trips; the signature check ensures we still skip no-op refreshes
+        // so a stale fetch can't overwrite a just-completed user save.
+        guard fresh.updatedAt >= document.updatedAt else { return }
+        guard signature(for: fresh) != signature(for: document) else { return }
         documentStore.refreshLocalContent(fresh)
     }
 
@@ -251,7 +255,9 @@ struct DocumentInspectorContentTab: View {
     }
 
     private func signature(for doc: Document) -> String {
-        "\(doc.id)|\(doc.updatedAt.timeIntervalSince1970)"
+        let plain = doc.pageContent ?? ""
+        let rtf = (doc.metadata[Self.richTextMetadataKey]?.value as? String) ?? ""
+        return "\(doc.id)|\(doc.updatedAt.timeIntervalSince1970)|\(plain.hashValue)|\(rtf.hashValue)"
     }
 
     private func normalizeForEditor(_ attributed: NSAttributedString) -> NSAttributedString {
