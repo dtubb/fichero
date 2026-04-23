@@ -594,11 +594,20 @@ async def process_vision(
             # Avoids re-OCRing files already processed by a previous workflow
             # run, making Catalogue idempotent when composed with Transcribe.
             if tool_config.skip_if_artifact_exists and save_to_db and library_path:
+                # Key the cache on provider+model so a re-run with a different
+                # model (e.g. qwen-vl-3.5 → qwen-vl-3.6v) produces a new
+                # artifact instead of silently reusing the old model's output.
+                # Apple Vision has no provider/model, so falls back to the
+                # unkeyed match (any transcription artifact for this doc).
+                cache_provider = getattr(llm_config, "provider", None) if vision_mode != "apple" else None
+                cache_model = getattr(llm_config, "model", None) if vision_mode != "apple" else None
                 existing = find_existing_artifact(
                     document_id=path_to_doc.get(file_path),
                     file_path=file_path,
                     artifact_type=tool_config.artifact_type,
                     library_path=library_path,
+                    provider=cache_provider,
+                    model=cache_model,
                 )
                 cached_text = getattr(existing, "content", None) if existing else None
                 if isinstance(cached_text, str) and cached_text:

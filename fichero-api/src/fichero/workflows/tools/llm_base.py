@@ -334,11 +334,19 @@ def find_existing_artifact(
     file_path: str | None,
     artifact_type: str,
     library_path: str,
+    *,
+    provider: str | None = None,
+    model: str | None = None,
 ) -> Any | None:
     """Return the most recent artifact of the given type for a document, or None.
 
-    Used by the skip-if-done branch of tool execution so we don't re-run
-    expensive LLM/OCR operations on inputs that already have an output artifact.
+    The cache key is (document_id, artifact_type, provider, model) when
+    provider/model are supplied. Matching on provider/model matters because
+    running Transcribe with qwen-vl-3.5 and then with qwen-vl-3.6v should
+    produce *two* artifacts (one per model) — not silently reuse the 3.5
+    result when the user asked for 3.6v. Callers that don't care about
+    model identity can omit both and get the legacy behaviour (newest of
+    any provider/model for this artifact_type).
     """
     if not library_path or not artifact_type:
         return None
@@ -360,6 +368,10 @@ def find_existing_artifact(
             return None
 
         artifacts = list(db.query(_Artifact, document_id=doc.id, artifact_type=artifact_type))
+        if provider is not None:
+            artifacts = [a for a in artifacts if getattr(a, "provider", None) == provider]
+        if model is not None:
+            artifacts = [a for a in artifacts if getattr(a, "model", None) == model]
         if not artifacts:
             return None
 
