@@ -57,6 +57,12 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         // Create tracking image view with loupe
         let imageView = TrackingImageView()
         imageView.imageScaling = .scaleNone  // We'll handle sizing
+        // iPhone HEIC photos carry an HDR gain map. NSImageView defaults to
+        // `.high` dynamic range on macOS 14+, which elevates the window's EDR
+        // headroom and makes surrounding SDR UI look washed out. Lock to
+        // `.standard` so photos render as tone-mapped SDR like Preview.app's
+        // default behaviour.
+        imageView.preferredImageDynamicRange = .standard
         imageView.onCursorMoved = { normalizedPos in
             Task { @MainActor in
                 // Only update if position is within bounds (clamp to valid range)
