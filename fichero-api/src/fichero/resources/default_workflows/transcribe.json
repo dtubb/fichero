@@ -1,0 +1,41 @@
+{
+  "name": "Transcribe",
+  "description": "OCR every file in the selection using Apple Vision. Skips files already transcribed.",
+  "format": "nodes",
+  "is_template": true,
+  "folder_path": "/",
+  "tags": ["preset", "ocr"],
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 160,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "transcribe",
+      "tool": "transcribe",
+      "label": "Transcribe",
+      "position_x": 360,
+      "position_y": 160,
+      "inputs": {},
+      "config": {
+        "vision_mode": "apple",
+        "language": "en",
+        "update_page_content": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source_node_id": "files-source",
+      "source_port_id": "files",
+      "target_node_id": "transcribe",
+      "target_port_id": "files"
+    }
+  ],
+  "config": {}
+}

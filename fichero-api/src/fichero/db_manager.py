@@ -50,6 +50,7 @@ class DatabaseManager:
             migrate_saved_search_table,
             migrate_workflow_table,
         )
+        from fichero.workflows.default_workflows import seed_default_workflows
 
         package_path = Path(package_path)
         package_str = str(package_path)
@@ -66,6 +67,15 @@ class DatabaseManager:
                 migrate_provider_refs_table(db.conn)
                 migrate_activity_tables(db.conn)
                 migrate_checkpoint_tables(db.conn)
+
+                # Seed default workflow presets (Transcribe, Catalogue). Idempotent
+                # by workflow name — a user who deleted a preset doesn't get it back.
+                try:
+                    seeded = seed_default_workflows(db)
+                    if seeded:
+                        logger.info(f"Seeded {seeded} default workflow preset(s)")
+                except Exception as exc:
+                    logger.warning(f"Default workflow seeding skipped: {exc}")
 
                 self._databases[package_str] = db
                 logger.info(f"Database connection created: {db_path}")
