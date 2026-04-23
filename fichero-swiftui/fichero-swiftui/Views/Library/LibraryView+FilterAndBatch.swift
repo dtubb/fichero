@@ -211,8 +211,10 @@ extension LibraryView {
         guard !selectedDocumentIdsForBatch.isEmpty else { return }
 
         // Create batch items - one per document.
+        // Use selected_doc_ids (not document_id) so files_tool in the workflow
+        // can find the file via the same state channel as the SSE run path.
         let batchItems: [[String: any Sendable]] = selectedDocumentIdsForBatch.map { documentId in
-            ["document_id": documentId]
+            ["selected_doc_ids": [documentId]]
         }
 
         let library = libraryManager.getLibrary(id: windowState.libraryId) ?? libraryManager.globalLibrary
