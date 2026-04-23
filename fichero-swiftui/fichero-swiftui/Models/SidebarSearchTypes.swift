@@ -88,6 +88,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
     var isEnabled: Bool
     var folderPath: String
     var sortOrder: Int
+    var isSystem: Bool
     var createdAt: Date
     var updatedAt: Date
 
@@ -100,6 +101,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         case isEnabled = "is_enabled"
         case folderPath = "folder_path"
         case sortOrder = "sort_order"
+        case isSystem = "is_system"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -113,6 +115,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         isEnabled: Bool = true,
         folderPath: String = "/",
         sortOrder: Int = 0,
+        isSystem: Bool = false,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -124,6 +127,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         self.isEnabled = isEnabled
         self.folderPath = folderPath
         self.sortOrder = sortOrder
+        self.isSystem = isSystem
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }

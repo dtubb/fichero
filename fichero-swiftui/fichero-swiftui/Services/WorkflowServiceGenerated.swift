@@ -359,6 +359,24 @@ class WorkflowServiceGenerated: ObservableObject {
             throw WorkflowServiceError.unexpectedResponse
         }
     }
+
+    /// Reinstall default workflows from backend presets (Transcribe, Catalogue).
+    /// Deletes existing presets and re-seeds so updated JSON reaches the library.
+    func reinstallDefaults() async throws {
+        guard let baseURL = URL(string: "\(client.baseURL.absoluteString)/api/workflows/reinstall-defaults") else {
+            throw WorkflowServiceError.unexpectedResponse
+        }
+        var request = URLRequest(url: baseURL)
+        request.httpMethod = "POST"
+        if let libraryPath = client.currentLibraryPath {
+            request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
+        }
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw WorkflowServiceError.unexpectedResponse
+        }
+    }
 }
 
 // MARK: - Type Conversions
@@ -483,6 +501,13 @@ extension WorkflowServiceGenerated {
             if let anim = edge.animated { dict["animated"] = AnyCodable(anim) }
             return dict
         }
+        // Extract is_system via JSON round-trip since generated client lags schema changes
+        var isSystem = false
+        if let data = try? JSONEncoder().encode(workflow),
+           let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let systemFlag = dict["is_system"] as? Bool {
+            isSystem = systemFlag
+        }
         return WorkflowResponse(
             id: workflow.id,
             name: workflow.name,
@@ -492,7 +517,8 @@ extension WorkflowServiceGenerated {
             nodes: nodeDicts,
             edges: edgeDicts,
             folderPath: workflow.folderPath,
-            sortOrder: workflow.sortOrder
+            sortOrder: workflow.sortOrder,
+            isSystem: isSystem
         )
     }
 

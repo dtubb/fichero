@@ -250,6 +250,11 @@ struct WorkflowListView: View {
                     Image(systemName: "flowchart")
                         .foregroundColor(.accentColor)
                     Text(workflow.name)
+                    if workflow.isSystem {
+                        Image(systemName: "lock.fill")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
             .width(min: 150, ideal: 200)
@@ -313,32 +318,40 @@ struct WorkflowListView: View {
 
     @ViewBuilder
     private func workflowContextMenu(for workflow: WorkflowSidebarItem) -> some View {
-        Button {
-            openWorkflow(workflow)
-        } label: {
-            Label("Edit", systemImage: "pencil")
-        }
-
-        Button {
-            duplicateWorkflow(workflow)
-        } label: {
-            Label("Duplicate", systemImage: "doc.on.doc")
-        }
-
-        if featureManager.isWorkflowImportExportEnabled {
+        if workflow.isSystem {
             Button {
-                exportWorkflow(workflow)
+                duplicateWorkflow(workflow)
             } label: {
-                Label("Export to JSON...", systemImage: "square.and.arrow.up")
+                Label("Duplicate", systemImage: "doc.on.doc")
             }
-        }
+        } else {
+            Button {
+                openWorkflow(workflow)
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
 
-        Divider()
+            Button {
+                duplicateWorkflow(workflow)
+            } label: {
+                Label("Duplicate", systemImage: "doc.on.doc")
+            }
 
-        Button(role: .destructive) {
-            confirmDelete(workflow)
-        } label: {
-            Label("Delete", systemImage: "trash")
+            if featureManager.isWorkflowImportExportEnabled {
+                Button {
+                    exportWorkflow(workflow)
+                } label: {
+                    Label("Export to JSON...", systemImage: "square.and.arrow.up")
+                }
+            }
+
+            Divider()
+
+            Button(role: .destructive) {
+                confirmDelete(workflow)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
         }
     }
 

@@ -252,6 +252,7 @@ struct MainContentModifiers: ViewModifier {
                 logger.info("Loading children for container: \(document.name) (id: \(document.id))")
                 Task {
                     await documentStore.selectCollection(document)
+                    detailDocument = document
                     let docCount = documentStore.currentDocuments.count
                     logger.info("selectCollection completed. currentDocuments count: \(docCount)")
                 }

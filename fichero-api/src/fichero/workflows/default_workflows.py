@@ -79,7 +79,9 @@ def seed_default_workflows(db: "Database", force: bool = False) -> int:
     if force:
         for name in preset_names:
             current = existing_by_name.get(name)
-            if current is not None and getattr(current, "is_template", False):
+            if current is not None and (
+                getattr(current, "is_template", False) or getattr(current, "is_system", False)
+            ):
                 try:
                     db.delete(current)
                     logger.info(f"Removed stale default workflow '{name}' for reinstall")
@@ -101,6 +103,7 @@ def seed_default_workflows(db: "Database", force: bool = False) -> int:
                 description=preset.get("description", ""),
                 format=preset.get("format", "nodes"),
                 is_template=bool(preset.get("is_template", True)),
+                is_system=bool(preset.get("is_system", False)),
                 folder_path=preset.get("folder_path", "/"),
                 tags=list(preset.get("tags", [])),
                 steps=list(preset.get("steps", [])),

@@ -19,12 +19,19 @@ struct WorkflowThumbnailView: View {
                 )
 
             // Workflow name
-            Text(workflow.name)
-                .font(.caption)
-                .fontWeight(.medium)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .frame(width: 120)
+            HStack(spacing: 2) {
+                Text(workflow.name)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                if workflow.isSystem {
+                    Image(systemName: "lock.fill")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(width: 120)
 
             // Stats
             HStack(spacing: 4) {

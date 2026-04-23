@@ -26,9 +26,16 @@ struct WorkflowDetailView: View {
                         .foregroundColor(.accentColor)
 
                     VStack(alignment: .leading) {
-                        Text(workflow.name)
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
+                        HStack(spacing: 8) {
+                            Text(workflow.name)
+                                .font(.largeTitle)
+                                .fontWeight(.bold)
+                            if workflow.isSystem {
+                                Image(systemName: "lock.fill")
+                                    .font(.title3)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
 
                         if let desc = workflow.description, !desc.isEmpty {
                             Text(desc)
@@ -106,12 +113,14 @@ struct WorkflowDetailView: View {
                         .font(.headline)
 
                     HStack(spacing: 12) {
-                        Button {
-                            onEdit()
-                        } label: {
-                            Label("Edit Workflow", systemImage: "pencil")
+                        if !workflow.isSystem {
+                            Button {
+                                onEdit()
+                            } label: {
+                                Label("Edit Workflow", systemImage: "pencil")
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-                        .buttonStyle(.borderedProminent)
 
                         Button {
                             onDuplicate()
@@ -120,7 +129,7 @@ struct WorkflowDetailView: View {
                         }
                         .buttonStyle(.bordered)
 
-                        if featureManager.isWorkflowImportExportEnabled {
+                        if !workflow.isSystem, featureManager.isWorkflowImportExportEnabled {
                             Button {
                                 onExport()
                             } label: {
@@ -129,12 +138,14 @@ struct WorkflowDetailView: View {
                             .buttonStyle(.bordered)
                         }
 
-                        Button(role: .destructive) {
-                            onDelete()
-                        } label: {
-                            Label("Delete", systemImage: "trash")
+                        if !workflow.isSystem {
+                            Button(role: .destructive) {
+                                onDelete()
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
                     }
                 }
 

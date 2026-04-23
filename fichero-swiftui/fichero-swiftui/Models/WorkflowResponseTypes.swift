@@ -56,11 +56,13 @@ struct WorkflowResponse: Codable {
     let edges: [[String: AnyCodable]]
     let folderPath: String
     let sortOrder: Int
+    let isSystem: Bool
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, provider, model, nodes, edges
         case folderPath = "folder_path"
         case sortOrder = "sort_order"
+        case isSystem = "is_system"
     }
 }
 

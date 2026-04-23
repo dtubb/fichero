@@ -256,9 +256,9 @@ struct ContentView: View {
             // If documents were already loaded before onAppear, restore
             // the preview selection now (the onChange handler won't fire).
             if detailDocument == nil, !documentStore.currentDocuments.isEmpty {
-                if let firstSelectedId = browserSelection.first,
-                   let doc = documentStore.currentDocuments.first(where: { $0.id == firstSelectedId }) {
-                    detailDocument = doc
+                let firstSelectedId = browserSelection.first
+                if let firstSelectedId {
+                    detailDocument = documentStore.currentDocuments.first(where: { $0.id == firstSelectedId })
                 }
             }
         }
@@ -280,6 +280,12 @@ struct ContentView: View {
                let firstSelectedId = browserSelection.first,
                let doc = newDocs.first(where: { $0.id == firstSelectedId }) {
                 detailDocument = doc
+            }
+            // Keep detailDocument in sync when currentDocuments refreshes
+            // so the inspector shows updated page_content after workflows complete.
+            if let currentDetail = detailDocument,
+               let updatedDoc = newDocs.first(where: { $0.id == currentDetail.id }) {
+                detailDocument = updatedDoc
             }
         }
         .onChange(of: showInspectorSidebar) { _, newValue in

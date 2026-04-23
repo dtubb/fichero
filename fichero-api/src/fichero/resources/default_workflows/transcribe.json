@@ -3,6 +3,7 @@
   "description": "OCR every file in the selection using Apple Vision. Skips files already transcribed.",
   "format": "nodes",
   "is_template": true,
+  "is_system": true,
   "folder_path": "/",
   "tags": ["preset", "ocr"],
   "nodes": [

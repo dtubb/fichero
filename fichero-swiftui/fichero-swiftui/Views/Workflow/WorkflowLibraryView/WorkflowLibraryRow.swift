@@ -12,8 +12,15 @@ struct WorkflowLibraryRow: View {
                 .frame(width: 32)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(workflow.name)
-                    .font(.headline)
+                HStack(spacing: 4) {
+                    Text(workflow.name)
+                        .font(.headline)
+                    if workflow.isSystem {
+                        Image(systemName: "lock.fill")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
 
                 if let desc = workflow.description, !desc.isEmpty {
                     Text(desc)

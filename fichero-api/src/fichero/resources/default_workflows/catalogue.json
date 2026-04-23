@@ -3,6 +3,7 @@
   "description": "Transcribe every file in a collection or folder (skipping files already transcribed), then produce a nine-section archival catalogue entry on the folder.",
   "format": "nodes",
   "is_template": true,
+  "is_system": true,
   "folder_path": "/",
   "tags": ["preset", "catalogue", "archival"],
   "nodes": [

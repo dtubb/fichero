@@ -44,6 +44,7 @@ struct WorkflowDefinition: Codable {
     let folderPath: String
     let sortOrder: Int
     let inputSource: WorkflowInputSource
+    let isSystem: Bool
     // Execution settings
     let timeoutSeconds: Int
     let maxRetries: Int
@@ -57,6 +58,7 @@ struct WorkflowDefinition: Codable {
         case folderPath = "folder_path"
         case sortOrder = "sort_order"
         case inputSource = "input_source"
+        case isSystem = "is_system"
         case timeoutSeconds = "timeout_seconds"
         case maxRetries = "max_retries"
         case createdAt = "created_at"
@@ -75,6 +77,7 @@ struct WorkflowDefinition: Codable {
         folderPath: String = "/",
         sortOrder: Int = 0,
         inputSource: WorkflowInputSource = .collection,
+        isSystem: Bool = false,
         timeoutSeconds: Int = 300,
         maxRetries: Int = 3,
         version: String = "1.0",
@@ -91,6 +94,7 @@ struct WorkflowDefinition: Codable {
         self.folderPath = folderPath
         self.sortOrder = sortOrder
         self.inputSource = inputSource
+        self.isSystem = isSystem
         self.timeoutSeconds = timeoutSeconds
         self.maxRetries = maxRetries
         self.version = version
@@ -110,6 +114,7 @@ struct WorkflowDefinition: Codable {
         folderPath = try container.decodeIfPresent(String.self, forKey: .folderPath) ?? "/"
         sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
         inputSource = try container.decodeIfPresent(WorkflowInputSource.self, forKey: .inputSource) ?? .collection
+        isSystem = try container.decodeIfPresent(Bool.self, forKey: .isSystem) ?? false
         timeoutSeconds = try container.decodeIfPresent(Int.self, forKey: .timeoutSeconds) ?? 300
         maxRetries = try container.decodeIfPresent(Int.self, forKey: .maxRetries) ?? 3
         version = try container.decodeIfPresent(String.self, forKey: .version) ?? "1.0"

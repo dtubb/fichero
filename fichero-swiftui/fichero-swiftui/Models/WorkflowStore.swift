@@ -46,6 +46,9 @@ class WorkflowStore: ObservableObject {
         error = nil
 
         do {
+            // Re-seed defaults first so updated presets reach the library
+            try? await workflowService.reinstallDefaults()
+
             let response = try await workflowService.listWorkflows()
             workflows = response.map { workflow in
                 WorkflowSidebarItem(
@@ -56,6 +59,7 @@ class WorkflowStore: ObservableObject {
                     isEnabled: true,
                     folderPath: workflow.folderPath,
                     sortOrder: workflow.sortOrder,
+                    isSystem: workflow.isSystem,
                     createdAt: Date(),  // Backend doesn't return these yet
                     updatedAt: Date()
                 )
@@ -85,6 +89,7 @@ class WorkflowStore: ObservableObject {
                 isEnabled: true,
                 folderPath: response.folderPath,
                 sortOrder: response.sortOrder,
+                isSystem: response.isSystem,
                 createdAt: Date(),
                 updatedAt: Date()
             )
@@ -118,6 +123,7 @@ class WorkflowStore: ObservableObject {
                 isEnabled: true,
                 folderPath: response.folderPath,
                 sortOrder: response.sortOrder,
+                isSystem: response.isSystem,
                 createdAt: Date(),
                 updatedAt: Date()
             )
@@ -158,6 +164,7 @@ class WorkflowStore: ObservableObject {
                 isEnabled: old.isEnabled,
                 folderPath: response.folderPath,
                 sortOrder: old.sortOrder,
+                isSystem: old.isSystem,
                 createdAt: old.createdAt,
                 updatedAt: Date()
             )
@@ -235,6 +242,7 @@ class WorkflowStore: ObservableObject {
                 isEnabled: true,
                 folderPath: response.folderPath,
                 sortOrder: response.sortOrder,
+                isSystem: response.isSystem,
                 createdAt: Date(),
                 updatedAt: Date()
             )
@@ -290,6 +298,7 @@ class WorkflowStore: ObservableObject {
             isEnabled: true,
             folderPath: response.folderPath,
             sortOrder: response.sortOrder,
+            isSystem: workflows[index].isSystem,  // Preserve system flag
             createdAt: workflows[index].createdAt,  // Preserve original dates
             updatedAt: Date()
         )
@@ -314,6 +323,7 @@ class WorkflowStore: ObservableObject {
             isEnabled: true,
             folderPath: response.folderPath,
             sortOrder: response.sortOrder,
+            isSystem: response.isSystem,
             createdAt: Date(),
             updatedAt: Date()
         )
@@ -371,6 +381,7 @@ class WorkflowStore: ObservableObject {
                     isEnabled: true,
                     folderPath: response.folderPath,
                     sortOrder: response.sortOrder,
+                    isSystem: response.isSystem,
                     createdAt: Date(),
                     updatedAt: Date()
                 )

@@ -448,6 +448,7 @@ class Workflow(BaseModel):
     folder_path: str = "/"  # Unix-style path: "/archive/letters"
     sort_order: int = 0  # User-defined order within folder
     is_template: bool = False
+    is_system: bool = False
     tags: list[str] = []
 
     # Pipeline format choice
