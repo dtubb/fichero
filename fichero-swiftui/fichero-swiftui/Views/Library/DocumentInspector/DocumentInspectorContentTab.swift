@@ -206,9 +206,19 @@ struct DocumentInspectorContentTab: View {
         )
 
         draftAttributedText = richText
-        originalPlainContent = plainText
-        originalRTFBase64 = metadataValue ?? ""
-        lastSavedPayloadSignature = "\(plainText)|\(metadataValue ?? "")"
+        // IMPORTANT: `originalRTFBase64` and `originalPlainContent` must match
+        // what `currentRTFBase64` and `draftContent` produce right after load —
+        // otherwise `hasChanges` is a false positive, which causes
+        // `.onChange(of: documentSignature)` to stash the new selection into
+        // `pendingExternalSignature` and skip loadDraft, so the inspector keeps
+        // showing the previous document's text until the user focuses-and-blurs
+        // the text view. The round-trip decodeRTF→normalizeForEditor→encodeRTF
+        // is not byte-stable (font/color tables get rewritten, defaults get
+        // filled in), so we cannot compare against the backend's raw base64
+        // here — we have to compare against the freshly re-encoded baseline.
+        originalPlainContent = richText.string
+        originalRTFBase64 = encodeRTFBase64(from: richText)
+        lastSavedPayloadSignature = "\(originalPlainContent)|\(originalRTFBase64)"
         lastLoadedSignature = signature(for: doc)
         pendingExternalSignature = nil
         editorRevision += 1
