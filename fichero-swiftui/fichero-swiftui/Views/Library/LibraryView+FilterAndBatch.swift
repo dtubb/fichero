@@ -193,13 +193,19 @@ extension LibraryView {
             }
         }
 
-        // Show "Run Workflow..." when at least one document is selected.
-        if !selection.isEmpty && featureManager.isWorkflowRunOnSelectionEnabled {
-            Button {
-                selectedDocumentIdsForBatch = Array(selection)
-                showWorkflowPicker = true
+        // Run Workflow submenu — lists all workflows inline, no picker dialog.
+        if !selection.isEmpty && featureManager.isWorkflowRunOnSelectionEnabled
+            && !workflowStore.workflows.isEmpty {
+            let docIds = Array(selection)
+            Menu {
+                ForEach(workflowStore.workflows.sorted { $0.name < $1.name }) { workflow in
+                    Button(workflow.name) {
+                        selectedDocumentIdsForBatch = docIds
+                        Task { await runBatchWorkflow(workflowId: workflow.id) }
+                    }
+                }
             } label: {
-                Label("Run Workflow...", systemImage: "flowchart")
+                Label("Run Workflow", systemImage: "flowchart")
             }
         }
     }

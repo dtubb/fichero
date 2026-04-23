@@ -117,15 +117,45 @@ struct SidebarItemRow: View {
     }
 
     private var rowContextMenu: some View {
-        SidebarItemContextMenu(
-            item: item,
-            renameState: renameState,
-            deleteState: deleteState,
-            onPause: onAutomationPause,
-            onResume: onAutomationResume,
-            onTrigger: onAutomationTrigger,
-            onCancel: onAutomationCancel
-        )
+        Group {
+            SidebarItemContextMenu(
+                item: item,
+                renameState: renameState,
+                deleteState: deleteState,
+                onPause: onAutomationPause,
+                onResume: onAutomationResume,
+                onTrigger: onAutomationTrigger,
+                onCancel: onAutomationCancel
+            )
+
+            if case .document(let doc) = item.itemType, doc.docType != .folder,
+               let workflows = workflowStore?.workflows, !workflows.isEmpty {
+                Divider()
+                Menu("Run Workflow") {
+                    ForEach(workflows.sorted { $0.name < $1.name }) { workflow in
+                        Button(workflow.name) {
+                            runWorkflowOnDocument(workflowId: workflow.id, docId: doc.id)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func runWorkflowOnDocument(workflowId: String, docId: String) {
+        guard let batchService = library?.batchService else { return }
+        Task {
+            do {
+                let batch = try await batchService.createBatch(
+                    workflowId: workflowId,
+                    items: [["selected_doc_ids": [docId]]],
+                    maxConcurrent: 1
+                )
+                try await batchService.executeBatch(batchId: batch.batchId)
+            } catch {
+                sidebarRowLogger.error("Run workflow from sidebar failed: \(error)")
+            }
+        }
     }
 
     var body: some View {
