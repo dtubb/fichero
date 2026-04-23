@@ -70,6 +70,9 @@ from fichero.workflows.tools import mcp
 # Research tools
 from fichero.workflows.tools import research
 
+# Transform tools (fan-in, reshape)
+from fichero.workflows.tools import aggregate
+
 # Output tools
 from fichero.workflows.tools import write_file
 
@@ -120,6 +123,8 @@ __all__ = [
     "mcp",
     # Research
     "research",
+    # Transform
+    "aggregate",
     # Output
     "write_file",
 ]
