@@ -36,19 +36,27 @@ class TestLoadPresetFiles:
         catalogue = presets["Catalogue"]
 
         node_tools = {n["id"]: n["tool"] for n in catalogue["nodes"]}
-        # Expected shape: source → per-file tool → reduce.
-        assert "files" in node_tools.values()
-        assert "transcribe" in node_tools.values()
-        assert "catalogue" in node_tools.values()
+        # Expected shape: source → per-file transcribe → several per-file
+        # extractors (entities, timeline, key_people, keywords) + catalogue
+        # synthesizer at the end.
+        for tool in ("files", "transcribe", "extract_entities", "timeline",
+                     "key_people", "keywords", "catalogue"):
+            assert tool in node_tools.values(), f"preset missing {tool!r} node"
 
-        # Edge connects transcribe.text → catalogue.text so the aggregated
-        # transcription reaches the catalogue step.
-        edges = catalogue["edges"]
-        cat_edge = next(
-            e for e in edges if e["target_node_id"] == _node_id(catalogue, "catalogue")
-        )
-        assert cat_edge["source_port_id"] == "text"
-        assert cat_edge["target_port_id"] == "text"
+        # Edges use UI schema (source/target, source_port/target_port) so they
+        # render in the workflow editor canvas.
+        for edge in catalogue["edges"]:
+            for key in ("source", "target", "source_port", "target_port"):
+                assert key in edge, f"edge missing {key!r}: {edge}"
+
+        # Transcribe fans out to every downstream consumer — same source_port
+        # "text" on each outbound edge.
+        transcribe_id = _node_id(catalogue, "transcribe")
+        downstream = [e for e in catalogue["edges"] if e["source"] == transcribe_id]
+        assert len(downstream) >= 5  # entities, timeline, key_people, keywords, catalogue
+        for edge in downstream:
+            assert edge["source_port"] == "text"
+            assert edge["target_port"] == "text"
 
 
 def _node_id(preset: dict, tool: str) -> str:

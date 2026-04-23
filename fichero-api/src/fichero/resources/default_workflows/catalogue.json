@@ -1,6 +1,6 @@
 {
   "name": "Catalogue",
-  "description": "Transcribe every file in the selection, then generate a nine-section archival catalogue entry (summary, keywords, people, dates, legal references, rivers, events, mines, properties) on the container folder. Skips files already transcribed.",
+  "description": "Transcribe every file, then extract entities, timeline, key people, and keywords from each transcription, and finally synthesize a nine-section archival catalogue entry on the container folder.",
   "format": "nodes",
   "is_template": true,
   "folder_path": "/",
@@ -10,8 +10,8 @@
       "id": "files-source",
       "tool": "files",
       "label": "Files",
-      "position_x": 80,
-      "position_y": 200,
+      "position_x": 60,
+      "position_y": 280,
       "inputs": {},
       "config": {}
     },
@@ -19,8 +19,8 @@
       "id": "transcribe",
       "tool": "transcribe",
       "label": "Transcribe (per file)",
-      "position_x": 360,
-      "position_y": 200,
+      "position_x": 340,
+      "position_y": 280,
       "inputs": {},
       "config": {
         "vision_mode": "apple",
@@ -29,11 +29,50 @@
       }
     },
     {
+      "id": "extract-entities",
+      "tool": "extract_entities",
+      "label": "Entities (per file)",
+      "position_x": 640,
+      "position_y": 60,
+      "inputs": {},
+      "config": {
+        "entity_types": ["people", "organizations", "locations", "dates"],
+        "include_context": true
+      }
+    },
+    {
+      "id": "timeline",
+      "tool": "timeline",
+      "label": "Timeline (per file)",
+      "position_x": 640,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "key-people",
+      "tool": "key_people",
+      "label": "Key People (per file)",
+      "position_x": 640,
+      "position_y": 340,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "keywords",
+      "tool": "keywords",
+      "label": "Keywords (per file)",
+      "position_x": 640,
+      "position_y": 480,
+      "inputs": {},
+      "config": {}
+    },
+    {
       "id": "catalogue",
       "tool": "catalogue",
-      "label": "Catalogue",
-      "position_x": 700,
-      "position_y": 200,
+      "label": "Catalogue (folder)",
+      "position_x": 960,
+      "position_y": 280,
       "inputs": {},
       "config": {
         "output_language": "Spanish"
@@ -42,16 +81,46 @@
   ],
   "edges": [
     {
-      "source_node_id": "files-source",
-      "source_port_id": "files",
-      "target_node_id": "transcribe",
-      "target_port_id": "files"
+      "id": "e-files-transcribe",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "files",
+      "target_port": "files"
     },
     {
-      "source_node_id": "transcribe",
-      "source_port_id": "text",
-      "target_node_id": "catalogue",
-      "target_port_id": "text"
+      "id": "e-transcribe-entities",
+      "source": "transcribe",
+      "target": "extract-entities",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-transcribe-timeline",
+      "source": "transcribe",
+      "target": "timeline",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-transcribe-people",
+      "source": "transcribe",
+      "target": "key-people",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-transcribe-keywords",
+      "source": "transcribe",
+      "target": "keywords",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-transcribe-catalogue",
+      "source": "transcribe",
+      "target": "catalogue",
+      "source_port": "text",
+      "target_port": "text"
     }
   ],
   "config": {}

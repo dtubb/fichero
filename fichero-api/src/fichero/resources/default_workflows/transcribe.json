@@ -31,10 +31,11 @@
   ],
   "edges": [
     {
-      "source_node_id": "files-source",
-      "source_port_id": "files",
-      "target_node_id": "transcribe",
-      "target_port_id": "files"
+      "id": "edge-1",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "files",
+      "target_port": "files"
     }
   ],
   "config": {}

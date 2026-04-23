@@ -28,6 +28,8 @@
 
 **Context menu vs toolbar: inline submenu vs picker sheet.** Context-menu "Run Workflow" is an inline `Menu { ForEach(workflows)... }` — right-click already indicates target, picker sheet would add friction. Toolbar / menu bar keep the picker because "open workflow list" is the deliberate action there. `workflowStore.workflows` returns `[WorkflowSidebarItem]` (not `[Workflow]`), both have `.id` and `.name`.
 
+**Workflow edge JSON schema: UI expects `source`/`target`/`source_port`/`target_port`.** NOT `source_node_id` / `source_port_id`. The backend (`builder.py`) accepts either via `edge.get("source") or edge.get("source_node_id")`, but the Swift `Edge` decoder (`WorkflowTypes.swift`) only reads `source`/`target` and falls back to empty string — so an edge with `source_node_id` loads with empty `sourceNodeId` and doesn't render. When writing preset JSON or any workflow payload that needs to render in the editor, use the UI schema. Each edge should also have an `id`. Default `source_port` in UI is `"output"`, not `"files"` — always set the port explicitly.
+
 ## SwiftUI / SwiftLint Conventions — 2026-04-22
 
 **Exhaustive switch → static dictionary lookup for SwiftLint cyclomatic complexity.** Any switch with >10 cases trips the `cyclomatic_complexity` rule. Cleaner than `// swiftlint:disable`: extract a `private static let iconByType: [String: String] = [...]` and read with `Self.iconByType[type] ?? default`. Same applies to display-name maps.
