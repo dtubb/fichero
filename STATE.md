@@ -2,69 +2,31 @@
 
 ## Current Focus
 
-**Branch:** `0.0.2` — Catalogue workflow landed end-to-end, content-editor reliability fixes shipped.
+**Branch:** `0.0.2` — Catalogue workflow complete; shippable pending Xcode smoke test + search decision.
 
-**Goal:** Ship 0.0.2 with Transcribe + Catalogue + reliability fixes. Search backport decision pending (see Next Session).
+**Goal:** Ship 0.0.2 with Transcribe + Catalogue + reliability fixes.
 
-## What Landed This Session
-
-### Content editor reliability (#671, #672 research)
-- RTF color/font persistence: normalizer no longer blanks user formatting on load (5991a5d6).
-- Draft preservation: onDisappear no longer cancels pending saves; saveContent uses refreshLocalContent (not updateLocal) so a content save never removes the doc from the grid (9bec7d8f).
-- #672 filed but not yet fixed: workflows silently overwrite user-edited page_content.
-
-### Context-menu Run Workflow submenu (#669)
-- Inline workflow submenu in library grid + sidebar context menus.
-- Folders expand to files in files_tool so Run-on-Folder actually works.
-
-### Catalogue workflow — #676 and children
-
-| Issue | Status |
-|---|---|
-| #677 Un-hide catalogue tools | Done (22532176) |
-| #678 Catalogue tool rewrite (9-section output) | Done (00d4dfbc, 93077035, 8aa6e16f) |
-| #679 skip_if_artifact_exists | Done (93077035, 54c9f683) |
-| #681 Default workflow seeding | Done (e1682a4a) |
-| #682 Inspector per-section rendering | Done (8563af60) |
-| #680 Aggregate node (first-class) | Deferred to 0.0.3 |
-| #683 Visual fan-out / aggregate markers | Deferred to 0.0.3 |
-| #684 Chained per-file steps | Deferred to 0.0.3 |
-
-**What works now**: Right-click a folder → Run Workflow → Catalogue. Transcribes every file (skip-if-done), runs one LLM call with aggregated text, produces nine-section structured output, saves as individual per-section artifacts (people, dates, rivers, events, mines, properties, keywords, summary, legal_references) on the container folder. Also writes the combined markdown to the folder's page_content so the Content tab shows the full entry.
-
-**Inspector UX**: each catalogue artifact type renders as its own structured preview (tables, not JSON).
-
-### Tests
-- Backend: **1857 passing** (141 existing workflow + 36 new catalogue/seeding/skip-if-done + the rest of the suite).
-- Swift: 2 new test files for CatalogueArtifactPreviews + FeatureManager tool allowlist.
-
-## Blockers / Open
+## Open Issues (0.0.2 milestone)
 
 | # | Title | Status |
 |---|---|---|
-| #672 | Workflows overwrite user-edited page_content | **Closed** (de67f81e) — user edits flagged via metadata timestamp; workflows respect. |
-| #670 | files_tool resolves page → parent PDF silently | 0.0.3 (broad fix) |
-| #673 | fileCompletedCount storm on inspector refresh | 0.0.3 polish |
-| #674 | documentSignature hashes full content per diff | 0.0.3 polish |
-| #675 | convertToSendable lossy for Date/URL metadata | 0.0.3 polish |
-| #680, #683, #684 | First-class Aggregate node + visual markers + chained per-file steps | 0.0.3 — the Catalogue preset uses implicit aggregate so it works today without these |
+| #661 | Fichero download page on tubb.ca | Ready to do |
+| #662 | tubb.ca/fichero release notes + download | Ready to do |
+| #658 | fichero-releases GitHub repo | Needs Daniel to create repo |
+| #659 | Build + sign + notarize 0.0.2 DMG | Blocked on #658 + Apple notarytool creds |
+| #660 | Dry-run install 0.0.2 on Daniel's machine | Blocked on #659 |
+| #665 | Dev blog post — 3 years AI coding | Content filing only |
 
 ## Next Session — Start Here
 
-1. **Daniel decision: search backport vs defer.**
-   The 0.0.3 worktree (`~/code/fichero-0.0.3`) has 3762 insertions / 12846 deletions vs 0.0.2 — massive refactors beyond search (Sidebar modes split, etc.). Safer paths:
-   - (A) Lock down 0.0.2, ship with Transcribe + Catalogue + reliability, move to 0.0.3 worktree to finish search.
-   - (B) Cherry-pick only search-tagged commits from 0.0.3 into 0.0.2 (risky — dependencies on the Sidebar refactor).
-   My recommendation is (A). Awaiting your call before moving.
+1. **Xcode build + smoke-test Catalogue.** Right-click a folder → Run Workflow → Catalogue. Confirm nine-section markdown appears in folder Content tab; per-section artifacts render in inspector; re-run skips transcribed files; editing text then re-running Catalogue preserves the edit.
 
-2. **Xcode build + smoke-test the Catalogue workflow**. Right-click a folder → Run Catalogue. Confirm:
-   - Existing transcriptions are reused (skip-if-done).
-   - Nine-section markdown appears in the folder's Content tab.
-   - Per-section artifacts render in the Artifacts tab with clean tables.
-   - Editing a document's text after transcription survives a re-run of Catalogue.
+2. **Decide search backport strategy.** 0.0.3 worktree has search work but also massive refactors (3762 insertions / 12846 deletions vs 0.0.2). Recommendation: lock down 0.0.2, ship, then finish search in the 0.0.3 worktree. If you want search in 0.0.2, cherry-pick commit-by-commit (risky).
 
-3. **Release prep** (#661, #662, #658, #659) once smoke-test passes and search decision is made.
+3. **Release pipeline** if smoke-test passes — start with #661/#662 (site content, no blockers), then #658/#659 (DMG).
+
+4. **Deferred to 0.0.3**: #670, #673, #674, #675, #680, #683, #684 (per-page PDF fan-out, inspector-refresh storms, signature hashing, metadata typing, first-class Aggregate node, visual fan-out markers, chained per-file steps).
 
 ---
 
-*Last updated: 2026-04-22 (autonomous session)* — catalogue landed; ship-readiness pending #672 + search decision.
+*Last updated: 2026-04-23* — session-end after autonomous catalogue build-out.

@@ -1089,3 +1089,41 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 - **Files node UI**: Empty state shows teal "Uses library selection at run time" banner instead of ambiguous drop zone
 - **Activity timestamps**: Completed runs show stable `coarseTimeAgo()` string instead of SwiftUI `.relative` style that ticks every second
 - **Still pending**: Server must be restarted to apply sources.py fix — as of session end, running server still has old `is not None` code and completes in 69ms with no files processed
+
+## 2026-04-22 — Catalogue Workflow + Content Editor Reliability
+
+**Content editor reliability (#671)**
+- RTF color/font no longer wiped on reload — `normalizeForEditor` uses `enumerateAttribute` to only fill defaults where attributes are nil (5991a5d6).
+- `AttributedTextEditor.updateNSView` skips force-applying default typography on initial load so decoded RTF fonts survive; still applies on user preference changes (5991a5d6).
+- `onDisappear` no longer cancels debounced auto-save — fires immediate save if dirty; `saveContent` switched from `updateLocal` to `refreshLocalContent` to avoid cross-folder removal (9bec7d8f).
+- `onChange(documentSignature)` guard now `hasChanges` alone (not `isEditingText && hasChanges`) so unfocused dirty drafts survive external refreshes (9bec7d8f).
+
+**User-edit protection (#672, shipped de67f81e)**
+- API PUT `/documents/{id}` stamps `metadata["page_content_user_edited_at"]` when page_content is in payload.
+- `save_artifact` honors the flag and preserves user text (artifact still saved — users can promote manually).
+- Closes the workflow-overwrites-user-edits class of bug without schema migration (metadata dict uses `extra="allow"`).
+
+**Run Workflow context menu submenu (#669)**
+- Library grid + sidebar right-click now show inline `Run Workflow ▶ [workflow]` submenu. Bypass the picker sheet for immediate-intent surfaces.
+- `runBatchWorkflow` batch items changed from `["document_id": id]` to `["selected_doc_ids": [id]]` — `files_tool` can now resolve them via the same state channel as SSE runs (9448fa97).
+- `files_tool` recursively expands folder doc_ids to file descendants (f93fe83c).
+
+**Catalogue workflow end-to-end (#676)**
+- **#677 tool allowlist** (22532176): `folder`, `aggregate`, `key_people`, `timeline`, `keywords`, `summarize_file` added to v0.0.1 whitelist; `releaseProfileVersion` bumped to 22.
+- **#678 catalogue rewrite** (00d4dfbc, 93077035, 8aa6e16f): one-shot nine-section structured LLM call on aggregated transcription text. Saves per-section artifacts (summary, keywords, people, dates, legal_references, rivers, events, mines, properties) on the container folder + combined markdown artifact + writes combined markdown to container `page_content`.
+- **#679 skip-if-artifact-exists** (93077035, 54c9f683): new `LLMToolConfig.skip_if_artifact_exists: bool = True` + `find_existing_artifact` helper. `process_vision` skips OCR when a cached artifact exists; guard checks `isinstance(content, str)` to avoid MagicMock flowing into aggregation.
+- **#681 default workflow seeding** (e1682a4a): `fichero/resources/default_workflows/*.json` presets (Transcribe, Catalogue) seeded via `seed_default_workflows(db)` from `db_manager.get_database`. Idempotent by name. Tests bypass via `FICHERO_SKIP_DEFAULT_WORKFLOWS=1`.
+- **#682 inspector previews** (8563af60): per-section artifacts render as type-specific tables (name+context, timeline, river-with-alt-spellings, keywords bullet-list). Renderers extracted to `CatalogueArtifactPreviews.swift`. Icon/display-name maps converted to static dictionaries to pass SwiftLint cyclomatic complexity.
+
+**Bugs filed during review, deferred to 0.0.3**
+- #670 files_tool silently resolves page selection to parent PDF + no per-page fan-out + LLM Vision broken for PDFs
+- #673 `refreshDocumentFromBackend` fires N times per workflow run
+- #674 `documentSignature` concatenates full content per diff
+- #675 `convertToSendable` lossy for Date/URL metadata
+- #680 First-class Aggregate node (editor visible, replacing implicit aggregate)
+- #683 Visual fan-out / aggregate markers in editor edges
+- #684 Backend support for chained per-file steps (Transcribe → Cleanup → NER → Aggregate)
+
+**Tests**: 1860 backend tests passing (was 1821). Added: `test_catalogue.py` (19), `test_default_workflows.py` (8), `test_skip_if_artifact_exists.py` (9), `test_user_edit_protection.py` (3). Added Swift `CatalogueArtifactPreviewsTests.swift` + `FeatureManagerToolAllowlistTests.swift`.
+
+**Release readiness**: catalogue workflow works end-to-end pending Xcode build + smoke test. Search backport from 0.0.3 remains an open decision (3762 insertions / 12846 deletions in 0.0.3 — cherry-picking is risky).

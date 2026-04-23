@@ -1,5 +1,41 @@
 # Durable Lessons Learned / Decisions
 
+## Content Editor Data Integrity — 2026-04-22
+
+**`NSAttributedString` normalizers must never set attributes on a full range unconditionally.** `addAttribute(.foregroundColor, value: NSColor.labelColor, range: fullRange)` wipes any user-set color. Use `enumerateAttribute(...)` and only fill in defaults where the attribute is `nil`. Same pattern for `.font`. Root cause of #671's color/font loss — the RTF round-trip worked; the client normalizer was stripping attributes before rendering.
+
+**`AttributedTextEditor.updateNSView` typography-signature branch overrides RTF fonts on initial load.** The signature starts empty and becomes "System|14|4" on first update, which is technically "a change" — so the code force-applied defaults to all existing text, wiping decoded RTF. Skip the force-apply when `lastTypographySignature.isEmpty` (initial load from decoded RTF); still apply on subsequent user preference changes.
+
+**`onDisappear` must not cancel the debounced auto-save task.** The 600ms debounce + `autoSaveTask?.cancel()` on disappear is a silent data-loss path: user types, navigates within 600ms, edit never flushes. Leave the task alone (let it complete in background) and additionally fire an immediate `saveContent()` if `hasChanges` on disappear.
+
+**`DocumentStore.updateLocal` has cross-folder remove logic — don't use for content-only updates.** When `document.parentId != selectedCollection.id`, `updateLocal` strips the document from `currentDocuments` (correct for move ops, wrong for saves). Use the `refreshLocalContent` helper for content updates: replace-in-place in every cache without the folder-membership check. `updateLocal` is for move operations only.
+
+**User-edit protection via metadata timestamp (no schema migration).** When the API update route writes `page_content`, stamp `metadata["page_content_user_edited_at"] = datetime.now().isoformat()`. Tools with `tool_config.update_page_content` check this flag in `save_artifact` and skip the promotion over user text. The artifact IS still saved — users can see it on the Artifacts tab and manually promote. Document has `extra="allow"` so the key persists without schema changes (#672).
+
+## Catalogue Workflow Architecture — 2026-04-22
+
+**0.0.2 catalogue is a single reduce step on aggregated text, not a chain.** Context windows are large enough that one LLM call can produce all nine sections (Resumen, Palabras Clave, Personas Clave, Fechas, Referencias Legales, Ríos, Eventos Clave, Minas, Propiedades) from concatenated transcriptions. Legacy `use_previous` chaining isn't needed for the demo. Chain/pipeline with use-previous stays deferred for users who want custom multi-step flows.
+
+**Each populated catalogue section becomes its own artifact.** `catalogue` tool yields `(type, {content, data})` tuples for every non-empty section: `summary`, `keywords`, `people`, `dates`, `legal_references`, `rivers`, `events`, `mines`, `properties`. `.content` is a readable list/paragraph (inspector-friendly); `.data` is the structured JSON for downstream use. A combined `catalogue` artifact with the full markdown is also saved for export. Researchers browse each list independently rather than decoding one JSON blob.
+
+**Catalogue container resolution from `state.selected_doc_ids`.** `_resolve_container_doc` priority: exactly one folder in selection → that folder; all files share a parent → that parent; fallback → first folder found or first doc's parent. Lets the same tool work from right-click-on-folder, right-click-on-multiple-files, or explicit folder selection.
+
+**Skip-if-done guard must check `isinstance(content, str)`.** Without it, a test mock returning a `MagicMock` for `.content` flows into `"\n\n".join(texts)` and crashes. Truthy-check alone isn't enough since MagicMock is truthy. Applies to any cached-output reuse branch.
+
+**Default workflow presets seeded from `fichero/resources/default_workflows/*.json`.** `seed_default_workflows(db)` reads every JSON in the dir and inserts workflows by name if missing. Called from `db_manager.get_database` after migrations — idempotent, deleted presets don't resurrect. Tests set `FICHERO_SKIP_DEFAULT_WORKFLOWS=1` in conftest so fixtures that assert "empty library" keep working.
+
+**Batch API uses `selected_doc_ids`, not `document_id`.** When creating batch items in Swift, use `["selected_doc_ids": [documentId]]` so `files_tool` resolves them via the same state channel as SSE runs. Mixing `document_id` in batch items silently produces zero files (files_tool only reads `selected_doc_ids`).
+
+**Context menu vs toolbar: inline submenu vs picker sheet.** Context-menu "Run Workflow" is an inline `Menu { ForEach(workflows)... }` — right-click already indicates target, picker sheet would add friction. Toolbar / menu bar keep the picker because "open workflow list" is the deliberate action there. `workflowStore.workflows` returns `[WorkflowSidebarItem]` (not `[Workflow]`), both have `.id` and `.name`.
+
+## SwiftUI / SwiftLint Conventions — 2026-04-22
+
+**Exhaustive switch → static dictionary lookup for SwiftLint cyclomatic complexity.** Any switch with >10 cases trips the `cyclomatic_complexity` rule. Cleaner than `// swiftlint:disable`: extract a `private static let iconByType: [String: String] = [...]` and read with `Self.iconByType[type] ?? default`. Same applies to display-name maps.
+
+**SwiftLint `inclusive_language` flags "whitelist".** Use "allowlist" in type/function/variable names. Error, not warning — required for CI.
+
+**`fileSystemSynchronized` Xcode projects auto-discover new Swift files.** No pbxproj edit needed for new files in `fichero-swiftui/` or test targets. Check via `grep fileSystemSynchronized project.pbxproj` before worrying about manual target membership.
+
 ## MCP / Peekaboo Setup — 2026-04-17
 
 **`disabledMcpServers` is scope-agnostic.** In `~/.claude.json`, each project key holds a `disabledMcpServers` array that overrides servers from *any* scope — user-level, project `.mcp.json`, or plugin. Don't confuse with `disabledMcpjsonServers`, which only filters project `.mcp.json` entries. To disable a user-scope MCP for one project (e.g., tbx/tinderbox here), add its ID to the per-project `disabledMcpServers` array.
