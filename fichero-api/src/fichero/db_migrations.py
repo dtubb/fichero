@@ -79,6 +79,24 @@ def migrate_workflow_table(conn) -> None:
 
             logger.info("Workflows table migration completed")
 
+        # Idempotent per-column checks for columns added after the initial
+        # steps→format migration. Each runs regardless of the old-schema gate
+        # above so fresh-installed tables also pick them up if the model
+        # evolved past _ensure_table's snapshot.
+        result = conn.execute("PRAGMA table_info('workflows')").fetchall()
+        columns = {row[1] for row in result}
+
+        if "is_system" not in columns:
+            logger.info("Migrating workflows table: adding is_system column...")
+            conn.execute("""
+                ALTER TABLE workflows
+                ADD COLUMN is_system BOOLEAN DEFAULT FALSE
+            """)
+            # Backfill any NULLs that may exist from a partial prior migration.
+            conn.execute("""
+                UPDATE workflows SET is_system = FALSE WHERE is_system IS NULL
+            """)
+
     except Exception as e:
         error = handle_error(
             e,
