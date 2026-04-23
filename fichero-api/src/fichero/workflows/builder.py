@@ -159,6 +159,32 @@ def build_graph(
         "skip_cache": skip_cache,
     }
 
+    # Drop edges with empty endpoints before any downstream use. These appear
+    # when an older workflow was persisted with a different edge schema and
+    # the decoder couldn't read source/target — e.g. pre-fix preset JSONs
+    # that used source_node_id instead of source. Without this guard, the
+    # build crashes at `node_names[edge.source]` with KeyError("").
+    valid_node_ids = {node.id for node in workflow.nodes}
+    filtered_edges = []
+    for edge in workflow.edges:
+        if not edge.source or not edge.target:
+            logger.warning(
+                "Skipping edge with empty endpoint (source=%r, target=%r) — "
+                "workflow likely persisted with an older schema; reinstall "
+                "the workflow from its preset or delete and re-create it.",
+                edge.source, edge.target,
+            )
+            continue
+        if edge.source not in valid_node_ids or edge.target not in valid_node_ids:
+            logger.warning(
+                "Skipping edge referencing unknown node (source=%r, target=%r); "
+                "known nodes: %s",
+                edge.source, edge.target, sorted(valid_node_ids),
+            )
+            continue
+        filtered_edges.append(edge)
+    workflow.edges = filtered_edges
+
     # Build edge lookup for auto-wiring
     edges_by_target = {}
     for edge in workflow.edges:
