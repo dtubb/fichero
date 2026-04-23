@@ -95,7 +95,12 @@ class TestSeedDefaultWorkflows:
         assert seeded == len(saved_names)
 
     def test_idempotent_second_run_seeds_nothing(self):
-        db = self._mock_db(existing_names=["Transcribe", "Catalogue"])
+        # Mark every shipped preset as already-seeded so no insert happens
+        # on re-run. As new presets are added to resources/default_workflows,
+        # include them here so the idempotency check stays accurate.
+        db = self._mock_db(existing_names=[
+            "Transcribe", "Catalogue", "Catalogue (composable)"
+        ])
         seeded = seed_default_workflows(db)
         assert seeded == 0
         db.save.assert_not_called()

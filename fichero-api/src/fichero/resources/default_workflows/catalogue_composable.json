@@ -1,0 +1,211 @@
+{
+  "name": "Catalogue (composable)",
+  "description": "Per-section catalogue with explicit fan-in and file export. Same nine artifacts as the default Catalogue, but each section is its own swappable extractor node — start here when customizing a pipeline.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/",
+  "tags": ["preset", "catalogue", "composable", "archival"],
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 400,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "transcribe",
+      "tool": "transcribe",
+      "label": "Transcribe each file",
+      "position_x": 340,
+      "position_y": 400,
+      "inputs": {},
+      "config": {
+        "vision_mode": "apple",
+        "language": "en",
+        "update_page_content": true
+      }
+    },
+    {
+      "id": "aggregate",
+      "tool": "aggregate",
+      "label": "Merge transcripts",
+      "position_x": 620,
+      "position_y": 400,
+      "inputs": {},
+      "config": {
+        "mode": "concat",
+        "separator": "\n\n---\n\n"
+      }
+    },
+    {
+      "id": "people",
+      "tool": "people_extract",
+      "label": "People",
+      "position_x": 900,
+      "position_y": 80,
+      "inputs": {},
+      "config": {"output_language": "Spanish"}
+    },
+    {
+      "id": "dates",
+      "tool": "dates_extract",
+      "label": "Dates",
+      "position_x": 900,
+      "position_y": 180,
+      "inputs": {},
+      "config": {"output_language": "Spanish"}
+    },
+    {
+      "id": "rivers",
+      "tool": "rivers_extract",
+      "label": "Rivers",
+      "position_x": 900,
+      "position_y": 280,
+      "inputs": {},
+      "config": {"output_language": "Spanish"}
+    },
+    {
+      "id": "events",
+      "tool": "events_extract",
+      "label": "Events",
+      "position_x": 900,
+      "position_y": 380,
+      "inputs": {},
+      "config": {"output_language": "Spanish"}
+    },
+    {
+      "id": "mines",
+      "tool": "mines_extract",
+      "label": "Mines",
+      "position_x": 900,
+      "position_y": 480,
+      "inputs": {},
+      "config": {"output_language": "Spanish"}
+    },
+    {
+      "id": "properties",
+      "tool": "properties_extract",
+      "label": "Properties",
+      "position_x": 900,
+      "position_y": 580,
+      "inputs": {},
+      "config": {"output_language": "Spanish"}
+    },
+    {
+      "id": "legal",
+      "tool": "legal_references_extract",
+      "label": "Legal References",
+      "position_x": 900,
+      "position_y": 680,
+      "inputs": {},
+      "config": {"output_language": "Spanish"}
+    },
+    {
+      "id": "keywords",
+      "tool": "keywords_extract",
+      "label": "Keywords",
+      "position_x": 900,
+      "position_y": 780,
+      "inputs": {},
+      "config": {"output_language": "Spanish"}
+    },
+    {
+      "id": "export",
+      "tool": "write_file",
+      "label": "Export transcripts",
+      "position_x": 620,
+      "position_y": 640,
+      "inputs": {},
+      "config": {
+        "output_dir": "",
+        "filename_template": "{doc_name}-transcript.{ext}",
+        "format": "txt",
+        "mode": "per_file"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-files-transcribe",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "files",
+      "target_port": "files"
+    },
+    {
+      "id": "e-transcribe-aggregate",
+      "source": "transcribe",
+      "target": "aggregate",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-people",
+      "source": "aggregate",
+      "target": "people",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-dates",
+      "source": "aggregate",
+      "target": "dates",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-rivers",
+      "source": "aggregate",
+      "target": "rivers",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-events",
+      "source": "aggregate",
+      "target": "events",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-mines",
+      "source": "aggregate",
+      "target": "mines",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-properties",
+      "source": "aggregate",
+      "target": "properties",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-legal",
+      "source": "aggregate",
+      "target": "legal",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-keywords",
+      "source": "aggregate",
+      "target": "keywords",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-transcribe-export",
+      "source": "transcribe",
+      "target": "export",
+      "source_port": "text",
+      "target_port": "text"
+    }
+  ],
+  "config": {}
+}
