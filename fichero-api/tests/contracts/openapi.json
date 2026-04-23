@@ -11170,6 +11170,51 @@
         }
       }
     },
+    "/api/workflows/reinstall-defaults": {
+      "post": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "Reinstall Default Workflows",
+        "description": "Delete and re-seed the bundled default workflows (Transcribe, Catalogue).\n\nUsed when we ship a new preset version (new nodes, fixed edge schema, etc.)\nand want users to pick it up without manually deleting their old copies.\nOnly workflows with is_template=True are touched \u2014 user-duplicated or\nrenamed workflows are untouched even if the name happens to match.",
+        "operationId": "reinstall_default_workflows_api_workflows_reinstall_defaults_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Reinstall Default Workflows Api Workflows Reinstall Defaults Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workflows/{workflow_id}": {
       "get": {
         "tags": [

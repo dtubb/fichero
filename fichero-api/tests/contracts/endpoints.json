@@ -3077,6 +3077,16 @@
         "response_model": "WorkflowExportResponse"
       },
       {
+        "method": "POST",
+        "path": "/workflows/reinstall-defaults",
+        "operation_id": "reinstall_default_workflows_api_workflows_reinstall_defaults_post",
+        "summary": "Reinstall Default Workflows",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
         "method": "GET",
         "path": "/workflows/{workflow_id}",
         "operation_id": "get_workflow_api_workflows__workflow_id__get",

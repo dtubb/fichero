@@ -23,6 +23,7 @@ struct DocumentInspectorContentTab: View {
     @State private var editorRevision = 0
     @State private var isSaving = false
     @State private var autoSaveTask: Task<Void, Never>?
+    @State private var refreshTask: Task<Void, Never>?
     @State private var saveError: String?
     @State private var lastSavedPayloadSignature: String = ""
 
@@ -45,12 +46,10 @@ struct DocumentInspectorContentTab: View {
     }
 
     private var documentSignature: String {
-        signature(
-            id: document.id,
-            updatedAt: document.updatedAt,
-            pageContent: document.pageContent,
-            richTextBase64: document.metadata[Self.richTextMetadataKey]?.value as? String
-        )
+        // Use only id + updatedAt for the diff key. pageContent and richTextBase64
+        // are potentially megabytes; updatedAt changes on every server write so
+        // it is sufficient to detect content changes without string-concat cost.
+        "\(document.id)|\(document.updatedAt.timeIntervalSince1970)"
     }
 
     var body: some View {
@@ -132,7 +131,15 @@ struct DocumentInspectorContentTab: View {
             saveError = nil
         }
         .onChange(of: executionObserver.fileCompletedCount) { _, _ in
-            Task { await refreshDocumentFromBackend() }
+            // Debounce: a 100-file transcription run would otherwise fire 100
+            // round-trips for a document that may not even be in that workflow.
+            // Collapse the storm into at most one fetch per 500 ms window.
+            refreshTask?.cancel()
+            refreshTask = Task {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled else { return }
+                await refreshDocumentFromBackend()
+            }
         }
     }
 
@@ -244,21 +251,7 @@ struct DocumentInspectorContentTab: View {
     }
 
     private func signature(for doc: Document) -> String {
-        signature(
-            id: doc.id,
-            updatedAt: doc.updatedAt,
-            pageContent: doc.pageContent,
-            richTextBase64: doc.metadata[Self.richTextMetadataKey]?.value as? String
-        )
-    }
-
-    private func signature(
-        id: String,
-        updatedAt: Date,
-        pageContent: String?,
-        richTextBase64: String?
-    ) -> String {
-        "\(id)|\(updatedAt.timeIntervalSince1970)|\(pageContent ?? "")|\(richTextBase64 ?? "")"
+        "\(doc.id)|\(doc.updatedAt.timeIntervalSince1970)"
     }
 
     private func normalizeForEditor(_ attributed: NSAttributedString) -> NSAttributedString {
