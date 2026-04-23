@@ -216,41 +216,70 @@ extension LibraryView {
         }
     }
 
-    // MARK: - Batch Execution
+    // MARK: - Workflow Execution (replaces batch path)
 
+    /// Execute a workflow via SSE, mirroring the toolbar path in ContentView+Actions.
+    /// Passes ALL selected document IDs at once so aggregation workflows (Catalogue)
+    /// receive the complete set, and SSE events drive UI refresh.
     @MainActor
     func runBatchWorkflow(workflowId: String) async {
         guard !selectedDocumentIdsForBatch.isEmpty else { return }
 
-        // Create batch items - one per document.
-        // Use selected_doc_ids (not document_id) so files_tool in the workflow
-        // can find the file via the same state channel as the SSE run path.
-        let batchItems: [[String: any Sendable]] = selectedDocumentIdsForBatch.map { documentId in
-            ["selected_doc_ids": [documentId]]
-        }
+        let docIds = selectedDocumentIdsForBatch
+        let workflowName = libraryManager.getLibrary(id: windowState.libraryId)?.workflowStore.workflows.first(where: { $0.id == workflowId })?.name
+            ?? libraryManager.globalLibrary?.workflowStore.workflows.first(where: { $0.id == workflowId })?.name
+            ?? workflowId
 
-        let library = libraryManager.getLibrary(id: windowState.libraryId) ?? libraryManager.globalLibrary
-        guard let library else {
-            logger.error("Run workflow failed: no active library for window \(self.windowState.libraryId.uuidString)")
-            return
-        }
+        logger.info("Starting SSE workflow \(workflowId) on \(docIds.count) documents via context menu")
 
+        var streamCompleted = false
         do {
-            let batch = try await library.batchService.createBatch(
+            let response = try await workflowStreamService.execute(
                 workflowId: workflowId,
-                items: batchItems,
-                maxConcurrent: 5
+                inputs: ["selected_doc_ids": docIds],
+                onEvent: { event in
+                    executionObserver.handleEvent(event, for: workflowId)
+                    switch event {
+                    case .complete, .error, .systemicError:
+                        streamCompleted = true
+                    default:
+                        break
+                    }
+                }
             )
-            try await library.batchService.executeBatch(batchId: batch.batchId)
-            logger.info(
-                """
-                Started batch \(batch.batchId) for workflow \(workflowId) \
-                with \(self.selectedDocumentIdsForBatch.count) items
-                """
+
+            let threadId = response.threadId
+            executionObserver.startExecution(
+                workflowId: workflowId,
+                name: workflowName,
+                threadId: threadId,
+                onCancel: { [weak workflowStreamService] in
+                    Task { @MainActor in
+                        try? await workflowStreamService?.stopWorkflow(threadId: threadId)
+                    }
+                }
             )
+            logger.info("Started SSE workflow \(workflowId) thread \(threadId) for \(docIds.count) docs")
+
+            while !streamCompleted {
+                try await Task.sleep(for: .milliseconds(200))
+                if Task.isCancelled { break }
+                if let exec = executionObserver.activeExecutions[workflowId], !exec.isRunning {
+                    streamCompleted = true
+                }
+            }
+
+            let finalStatus: WorkflowStatus = {
+                guard let exec = executionObserver.activeExecutions[workflowId] else { return .completed }
+                return exec.workflowError != nil || exec.status == .failed ? .failed : .completed
+            }()
+            executionObserver.endExecution(workflowId: workflowId, status: finalStatus)
+            logger.info("Workflow \(workflowId) finished with status: \(String(describing: finalStatus))")
+
         } catch {
-            logger.error("Run workflow failed: \(error.localizedDescription)")
+            logger.error("executeWorkflowViaSSE failed: \(error.localizedDescription)")
             ErrorService.shared.reportError(error)
+            executionObserver.endExecution(workflowId: workflowId, status: .failed)
         }
     }
 }

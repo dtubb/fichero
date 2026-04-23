@@ -62,6 +62,12 @@ struct DocumentInspectorArtifactsTab: View {
             // Re-fetch whenever any file completes so artifacts appear mid-run
             Task { await loadArtifacts(for: documentId) }
         }
+        .onChange(of: executionObserver.workflowCompletedCount) { _, _ in
+            // Re-fetch when workflow finishes — reduce-phase nodes (Catalogue)
+            // save artifacts after all parallel files complete, so a final
+            // refresh is needed after the workflow completes.
+            Task { await loadArtifacts(for: documentId) }
+        }
     }
 
     // MARK: - Artifact Type Section

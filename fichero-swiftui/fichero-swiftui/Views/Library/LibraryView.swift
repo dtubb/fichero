@@ -38,6 +38,8 @@ struct LibraryView: View {
 
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var windowState: WindowState
+    @EnvironmentObject var workflowStreamService: WorkflowStreamService
+    @Environment(WorkflowExecutionObserver.self) var executionObserver
     @ObservedObject var featureManager = FeatureManager.shared
 
     // Column visibility for Table view (persisted per-window/scene)

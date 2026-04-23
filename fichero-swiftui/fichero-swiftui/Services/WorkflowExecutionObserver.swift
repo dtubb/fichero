@@ -25,6 +25,11 @@ class WorkflowExecutionObserver {
     /// artifacts without polling. Observed by DocumentInspector.
     var fileCompletedCount: Int = 0
 
+    /// Incremented each time any workflow completes (success or failure).
+    /// Drives final artifact refresh for reduce-phase nodes (Catalogue)
+    /// that save artifacts after all parallel files are done.
+    var workflowCompletedCount: Int = 0
+
     /// Completed/failed executions archived for the session so Activity tabs
     /// remain populated after a run finishes. Keyed by workflowId.
     var completedExecutions: [String: WorkflowExecution] = [:]
@@ -127,6 +132,11 @@ class WorkflowExecutionObserver {
             activeExecutions[workflowId] = execution
 
             cancelHandlers.removeValue(forKey: workflowId)
+
+            // Signal inspectors that the workflow is done — important for
+            // reduce-phase nodes (Catalogue) that save artifacts after all
+            // parallel file completions.
+            workflowCompletedCount += 1
 
             // Archive to completedExecutions so Activity tabs remain readable
             Task { @MainActor in
