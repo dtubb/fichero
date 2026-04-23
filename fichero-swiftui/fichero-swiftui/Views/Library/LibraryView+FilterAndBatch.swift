@@ -8,6 +8,11 @@ extension LibraryView {
         Logger(subsystem: "com.tubb.Fichero", category: "LibraryView")
     }
 
+    var libraryWorkflows: [Workflow] {
+        let lib = libraryManager.getLibrary(id: windowState.libraryId) ?? libraryManager.globalLibrary
+        return lib?.workflowStore.workflows ?? []
+    }
+
     // MARK: - Filtered Documents
 
     var filteredDocuments: [Document] {
@@ -194,11 +199,12 @@ extension LibraryView {
         }
 
         // Run Workflow submenu — lists all workflows inline, no picker dialog.
+        let availableWorkflows = libraryWorkflows
         if !selection.isEmpty && featureManager.isWorkflowRunOnSelectionEnabled
-            && !workflowStore.workflows.isEmpty {
+            && !availableWorkflows.isEmpty {
             let docIds = Array(selection)
             Menu {
-                ForEach(workflowStore.workflows.sorted { $0.name < $1.name }) { workflow in
+                ForEach(availableWorkflows.sorted { $0.name < $1.name }) { workflow in
                     Button(workflow.name) {
                         selectedDocumentIdsForBatch = docIds
                         Task { await runBatchWorkflow(workflowId: workflow.id) }

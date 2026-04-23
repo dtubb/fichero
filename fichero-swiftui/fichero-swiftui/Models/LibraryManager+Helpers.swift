@@ -81,7 +81,8 @@ extension LibraryManager {
         libraryManagerLogger.info("⏱ loadLibraryData entry — library: \(library.displayName)")
         guard !Task.isCancelled else { return }
         await library.documentStore.loadCollections()
-        libraryManagerLogger.info("⏱ loadLibraryData documents loaded (\(library.documentStore.collections.count) items)")
+        let docCount = library.documentStore.collections.count
+        libraryManagerLogger.info("⏱ loadLibraryData documents loaded (\(docCount) items)")
 
         guard !Task.isCancelled else { return }
         await library.workflowStore.loadWorkflows()
