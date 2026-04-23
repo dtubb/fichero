@@ -97,8 +97,15 @@ struct AttributedTextEditor: NSViewRepresentable {
         textView.typingAttributes[.paragraphStyle] = paraStyle
         let typographySignature = "\(fontName)|\(fontSize)|\(lineSpacing)"
 
+        // Only force-apply typography to existing text when the user actually changes
+        // the default font/size/spacing in preferences — NOT on initial load. On load,
+        // the decoded RTF may carry per-range fonts/colors the user set via the format
+        // menu; blindly overwriting them strips their formatting on every reopen.
+        let isInitialTypographyApply = context.coordinator.lastTypographySignature.isEmpty
         if context.coordinator.lastTypographySignature != typographySignature {
-            if let textStorage = textView.textStorage, textStorage.length > 0 {
+            if !isInitialTypographyApply,
+               let textStorage = textView.textStorage,
+               textStorage.length > 0 {
                 let fullRange = NSRange(location: 0, length: textStorage.length)
                 context.coordinator.isApplyingModelUpdate = true
                 textStorage.addAttribute(.font, value: resolvedFont, range: fullRange)

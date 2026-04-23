@@ -260,10 +260,21 @@ struct DocumentInspectorContentTab: View {
         }
         let fullRange = NSRange(location: 0, length: mutable.length)
 
-        // Ensure text remains visible in all appearances.
-        mutable.addAttribute(.foregroundColor, value: NSColor.labelColor, range: fullRange)
-        if mutable.attribute(.font, at: 0, effectiveRange: nil) == nil {
-            mutable.addAttribute(.font, value: NSFont.systemFont(ofSize: NSFont.systemFontSize), range: fullRange)
+        // Only fill in defaults for ranges with no explicit attribute; never overwrite
+        // the user's foreground color or font chosen via the format menu.
+        mutable.enumerateAttribute(.foregroundColor, in: fullRange, options: []) { value, range, _ in
+            if value == nil {
+                mutable.addAttribute(.foregroundColor, value: NSColor.labelColor, range: range)
+            }
+        }
+        mutable.enumerateAttribute(.font, in: fullRange, options: []) { value, range, _ in
+            if value == nil {
+                mutable.addAttribute(
+                    .font,
+                    value: NSFont.systemFont(ofSize: NSFont.systemFontSize),
+                    range: range
+                )
+            }
         }
         return mutable
     }
