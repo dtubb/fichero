@@ -20,6 +20,23 @@ struct WorkflowCanvasView: View {
         executionObserver.activeExecutions[workflow.id]?.nodeStates ?? [:]
     }
 
+    /// Live file count for a fan edge, or nil when idle. Fan-out edges
+    /// read the source node's fileTotal (it's the one doing the parallel
+    /// work); fan-in edges read the target node's fileTotal only if the
+    /// target itself records one. Falls back to the upstream source's
+    /// fileTotal so a Catalogue edge still shows "∑ 20 files" even
+    /// though Catalogue itself runs once.
+    fileprivate func liveFanCount(for edge: WorkflowEdge, targetTool: String?) -> Int? {
+        let states = nodeStates
+        if let sourceState = states[edge.sourceNodeId], sourceState.fileTotal > 0 {
+            return sourceState.fileTotal
+        }
+        if let targetState = states[edge.targetNodeId], targetState.fileTotal > 0 {
+            return targetState.fileTotal
+        }
+        return nil
+    }
+
     // Focus state for keyboard commands
     @FocusState private var isCanvasFocused: Bool
 
@@ -163,12 +180,19 @@ extension WorkflowCanvasView {
         ForEach(workflow.edges) { edge in
             if let sourcePoint = portPositions["\(edge.sourceNodeId):\(edge.sourcePortId)"],
                let targetPoint = portPositions["\(edge.targetNodeId):\(edge.targetPortId)"] {
+                let sourceTool = workflow.nodes.first { $0.id == edge.sourceNodeId }?.tool
+                let targetTool = workflow.nodes.first { $0.id == edge.targetNodeId }?.tool
                 WorkflowEdgeView(
                     edge: edge,
                     sourcePoint: sourcePoint,
                     targetPoint: targetPoint,
                     isSelected: edge.id == selectedEdgeId,
-                    isConditional: edge.condition != nil
+                    isConditional: edge.condition != nil,
+                    fanRole: EdgeFanRoleResolver.role(
+                        sourceTool: sourceTool,
+                        targetTool: targetTool
+                    ),
+                    fanCount: liveFanCount(for: edge, targetTool: targetTool)
                 )
                 .onTapGesture {
                     selectedNodeIds.removeAll()

@@ -1,4 +1,64 @@
+// swiftlint:disable file_length
 import SwiftUI
+
+// MARK: - Fan role classification
+//
+// The backend's LangGraph builder runs implicit fan-out/fan-in around
+// per-file tools: Transcribe runs N times in parallel, Catalogue collects
+// the N results before running once. That structure is invisible in a
+// linear `Files → Transcribe → Catalogue` canvas, which is exactly the
+// confusion Daniel reported. These role annotations let us render a
+// badge on the edge so the user can SEE when files fan out and when
+// they merge back.
+//
+// Static tool-name → role for 0.0.2. A future revision pushes this
+// metadata from the backend ToolDef so adding a tool doesn't need a
+// frontend edit.
+
+enum EdgeFanRole: Equatable {
+    case fanOut
+    case fanIn
+    case none
+
+    func label(count: Int?) -> String {
+        switch self {
+        case .fanOut: return count.map { "→ \($0) files" } ?? "fan-out"
+        case .fanIn:  return count.map { "∑ \($0) files" } ?? "merge"
+        case .none:   return ""
+        }
+    }
+}
+
+/// Tools whose invocation fans out across files (one call per file).
+private let fanOutTools: Set<String> = [
+    "transcribe", "describe", "classify", "caption", "analyze", "tags",
+    "colors", "faces", "layout", "compare", "convert", "extract", "objects",
+    "scene", "quality", "safety", "diagram", "table_extract", "handwriting",
+    "style", "similarity",
+    "audio_transcribe", "video_describe"
+]
+
+/// Tools that collapse fan-out results into a single payload.
+private let fanInTools: Set<String> = [
+    "aggregate",
+    "catalogue",
+    "write_file",
+    "people_extract", "dates_extract", "rivers_extract", "events_extract",
+    "mines_extract", "properties_extract", "legal_references_extract",
+    "keywords_extract"
+]
+
+enum EdgeFanRoleResolver {
+    static func role(sourceTool: String?, targetTool: String?) -> EdgeFanRole {
+        if let target = targetTool, fanInTools.contains(target) {
+            return .fanIn
+        }
+        if let source = sourceTool, fanOutTools.contains(source) {
+            return .fanOut
+        }
+        return .none
+    }
+}
 
 /// Visual representation of an edge (connection between ports)
 struct WorkflowEdgeView: View {
@@ -7,6 +67,14 @@ struct WorkflowEdgeView: View {
     let targetPoint: CGPoint
     let isSelected: Bool
     let isConditional: Bool
+    /// Optional classification — when .fanOut or .fanIn, a labelled
+    /// badge is rendered on the edge so the user can see the topology
+    /// change visually. Defaults to .none so existing call sites don't
+    /// need to pass a value.
+    var fanRole: EdgeFanRole = .none
+    /// Live file count during an active run. `nil` when idle — badge
+    /// falls back to a static label.
+    var fanCount: Int?
 
     var body: some View {
         ZStack {
@@ -46,6 +114,55 @@ struct WorkflowEdgeView: View {
             if let label = edge.label, !label.isEmpty {
                 edgeLabel(label)
             }
+
+            // Fan-in / fan-out badge — shown even at idle so users see
+            // the topology before running. A live count overrides the
+            // static label when available.
+            if fanRole != .none {
+                fanBadge
+            }
+        }
+    }
+
+    /// Pill-shaped badge near the target end of the edge. Colored by
+    /// role so fan-out (branching) and fan-in (merging) read at a
+    /// glance.
+    @ViewBuilder
+    private var fanBadge: some View {
+        let text = fanRole.label(count: fanCount)
+        if !text.isEmpty {
+            let position: CGPoint = {
+                // Place fan-in badges near the target (where merging
+                // happens), fan-out near the source (where branching
+                // happens). Makes the direction of the topology bend
+                // obvious.
+                switch fanRole {
+                case .fanIn:
+                    return CGPoint(
+                        x: sourcePoint.x * 0.3 + targetPoint.x * 0.7,
+                        y: sourcePoint.y * 0.3 + targetPoint.y * 0.7 - 14
+                    )
+                case .fanOut:
+                    return CGPoint(
+                        x: sourcePoint.x * 0.7 + targetPoint.x * 0.3,
+                        y: sourcePoint.y * 0.7 + targetPoint.y * 0.3 - 14
+                    )
+                case .none:
+                    return .zero
+                }
+            }()
+            let tint: Color = fanRole == .fanIn ? .teal : .blue
+            Text(text)
+                .font(.caption2.weight(.semibold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(
+                    Capsule()
+                        .fill(tint)
+                        .shadow(color: .black.opacity(0.15), radius: 1, x: 0, y: 1)
+                )
+                .position(position)
         }
     }
 
@@ -170,12 +287,18 @@ struct EdgesView: View {
             let targetPoint = getPortPosition(
                 nodeId: edge.targetNodeId, portId: edge.targetPortId, isOutput: false
             ) {
+                let sourceTool = nodes.first { $0.id == edge.sourceNodeId }?.tool
+                let targetTool = nodes.first { $0.id == edge.targetNodeId }?.tool
                 WorkflowEdgeView(
                     edge: edge,
                     sourcePoint: sourcePoint,
                     targetPoint: targetPoint,
                     isSelected: edge.id == selectedEdgeId,
-                    isConditional: edge.condition != nil
+                    isConditional: edge.condition != nil,
+                    fanRole: EdgeFanRoleResolver.role(
+                        sourceTool: sourceTool,
+                        targetTool: targetTool
+                    )
                 )
             }
         }
