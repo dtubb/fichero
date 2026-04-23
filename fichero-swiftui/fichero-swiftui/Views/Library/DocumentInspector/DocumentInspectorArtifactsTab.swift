@@ -115,12 +115,23 @@ struct DocumentInspectorArtifactsTab: View {
                     .font(.caption2)
                     .foregroundColor(.secondary)
 
-                if let provider = artifact.provider {
+                if let provider = artifact.provider, !provider.isEmpty {
                     Text("•")
                         .foregroundColor(.secondary)
                     Text(provider)
                         .font(.caption2)
                         .foregroundColor(.secondary)
+                }
+                // Model is the differentiator when multiple runs of the same
+                // tool exist (qwen-vl-3.5 vs qwen-vl-3.6v). Keep it subtle
+                // but always visible so users can tell artifacts apart.
+                if let model = artifact.model, !model.isEmpty {
+                    Text("·")
+                        .foregroundColor(.secondary)
+                    Text(model)
+                        .font(.caption2.monospaced())
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
                 }
 
                 Spacer()
@@ -138,6 +149,18 @@ struct DocumentInspectorArtifactsTab: View {
                 )
                 .buttonStyle(.plain)
                 .opacity(artifact.content != nil ? 1 : 0.3)
+                .help("Copy to clipboard")
+
+                Button(
+                    action: { exportArtifactToFile(artifact) },
+                    label: {
+                        Image(systemName: "square.and.arrow.down")
+                            .font(.caption2)
+                    }
+                )
+                .buttonStyle(.plain)
+                .opacity(artifact.content != nil ? 1 : 0.3)
+                .help("Save to file…")
             }
 
             // Content preview — longer line limit for catalogue-scale artifacts
@@ -298,11 +321,11 @@ struct DocumentInspectorArtifactsTab: View {
 
     private func shouldHideArtifactType(_ type: String) -> Bool {
         let normalized = type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        // Transcription is shown on the document's Content tab as page_content,
-        // so hiding the artifact avoids showing the same text twice in the inspector.
-        return normalized == "transcription"
-            || normalized == "page_content_rtf"
-            || normalized == "rtf"
+        // Transcription artifacts are shown — when multiple runs exist (e.g.
+        // qwen-vl-3.5 and qwen-vl-3.6v), each provider/model combination
+        // produces its own artifact and researchers need to compare them.
+        // The Content tab still holds the latest run's editable copy.
+        return normalized == "page_content_rtf" || normalized == "rtf"
     }
 
     // MARK: - Clipboard
@@ -310,6 +333,25 @@ struct DocumentInspectorArtifactsTab: View {
     private func copyToClipboard(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    private func exportArtifactToFile(_ artifact: Artifact) {
+        guard let content = artifact.content else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.plainText, .json]
+        let modelSlug = (artifact.model ?? "unknown")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: ":", with: "_")
+        panel.nameFieldStringValue = "\(artifact.artifactType)-\(modelSlug).txt"
+        panel.canCreateDirectories = true
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                try content.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                NSLog("Failed to save artifact: \(error)")
+            }
+        }
     }
 }
 
