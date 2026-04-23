@@ -42,7 +42,7 @@
 
 | # | Title | Status |
 |---|---|---|
-| #672 | Workflows overwrite user-edited page_content | **0.0.2 blocker** — catalogue is safe today because skip-if-done covers the common case, but the underlying race still exists. |
+| #672 | Workflows overwrite user-edited page_content | **Closed** (de67f81e) — user edits flagged via metadata timestamp; workflows respect. |
 | #670 | files_tool resolves page → parent PDF silently | 0.0.3 (broad fix) |
 | #673 | fileCompletedCount storm on inspector refresh | 0.0.3 polish |
 | #674 | documentSignature hashes full content per diff | 0.0.3 polish |
@@ -61,10 +61,9 @@
    - Existing transcriptions are reused (skip-if-done).
    - Nine-section markdown appears in the folder's Content tab.
    - Per-section artifacts render in the Artifacts tab with clean tables.
+   - Editing a document's text after transcription survives a re-run of Catalogue.
 
-3. **#672 fix** (blocker): add `page_content_user_edited_at` timestamp on Document; transcription workflow respects it. Small, scoped change.
-
-4. **Release prep** (#661, #662, #658, #659) once the above lands.
+3. **Release prep** (#661, #662, #658, #659) once smoke-test passes and search decision is made.
 
 ---
 
