@@ -10,8 +10,8 @@ enum WorkflowInputSource: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .collection: return "Collection"
-        case .currentSelection: return "Current Selection"
+        case .collection: return "Entire Collection"
+        case .currentSelection: return "Selected Documents"
         }
     }
 
@@ -24,8 +24,8 @@ enum WorkflowInputSource: String, Codable, CaseIterable {
 
     var helpText: String {
         switch self {
-        case .collection: return "Process documents from a specific collection"
-        case .currentSelection: return "Process whatever is selected in the library"
+        case .collection: return "Run on every document in the current folder"
+        case .currentSelection: return "Run only on documents you have selected in the library"
         }
     }
 }
