@@ -6,10 +6,11 @@ import SwiftUI
 @MainActor
 class FeatureManager: ObservableObject {
     static let shared = FeatureManager()
-    private static let releaseProfileVersion = 21
+    private static let releaseProfileVersion = 22
     private static let workflowV001EnabledTools =
-        "files,collection,transcribe,catalogue,"
-        + "extract_entities,describe,rewrite"
+        "files,collection,folder,aggregate,transcribe,catalogue,"
+        + "extract_entities,key_people,timeline,keywords,summarize_file,"
+        + "describe,rewrite"
     private static let isDevFeatureTier =
         ProcessInfo.processInfo.environment["FICHERO_FEATURE_TIER"]?.lowercased() == "dev"
 
