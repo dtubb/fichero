@@ -249,18 +249,31 @@ class DocumentServiceGenerated: ObservableObject {
 
         logger.info("Updating document: \(id)")
 
-        // Build all fields using additionalProperties
-        var data: [String: any Sendable] = [:]
-        if let name = name { data["name"] = name }
+        // Use the generated typed fields on DocumentUpdate instead of jamming
+        // everything through additionalProperties. Previously page_content
+        // was being sent only via additionalProperties — when both the
+        // declared pageContent property and the additionalProperties dict
+        // were encoded, the typed nil could clobber the extras-supplied
+        // value, so edits to page content round-tripped as 200 OK but never
+        // persisted. This is exactly the OpenAPI drift Daniel flagged:
+        // use the schema-typed properties, not hand-built dicts.
+        var metadataPayloadValue: Components.Schemas.DocumentUpdate.MetadataPayload?
         if let metadataPayload = metadataPayload {
-            data["metadata"] = metadataPayload
+            let container = try OpenAPIObjectContainer(unvalidatedValue: metadataPayload)
+            metadataPayloadValue = .init(additionalProperties: container)
         } else if let metadata = metadata {
-            data["metadata"] = metadata
+            let castMetadata: [String: any Sendable] = metadata.reduce(into: [:]) { acc, pair in
+                acc[pair.key] = pair.value
+            }
+            let container = try OpenAPIObjectContainer(unvalidatedValue: castMetadata)
+            metadataPayloadValue = .init(additionalProperties: container)
         }
-        if let pageContent = pageContent { data["page_content"] = pageContent }
 
-        let container = try OpenAPIObjectContainer(unvalidatedValue: data)
-        let request = Components.Schemas.DocumentUpdate(additionalProperties: container)
+        let request = Components.Schemas.DocumentUpdate(
+            name: name,
+            pageContent: pageContent,
+            metadata: metadataPayloadValue
+        )
 
         let response = try await client.api.updateDocumentApiDocumentsDocIdPut(.init(
             path: .init(docId: id),
