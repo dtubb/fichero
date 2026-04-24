@@ -111,8 +111,17 @@ struct AttributedTextEditor: NSViewRepresentable {
                 textStorage.addAttribute(.font, value: resolvedFont, range: fullRange)
                 textStorage.addAttribute(.paragraphStyle, value: paraStyle, range: fullRange)
                 context.coordinator.isApplyingModelUpdate = false
-                text = textView.attributedString()
-                onTextChanged()
+                // Writing to @Binding `text` directly from inside updateNSView
+                // triggers 'Modifying state during view update' warnings — SwiftUI
+                // is actively re-rendering us. Defer the binding write (and the
+                // derived onTextChanged callback) to the next runloop so we're
+                // past the update phase. Daniel report 2026-04-24.
+                let updated = textView.attributedString()
+                let onTextChangedCallback = onTextChanged
+                DispatchQueue.main.async {
+                    text = updated
+                    onTextChangedCallback()
+                }
             }
             context.coordinator.lastTypographySignature = typographySignature
         }
