@@ -168,13 +168,33 @@ async def create_provider(
             status_code=400, detail=f"Unknown provider type: {request.provider_type}"
         )
 
-    provider = Provider(
-        name=request.name or info.name,
-        provider_type=ptype,
-        api_base=request.api_base,
-        enabled=True,
+    target_name = request.name or info.name
+
+    # #704: upsert on (name, provider_type) instead of creating a fresh row
+    # each time. The previous behaviour generated a new UUID per POST, and
+    # since save_provider's ON CONFLICT clause is keyed on `id`, duplicates
+    # accumulated — Daniel hit eight identical 'My OpenAI' entries during
+    # 0.0.2 testing.
+    existing = next(
+        (
+            p for p in app_db.list_providers()
+            if p.provider_type == ptype and p.name == target_name
+        ),
+        None,
     )
-    app_db.save_provider(provider)
+    if existing is not None:
+        existing.api_base = request.api_base
+        existing.enabled = True
+        app_db.save_provider(existing)
+        provider = existing
+    else:
+        provider = Provider(
+            name=target_name,
+            provider_type=ptype,
+            api_base=request.api_base,
+            enabled=True,
+        )
+        app_db.save_provider(provider)
 
     if request.api_key:
         set_api_key(request.provider_type, request.api_key)

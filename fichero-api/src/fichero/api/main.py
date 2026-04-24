@@ -93,6 +93,47 @@ def _seed_builtin_providers() -> None:
         logger.warning("Could not seed built-in providers: %s", exc)
 
 
+def _collapse_duplicate_providers() -> None:
+    """One-time cleanup for #704: collapse duplicate provider rows that
+    share the same (name, provider_type). Keeps the earliest row (by
+    created_at) and re-parents any models attached to duplicates before
+    deleting the dupes.
+    """
+    try:
+        from fichero.app_db import get_app_db
+        from collections import defaultdict
+
+        app_db = get_app_db()
+        providers = app_db.list_providers()
+        by_key: dict[tuple, list] = defaultdict(list)
+        for p in providers:
+            by_key[(p.provider_type, p.name)].append(p)
+
+        for key, rows in by_key.items():
+            if len(rows) <= 1:
+                continue
+            rows.sort(key=lambda r: r.created_at or 0)
+            canonical = rows[0]
+            duplicates = rows[1:]
+            reparented = 0
+            for dup in duplicates:
+                for model in app_db.list_models(dup.id):
+                    app_db.conn.execute(
+                        "UPDATE models SET provider_id = ? WHERE id = ?",
+                        [canonical.id, model.id],
+                    )
+                    reparented += 1
+                app_db.delete_provider(dup.id)
+            app_db.conn.commit()
+            logger.info(
+                "Collapsed %d duplicate %s providers named %r into %s (reparented %d models)",
+                len(duplicates), key[0].value if hasattr(key[0], "value") else key[0],
+                key[1], canonical.id, reparented,
+            )
+    except Exception as exc:
+        logger.warning("Provider duplicate collapse failed: %s", exc)
+
+
 def _prewarm_embeddings() -> None:
     """Download + initialise the embeddings model so it's ready before first use."""
     try:
@@ -131,6 +172,10 @@ async def lifespan(app: FastAPI):
 
     # Seed built-in providers (Apple Vision/Transcribe) on first run
     _seed_builtin_providers()
+
+    # One-time cleanup: collapse any duplicate provider rows left over
+    # from the pre-fix POST /providers behaviour (#704).
+    _collapse_duplicate_providers()
 
     # Pre-warm embeddings model in background — avoids 2+ GB download on first search
     loop = asyncio.get_event_loop()
