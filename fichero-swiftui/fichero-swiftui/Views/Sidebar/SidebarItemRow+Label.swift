@@ -35,12 +35,22 @@ extension SidebarItemRow {
                         .scaleEffect(0.8)
                 }
             } else if case .document(let doc) = item.itemType, doc.isLinked {
+                // #603: visible LINK badge. The previous 6pt .secondary
+                // overlay was invisible against sidebar chrome. Use the
+                // Finder-style alias arrow at legible size with a solid
+                // white circle behind so the badge reads on both selected
+                // and unselected rows.
                 ZStack(alignment: .bottomTrailing) {
                     Image(systemName: item.icon)
-                    Image(systemName: "arrow.up.right.square")
-                        .font(.system(size: 6, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .offset(x: 2, y: 2)
+                    Image(systemName: "arrow.up.forward.square.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white, Color.accentColor)
+                        .background(
+                            Circle()
+                                .fill(.background)
+                                .frame(width: 13, height: 13)
+                        )
+                        .offset(x: 4, y: 4)
                 }
             } else {
                 Image(systemName: item.icon)
