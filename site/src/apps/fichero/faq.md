@@ -7,7 +7,7 @@ title: FAQ
 
 ### What is Fichero?
 
-Fichero is a native macOS document management app with built-in AI processing. It lets you organize, search, and process your documents using local or cloud AI models, all from a single Mac app.
+Fichero is a work in progress. At its core, it's an app that lets you use cutting-edge machine-learning techniques and prompts in a repeatable, programmatic way on documents. Rather than have an AI control how things are done in ways that are hard to understand, Fichero gives you a way to visually build the steps yourself — and then reproduce them across your collection.
 
 ### What does "Fichero" mean?
 

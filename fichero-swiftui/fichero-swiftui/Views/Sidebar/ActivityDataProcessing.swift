@@ -149,6 +149,19 @@ func activityCleanWorkflowName(_ name: String) -> String {
     name.hasPrefix("Workflow ") ? String(name.dropFirst(9)) : name
 }
 
+/// Strips the Fichero storage-hash prefix from a filename for display.
+/// Fichero stores files as `<8-hex>_<original-name>.<ext>` to deduplicate by
+/// content. The hash is useful internally but looks like noise in the UI
+/// (#698). Returns the original filename if no hash prefix is present.
+func activityCleanFilename(_ name: String) -> String {
+    let components = name.split(separator: "_", maxSplits: 1, omittingEmptySubsequences: false)
+    guard components.count == 2 else { return name }
+    let prefix = components[0]
+    let looksLikeHash = prefix.count >= 6 && prefix.count <= 12
+        && prefix.allSatisfy { $0.isHexDigit }
+    return looksLikeHash ? String(components[1]) : name
+}
+
 /// Returns a human-readable display name for a LangGraph node ID, or nil
 /// if the node is internal plumbing that should be hidden from the UI.
 ///

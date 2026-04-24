@@ -113,7 +113,7 @@ extension ActivityProgressView {
                     .foregroundStyle(.green)
             }
 
-            Text(doc.documentName)
+            Text(activityCleanFilename(doc.documentName))
                 .lineLimit(1)
 
             Spacer()
