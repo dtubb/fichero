@@ -129,6 +129,21 @@ class WorkflowExecutionObserver {
         if var execution = activeExecutions[workflowId] {
             execution.status = status
             execution.isRunning = false
+
+            // Belt-and-braces: when the run finishes, any node still in a
+            // non-terminal state (.running / .parallelRunning / .idle) never
+            // received a matching node_end event — this happens when a
+            // parallel fan-out's inner-node name doesn't match the outer
+            // label the reducer tracks (#699). Force them to a terminal
+            // state so the UI doesn't leave a spinner on a completed run.
+            let finalStatus: NodeExecutionStatus = (status == .failed) ? .failed : .completed
+            for (nodeId, nodeState) in execution.nodeStates {
+                if nodeState.status != .completed && nodeState.status != .failed {
+                    var fixed = nodeState
+                    fixed.status = finalStatus
+                    execution.nodeStates[nodeId] = fixed
+                }
+            }
             activeExecutions[workflowId] = execution
 
             cancelHandlers.removeValue(forKey: workflowId)
