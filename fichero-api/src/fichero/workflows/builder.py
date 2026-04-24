@@ -30,6 +30,75 @@ from fichero.llm import LLMConfig
 logger = logging.getLogger(__name__)
 
 
+def _resolve_node_llm_config(
+    node_def: NodeDef, workflow_llm_config: LLMConfig
+) -> LLMConfig:
+    """Resolve the effective LLM config for a node.
+
+    Priority order:
+      1. Node-specific provider_name/model_name (from node or node.config)
+      2. Workflow-level default (workflow_llm_config)
+      3. Category default from app settings (if tool is_llm)
+      4. Any configured enabled provider + model in the app DB
+
+    Without the final fallback, a shipped preset like Catalogue — whose LLM
+    node has no provider and which runs on a fresh install where category
+    defaults aren't set — fails with "LLM provider not configured." even
+    though the user has a working provider configured. #704 / Catalogue
+    breakage on 2026-04-24.
+    """
+    node_provider = node_def.provider_name or node_def.config.get("provider_name", "")
+    node_model = node_def.model_name or node_def.config.get("model_name", "")
+
+    if node_provider or node_model:
+        return LLMConfig(
+            provider=node_provider or workflow_llm_config.provider,
+            model=node_model or workflow_llm_config.model,
+        )
+
+    tool_def = get_tool_def(node_def.tool)
+    if not (tool_def and tool_def.uses_llm):
+        return workflow_llm_config
+
+    try:
+        from fichero.app_db import get_app_db
+        app_db = get_app_db()
+
+        cat_default = app_db.get_default_model_for_category(tool_def.category)
+        if cat_default:
+            return LLMConfig(provider=cat_default[0], model=cat_default[1])
+
+        if workflow_llm_config.provider and workflow_llm_config.model:
+            return workflow_llm_config
+
+        generic_default = app_db.get_default_model()
+        if generic_default:
+            logger.info(
+                "Node %s (tool=%s) falling back to generic default provider %s/%s",
+                node_def.id, node_def.tool, generic_default[0], generic_default[1],
+            )
+            return LLMConfig(provider=generic_default[0], model=generic_default[1])
+
+        for provider in app_db.list_providers():
+            if not provider.enabled:
+                continue
+            models = [m for m in app_db.list_models(provider.id) if m.enabled]
+            if not models:
+                continue
+            logger.warning(
+                "Node %s (tool=%s) has no provider configured and no defaults set; "
+                "falling back to first configured provider %s/%s",
+                node_def.id, node_def.tool, provider.provider_type.value, models[0].model_id,
+            )
+            return LLMConfig(
+                provider=provider.provider_type.value, model=models[0].model_id,
+            )
+    except Exception as e:
+        logger.debug("Provider fallback lookup failed for %s: %s", node_def.tool, e)
+
+    return workflow_llm_config
+
+
 # =============================================================================
 # Parallel Execution Configuration
 # =============================================================================
@@ -333,34 +402,7 @@ def _make_node_function(
         workflow_config: Workflow-level configuration
         incoming_edges: List of edges where this node is the target (for auto-wiring)
     """
-    # Build node-specific LLM config if provider/model specified on node or in config
-    node_llm_config = llm_config
-    node_provider = node_def.provider_name or node_def.config.get("provider_name", "")
-    node_model = node_def.model_name or node_def.config.get("model_name", "")
-    if node_provider or node_model:
-        node_llm_config = LLMConfig(
-            provider=node_provider or llm_config.provider,
-            model=node_model or llm_config.model,
-        )
-    else:
-        # No explicit provider on node — try category default from settings
-        tool_def = get_tool_def(node_def.tool)
-        if tool_def and tool_def.uses_llm:
-            try:
-                from fichero.app_db import get_app_db
-
-                cat_default = get_app_db().get_default_model_for_category(
-                    tool_def.category
-                )
-                if cat_default:
-                    node_llm_config = LLMConfig(
-                        provider=cat_default[0],
-                        model=cat_default[1],
-                    )
-            except Exception as e:
-                logger.debug(
-                    f"Could not load category default for {tool_def.category}: {e}"
-                )
+    node_llm_config = _resolve_node_llm_config(node_def, llm_config)
 
     async def node_function(state: State) -> dict:
         """Execute the tool and update state."""
@@ -547,34 +589,7 @@ def _make_parallel_node_function(
         event_callback: Optional async callback for emitting SSE events.
             Signature: async def callback(event_type: str, data: dict) -> None
     """
-    # Build node-specific LLM config if provider/model specified on node or in config
-    node_llm_config = llm_config
-    node_provider = node_def.provider_name or node_def.config.get("provider_name", "")
-    node_model = node_def.model_name or node_def.config.get("model_name", "")
-    if node_provider or node_model:
-        node_llm_config = LLMConfig(
-            provider=node_provider or llm_config.provider,
-            model=node_model or llm_config.model,
-        )
-    else:
-        # No explicit provider on node — try category default from settings
-        tool_def = get_tool_def(node_def.tool)
-        if tool_def and tool_def.uses_llm:
-            try:
-                from fichero.app_db import get_app_db
-
-                cat_default = get_app_db().get_default_model_for_category(
-                    tool_def.category
-                )
-                if cat_default:
-                    node_llm_config = LLMConfig(
-                        provider=cat_default[0],
-                        model=cat_default[1],
-                    )
-            except Exception as e:
-                logger.debug(
-                    f"Could not load category default for {tool_def.category}: {e}"
-                )
+    node_llm_config = _resolve_node_llm_config(node_def, llm_config)
 
     # Extract caching config
     workflow_id = workflow_config.get("workflow_id", "") if workflow_config else ""
