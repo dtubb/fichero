@@ -109,12 +109,13 @@ class ConversationServiceGenerated: ObservableObject {
         title: String? = nil,
         folderPath: String? = nil
     ) async throws -> ConversationAPI {
-        // Build request using additionalProperties since fields are optional
-        var data: [String: any Sendable] = [:]
-        if let title = title { data["title"] = title }
-        if let folderPath = folderPath { data["folder_path"] = folderPath }
-        let container = try OpenAPIObjectContainer(unvalidatedValue: data)
-        let request = Components.Schemas.ConversationUpdate(additionalProperties: container)
+        // Use typed fields so writes reach the declared Pydantic attributes.
+        // Bypassing them via additionalProperties produced silent save losses
+        // under extra="allow" on the server. See 31fc4141 for details.
+        let request = Components.Schemas.ConversationUpdate(
+            title: title,
+            folderPath: folderPath
+        )
 
         let response = try await client.api.updateConversationApiChatConversationsConversationIdPut(.init(
             path: .init(conversationId: id),

@@ -238,14 +238,12 @@ class WorkflowServiceGenerated: ObservableObject {
         let libraryPath = client.currentLibraryPath ?? ""
         logger.info("renameWorkflow: id=\(id), newName=\(newName), libraryPath=\(libraryPath)")
 
-        // Build patch body using additionalProperties
-        let patchData: [String: any Sendable] = ["name": newName]
-        let container = try OpenAPIObjectContainer(unvalidatedValue: patchData)
-
+        // Use typed fields on WorkflowPatchRequest (see 31fc4141).
+        let body = Components.Schemas.WorkflowPatchRequest(name: newName)
         let response = try await client.api.patchWorkflowApiWorkflowsWorkflowIdPatch(.init(
             path: .init(workflowId: id),
             headers: .init(xFicheroLibraryPath: libraryPath),
-            body: .json(.init(additionalProperties: container))
+            body: .json(body)
         ))
         switch response {
         case .ok(let okResponse):
@@ -265,19 +263,17 @@ class WorkflowServiceGenerated: ObservableObject {
         folderPath: String? = nil,
         sortOrder: Int? = nil
     ) async throws -> WorkflowResponse {
-        // Build patch body with only non-nil fields
-        var patchData: [String: any Sendable] = [:]
-        if let name = name { patchData["name"] = name }
-        if let description = description { patchData["description"] = description }
-        if let folderPath = folderPath { patchData["folder_path"] = folderPath }
-        if let sortOrder = sortOrder { patchData["sort_order"] = sortOrder }
-
-        let container = try OpenAPIObjectContainer(unvalidatedValue: patchData)
-
+        // Use typed fields on WorkflowPatchRequest (see 31fc4141).
+        let body = Components.Schemas.WorkflowPatchRequest(
+            name: name,
+            description: description,
+            folderPath: folderPath,
+            sortOrder: sortOrder
+        )
         let response = try await client.api.patchWorkflowApiWorkflowsWorkflowIdPatch(.init(
             path: .init(workflowId: id),
             headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
-            body: .json(.init(additionalProperties: container))
+            body: .json(body)
         ))
         switch response {
         case .ok(let okResponse):

@@ -111,8 +111,18 @@ Full architecture: `docs/CLAUDE.md`, `docs/architecture/`
 
 1. Never push directly to `main` — always go through a PR (create it and merge it yourself).
 2. Never skip build, test, lint before marking work complete.
-3. Never modify generated files manually (`*Generated.swift`, `openapi.json`, the api-client package).
-4. Never start coding before a plan exists for non-trivial work.
-5. `PYTHONPATH` must be set to `fichero-api/src` for all Python commands.
-6. Never create per-task branches — commit all work to the milestone branch directly.
-7. Never start a milestone more than one ahead of what Daniel is currently testing.
+3. Never modify genuinely auto-generated files: `openapi.json`, anything under `fichero-swiftui/fichero-api-client/.build/`, anything under `fichero-swiftui/fichero-api-client/Sources/FicheroAPIClient/` that's produced by the OpenAPI generator. **Note:** `fichero-swiftui/fichero-swiftui/Services/*Generated.swift` files are *hand-written service wrappers* (despite the confusing suffix) and CAN be edited.
+4. When editing a service wrapper that builds a request body, **always use the OpenAPI-typed fields** on `Components.Schemas.*`, not `additionalProperties`, for any field that's declared in `openapi.json`. Dumping declared fields into `additionalProperties` silently loses writes under Pydantic `extra="allow"` — see commit 31fc4141 for the pattern and `docs/architecture/swiftui/api_client.md` for context.
+5. Never start coding before a plan exists for non-trivial work.
+6. `PYTHONPATH` must be set to `fichero-api/src` for all Python commands.
+7. Never create per-task branches — commit all work to the milestone branch directly.
+8. Never start a milestone more than one ahead of what Daniel is currently testing.
+
+## Before editing backend or API-client code
+
+Read `docs/architecture/` first — specifically:
+- `docs/architecture/swiftui/api_client.md` for the OpenAPI round-trip contract.
+- `docs/architecture/api/development_standards.md` for backend conventions.
+- `docs/architecture/swiftui/development_standards.md` for Swift conventions.
+
+The `docs/CLAUDE.md` file at the root of the project is the canonical agent guidance and also references these.

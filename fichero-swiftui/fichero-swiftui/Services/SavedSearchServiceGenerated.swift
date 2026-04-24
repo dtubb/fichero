@@ -115,18 +115,26 @@ class SavedSearchServiceGenerated: ObservableObject {
         sortDirection: String? = nil,
         folderPath: String? = nil
     ) async throws -> SavedSearchAPI {
-        // Build request using additionalProperties since all fields are optional
-        var data: [String: any Sendable] = [:]
-        if let query = query { data["query"] = query }
-        if let isSmartSearch = isSmartSearch { data["is_smart_search"] = isSmartSearch }
-        if let filters = filters { data["filters"] = filters }
-        if let searchType = searchType { data["search_type"] = searchType }
-        if let sortBy = sortBy { data["sort_by"] = sortBy }
-        if let sortDirection = sortDirection { data["sort_direction"] = sortDirection }
-        if let folderPath = folderPath { data["folder_path"] = folderPath }
+        // Use typed fields on SavedSearchUpdate. See 31fc4141 for why dumping
+        // everything into additionalProperties silently dropped writes.
+        var filtersPayload: Components.Schemas.SavedSearchUpdate.FiltersPayload?
+        if let filters = filters {
+            let castFilters: [String: any Sendable] = filters.reduce(into: [:]) { acc, pair in
+                acc[pair.key] = pair.value
+            }
+            let container = try OpenAPIObjectContainer(unvalidatedValue: castFilters)
+            filtersPayload = .init(additionalProperties: container)
+        }
 
-        let container = try OpenAPIObjectContainer(unvalidatedValue: data)
-        let request = Components.Schemas.SavedSearchUpdate(additionalProperties: container)
+        let request = Components.Schemas.SavedSearchUpdate(
+            query: query,
+            isSmartSearch: isSmartSearch,
+            filters: filtersPayload,
+            searchType: searchType,
+            sortBy: sortBy,
+            sortDirection: sortDirection,
+            folderPath: folderPath
+        )
 
         let response = try await client.api.updateSavedSearchApiSearchSavedSearchIdPut(.init(
             path: .init(searchId: id),

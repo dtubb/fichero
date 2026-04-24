@@ -28,19 +28,17 @@ class ChatServiceGenerated: ObservableObject {
         provider: String? = nil,
         model: String? = nil
     ) async throws -> ChatAPIResponse {
-        // Build optional fields using additionalProperties
-        var optionalData: [String: any Sendable] = [:]
-        if let conversationId = conversationId { optionalData["conversation_id"] = conversationId }
-        if let documentIds = documentIds { optionalData["document_ids"] = documentIds }
-        if let provider = provider { optionalData["provider"] = provider }
-        if let model = model { optionalData["model"] = model }
-
-        let container = try OpenAPIObjectContainer(unvalidatedValue: optionalData)
+        // Use typed fields — conversation_id, document_ids, provider, and
+        // model are all declared on ChatRequest. Using additionalProperties
+        // for declared fields races the typed-nil encoding (see 31fc4141).
         let request = Components.Schemas.ChatRequest(
             message: message,
+            conversationId: conversationId,
+            documentIds: documentIds,
             includeSources: includeSources,
             maxSources: maxSources,
-            additionalProperties: container
+            provider: provider,
+            model: model
         )
 
         let response = try await client.api.chatApiChatPost(.init(
@@ -77,12 +75,11 @@ class ChatServiceGenerated: ObservableObject {
 
     /// Extract text from documents (populates page_content for search/chat).
     func extractText(documentIds: [String]? = nil, force: Bool = false) async throws -> ExtractTextResponse {
-        // Build request using additionalProperties since document_ids is optional
-        var data: [String: any Sendable] = ["force": force]
-        if let documentIds = documentIds { data["document_ids"] = documentIds }
-
-        let container = try OpenAPIObjectContainer(unvalidatedValue: data)
-        let request = Components.Schemas.ExtractTextRequest(additionalProperties: container)
+        // Use typed fields; see 31fc4141.
+        let request = Components.Schemas.ExtractTextRequest(
+            documentIds: documentIds,
+            force: force
+        )
 
         let response = try await client.api.extractTextApiChatExtractTextPost(.init(
             headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
