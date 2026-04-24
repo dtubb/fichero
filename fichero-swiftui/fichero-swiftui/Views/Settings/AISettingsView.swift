@@ -98,14 +98,12 @@ struct AISettingsView: View {
                 modelPicker(selection: $defaults.visionModel, models: visionModels)
             }
 
-            if featureManager.isWorkflowToolsAudioEnabled {
-                Section("Audio") {
-                    Text("Used by Transcription tools for speech-to-text.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    providerPicker(selection: $defaults.audioProvider)
-                    modelPicker(selection: $defaults.audioModel, models: audioModels)
-                }
+            Section("Audio") {
+                Text("Used by Transcription tools for speech-to-text.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                providerPicker(selection: $defaults.audioProvider)
+                modelPicker(selection: $defaults.audioModel, models: audioModels)
             }
 
             if featureManager.isWorkflowToolsVideoEnabled {
@@ -118,13 +116,10 @@ struct AISettingsView: View {
                 }
             }
 
-            Section("Embeddings") {
-                Text("Used by Search to embed and index documents.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                providerPicker(selection: $defaults.embeddingsProvider)
-                modelPicker(selection: $defaults.embeddingsModel, models: embeddingsModels)
-            }
+            // Embeddings section removed: Fichero uses a local fastembed model
+            // (BAAI/bge-m3) for semantic search. There's no user-facing choice
+            // to make — exposing a picker with Provider=None/Model=None was
+            // confusing. (Daniel 2026-04-24)
 
             Section {
                 Label(
