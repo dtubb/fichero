@@ -115,20 +115,28 @@ def _collapse_duplicate_providers() -> None:
             rows.sort(key=lambda r: r.created_at or 0)
             canonical = rows[0]
             duplicates = rows[1:]
-            reparented = 0
+
+            # Collect model IDs to reparent BEFORE issuing any writes.
+            # Interleaving list_models() cursors with UPDATE/DELETE on the
+            # same DuckDB connection can leave a pending query result and
+            # break subsequent fetchone() calls on unrelated endpoints.
+            reparent_pairs: list[tuple[str, str]] = []
             for dup in duplicates:
                 for model in app_db.list_models(dup.id):
-                    app_db.conn.execute(
-                        "UPDATE models SET provider_id = ? WHERE id = ?",
-                        [canonical.id, model.id],
-                    )
-                    reparented += 1
+                    reparent_pairs.append((canonical.id, model.id))
+
+            for canonical_id, model_id in reparent_pairs:
+                app_db.conn.execute(
+                    "UPDATE models SET provider_id = ? WHERE id = ?",
+                    [canonical_id, model_id],
+                )
+            for dup in duplicates:
                 app_db.delete_provider(dup.id)
             app_db.conn.commit()
             logger.info(
                 "Collapsed %d duplicate %s providers named %r into %s (reparented %d models)",
                 len(duplicates), key[0].value if hasattr(key[0], "value") else key[0],
-                key[1], canonical.id, reparented,
+                key[1], canonical.id, len(reparent_pairs),
             )
     except Exception as exc:
         logger.warning("Provider duplicate collapse failed: %s", exc)
