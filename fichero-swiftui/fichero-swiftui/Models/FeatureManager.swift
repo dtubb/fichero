@@ -41,6 +41,11 @@ class FeatureManager: ObservableObject {
 
     // MARK: - Advanced Features (Target: v0.1.0+)
 
+    // V2 inspector (Tinderbox-style Display Attributes + Artifact Panels). Off
+    // by default during 0.0.2 — opt-in for users who want to try the redesign.
+    // Plan: docs/architecture/swiftui/inspector_redesign.md.
+    @AppStorage("fichero.features.inspector_v2")
+    private var inspectorV2EnabledInternal: Bool = false
     @AppStorage("fichero.features.workflows") private var workflowsEnabledInternal: Bool = false
     @AppStorage("fichero.features.workflow_editor_advanced_views")
     private var workflowEditorAdvancedViewsEnabled: Bool = false
@@ -98,6 +103,7 @@ class FeatureManager: ObservableObject {
     @AppStorage("fichero.features.release_profile_version")
     private var releaseProfileVersionApplied: Int = 0
 
+    var isInspectorV2Enabled: Bool { allFeaturesEnabled || inspectorV2EnabledInternal }
     var isWorkflowsEnabled: Bool { allFeaturesEnabled || workflowsEnabledInternal }
     var isSearchEnabled: Bool { allFeaturesEnabled || searchEnabledInternal }
     var isWorkflowEditorAdvancedViewsEnabled: Bool {

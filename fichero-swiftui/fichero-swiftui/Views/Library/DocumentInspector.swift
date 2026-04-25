@@ -1,3 +1,10 @@
+// swiftlint:disable file_length
+// V2 inspector views (DisplayAttributesStrip, ArtifactPanel,
+// DocumentInspectorContentV2) are appended at the bottom of this file —
+// keeping them inline avoids a pbxproj edit (MEMORY: Swift main target not
+// file-sync'd). When V2 promotes to default-on (per
+// docs/architecture/swiftui/inspector_redesign.md Phase 2), they can be
+// split into their own files at that point.
 import SwiftUI
 
 /// Tab selection for document inspector
@@ -20,6 +27,7 @@ struct DocumentInspector: View {
     let document: Document?
 
     @SceneStorage("inspectorSelectedTab") private var selectedTab: InspectorTab = .info
+    @ObservedObject private var featureManager = FeatureManager.shared
 
     var body: some View {
         Group {
@@ -69,7 +77,11 @@ struct DocumentInspector: View {
             // Info tab wraps in ScrollView since it contains only static SwiftUI views.
             switch selectedTab {
             case .content:
-                DocumentInspectorContentTab(document: doc)
+                if featureManager.isInspectorV2Enabled {
+                    DocumentInspectorContentV2(document: doc)
+                } else {
+                    DocumentInspectorContentTab(document: doc)
+                }
             case .info:
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
@@ -148,4 +160,380 @@ struct DocumentInspector: View {
     DocumentInspector(document: mockDocument)
         .environmentObject(library.artifactService)
         .frame(width: 280, height: 400)
+}
+
+/// Compact key-value strip at the top of the V2 inspector — modeled on
+/// Tinderbox's "Displayed Attributes" panel. Read-only in Phase 1.
+///
+/// Shows the few fields a researcher checks most often when scanning a
+/// document: status, kind, ingest mode, timestamps. The list is intentionally
+/// short — anything more belongs in the Info tab. See
+/// docs/architecture/swiftui/inspector_redesign.md.
+struct DisplayAttributesStrip: View {
+    let document: Document
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            row("Status", value: statusValue, color: statusColor)
+            Divider()
+            row("Kind", value: kindValue)
+            Divider()
+            row("Ingest", value: ingestValue)
+            if let path = document.path, !path.isEmpty {
+                Divider()
+                row("Path", value: path, monospaced: true)
+            }
+            Divider()
+            row("Created", value: relativeDateString(document.createdAt))
+            Divider()
+            row("Modified", value: relativeDateString(document.updatedAt))
+        }
+        .padding(.vertical, 6)
+        .background(Color(.controlBackgroundColor))
+    }
+
+    // MARK: - Row helpers
+
+    @ViewBuilder
+    private func row(
+        _ label: String,
+        value: String,
+        color: Color = .primary,
+        monospaced: Bool = false
+    ) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(width: 64, alignment: .leading)
+            Text(value)
+                .font(monospaced ? .caption.monospaced() : .caption)
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 3)
+    }
+
+    // MARK: - Value computation
+
+    private var statusValue: String {
+        switch document.status {
+        case .pending: return "Pending"
+        case .processing: return "Processing"
+        case .completed: return "Completed"
+        case .failed: return "Failed"
+        }
+    }
+
+    private var statusColor: Color {
+        switch document.status {
+        case .pending: return .secondary
+        case .processing: return .blue
+        case .completed: return .green
+        case .failed: return .red
+        }
+    }
+
+    private var kindValue: String {
+        switch document.docType {
+        case .folder: return "Folder"
+        case .group: return "Group"
+        case .file:
+            if let fileType = document.fileType {
+                return fileType.rawValue.uppercased()
+            }
+            return "File"
+        case .page: return "Page"
+        case .chunk: return "Chunk"
+        }
+    }
+
+    private var ingestValue: String {
+        document.isLinked ? "LINK" : "COPY"
+    }
+
+    private func relativeDateString(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+/// One read-only panel showing a single artifact (transcription, catalogue,
+/// summary, etc.) in the V2 inspector. Each artifact gets its own panel —
+/// new artifacts append rather than replace, so workflow re-runs never
+/// overwrite what's already on screen.
+///
+/// Phase 1: read-only display. Phase 2 will add per-artifact actions
+/// (copy, regenerate, hide). See docs/architecture/swiftui/inspector_redesign.md.
+struct ArtifactPanel: View {
+    enum PanelKind {
+        case artifact(Artifact)
+        /// Special case for showing the document's `page_content` so existing
+        /// docs aren't blank in V2 before notes-as-artifact migrates over.
+        case pageContent(text: String)
+    }
+
+    let kind: PanelKind
+    @State private var isExpanded: Bool = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DisclosureGroup(isExpanded: $isExpanded) {
+                contentBody
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 10)
+                    .padding(.top, 4)
+            } label: {
+                header
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(Color(.separatorColor), lineWidth: 1)
+        )
+        .padding(.horizontal, 8)
+    }
+
+    // MARK: - Header
+
+    @ViewBuilder
+    private var header: some View {
+        HStack(spacing: 8) {
+            Image(systemName: iconName)
+                .foregroundStyle(.secondary)
+                .font(.system(size: 13))
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.medium)
+            if let subtitle = subtitle {
+                Text("·")
+                    .foregroundStyle(.tertiary)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer()
+            if let timestamp = timestamp {
+                Text(timestamp)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    // MARK: - Content body
+
+    @ViewBuilder
+    private var contentBody: some View {
+        ScrollView {
+            Text(bodyText)
+                .font(.body)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxHeight: 400)
+    }
+
+    // MARK: - Computed properties
+
+    private var iconName: String {
+        switch kind {
+        case .pageContent: return "doc.text"
+        case .artifact(let artifact):
+            switch artifact.artifactType {
+            case "transcription": return "text.quote"
+            case "catalogue": return "books.vertical"
+            case "summary": return "text.alignleft"
+            case "key_people", "people": return "person.2"
+            case "timeline", "dates": return "calendar"
+            case "keywords": return "tag"
+            case "rivers": return "water.waves"
+            case "events": return "star"
+            case "mines": return "hammer"
+            case "properties": return "house"
+            case "legal_references": return "scale.3d"
+            default: return "sparkles"
+            }
+        }
+    }
+
+    private var title: String {
+        switch kind {
+        case .pageContent: return "Page Content"
+        case .artifact(let artifact):
+            return artifact.artifactType
+                .split(separator: "_")
+                .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+                .joined(separator: " ")
+        }
+    }
+
+    private var subtitle: String? {
+        switch kind {
+        case .pageContent: return nil
+        case .artifact(let artifact):
+            var parts: [String] = []
+            if let provider = artifact.provider, !provider.isEmpty { parts.append(provider) }
+            if let model = artifact.model, !model.isEmpty { parts.append(model) }
+            return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        }
+    }
+
+    private var timestamp: String? {
+        switch kind {
+        case .pageContent: return nil
+        case .artifact(let artifact):
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .abbreviated
+            return formatter.localizedString(for: artifact.createdAt, relativeTo: Date())
+        }
+    }
+
+    private var bodyText: String {
+        switch kind {
+        case .pageContent(let text):
+            return text.isEmpty ? "(empty)" : text
+        case .artifact(let artifact):
+            if let content = artifact.content, !content.isEmpty { return content }
+            return "(no text)"
+        }
+    }
+}
+
+/// V2 inspector Content tab. Tinderbox-style layout:
+///   - DisplayAttributesStrip at top (compact key-value).
+///   - One ArtifactPanel per artifact below.
+///   - The document's `page_content` (if any) renders as one final panel
+///     so existing data is visible without a migration.
+///
+/// Phase 1: read-only. No save logic, no caching, no signature dance —
+/// we re-fetch artifacts when the document selection or workflow events
+/// change, full stop. See docs/architecture/swiftui/inspector_redesign.md.
+struct DocumentInspectorContentV2: View {
+    let document: Document
+
+    @EnvironmentObject private var artifactService: ArtifactServiceGenerated
+    @Environment(WorkflowExecutionObserver.self) private var executionObserver
+
+    @State private var artifacts: [Artifact] = []
+    @State private var isLoading = false
+    @State private var loadError: String?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                DisplayAttributesStrip(document: document)
+
+                if let loadError {
+                    errorBox(loadError)
+                }
+
+                ForEach(sortedArtifacts) { artifact in
+                    ArtifactPanel(kind: .artifact(artifact))
+                }
+
+                if let pageContent = document.pageContent, !pageContent.isEmpty {
+                    ArtifactPanel(kind: .pageContent(text: pageContent))
+                }
+
+                if !isLoading
+                    && sortedArtifacts.isEmpty
+                    && (document.pageContent ?? "").isEmpty
+                    && loadError == nil {
+                    emptyState
+                }
+
+                if isLoading && artifacts.isEmpty {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Loading artifacts…").font(.caption).foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                }
+            }
+            .padding(.vertical, 8)
+        }
+        .task(id: document.id) {
+            await loadArtifacts()
+        }
+        .onChange(of: executionObserver.fileCompletedCount) { _, _ in
+            // Refresh after individual file completions — but don't compete
+            // with an in-flight load.
+            Task { await loadArtifacts() }
+        }
+        .onChange(of: executionObserver.workflowCompletedCount) { _, _ in
+            Task { await loadArtifacts() }
+        }
+    }
+
+    // MARK: - Subviews
+
+    @ViewBuilder
+    private var emptyState: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "sparkles")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+            Text("No content yet")
+                .font(.callout)
+            Text("Run a workflow to generate transcriptions, catalogues, or summaries.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 32)
+    }
+
+    @ViewBuilder
+    private func errorBox(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button("Retry") {
+                Task { await loadArtifacts() }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.orange.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, 8)
+    }
+
+    // MARK: - Data
+
+    private var sortedArtifacts: [Artifact] {
+        artifacts.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private func loadArtifacts() async {
+        guard !isLoading else { return }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            artifacts = try await artifactService.getArtifacts(
+                forDocumentId: document.id,
+                forceRefresh: true
+            )
+            loadError = nil
+        } catch {
+            loadError = "Couldn't load artifacts: \(error.localizedDescription)"
+        }
+    }
 }
