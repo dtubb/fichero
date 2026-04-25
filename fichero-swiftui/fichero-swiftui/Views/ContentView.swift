@@ -520,6 +520,29 @@ struct ContentView: View {
             if let saved = displayMode(for: newFolderId) {
                 viewDisplayMode = normalizedViewDisplayMode(saved)
             }
+
+            // Drive the inspector from sidebar selection so clicking a folder
+            // (or any document row) in the sidebar populates the inspector.
+            // Sidebar IDs are prefixed "doc:UUID" — extract the bare doc ID
+            // before looking up. (#696 — folder inspector blank after sidebar
+            // click. MEMORY: SidebarItem.id is 'doc:UUID', strip prefix.)
+            guard let prefixedId = newFolderId,
+                  prefixedId.hasPrefix("doc:") else { return }
+            let docId = String(prefixedId.dropFirst("doc:".count))
+            if detailDocument?.id != docId {
+                if let doc = documentStore.currentDocuments.first(where: { $0.id == docId }) {
+                    detailDocument = doc
+                } else {
+                    Task { @MainActor in
+                        let fetched: Document? = try? await documentStore.api.get(
+                            "/documents/\(docId)"
+                        )
+                        if let fetched, selectedSidebarItemId == prefixedId {
+                            detailDocument = fetched
+                        }
+                    }
+                }
+            }
         }
         .onChange(of: sidebarMode) { _, _ in
             viewDisplayMode = normalizedViewDisplayMode(viewDisplayMode)
