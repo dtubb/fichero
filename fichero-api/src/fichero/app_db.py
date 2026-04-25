@@ -49,6 +49,16 @@ class AppDatabase:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
         self.conn = duckdb.connect(str(path))
+        # DuckDB connections are not thread-safe and the Python binding leaves a
+        # "pending query result" on the connection if a prior `.execute()`
+        # didn't have its `.fetchone()` consumed. Under FastAPI's threadpool,
+        # concurrent requests using `self.conn` collide and raise
+        # `InvalidInputException: Attempting to execute an unsuccessful or
+        # closed pending query result`. A reentrant lock around every conn
+        # operation serializes access on this single shared connection. (#704
+        # follow-up — Daniel logs 2026-04-25.)
+        import threading
+        self._lock = threading.RLock()
 
         logger.info(f"Opened app-wide database: {path}")
         self._initialize_schema()
@@ -132,42 +142,42 @@ class AppDatabase:
 
     def save_provider(self, provider: Provider) -> Provider:
         """Save or update a provider."""
-
-
-        self.conn.execute(
-            """
-            INSERT INTO providers (id, name, provider_type, api_base, enabled, sort_order, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (id) DO UPDATE SET
-                name = excluded.name,
-                provider_type = excluded.provider_type,
-                api_base = excluded.api_base,
-                enabled = excluded.enabled,
-                sort_order = excluded.sort_order,
-                updated_at = excluded.updated_at
-        """,
-            [
-                provider.id,
-                provider.name,
-                provider.provider_type.value
-                if hasattr(provider.provider_type, "value")
-                else provider.provider_type,
-                provider.api_base,
-                provider.enabled,
-                provider.sort_order,
-                datetime.now(),
-            ],
-        )
-        self.conn.commit()
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT INTO providers (id, name, provider_type, api_base, enabled, sort_order, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (id) DO UPDATE SET
+                    name = excluded.name,
+                    provider_type = excluded.provider_type,
+                    api_base = excluded.api_base,
+                    enabled = excluded.enabled,
+                    sort_order = excluded.sort_order,
+                    updated_at = excluded.updated_at
+            """,
+                [
+                    provider.id,
+                    provider.name,
+                    provider.provider_type.value
+                    if hasattr(provider.provider_type, "value")
+                    else provider.provider_type,
+                    provider.api_base,
+                    provider.enabled,
+                    provider.sort_order,
+                    datetime.now(),
+                ],
+            )
+            self.conn.commit()
         return provider
 
     def get_provider(self, provider_id: str) -> Provider | None:
         """Get a provider by ID."""
         from fichero.models import ProviderType
 
-        result = self.conn.execute(
-            "SELECT * FROM providers WHERE id = ?", [provider_id]
-        ).fetchone()
+        with self._lock:
+            result = self.conn.execute(
+                "SELECT * FROM providers WHERE id = ?", [provider_id]
+            ).fetchone()
 
         if not result:
             return None
@@ -187,9 +197,10 @@ class AppDatabase:
         """List all providers."""
         from fichero.models import ProviderType
 
-        results = self.conn.execute(
-            "SELECT * FROM providers ORDER BY sort_order, created_at"
-        ).fetchall()
+        with self._lock:
+            results = self.conn.execute(
+                "SELECT * FROM providers ORDER BY sort_order, created_at"
+            ).fetchall()
 
         return [
             Provider(
@@ -207,11 +218,10 @@ class AppDatabase:
 
     def delete_provider(self, provider_id: str):
         """Delete a provider and its associated models."""
-        # First delete all models for this provider
-        self.conn.execute("DELETE FROM models WHERE provider_id = ?", [provider_id])
-        # Then delete the provider
-        self.conn.execute("DELETE FROM providers WHERE id = ?", [provider_id])
-        self.conn.commit()
+        with self._lock:
+            self.conn.execute("DELETE FROM models WHERE provider_id = ?", [provider_id])
+            self.conn.execute("DELETE FROM providers WHERE id = ?", [provider_id])
+            self.conn.commit()
 
     def save_model(self, model: Model) -> Model:
         """Save or update a model."""
@@ -260,17 +270,16 @@ class AppDatabase:
 
     def list_models(self, provider_id: str | None = None) -> list[Model]:
         """List models, optionally filtered by provider."""
-
-
-        if provider_id:
-            results = self.conn.execute(
-                "SELECT * FROM models WHERE provider_id = ? ORDER BY sort_order, name",
-                [provider_id],
-            ).fetchall()
-        else:
-            results = self.conn.execute(
-                "SELECT * FROM models ORDER BY sort_order, name"
-            ).fetchall()
+        with self._lock:
+            if provider_id:
+                results = self.conn.execute(
+                    "SELECT * FROM models WHERE provider_id = ? ORDER BY sort_order, name",
+                    [provider_id],
+                ).fetchall()
+            else:
+                results = self.conn.execute(
+                    "SELECT * FROM models ORDER BY sort_order, name"
+                ).fetchall()
 
         return [
             Model(
