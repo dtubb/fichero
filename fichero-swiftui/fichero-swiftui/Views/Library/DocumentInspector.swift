@@ -673,7 +673,14 @@ struct DocumentInspectorContentV2: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                DisplayAttributesStrip(document: document)
+                // Daniel feedback 2026-04-26: the prior DisplayAttributesStrip
+                // showed static doc metadata (Status, Kind, Ingest, etc.) but
+                // those are already in the Info tab. The top strip's intended
+                // purpose is AI-EXTRACTED attributes — names, places, dates
+                // from list-typed extractor artifacts. That requires the
+                // artifact-payload-type system (people/places/dates as
+                // structured attributes). Until that exists, the strip is
+                // empty: panels only. (See inspector_redesign.md.)
 
                 if let loadError {
                     errorBox(loadError)
