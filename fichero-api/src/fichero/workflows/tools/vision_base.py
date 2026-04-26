@@ -345,15 +345,23 @@ async def _propagate_to_page_children(
     parent_id: str,
     page_texts: list[str],
     library_path: str,
+    artifact_type: str | None = None,
+    llm_config: LLMConfig | None = None,
 ) -> None:
     """Write per-page OCR text to page child documents and re-embed each one.
 
     Call this after saving the combined transcript to the parent PDF document
     so that semantic search can surface individual pages instead of only the file.
+
+    When `artifact_type` and `llm_config` are provided, ALSO save a per-page
+    artifact row keyed on each page child's document_id (#701). That gives
+    the V2 inspector something to render when you click a single page —
+    previously page-children had `page_content` but no artifact rows, so
+    the per-page panel was blank in V2.
     """
     try:
         from fichero.db import db_manager
-        from fichero.models import Document, Status
+        from fichero.models import Artifact, Document, Status
 
         db = db_manager.get_database(library_path)
         page_docs = sorted(
@@ -366,13 +374,35 @@ async def _propagate_to_page_children(
         for page_doc in page_docs:
             # sequence is 1-based; page_texts is 0-indexed
             page_idx = (page_doc.sequence or 1) - 1
-            if page_idx < len(page_texts) and page_texts[page_idx]:
-                if not isinstance(page_doc.metadata, dict):
-                    page_doc.metadata = {}
-                page_doc.page_content = page_texts[page_idx]
-                page_doc.status = Status.completed
-                db.save(page_doc)
-                db.embed(page_doc)
+            if page_idx >= len(page_texts) or not page_texts[page_idx]:
+                continue
+            page_text = page_texts[page_idx]
+            if not isinstance(page_doc.metadata, dict):
+                page_doc.metadata = {}
+            page_doc.page_content = page_text
+            page_doc.status = Status.completed
+            db.save(page_doc)
+            db.embed(page_doc)
+
+            if artifact_type and llm_config is not None:
+                try:
+                    provider = getattr(llm_config, "provider", None) or "unknown"
+                    model = getattr(llm_config, "model", None) or "unknown"
+                    artifact = Artifact(
+                        document_id=page_doc.id,
+                        artifact_type=artifact_type,
+                        content=page_text,
+                        provider=provider,
+                        model=model,
+                        version=1,
+                        reviewed=False,
+                    )
+                    db.save(artifact)
+                except Exception as artifact_err:
+                    logger.warning(
+                        "Failed to save per-page artifact for %s page %d: %s",
+                        parent_id, page_idx + 1, artifact_err,
+                    )
 
         logger.info(
             f"Propagated OCR to {len(page_docs)} page children of {parent_id}"
@@ -725,11 +755,19 @@ async def process_vision(
 
                     # Propagate per-page OCR to page child documents so semantic
                     # search can surface individual pages, not only the parent PDF.
+                    # Pass artifact_type + llm_config so the helper also saves a
+                    # per-page artifact row — V2 inspector clicks on a single
+                    # page child should see that page's transcription panel
+                    # (#701).
                     if per_page_texts and len(per_page_texts) > 1:
                         parent_id = path_to_doc.get(file_path)
                         if parent_id:
                             await _propagate_to_page_children(
-                                parent_id, per_page_texts, library_path
+                                parent_id,
+                                per_page_texts,
+                                library_path,
+                                artifact_type=tool_config.artifact_type,
+                                llm_config=save_config,
                             )
                 else:
                     logger.warning(f"save_artifact returned None for {file_path}")
