@@ -282,9 +282,26 @@ struct ArtifactPanel: View {
     /// header on hover. nil hides the button (use for kinds that aren't
     /// individually deletable, like `pageContent` which is a Document field).
     var onDelete: (() -> Void)?
+    /// Optional save action. When provided, an edit pencil shows in the
+    /// header. The closure receives the new content (RTF source if the
+    /// editor produced rich text, plain otherwise) and is responsible for
+    /// persisting it. nil hides the edit affordance (read-only panel).
+    var onSave: ((String) async -> Void)?
+
+    @AppStorage("editor.fontName") private var fontName: String = "System"
+    @AppStorage("editor.fontSize") private var fontSize: Double = 14
+    @AppStorage("editor.lineSpacing") private var lineSpacing: Double = 4
+    @AppStorage("editor.marginHorizontal") private var marginH: Double = 16
+    @AppStorage("editor.marginVertical") private var marginV: Double = 12
+
     @State private var isExpanded: Bool = true
     @State private var isHovering: Bool = false
     @State private var confirmingDelete: Bool = false
+    @State private var isEditing: Bool = false
+    @State private var draftAttributedText: NSAttributedString = NSAttributedString(string: "")
+    @State private var editorRevision: Int = 0
+    @State private var isSaving: Bool = false
+    @State private var saveError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -343,7 +360,18 @@ struct ArtifactPanel: View {
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
-            if onDelete != nil, isHovering {
+            if onSave != nil, isHovering, !isEditing {
+                Button {
+                    enterEdit()
+                } label: {
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
+                .help("Edit this artifact")
+            }
+            if onDelete != nil, isHovering, !isEditing {
                 Button {
                     confirmingDelete = true
                 } label: {
@@ -353,6 +381,17 @@ struct ArtifactPanel: View {
                 .buttonStyle(.borderless)
                 .foregroundStyle(.secondary)
                 .help("Delete this artifact")
+            }
+            if isEditing {
+                Button("Cancel") { cancelEdit() }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                Button("Save") {
+                    Task { await commitEdit() }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(isSaving)
             }
         }
     }
@@ -370,13 +409,105 @@ struct ArtifactPanel: View {
 
     @ViewBuilder
     private var contentBody: some View {
-        ScrollView {
-            Text(bodyText)
-                .font(.body)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        if isEditing {
+            VStack(alignment: .leading, spacing: 4) {
+                AttributedTextEditor(
+                    text: $draftAttributedText,
+                    isEditable: !isSaving,
+                    rulersVisible: false,
+                    fontName: fontName,
+                    fontSize: fontSize,
+                    lineSpacing: lineSpacing,
+                    marginH: marginH,
+                    marginV: marginV,
+                    contentRevision: editorRevision,
+                    onTextChanged: {},
+                    onEditingChanged: { _ in }
+                )
+                .frame(minHeight: 200, maxHeight: 600)
+                .background(Color(.textBackgroundColor))
+                .cornerRadius(4)
+                if let saveError {
+                    Text(saveError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+        } else {
+            ScrollView {
+                Text(bodyText)
+                    .font(.body)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 400)
         }
-        .frame(maxHeight: 400)
+    }
+
+    // MARK: - Edit mode helpers
+
+    private func enterEdit() {
+        draftAttributedText = decodeArtifactContent(bodyText)
+        editorRevision += 1
+        isEditing = true
+        saveError = nil
+    }
+
+    private func cancelEdit() {
+        isEditing = false
+        saveError = nil
+    }
+
+    private func commitEdit() async {
+        guard let onSave else { return }
+        isSaving = true
+        defer { isSaving = false }
+        let encoded = encodeArtifactContent(draftAttributedText)
+        await onSave(encoded)
+        // The parent reloads artifacts on success — leaving edit mode gives
+        // the next render a clean read view.
+        isEditing = false
+    }
+
+    /// Decode an artifact's stored content into an NSAttributedString. RTF
+    /// source (`{\rtf...`) is parsed; plain text becomes a styled run.
+    private func decodeArtifactContent(_ content: String) -> NSAttributedString {
+        if content.hasPrefix("{\\rtf"),
+           let data = content.data(using: .utf8),
+           let attr = try? NSAttributedString(
+               data: data,
+               options: [.documentType: NSAttributedString.DocumentType.rtf],
+               documentAttributes: nil
+           ) {
+            return attr
+        }
+        return NSAttributedString(string: content)
+    }
+
+    /// Encode an NSAttributedString back to a content string. Inline RTF
+    /// source (not base64) so the artifact's `content` field stays human-
+    /// readable when the artifact is plain text and round-trips losslessly
+    /// when the user added formatting.
+    private func encodeArtifactContent(_ attr: NSAttributedString) -> String {
+        let plain = attr.string
+        // Quick path: no formatting attributes anywhere → store plain.
+        let fullRange = NSRange(location: 0, length: attr.length)
+        var hasFormatting = false
+        attr.enumerateAttributes(in: fullRange) { attrs, _, stop in
+            for key in attrs.keys where key != .paragraphStyle {
+                hasFormatting = true
+                stop.pointee = true
+                return
+            }
+        }
+        if !hasFormatting { return plain }
+        guard let data = try? attr.data(
+            from: fullRange,
+            documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
+        ), let rtfString = String(data: data, encoding: .utf8) else {
+            return plain
+        }
+        return rtfString
     }
 
     // MARK: - Computed properties
@@ -444,8 +575,23 @@ struct ArtifactPanel: View {
         case .pageContent(let text):
             return text.isEmpty ? "(empty)" : text
         case .artifact(let artifact):
-            if let content = artifact.content, !content.isEmpty { return content }
-            return "(no text)"
+            guard let content = artifact.content, !content.isEmpty else {
+                return "(no text)"
+            }
+            // If the stored content is RTF source, render the plain string
+            // for the read view. The decode→encode round-trip on the editor
+            // path preserves the formatting; the read view shows plain so
+            // users see what's actually written without RTF chrome.
+            if content.hasPrefix("{\\rtf"),
+               let data = content.data(using: .utf8),
+               let attr = try? NSAttributedString(
+                   data: data,
+                   options: [.documentType: NSAttributedString.DocumentType.rtf],
+                   documentAttributes: nil
+               ) {
+                return attr.string
+            }
+            return content
         }
     }
 }
@@ -487,14 +633,20 @@ struct DocumentInspectorContentV2: View {
                 ForEach(sortedArtifacts) { artifact in
                     ArtifactPanel(
                         kind: .artifact(artifact),
-                        onDelete: { Task { await deleteArtifact(artifact) } }
+                        onDelete: { Task { await deleteArtifact(artifact) } },
+                        onSave: { newContent in
+                            await saveArtifact(artifact, content: newContent)
+                        }
                     )
                 }
 
                 if let pageContent = document.pageContent, !pageContent.isEmpty {
                     ArtifactPanel(
                         kind: .pageContent(text: pageContent),
-                        onDelete: { Task { await clearPageContent() } }
+                        onDelete: { Task { await clearPageContent() } },
+                        onSave: { newContent in
+                            await savePageContent(newContent)
+                        }
                     )
                 }
 
@@ -619,6 +771,37 @@ struct DocumentInspectorContentV2: View {
             actionError = nil
         } catch {
             actionError = "Couldn't clear page content: \(error.localizedDescription)"
+        }
+    }
+
+    private func saveArtifact(_ artifact: Artifact, content: String) async {
+        do {
+            let updated = try await artifactService.updateArtifact(
+                id: artifact.id,
+                documentId: document.id,
+                content: content
+            )
+            // Replace in local list so the read view picks up the new text
+            // immediately; the next loadArtifacts will reconcile if needed.
+            if let index = artifacts.firstIndex(where: { $0.id == updated.id }) {
+                artifacts[index] = updated
+            }
+            actionError = nil
+        } catch {
+            actionError = "Couldn't save: \(error.localizedDescription)"
+        }
+    }
+
+    private func savePageContent(_ content: String) async {
+        do {
+            let updated = try await documentService.updateDocument(
+                document.id,
+                pageContent: content
+            )
+            documentStore.refreshLocalContent(updated)
+            actionError = nil
+        } catch {
+            actionError = "Couldn't save: \(error.localizedDescription)"
         }
     }
 }
