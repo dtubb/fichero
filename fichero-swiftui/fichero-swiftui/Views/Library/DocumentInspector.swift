@@ -278,7 +278,13 @@ struct ArtifactPanel: View {
     }
 
     let kind: PanelKind
+    /// Optional delete action. When provided, a trash button shows in the
+    /// header on hover. nil hides the button (use for kinds that aren't
+    /// individually deletable, like `pageContent` which is a Document field).
+    var onDelete: (() -> Void)?
     @State private var isExpanded: Bool = true
+    @State private var isHovering: Bool = false
+    @State private var confirmingDelete: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -298,6 +304,17 @@ struct ArtifactPanel: View {
                 .stroke(Color(.separatorColor), lineWidth: 1)
         )
         .padding(.horizontal, 8)
+        .onHover { hovering in isHovering = hovering }
+        .confirmationDialog(
+            "Delete this artifact?",
+            isPresented: $confirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) { onDelete?() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(deleteMessage)
+        }
     }
 
     // MARK: - Header
@@ -326,6 +343,26 @@ struct ArtifactPanel: View {
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
+            if onDelete != nil, isHovering {
+                Button {
+                    confirmingDelete = true
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
+                .help("Delete this artifact")
+            }
+        }
+    }
+
+    private var deleteMessage: String {
+        switch kind {
+        case .artifact(let artifact):
+            return "\(title) from \(artifact.provider ?? "unknown") will be removed."
+        case .pageContent:
+            return "Page content will be cleared."
         }
     }
 
@@ -391,6 +428,11 @@ struct ArtifactPanel: View {
         switch kind {
         case .pageContent: return nil
         case .artifact(let artifact):
+            // RelativeDateTimeFormatter renders <1 minute as "in 0 secs",
+            // which Daniel correctly called silly. For fresh artifacts show
+            // "just now"; otherwise the abbreviated relative string.
+            let interval = abs(Date().timeIntervalSince(artifact.createdAt))
+            if interval < 60 { return "just now" }
             let formatter = RelativeDateTimeFormatter()
             formatter.unitsStyle = .abbreviated
             return formatter.localizedString(for: artifact.createdAt, relativeTo: Date())
@@ -421,11 +463,14 @@ struct DocumentInspectorContentV2: View {
     let document: Document
 
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
+    @EnvironmentObject private var documentService: DocumentServiceGenerated
+    @EnvironmentObject private var documentStore: DocumentStore
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
 
     @State private var artifacts: [Artifact] = []
     @State private var isLoading = false
     @State private var loadError: String?
+    @State private var actionError: String?
 
     var body: some View {
         ScrollView {
@@ -435,13 +480,22 @@ struct DocumentInspectorContentV2: View {
                 if let loadError {
                     errorBox(loadError)
                 }
+                if let actionError {
+                    errorBox(actionError)
+                }
 
                 ForEach(sortedArtifacts) { artifact in
-                    ArtifactPanel(kind: .artifact(artifact))
+                    ArtifactPanel(
+                        kind: .artifact(artifact),
+                        onDelete: { Task { await deleteArtifact(artifact) } }
+                    )
                 }
 
                 if let pageContent = document.pageContent, !pageContent.isEmpty {
-                    ArtifactPanel(kind: .pageContent(text: pageContent))
+                    ArtifactPanel(
+                        kind: .pageContent(text: pageContent),
+                        onDelete: { Task { await clearPageContent() } }
+                    )
                 }
 
                 if !isLoading
@@ -534,6 +588,37 @@ struct DocumentInspectorContentV2: View {
             loadError = nil
         } catch {
             loadError = "Couldn't load artifacts: \(error.localizedDescription)"
+        }
+    }
+
+    private func deleteArtifact(_ artifact: Artifact) async {
+        // Optimistic remove (#705 pattern). The artifact panel disappears
+        // immediately; rollback if the backend rejects the delete.
+        let snapshot = artifacts
+        artifacts.removeAll { $0.id == artifact.id }
+        do {
+            try await artifactService.deleteArtifact(
+                id: artifact.id, documentId: document.id
+            )
+            actionError = nil
+        } catch {
+            artifacts = snapshot
+            actionError = "Couldn't delete: \(error.localizedDescription)"
+        }
+    }
+
+    private func clearPageContent() async {
+        // page_content is a Document field, not an artifact — clearing it
+        // means a normal updateDocument call with pageContent: "".
+        do {
+            let updated = try await documentService.updateDocument(
+                document.id,
+                pageContent: ""
+            )
+            documentStore.refreshLocalContent(updated)
+            actionError = nil
+        } catch {
+            actionError = "Couldn't clear page content: \(error.localizedDescription)"
         }
     }
 }
