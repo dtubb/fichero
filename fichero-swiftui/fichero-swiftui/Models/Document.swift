@@ -327,12 +327,30 @@ struct EmbeddingStats: Codable {
 // MARK: - Ingest Mode
 
 extension Document {
-    /// True when this document was imported via LINK mode (bookmark reference; original stays on disk).
-    /// Detected by the presence of a "bookmark" metadata key, which is set exclusively by the LINK
-    /// ingest path. COPY/MOVE docs live inside the library package and have no bookmark entry.
-    var isLinked: Bool {
-        metadata["bookmark"]?.value != nil
+    enum IngestMode: String {
+        case link
+        case copy
+        case move
     }
+
+    /// Resolved ingest mode for this document. Backend now writes the
+    /// explicit `metadata.ingest_mode` ("link"/"copy"/"move") since #603
+    /// Part 2; for older docs without that key we fall back to the legacy
+    /// heuristic: bookmark presence → LINK, otherwise COPY.
+    var ingestMode: IngestMode {
+        if let raw = metadata["ingest_mode"]?.value as? String,
+           let mode = IngestMode(rawValue: raw) {
+            return mode
+        }
+        return metadata["bookmark"]?.value != nil ? .link : .copy
+    }
+
+    /// True when this document was imported via LINK mode (bookmark reference; original stays on disk).
+    var isLinked: Bool { ingestMode == .link }
+
+    /// True when this document was imported via MOVE mode (relocated; original deleted).
+    /// MOVE deletes are terminal; the delete-confirmation should reflect that.
+    var isMoved: Bool { ingestMode == .move }
 }
 
 // MARK: - Navigation

@@ -220,8 +220,11 @@ def ingest_file(
     # Determine file type
     file_type = detect_file_type(path)
 
-    # Build metadata
-    metadata: dict = {}
+    # Build metadata. Always record the ingest_mode explicitly (#603 Part 2)
+    # so the frontend can show LINK / COPY / MOVE badges and branch the
+    # delete-confirmation copy. Pre-fix docs without this key fall back to
+    # bookmark presence: bookmark → LINK, no bookmark → COPY.
+    metadata: dict = {"ingest_mode": mode.value}
 
     if mode in (IngestMode.COPY, IngestMode.MOVE):
         # Copy file into library storage
