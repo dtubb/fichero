@@ -250,6 +250,30 @@ struct ProgressCell: View {
 struct DocumentThumbnailView: View {
     let document: Document
     let isSelected: Bool
+    @EnvironmentObject private var documentStore: DocumentStore
+
+    /// Page-child docs store the original drop's PDF path in
+    /// `metadata.pdf_path`. For dropped imports, that path is a temp dir
+    /// (`/private/var/folders/.../T/fichero-drop-XXX/...`) which macOS
+    /// garbage-collects, leaving a dead path. (#703 — grid filled with
+    /// placeholder icons.) Try the metadata path first; if it's gone or
+    /// looks like a temp drop dir, fall back to the parent PDF doc's
+    /// current `path` resolved via `pdf_parent_id`.
+    fileprivate func resolvedParentPDFPath(for doc: Document) -> String? {
+        let metadataPath = doc.metadata["pdf_path"]?.value as? String
+        if let metadataPath, !metadataPath.isEmpty,
+           !metadataPath.contains("/fichero-drop-"),
+           FileManager.default.fileExists(atPath: metadataPath) {
+            return metadataPath
+        }
+        guard let parentId = doc.metadata["pdf_parent_id"]?.value as? String,
+              let parent = documentStore.currentDocuments.first(where: { $0.id == parentId }),
+              let parentPath = parent.path,
+              !parentPath.isEmpty else {
+            return metadataPath
+        }
+        return parentPath
+    }
 
     var body: some View {
         VStack(spacing: 6) {
@@ -268,7 +292,7 @@ struct DocumentThumbnailView: View {
                     PDFThumbnailView(path: path, size: CGSize(width: 240, height: 320))
                         .clipped()
                 } else if document.docType == .page,
-                          let pdfPath = document.metadata["pdf_path"]?.value as? String,
+                          let pdfPath = resolvedParentPDFPath(for: document),
                           !pdfPath.isEmpty {
                     let pageIndex = max(0, (document.sequence ?? 1) - 1)
                     PDFThumbnailView(
