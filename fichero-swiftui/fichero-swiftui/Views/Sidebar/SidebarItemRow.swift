@@ -142,18 +142,64 @@ struct SidebarItemRow: View {
         }
     }
 
+    /// Run a workflow on this sidebar document via the same SSE path that
+    /// ContentView's toolbar/menubar/grid-context-menu use. Previously this
+    /// went through BatchService.createBatch + executeBatch, which produced
+    /// an executing run that the Activity view didn't register (BatchService
+    /// path doesn't notify executionObserver), so users reported "context
+    /// menu Run Workflow doesn't work" while the toolbar one did. Converging
+    /// on the SSE path is #694's fix.
     private func runWorkflowOnDocument(workflowId: String, docId: String) {
-        guard let batchService = library?.batchService else { return }
-        Task {
+        guard let library = library else {
+            sidebarRowLogger.error("runWorkflowOnDocument: no library reference")
+            return
+        }
+        let workflowName = workflowStore?.workflows
+            .first(where: { $0.id == workflowId })?.name ?? workflowId
+        let stream = library.workflowStreamService
+        let observer = executionObserver
+        Task { @MainActor in
+            var streamCompleted = false
             do {
-                let batch = try await batchService.createBatch(
+                let response = try await stream.execute(
                     workflowId: workflowId,
-                    items: [["selected_doc_ids": [docId]]],
-                    maxConcurrent: 1
+                    inputs: ["selected_doc_ids": [docId]],
+                    onEvent: { event in
+                        observer.handleEvent(event, for: workflowId)
+                        switch event {
+                        case .complete, .error, .systemicError:
+                            streamCompleted = true
+                        default:
+                            break
+                        }
+                    }
                 )
-                try await batchService.executeBatch(batchId: batch.batchId)
+                let threadId = response.threadId
+                observer.startExecution(
+                    workflowId: workflowId,
+                    name: workflowName,
+                    threadId: threadId,
+                    onCancel: { [weak stream] in
+                        Task { @MainActor in
+                            try? await stream?.stopWorkflow(threadId: threadId)
+                        }
+                    }
+                )
+                while !streamCompleted {
+                    try await Task.sleep(for: .milliseconds(200))
+                    if Task.isCancelled { break }
+                    if let exec = observer.activeExecutions[workflowId], !exec.isRunning {
+                        streamCompleted = true
+                    }
+                }
+                let status: WorkflowStatus = {
+                    guard let exec = observer.activeExecutions[workflowId] else { return .completed }
+                    return exec.workflowError != nil || exec.status == .failed ? .failed : .completed
+                }()
+                observer.endExecution(workflowId: workflowId, status: status)
             } catch {
-                sidebarRowLogger.error("Run workflow from sidebar failed: \(error)")
+                sidebarRowLogger.error("Sidebar Run Workflow failed: \(error)")
+                observer.endExecution(workflowId: workflowId, status: .failed)
             }
         }
     }
