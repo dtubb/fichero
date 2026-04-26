@@ -34,17 +34,16 @@ extension SidebarItemRow {
                         .controlSize(.small)
                         .scaleEffect(0.8)
                 }
-            } else if case .document(let doc) = item.itemType, doc.isLinked {
-                // #603: visible LINK badge. The previous 6pt .secondary
-                // overlay was invisible against sidebar chrome. Use the
-                // Finder-style alias arrow at legible size with a solid
-                // white circle behind so the badge reads on both selected
-                // and unselected rows.
+            } else if case .document(let doc) = item.itemType,
+                      let badge = ingestBadge(for: doc) {
+                // #603: visible per-mode badges driven by metadata.ingest_mode
+                // exposed in 8eb002cf. LINK shows a Finder-style alias arrow,
+                // MOVE shows an arrow-into-box, COPY shows no badge (default).
                 ZStack(alignment: .bottomTrailing) {
                     Image(systemName: item.icon)
-                    Image(systemName: "arrow.up.forward.square.fill")
+                    Image(systemName: badge.symbol)
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white, Color.accentColor)
+                        .foregroundStyle(.white, badge.color)
                         .background(
                             Circle()
                                 .fill(.background)
@@ -63,6 +62,20 @@ extension SidebarItemRow {
             if workflowIsRunning {
                 isPulsing = true
             }
+        }
+    }
+
+    /// Resolve the ingest-mode badge for a document. Returns nil for COPY
+    /// (default mode shows no badge — matches Finder where copies don't get
+    /// alias decoration). #603 part 2.
+    private func ingestBadge(for doc: Document) -> (symbol: String, color: Color)? {
+        switch doc.ingestMode {
+        case .link:
+            return ("arrow.up.forward.square.fill", Color.accentColor)
+        case .move:
+            return ("arrow.right.square.fill", Color.orange)
+        case .copy:
+            return nil
         }
     }
 

@@ -61,14 +61,33 @@ extension LibraryView {
                     documentsToDelete = []
                 }
             } message: {
+                // #603 Part 2: branch the copy by ingest mode so users see
+                // an accurate description of what delete actually does for
+                // their file. LINK preserves the original; COPY removes our
+                // copy but the user's source file is untouched; MOVE is the
+                // only mode where delete is genuinely terminal.
                 if documentsToDelete.count == 1, let doc = documentsToDelete.first {
-                    if doc.isLinked, let path = doc.path {
-                        Text("Remove the Fichero reference to \"\(doc.name)\"? The original file at \(path) will stay on disk.")
-                    } else {
-                        Text("Are you sure you want to delete \"\(doc.name)\"? This cannot be undone.")
+                    switch doc.ingestMode {
+                    case .link:
+                        if let path = doc.path {
+                            Text("Remove the Fichero reference to \"\(doc.name)\"? The original file at \(path) will stay on disk.")
+                        } else {
+                            Text("Remove the Fichero reference to \"\(doc.name)\"? The original file will stay on disk.")
+                        }
+                    case .copy:
+                        Text("Delete Fichero's copy of \"\(doc.name)\"? The file you imported from is untouched.")
+                    case .move:
+                        Text("Permanently delete \"\(doc.name)\"? This file was moved into Fichero, so there's no other copy.")
                     }
                 } else {
-                    Text("Are you sure you want to delete \(documentsToDelete.count) documents? This cannot be undone.")
+                    let modes = Set(documentsToDelete.map { $0.ingestMode })
+                    if modes == [.link] {
+                        Text("Remove \(documentsToDelete.count) Fichero references? The original files will stay on disk.")
+                    } else if modes == [.move] {
+                        Text("Permanently delete \(documentsToDelete.count) documents? These files were moved into Fichero, so there are no other copies.")
+                    } else {
+                        Text("Delete \(documentsToDelete.count) documents from Fichero? Items imported via LINK reference originals on disk; COPY items are removed; MOVE items are gone for good.")
+                    }
                 }
             }
     }
