@@ -527,19 +527,32 @@ struct ArtifactPanel: View {
     /// source (not base64) so the artifact's `content` field stays human-
     /// readable when the artifact is plain text and round-trips losslessly
     /// when the user added formatting.
+    ///
+    /// Custom paragraph styles (ruler tab stops, indents, line spacing
+    /// changes) MUST round-trip through RTF — earlier this function
+    /// excluded .paragraphStyle from the formatting check, which made
+    /// ruler edits silently lose on save (Daniel feedback 2026-04-26).
     private func encodeArtifactContent(_ attr: NSAttributedString) -> String {
-        let plain = attr.string
-        // Quick path: no formatting attributes anywhere → store plain.
         let fullRange = NSRange(location: 0, length: attr.length)
+        let plain = attr.string
+
         var hasFormatting = false
+        let defaultPara = NSParagraphStyle.default
         attr.enumerateAttributes(in: fullRange) { attrs, _, stop in
-            for key in attrs.keys where key != .paragraphStyle {
+            for (key, value) in attrs {
+                if key == .paragraphStyle {
+                    if let para = value as? NSParagraphStyle, para != defaultPara {
+                        hasFormatting = true
+                    }
+                    continue
+                }
                 hasFormatting = true
-                stop.pointee = true
-                return
             }
+            if hasFormatting { stop.pointee = true }
         }
+
         if !hasFormatting { return plain }
+
         guard let data = try? attr.data(
             from: fullRange,
             documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
