@@ -1285,6 +1285,66 @@
           }
         }
       },
+      "put": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "Update Artifact",
+        "description": "Update an artifact's editable fields (content, reviewed flag).\n\nUsed by the V2 inspector to let users correct workflow output (e.g. fix\nOCR mistakes in a transcription) without re-running the whole tool. The\nartifact stays attached to its original document and keeps its provider/\nmodel provenance \u2014 we just update the text.",
+        "operationId": "update_artifact_api_artifacts__artifact_id__put",
+        "parameters": [
+          {
+            "name": "artifact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Artifact Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "tags": [
           "artifacts"
@@ -26275,6 +26335,23 @@
         ],
         "title": "ArtifactResponse",
         "description": "Artifact response with formatted data."
+      },
+      "ArtifactUpdate": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "nullable": true,
+            "title": "Content"
+          },
+          "reviewed": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Reviewed"
+          }
+        },
+        "type": "object",
+        "title": "ArtifactUpdate",
+        "description": "Request to update an artifact's editable fields. Used by the V2\ninspector's per-panel edit. Only `content` is editable today; provider,\nmodel, version etc. are immutable provenance and stay set by the tool\nthat produced them."
       },
       "AttributesResponse": {
         "properties": {

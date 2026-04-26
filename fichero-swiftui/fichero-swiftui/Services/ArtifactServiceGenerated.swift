@@ -166,6 +166,47 @@ class ArtifactServiceGenerated: ObservableObject {
         )
     }
 
+    /// Update an artifact's editable fields (content, reviewed flag).
+    /// Provenance fields (provider, model, version) stay set by the tool
+    /// that produced the artifact.
+    func updateArtifact(
+        id: String,
+        documentId: String,
+        content: String? = nil,
+        reviewed: Bool? = nil
+    ) async throws -> Artifact {
+        let request = Components.Schemas.ArtifactUpdate(
+            content: content,
+            reviewed: reviewed
+        )
+        let response = try await client.api.updateArtifactApiArtifactsArtifactIdPut(.init(
+            path: .init(artifactId: id),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(request)
+        ))
+
+        switch response {
+        case .ok(let okResponse):
+            let json = try okResponse.body.json
+            let updated = convertToArtifact(json)
+
+            if var cached = artifactsByDocument[documentId] {
+                if let index = cached.firstIndex(where: { $0.id == id }) {
+                    cached[index] = updated
+                } else {
+                    cached.append(updated)
+                }
+                artifactsByDocument[documentId] = cached
+            }
+            return updated
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ArtifactServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, _):
+            throw ArtifactServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
     /// Delete an artifact
     func deleteArtifact(id: String, documentId: String) async throws {
         let response = try await client.api.deleteArtifactApiArtifactsArtifactIdDelete(

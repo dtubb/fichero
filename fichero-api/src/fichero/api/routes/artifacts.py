@@ -190,6 +190,58 @@ async def get_artifact(
     )
 
 
+class ArtifactUpdate(BaseModel):
+    """Request to update an artifact's editable fields. Used by the V2
+    inspector's per-panel edit. Only `content` is editable today; provider,
+    model, version etc. are immutable provenance and stay set by the tool
+    that produced them.
+    """
+
+    content: Optional[str] = None
+    reviewed: Optional[bool] = None
+
+
+@router.put("/{artifact_id}")
+async def update_artifact(
+    artifact_id: str,
+    update: ArtifactUpdate,
+    db: Database = Depends(get_library_database),
+) -> ArtifactResponse:
+    """Update an artifact's editable fields (content, reviewed flag).
+
+    Used by the V2 inspector to let users correct workflow output (e.g. fix
+    OCR mistakes in a transcription) without re-running the whole tool. The
+    artifact stays attached to its original document and keeps its provider/
+    model provenance — we just update the text.
+    """
+    artifact = db.get(Artifact, artifact_id)
+    if not artifact:
+        raise HTTPException(
+            status_code=404, detail=f"Artifact not found: {artifact_id}"
+        )
+
+    if update.content is not None:
+        artifact.content = update.content
+    if update.reviewed is not None:
+        artifact.reviewed = update.reviewed
+
+    db.save(artifact)
+
+    return ArtifactResponse(
+        id=artifact.id,
+        document_id=artifact.document_id,
+        artifact_type=artifact.artifact_type,
+        content=artifact.content,
+        data=artifact.data,
+        version=artifact.version,
+        provider=artifact.provider,
+        model=artifact.model,
+        confidence=artifact.confidence,
+        reviewed=artifact.reviewed,
+        created_at=artifact.created_at.isoformat() if artifact.created_at else "",
+    )
+
+
 @router.delete("/{artifact_id}", status_code=204)
 async def delete_artifact(
     artifact_id: str,

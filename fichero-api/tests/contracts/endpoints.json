@@ -406,6 +406,18 @@
         "response_model": "ArtifactResponse"
       },
       {
+        "method": "PUT",
+        "path": "/artifacts/{artifact_id}",
+        "operation_id": "update_artifact_api_artifacts__artifact_id__put",
+        "summary": "Update Artifact",
+        "path_params": [
+          "artifact_id"
+        ],
+        "query_params": [],
+        "request_model": "ArtifactUpdate",
+        "response_model": "ArtifactResponse"
+      },
+      {
         "method": "DELETE",
         "path": "/artifacts/{artifact_id}",
         "operation_id": "delete_artifact_api_artifacts__artifact_id__delete",
