@@ -117,6 +117,20 @@ extension ActivityProgressView {
                 .lineLimit(1)
 
             Spacer()
+
+            // #700: cache-hit badge. Backend already emits `cached: true` on
+            // file_complete events when kreuzberg returns a cached artifact;
+            // it lands in StepStatus.completed(duration:cached:). Show a
+            // small lightning bolt so users can see which files were served
+            // from cache vs freshly processed.
+            if doc.stepStatuses.values.contains(where: {
+                if case .completed(_, let cached) = $0 { return cached }
+                return false
+            }) {
+                Image(systemName: "bolt.fill")
+                    .foregroundStyle(.yellow)
+                    .help("Served from cache")
+            }
         }
         .font(.caption)
     }
