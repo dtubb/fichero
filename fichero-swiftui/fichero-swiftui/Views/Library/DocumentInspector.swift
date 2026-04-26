@@ -288,6 +288,7 @@ struct ArtifactPanel: View {
     /// persisting it. nil hides the edit affordance (read-only panel).
     var onSave: ((String) async -> Void)?
 
+    @AppStorage("editor.rulersVisible") private var rulersVisible = true
     @AppStorage("editor.fontName") private var fontName: String = "System"
     @AppStorage("editor.fontSize") private var fontSize: Double = 14
     @AppStorage("editor.lineSpacing") private var lineSpacing: Double = 4
@@ -295,13 +296,13 @@ struct ArtifactPanel: View {
     @AppStorage("editor.marginVertical") private var marginV: Double = 12
 
     @State private var isExpanded: Bool = true
-    @State private var isHovering: Bool = false
     @State private var confirmingDelete: Bool = false
     @State private var isEditing: Bool = false
     @State private var draftAttributedText: NSAttributedString = NSAttributedString(string: "")
     @State private var editorRevision: Int = 0
     @State private var isSaving: Bool = false
     @State private var saveError: String?
+    @State private var autoSaveTask: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -321,7 +322,6 @@ struct ArtifactPanel: View {
                 .stroke(Color(.separatorColor), lineWidth: 1)
         )
         .padding(.horizontal, 8)
-        .onHover { hovering in isHovering = hovering }
         .confirmationDialog(
             "Delete this artifact?",
             isPresented: $confirmingDelete,
@@ -360,7 +360,11 @@ struct ArtifactPanel: View {
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
-            if onSave != nil, isHovering, !isEditing {
+            // Always-visible action buttons — gating them on hover meant
+            // they vanished as the user moved the cursor off the panel
+            // toward the button (Daniel feedback 2026-04-26). Stable
+            // visibility, no chase.
+            if onSave != nil, !isEditing {
                 Button {
                     enterEdit()
                 } label: {
@@ -371,7 +375,7 @@ struct ArtifactPanel: View {
                 .foregroundStyle(.secondary)
                 .help("Edit this artifact")
             }
-            if onDelete != nil, isHovering, !isEditing {
+            if onDelete != nil, !isEditing {
                 Button {
                     confirmingDelete = true
                 } label: {
@@ -383,15 +387,17 @@ struct ArtifactPanel: View {
                 .help("Delete this artifact")
             }
             if isEditing {
-                Button("Cancel") { cancelEdit() }
-                    .buttonStyle(.borderless)
-                    .controlSize(.small)
-                Button("Save") {
-                    Task { await commitEdit() }
+                if isSaving {
+                    ProgressView().controlSize(.small)
+                } else if saveError == nil {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.green)
+                        .help("Saved")
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .disabled(isSaving)
+                Button("Done") { exitEdit() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
             }
         }
     }
@@ -413,16 +419,18 @@ struct ArtifactPanel: View {
             VStack(alignment: .leading, spacing: 4) {
                 AttributedTextEditor(
                     text: $draftAttributedText,
-                    isEditable: !isSaving,
-                    rulersVisible: false,
+                    isEditable: true,
+                    rulersVisible: rulersVisible,
                     fontName: fontName,
                     fontSize: fontSize,
                     lineSpacing: lineSpacing,
                     marginH: marginH,
                     marginV: marginV,
                     contentRevision: editorRevision,
-                    onTextChanged: {},
-                    onEditingChanged: { _ in }
+                    onTextChanged: { scheduleAutoSave() },
+                    onEditingChanged: { editing in
+                        if !editing { Task { await flushAutoSave() } }
+                    }
                 )
                 .frame(minHeight: 200, maxHeight: 600)
                 .background(Color(.textBackgroundColor))
@@ -447,26 +455,57 @@ struct ArtifactPanel: View {
     // MARK: - Edit mode helpers
 
     private func enterEdit() {
-        draftAttributedText = decodeArtifactContent(bodyText)
+        // Seed the draft from whatever the artifact actually stores —
+        // decodeArtifactContent handles both plain and {\rtf...} content.
+        draftAttributedText = decodeArtifactContent(rawArtifactContent)
         editorRevision += 1
         isEditing = true
         saveError = nil
     }
 
-    private func cancelEdit() {
+    private func exitEdit() {
+        // "Done" — flush any pending debounce before leaving edit mode so
+        // the read view shows the final saved content.
+        Task { await flushAutoSave() }
         isEditing = false
-        saveError = nil
     }
 
-    private func commitEdit() async {
-        guard let onSave else { return }
+    /// Debounced auto-save. The previous explicit Save button created a
+    /// "did my edit save?" anxiety loop — auto-save with a small visible
+    /// indicator is calmer. (Daniel feedback 2026-04-26.)
+    private func scheduleAutoSave() {
+        autoSaveTask?.cancel()
+        autoSaveTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(800))
+            if Task.isCancelled { return }
+            await performSave()
+        }
+    }
+
+    private func flushAutoSave() async {
+        autoSaveTask?.cancel()
+        autoSaveTask = nil
+        await performSave()
+    }
+
+    private func performSave() async {
+        guard let onSave, !isSaving else { return }
         isSaving = true
         defer { isSaving = false }
         let encoded = encodeArtifactContent(draftAttributedText)
         await onSave(encoded)
-        // The parent reloads artifacts on success — leaving edit mode gives
-        // the next render a clean read view.
-        isEditing = false
+    }
+
+    /// Raw content used when seeding the editor — for `.artifact` we use the
+    /// content field as the editor source, even if it's RTF, so formatting
+    /// round-trips. For `.pageContent` we don't have access to the document's
+    /// metadata-stored RTF here (we'd need to plumb it through), so plain
+    /// text is the editable surface.
+    private var rawArtifactContent: String {
+        switch kind {
+        case .pageContent(let text): return text
+        case .artifact(let artifact): return artifact.content ?? ""
+        }
     }
 
     /// Decode an artifact's stored content into an NSAttributedString. RTF
