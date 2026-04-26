@@ -23,14 +23,22 @@ class ArtifactServiceGenerated: ObservableObject {
 
     // MARK: - Fetch Artifacts
 
-    /// Fetch all artifacts for a document
+    /// Fetch all artifacts for a document.
+    ///
+    /// `includeDescendants` controls whether the backend aggregates artifacts
+    /// from children and parent (legacy V1 behavior, default true) or scopes
+    /// strictly to the requested document (V2). The aggregation caused
+    /// "delete pops back" confusion in V2 because deleting one artifact left
+    /// a sibling in place that looked like the same one.
     func getArtifacts(
         forDocumentId documentId: String,
         type: String? = nil,
-        forceRefresh: Bool = false
+        forceRefresh: Bool = false,
+        includeDescendants: Bool = true
     ) async throws -> [Artifact] {
-        // Return cached if available and not forcing refresh
-        if !forceRefresh, let cached = artifactsByDocument[documentId] {
+        // Cache key needs the scope flag so V1 and V2 don't share entries.
+        let cacheKey = includeDescendants ? documentId : "\(documentId)|own"
+        if !forceRefresh, let cached = artifactsByDocument[cacheKey] {
             if let type = type {
                 return cached.filter { $0.artifactType == type }
             }
@@ -42,7 +50,7 @@ class ArtifactServiceGenerated: ObservableObject {
 
         let response = try await client.api.listDocumentArtifactsApiArtifactsDocumentDocIdGet(
             path: .init(docId: documentId),
-            query: .init(artifactType: type),
+            query: .init(artifactType: type, includeDescendants: includeDescendants),
             headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
 
@@ -51,8 +59,7 @@ class ArtifactServiceGenerated: ObservableObject {
             let artifactList = try okResponse.body.json
             let artifacts = artifactList.artifacts.map { convertToArtifact($0) }
 
-            // Cache the results
-            artifactsByDocument[documentId] = artifacts
+            artifactsByDocument[cacheKey] = artifacts
 
             logger.info("Fetched \(artifacts.count) artifacts for document \(documentId)")
             return artifacts
@@ -190,13 +197,15 @@ class ArtifactServiceGenerated: ObservableObject {
             let json = try okResponse.body.json
             let updated = convertToArtifact(json)
 
-            if var cached = artifactsByDocument[documentId] {
-                if let index = cached.firstIndex(where: { $0.id == id }) {
-                    cached[index] = updated
-                } else {
-                    cached.append(updated)
+            for key in [documentId, "\(documentId)|own"] {
+                if var cached = artifactsByDocument[key] {
+                    if let index = cached.firstIndex(where: { $0.id == id }) {
+                        cached[index] = updated
+                    } else {
+                        cached.append(updated)
+                    }
+                    artifactsByDocument[key] = cached
                 }
-                artifactsByDocument[documentId] = cached
             }
             return updated
         case .unprocessableContent(let error):
@@ -216,10 +225,13 @@ class ArtifactServiceGenerated: ObservableObject {
 
         switch response {
         case .noContent:
-            // Update cache
-            if var artifacts = artifactsByDocument[documentId] {
-                artifacts.removeAll { $0.id == id }
-                artifactsByDocument[documentId] = artifacts
+            // Update both cache scopes — V1 (aggregated) and V2 (own-only)
+            // can both have entries for the doc keyed differently.
+            for key in [documentId, "\(documentId)|own"] {
+                if var artifacts = artifactsByDocument[key] {
+                    artifacts.removeAll { $0.id == id }
+                    artifactsByDocument[key] = artifacts
+                }
             }
             logger.info("Deleted artifact \(id)")
         case .unprocessableContent(let error):

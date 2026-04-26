@@ -106,6 +106,15 @@ async def list_document_artifacts(
     artifact_type: Optional[str] = Query(None, description="Filter by artifact type"),
     limit: int = Query(50, ge=1, le=200, description="Max results"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
+    include_descendants: bool = Query(
+        True,
+        description=(
+            "Include artifacts from children and parent (legacy aggregation). "
+            "Set false for strict per-document scope — V2 inspector uses this so "
+            "delete operations are visibly per-artifact rather than confused by "
+            "sibling artifacts."
+        ),
+    ),
     db: Database = Depends(get_library_database),
 ) -> ArtifactListResponse:
     """List all artifacts for a document.
@@ -117,15 +126,21 @@ async def list_document_artifacts(
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
 
-    # Collect document IDs to query: the doc itself plus its direct children (pages).
-    # Also include the parent when the queried doc is a page — transcription workflows
-    # run against the parent PDF and save artifacts there, not per page.
-    child_ids = [d.id for d in db.query(Document, parent_id=doc_id)]
-    all_doc_ids = [doc_id] + child_ids
-    if doc.parent_id:
-        all_doc_ids.append(doc.parent_id)
+    if include_descendants:
+        # Legacy aggregation: doc itself + direct children (pages) + parent
+        # (transcription workflows historically save artifacts on the parent
+        # PDF, not per page). Used by the V1 inspector. Causes "delete pops
+        # back" confusion in V2 where each artifact gets its own panel —
+        # deleting a child's artifact made the parent's similar artifact
+        # appear to "respawn" because it was always there in the aggregate.
+        child_ids = [d.id for d in db.query(Document, parent_id=doc_id)]
+        all_doc_ids = [doc_id] + child_ids
+        if doc.parent_id:
+            all_doc_ids.append(doc.parent_id)
+    else:
+        all_doc_ids = [doc_id]
 
-    # Query artifacts across the doc and its children
+    # Query artifacts across the resolved doc IDs
     all_artifacts = []
     for did in all_doc_ids:
         query_kwargs: dict = {"document_id": did}

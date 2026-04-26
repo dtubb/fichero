@@ -1201,6 +1201,18 @@
             "description": "Offset for pagination"
           },
           {
+            "name": "include_descendants",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include artifacts from children and parent (legacy aggregation). Set false for strict per-document scope \u2014 V2 inspector uses this so delete operations are visibly per-artifact rather than confused by sibling artifacts.",
+              "default": true,
+              "title": "Include Descendants"
+            },
+            "description": "Include artifacts from children and parent (legacy aggregation). Set false for strict per-document scope \u2014 V2 inspector uses this so delete operations are visibly per-artifact rather than confused by sibling artifacts."
+          },
+          {
             "name": "X-Fichero-Library-Path",
             "in": "header",
             "required": true,

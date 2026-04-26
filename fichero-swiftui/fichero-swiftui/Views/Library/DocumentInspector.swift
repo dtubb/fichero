@@ -785,9 +785,13 @@ struct DocumentInspectorContentV2: View {
         isLoading = true
         defer { isLoading = false }
         do {
+            // V2 wants strict per-document scope — see #696/V2 redesign.
+            // The legacy aggregation (parent + children) made delete look
+            // broken because deleting one artifact left a sibling in place.
             artifacts = try await artifactService.getArtifacts(
                 forDocumentId: document.id,
-                forceRefresh: true
+                forceRefresh: true,
+                includeDescendants: false
             )
             loadError = nil
         } catch {

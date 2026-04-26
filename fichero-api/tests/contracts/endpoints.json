@@ -388,6 +388,11 @@
             "name": "offset",
             "required": false,
             "type": "integer"
+          },
+          {
+            "name": "include_descendants",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "request_model": null,
