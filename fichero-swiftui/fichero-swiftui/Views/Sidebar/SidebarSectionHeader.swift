@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -29,9 +30,16 @@ struct LibrarySectionHeader: View {
     let itemCount: Int
     var isCurrentLibrary: Bool = false
     var onFileDrop: (([URL]) -> Bool)?
+    /// In-app drop receiver for sidebar items dragged onto the library
+    /// header — reparents them to the library root (parentId = nil) so
+    /// the user can lift items out of nested folders and then reorder
+    /// them at root via native row drops. Added to satisfy #711's
+    /// "let me drop on the library at the top" workflow.
+    var onSidebarItemDrop: (([String]) -> Void)?
     var onTap: (() -> Void)?
 
     @State private var isDropTargeted = false
+    @State private var isItemDropTargeted = false
 
     var body: some View {
         headerContent
@@ -39,7 +47,11 @@ struct LibrarySectionHeader: View {
             .contentShape(Rectangle())
             .background(
                 RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
-                    .fill(isDropTargeted ? Color.accentColor.opacity(0.25) : Color.clear)
+                    .fill(
+                        (isDropTargeted || isItemDropTargeted)
+                            ? Color.accentColor.opacity(0.25)
+                            : Color.clear
+                    )
             )
         .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
             // #600: UTI-agnostic filter — see SidebarItemRow+DropHandlers
@@ -59,11 +71,18 @@ struct LibrarySectionHeader: View {
             }
             return true
         }
+        .dropDestination(for: SidebarDragID.self, action: { ids, _ in
+            Logger(subsystem: "com.tubb.Fichero", category: "LibraryHeaderDrop")
+                .debug("🎯 LibrarySectionHeader .dropDestination FIRED with \(ids.count) ids")
+            guard let onSidebarItemDrop else { return false }
+            onSidebarItemDrop(ids.map(\.id))
+            return true
+        }, isTargeted: { isItemDropTargeted = $0 })
         // Sidebar plan Step 10 (#584): VoiceOver label reads e.g.
         // "Global, library, 42 documents". Hint guides users toward the
         // Finder-drop behaviour that isn't obvious without visual cues.
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint("Drag files from Finder here to import into this library.")
+        .accessibilityHint("Drag files from Finder here to import into this library, or drop a sidebar item to move it to the library root.")
     }
 
     /// Display name for this library row. "Global" for the global library,

@@ -61,7 +61,7 @@ extension SidebarView {
     }
 
     @ViewBuilder
-    // swiftlint:disable:next function_body_length cyclomatic_complexity
+    // swiftlint:disable:next function_body_length
     private func unifiedLibrarySection(_ libraryHeader: SidebarItem) -> some View {
         if let libraryId = libraryHeader.libraryId,
            let library = libraryManager.getLibrary(id: libraryId) {
@@ -177,6 +177,9 @@ extension SidebarView {
             itemCount: totalCount,
             isCurrentLibrary: library.id == windowState.libraryId,
             onFileDrop: { [library] urls in handleLibraryHeaderDrop(urls, library: library) },
+            onSidebarItemDrop: { [library] droppedIds in
+                handleLibraryHeaderItemDrop(droppedIds: droppedIds, library: library)
+            },
             onTap: {
                 if windowState.libraryId != library.id { windowState.libraryId = library.id }
                 sidebarMode = .library
@@ -247,40 +250,23 @@ extension SidebarView {
         _ items: [SidebarItem],
         libraryId: UUID? = nil
     ) -> some View {
-        // Plain ForEach — no between-row spacer rows (rejected in #620
-        // because they inflated into visible empty gaps).
-        //
-        // Cross-hierarchy insertion lines come from `.overlay` drop
-        // strips on the row's top + bottom edges (3pt each). Overlays
-        // live INSIDE each row's existing frame so they don't allocate
-        // new List rows. The top strip on row N = "insert at offset N";
-        // the bottom strip on the LAST row = "insert at end". Non-last
-        // bottom strips are redundant with the next row's top, so we
-        // skip them.
-        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+        // Cross-hierarchy / cross-section drops at the root level use
+        // `.dropDestination(for:action:)` on the ForEach — SwiftUI's
+        // built-in between-row insertion API, which receives the offset
+        // natively (no custom overlay strip needed). Same-section
+        // reorder still goes through `.onMove` and shows the system's
+        // row-drop indicator.
+        ForEach(Array(items.enumerated()), id: \.element.id) { _, item in
             unifiedRow(for: item)
-                .overlay(alignment: .top) {
-                    SidebarInsertionLine { droppedIds in
-                        handleExternalInsertionDrop(
-                            droppedIds: droppedIds,
-                            at: index,
-                            into: items,
-                            libraryId: libraryId
-                        )
-                    }
-                }
-                .overlay(alignment: .bottom) {
-                    if index == items.count - 1 {
-                        SidebarInsertionLine { droppedIds in
-                            handleExternalInsertionDrop(
-                                droppedIds: droppedIds,
-                                at: index + 1,
-                                into: items,
-                                libraryId: libraryId
-                            )
-                        }
-                    }
-                }
+        }
+        .dropDestination(for: SidebarDragID.self) { ids, offset in
+            sidebarRowLogger.debug("🎯 unifiedRows .dropDestination FIRED with \(ids.count) ids at offset \(offset)")
+            handleExternalInsertionDrop(
+                droppedIds: ids.map(\.id),
+                at: offset,
+                into: items,
+                libraryId: libraryId
+            )
         }
         .onMove { source, destination in
             handleUnifiedRowsMove(source: source, destination: destination, items: items, libraryId: libraryId)
@@ -341,9 +327,10 @@ extension SidebarView {
     @ViewBuilder
     private func unifiedRow(for item: SidebarItem) -> some View {
         // `.moveDisabled` blocks AppKit-level reorder drag on Inbox
-        // (#621). `.draggable` alone is insufficient because `.onMove`
-        // on the ForEach lets the List's underlying NSTableView drag
-        // any row for reorder, bypassing the `.draggable` gate.
+        // (#621). `.draggable` lives here on the row container — not
+        // inside SidebarItemRow's body — so NSTableView's native
+        // row-drag picks up the Transferable uniformly across the
+        // whole row (including taps on the inner icon/name).
         let row = SidebarItemRow(
             item: item,
             allCachedItems: allCachedItems,
@@ -357,6 +344,7 @@ extension SidebarView {
             libraryManager: libraryManager
         )
         .contentShape(Rectangle())
+        .draggable(item.icon == "tray.fill" ? SidebarDragID(id: "") : SidebarDragID(id: item.id))
         .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 8))
         .moveDisabled(item.icon == "tray.fill")
         .tag(item.id)
@@ -697,61 +685,22 @@ extension SidebarView {
         }
         return true
     }
-}
 
-// MARK: - Insertion Line Overlay
-
-/// Edge-aligned overlay strip that acts as a cross-hierarchy
-/// drop target. Lives INSIDE a row's own frame (no new List row =
-/// no empty gap regression from #620). 3pt hit region; paints a
-/// 2pt accent line when targeted so it reads as an insertion
-/// indicator between rows.
-///
-/// Only internal sidebar drags (utf8PlainText from `.draggable(item.id)`)
-/// route through this handler — Finder drops still hit the inner
-/// row's `.onDrop` and go through the file-import path.
-struct SidebarInsertionLine: View {
-    let onDrop: (_ droppedIds: [String]) -> Void
-
-    @State private var isTargeted = false
-
-    var body: some View {
-        Rectangle()
-            .fill(isTargeted ? Color.accentColor : Color.clear)
-            .frame(height: isTargeted ? 2 : 3)
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
-            .allowsHitTesting(true)
-            .onDrop(of: [UTType.utf8PlainText], isTargeted: $isTargeted) { providers in
-                let textProviders = providers.filter {
-                    $0.canLoadObject(ofClass: NSString.self)
-                }
-                guard !textProviders.isEmpty else { return false }
-                Task {
-                    var ids: [String] = []
-                    for provider in textProviders {
-                        if let str = try? await Self.loadString(from: provider) {
-                            ids.append(str)
-                        }
-                    }
-                    guard !ids.isEmpty else { return }
-                    await MainActor.run { onDrop(ids) }
-                }
-                return true
+    /// Reparents sidebar documents dropped onto the library header to
+    /// the library root (parentId = nil). After this lands, the user
+    /// can drag-reorder the items at root level via native between-row
+    /// drops. Saved-search / workflow / chain IDs are filtered out —
+    /// they don't belong at the doc-tree root.
+    func handleLibraryHeaderItemDrop(droppedIds: [String], library: LibraryManager.LibraryReference) {
+        let bareIds = droppedIds
+            .filter { $0.hasPrefix("doc:") }
+            .map { extractActualId(from: $0) }
+        guard !bareIds.isEmpty else { return }
+        Task {
+            for bareId in bareIds {
+                _ = try? await library.documentStore.moveDocument(bareId, toParent: nil)
             }
-    }
-
-    private static func loadString(from provider: NSItemProvider) async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
-            _ = provider.loadObject(ofClass: NSString.self) { value, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let nsString = value as? NSString {
-                    continuation.resume(returning: nsString as String)
-                } else {
-                    continuation.resume(throwing: NSError(domain: "SidebarInsertionLine", code: -1))
-                }
-            }
+            await library.documentStore.refresh()
         }
     }
 }

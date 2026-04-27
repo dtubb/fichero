@@ -128,10 +128,17 @@ struct SidebarItemRow: View {
         )
     }
 
-    /// Widens `itemLabel`'s hit region to the full available width so the
-    /// dropDestination fires when the cursor is anywhere over the row, not
-    /// just the icon+text. Tight vertical padding to match Xcode's dense
+    /// Widens `itemLabel`'s hit region to the full available width so
+    /// drops fire when the cursor is anywhere over the row, not just on
+    /// the icon+text. Tight vertical padding to match Xcode's dense
     /// sidebar rhythm (~18pt row height).
+    ///
+    /// No `.draggable` here — that lives on the outer row container in
+    /// the `ForEach`. A `.draggable` placed inside a `DisclosureGroup`
+    /// label's `NSHostingView` creates a side-channel drag session that
+    /// bypasses NSTableView's row-drag mechanism, producing a small
+    /// label-only preview and silently skipping `.dropDestination` on
+    /// the ForEach (#711).
     private var fullWidthLabel: some View {
         itemLabel
             .padding(.vertical, 1)
@@ -229,14 +236,23 @@ struct SidebarItemRow: View {
 
     var body: some View {
         bodyContent
-            // DisclosureGroup label and .onDrag both watch mouse-down and
-            // compete with List(selection:) for the tap event, causing
+            // DisclosureGroup label and the row drag both watch mouse-down
+            // and compete with List(selection:) for the tap event, causing
             // intermittent click failures on icon/text (#645). A
             // simultaneousGesture forces the selection binding to update
             // regardless of which other handler wins the gesture arena.
             .simultaneousGesture(TapGesture().onEnded {
                 selectedItemId = item.id
             })
+            // SwiftUI `Text` registers itself as an NSDraggingSource for
+            // selectable text on macOS. That AppKit-level drag source
+            // wins over the row container's `.draggable`, producing a
+            // text-only drag (icon+name preview, not the full row, and
+            // bypassing our SidebarDragID Transferable so drops don't
+            // fire). Disabling text selection takes Text out of the
+            // drag arena so the row's `.draggable` is the sole drag
+            // source (#711).
+            .textSelection(.disabled)
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint(accessibilityHint)
             .accessibilityValue(accessibilityValue)
@@ -317,7 +333,7 @@ struct SidebarItemRow: View {
     /// drops match without enumerating each concrete UTI.
     @ViewBuilder
     private var folderLabel: some View {
-        let labelBase = fullWidthLabel
+        fullWidthLabel
             .sidebarDropHighlight(isDropTargeted, stronger: true)
             .onDrop(
                 of: [UTType.utf8PlainText, UTType.item],
@@ -326,18 +342,13 @@ struct SidebarItemRow: View {
                 handleRowDrop(providers)
             }
             .contextMenu { rowContextMenu }
-
-        if isInboxFolder {
-            labelBase
-        } else {
-            labelBase.draggable(SidebarDragID(id: item.id))
-        }
     }
 
-    /// Leaf row: drag source only.
+    /// Leaf row: no inner gestures — `.draggable` is applied one level
+    /// up at the row container so clicks on icon/text aren't delayed by
+    /// SwiftUI's tap-vs-drag disambiguation (#711 follow-up).
     private var leafLabel: some View {
         fullWidthLabel
-            .draggable(SidebarDragID(id: item.id))
             .contextMenu { rowContextMenu }
     }
 
@@ -403,11 +414,13 @@ struct SidebarItemRow: View {
 
     @ViewBuilder
     private func childrenList(_ children: [SidebarItem]) -> some View {
-        // Cross-hierarchy insertion lines via `.overlay` strips on
-        // each row's top + bottom edge (3pt hit region, 2pt accent
-        // line when targeted). Overlays live inside each row's frame
-        // so they don't allocate new List rows (#620).
-        ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
+        // Cross-hierarchy / cross-section drops use SwiftUI's native
+        // `.dropDestination(for:action:)` on the ForEach (DynamicViewContent)
+        // which exposes the insertion offset — the same `.above`-targeting
+        // capability NSTableView has, just one level up. Same-section
+        // reorder via the row's native drag handle still goes through
+        // `.onMove` and shows the system's row-drop indicator.
+        ForEach(Array(children.enumerated()), id: \.element.id) { _, child in
             SidebarItemRow(
                 item: child,
                 allCachedItems: allCachedItems,
@@ -418,24 +431,22 @@ struct SidebarItemRow: View {
                 libraryManager: libraryManager
             )
             .contentShape(Rectangle())
+            // `.draggable` BEFORE `.tag` so NSTableView's row-drag
+            // mechanism arms the Transferable at the row level before
+            // the row identity is bound. Apple's ArticleCollectionView
+            // sample puts `.draggable` directly on the leaf cell view
+            // with no intervening `.tag` — order matters here.
+            .draggable(child.icon == "tray.fill" ? SidebarDragID(id: "") : SidebarDragID(id: child.id))
             .moveDisabled(child.icon == "tray.fill")
             .tag(child.id)
-            .overlay(alignment: .top) {
-                SidebarInsertionLine { droppedIds in
-                    handleNestedInsertionDrop(droppedIds: droppedIds, at: index, into: children)
-                }
-            }
-            .overlay(alignment: .bottom) {
-                if index == children.count - 1 {
-                    SidebarInsertionLine { droppedIds in
-                        handleNestedInsertionDrop(
-                            droppedIds: droppedIds,
-                            at: index + 1,
-                            into: children
-                        )
-                    }
-                }
-            }
+        }
+        .dropDestination(for: SidebarDragID.self) { ids, offset in
+            sidebarRowLogger.debug("🎯 nested .dropDestination FIRED with \(ids.count) ids at offset \(offset)")
+            handleNestedInsertionDrop(
+                droppedIds: ids.map(\.id),
+                at: offset,
+                into: children
+            )
         }
         .onMove { source, destination in
             if source.contains(where: { children[$0].icon == "tray.fill" }) {

@@ -2,13 +2,19 @@ import SwiftUI
 
 extension SidebarItemRow {
     var itemLabel: some View {
-        // Standard macOS sidebar label — no foreground-color overrides.
-        // `.listStyle(.sidebar)` automatically inverts text and icon
-        // colors on the selected row (primary → white on accent-blue),
-        // same as Finder / Mail / Music. Previous code set selected text
-        // to `.accentColor`, which read blue-on-blue against the native
-        // selection highlight and made the row unreadable.
-        Label {
+        // Manual HStack instead of `Label { ... } icon: { ... }`:
+        // SwiftUI's `Label` registers its inner `Text` as an
+        // `NSDraggingSource` at AppKit level on macOS, which wins
+        // over a `.draggable` on a parent ancestor and produces a
+        // text-only drag (icon+name preview, bypassing our
+        // SidebarDragID Transferable). Composing the row with a
+        // plain `HStack { Image; Text }` keeps the visual identical
+        // but lets the row container's `.draggable` be the sole
+        // drag source (#711). Sidebar selection styling (white-on-
+        // accent for selected row) still works because we're inside
+        // `.listStyle(.sidebar)` and use `.foregroundStyle(.primary)`.
+        HStack(spacing: 6) {
+            iconView
             if renameState.renamingItemId == item.id {
                 renameField
             } else {
@@ -23,37 +29,6 @@ extension SidebarItemRow {
                 // Rename is still reachable via right-click → Rename (see
                 // SidebarItemContextMenu).
             }
-        } icon: {
-            if workflowIsRunning {
-                ZStack {
-                    Circle()
-                        .fill(Color.purple.opacity(isPulsing ? 0.4 : 0.15))
-                        .frame(width: 20, height: 20)
-                        .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isPulsing)
-                    ProgressView()
-                        .controlSize(.small)
-                        .scaleEffect(0.8)
-                }
-            } else if case .document(let doc) = item.itemType,
-                      let badge = ingestBadge(for: doc) {
-                // #603: visible per-mode badges driven by metadata.ingest_mode
-                // exposed in 8eb002cf. LINK shows a Finder-style alias arrow,
-                // MOVE shows an arrow-into-box, COPY shows no badge (default).
-                ZStack(alignment: .bottomTrailing) {
-                    Image(systemName: item.icon)
-                    Image(systemName: badge.symbol)
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white, badge.color)
-                        .background(
-                            Circle()
-                                .fill(.background)
-                                .frame(width: 13, height: 13)
-                        )
-                        .offset(x: 4, y: 4)
-                }
-            } else {
-                Image(systemName: item.icon)
-            }
         }
         .onChange(of: workflowIsRunning) { _, isRunning in
             isPulsing = isRunning
@@ -62,6 +37,43 @@ extension SidebarItemRow {
             if workflowIsRunning {
                 isPulsing = true
             }
+        }
+    }
+
+    @ViewBuilder
+    private var iconView: some View {
+        if workflowIsRunning {
+            ZStack {
+                Circle()
+                    .fill(Color.purple.opacity(isPulsing ? 0.4 : 0.15))
+                    .frame(width: 20, height: 20)
+                    .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isPulsing)
+                ProgressView()
+                    .controlSize(.small)
+                    .scaleEffect(0.8)
+            }
+            .frame(width: 20, height: 20)
+        } else if case .document(let doc) = item.itemType,
+                  let badge = ingestBadge(for: doc) {
+            // #603: visible per-mode badges driven by metadata.ingest_mode
+            // exposed in 8eb002cf. LINK shows a Finder-style alias arrow,
+            // MOVE shows an arrow-into-box, COPY shows no badge (default).
+            ZStack(alignment: .bottomTrailing) {
+                Image(systemName: item.icon)
+                Image(systemName: badge.symbol)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white, badge.color)
+                    .background(
+                        Circle()
+                            .fill(.background)
+                            .frame(width: 13, height: 13)
+                    )
+                    .offset(x: 4, y: 4)
+            }
+            .frame(width: 16, alignment: .center)
+        } else {
+            Image(systemName: item.icon)
+                .frame(width: 16, alignment: .center)
         }
     }
 
