@@ -5,6 +5,29 @@ import UniformTypeIdentifiers
 
 let sidebarRowLogger = Logger(subsystem: "com.tubb.Fichero", category: "SidebarRow")
 
+/// Transferable wrapper for sidebar row drags (#711).
+///
+/// Two reasons this exists rather than `.draggable(item.id)` directly:
+///   1. `visibility(.ownProcess)` keeps the drag invisible to external
+///      apps, preserving the #623 fix that prevented Finder from
+///      depositing an HTML link artifact when dragging out of the sidebar.
+///   2. Advertising a Transferable on the row makes AppKit's NSTableView
+///      row-drag (which List uses under the hood) pull THIS payload
+///      instead of synthesizing an empty `public.file-url` when it wins
+///      the gesture arena over `.onDrag` — the root cause of #711's
+///      "Files dropped: [\"\"]" leak when grabbing from icon/text.
+///
+/// The bridged NSItemProvider responds to `loadObject(ofClass: NSString.self)`
+/// in-process, which is what `SidebarItemRow.handleRowDrop` already filters
+/// for — so the drop pipeline didn't need migrating.
+struct SidebarDragID: Transferable {
+    let id: String
+    static var transferRepresentation: some TransferRepresentation {
+        ProxyRepresentation(exporting: \.id)
+            .visibility(.ownProcess)
+    }
+}
+
 extension View {
     /// Applies the sidebar drop-target highlight (accent fill + stroke) to
     /// any view. Placed on the OUTER expression of a SidebarItemRow body
@@ -307,24 +330,15 @@ struct SidebarItemRow: View {
         if isInboxFolder {
             labelBase
         } else {
-            labelBase.onDrag { sidebarInternalDrag() }
+            labelBase.draggable(SidebarDragID(id: item.id))
         }
     }
 
     /// Leaf row: drag source only.
     private var leafLabel: some View {
         fullWidthLabel
-            .onDrag { sidebarInternalDrag() }
+            .draggable(SidebarDragID(id: item.id))
             .contextMenu { rowContextMenu }
-    }
-
-    /// Returns an NSItemProvider that is invisible to other processes.
-    /// This prevents drag-out to external apps (which was depositing
-    /// an HTML link artifact — #623) while keeping in-app reordering intact.
-    private func sidebarInternalDrag() -> NSItemProvider {
-        let provider = NSItemProvider()
-        provider.registerObject(item.id as NSString, visibility: .ownProcess)
-        return provider
     }
 
     /// Optimistic accept: any provider that can produce a URL or String
