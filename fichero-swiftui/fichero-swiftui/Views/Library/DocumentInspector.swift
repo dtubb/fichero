@@ -303,6 +303,7 @@ struct ArtifactPanel: View {
     @State private var isSaving: Bool = false
     @State private var saveError: String?
     @State private var autoSaveTask: Task<Void, Never>?
+    @State private var lastSeededContent: String = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -355,11 +356,6 @@ struct ArtifactPanel: View {
                     .truncationMode(.middle)
             }
             Spacer()
-            if let timestamp = timestamp {
-                Text(timestamp)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
             // Always-visible action buttons — gating them on hover meant
             // they vanished as the user moved the cursor off the panel
             // toward the button (Daniel feedback 2026-04-26). Stable
@@ -412,53 +408,60 @@ struct ArtifactPanel: View {
     }
 
     // MARK: - Content body
-
+    //
+    // Always render via AttributedTextEditor — toggling between a plain
+    // Text(read) and an editor(edit) was stripping formatting in the read
+    // view (Daniel: "not displaying the rtf, unless I click [edit]") and
+    // was responsible for the per-panel layout looking inconsistent. One
+    // editor for both modes, isEditable flips the cursor/typing behavior.
     @ViewBuilder
     private var contentBody: some View {
-        if isEditing {
-            VStack(alignment: .leading, spacing: 4) {
-                AttributedTextEditor(
-                    text: $draftAttributedText,
-                    isEditable: true,
-                    rulersVisible: rulersVisible,
-                    fontName: fontName,
-                    fontSize: fontSize,
-                    lineSpacing: lineSpacing,
-                    marginH: marginH,
-                    marginV: marginV,
-                    contentRevision: editorRevision,
-                    onTextChanged: { scheduleAutoSave() },
-                    onEditingChanged: { editing in
-                        if !editing { Task { await flushAutoSave() } }
+        VStack(alignment: .leading, spacing: 4) {
+            AttributedTextEditor(
+                text: $draftAttributedText,
+                isEditable: isEditing,
+                rulersVisible: isEditing && rulersVisible,
+                fontName: fontName,
+                fontSize: fontSize,
+                lineSpacing: lineSpacing,
+                marginH: marginH,
+                marginV: marginV,
+                contentRevision: editorRevision,
+                onTextChanged: {
+                    if isEditing { scheduleAutoSave() }
+                },
+                onEditingChanged: { editing in
+                    if !editing && isEditing {
+                        Task { await flushAutoSave() }
                     }
-                )
-                .frame(minHeight: 200, maxHeight: 600)
-                .background(Color(.textBackgroundColor))
-                .cornerRadius(4)
-                if let saveError {
-                    Text(saveError)
-                        .font(.caption)
-                        .foregroundStyle(.red)
                 }
+            )
+            .frame(minHeight: 240, maxHeight: .infinity)
+            .background(Color(.textBackgroundColor))
+            .cornerRadius(4)
+            if let saveError {
+                Text(saveError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
             }
-        } else {
-            ScrollView {
-                Text(bodyText)
-                    .font(.body)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(maxHeight: 400)
+        }
+        .task(id: rawArtifactContent) {
+            // Re-seed when the artifact content changes (e.g. after a workflow
+            // re-run rewrites it). Don't re-seed if the user is mid-edit —
+            // their draft survives until they Done or blur.
+            guard !isEditing, lastSeededContent != rawArtifactContent else { return }
+            draftAttributedText = decodeArtifactContent(rawArtifactContent)
+            lastSeededContent = rawArtifactContent
+            editorRevision += 1
         }
     }
 
     // MARK: - Edit mode helpers
 
     private func enterEdit() {
-        // Seed the draft from whatever the artifact actually stores —
-        // decodeArtifactContent handles both plain and {\rtf...} content.
-        draftAttributedText = decodeArtifactContent(rawArtifactContent)
-        editorRevision += 1
+        // The draft is already seeded by the .task(id: rawArtifactContent)
+        // modifier on contentBody — no need to re-decode here. Just flip
+        // isEditable.
         isEditing = true
         saveError = nil
     }

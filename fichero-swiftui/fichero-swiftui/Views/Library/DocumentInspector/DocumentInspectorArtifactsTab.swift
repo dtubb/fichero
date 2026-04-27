@@ -166,8 +166,10 @@ struct DocumentInspectorArtifactsTab: View {
             // Content preview — longer line limit for catalogue-scale artifacts
             // (summary/narrative), tight limit for list-style artifacts where
             // the structured data rendering below carries the real content.
+            // RTF source ({\rtf1...}) is decoded to its plain projection so
+            // the Info tab doesn't dump raw markup at the user.
             if let content = artifact.content, !content.isEmpty {
-                Text(content)
+                Text(plainProjection(of: content))
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .lineLimit(lineLimitForArtifactType(artifact.artifactType))
@@ -187,6 +189,23 @@ struct DocumentInspectorArtifactsTab: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    /// Strip raw RTF source for the Info tab preview. When the artifact's
+    /// content was stored as inline RTF ({\rtf1...} from the V2 editor),
+    /// rendering it as plain Text dumps the markup at the user. Decode and
+    /// return .string instead. Plain content passes through unchanged.
+    private func plainProjection(of content: String) -> String {
+        guard content.hasPrefix("{\\rtf"),
+              let data = content.data(using: .utf8),
+              let attr = try? NSAttributedString(
+                  data: data,
+                  options: [.documentType: NSAttributedString.DocumentType.rtf],
+                  documentAttributes: nil
+              ) else {
+            return content
+        }
+        return attr.string
     }
 
     private func lineLimitForArtifactType(_ type: String) -> Int {
