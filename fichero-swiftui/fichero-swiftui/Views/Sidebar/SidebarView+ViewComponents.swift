@@ -280,9 +280,17 @@ extension SidebarView {
         items: [SidebarItem],
         libraryId: UUID?
     ) {
+        sidebarRowLogger.debug("🔵 unifiedRows .onMove FIRED — source=\(source.map(\.description).joined(separator: ",")) dest=\(destination) items=\(items.count)")
+
         // Defensive Inbox guard (belt + suspenders with `.moveDisabled`).
-        if source.contains(where: { items[$0].icon == "tray.fill" }) { return }
-        guard let libraryId, let library = libraryManager.getLibrary(id: libraryId) else { return }
+        if source.contains(where: { items[$0].icon == "tray.fill" }) {
+            sidebarRowLogger.debug("🔵 unifiedRows .onMove BAILED — Inbox guard")
+            return
+        }
+        guard let libraryId, let library = libraryManager.getLibrary(id: libraryId) else {
+            sidebarRowLogger.debug("🔵 unifiedRows .onMove BAILED — no libraryId/library")
+            return
+        }
 
         // Dispatch by section kind — documents, saved searches, and workflows
         // each have their own reorder endpoint (#611).

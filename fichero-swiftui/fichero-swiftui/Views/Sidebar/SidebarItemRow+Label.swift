@@ -15,11 +15,26 @@ extension SidebarItemRow {
         // `.listStyle(.sidebar)` and use `.foregroundStyle(.primary)`.
         HStack(spacing: 6) {
             iconView
+                .allowsHitTesting(false)
             if renameState.renamingItemId == item.id {
                 renameField
             } else {
                 Text(item.name)
                     .lineLimit(1)
+                    .allowsHitTesting(false)
+                // `.allowsHitTesting(false)` on the Text (and Image) is
+                // critical: SwiftUI `Text` on macOS registers itself as
+                // an AppKit `NSDraggingSource` for selectable text, which
+                // intercepts press-and-drag from the name area BEFORE the
+                // row container's `.draggable` sees it — producing a
+                // text-flavored drag that bypasses our `.dropDestination`
+                // (#713). Disabling hit-testing on the Text makes presses
+                // fall through to the parent's `.contentShape(Rectangle())`
+                // so the row's `.draggable` claims them uniformly. The
+                // outer `.simultaneousGesture(TapGesture)` on the row body
+                // still fires for selection because contentShape provides
+                // the clickable surface.
+                //
                 // No inline double-tap-to-rename gesture: `.simultaneousGesture
                 // (TapGesture(count: 2))` causes SwiftUI to hold every single
                 // click for ~0.5s waiting for a potential second click, which
