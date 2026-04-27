@@ -1127,3 +1127,15 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 **Tests**: 1860 backend tests passing (was 1821). Added: `test_catalogue.py` (19), `test_default_workflows.py` (8), `test_skip_if_artifact_exists.py` (9), `test_user_edit_protection.py` (3). Added Swift `CatalogueArtifactPreviewsTests.swift` + `FeatureManagerToolAllowlistTests.swift`.
 
 **Release readiness**: catalogue workflow works end-to-end pending Xcode build + smoke test. Search backport from 0.0.3 remains an open decision (3762 insertions / 12846 deletions in 0.0.3 — cherry-picking is risky).
+
+## 2026-04-27 — Session Summary
+
+- Inspector V2 polish: equal-divide panel heights via GeometryReader, ScrollView only when count > 1, full-width panels (no box outline), asymmetric horizontal padding via `NSScrollView.contentInsets` so editor reaches the panel's right edge.
+- Format menu: added View → Show / Hide Ruler (⌃⌘R) and View → Find in Artifact (⌘F). Ruler binds to `editor.rulersVisible` AppStorage; Find sends `performFindPanelAction:` down responder chain to the focused NSTextView's inline find bar.
+- Removed V1 inspector entirely: deleted feature flag `inspector_v2`, dropped `isInspectorV2Enabled`, reduced `DocumentInspectorContentTab.swift` and `DocumentInspectorContentState.swift` to one-line stubs (pbxproj refs left intact).
+- Tests added: backend `TestIncludeDescendantsScope` (3), `TestUpdateArtifact` (4), `TestIngestModeMetadata` (2), `TestCollapseDuplicateProviders` (2). Swift `RichTextControllerTests` (3) + `FindBarSelectorTests` (2). All passing.
+- Updated `docs/architecture/swiftui/inspector_redesign.md` with Phase 2 shipped section.
+- Updated `CHANGELOG.md` 0.0.2 with inspector V2, ruler/find menu items, per-page artifacts, cache-hit indicator, V1 removal note, and bug fixes.
+- Filed issues for skipped tests on 0.0.3: #707 (per-page artifact propagation), #708 (cache-hit event field), #709 (RLock concurrency), #710 (RTF encode/decode round-trip).
+- Filed #711 on 0.0.2: unify sidebar icon/text + row-body drag paths via `.draggable` Transferable. Diagnosed root cause: `.simultaneousGesture(TapGesture())` from #645 lets NSTableView's row-drag win on icon/text, producing empty file URLs that leak to the window-level drop handler. Two-code-paths is real, not a quick patch — needs a focused session.
+- Investigated and rejected SwiftUI floating format-strip via `addFloatingSubview`. AppKit's native ruler view (Styles / alignment / Spacing / Lists) is what Tinderbox uses; `usesRuler = true` + `rulersVisible = true` is enough.

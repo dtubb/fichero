@@ -1,6 +1,19 @@
 import AppKit
 import SwiftUI
 
+/// Holds a weak reference to the NSTextView backing an AttributedTextEditor so
+/// a SwiftUI format toolbar (bold/italic/underline/etc.) can drive it without
+/// the textview having to be first responder.
+@MainActor
+final class RichTextController: ObservableObject {
+    weak var textView: NSTextView?
+
+    func toggleTrait(_ selector: Selector) {
+        guard let textView else { return }
+        _ = textView.perform(selector, with: nil)
+    }
+}
+
 /// NSViewRepresentable for rich text editing with NSTextView
 struct AttributedTextEditor: NSViewRepresentable {
     @Binding var text: NSAttributedString
@@ -14,6 +27,16 @@ struct AttributedTextEditor: NSViewRepresentable {
     let contentRevision: Int
     let onTextChanged: () -> Void
     let onEditingChanged: (Bool) -> Void
+
+    // Asymmetric horizontal padding. Default to symmetric `marginH` for back-compat
+    // with V1 inspector callers; V2 inspector overrides trailing to 0 so the
+    // editor reaches the panel's right edge (flush with the scrollbar).
+    var marginLeading: Double?
+    var marginTrailing: Double?
+    var controller: RichTextController?
+
+    private var leadingInset: CGFloat { CGFloat(marginLeading ?? marginH) }
+    private var trailingInset: CGFloat { CGFloat(marginTrailing ?? marginH) }
 
     private var resolvedFont: NSFont {
         if fontName == "System" {
@@ -30,8 +53,14 @@ struct AttributedTextEditor: NSViewRepresentable {
         textView.allowsUndo = true
         textView.allowsDocumentBackgroundColorChange = true
         textView.usesFindBar = true
+        // AppKit's inspector bar attaches at the window scope (above tabs),
+        // not above the text view itself — wrong place for our per-panel
+        // editor. We render a SwiftUI format bar above the editor in
+        // ArtifactPanel instead.
         textView.usesInspectorBar = false
-        textView.usesRuler = true
+        // Bind usesRuler to the global toggle so the ruler can NEVER pop in
+        // when the user clicks to edit. Either it shows always, or never.
+        textView.usesRuler = rulersVisible
         textView.usesFontPanel = true
         textView.importsGraphics = true
         textView.isAutomaticTextCompletionEnabled = true
@@ -48,7 +77,10 @@ struct AttributedTextEditor: NSViewRepresentable {
         textView.backgroundColor = .textBackgroundColor
         textView.textColor = .labelColor
         textView.font = resolvedFont
-        textView.textContainerInset = NSSize(width: marginH, height: marginV)
+        // textContainerInset is symmetric in AppKit. Use 0 here and let
+        // the surrounding NSScrollView's contentInsets carry asymmetric
+        // leading/trailing padding (set in makeNSView/updateNSView).
+        textView.textContainerInset = NSSize(width: 0, height: marginV)
         textView.defaultParagraphStyle = {
             let style = NSMutableParagraphStyle()
             style.lineSpacing = CGFloat(lineSpacing)
@@ -65,6 +97,10 @@ struct AttributedTextEditor: NSViewRepresentable {
         scrollView.hasHorizontalScroller = false
         scrollView.hasHorizontalRuler = true
         scrollView.rulersVisible = rulersVisible
+        scrollView.automaticallyAdjustsContentInsets = false
+        scrollView.contentInsets = NSEdgeInsets(
+            top: 0, left: leadingInset, bottom: 0, right: trailingInset
+        )
         scrollView.borderType = .noBorder
         scrollView.drawsBackground = true
         scrollView.backgroundColor = .textBackgroundColor
@@ -81,15 +117,23 @@ struct AttributedTextEditor: NSViewRepresentable {
         scrollView.documentView = textView
         context.coordinator.textView = textView
         context.coordinator.lastAppliedRevision = contentRevision
+        controller?.textView = textView
+
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = context.coordinator.textView else { return }
+        if controller?.textView !== textView { controller?.textView = textView }
         textView.isEditable = isEditable
+        textView.usesRuler = rulersVisible
+        textView.usesInspectorBar = false
         scrollView.rulersVisible = rulersVisible
+        scrollView.contentInsets = NSEdgeInsets(
+            top: 0, left: leadingInset, bottom: 0, right: trailingInset
+        )
 
-        textView.textContainerInset = NSSize(width: marginH, height: marginV)
+        textView.textContainerInset = NSSize(width: 0, height: marginV)
         let paraStyle = NSMutableParagraphStyle()
         paraStyle.lineSpacing = CGFloat(lineSpacing)
         textView.defaultParagraphStyle = paraStyle
@@ -143,6 +187,7 @@ struct AttributedTextEditor: NSViewRepresentable {
     final class Coordinator: NSObject, NSTextViewDelegate {
         @Binding var text: NSAttributedString
         weak var textView: NSTextView?
+
         var isApplyingModelUpdate = false
         var lastAppliedRevision = 0
         var lastTypographySignature = ""
@@ -187,3 +232,5 @@ struct AttributedTextEditor: NSViewRepresentable {
         )
     }
 }
+
+

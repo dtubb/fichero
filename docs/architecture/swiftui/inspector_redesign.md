@@ -116,20 +116,99 @@ Out of scope this phase:
 - Notes-as-artifact migration.
 - Removing the old code.
 
-### Phase 2 — later
+### Phase 2 — shipped (2026-04-27)
 
-- Add a `notes` artifact type on the backend.
-- Migrate existing `page_content` + `page_content_rtf` data into a `notes` artifact per document.
-- Make the V2 Notes panel editable (single source of truth: the artifact row).
+Implemented in `0.0.2` rather than waiting for a follow-up release because the
+brittleness of the V1 single-slot model was producing recurring bugs during
+testing.
+
+- Per-panel **edit-in-place** with auto-save (800ms debounce); RTF round-trip
+  through `Components.Schemas.ArtifactUpdate.content` — typed field, not
+  `additionalProperties` (see `docs/architecture/swiftui/api_client.md`).
+- Per-panel **delete** with `confirmationDialog` and optimistic removal from
+  the inspector list.
+- Backend `GET /api/artifacts/document/{doc_id}` gained an
+  `include_descendants: bool = True` query param. V2 passes `false` for strict
+  per-document scope; V1's aggregating behavior (doc + page children + parent)
+  stays as the default to avoid breaking the old inspector.
+- Backend `PUT /api/artifacts/{artifact_id}` route added with
+  `ArtifactUpdate { content?, reviewed? }`. Provider/model/version are
+  immutable provenance, never overwritten by the editor.
+- **Equal-divide layout**: 1 panel fills, 2 panels split half, 3 split third,
+  etc. Wrapped in `ScrollView` only when `panelCount > 1` and the available
+  height drops below the 200pt min.
+- **Asymmetric horizontal padding**: `NSScrollView.contentInsets` carries
+  `marginLeading: marginH, marginTrailing: 0` so the editor's right edge is
+  flush with the panel — scroll bar no longer floats with empty pixels.
+  `NSTextView.textContainerInset.width` stays 0 (it's symmetric).
+- **Always-editable** panels (no edit-mode toggle). The trash and the
+  spinner/check save indicator are visible at all times.
+- **AppKit ruler + format strip** drives formatting: `usesRuler = true` +
+  `rulersVisible = true` shows the `Styles / alignment / Spacing / Lists`
+  segmented controls (this is `NSTextRulerView` — same thing Tinderbox
+  uses; nothing custom).
+- **View → Show / Hide Ruler** (⌃⌘R) toggles `editor.rulersVisible` AppStorage,
+  which propagates to every editor in the inspector simultaneously.
+- **View → Find in Artifact** (⌘F) sends `performFindPanelAction:` down the
+  responder chain. The focused panel's `NSTextView` shows its inline find
+  bar (because `usesFindBar = true`). It's per-artifact, distinct from
+  app-wide search.
+- `RichTextController` (small `ObservableObject` with a weak `NSTextView`
+  ref) is wired through but currently unused — the AppKit ruler covers the
+  format-bar need. Kept around for the future custom-attribute schema work.
+
+### Phase 2 — deferred
+
+- `notes` artifact type on the backend (still `page_content` + `metadata
+  .page_content_rtf` for back-compat).
 - Side-by-side comparison toggle.
-- Remove the old `ContentTab`, `ContentState`, `AttributedTextEditor` typography-override branch.
-- Promote V2 to default-on.
+- Remove the old `ContentTab`/`ContentState` and the typography-override
+  branch in `AttributedTextEditor`.
+- Promote V2 to default-on (currently `inspector_v2` flag, off by default).
 
-### Phase 3 — much later
+### Phase 3 — 0.0.3: user-defined attribute schema (Daniel 2026-04-27)
 
-- User-configurable Display Attributes (which keys show in the strip).
-- Per-panel actions (copy, export, regenerate).
-- Drag a panel out into a separate window (Tinderbox-like).
+The artifact-type system today is a flat string (`transcription`, `catalogue`,
+`key_people`, etc.). The renderer guesses an icon from that string. There's
+no concept of "what data shape does this artifact carry" — so the inspector
+shows a single text panel for every type, even when the underlying data is
+a list of names or a structured date.
+
+Daniel's proposal: **a user-editable attribute schema in Settings.** Each
+attribute defines:
+
+- **Name** (e.g. `transcription`, `people`, `dates`, `signature`).
+- **Payload type**: `rich_text` (RTF), `plain_text`, `list`, `date`, `boolean`,
+  `scalar`, `svg`, `image`, `json`, …
+- **Display widget**: how the inspector renders it. Derived from payload type
+  by default; user can override (a `list` could render as comma-separated
+  inline, or as a vertical bullet list, or as a tag cloud).
+- **AI prompt template**: when a workflow tool emits this attribute, what
+  prompt does the LLM run? What output format does it expect?
+- **Canonical-form rules**: e.g. dates normalize via `dateutil.parse` then
+  re-emit ISO-8601.
+
+This makes the system end-to-end coherent:
+
+1. User defines a `signature` attribute as `svg`.
+2. AI tool registered to `signature` emits SVG.
+3. Inspector renders the panel as an SVG preview, editable as text.
+4. Future cross-document queries on `signature` know the schema.
+
+Implementation outline (0.0.3):
+
+- New backend table `attribute_schema(name, payload_type, widget, prompt,
+  canonical_rules)` plus REST CRUD.
+- Pydantic model + OpenAPI regen.
+- `Artifact.payload_type` (or rather, derived from `artifact_type` →
+  `attribute_schema.payload_type`) so existing artifacts get a shape without
+  data migration.
+- Inspector V2 panels render based on the resolved schema's widget.
+- Settings → Attributes UI: list, add, edit, delete schema entries.
+
+Out of scope for 0.0.2: the schema doesn't exist; V2 always treats artifact
+content as RTF-or-plain text. Always-editable, no mode toggle. Remaining
+issues become 0.0.3 problems.
 
 ## Backward compatibility
 

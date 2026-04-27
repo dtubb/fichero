@@ -1,5 +1,17 @@
 # Durable Lessons Learned / Decisions
 
+## NSTextView Ruler + Format Strip — 2026-04-27
+
+**Tinderbox's "format bar" is just AppKit's `NSTextRulerView`.** Setting `textView.usesRuler = true` + `scrollView.rulersVisible = true` shows the segmented Styles / alignment / Spacing / Lists strip plus the numeric ruler. No custom SwiftUI bar needed; no `addFloatingSubview` dance. Tried both, both were inferior. Use the native ruler.
+
+**`NSTextView.usesInspectorBar` is a different thing — and a trap.** It draws Apple's inline format bar (¶ B I U S, font picker, size, etc.). When enabled, AppKit attaches it at the *window scope* (above tab bar), not above the per-textview scrollview. Wrong place for a per-panel inspector. Leave it `false`.
+
+**`NSTextView.textContainerInset` is symmetric.** `width` pads BOTH left and right. For asymmetric horizontal padding (e.g. left margin only, scrollbar flush right), use `NSScrollView.contentInsets` (left/right are independent) and set `automaticallyAdjustsContentInsets = false`. Set `textContainerInset.width = 0` and let the scroll view's contentInsets carry the leading/trailing padding.
+
+## Sidebar Drag — Symptom of TapGesture/Drag Anti-Pattern — 2026-04-27
+
+The existing memory `feedback_list_selection_vs_tapgesture.md` already warns about `List(selection:) + .draggable + TapGesture`. The symptom on icon/text specifically: when the simultaneousGesture exists for click reliability, AppKit's underlying `NSTableView` row-drag wins on icon/text presses, producing an empty file URL that escapes the sidebar's `.onDrop(of: [.utf8PlainText])` filters and leaks to the window-level URL drop handler. Diagnostic signal: `Files dropped: [""]` in the console. Stacking a second `.onDrag` to "fix" it makes routing worse — one `.onDrag` per row, period. Fix path is migrating to `.draggable(item.id)` Transferable (filed as #711).
+
 ## Content Editor Data Integrity — 2026-04-22
 
 **`NSAttributedString` normalizers must never set attributes on a full range unconditionally.** `addAttribute(.foregroundColor, value: NSColor.labelColor, range: fullRange)` wipes any user-set color. Use `enumerateAttribute(...)` and only fill in defaults where the attribute is `nil`. Same pattern for `.font`. Root cause of #671's color/font loss — the RTF round-trip worked; the client normalizer was stripping attributes before rendering.

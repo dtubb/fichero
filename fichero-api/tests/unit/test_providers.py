@@ -717,3 +717,62 @@ class TestProviderRefRoutes:
         response = client.get("/api/providers/refs")
         assert response.status_code == 200
         assert len(response.json()) == 0
+
+
+class TestCollapseDuplicateProviders:
+    """Issue #704 — startup cleanup that merges duplicate provider rows
+    sharing (name, provider_type). Earliest row wins; models attached to
+    duplicates get reparented to the canonical row before deletion.
+    """
+
+    def test_collapses_duplicates_by_name_and_type(self, app_db, monkeypatch):
+        from datetime import datetime, timedelta
+        from fichero.models import Provider, ProviderType
+        from fichero.api import main as api_main
+
+        early = Provider(
+            name="My OpenAI",
+            provider_type=ProviderType.openai,
+            created_at=datetime.now() - timedelta(hours=2),
+        )
+        late = Provider(
+            name="My OpenAI",
+            provider_type=ProviderType.openai,
+            created_at=datetime.now(),
+        )
+        app_db.save_provider(early)
+        app_db.save_provider(late)
+
+        # Patch get_app_db so the startup function operates on our test db.
+        monkeypatch.setattr(
+            "fichero.app_db.get_app_db", lambda: app_db, raising=False
+        )
+
+        api_main._collapse_duplicate_providers()
+
+        survivors = [
+            p for p in app_db.list_providers()
+            if p.name == "My OpenAI" and p.provider_type == ProviderType.openai
+        ]
+        assert len(survivors) == 1
+        assert survivors[0].id == early.id  # earliest created_at wins
+
+    def test_leaves_distinct_providers_alone(self, app_db, monkeypatch):
+        from fichero.models import Provider, ProviderType
+        from fichero.api import main as api_main
+
+        a = Provider(name="My OpenAI", provider_type=ProviderType.openai)
+        b = Provider(name="Work OpenAI", provider_type=ProviderType.openai)
+        c = Provider(name="My OpenAI", provider_type=ProviderType.anthropic)
+        for p in (a, b, c):
+            app_db.save_provider(p)
+
+        monkeypatch.setattr(
+            "fichero.app_db.get_app_db", lambda: app_db, raising=False
+        )
+
+        api_main._collapse_duplicate_providers()
+
+        # Different name OR different provider_type → not duplicates.
+        ids = {p.id for p in app_db.list_providers()}
+        assert {a.id, b.id, c.id}.issubset(ids)

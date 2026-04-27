@@ -77,11 +77,7 @@ struct DocumentInspector: View {
             // Info tab wraps in ScrollView since it contains only static SwiftUI views.
             switch selectedTab {
             case .content:
-                if featureManager.isInspectorV2Enabled {
-                    DocumentInspectorContentV2(document: doc)
-                } else {
-                    DocumentInspectorContentTab(document: doc)
-                }
+                DocumentInspectorContentV2(document: doc)
             case .info:
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
@@ -297,32 +293,31 @@ struct ArtifactPanel: View {
 
     @State private var isExpanded: Bool = true
     @State private var confirmingDelete: Bool = false
-    @State private var isEditing: Bool = false
     @State private var draftAttributedText: NSAttributedString = NSAttributedString(string: "")
     @State private var editorRevision: Int = 0
     @State private var isSaving: Bool = false
     @State private var saveError: String?
     @State private var autoSaveTask: Task<Void, Never>?
     @State private var lastSeededContent: String = ""
+    @StateObject private var richTextController = RichTextController()
 
     var body: some View {
+        // Daniel feedback 2026-04-27: drop the rounded-rect box outline (no
+        // horizontal lines), let the editor go full panel width (no inner
+        // horizontal padding), let separation between panels be just the
+        // VStack spacing. Header still gets a little horizontal padding so
+        // the title doesn't kiss the inspector edge.
         VStack(alignment: .leading, spacing: 0) {
             DisclosureGroup(isExpanded: $isExpanded) {
                 contentBody
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 10)
-                    .padding(.top, 4)
+                    .padding(.bottom, 6)
+                    .padding(.top, 2)
             } label: {
                 header
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(Color(.separatorColor), lineWidth: 1)
-        )
-        .padding(.horizontal, 8)
         .confirmationDialog(
             "Delete this artifact?",
             isPresented: $confirmingDelete,
@@ -356,22 +351,21 @@ struct ArtifactPanel: View {
                     .truncationMode(.middle)
             }
             Spacer()
-            // Always-visible action buttons — gating them on hover meant
-            // they vanished as the user moved the cursor off the panel
-            // toward the button (Daniel feedback 2026-04-26). Stable
-            // visibility, no chase.
-            if onSave != nil, !isEditing {
-                Button {
-                    enterEdit()
-                } label: {
-                    Image(systemName: "square.and.pencil")
+            // Save indicator (subtle): spinner while saving, green check when
+            // idle and saved. No mode toggle — V2 panels are always editable
+            // (Daniel feedback 2026-04-27 after preferring V1's always-on
+            // behavior). Just type. Auto-saves on the debounce.
+            if onSave != nil {
+                if isSaving {
+                    ProgressView().controlSize(.small)
+                } else if saveError == nil {
+                    Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 11))
+                        .foregroundStyle(.green.opacity(0.7))
+                        .help("Saved")
                 }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-                .help("Edit this artifact")
             }
-            if onDelete != nil, !isEditing {
+            if onDelete != nil {
                 Button {
                     confirmingDelete = true
                 } label: {
@@ -381,19 +375,6 @@ struct ArtifactPanel: View {
                 .buttonStyle(.borderless)
                 .foregroundStyle(.secondary)
                 .help("Delete this artifact")
-            }
-            if isEditing {
-                if isSaving {
-                    ProgressView().controlSize(.small)
-                } else if saveError == nil {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.green)
-                        .help("Saved")
-                }
-                Button("Done") { exitEdit() }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
             }
         }
     }
@@ -417,26 +398,29 @@ struct ArtifactPanel: View {
     @ViewBuilder
     private var contentBody: some View {
         VStack(alignment: .leading, spacing: 4) {
+            // Format controls live in the AppKit ruler view (Styles / alignment /
+            // Spacing / Lists strip that AppKit draws above its numeric ruler)
+            // and in the Format menu (bold/italic/underline shortcuts). No
+            // separate SwiftUI format bar.
             AttributedTextEditor(
                 text: $draftAttributedText,
-                isEditable: isEditing,
-                rulersVisible: isEditing && rulersVisible,
+                isEditable: onSave != nil,
+                rulersVisible: rulersVisible,
                 fontName: fontName,
                 fontSize: fontSize,
                 lineSpacing: lineSpacing,
                 marginH: marginH,
                 marginV: marginV,
                 contentRevision: editorRevision,
-                onTextChanged: {
-                    if isEditing { scheduleAutoSave() }
-                },
+                onTextChanged: { scheduleAutoSave() },
                 onEditingChanged: { editing in
-                    if !editing && isEditing {
-                        Task { await flushAutoSave() }
-                    }
-                }
+                    if !editing { Task { await flushAutoSave() } }
+                },
+                marginLeading: marginH,
+                marginTrailing: 0,
+                controller: richTextController
             )
-            .frame(minHeight: 240, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(.textBackgroundColor))
             .cornerRadius(4)
             if let saveError {
@@ -446,10 +430,11 @@ struct ArtifactPanel: View {
             }
         }
         .task(id: rawArtifactContent) {
-            // Re-seed when the artifact content changes (e.g. after a workflow
-            // re-run rewrites it). Don't re-seed if the user is mid-edit —
-            // their draft survives until they Done or blur.
-            guard !isEditing, lastSeededContent != rawArtifactContent else { return }
+            // Re-seed when the artifact content changes externally (workflow
+            // re-run, navigation to a different doc). Skip if the change
+            // came from our own auto-save echoing back, detected by the
+            // lastSeededContent watermark.
+            guard lastSeededContent != rawArtifactContent else { return }
             draftAttributedText = decodeArtifactContent(rawArtifactContent)
             lastSeededContent = rawArtifactContent
             editorRevision += 1
@@ -457,21 +442,6 @@ struct ArtifactPanel: View {
     }
 
     // MARK: - Edit mode helpers
-
-    private func enterEdit() {
-        // The draft is already seeded by the .task(id: rawArtifactContent)
-        // modifier on contentBody — no need to re-decode here. Just flip
-        // isEditable.
-        isEditing = true
-        saveError = nil
-    }
-
-    private func exitEdit() {
-        // "Done" — flush any pending debounce before leaving edit mode so
-        // the read view shows the final saved content.
-        Task { await flushAutoSave() }
-        isEditing = false
-    }
 
     /// Debounced auto-save. The previous explicit Save button created a
     /// "did my edit save?" anxiety loop — auto-save with a small visible
@@ -674,61 +644,28 @@ struct DocumentInspectorContentV2: View {
     @State private var actionError: String?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                // Daniel feedback 2026-04-26: the prior DisplayAttributesStrip
-                // showed static doc metadata (Status, Kind, Ingest, etc.) but
-                // those are already in the Info tab. The top strip's intended
-                // purpose is AI-EXTRACTED attributes — names, places, dates
-                // from list-typed extractor artifacts. That requires the
-                // artifact-payload-type system (people/places/dates as
-                // structured attributes). Until that exists, the strip is
-                // empty: panels only. (See inspector_redesign.md.)
+        // Equal-divide panels: 1 fills, 2 split half, 3 split third, etc.
+        // Only scroll when there are 2+ panels AND the available height drops
+        // below minPanelHeight × N. With one panel the ScrollView is omitted
+        // so a stray drag never overscrolls.
+        GeometryReader { geo in
+            let count = panelCount
+            let spacing: CGFloat = 8
+            let minPanelHeight: CGFloat = 200
+            let available = max(0, geo.size.height)
+            let evenHeight = count > 0
+                ? (available - spacing * CGFloat(max(0, count - 1))) / CGFloat(count)
+                : available
+            let panelHeight = max(minPanelHeight, evenHeight)
+            let needsScroll = count > 1 && (panelHeight * CGFloat(count) + spacing * CGFloat(count - 1) > available)
 
-                if let loadError {
-                    errorBox(loadError)
-                }
-                if let actionError {
-                    errorBox(actionError)
-                }
-
-                ForEach(sortedArtifacts) { artifact in
-                    ArtifactPanel(
-                        kind: .artifact(artifact),
-                        onDelete: { Task { await deleteArtifact(artifact) } },
-                        onSave: { newContent in
-                            await saveArtifact(artifact, content: newContent)
-                        }
-                    )
-                }
-
-                if let pageContent = document.pageContent, !pageContent.isEmpty {
-                    ArtifactPanel(
-                        kind: .pageContent(text: pageContent),
-                        onDelete: { Task { await clearPageContent() } },
-                        onSave: { newContent in
-                            await savePageContent(newContent)
-                        }
-                    )
-                }
-
-                if !isLoading
-                    && sortedArtifacts.isEmpty
-                    && (document.pageContent ?? "").isEmpty
-                    && loadError == nil {
-                    emptyState
-                }
-
-                if isLoading && artifacts.isEmpty {
-                    HStack(spacing: 8) {
-                        ProgressView().controlSize(.small)
-                        Text("Loading artifacts…").font(.caption).foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+            Group {
+                if needsScroll {
+                    ScrollView { panelStack(panelHeight: panelHeight, spacing: spacing) }
+                } else {
+                    panelStack(panelHeight: panelHeight, spacing: spacing)
                 }
             }
-            .padding(.vertical, 8)
         }
         .task(id: document.id) {
             await loadArtifacts()
@@ -744,6 +681,57 @@ struct DocumentInspectorContentV2: View {
     }
 
     // MARK: - Subviews
+
+    @ViewBuilder
+    private func panelStack(panelHeight: CGFloat, spacing: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: spacing) {
+            if let loadError {
+                errorBox(loadError)
+            }
+            if let actionError {
+                errorBox(actionError)
+            }
+
+            ForEach(sortedArtifacts) { artifact in
+                ArtifactPanel(
+                    kind: .artifact(artifact),
+                    onDelete: { Task { await deleteArtifact(artifact) } },
+                    onSave: { newContent in
+                        await saveArtifact(artifact, content: newContent)
+                    }
+                )
+                .frame(height: panelHeight)
+            }
+
+            if let pageContent = document.pageContent, !pageContent.isEmpty {
+                ArtifactPanel(
+                    kind: .pageContent(text: pageContent),
+                    onDelete: { Task { await clearPageContent() } },
+                    onSave: { newContent in
+                        await savePageContent(newContent)
+                    }
+                )
+                .frame(height: panelHeight)
+            }
+
+            if !isLoading
+                && sortedArtifacts.isEmpty
+                && (document.pageContent ?? "").isEmpty
+                && loadError == nil {
+                emptyState
+            }
+
+            if isLoading && artifacts.isEmpty {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading artifacts…").font(.caption).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
 
     @ViewBuilder
     private var emptyState: some View {
@@ -788,6 +776,12 @@ struct DocumentInspectorContentV2: View {
 
     private var sortedArtifacts: [Artifact] {
         artifacts.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private var panelCount: Int {
+        var n = sortedArtifacts.count
+        if let pc = document.pageContent, !pc.isEmpty { n += 1 }
+        return n
     }
 
     private func loadArtifacts() async {

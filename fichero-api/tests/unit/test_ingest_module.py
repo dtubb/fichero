@@ -1468,6 +1468,39 @@ class TestPerformance:
                     extract_text=False,
                     auto_embed=False
                 )
-                
+
                 assert result is not None
                 assert result.name == "large_file.jpg"
+
+
+class TestIngestModeMetadata:
+    """Issue #603 — every ingested document records its mode in metadata
+    so the SwiftUI sidebar can render LINK / COPY / MOVE badges without
+    falling back to the bookmark-presence heuristic.
+    """
+
+    @patch("fichero.db.db")
+    @patch("fichero.bookmarks.create_bookmark")
+    def test_link_mode_recorded_in_metadata(self, mock_bookmark, mock_db, tmp_path):
+        from fichero.ingest import ingest_file, IngestMode
+
+        file = tmp_path / "test.jpg"
+        file.write_bytes(b"x")
+        mock_bookmark.return_value = b"bookmark_data"
+
+        doc = ingest_file(file, mode=IngestMode.LINK)
+        assert doc.metadata.get("ingest_mode") == "link"
+
+    @patch("fichero.db.db")
+    @patch("fichero.ingest._copy_to_library")
+    def test_copy_mode_recorded_in_metadata(self, mock_copy, mock_db, tmp_path):
+        from fichero.ingest import ingest_file, IngestMode
+
+        file = tmp_path / "test.jpg"
+        file.write_bytes(b"x")
+        dest = tmp_path / "library" / "test_copy.jpg"
+        dest.parent.mkdir(parents=True)
+        mock_copy.return_value = dest
+
+        doc = ingest_file(file, mode=IngestMode.COPY)
+        assert doc.metadata.get("ingest_mode") == "copy"

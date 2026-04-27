@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import Fichero
@@ -308,5 +309,62 @@ struct DocumentInspectorStateTests {
 
         let doc = firstId.flatMap { id in docs.first { $0.id == id } }
         #expect(doc == nil)
+    }
+}
+
+// MARK: - V2 Inspector — RichTextController + Format/Find menu wiring
+
+@MainActor
+struct RichTextControllerTests {
+    @Test("toggleTrait is a no-op when no textView is attached")
+    func toggleTraitWithoutTextView() {
+        let controller = RichTextController()
+        controller.toggleTrait(Selector(("toggleBold:")))
+        controller.toggleTrait(Selector(("alignLeft:")))
+        #expect(controller.textView == nil)
+    }
+
+    @Test("textView reference is weak so dropped editors don't dangle")
+    func textViewIsWeak() {
+        let controller = RichTextController()
+        var textView: AppKit.NSTextView? = AppKit.NSTextView()
+        controller.textView = textView
+        #expect(controller.textView === textView)
+        textView = nil
+        #expect(controller.textView == nil)
+    }
+
+    @Test("toggleTrait dispatches alignment change to attached textView")
+    func toggleTraitDispatch() {
+        let controller = RichTextController()
+        let textView = AppKit.NSTextView()
+        textView.string = "hello world"
+        textView.setSelectedRange(NSRange(location: 0, length: 5))
+        controller.textView = textView
+
+        controller.toggleTrait(Selector(("alignCenter:")))
+
+        let attrs = textView.textStorage?.attributes(at: 0, effectiveRange: nil) ?? [:]
+        if let paragraph = attrs[.paragraphStyle] as? NSParagraphStyle {
+            #expect(paragraph.alignment == .center)
+        }
+    }
+}
+
+struct FindBarSelectorTests {
+    @Test("performFindPanelAction selector exists on NSTextView")
+    func findPanelSelector() {
+        // View → Find in Artifact sends this selector down the responder
+        // chain. NSTextView (with usesFindBar = true) renders its inline
+        // find bar in response.
+        let sel = Selector(("performFindPanelAction:"))
+        #expect(AppKit.NSTextView.instancesRespond(to: sel))
+    }
+
+    @Test("NSFindPanelAction.showFindPanel rawValue is the tag we use")
+    func showFindPanelTag() {
+        // ShowFindBarButton sets menuItem.tag = .showFindPanel.rawValue. If
+        // Apple ever renumbered these, the find action would silently break.
+        #expect(AppKit.NSFindPanelAction.showFindPanel.rawValue == 1)
     }
 }

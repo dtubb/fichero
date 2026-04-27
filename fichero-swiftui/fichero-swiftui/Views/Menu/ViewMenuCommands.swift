@@ -28,6 +28,11 @@ struct ViewMenuCommands: View {
         Divider()
 
         InspectorButton(viewSettings: viewSettings)
+
+        Divider()
+
+        ShowRulerButton()
+        ShowFindBarButton()
     }
 }
 
@@ -434,5 +439,46 @@ struct InspectorButton: View {
             )
         }
         .keyboardShortcut("i", modifiers: [.command, .option])
+    }
+}
+
+// MARK: - Show Ruler
+
+/// Toggles the inspector's text-editor ruler globally. Lives in Format > Text
+/// in spirit but attaches to the View menu (FicheroApp wires this in).
+/// AppStorage key matches the editor's `editor.rulersVisible` flag.
+struct ShowRulerButton: View {
+    @AppStorage("editor.rulersVisible") private var rulersVisible: Bool = true
+
+    var body: some View {
+        Button {
+            rulersVisible.toggle()
+        } label: {
+            Label(
+                rulersVisible ? "Hide Ruler" : "Show Ruler",
+                systemImage: "ruler"
+            )
+        }
+        .keyboardShortcut("r", modifiers: [.command, .control])
+    }
+}
+
+/// Triggers the focused artifact panel's NSTextView inline find bar.
+/// `usesFindBar = true` is already set in AttributedTextEditor, so AppKit
+/// renders the bar across the top of that one editor — no app-wide search.
+struct ShowFindBarButton: View {
+    var body: some View {
+        Button {
+            let item = NSMenuItem()
+            item.tag = Int(NSFindPanelAction.showFindPanel.rawValue)
+            NSApp.sendAction(
+                Selector(("performFindPanelAction:")),
+                to: nil,
+                from: item
+            )
+        } label: {
+            Label("Find in Artifact", systemImage: "magnifyingglass")
+        }
+        .keyboardShortcut("f", modifiers: .command)
     }
 }

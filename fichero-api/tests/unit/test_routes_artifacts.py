@@ -231,3 +231,121 @@ class TestDeleteArtifact:
     def test_delete_nonexistent_returns_404(self, client):
         r = client.delete("/api/artifacts/no-such-id")
         assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# include_descendants query (V2 inspector — strict per-document scope)
+# ---------------------------------------------------------------------------
+
+
+class TestIncludeDescendantsScope:
+    """V2 inspector passes include_descendants=false to avoid
+    'delete pops back' confusion where the parent artifact reappeared
+    after deleting a sibling on the child.
+    """
+
+    def test_default_includes_parent_artifacts_for_page_doc(self, client, db):
+        # Parent PDF holds the transcription; page child has none of its own.
+        parent = _make_doc(db, name="parent.pdf")
+        page = Document(
+            name="page-1",
+            doc_type=DocType.file,
+            file_type=FileType.image,
+            parent_id=parent.id,
+            status=Status.completed,
+        )
+        db.save(page)
+        _make_artifact(db, parent.id, "transcription", "from-parent")
+
+        # Default behavior (V1): aggregate parent + children.
+        r = client.get(f"/api/artifacts/document/{page.id}")
+        assert r.status_code == 200
+        contents = [a["content"] for a in r.json()["artifacts"]]
+        assert "from-parent" in contents
+
+    def test_strict_scope_excludes_parent_artifacts(self, client, db):
+        parent = _make_doc(db, name="parent.pdf")
+        page = Document(
+            name="page-1",
+            doc_type=DocType.file,
+            file_type=FileType.image,
+            parent_id=parent.id,
+            status=Status.completed,
+        )
+        db.save(page)
+        _make_artifact(db, parent.id, "transcription", "from-parent")
+
+        r = client.get(
+            f"/api/artifacts/document/{page.id}",
+            params={"include_descendants": "false"},
+        )
+        assert r.status_code == 200
+        assert r.json()["total"] == 0
+
+    def test_strict_scope_returns_own_artifact(self, client, db):
+        doc = _make_doc(db)
+        _make_artifact(db, doc.id, "transcription", "own")
+
+        r = client.get(
+            f"/api/artifacts/document/{doc.id}",
+            params={"include_descendants": "false"},
+        )
+        assert r.status_code == 200
+        assert r.json()["total"] == 1
+        assert r.json()["artifacts"][0]["content"] == "own"
+
+
+# ---------------------------------------------------------------------------
+# PUT /api/artifacts/{artifact_id} (V2 inspector edit)
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateArtifact:
+    def test_update_content_persists(self, client, db):
+        doc = _make_doc(db)
+        a = _make_artifact(db, doc.id, content="original")
+
+        r = client.put(
+            f"/api/artifacts/{a.id}",
+            json={"content": "edited"},
+        )
+        assert r.status_code == 200
+        assert r.json()["content"] == "edited"
+
+        # Reload to confirm persistence.
+        r2 = client.get(f"/api/artifacts/{a.id}")
+        assert r2.json()["content"] == "edited"
+
+    def test_update_preserves_provenance(self, client, db):
+        doc = _make_doc(db)
+        a = Artifact(
+            document_id=doc.id,
+            artifact_type="transcription",
+            content="x",
+            version=3,
+            provider="dashscope",
+            model="qwen3-vl-32b-instruct",
+            created_at=datetime.now(),
+        )
+        db.save(a)
+
+        client.put(f"/api/artifacts/{a.id}", json={"content": "y"})
+
+        r = client.get(f"/api/artifacts/{a.id}")
+        body = r.json()
+        # Editing the content keeps the tool that made it on record.
+        assert body["provider"] == "dashscope"
+        assert body["model"] == "qwen3-vl-32b-instruct"
+        assert body["version"] == 3
+
+    def test_update_reviewed_flag(self, client, db):
+        doc = _make_doc(db)
+        a = _make_artifact(db, doc.id)
+
+        r = client.put(f"/api/artifacts/{a.id}", json={"reviewed": True})
+        assert r.status_code == 200
+        assert r.json()["reviewed"] is True
+
+    def test_update_nonexistent_returns_404(self, client):
+        r = client.put("/api/artifacts/no-such-id", json={"content": "x"})
+        assert r.status_code == 404
