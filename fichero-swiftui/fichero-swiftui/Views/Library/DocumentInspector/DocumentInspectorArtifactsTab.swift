@@ -2,7 +2,7 @@
 import SwiftUI
 
 /// Artifacts tab content for DocumentInspector
-struct DocumentInspectorArtifactsTab: View {
+struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body_length
     let documentId: String
 
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
@@ -107,6 +107,7 @@ struct DocumentInspectorArtifactsTab: View {
 
     // MARK: - Artifact Row
 
+    // swiftlint:disable:next function_body_length
     private func artifactRow(_ artifact: Artifact) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             // Timestamp and provider

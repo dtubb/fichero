@@ -179,7 +179,7 @@ struct SidebarItemRow: View {
     /// path doesn't notify executionObserver), so users reported "context
     /// menu Run Workflow doesn't work" while the toolbar one did. Converging
     /// on the SSE path is #694's fix.
-    private func runWorkflowOnDocument(workflowId: String, docId: String) {
+    private func runWorkflowOnDocument(workflowId: String, docId: String) { // swiftlint:disable:this function_body_length
         guard let library = library else {
             sidebarRowLogger.error("runWorkflowOnDocument: no library reference")
             return

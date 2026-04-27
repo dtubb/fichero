@@ -82,7 +82,9 @@ struct LibrarySectionHeader: View {
         // "Global, library, 42 documents". Hint guides users toward the
         // Finder-drop behaviour that isn't obvious without visual cues.
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint("Drag files from Finder here to import into this library, or drop a sidebar item to move it to the library root.")
+        .accessibilityHint(
+            "Drag files from Finder to import, or drop a sidebar item to move to the library root."
+        )
     }
 
     /// Display name for this library row. "Global" for the global library,

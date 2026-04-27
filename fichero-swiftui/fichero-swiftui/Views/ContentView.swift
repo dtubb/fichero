@@ -521,6 +521,13 @@ struct ContentView: View {
                 viewDisplayMode = normalizedViewDisplayMode(saved)
             }
 
+            // Clear grid selection on sidebar folder change so the folder
+            // inspector shows by default. Without this, a stale browserSelection
+            // from a previous folder can resolve to a child of the new folder
+            // (when ids happen to be present in the new folder's children),
+            // suppressing the folder inspector. (#712)
+            browserSelection.removeAll()
+
             // Drive the inspector from sidebar selection so clicking a folder
             // (or any document row) in the sidebar populates the inspector.
             // Sidebar IDs are prefixed "doc:UUID" — extract the bare doc ID

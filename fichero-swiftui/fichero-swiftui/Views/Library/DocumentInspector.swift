@@ -265,7 +265,7 @@ struct DisplayAttributesStrip: View {
 ///
 /// Phase 1: read-only display. Phase 2 will add per-artifact actions
 /// (copy, regenerate, hide). See docs/architecture/swiftui/inspector_redesign.md.
-struct ArtifactPanel: View {
+struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
     enum PanelKind {
         case artifact(Artifact)
         /// Special case for showing the document's `page_content` so existing
@@ -779,9 +779,9 @@ struct DocumentInspectorContentV2: View {
     }
 
     private var panelCount: Int {
-        var n = sortedArtifacts.count
-        if let pc = document.pageContent, !pc.isEmpty { n += 1 }
-        return n
+        var count = sortedArtifacts.count
+        if let pageContent = document.pageContent, !pageContent.isEmpty { count += 1 }
+        return count
     }
 
     private func loadArtifacts() async {

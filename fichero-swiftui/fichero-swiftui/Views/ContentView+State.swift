@@ -56,11 +56,35 @@ extension ContentView {
         return documentStore.currentDocuments
     }
 
-    /// Document to show in inspector
+    /// Document to show in inspector. Precedence:
+    ///   1. Grid selection — the leaf the user just clicked in the grid.
+    ///   2. The viewMode's associated doc — the folder the user has open
+    ///      in the sidebar (set by handleSelection on sidebar click).
+    ///   3. detailDocument — legacy fallback for navigated-into doc state
+    ///      that may not be cleared on every sidebar transition.
+    /// (#712)
     var inspectorDocument: Document? {
-        if let firstId = browserSelection.first {
-            return documentStore.currentDocuments.first { $0.id == firstId }
+        // What folder, if any, is the sidebar pointing at right now?
+        let currentSidebarFolder: Document? = {
+            if case .library(let doc) = viewMode { return doc }
+            return nil
+        }()
+
+        // 1. Grid selection — but ONLY if the selected doc actually
+        //    belongs to the current sidebar folder. A stale or cross-
+        //    folder browserSelection (e.g. left over from a previous
+        //    folder, or auto-set when the grid first loaded) must NOT
+        //    shadow the sidebar-selected folder. (#712)
+        if let firstId = browserSelection.first,
+           let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }),
+           doc.parentId == currentSidebarFolder?.id {
+            return doc
         }
+        // 2. Sidebar viewMode's folder doc.
+        if let folder = currentSidebarFolder {
+            return folder
+        }
+        // 3. Legacy fallback.
         return detailDocument
     }
 

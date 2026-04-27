@@ -222,12 +222,15 @@ extension LibraryView {
     /// Passes ALL selected document IDs at once so aggregation workflows (Catalogue)
     /// receive the complete set, and SSE events drive UI refresh.
     @MainActor
+    // swiftlint:disable:next function_body_length
     func runBatchWorkflow(workflowId: String) async {
         guard !selectedDocumentIdsForBatch.isEmpty else { return }
 
         let docIds = selectedDocumentIdsForBatch
-        let workflowName = libraryManager.getLibrary(id: windowState.libraryId)?.workflowStore.workflows.first(where: { $0.id == workflowId })?.name
-            ?? libraryManager.globalLibrary?.workflowStore.workflows.first(where: { $0.id == workflowId })?.name
+        let activeWorkflows = libraryManager.getLibrary(id: windowState.libraryId)?.workflowStore.workflows
+        let globalWorkflows = libraryManager.globalLibrary?.workflowStore.workflows
+        let workflowName = activeWorkflows?.first(where: { $0.id == workflowId })?.name
+            ?? globalWorkflows?.first(where: { $0.id == workflowId })?.name
             ?? workflowId
 
         logger.info("Starting SSE workflow \(workflowId) on \(docIds.count) documents via context menu")

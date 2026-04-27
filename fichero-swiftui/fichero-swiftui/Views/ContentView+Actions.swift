@@ -37,7 +37,14 @@ extension ContentView {
     var showsPreviewPane: Bool {
         guard currentLayoutMode != .none else { return false }
         switch viewMode {
-        case .library, .search:
+        case .library:
+            // Hide preview pane when a folder is selected — grid takes
+            // full width, inspector shows folder metadata. (#712)
+            if let doc = inspectorDocument, doc.docType == .folder {
+                return false
+            }
+            return true
+        case .search:
             return true
         default:
             return false

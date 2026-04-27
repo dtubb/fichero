@@ -280,7 +280,10 @@ extension SidebarView {
         items: [SidebarItem],
         libraryId: UUID?
     ) {
-        sidebarRowLogger.debug("🔵 unifiedRows .onMove FIRED — source=\(source.map(\.description).joined(separator: ",")) dest=\(destination) items=\(items.count)")
+        let sourceDesc = source.map(\.description).joined(separator: ",")
+        sidebarRowLogger.debug(
+            "🔵 unifiedRows .onMove FIRED — source=\(sourceDesc) dest=\(destination) items=\(items.count)"
+        )
 
         // Defensive Inbox guard (belt + suspenders with `.moveDisabled`).
         if source.contains(where: { items[$0].icon == "tray.fill" }) {

@@ -232,5 +232,3 @@ struct AttributedTextEditor: NSViewRepresentable {
         )
     }
 }
-
-
