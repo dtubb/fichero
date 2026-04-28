@@ -233,44 +233,60 @@ private extension AISettingsView {
             return
         }
 
-        guard let provider = appState.providers.first(where: { $0.providerType == providerType }) else {
-            models.wrappedValue = []
-            return
-        }
-
+        // Pull the full LiteLLM catalog for this provider so users can pick
+        // any known model — not just ones they've manually added under
+        // Settings → Models. Previously this used `listProviderModels` which
+        // only returned user-configured rows, leaving the Defaults pickers
+        // empty when a provider had no rows yet (the symptom Daniel saw with
+        // Text → DashScope showing Model: None).
         Task {
             do {
-                let configuredModels = try await appState.providerService.listProviderModels(providerId: provider.id)
-                models.wrappedValue = configuredModels.map { userModel in
-                    ModelInfo(
-                        modelId: userModel.modelId,
-                        fullName: userModel.name,
-                        description: nil,
-                        isRecommended: false,
-                        isLocal: false,
-                        inputCostPerMillion: 0,
-                        outputCostPerMillion: 0,
-                        batchInputCostPerMillion: nil,
-                        batchOutputCostPerMillion: nil,
-                        cacheReadCostPerMillion: nil,
-                        maxInputTokens: nil,
-                        maxOutputTokens: nil,
-                        mode: nil,
-                        supportsVision: userModel.capabilities.contains("vision"),
-                        supportsFunctionCalling: userModel.capabilities.contains("tools"),
-                        supportsAudioInput: userModel.capabilities.contains("audio"),
-                        supportsAudioOutput: false,
-                        supportsPdfInput: false,
-                        supportsPromptCaching: false,
-                        supportsReasoning: false,
-                        supportsWebSearch: false,
-                        supportsStreaming: false,
-                        supportsBatchApi: false,
-                        provider: providerType
-                    )
-                }
+                let catalogModels = try await appState.providerService
+                    .listAvailableModels(providerType: providerType)
+                models.wrappedValue = catalogModels
             } catch {
-                logger.error("Failed to load models for \(providerType): \(error.localizedDescription)")
+                logger.error(
+                    "Failed to load model catalog for \(providerType): \(error.localizedDescription)"
+                )
+                // Fallback to user-configured rows so the picker isn't
+                // catastrophically empty if the catalog endpoint fails.
+                guard let provider = appState.providers.first(
+                    where: { $0.providerType == providerType }
+                ) else {
+                    models.wrappedValue = []
+                    return
+                }
+                if let configured = try? await appState.providerService
+                    .listProviderModels(providerId: provider.id) {
+                    models.wrappedValue = configured.map { user in
+                        ModelInfo(
+                            modelId: user.modelId,
+                            fullName: user.name,
+                            description: nil,
+                            isRecommended: false,
+                            isLocal: false,
+                            inputCostPerMillion: 0,
+                            outputCostPerMillion: 0,
+                            batchInputCostPerMillion: nil,
+                            batchOutputCostPerMillion: nil,
+                            cacheReadCostPerMillion: nil,
+                            maxInputTokens: nil,
+                            maxOutputTokens: nil,
+                            mode: nil,
+                            supportsVision: user.capabilities.contains("vision"),
+                            supportsFunctionCalling: user.capabilities.contains("tools"),
+                            supportsAudioInput: user.capabilities.contains("audio"),
+                            supportsAudioOutput: false,
+                            supportsPdfInput: false,
+                            supportsPromptCaching: false,
+                            supportsReasoning: false,
+                            supportsWebSearch: false,
+                            supportsStreaming: false,
+                            supportsBatchApi: false,
+                            provider: providerType
+                        )
+                    }
+                }
             }
         }
     }
