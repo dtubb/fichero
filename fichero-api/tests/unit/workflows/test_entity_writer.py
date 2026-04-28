@@ -4,8 +4,6 @@ These helpers wire structured-extraction outputs into the existing
 KnowledgeEntity + KnowledgeClaim KG layer (#728).
 """
 
-import pytest
-
 from fichero.knowledge_models import (
     EntityType,
     KnowledgeEntity,
