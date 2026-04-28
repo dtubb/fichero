@@ -1139,3 +1139,46 @@ Daniel then reverted the nested cross-hierarchy drop (`handleNestedInsertionDrop
 - Filed issues for skipped tests on 0.0.3: #707 (per-page artifact propagation), #708 (cache-hit event field), #709 (RLock concurrency), #710 (RTF encode/decode round-trip).
 - Filed #711 on 0.0.2: unify sidebar icon/text + row-body drag paths via `.draggable` Transferable. Diagnosed root cause: `.simultaneousGesture(TapGesture())` from #645 lets NSTableView's row-drag win on icon/text, producing empty file URLs that leak to the window-level drop handler. Two-code-paths is real, not a quick patch — needs a focused session.
 - Investigated and rejected SwiftUI floating format-strip via `addFloatingSubview`. AppKit's native ruler view (Styles / alignment / Spacing / Lists) is what Tinderbox uses; `usesRuler = true` + `rulersVisible = true` is enough.
+
+## 2026-04-28 — Session Summary (long session, 7 commits on 0.0.2)
+
+Massive 0.0.2 polish + diagnosis day. Seven commits, 3 new features, 4 bug fixes, 9 issues filed, 30+ tests added or kept green.
+
+### Shipped (in commit order)
+- **`1aaaf216` wip(sidebar): #711 follow-up** — checkpoint of in-progress investigation (Label→HStack swap, ForEach `.dropDestination`, library-header drop, diagnostic logs).
+- **`e4699c75` fix(sidebar): #711 follow-up** — committed instrumentation + library-header drop receiver. The icon/name drag stalemate filed as **#713** for `0.0.3` (NSOutlineView wrapper).
+- **`d9f20c3c` fix(folder-inspector): #712** — sidebar folder click now hides preview pane and routes inspector to `DocumentInspector` (Info / Content tabs same chrome as PDFs). `inspectorDocument` falls back to `viewMode.library(let doc)` when `browserSelection` is empty; `browserSelection.removeAll()` on sidebar change. **All SwiftLint violations cleared project-wide** (line lengths, identifier names, body-length, trailing newlines, orphaned doc comments).
+- **`e7518852` fix(thumbnail): #718** — grid thumbnails use 3:4 portrait aspect instead of 1:1 square.
+- **`3e61900a` fix(workflow): #720** — `Catalogue (composable)` now ends with a `catalogue` reducer node; merged transcripts feed it; final unified Catalogue artifact saves on the folder. Two new tests lock the chain.
+- **`d51632c3` fix(inspector): #721** — `DocumentInspectorArtifactsTab` passes `includeDescendants: false` to match `DocumentInspectorContentV2`. Folder container artifacts no longer leak onto child page inspectors. Two new backend tests lock both modes (strict + legacy).
+- **`9cbc5193` fix(workflow): #722** — Removed Swift-side `Default · Transcribe Files` / `Default · Transcribe Collection` (duplicates of backend's Transcribe). Added `folder_path` to JSON templates: `/Transcribe`, `/Catalogue`, `/Catalogue`. Sidebar + grid Run-Workflow context menus now group workflows by `folderPath` into nested submenus.
+
+### Filed (deferred to later)
+- **#712** — folder inspector + grid full-width when folder selected. **Shipped this session** but originally filed for 0.0.3.
+- **#713** — sidebar drag icon/name asymmetry: NSOutlineView wrapper as proper fix path. Deferred to `0.0.3` after extensive SwiftUI investigation. Diagnostic `🎯` / `🔵` log markers left in the code.
+- **#714** — workflow templates "Install Defaults" alert undercount. Likely related to two install systems (Swift + backend); partially addressed by #722 dedupe.
+- **#715** — Inspector RTF text editor doesn't honor standard macOS shortcuts (⌥←/⌥→ word nav, etc.). Suspect: `AttributedTextEditor.swift` swallowing keyDown events.
+- **#716** — Paleography Transcribe workflow — multi-step SILReST chain for old Spanish documents. Heavy prompt-engineering feature; reference manuals need to move into the repo before implementation.
+- **#717** — Grid icon click highlight doesn't follow the click. Likely fixed by #712's `browserSelection.removeAll()` but not explicitly verified.
+- **#718** — Thumbnail aspect ratio (square in 1-row mode) — **shipped this session**.
+- **#719** — Eager-prefetch thumbnails for currently-selected folder only.
+- **#720** — Catalogue (composable) reducer — **shipped this session**.
+- **#721** — Inspector page-vs-folder artifact scope leak — **shipped this session**.
+- **#722** — Workflow template dedupe + folder grouping — **shipped this session**.
+
+### Outstanding for 0.0.2
+Six items, all release-pipeline or pure content / Daniel-blocked:
+- #658 fichero-releases GitHub repo (needs Daniel)
+- #659 sign + notarize DMG (blocked on #658 + notarytool creds)
+- #660 dry-run install (blocked on #659)
+- #661 / #662 tubb.ca content (writing only)
+- #665 dev blog post (writing only)
+
+### Key learnings
+- SwiftUI `Text` on macOS registers itself as `NSDraggingSource` for selectable text — wins over a parent `.draggable` and produces a text-flavored drag that bypasses `.dropDestination(for: T.self)`. `.allowsHitTesting(false)` *directly on the Text* (not on a parent) suppresses it; `.textSelection(.disabled)` is environment-level and does not unregister the AppKit drag source.
+- SwiftUI's `.draggable` on a List row competes with NSTableView's automatic row-drag mechanism for `.onMove` / `.dropDestination(for:T)`. Same-section reorder via `.onMove` doesn't fire when SwiftUI's drag session wins. Same-list "drag source = drop destination" is a SwiftUI gap; Apple's `ArticleAccelerator` sample sidesteps by separating source and destination views.
+- `inspectorDocument` precedence: grid match (only if child of current sidebar folder) → viewMode's library doc → detailDocument. Stale `browserSelection` ids must NOT shadow the sidebar selection — clear on sidebar change.
+- Two artifact-loading paths in the inspector. `DocumentInspectorContentV2` enforces strict per-doc scope; the older `DocumentInspectorArtifactsTab` was using the legacy aggregation default. Both must pass `includeDescendants: false` for V2 semantics.
+- Backend reinstall-defaults endpoint with `force=True` deletes is_template=True rows and re-inserts from current JSON — safe re-deploys of preset updates.
+- Two default-template systems coexisted (Swift `WorkflowStore` + backend JSON). Removing the Swift side and standardizing on backend JSON eliminates name duplication.
+

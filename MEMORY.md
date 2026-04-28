@@ -1,5 +1,59 @@
 # Durable Lessons Learned / Decisions
 
+## SwiftUI Text registers NSDraggingSource — `.textSelection(.disabled)` doesn't kill it — 2026-04-28
+
+SwiftUI `Text` on macOS registers itself as `NSDraggingSource` at AppKit level for selectable text. That AppKit drag source intercepts presses on the Text BEFORE a SwiftUI `.draggable` on a parent ancestor sees them, producing a generic text drag (with the row's name as content) that bypasses any `.dropDestination(for: T.self)` and produces a `.inetloc` artifact when dropped on Finder.
+
+**`.textSelection(.disabled)` does NOT unregister the AppKit drag source** — it only controls whether the user can interactively select the text. `.allowsHitTesting(false)` on a *parent* doesn't propagate to disable AppKit-level drag registration on children either.
+
+Working suppression: **`.allowsHitTesting(false)` directly on the `Text` element** (not on a parent). Click-through still works because the parent's `.contentShape(Rectangle())` becomes the only hit target for drag/select.
+
+For sidebar rows specifically (file: `SidebarItemRow+Label.swift`): apply on both Image and Text inside the inner `HStack` so neither child claims AppKit-level drags.
+
+## SwiftUI .draggable + .onMove on same ForEach is broken on macOS — 2026-04-28
+
+SwiftUI's `.draggable(T)` runs its own drag session that bypasses `NSTableView`'s automatic row-drag mechanism. On a List, `.onMove(perform:)` requires the NSTableView row-drag path — when `.draggable` wins the gesture arena, `.onMove` doesn't fire. Same for `.dropDestination(for: T.self)` between rows.
+
+**Apple's `ArticleAccelerator` sample sidesteps this** by separating drag source (a different view, with `.draggable`) from drop destination (a List with `.onMove` + `.dropDestination`). Same-list "row is both drag source and drop target" is the unsupported case.
+
+Production fix path is `NSViewRepresentable<NSOutlineView>` (#713). Don't waste time chasing more SwiftUI workarounds for sidebar drag — the SwiftUI surface genuinely can't deliver Finder-grade drop targeting in this configuration.
+
+## Inspector strict per-document scope — `includeDescendants: false` is not the API default — 2026-04-28
+
+Two artifact-loading paths in the SwiftUI inspector:
+- `DocumentInspectorContentV2` (file: `DocumentInspector.swift`) — passes `includeDescendants: false` correctly.
+- `DocumentInspectorArtifactsTab` (file: `Views/Library/DocumentInspector/DocumentInspectorArtifactsTab.swift`) — was using the API default (true), causing folder container artifacts to bleed onto child page inspectors.
+
+**Always pass `includeDescendants: false` for V2 inspector callers.** The default is `true` for V1 backwards-compat.
+
+Backend endpoint: `GET /api/artifacts/document/{doc_id}?include_descendants=false`. Tests in `fichero-api/tests/unit/test_routes_artifacts.py` lock both modes (strict + legacy). Don't unify the default — V1 callers depend on aggregation.
+
+## Workflow templates: backend JSON is canonical, Swift defaults empty — 2026-04-28
+
+Two systems used to ship default workflows:
+- Swift `WorkflowStore.swift::DefaultWorkflowTemplate` — created `Default · Transcribe Files` and `Default · Transcribe Collection`.
+- Backend `fichero-api/src/fichero/resources/default_workflows/*.json` — ships `Transcribe`, `Catalogue`, `Catalogue (composable)`.
+
+The two were duplicating the Transcribe template. **Backend is now canonical**; `defaultWorkflowTemplates` in Swift is empty. New default templates: add a JSON file in the backend resources dir.
+
+`reinstall-defaults` endpoint with `force=True` deletes is_template=True rows by name and re-inserts from current JSON. Safe to ship template updates this way.
+
+## Workflow templates use `folder_path` for context menu grouping — 2026-04-28
+
+Run-Workflow context menus (sidebar `SidebarItemRow.swift`, grid `LibraryView+FilterAndBatch.swift`) group workflows by `folderPath`. Top-level workflows (`/`) appear flat; deeper paths (e.g. `/Transcribe`, `/Catalogue`) become `Menu("<folder>") { ... }` submenus. Folder label is the last path component (Finder convention).
+
+To organize a new template, set its `folder_path` in the JSON. Don't need to touch the menu code.
+
+## inspectorDocument precedence — sidebar > grid stale > detail — 2026-04-28
+
+`ContentView.inspectorDocument` (file: `ContentView+State.swift`) computes the doc to show in the inspector. Order matters:
+
+1. Grid selection (`browserSelection.first`) — but ONLY if the doc is a child of the current sidebar folder. Stale `browserSelection` ids must NOT shadow the sidebar selection — fall through if the doc's `parentId != currentSidebarFolder.id`.
+2. `viewMode.library(let doc)` — the folder the user has open in the sidebar.
+3. `detailDocument` — legacy fallback for navigated-into doc state.
+
+Also: `ContentView.swift` clears `browserSelection.removeAll()` on `selectedSidebarItemId` change so a leaf id from a previous folder doesn't accidentally match a child of the new folder.
+
 ## NSTextView Ruler + Format Strip — 2026-04-27
 
 **Tinderbox's "format bar" is just AppKit's `NSTextRulerView`.** Setting `textView.usesRuler = true` + `scrollView.rulersVisible = true` shows the segmented Styles / alignment / Spacing / Lists strip plus the numeric ruler. No custom SwiftUI bar needed; no `addFloatingSubview` dance. Tried both, both were inferior. Use the native ruler.
