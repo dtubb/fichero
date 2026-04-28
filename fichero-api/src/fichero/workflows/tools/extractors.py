@@ -23,6 +23,10 @@ customize individual extractors or run just a subset.
 
 from __future__ import annotations
 
+# EntityType import placed here so future authors see the KG mapping next
+# to the section table below.
+from fichero.knowledge_models import EntityType
+
 import json
 import logging
 from datetime import datetime
@@ -88,11 +92,15 @@ _LANGUAGE_CONFIG = {
 #   instruction:  focused prompt text (what exactly to extract)
 
 
+#   entity_type:  KG mapping — items become KnowledgeEntity rows of this
+#                 EntityType (see _entity_writer.py). None means the section
+#                 produces date-style claims with no canonical entity.
 _SECTIONS: list[dict[str, Any]] = [
     {
         "name": "people_extract",
         "display": "Extract People",
         "artifact": "people",
+        "entity_type": EntityType.person,
         "icon": "person.2",
         "color": "blue",
         "schema_key": "personas_clave",
@@ -108,6 +116,7 @@ _SECTIONS: list[dict[str, Any]] = [
         "name": "dates_extract",
         "display": "Extract Dates",
         "artifact": "dates",
+        "entity_type": None,  # date-style: claim only, no canonical entity
         "icon": "calendar",
         "color": "orange",
         "schema_key": "fechas",
@@ -127,6 +136,7 @@ _SECTIONS: list[dict[str, Any]] = [
         "name": "rivers_extract",
         "display": "Extract Rivers",
         "artifact": "rivers",
+        "entity_type": EntityType.location,  # archive-specific subtype of location
         "icon": "water.waves",
         "color": "cyan",
         "schema_key": "rios",
@@ -142,6 +152,7 @@ _SECTIONS: list[dict[str, Any]] = [
         "name": "events_extract",
         "display": "Extract Events",
         "artifact": "events",
+        "entity_type": EntityType.event,
         "icon": "star",
         "color": "yellow",
         "schema_key": "eventos_clave",
@@ -155,6 +166,7 @@ _SECTIONS: list[dict[str, Any]] = [
         "name": "mines_extract",
         "display": "Extract Mines",
         "artifact": "mines",
+        "entity_type": EntityType.location,
         "icon": "pickaxe",
         "color": "brown",
         "schema_key": "minas",
@@ -168,6 +180,7 @@ _SECTIONS: list[dict[str, Any]] = [
         "name": "properties_extract",
         "display": "Extract Properties",
         "artifact": "properties",
+        "entity_type": EntityType.location,
         "icon": "building.columns",
         "color": "indigo",
         "schema_key": "propiedades",
@@ -181,6 +194,7 @@ _SECTIONS: list[dict[str, Any]] = [
         "name": "legal_references_extract",
         "display": "Extract Legal References",
         "artifact": "legal_references",
+        "entity_type": EntityType.concept,  # legal references as conceptual citations
         "icon": "scale.3d",
         "color": "purple",
         "schema_key": "referencias_legales",
@@ -194,6 +208,7 @@ _SECTIONS: list[dict[str, Any]] = [
         "name": "keywords_extract",
         "display": "Extract Keywords",
         "artifact": "keywords",
+        "entity_type": EntityType.concept,
         "icon": "tag",
         "color": "pink",
         "schema_key": "palabras_clave",
