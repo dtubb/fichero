@@ -226,12 +226,35 @@ struct WorkflowListView: View {
     // MARK: - List View
 
     private var listView: some View {
-        List(filteredWorkflows, selection: $selectedWorkflowId) { workflow in
-            WorkflowLibraryRow(workflow: workflow)
-                .tag(workflow.id)
-                .contextMenu {
-                    workflowContextMenu(for: workflow)
+        // Group by folder_path so default templates seeded under /Catalogue
+        // and /Transcribe surface as section headers in the Library list,
+        // matching the Run Workflow context menu grouping (#722 / #724).
+        // Top-level workflows render first without a header; folder buckets
+        // follow alphabetically. Section beats DisclosureGroup inside List —
+        // see MEMORY feedback_disclosure_group_custom_style.md.
+        let grouped = Dictionary(grouping: filteredWorkflows) { workflow in
+            workflow.folderPath.isEmpty ? "/" : workflow.folderPath
+        }
+        let topLevel = (grouped["/"] ?? []).sorted { $0.name < $1.name }
+        let folderKeys = grouped.keys.filter { $0 != "/" }.sorted()
+
+        return List(selection: $selectedWorkflowId) {
+            if !topLevel.isEmpty {
+                ForEach(topLevel) { workflow in
+                    workflowRow(workflow)
                 }
+            }
+            ForEach(folderKeys, id: \.self) { folderPath in
+                let inFolder = (grouped[folderPath] ?? []).sorted { $0.name < $1.name }
+                Section {
+                    ForEach(inFolder) { workflow in
+                        workflowRow(workflow)
+                    }
+                } header: {
+                    Text(folderSectionLabel(folderPath))
+                        .foregroundStyle(.primary)
+                }
+            }
         }
         .onChange(of: selectedWorkflowId) { _, newId in
             if let id = newId,
@@ -239,6 +262,21 @@ struct WorkflowListView: View {
                 openWorkflow(workflow)
             }
         }
+    }
+
+    @ViewBuilder
+    private func workflowRow(_ workflow: WorkflowSidebarItem) -> some View {
+        WorkflowLibraryRow(workflow: workflow)
+            .tag(workflow.id)
+            .contextMenu {
+                workflowContextMenu(for: workflow)
+            }
+    }
+
+    private func folderSectionLabel(_ path: String) -> String {
+        let trimmed = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if trimmed.isEmpty { return path }
+        return String(trimmed.split(separator: "/").last ?? Substring(trimmed))
     }
 
     // MARK: - Table View
