@@ -278,7 +278,16 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
         defer { isLoadingArtifacts = false }
 
         do {
-            artifacts = try await artifactService.getArtifacts(forDocumentId: documentId)
+            // Strict per-document scope — the legacy aggregation
+            // (`include_descendants=true`, the API default) returns the
+            // doc's artifacts PLUS its children's PLUS its parent's, which
+            // makes container-scoped artifacts (folder Catalogue, folder
+            // Dates) bleed onto every child page's inspector. V2 wants
+            // each page to show only its own artifacts. (#721)
+            artifacts = try await artifactService.getArtifacts(
+                forDocumentId: documentId,
+                includeDescendants: false
+            )
             // Auto-expand if there's only one type
             if Set(artifacts.map(\.artifactType)).count == 1,
                let firstType = artifacts.first?.artifactType {

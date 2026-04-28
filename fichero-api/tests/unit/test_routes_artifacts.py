@@ -85,6 +85,97 @@ class TestListDocumentArtifacts:
         assert data["total"] == 1
         assert data["artifacts"][0]["artifact_type"] == "transcription"
 
+    def test_strict_scope_excludes_parent_and_sibling_artifacts(self, client, db):
+        """V2 strict per-document scope (#721): with
+        ``include_descendants=false``, querying a page must return ONLY
+        artifacts whose ``document_id`` matches the page's id — not the
+        parent folder's container artifacts (Catalogue, Dates, Events,
+        etc.) and not sibling pages' artifacts. This was the bug: the
+        Artifacts tab in the inspector was using the legacy
+        ``include_descendants=true`` default and bleeding folder-level
+        artifacts onto every child page.
+        """
+        folder = Document(
+            name="case-folder",
+            doc_type=DocType.folder,
+            status=Status.completed,
+        )
+        db.save(folder)
+        page_a = Document(
+            name="page_a.jpg",
+            doc_type=DocType.file,
+            file_type=FileType.image,
+            parent_id=folder.id,
+            status=Status.completed,
+        )
+        page_b = Document(
+            name="page_b.jpg",
+            doc_type=DocType.file,
+            file_type=FileType.image,
+            parent_id=folder.id,
+            status=Status.completed,
+        )
+        db.save(page_a)
+        db.save(page_b)
+
+        # Folder-level container artifacts (what a Catalogue workflow writes).
+        _make_artifact(db, folder.id, "catalogue", "folder catalogue")
+        _make_artifact(db, folder.id, "dates", "folder dates")
+        _make_artifact(db, folder.id, "people", "folder people")
+        # A page-level artifact on page_a.
+        _make_artifact(db, page_a.id, "transcription", "page A text")
+        # A sibling page-level artifact on page_b.
+        _make_artifact(db, page_b.id, "transcription", "page B text")
+
+        # Strict scope: page_a sees ONLY its own transcription.
+        r = client.get(
+            f"/api/artifacts/document/{page_a.id}?include_descendants=false"
+        )
+        assert r.status_code == 200
+        data = r.json()
+        artifact_types = sorted(a["artifact_type"] for a in data["artifacts"])
+        assert artifact_types == ["transcription"], (
+            f"strict scope leaked artifacts: {artifact_types}"
+        )
+        assert all(
+            a["document_id"] == page_a.id for a in data["artifacts"]
+        ), "strict scope returned an artifact whose document_id != requested doc"
+
+    def test_legacy_scope_still_aggregates_for_v1_callers(self, client, db):
+        """Backwards-compat check: the legacy ``include_descendants=true``
+        mode (and the API default) MUST keep aggregating doc + parent +
+        children. V1 inspector callers depend on this. The fix for #721
+        is in the V2 callers (Inspector, Artifacts tab) — the endpoint
+        contract for both modes stays.
+        """
+        folder = Document(
+            name="case-folder",
+            doc_type=DocType.folder,
+            status=Status.completed,
+        )
+        db.save(folder)
+        page = Document(
+            name="page.jpg",
+            doc_type=DocType.file,
+            file_type=FileType.image,
+            parent_id=folder.id,
+            status=Status.completed,
+        )
+        db.save(page)
+        _make_artifact(db, folder.id, "catalogue", "folder catalogue")
+        _make_artifact(db, page.id, "transcription", "page text")
+
+        # Legacy mode: page sees its own + parent's artifacts.
+        r = client.get(
+            f"/api/artifacts/document/{page.id}?include_descendants=true"
+        )
+        assert r.status_code == 200
+        data = r.json()
+        artifact_types = sorted(a["artifact_type"] for a in data["artifacts"])
+        assert artifact_types == ["catalogue", "transcription"], (
+            f"legacy mode broke aggregation: {artifact_types}"
+        )
+
     def test_filter_by_artifact_type(self, client, db):
         doc = _make_doc(db)
         _make_artifact(db, doc.id, "transcription")
