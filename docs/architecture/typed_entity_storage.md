@@ -1,6 +1,121 @@
 # Typed Entity Storage — Design
 
-> **Status:** Design proposal. Open decisions marked **DECIDE**. Once approved, implementation plan moves to `docs/superpowers/plans/YYYY-MM-DD-typed-entity-storage.md`.
+> **Status:** **REVISED 2026-04-28** after backend audit. Most of the proposed infrastructure already exists in `knowledge_models.py` and `api/routes/{entities,claims,…}.py`. The 0.0.2 work is *connecting catalogue extractors to the existing KG layer*, not building new tables.
+>
+> **Original design** (pre-audit, would have built greenfield) preserved below for context. **Revised plan** in §0 is what we ship.
+
+---
+
+## §0 — REVISED PLAN (post-audit)
+
+### What already exists in the backend
+
+`knowledge_models.py` defines:
+
+| Model | Shape |
+|---|---|
+| `KnowledgeEntity` | `id`, `canonical_name`, `entity_type` (Enum: person/location/organization/event/concept/other), `aliases: list[str]`, `description`, `language`, `metadata: dict`, `merged_into_id` (dedup), `created_at`, `updated_at` |
+| `KnowledgeClaim` | `id`, `text`, `source_document_id`, `source_excerpt`, `claim_type` (Enum: fact/analysis/interpretation/argument/historiography/theory), `entity_ids: list[str]` (links claim to entities), `curation_state`, `confidence`, `metadata`, timestamps |
+| `KnowledgeClaimLink` | claim-to-claim edges with `relation_type` (Enum: supports/contradicts/refines/duplicate_of) |
+| `EntityMergeAudit` | dedup operation history |
+
+`api/routes/entities.py` ships:
+- `POST /api/entities` — create
+- `GET /api/entities` — list (with type filter)
+- `GET /api/entities/alias-map` — alias index
+- `GET /api/entities/resolve/{value}` — fuzzy alias resolution
+- `GET /api/entities/{id}` — single entity
+- `POST /api/entities/{id}/aliases` — add alias
+
+`api/routes/{claims,claim_links,graph_exploration,graph_traversal,graph_reasoning}.py` ship the rest of the KG surface.
+
+### What's missing
+
+The catalogue extractors (`fichero-api/src/fichero/workflows/tools/extractors.py`) write `Artifact(content=markdown, data={"items": [...]})` blobs **instead of** populating `KnowledgeEntity` and `KnowledgeClaim` rows. The KG layer exists in isolation — populated only by manual API calls or test fixtures, not by the actual extraction pipeline.
+
+### The 0.0.2 work — connect them
+
+**Catalogue extractors refactor:** when an extractor finds a person in a document, it should:
+
+1. Look up an existing `KnowledgeEntity` with that name (via `/api/entities/resolve/{name}` or direct DB query) — if found, use it; if not, create one with `entity_type=person`, `canonical_name=...`.
+2. Create a `KnowledgeClaim` row: `text=context_passage, source_document_id=doc.id, entity_ids=[entity.id], claim_type=fact, source_excerpt=context`.
+3. **Skip the markdown Artifact write** for structured types (people, places, organizations, events, keywords). Free-form types (`summary`, `catalogue` narrative) keep writing Artifacts.
+
+**Mapping:**
+
+| Catalogue section | Treatment |
+|---|---|
+| people | `KnowledgeEntity(entity_type=person)` + `KnowledgeClaim(entity_ids=[entity_id])` |
+| places | `KnowledgeEntity(entity_type=location)` + claim |
+| organizations | `KnowledgeEntity(entity_type=organization)` + claim |
+| events | `KnowledgeEntity(entity_type=event)` + claim |
+| keywords | `KnowledgeEntity(entity_type=concept)` + claim |
+| dates | `KnowledgeClaim` only — `claim_type=fact`, `text="1930-05-12: deed signed"` (no entity to dedup; the date *is* the claim) |
+| summary / narrative | `Artifact(content=md)` unchanged |
+
+### What this means for the locked decisions
+
+The original §3 decisions still apply but reinterpreted:
+
+| # | Decision | Now reads as |
+|---|---|---|
+| 1 | Schema topology | **Reuse existing `KnowledgeEntity` + `KnowledgeClaim` schema.** Already columnar, already typed. No new tables. |
+| 2 | FK model | Already shipped: `KnowledgeClaim.source_document_id` links claim → document; `KnowledgeClaim.entity_ids` links claim → entities. **Done.** |
+| 3 | Markdown coexistence | Drop Artifacts for structured types; keep for free-form. **Same as before.** |
+| 4 | Migration | No users yet, library DB is wipeable. Existing markdown artifacts can be deleted on next run. **Same.** |
+| 5 | Dedup | The KG layer already has `EntityMergeAudit` infrastructure. We use `aliases` and `entity_ids` in claims; full-blown matching is still a 0.0.3 task. |
+| 6 | Extensibility | `EntityType` enum is fixed for 0.0.2 (person/location/organization/event/concept/other). User-defined types in 0.0.3 either extends the enum or adds a sibling model — separate work. |
+
+### Phases (revised, much shorter)
+
+**Phase 1 — Catalogue tool refactor (1 day)**
+- Replace `extractors.py:_run_extractor`'s `Artifact` write with `KnowledgeEntity` + `KnowledgeClaim` saves.
+- Helper `_upsert_entity(name, type)` — looks up by canonical_name, creates if missing, returns ID.
+- Helper `_save_claim(text, doc_id, entity_ids, ...)` — straightforward `db.save(KnowledgeClaim(...))`.
+- Per-section mapping table at top of file (people→person, places→location, etc.).
+- Tests: extracting a person creates one entity row + one claim row; running on the same text twice doesn't duplicate the entity.
+
+**Phase 2 — Date claims (½ day)**
+- Dates handled specially: skip entity creation, write only `KnowledgeClaim(claim_type=fact, text=normalized_date + context)`.
+- Test: dates extractor produces N claims with no entity rows.
+
+**Phase 3 — Drop Artifact writes for structured types (½ day)**
+- After phases 1-2, structured artifacts no longer needed for queryability. Remove the markdown rendering write path. Keep markdown rendering as a *function* (used by API to format on the fly when display needs it).
+- Free-form types (`summary`, `catalogue`) keep their Artifact write path.
+
+**Phase 4 — Inspector wires to /api/entities + /api/claims (1-2 days)**
+- Swift: `DocumentInspector` reads claims for the doc (`GET /api/claims?source_document_id=X`).
+- For each claim's `entity_ids`, fetches matching entities (or use the existing graph endpoints).
+- Per-EntityType view: PersonView, LocationView, OrganizationView, EventView, ConceptView. All fed by KnowledgeEntity rows.
+- Free-form artifacts (summary) render as before.
+
+**Phase 5 — Workflow defaults updated (½ day)**
+- `catalogue_composable.json`: add `places`, `organizations` extractor nodes; drop `rivers/mines/properties/legal_references` nodes + edges; close #726.
+- `catalogue.json`: same generification.
+- Tests: assert composable workflow has the right node set.
+
+**Phase 6 — Catalogue tool consumes claims (½-1 day, closes #727)**
+- The `catalogue` reducer node reads claims/entities for the document instead of re-deriving from text.
+- Test: catalogue artifact's data field reflects existing claims, no second LLM extraction.
+
+**Total: ~4-5 working days.** Down from 7-10 in the original (greenfield) plan.
+
+### What stays in 0.0.3+
+
+- Apple Intelligence catalogue variant (build-up pattern, page chunking) — depends on Apple Intelligence wiring in `chat()`.
+- Entity dedup algorithm (LLM-assisted name matching).
+- User-defined entity types (#706 phase 3).
+- Cross-document UI affordances (click name → all sources).
+
+### Open question — keep or revise the original design below?
+
+The original §1-§9 below was written assuming greenfield. It's wrong now (would have built duplicate tables). I'm leaving it in place for one read-through then deleting it. Reply "drop original" and I cut everything below this line.
+
+---
+
+## (Original design — pre-audit, see §0 above for revised plan)
+
+
 >
 > **Goal milestone:** 0.0.2 (release-blocking — must land before users accumulate markdown-only artifact data that would need migration).
 >
