@@ -316,65 +316,81 @@ async def catalogue(
 ) -> dict[str, Any]:
     """Generate nine-section catalogue for the container of processed files.
 
-    Runs a single LLM call with the aggregated transcription text. Saves the
-    result as a catalogue Artifact on the container document (folder).
+    Two execution paths:
+    1. **Composable workflow** (per-section extractors already ran): the
+       container has KnowledgeClaim/KnowledgeEntity rows. Build the
+       9-section data from those rows and synthesize only the resumen
+       narrative via a small LLM call (#727).
+    2. **Monolithic workflow** (Transcribe → Catalogue, no extractors):
+       no claims exist. Fall back to a single full-extraction LLM call
+       that fills every section.
     """
     text = inputs.get("text", "")
-    if not text:
-        logger.warning("Catalogue: no text input; nothing to catalogue")
-        return {
-            "text": "",
-            "value": None,
-            "error": "No aggregated text provided to catalogue tool",
-        }
-
     output_language = inputs.get("output_language", "Spanish")
-    prompt = inputs.get("prompt") or _build_prompt(output_language)
-
-    full_prompt = f"{prompt}\n\n---\nSource transcriptions:\n\n{text}"
-
-    logger.info(f"Catalogue: running on {len(text)} chars in {output_language}")
-
-    try:
-        response = await chat(
-            [{"role": "user", "content": full_prompt}],
-            config=llm_config,
-        )
-    except Exception as exc:
-        logger.error(f"Catalogue LLM call failed: {exc}")
-        return {"text": "", "value": None, "error": str(exc)}
-
-    # Parse structured JSON. Models sometimes wrap in ```json fences.
-    raw = response.strip()
-    if raw.startswith("```"):
-        # Strip the first fence line and any trailing fence
-        lines = raw.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].startswith("```"):
-            lines = lines[:-1]
-        raw = "\n".join(lines).strip()
-
-    data: dict[str, Any] | None = None
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        logger.warning(f"Catalogue: JSON parse failed ({exc}); saving raw text")
-
-    markdown = _render_markdown(data) if data else response
-
-    # Save artifacts on the container document.
-    #
-    # Daniel's research workflow expects each section as its OWN artifact
-    # (e.g. "rivers" as a readable list, "people" as a table), not one big
-    # JSON blob you have to decode. So we split the nine-section output into
-    # individual per-section artifacts plus one combined "catalogue" artifact
-    # that holds the full markdown for export / overview.
     library_path = state.get("library_path", "")
     selected_doc_ids = state.get("selected_doc_ids") or []
-    saved_artifact_ids: list[str] = []
-
     container = _resolve_container_doc(selected_doc_ids, library_path)
+
+    # --- Path 1: claims already exist for this container -------------------
+    # If extractors ran ahead of catalogue (composable workflow), use the
+    # rows they wrote instead of running a duplicate full-extraction pass.
+    data: dict[str, Any] | None = None
+    if container and library_path:
+        try:
+            data = _build_data_from_claims(container.id, library_path)
+        except Exception as exc:
+            logger.warning(f"Catalogue: claim read failed ({exc}); falling through")
+            data = None
+        if data is not None:
+            data["resumen"] = await _generate_resumen(text, output_language, llm_config)
+            logger.info(
+                f"Catalogue: built from existing claims on {container.id}"
+            )
+
+    # --- Path 2: fallback — full extraction LLM call -----------------------
+    if data is None:
+        if not text:
+            logger.warning("Catalogue: no text input; nothing to catalogue")
+            return {
+                "text": "",
+                "value": None,
+                "error": "No aggregated text provided to catalogue tool",
+            }
+
+        prompt = inputs.get("prompt") or _build_prompt(output_language)
+        full_prompt = f"{prompt}\n\n---\nSource transcriptions:\n\n{text}"
+        logger.info(f"Catalogue: running on {len(text)} chars in {output_language}")
+
+        try:
+            response = await chat(
+                [{"role": "user", "content": full_prompt}],
+                config=llm_config,
+            )
+        except Exception as exc:
+            logger.error(f"Catalogue LLM call failed: {exc}")
+            return {"text": "", "value": None, "error": str(exc)}
+
+        # Parse structured JSON. Models sometimes wrap in ```json fences.
+        raw = response.strip()
+        if raw.startswith("```"):
+            lines = raw.splitlines()
+            if lines and lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            raw = "\n".join(lines).strip()
+
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            logger.warning(f"Catalogue: JSON parse failed ({exc}); saving raw text")
+
+    markdown = _render_markdown(data) if data else ""
+
+    # Save artifacts on the container document. Each section gets its own
+    # artifact for the inspector's per-type rendering, plus one combined
+    # "catalogue" artifact holding the full markdown for export.
+    saved_artifact_ids: list[str] = []
     if container and library_path and data is not None:
         try:
             db = db_manager.get_database(library_path)
@@ -506,3 +522,146 @@ def _iter_section_artifacts(data: dict[str, Any]):
                 lines.append(str(primary))
 
         yield artifact_type, {"content": "\n".join(lines), "data": {"items": items}}
+
+
+# =============================================================================
+# Phase 6 — build catalogue data from existing KG claims (#727)
+# =============================================================================
+
+
+def _build_data_from_claims(
+    container_id: str,
+    library_path: str,
+) -> dict[str, Any] | None:
+    """Build the 9-section catalogue data dict from existing KG rows.
+
+    Returns ``None`` when no claims exist for the container (callers fall
+    back to the original full-extraction LLM path).
+
+    The 9-section schema after the generification (#726):
+    - personas_clave  ← KnowledgeEntity(person)  + claim
+    - lugares          ← KnowledgeEntity(location) + claim    (NEW)
+    - organizaciones   ← KnowledgeEntity(organization)+ claim (NEW)
+    - eventos_clave    ← KnowledgeEntity(event)    + claim
+    - palabras_clave   ← KnowledgeEntity(concept)  + claim
+    - fechas           ← KnowledgeClaim with no entity_ids (date-style)
+    - resumen          ← filled by the caller via a small LLM call
+
+    Archive-specific sections (rios/minas/propiedades/referencias_legales)
+    were dropped from defaults but old archived data may still have the
+    matching artifact_types — those keep their markdown previews; we
+    don't try to reconstruct them from the KG.
+    """
+    from fichero.knowledge_models import (
+        EntityType,
+        KnowledgeClaim,
+        KnowledgeEntity,
+    )
+
+    db = db_manager.get_database(library_path)
+    claims = db.query(KnowledgeClaim, source_document_id=container_id)
+    if not claims:
+        return None
+
+    # Cache entities by id so we don't re-query for each claim.
+    entity_ids = {eid for c in claims for eid in (c.entity_ids or [])}
+    entities_by_id: dict[str, KnowledgeEntity] = {}
+    for eid in entity_ids:
+        try:
+            ent = db.get(KnowledgeEntity, eid)
+            if ent:
+                entities_by_id[ent.id] = ent
+        except Exception:
+            continue
+
+    # Group claims by entity type (or "date" bucket for entity-less claims).
+    type_to_section = {
+        EntityType.person: "personas_clave",
+        EntityType.location: "lugares",
+        EntityType.organization: "organizaciones",
+        EntityType.event: "eventos_clave",
+        EntityType.concept: "palabras_clave",
+    }
+    data: dict[str, Any] = {
+        "personas_clave": [],
+        "lugares": [],
+        "organizaciones": [],
+        "eventos_clave": [],
+        "palabras_clave": [],
+        "fechas": [],
+    }
+    seen_canonical_per_section: dict[str, set[str]] = {k: set() for k in data}
+
+    for claim in claims:
+        entity_id = (claim.entity_ids or [None])[0]
+        entity = entities_by_id.get(entity_id) if entity_id else None
+
+        if entity is None:
+            # Date-style claim: no entity, normalized date in metadata.
+            md = claim.metadata or {}
+            fecha = md.get("date_text") or claim.text or ""
+            normalized = md.get("date_normalized") or ""
+            data["fechas"].append({
+                "fecha": fecha,
+                "fecha_normalizada": normalized,
+                "contexto": claim.source_excerpt or "",
+            })
+            continue
+
+        section_key = type_to_section.get(entity.entity_type)
+        if not section_key:
+            continue
+
+        # Dedup by canonical name within a section so multiple claims
+        # for the same entity (e.g. across runs) collapse to one row.
+        seen = seen_canonical_per_section[section_key]
+        if entity.canonical_name in seen:
+            continue
+        seen.add(entity.canonical_name)
+
+        if section_key == "palabras_clave":
+            # Keywords render as a flat list of strings, not objects.
+            data[section_key].append(entity.canonical_name)
+        elif section_key == "eventos_clave":
+            data[section_key].append({
+                "evento": entity.canonical_name,
+                "contexto": claim.source_excerpt or entity.description or "",
+            })
+        else:
+            data[section_key].append({
+                "nombre": entity.canonical_name,
+                "ortografias_alternativas": list(entity.aliases or []),
+                "contexto": claim.source_excerpt or entity.description or "",
+            })
+
+    return data
+
+
+async def _generate_resumen(
+    text: str,
+    output_language: str,
+    llm_config: LLMConfig,
+) -> str:
+    """Generate just the resumen narrative from the merged transcript.
+
+    Tiny focused LLM call when we already have structured findings — the
+    model only writes the prose summary, doesn't re-extract entities.
+    Returns an empty string on failure (catalogue still ships with empty
+    resumen rather than refusing to save the structured findings).
+    """
+    if not text:
+        return ""
+    prompt = (
+        f"Write a 150-300 word narrative resumen in {output_language} "
+        f"summarizing the following document. Plain prose, no headers, "
+        f"no bullet points, no JSON.\n\n---\n{text}"
+    )
+    try:
+        response = await chat(
+            [{"role": "user", "content": prompt}],
+            config=llm_config,
+        )
+    except Exception as exc:
+        logger.warning(f"Catalogue: resumen LLM call failed ({exc}); using empty")
+        return ""
+    return response.strip()
