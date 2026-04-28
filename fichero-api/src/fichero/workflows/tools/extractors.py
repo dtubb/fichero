@@ -473,7 +473,16 @@ def _write_kg_rows(
             # Keywords come through as bare strings — wrap minimally.
             item = {"nombre": str(item)}
 
-        canonical = item.get("nombre") or item.get("name") or ""
+        # Field names vary per section: nombre (most), evento (events),
+        # fecha (dates). Try them in priority order so each extractor's
+        # native shape produces a sensible canonical_name.
+        canonical = (
+            item.get("nombre")
+            or item.get("name")
+            or item.get("evento")
+            or item.get("fecha")
+            or ""
+        )
         context = item.get("contexto") or item.get("context") or ""
 
         if entity_type is None:
