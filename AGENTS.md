@@ -263,6 +263,18 @@ Every significant change touches both stacks or touches neither. Before completi
 
 If you change the backend API without regenerating the Swift client, the build breaks.
 
+### Pydantic + OpenAPI Discipline
+
+Two failure modes have bitten us repeatedly. Both fail *silently* — no exception, no test failure, just data that vanishes or filters that hide rows. Treat these as load-bearing rules, not style nits.
+
+**1. Declare every field on the Pydantic model.** `extra="allow"` lets unknown fields *write* to the DB at runtime, but `model_dump()` only serializes declared fields, so the next read drops them. Symptom: write succeeds, value silently disappears on next load. Fix: when adding a column, add (a) the DB migration, (b) the Pydantic model field, (c) the OpenAPI-typed field on the request/response schemas — in the same commit. See `commit 31fc4141` and `feedback_pydantic_field_must_be_declared.md`.
+
+**2. Use OpenAPI-typed fields, not `additionalProperties`, in Swift service wrappers.** When building a request body in `fichero-swiftui/.../Services/*Generated.swift`, every field declared in `openapi.json` must be set via the typed `Components.Schemas.*` field. Dumping declared fields into `additionalProperties` works at compile time and round-trips through `extra="allow"` on the wire, but the backend Pydantic model ignores them and the write is lost. See `docs/architecture/swiftui/api_client.md` for the contract.
+
+**3. Endpoint defaults that match against seed data are foot-guns.** When you set a query-param default that is then matched by strict equality against rows (e.g. `folder_path: str = "/"`), the route quietly stops returning data the moment the seed JSONs change shape. Same failure shape as #1: schema and data drift apart, no error fires. Default to `Optional[T] = None` and only filter when the caller passes a value. Add a regression test that seeds a row outside the old default and asserts the unfiltered list returns it. See #722 → #723 (`commit 968602e7`).
+
+**Whenever you change seed data shape (default JSON resources, migration defaults, fixture data), audit every endpoint that filters that field.** The shape change and the filter change must ship together.
+
 ---
 
 ## Memory Management

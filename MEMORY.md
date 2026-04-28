@@ -1,5 +1,17 @@
 # Durable Lessons Learned / Decisions
 
+## Pydantic + OpenAPI contract — three silent-failure shapes — 2026-04-28
+
+The two-stack OpenAPI round-trip has three known failure modes that are all *silent* (no exception, no failing test, just data that disappears or filters that hide rows). All three are the same underlying shape: **schema and data drift apart**. Treat them as load-bearing rules.
+
+**1. Pydantic field must be declared.** `extra="allow"` lets unknown keys *write* to the DB at runtime, but `model_dump()` only serializes declared fields, so the next read drops them. When adding a column, ship (a) the DB migration, (b) the Pydantic model field, (c) the OpenAPI request/response schema field — in the same commit. See `commit 31fc4141`, `feedback_pydantic_field_must_be_declared.md`, and the user-edit timestamp pattern at `MEMORY.md:79`.
+
+**2. OpenAPI-typed fields, not `additionalProperties`, in Swift wrappers.** When a Swift `Services/*Generated.swift` wrapper builds a request body, every field declared in `openapi.json` must be set via the typed `Components.Schemas.*` field. Stuffing declared fields into `additionalProperties` compiles, round-trips through `extra="allow"`, and is then dropped by Pydantic — write lost, no error. See `docs/architecture/swiftui/api_client.md`.
+
+**3. Endpoint filter defaults vs. seed-data drift.** A query-param default that strict-equality filters against rows (e.g. `folder_path: str = "/"`) silently hides data the moment seed JSONs gain a non-default value. Default filter params to `Optional[T] = None`; only WHERE-clause when the caller passes a value. **Whenever you change seed-data shape (default JSON resources, migration defaults, fixture rows), audit every endpoint that filters that field — and add a regression test that seeds a row outside the old default.** See #722 → #723, `commit 968602e7`, `feedback_filter_default_seed_drift.md`.
+
+The repeating motif: each half of the contract changed in a different commit, and the breakage didn't surface until a *third* event (a Reset, a re-read, a fresh install) brought the halves back together. Audit both halves on every shape-changing commit.
+
 ## SwiftUI Text registers NSDraggingSource — `.textSelection(.disabled)` doesn't kill it — 2026-04-28
 
 SwiftUI `Text` on macOS registers itself as `NSDraggingSource` at AppKit level for selectable text. That AppKit drag source intercepts presses on the Text BEFORE a SwiftUI `.draggable` on a parent ancestor sees them, producing a generic text drag (with the row's name as content) that bypasses any `.dropDestination(for: T.self)` and produces a `.inetloc` artifact when dropped on Finder.
