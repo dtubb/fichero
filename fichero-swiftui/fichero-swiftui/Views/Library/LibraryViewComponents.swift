@@ -278,9 +278,13 @@ struct DocumentThumbnailView: View {
     var body: some View {
         VStack(spacing: 6) {
             ZStack {
+                // Use a portrait aspect (3:4) so document/photo thumbnails
+                // get a rectangle that matches typical page proportions —
+                // not a square. Square forced one-row icon list to crop
+                // photos awkwardly. (#718)
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color(.windowBackgroundColor))
-                    .aspectRatio(1, contentMode: .fit)
+                    .aspectRatio(3.0 / 4.0, contentMode: .fit)
 
                 // Show folder icon for folders, thumbnail for files.
                 // For PDFs + PDF page children, render locally via PDFKit.
