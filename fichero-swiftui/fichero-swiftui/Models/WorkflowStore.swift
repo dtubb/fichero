@@ -16,6 +16,13 @@ class WorkflowStore: ObservableObject {
     @Published var isConnected = false
     @Published var error: Error?
 
+    /// Cached backend tool metadata, keyed by lowercased tool name. Populated
+    /// by `loadWorkflows()` so the canvas's `WorkflowNodeView` can render the
+    /// correct icon/color for any registered tool — palette and graph share
+    /// one source of truth (#725). Empty until first successful load; views
+    /// fall back to a hardcoded dictionary for unknown tools.
+    @Published var toolRegistry: [String: ToolInfo] = [:]
+
     private let logger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowStore")
     private let workflowService: WorkflowServiceGenerated
     private let ficheroClient: FicheroClient
@@ -50,6 +57,13 @@ class WorkflowStore: ObservableObject {
         do {
             // Re-seed defaults first so updated presets reach the library
             try? await workflowService.reinstallDefaults()
+
+            // Hydrate the tool registry alongside workflows so the canvas
+            // can render correct icons for non-hardcoded tools (#725).
+            // Failures are non-fatal — fall back to hardcoded icon dict.
+            if let registry = try? await loadToolRegistry() {
+                toolRegistry = registry
+            }
 
             let response = try await workflowService.listWorkflows()
             workflows = response.map { workflow in

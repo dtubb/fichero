@@ -14,6 +14,7 @@ struct WorkflowNodeView: View {
     var onInputPortDetach: ((PortInfo, String) -> Void)?  // Detach from connected input
     var executionState: NodeExecutionState?  // Optional execution state for progress display
     @ObservedObject private var featureManager = FeatureManager.shared
+    @EnvironmentObject private var workflowStore: WorkflowStore
 
     private let width: CGFloat = 140
     private let height: CGFloat = 100
@@ -215,12 +216,15 @@ struct WorkflowNodeView: View {
 
     // MARK: - Node Styling
 
+    // Registry lookup first so backend `@register_tool(icon:, color:)`
+    // metadata reaches the canvas; fall back to the hardcoded dict for
+    // tools that haven't loaded yet or aren't in the registry (#725).
+    private var registryEntry: ToolInfo? { workflowStore.toolRegistry[node.tool.lowercased()] }
     private var nodeColor: Color {
-        Self.colorForTool(node.tool)
+        registryEntry.flatMap { Self.color(named: $0.color) } ?? Self.colorForTool(node.tool)
     }
-
     private var iconForTool: String {
-        Self.iconForTool(node.tool)
+        registryEntry.map(\.icon).flatMap { $0.isEmpty ? nil : $0 } ?? Self.iconForTool(node.tool)
     }
 
     // MARK: - Static Helpers (reusable by other views)
@@ -296,6 +300,23 @@ struct WorkflowNodeView: View {
 
     static func colorForTool(_ tool: String) -> Color {
         return toolColors[tool] ?? .gray
+    }
+}
+
+/// Map a backend tool's color name (set via `@register_tool(color="…")`)
+/// to a SwiftUI Color. Mirrors the converter in WorkflowToolBlocks so the
+/// canvas and the palette agree (#725). Dictionary instead of a switch to
+/// keep the host struct under SwiftLint's cyclomatic-complexity threshold.
+private let toolColorsByName: [String: Color] = [
+    "blue": .blue, "green": .green, "orange": .orange, "purple": .purple,
+    "pink": .pink, "red": .red, "yellow": .yellow, "teal": .teal,
+    "indigo": .indigo, "cyan": .cyan, "mint": .mint, "brown": .brown,
+    "gray": .gray, "grey": .gray
+]
+
+extension WorkflowNodeView {
+    static func color(named name: String) -> Color? {
+        toolColorsByName[name.lowercased()]
     }
 }
 
