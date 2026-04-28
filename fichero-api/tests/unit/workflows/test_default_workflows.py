@@ -112,28 +112,43 @@ class TestLoadPresetFiles:
                 f"{name!r} has folder_path={actual!r}, expected {expected_path!r}"
             )
 
-    def test_catalogue_composable_keeps_per_entity_extractors(self):
-        """The composable preset must keep the eight per-entity extractor
-        nodes that produce individual artifacts in parallel — those are the
-        entire point of "composable" vs. the monolithic Catalogue. Adding
-        the final reducer must not remove them (#720)."""
+    def test_catalogue_composable_uses_generic_extractors(self):
+        """The composable preset uses six generic per-entity extractors
+        that produce individual artifacts in parallel. Archive-specific
+        extractors (rivers, mines, properties, legal_references) stay
+        registered as tools but are dropped from the default workflow
+        per #726 — users can drag them in for archival corpora."""
         presets = {p["name"]: p for p in _load_preset_files()}
         composable = presets["Catalogue (composable)"]
 
         node_tools = {n["tool"] for n in composable["nodes"]}
         for extractor in (
             "people_extract",
+            "places_extract",
+            "organizations_extract",
             "dates_extract",
-            "rivers_extract",
             "events_extract",
-            "mines_extract",
-            "properties_extract",
-            "legal_references_extract",
             "keywords_extract",
         ):
             assert extractor in node_tools, (
-                f"composable preset missing per-entity extractor {extractor!r}"
+                f"composable preset missing generic extractor {extractor!r}"
             )
+
+    def test_catalogue_composable_drops_archive_specific_extractors(self):
+        """Archive-specific extractors don't ship in the default composable
+        workflow (#726). They're still registered as tools — power users can
+        drag them in — but defaults stay generic for non-archival corpora."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        composable = presets["Catalogue (composable)"]
+        node_tools = {n["tool"] for n in composable["nodes"]}
+        archive_specific = {
+            "rivers_extract", "mines_extract",
+            "properties_extract", "legal_references_extract",
+        }
+        assert not (archive_specific & node_tools), (
+            f"archive-specific extractors leaked into defaults: "
+            f"{archive_specific & node_tools}"
+        )
 
 
 def _node_id(preset: dict, tool: str) -> str:

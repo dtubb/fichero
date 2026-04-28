@@ -51,20 +51,29 @@
       "config": {"output_language": "Spanish"}
     },
     {
-      "id": "dates",
-      "tool": "dates_extract",
-      "label": "Dates",
+      "id": "places",
+      "tool": "places_extract",
+      "label": "Places",
       "position_x": 900,
       "position_y": 180,
       "inputs": {},
       "config": {"output_language": "Spanish"}
     },
     {
-      "id": "rivers",
-      "tool": "rivers_extract",
-      "label": "Rivers",
+      "id": "organizations",
+      "tool": "organizations_extract",
+      "label": "Organizations",
       "position_x": 900,
       "position_y": 280,
+      "inputs": {},
+      "config": {"output_language": "Spanish"}
+    },
+    {
+      "id": "dates",
+      "tool": "dates_extract",
+      "label": "Dates",
+      "position_x": 900,
+      "position_y": 380,
       "inputs": {},
       "config": {"output_language": "Spanish"}
     },
@@ -73,34 +82,7 @@
       "tool": "events_extract",
       "label": "Events",
       "position_x": 900,
-      "position_y": 380,
-      "inputs": {},
-      "config": {"output_language": "Spanish"}
-    },
-    {
-      "id": "mines",
-      "tool": "mines_extract",
-      "label": "Mines",
-      "position_x": 900,
       "position_y": 480,
-      "inputs": {},
-      "config": {"output_language": "Spanish"}
-    },
-    {
-      "id": "properties",
-      "tool": "properties_extract",
-      "label": "Properties",
-      "position_x": 900,
-      "position_y": 580,
-      "inputs": {},
-      "config": {"output_language": "Spanish"}
-    },
-    {
-      "id": "legal",
-      "tool": "legal_references_extract",
-      "label": "Legal References",
-      "position_x": 900,
-      "position_y": 680,
       "inputs": {},
       "config": {"output_language": "Spanish"}
     },
@@ -109,7 +91,7 @@
       "tool": "keywords_extract",
       "label": "Keywords",
       "position_x": 900,
-      "position_y": 780,
+      "position_y": 580,
       "inputs": {},
       "config": {"output_language": "Spanish"}
     },
@@ -160,6 +142,20 @@
       "target_port": "text"
     },
     {
+      "id": "e-aggregate-places",
+      "source": "aggregate",
+      "target": "places",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-organizations",
+      "source": "aggregate",
+      "target": "organizations",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
       "id": "e-aggregate-dates",
       "source": "aggregate",
       "target": "dates",
@@ -167,37 +163,9 @@
       "target_port": "text"
     },
     {
-      "id": "e-aggregate-rivers",
-      "source": "aggregate",
-      "target": "rivers",
-      "source_port": "text",
-      "target_port": "text"
-    },
-    {
       "id": "e-aggregate-events",
       "source": "aggregate",
       "target": "events",
-      "source_port": "text",
-      "target_port": "text"
-    },
-    {
-      "id": "e-aggregate-mines",
-      "source": "aggregate",
-      "target": "mines",
-      "source_port": "text",
-      "target_port": "text"
-    },
-    {
-      "id": "e-aggregate-properties",
-      "source": "aggregate",
-      "target": "properties",
-      "source_port": "text",
-      "target_port": "text"
-    },
-    {
-      "id": "e-aggregate-legal",
-      "source": "aggregate",
-      "target": "legal",
       "source_port": "text",
       "target_port": "text"
     },
