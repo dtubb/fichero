@@ -2,9 +2,15 @@
 
 ## Current Focus
 
-**Branch:** `0.0.2` — HEAD `9cbc5193`. Massive 0.0.2 polish day shipped 7 commits: folder inspector, thumbnail aspect, Catalogue (composable) reducer, page artifact scope fix, workflow template dedupe + folder grouping, sidebar drag investigation. Bug count: 0 net (4 fixed, several 0.0.3 deferred items filed cleanly).
+**Branch:** `0.0.2` — HEAD `076d3ed7`. Two big workstreams today (2026-04-28):
 
-**Goal:** ship 0.0.2 — release pipeline is now the only remaining work. All Daniel-blocked or content tasks.
+1. **Workflow polish** (morning): #723 list-endpoint regression, #724 list-grouping by folder, #725 canvas icon registry. Plus AGENTS.md + MEMORY.md docs on Pydantic/OpenAPI contract discipline.
+
+2. **Typed entity storage** (afternoon, 14 commits): #728 — catalogue extractors dual-write `KnowledgeEntity` + `KnowledgeClaim` rows alongside markdown artifacts. Inspector shows a typed "Knowledge Graph" section per document. Catalogue reducer reads existing claims (skips duplicate LLM extraction). Closes #726, #727, #728. Audit of existing backend revealed the KG layer (`knowledge_models.py`, `/api/entities`, `/api/claims`, `/api/graph_*`) was already built — this work *connects* extractors to the existing infrastructure rather than duplicating it.
+
+**Build state:** 1993 backend tests pass (10 pre-existing settings/provider failures unrelated). Ruff clean. SwiftLint clean for touched files. Xcode build succeeds.
+
+**Goal:** ship 0.0.2 — Daniel reviews, then release pipeline (#658-#660).
 
 ## Open Issues (0.0.2 milestone)
 
