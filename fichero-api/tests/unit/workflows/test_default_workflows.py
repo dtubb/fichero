@@ -59,6 +59,62 @@ class TestLoadPresetFiles:
         assert cat_edge["source_port"] == "text"
         assert cat_edge["target_port"] == "text"
 
+    def test_catalogue_composable_has_final_catalogue_node(self):
+        """The composable preset must end with a catalogue node so the
+        workflow produces a unified Catalogue artifact, not just per-entity
+        outputs (#720)."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        composable = presets["Catalogue (composable)"]
+
+        node_tools = {n["id"]: n["tool"] for n in composable["nodes"]}
+        # The reducer node — produces the final container-level Catalogue
+        # artifact — must be present.
+        assert "catalogue" in node_tools.values(), (
+            "composable preset missing final 'catalogue' reducer node — "
+            "running the workflow without it produces only per-entity "
+            "artifacts and no unified catalogue (#720)"
+        )
+
+        # And the merged transcripts must feed it (text/text).
+        aggregate_id = _node_id(composable, "aggregate")
+        catalogue_id = _node_id(composable, "catalogue")
+        edge = next(
+            (
+                e for e in composable["edges"]
+                if e["source"] == aggregate_id and e["target"] == catalogue_id
+            ),
+            None,
+        )
+        assert edge is not None, (
+            "aggregate → catalogue edge missing — final catalogue node "
+            "won't receive the merged transcripts"
+        )
+        assert edge["source_port"] == "text"
+        assert edge["target_port"] == "text"
+
+    def test_catalogue_composable_keeps_per_entity_extractors(self):
+        """The composable preset must keep the eight per-entity extractor
+        nodes that produce individual artifacts in parallel — those are the
+        entire point of "composable" vs. the monolithic Catalogue. Adding
+        the final reducer must not remove them (#720)."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        composable = presets["Catalogue (composable)"]
+
+        node_tools = {n["tool"] for n in composable["nodes"]}
+        for extractor in (
+            "people_extract",
+            "dates_extract",
+            "rivers_extract",
+            "events_extract",
+            "mines_extract",
+            "properties_extract",
+            "legal_references_extract",
+            "keywords_extract",
+        ):
+            assert extractor in node_tools, (
+                f"composable preset missing per-entity extractor {extractor!r}"
+            )
+
 
 def _node_id(preset: dict, tool: str) -> str:
     for node in preset["nodes"]:

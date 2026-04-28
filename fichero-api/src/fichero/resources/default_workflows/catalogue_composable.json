@@ -126,6 +126,15 @@
         "format": "txt",
         "mode": "per_file"
       }
+    },
+    {
+      "id": "catalogue",
+      "tool": "catalogue",
+      "label": "Catalogue",
+      "position_x": 1180,
+      "position_y": 400,
+      "inputs": {},
+      "config": {"output_language": "Spanish"}
     }
   ],
   "edges": [
@@ -203,6 +212,13 @@
       "id": "e-transcribe-export",
       "source": "transcribe",
       "target": "export",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-catalogue",
+      "source": "aggregate",
+      "target": "catalogue",
       "source_port": "text",
       "target_port": "text"
     }
