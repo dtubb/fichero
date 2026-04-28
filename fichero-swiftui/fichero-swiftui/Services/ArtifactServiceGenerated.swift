@@ -1,7 +1,7 @@
-import Foundation
-import OSLog
 import FicheroAPIClient
+import Foundation
 import OpenAPIRuntime
+import OSLog
 
 private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ArtifactServiceGenerated")
 
@@ -344,5 +344,113 @@ private struct ArtifactJSON: Codable {
         case confidence
         case reviewed
         case createdAt = "created_at"
+    }
+}
+// EntityServiceGenerated lives in this file (instead of its own) because the
+// Xcode project's main target uses traditional file references; new .swift
+// files would need pbxproj edits. See MEMORY: feedback_swift_file_sync.md.
+
+private let entityServiceLogger = Logger(
+    subsystem: "com.tubb.Fichero",
+    category: "EntityServiceGenerated"
+)
+
+/// Service wrapper for the dedicated `/api/entities` and `/api/claims`
+/// endpoints. The catalogue extractors write `KnowledgeEntity` +
+/// `KnowledgeClaim` rows (#728); this service is the read path the
+/// Inspector consumes.
+///
+/// Note: there is also a `KnowledgeGraphServiceGenerated` that wraps the
+/// `/api/knowledge-graph/*` routes — those return the `EntityCoreference`
+/// shape used by the merge/split UI. This service is for the simpler
+/// per-document entity/claim views in the Inspector.
+@MainActor
+final class EntityServiceGenerated: ObservableObject {
+    private let client: FicheroClient
+
+    init(ficheroClient: FicheroClient) {
+        self.client = ficheroClient
+    }
+
+    enum ServiceError: Error {
+        case validationError(String)
+        case unexpectedResponse(Int)
+    }
+
+    /// List all knowledge entities, optionally filtered by type or query.
+    ///
+    /// - Parameters:
+    ///   - entityType: filter to one EntityType (nil for all types)
+    ///   - query: free-text query against canonical_name + aliases (nil for none)
+    ///   - limit: page size
+    func listEntities(
+        entityType: Components.Schemas.FicheroKnowledgeModelsEntityType? = nil,
+        query: String? = nil,
+        limit: Int = 100
+    ) async throws -> [Components.Schemas.KnowledgeEntity] {
+        let response = try await client.api.listEntitiesApiEntitiesGet(
+            query: .init(q: query, entityType: entityType, limit: limit),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    /// Get a single entity by ID.
+    func getEntity(
+        _ entityId: String
+    ) async throws -> Components.Schemas.KnowledgeEntity {
+        let response = try await client.api.getEntityApiEntitiesEntityIdGet(
+            path: .init(entityId: entityId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    /// List claims, optionally filtered by source document. The
+    /// document-scoped form is the primary path the Inspector uses to
+    /// answer "what KG claims exist for this document?"
+    func listClaims(
+        sourceDocumentId: String? = nil,
+        entityId: String? = nil,
+        limit: Int = 100,
+        offset: Int = 0
+    ) async throws -> [Components.Schemas.KnowledgeClaim] {
+        let response = try await client.api.listClaimsApiClaimsGet(
+            query: .init(
+                entityId: entityId,
+                sourceDocumentId: sourceDocumentId,
+                limit: limit,
+                offset: offset
+            ),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
     }
 }

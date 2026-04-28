@@ -6,6 +6,7 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
     let documentId: String
 
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
+    @EnvironmentObject private var entityService: EntityServiceGenerated
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @State private var artifacts: [Artifact] = []
     @State private var isLoadingArtifacts = false
@@ -54,6 +55,16 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
                     }
                 }
             }
+
+            // Knowledge-graph view: queryable typed entities/claims for this
+            // document, written by catalogue extractors alongside markdown
+            // artifacts (#728). Both render — markdown above for debug,
+            // typed view here for cross-doc search and KG layers.
+            Divider().padding(.vertical, 8)
+            KnowledgeGraphInspectorSection(
+                documentId: documentId,
+                entityService: entityService
+            )
         }
         .task(id: documentId) {
             await loadArtifacts(for: documentId)
@@ -517,3 +528,220 @@ enum CatalogueArtifactPreviews {
     }
 }
 // swiftlint:enable file_length
+import FicheroAPIClient
+
+/// Inspector section that shows knowledge-graph entities and claims for
+/// the currently selected document. Reads from `/api/claims` filtered
+/// by `source_document_id`, dereferences `entity_ids` against
+/// `/api/entities`, and groups by `EntityType` for display (#728).
+///
+/// This is the typed-view counterpart to the existing markdown-artifact
+/// previews in `DocumentInspectorArtifactsTab`. Both render side-by-side
+/// for now (dual-write era) — markdown for debug, typed view for query.
+struct KnowledgeGraphInspectorSection: View {
+    let documentId: String
+    let entityService: EntityServiceGenerated
+
+    @State private var claims: [Components.Schemas.KnowledgeClaim] = []
+    @State private var entitiesById: [String: Components.Schemas.KnowledgeEntity] = [:]
+    @State private var isLoading = false
+    @State private var loadError: String?
+
+    private var grouped: [(EntityKind, [GroupedItem])] {
+        var byKind: [EntityKind: [GroupedItem]] = [:]
+        for claim in claims {
+            let entityId = claim.entityIds?.first
+            let entity = entityId.flatMap { entitiesById[$0] }
+            let kind = entity.flatMap { EntityKind(apiType: $0.entityType) } ?? .date
+            let item = GroupedItem(
+                claimId: claim.id ?? UUID().uuidString,
+                displayName: entity?.canonicalName ?? claim.text ?? "(untitled)",
+                context: claim.sourceExcerpt ?? claim.text ?? "",
+                aliases: entity?.aliases ?? []
+            )
+            byKind[kind, default: []].append(item)
+        }
+        return EntityKind.displayOrder
+            .compactMap { kind in
+                guard let items = byKind[kind], !items.isEmpty else { return nil }
+                return (kind, items)
+            }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader
+
+            if isLoading {
+                ProgressView().padding(.vertical, 8)
+            } else if let err = loadError {
+                Label(err, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            } else if grouped.isEmpty {
+                Text("No knowledge-graph entries for this document yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(grouped, id: \.0) { kind, items in
+                    EntityKindBlock(kind: kind, items: items)
+                }
+            }
+        }
+        .task(id: documentId) { await load() }
+    }
+
+    private var sectionHeader: some View {
+        HStack {
+            Image(systemName: "circle.hexagongrid")
+            Text("Knowledge Graph")
+                .font(.headline)
+            Spacer()
+            Button {
+                Task { await load() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.plain)
+            .help("Reload knowledge-graph entities for this document")
+        }
+        .foregroundStyle(.primary)
+    }
+
+    private func load() async {
+        isLoading = true
+        loadError = nil
+        defer { isLoading = false }
+
+        do {
+            let docClaims = try await entityService.listClaims(
+                sourceDocumentId: documentId,
+                limit: 500
+            )
+            claims = docClaims
+
+            // Resolve referenced entities. Bounded: max one per claim.
+            let entityIds = Set(docClaims.compactMap { $0.entityIds?.first })
+            var fetched: [String: Components.Schemas.KnowledgeEntity] = [:]
+            for id in entityIds {
+                if let entity = try? await entityService.getEntity(id) {
+                    fetched[id] = entity
+                }
+            }
+            entitiesById = fetched
+        } catch {
+            loadError = "Couldn't load: \(error.localizedDescription)"
+            claims = []
+            entitiesById = [:]
+        }
+    }
+}
+
+// MARK: - Models for the section's local rendering state
+
+private struct GroupedItem: Identifiable {
+    let claimId: String
+    let displayName: String
+    let context: String
+    let aliases: [String]
+    var id: String { claimId }
+}
+
+/// Local enum mirroring the API EntityType plus a "date" bucket for
+/// claim-only date entries (those have no entity at all).
+private enum EntityKind: String, Hashable, CaseIterable {
+    case person, location, organization, event, concept, date, other
+
+    init?(apiType: Components.Schemas.EntityTypeOutput?) {
+        guard let apiType else { return nil }
+        switch apiType {
+        case .person:       self = .person
+        case .location:     self = .location
+        case .organization: self = .organization
+        case .event:        self = .event
+        case .concept:      self = .concept
+        case .other:        self = .other
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .person:       return "People"
+        case .location:     return "Places"
+        case .organization: return "Organizations"
+        case .event:        return "Events"
+        case .concept:      return "Keywords"
+        case .date:         return "Dates"
+        case .other:        return "Other"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .person:       return "person.2"
+        case .location:     return "mappin.and.ellipse"
+        case .organization: return "building.2"
+        case .event:        return "star"
+        case .concept:      return "tag"
+        case .date:         return "calendar"
+        case .other:        return "questionmark.circle"
+        }
+    }
+
+    static var displayOrder: [EntityKind] {
+        [.person, .location, .organization, .event, .date, .concept, .other]
+    }
+}
+
+// MARK: - Per-kind list block
+
+private struct EntityKindBlock: View {
+    let kind: EntityKind
+    let items: [GroupedItem]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Image(systemName: kind.systemImage)
+                    .foregroundStyle(.secondary)
+                Text("\(kind.label) (\(items.count))")
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+            }
+            ForEach(items) { item in
+                EntityKindRow(item: item, kind: kind)
+            }
+        }
+    }
+}
+
+private struct EntityKindRow: View {
+    let item: GroupedItem
+    let kind: EntityKind
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(item.displayName).font(.body)
+            if !item.aliases.isEmpty {
+                Text("Also: \(item.aliases.joined(separator: ", "))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            if !item.context.isEmpty, item.context != item.displayName {
+                Text(item.context)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+        }
+        .padding(.leading, 18)
+        .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    Text("KnowledgeGraphInspectorSection — preview requires a backend")
+        .padding()
+}

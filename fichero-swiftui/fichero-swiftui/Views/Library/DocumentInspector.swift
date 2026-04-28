@@ -130,6 +130,7 @@ struct DocumentInspector: View {
 
     DocumentInspector(document: nil)
         .environmentObject(library.artifactService)
+        .environmentObject(library.entityService)
         .frame(width: 280, height: 400)
 }
 
@@ -155,6 +156,7 @@ struct DocumentInspector: View {
 
     DocumentInspector(document: mockDocument)
         .environmentObject(library.artifactService)
+        .environmentObject(library.entityService)
         .frame(width: 280, height: 400)
 }
 
