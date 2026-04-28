@@ -373,6 +373,21 @@ async def _run_extractor(
 
     markdown = _render_section_markdown(section, items)
 
+    # Dual write: KG rows + markdown artifact.
+    #
+    # KG rows (KnowledgeEntity + KnowledgeClaim) are the queryable substrate
+    # for cross-doc search and the 0.2.x KG layer (#728). Markdown artifacts
+    # stay alongside as the human-readable / debug view (Daniel: "keep
+    # markdown so we can debug as a user more easily"). Both writes are
+    # idempotent on canonical_name+entity_type for entities; claims always
+    # append (provenance trail).
+    if container and library_path and items:
+        try:
+            db = db_manager.get_database(library_path)
+            _write_kg_rows(db, section, items, container.id)
+        except Exception as exc:
+            logger.error(f"{section['name']}: KG write failed: {exc}")
+
     # Save artifact on the container (same doc catalogue writes to).
     if container and library_path:
         try:
@@ -398,6 +413,75 @@ async def _run_extractor(
             logger.error(f"{section['name']}: artifact save failed: {exc}")
 
     return {"text": markdown, "value": items, "cached": False}
+
+
+def _write_kg_rows(
+    db,
+    section: dict[str, Any],
+    items: list[Any],
+    container_id: str,
+) -> None:
+    """Persist extractor items as KnowledgeEntity + KnowledgeClaim rows.
+
+    Sections with ``entity_type`` set produce one entity per item (upsert
+    by canonical_name) plus one claim linking the entity to the source
+    document. Sections with ``entity_type=None`` (dates) produce claims
+    only — the date itself is the claim, no canonical entity to dedup.
+    """
+    from fichero.workflows.tools._entity_writer import upsert_entity, save_claim
+
+    entity_type = section.get("entity_type")
+
+    for item in items:
+        if not isinstance(item, dict):
+            # Keywords come through as bare strings — wrap minimally.
+            item = {"nombre": str(item)}
+
+        canonical = item.get("nombre") or item.get("name") or ""
+        context = item.get("contexto") or item.get("context") or ""
+
+        if entity_type is None:
+            # Date-style section: claim only. Normalized date in metadata.
+            date_text = item.get("fecha") or item.get("date") or canonical
+            normalized = item.get("fecha_normalizada") or item.get("date_normalized") or ""
+            claim_text = (
+                f"{normalized or date_text}: {context}" if context
+                else (normalized or date_text)
+            )
+            save_claim(
+                db,
+                text=claim_text,
+                source_document_id=container_id,
+                source_excerpt=context or None,
+                metadata={
+                    "date_text": date_text,
+                    "date_normalized": normalized,
+                },
+            )
+            continue
+
+        # Entity-bearing section.
+        if not canonical:
+            continue
+        aliases = (
+            item.get("ortografias_alternativas")
+            or item.get("alternative_spellings")
+            or []
+        )
+        entity_id = upsert_entity(
+            db,
+            canonical_name=canonical,
+            entity_type=entity_type,
+            aliases=aliases if isinstance(aliases, list) else [],
+            description=context or None,
+        )
+        save_claim(
+            db,
+            text=f"{canonical}: {context}" if context else canonical,
+            source_document_id=container_id,
+            entity_ids=[entity_id],
+            source_excerpt=context or None,
+        )
 
 
 # =============================================================================
