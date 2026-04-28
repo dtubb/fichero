@@ -11064,7 +11064,7 @@
           "workflows"
         ],
         "summary": "List Workflows",
-        "description": "List saved workflows, optionally filtered by folder.",
+        "description": "List saved workflows, optionally filtered by folder.\n\nWhen ``folder_path`` is omitted, all workflows are returned regardless\nof folder. Pass an explicit value (e.g. \"/Catalogue\") to filter.",
         "operationId": "list_workflows_api_workflows_get",
         "parameters": [
           {
@@ -11073,7 +11073,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/",
+              "nullable": true,
               "title": "Folder Path"
             }
           },

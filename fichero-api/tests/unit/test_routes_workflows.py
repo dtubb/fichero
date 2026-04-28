@@ -53,6 +53,32 @@ class TestListWorkflows:
         assert r.status_code == 200
         assert len(r.json()) == 2
 
+    def test_unfiltered_list_includes_non_root_folder_paths(self, client, db):
+        # Regression for #723: list endpoint must return workflows in any
+        # folder when caller omits folder_path. Pre-fix it filtered to "/"
+        # by default, hiding default templates seeded under /Transcribe and
+        # /Catalogue.
+        root = Workflow(name="Root", format="nodes", steps=[], folder_path="/")
+        catalogue = Workflow(
+            name="Catalogue", format="nodes", steps=[], folder_path="/Catalogue"
+        )
+        db.save(root)
+        db.save(catalogue)
+        r = client.get("/api/workflows")
+        assert r.status_code == 200
+        names = {w["name"] for w in r.json()}
+        assert {"Root", "Catalogue"} <= names
+
+    def test_explicit_folder_path_still_filters(self, client, db):
+        db.save(Workflow(name="Root", format="nodes", steps=[], folder_path="/"))
+        db.save(
+            Workflow(name="Cat", format="nodes", steps=[], folder_path="/Catalogue")
+        )
+        r = client.get("/api/workflows", params={"folder_path": "/Catalogue"})
+        assert r.status_code == 200
+        names = {w["name"] for w in r.json()}
+        assert names == {"Cat"}
+
 
 # ---------------------------------------------------------------------------
 # POST /api/workflows — create

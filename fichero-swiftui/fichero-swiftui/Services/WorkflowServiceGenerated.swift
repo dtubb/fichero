@@ -148,8 +148,8 @@ class WorkflowServiceGenerated: ObservableObject {
         }
     }
 
-    /// List all saved workflows.
-    func listWorkflows(folderPath: String = "/") async throws -> [WorkflowResponse] {
+    /// List all saved workflows. Pass `folderPath` to filter; omit for all.
+    func listWorkflows(folderPath: String? = nil) async throws -> [WorkflowResponse] {
         let libraryPath = client.currentLibraryPath ?? ""
         logger.info("listWorkflows called with libraryPath: \(libraryPath)")
         let response = try await client.api.listWorkflowsApiWorkflowsGet(.init(

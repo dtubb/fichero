@@ -508,15 +508,21 @@ async def reinstall_default_workflows(
 
 @router.get("")
 async def list_workflows(
-    folder_path: str = "/",
+    folder_path: str | None = None,
     db: Database = Depends(get_library_database),
 ) -> list[WorkflowResponse]:
-    """List saved workflows, optionally filtered by folder."""
+    """List saved workflows, optionally filtered by folder.
+
+    When ``folder_path`` is omitted, all workflows are returned regardless
+    of folder. Pass an explicit value (e.g. "/Catalogue") to filter.
+    """
     try:
         from fichero.models import Workflow
 
-        # Query workflows from database
-        workflows = db.query(Workflow, folder_path=folder_path)
+        if folder_path is None:
+            workflows = db.all(Workflow)
+        else:
+            workflows = db.query(Workflow, folder_path=folder_path)
 
         return [
             WorkflowResponse(
