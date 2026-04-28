@@ -198,22 +198,59 @@ extension LibraryView {
             }
         }
 
-        // Run Workflow submenu — lists all workflows inline, no picker dialog.
+        // Run Workflow submenu — workflows grouped by `folderPath` so
+        // user-organized presets (e.g. /Catalogue, /Transcribe) appear
+        // as nested submenus matching the context menu in the sidebar
+        // (#722).
         let availableWorkflows = libraryWorkflows
         if !selection.isEmpty && featureManager.isWorkflowRunOnSelectionEnabled
             && !availableWorkflows.isEmpty {
             let docIds = Array(selection)
             Menu {
-                ForEach(availableWorkflows.sorted { $0.name < $1.name }) { workflow in
-                    Button(workflow.name) {
-                        selectedDocumentIdsForBatch = docIds
-                        Task { await runBatchWorkflow(workflowId: workflow.id) }
-                    }
+                workflowSubmenuItems(workflows: availableWorkflows) { workflowId in
+                    selectedDocumentIdsForBatch = docIds
+                    Task { await runBatchWorkflow(workflowId: workflowId) }
                 }
             } label: {
                 Label("Run Workflow", systemImage: "flowchart")
             }
         }
+    }
+
+    /// Render a Run-Workflow menu body that groups workflows by their
+    /// `folderPath`. Top-level workflows appear directly; folders become
+    /// `Menu("<folder>")` submenus. Used by the grid context menu and the
+    /// sidebar row context menu (which has its own copy in
+    /// SidebarItemRow.swift). Centralizing here would require passing
+    /// the action across modules — we accept the duplication for now.
+    @ViewBuilder
+    private func workflowSubmenuItems(
+        workflows: [WorkflowSidebarItem],
+        action: @escaping (String) -> Void
+    ) -> some View {
+        let grouped = Dictionary(grouping: workflows) { wf in
+            wf.folderPath.isEmpty ? "/" : wf.folderPath
+        }
+        let topLevel = (grouped["/"] ?? []).sorted { $0.name < $1.name }
+        let folderKeys = grouped.keys.filter { $0 != "/" }.sorted()
+
+        ForEach(topLevel) { workflow in
+            Button(workflow.name) { action(workflow.id) }
+        }
+        ForEach(folderKeys, id: \.self) { folderPath in
+            Menu(folderPathLabel(folderPath)) {
+                let inFolder = (grouped[folderPath] ?? []).sorted { $0.name < $1.name }
+                ForEach(inFolder) { workflow in
+                    Button(workflow.name) { action(workflow.id) }
+                }
+            }
+        }
+    }
+
+    private func folderPathLabel(_ path: String) -> String {
+        let trimmed = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if trimmed.isEmpty { return path }
+        return String(trimmed.split(separator: "/").last ?? Substring(trimmed))
     }
 
     // MARK: - Workflow Execution (replaces batch path)

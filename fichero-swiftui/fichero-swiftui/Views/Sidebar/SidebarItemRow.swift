@@ -162,14 +162,54 @@ struct SidebarItemRow: View {
                let workflows = workflowStore?.workflows, !workflows.isEmpty {
                 Divider()
                 Menu("Run Workflow") {
-                    ForEach(workflows.sorted { $0.name < $1.name }) { workflow in
-                        Button(workflow.name) {
-                            runWorkflowOnDocument(workflowId: workflow.id, docId: doc.id)
-                        }
+                    workflowMenuItems(workflows: workflows) { workflowId in
+                        runWorkflowOnDocument(workflowId: workflowId, docId: doc.id)
                     }
                 }
             }
         }
+    }
+
+    /// Builds a `Run Workflow` submenu where workflows whose `folderPath`
+    /// is "/" appear at the top level and workflows under any other folder
+    /// path are grouped into a `Menu("<folder>")` submenu (#722). Folder
+    /// paths like `/Transcribe` and `/Catalogue` give us nested
+    /// submenus matching the user's mental model. Workflows are sorted
+    /// alphabetically within each group; folder names are sorted
+    /// alphabetically too.
+    @ViewBuilder
+    private func workflowMenuItems(
+        workflows: [WorkflowSidebarItem],
+        action: @escaping (String) -> Void
+    ) -> some View {
+        let grouped = Dictionary(grouping: workflows) { wf in
+            wf.folderPath.isEmpty ? "/" : wf.folderPath
+        }
+        let topLevel = (grouped["/"] ?? []).sorted { $0.name < $1.name }
+        let folderKeys = grouped.keys
+            .filter { $0 != "/" }
+            .sorted()
+
+        ForEach(topLevel) { workflow in
+            Button(workflow.name) { action(workflow.id) }
+        }
+
+        ForEach(folderKeys, id: \.self) { folderPath in
+            Menu(folderLabel(for: folderPath)) {
+                let inFolder = (grouped[folderPath] ?? []).sorted { $0.name < $1.name }
+                ForEach(inFolder) { workflow in
+                    Button(workflow.name) { action(workflow.id) }
+                }
+            }
+        }
+    }
+
+    /// "/Transcribe" → "Transcribe"; "/Catalogue/Sub" → "Sub" (last
+    /// component, mirroring how Finder shows nested folders in menus).
+    private func folderLabel(for path: String) -> String {
+        let trimmed = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if trimmed.isEmpty { return path }
+        return String(trimmed.split(separator: "/").last ?? Substring(trimmed))
     }
 
     /// Run a workflow on this sidebar document via the same SSE path that

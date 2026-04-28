@@ -19,10 +19,12 @@ class WorkflowStore: ObservableObject {
     private let logger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowStore")
     private let workflowService: WorkflowServiceGenerated
     private let ficheroClient: FicheroClient
-    private let defaultWorkflowTemplates: [DefaultWorkflowTemplate] = [
-        .filesToTranscribe,
-        .collectionToTranscribe
-    ]
+    /// Empty: backend ships the canonical default workflows (Transcribe,
+    /// Catalogue, Catalogue (composable)) via JSON in
+    /// fichero-api/.../resources/default_workflows. The Swift-side
+    /// `Default · Transcribe Files` / `Default · Transcribe Collection`
+    /// duplicated backend's Transcribe — removed in #722.
+    private let defaultWorkflowTemplates: [DefaultWorkflowTemplate] = []
 
     init(ficheroClient: FicheroClient) {
         self.ficheroClient = ficheroClient

@@ -92,6 +92,26 @@ class TestLoadPresetFiles:
         assert edge["source_port"] == "text"
         assert edge["target_port"] == "text"
 
+    def test_default_templates_have_folder_path_groups(self):
+        """Templates ship with `folder_path` values so the Run Workflow
+        context menu can render them in submenus (#722). Catalogue
+        variants live under `/Catalogue`; Transcribe under `/Transcribe`.
+        Loose templates at `/` would show flat at the top of the menu —
+        none should ship at root today.
+        """
+        presets = {p["name"]: p for p in _load_preset_files()}
+        expected = {
+            "Transcribe": "/Transcribe",
+            "Catalogue": "/Catalogue",
+            "Catalogue (composable)": "/Catalogue",
+        }
+        for name, expected_path in expected.items():
+            assert name in presets, f"missing preset: {name}"
+            actual = presets[name].get("folder_path")
+            assert actual == expected_path, (
+                f"{name!r} has folder_path={actual!r}, expected {expected_path!r}"
+            )
+
     def test_catalogue_composable_keeps_per_entity_extractors(self):
         """The composable preset must keep the eight per-entity extractor
         nodes that produce individual artifacts in parallel — those are the
