@@ -113,6 +113,42 @@ _SECTIONS: list[dict[str, Any]] = [
         ),
     },
     {
+        "name": "places_extract",
+        "display": "Extract Places",
+        "artifact": "places",
+        "entity_type": EntityType.location,
+        "icon": "mappin.and.ellipse",
+        "color": "green",
+        "schema_key": "lugares",
+        "item_shape": (
+            '{"nombre": "...", "ortografias_alternativas": ["..."], "contexto": "..."}'
+        ),
+        "instruction": (
+            "List every named place — cities, towns, regions, countries, "
+            "addresses, geographic features (excluding rivers, which have "
+            "their own extractor). For each: canonical name (preserve "
+            "original spelling, capitalize properly), alternative spellings "
+            "found in the text, short context."
+        ),
+    },
+    {
+        "name": "organizations_extract",
+        "display": "Extract Organizations",
+        "artifact": "organizations",
+        "entity_type": EntityType.organization,
+        "icon": "building.2",
+        "color": "indigo",
+        "schema_key": "organizaciones",
+        "item_shape": (
+            '{"nombre": "...", "ortografias_alternativas": ["..."], "contexto": "..."}'
+        ),
+        "instruction": (
+            "List every organization — companies, institutions, agencies, "
+            "governmental bodies, religious orders, cooperatives. For each: "
+            "canonical name + alternative spellings + context."
+        ),
+    },
+    {
         "name": "dates_extract",
         "display": "Extract Dates",
         "artifact": "dates",

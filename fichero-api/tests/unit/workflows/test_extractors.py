@@ -17,6 +17,8 @@ from fichero.workflows.tools.extractors import (
 
 EXTRACTOR_NAMES = [
     "people_extract",
+    "places_extract",
+    "organizations_extract",
     "dates_extract",
     "rivers_extract",
     "events_extract",
@@ -118,7 +120,7 @@ class TestMarkdownRendering:
 
 
 class TestSectionConfig:
-    def test_eight_sections_defined(self):
+    def test_all_sections_defined(self):
         names = {s["name"] for s in _SECTIONS}
         assert names == set(EXTRACTOR_NAMES)
 
@@ -130,7 +132,7 @@ class TestSectionConfig:
 
     def test_artifact_types_match_existing(self):
         # Artifact types must match what DocumentInspectorArtifactsTab renders.
-        known = {"people", "dates", "rivers", "events", "mines",
-                 "properties", "legal_references", "keywords"}
+        known = {"people", "places", "organizations", "dates", "rivers",
+                 "events", "mines", "properties", "legal_references", "keywords"}
         for section in _SECTIONS:
             assert section["artifact"] in known
