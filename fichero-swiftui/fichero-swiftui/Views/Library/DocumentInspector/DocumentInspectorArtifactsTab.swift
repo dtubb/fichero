@@ -721,7 +721,25 @@ private struct EntityKindRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(item.displayName).font(.body)
+            // Tappable entity name. Clicking copies the canonical name to
+            // the pasteboard so the user can paste into the search bar to
+            // find every doc mentioning it. Proper cross-doc navigation
+            // (click-to-search) needs a global dispatcher and is a 0.0.3
+            // task — this is the cheap affordance for now.
+            Button(action: copyName) {
+                HStack(spacing: 4) {
+                    Text(item.displayName)
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                    Image(systemName: "doc.on.clipboard")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .opacity(0.6)
+                }
+            }
+            .buttonStyle(.plain)
+            .help("Copy '\(item.displayName)' — paste in search to find all sources")
+
             if !item.aliases.isEmpty {
                 Text("Also: \(item.aliases.joined(separator: ", "))")
                     .font(.caption2)
@@ -736,6 +754,21 @@ private struct EntityKindRow: View {
         }
         .padding(.leading, 18)
         .padding(.vertical, 2)
+        .contextMenu {
+            Button("Copy name") { copyName() }
+            Button("Copy with context") {
+                let combined = item.context.isEmpty
+                    ? item.displayName
+                    : "\(item.displayName) — \(item.context)"
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(combined, forType: .string)
+            }
+        }
+    }
+
+    private func copyName() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(item.displayName, forType: .string)
     }
 }
 
