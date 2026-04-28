@@ -177,11 +177,12 @@ class TestSeedDefaultWorkflows:
         assert db.save.call_count == seeded
 
     def test_skips_preset_that_already_exists(self):
-        db = self._mock_db(existing_names=["Transcribe"])
+        db = self._mock_db(existing_names=["Transcribe", "Transcribe (Apple Vision)"])
         seeded = seed_default_workflows(db)
-        # Catalogue still seeds but Transcribe does not.
+        # Catalogue still seeds but Transcribe variants do not.
         saved_names = [call.args[0].name for call in db.save.call_args_list]
         assert "Transcribe" not in saved_names
+        assert "Transcribe (Apple Vision)" not in saved_names
         assert "Catalogue" in saved_names
         assert seeded == len(saved_names)
 
@@ -190,7 +191,10 @@ class TestSeedDefaultWorkflows:
         # on re-run. As new presets are added to resources/default_workflows,
         # include them here so the idempotency check stays accurate.
         db = self._mock_db(existing_names=[
-            "Transcribe", "Catalogue", "Catalogue (composable)"
+            "Transcribe",
+            "Transcribe (Apple Vision)",
+            "Catalogue",
+            "Catalogue (composable)",
         ])
         seeded = seed_default_workflows(db)
         assert seeded == 0

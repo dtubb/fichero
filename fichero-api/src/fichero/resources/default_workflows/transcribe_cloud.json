@@ -1,11 +1,11 @@
 {
-  "name": "Transcribe (Apple Vision)",
-  "description": "OCR every file in the selection using Apple Vision (on-device, no cloud). Skips files already transcribed.",
+  "name": "Transcribe",
+  "description": "Transcribe every file using a cloud vision LLM (e.g. GPT-4o, Claude Sonnet). Better at handwriting and historical scripts than Apple Vision; uses the provider/model set on the workflow.",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
   "folder_path": "/Transcribe",
-  "tags": ["preset", "ocr"],
+  "tags": ["preset", "ocr", "cloud"],
   "nodes": [
     {
       "id": "files-source",
@@ -19,12 +19,12 @@
     {
       "id": "transcribe",
       "tool": "transcribe",
-      "label": "Transcribe",
+      "label": "Transcribe (cloud)",
       "position_x": 360,
       "position_y": 160,
       "inputs": {},
       "config": {
-        "vision_mode": "apple",
+        "vision_mode": "llm",
         "language": "en",
         "update_page_content": true
       }
