@@ -291,8 +291,31 @@ private extension AISettingsView {
     func loadDefaults() async {
         isLoading = true
         defer { isLoading = false }
+
+        // Refresh providers list so the picker reflects providers added
+        // since AppState's last load. Defensive — ProvidersView also calls
+        // appState.loadProviders after adding, but a settings sheet may
+        // open with a stale list.
+        await appState.loadProviders()
+
         do {
             defaults = try await appState.fetchAIDefaults()
+
+            // First-run convenience: if no defaults are saved AND Apple is
+            // available locally, default Text/Vision/Audio to Apple so users
+            // don't have to manually pick on a fresh install. They can
+            // change to a cloud provider once they've added one.
+            if defaults.textProvider.isEmpty
+                && defaults.visionProvider.isEmpty
+                && defaults.audioProvider.isEmpty,
+               appState.providers.contains(where: { $0.providerType == "apple" }) {
+                defaults.textProvider = "apple"
+                defaults.visionProvider = "apple"
+                defaults.audioProvider = "apple"
+                // Persist so the user sees the same choice on next launch.
+                try? await appState.saveAIDefaults(defaults)
+            }
+
             if !defaults.textProvider.isEmpty {
                 loadModels(for: defaults.textProvider, into: $textModels)
             }

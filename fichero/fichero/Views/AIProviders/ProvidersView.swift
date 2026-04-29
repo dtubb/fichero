@@ -106,6 +106,10 @@ struct ProvidersView: View {
         do {
             providers = try await providerService.listProviders()
             catalog = try await providerService.listCatalog()
+            // Also refresh the global appState providers so other views
+            // (Settings → Defaults pickers) see newly-added providers
+            // without requiring an app restart.
+            await appState.loadProviders()
         } catch {
             providersViewLogger.error("Failed to load: \(String(describing: error))")
         }
