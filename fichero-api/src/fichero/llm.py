@@ -172,6 +172,17 @@ async def chat(
     """
     from langchain_core.messages import HumanMessage, SystemMessage
 
+    # Apple Intelligence (Foundation Models) lives outside LangChain — Swift-
+    # native API requires the fm-bridge subprocess. Route before LangChain
+    # tries to construct a model class for it.
+    if config.provider == "apple":
+        if stream:
+            raise ValueError(
+                "Apple Intelligence does not support streaming yet — "
+                "the fm-bridge wrapper returns a single response."
+            )
+        return await _apple_intelligence_chat(prompt, config, system)
+
     # Get LangChain model
     model = get_langchain_model(config)
 
@@ -190,6 +201,104 @@ async def chat(
     else:
         response = await model.ainvoke(messages)
         return response.content
+
+
+async def _apple_intelligence_chat(
+    prompt: str | list[dict[str, Any]],
+    config: LLMConfig,
+    system: str | None = None,
+) -> str:
+    """Bridge to FoundationModels via the bundled Swift fm-bridge binary.
+
+    Apple Intelligence's public API is Swift-native (LanguageModelSession.
+    respond(to:)) and not @objc-exposed, so pyobjc loads the classes but
+    can't call their methods. The fm-bridge binary (compiled from
+    fichero-api/bin/fm-bridge/main.swift) is a tiny CLI that takes a JSON
+    request on stdin and emits a JSON response on stdout.
+
+    Build with:
+        swiftc -O -parse-as-library -o fichero-api/bin/fm-bridge/fm-bridge \\
+            fichero-api/bin/fm-bridge/main.swift
+    """
+    import json as _json
+    from pathlib import Path
+    import asyncio
+
+    # Flatten messages list into a single prompt + optional system
+    # instructions. Apple Intelligence's session API doesn't model OpenAI's
+    # multi-turn message list directly; we collapse to user prompt + system.
+    if isinstance(prompt, str):
+        user_text = prompt
+        instructions = system or ""
+    else:
+        instructions = system or ""
+        user_parts: list[str] = []
+        for msg in prompt:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if isinstance(content, list):
+                # Multimodal content list — flatten the text parts only;
+                # Apple Intelligence is text-only (no vision in this bridge).
+                content = " ".join(
+                    p.get("text", "") if isinstance(p, dict) else str(p)
+                    for p in content
+                )
+            if role == "system" and not instructions:
+                instructions = str(content)
+            else:
+                user_parts.append(str(content))
+        user_text = "\n\n".join(user_parts)
+
+    # Locate fm-bridge. Dev path is fichero-api/bin/fm-bridge/fm-bridge
+    # relative to the package; production builds bundle it via briefcase.
+    here = Path(__file__).resolve()
+    candidates = [
+        here.parents[3] / "bin" / "fm-bridge" / "fm-bridge",  # dev: repo/fichero-api/bin/...
+        Path("fichero-api/bin/fm-bridge/fm-bridge").resolve(),
+    ]
+    binary: Path | None = next((p for p in candidates if p.is_file() and p.stat().st_mode & 0o111), None)
+    if binary is None:
+        raise RuntimeError(
+            "fm-bridge binary not found. Build with: "
+            "swiftc -O -parse-as-library -o fichero-api/bin/fm-bridge/fm-bridge "
+            "fichero-api/bin/fm-bridge/main.swift"
+        )
+
+    request_payload = _json.dumps(
+        {"prompt": user_text, "instructions": instructions}
+    ).encode()
+
+    proc = await asyncio.create_subprocess_exec(
+        str(binary),
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout_bytes, stderr_bytes = await proc.communicate(request_payload)
+
+    if proc.returncode != 0:
+        # fm-bridge emits a structured error JSON on stderr — surface its
+        # 'kind' so callers can distinguish "Apple Intelligence unavailable"
+        # from "generation failed."
+        try:
+            err = _json.loads(stderr_bytes.decode())
+            raise RuntimeError(
+                f"Apple Intelligence ({err.get('kind', 'error')}): "
+                f"{err.get('error', stderr_bytes.decode())}"
+            )
+        except _json.JSONDecodeError:
+            raise RuntimeError(
+                f"fm-bridge exited {proc.returncode}: {stderr_bytes.decode()}"
+            )
+
+    try:
+        result = _json.loads(stdout_bytes.decode())
+    except _json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"fm-bridge stdout was not valid JSON: {stdout_bytes!r}"
+        ) from exc
+
+    return result.get("response", "")
 
 
 async def _stream_chat_langchain(model, messages: list) -> AsyncIterator[str]:

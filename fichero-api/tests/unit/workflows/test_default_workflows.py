@@ -195,6 +195,7 @@ class TestSeedDefaultWorkflows:
             "Transcribe (Apple Vision)",
             "Catalogue",
             "Catalogue (composable)",
+            "Catalogue (Apple Intelligence)",
         ])
         seeded = seed_default_workflows(db)
         assert seeded == 0

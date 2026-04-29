@@ -1,0 +1,4 @@
+# Built binary — produced by build.sh on demand.
+# Don't commit; macOS-specific Mach-O, rebuild locally with:
+#   fichero-api/bin/fm-bridge/build.sh
+fm-bridge
