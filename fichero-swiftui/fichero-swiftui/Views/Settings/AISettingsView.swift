@@ -233,60 +233,57 @@ private extension AISettingsView {
             return
         }
 
-        // Pull the full LiteLLM catalog for this provider so users can pick
-        // any known model — not just ones they've manually added under
-        // Settings → Models. Previously this used `listProviderModels` which
-        // only returned user-configured rows, leaving the Defaults pickers
-        // empty when a provider had no rows yet (the symptom Daniel saw with
-        // Text → DashScope showing Model: None).
+        // Show ONLY user-configured models — the ones they've actually added
+        // for this provider under Settings → Models. The earlier LiteLLM
+        // catalog fallback let users pick model names the provider's API
+        // doesn't actually serve, producing runtime 404s (e.g. picking a
+        // DashScope model when the provider config routed to HuggingFace).
+        // Daniel's UX call: "the user has to think about it" — they should
+        // explicitly curate which models work, not rely on a permissive
+        // dropdown of every model LiteLLM knows about.
+        guard let provider = appState.providers.first(
+            where: { $0.providerType == providerType }
+        ) else {
+            models.wrappedValue = []
+            return
+        }
+
         Task {
             do {
-                let catalogModels = try await appState.providerService
-                    .listAvailableModels(providerType: providerType)
-                models.wrappedValue = catalogModels
+                let configured = try await appState.providerService
+                    .listProviderModels(providerId: provider.id)
+                models.wrappedValue = configured.map { user in
+                    ModelInfo(
+                        modelId: user.modelId,
+                        fullName: user.name,
+                        description: nil,
+                        isRecommended: false,
+                        isLocal: false,
+                        inputCostPerMillion: 0,
+                        outputCostPerMillion: 0,
+                        batchInputCostPerMillion: nil,
+                        batchOutputCostPerMillion: nil,
+                        cacheReadCostPerMillion: nil,
+                        maxInputTokens: nil,
+                        maxOutputTokens: nil,
+                        mode: nil,
+                        supportsVision: user.capabilities.contains("vision"),
+                        supportsFunctionCalling: user.capabilities.contains("tools"),
+                        supportsAudioInput: user.capabilities.contains("audio"),
+                        supportsAudioOutput: false,
+                        supportsPdfInput: false,
+                        supportsPromptCaching: false,
+                        supportsReasoning: false,
+                        supportsWebSearch: false,
+                        supportsStreaming: false,
+                        supportsBatchApi: false,
+                        provider: providerType
+                    )
+                }
             } catch {
                 logger.error(
-                    "Failed to load model catalog for \(providerType): \(error.localizedDescription)"
+                    "Failed to load configured models for \(providerType): \(error.localizedDescription)"
                 )
-                // Fallback to user-configured rows so the picker isn't
-                // catastrophically empty if the catalog endpoint fails.
-                guard let provider = appState.providers.first(
-                    where: { $0.providerType == providerType }
-                ) else {
-                    models.wrappedValue = []
-                    return
-                }
-                if let configured = try? await appState.providerService
-                    .listProviderModels(providerId: provider.id) {
-                    models.wrappedValue = configured.map { user in
-                        ModelInfo(
-                            modelId: user.modelId,
-                            fullName: user.name,
-                            description: nil,
-                            isRecommended: false,
-                            isLocal: false,
-                            inputCostPerMillion: 0,
-                            outputCostPerMillion: 0,
-                            batchInputCostPerMillion: nil,
-                            batchOutputCostPerMillion: nil,
-                            cacheReadCostPerMillion: nil,
-                            maxInputTokens: nil,
-                            maxOutputTokens: nil,
-                            mode: nil,
-                            supportsVision: user.capabilities.contains("vision"),
-                            supportsFunctionCalling: user.capabilities.contains("tools"),
-                            supportsAudioInput: user.capabilities.contains("audio"),
-                            supportsAudioOutput: false,
-                            supportsPdfInput: false,
-                            supportsPromptCaching: false,
-                            supportsReasoning: false,
-                            supportsWebSearch: false,
-                            supportsStreaming: false,
-                            supportsBatchApi: false,
-                            provider: providerType
-                        )
-                    }
-                }
             }
         }
     }
