@@ -2,7 +2,7 @@
 
 ## Current Focus
 
-**Branch:** `0.0.2` — HEAD `76c04822`. Long session today (2026-04-28): morning polish + afternoon typed entity storage rewrite. Foundation shipped; review-ready pending Daniel's hands-on test of the full Catalogue (composable) round trip.
+**Branch:** `0.0.2` — HEAD `d02afce9`. Long session today (2026-04-28): morning polish + afternoon typed entity storage rewrite + late-night Apple Intelligence integration. Four catalogue workflows now ship; the 2×2 transcribe/catalogue × cloud/Apple matrix is complete.
 
 **Goal:** Daniel reviews 0.0.2 → release pipeline (#658-#660 → #661/#662/#665).
 
@@ -21,7 +21,8 @@
 
 - **#729** — KG navigation UI (cross-doc views, entity detail pages, optional graph viz). 2-3 weeks. Most of 0.2.0 KG Entities milestone collapses if landed.
 - **#730** — SVO-style claim text + structured triples in metadata. ~1 day. Natural follow-on to per-page extraction.
-- **#731** — Apple Intelligence Catalogue (Foundation Models bridge + chunk/for_each/merge primitives). ~3 weeks. Completes the 2×2 transcribe/catalogue × Apple/cloud matrix.
+- **#732** — Surface provider-side errors clearly in UI (quota / 429 / model-not-found / auth). 1-2 days. Real-world hit during Daniel's testing tonight.
+- (#731 closed — Apple Intelligence shipped end-of-day, ~2hrs of work).
 
 ## Earlier-filed 0.0.3 carry-overs
 
@@ -33,11 +34,14 @@
 
 ## Next Session — Start Here
 
-1. **Daniel's review**: rebuild the app, restart backend, Reset Defaults, run Catalogue (composable) on a fresh folder with the now-shipped per-page extraction. Inspect the Knowledge Graph section — claims should now have `source_page_label` populated ("Page 1", "Page 2", …).
-2. **If review is approved**: close out 0.0.2 housekeeping (~17 issues completed in code but still open on GitHub) and start #658 → #659 → #660 release pipeline.
-3. **If review surfaces issues**: triage. Per-page extraction is the biggest single behavior change today; if results are surprising, the extractor at `fichero-api/src/fichero/workflows/tools/extractors.py:_run_extractor` is the place to look — it now splits the aggregated text on `\n\n---\n\n` and runs N parallel LLM calls.
-4. **Apple Intelligence**: registered as a provider but `chat()` has no `apple` branch — `llm.py:599`. Selecting Apple as provider will error with "Unknown provider". This is #731's prerequisite. Tracked, not blocking.
-5. **Settings → Defaults Text picker**: now pulls full LiteLLM catalog (not just user-curated). If Daniel decides he prefers user-curated only, revert in `AISettingsView.swift:230`.
+1. **Build fm-bridge first** — Apple Intelligence binary isn't checked in. Run `fichero-api/bin/fm-bridge/build.sh` (2 seconds with `swiftc`). Without it, Catalogue (Apple Intelligence) errors with "fm-bridge binary not found" at runtime.
+2. **Restart backend + ⌘B in Xcode + Reset Defaults** in the app. You should now see four catalogue workflows: Catalogue, Catalogue (composable), Catalogue (Apple Intelligence), plus the two Transcribe variants.
+3. **Daniel's review**: smoke test all four. Per-page extraction (`source_page_label = "Page N"`) lands on every claim regardless of provider. Apple Intelligence catalogue should run with **zero cloud calls** — quotas don't matter.
+4. **If review is approved**: close ~17 issues completed-in-code but open on GitHub, then start #658 → #659 → #660 release pipeline.
+5. **Gotchas**:
+   - Apple Intelligence requires macOS 26+ on Apple Silicon with Apple Intelligence enabled in System Settings. fm-bridge fails fast with `kind: unavailable` if not.
+   - The Settings → Defaults Text picker shows ONLY user-configured models (reverted from the LiteLLM catalog fallback per Daniel's "user has to think about it" call). If a picker is empty, add models in Settings → Models first.
+   - Per-page extraction does N parallel LLM calls per extractor on N-page docs. Watch quota on cloud providers — #732 logs the error categorization gap.
 
 ## Key constraints carried forward (still hot)
 
@@ -58,4 +62,4 @@
 
 ---
 
-*Last updated: 2026-04-28 evening — typed entity storage shipped (Phases 1-6 + per-page) + workflow polish + 3 issues filed for 0.0.3. Daniel reviews tomorrow.*
+*Last updated: 2026-04-28 late-night — typed entity storage + workflow polish + Apple Intelligence Catalogue all shipped on 0.0.2. Daniel reviews tomorrow.*

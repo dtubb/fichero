@@ -1,5 +1,35 @@
 # Durable Lessons Learned / Decisions
 
+## Calling Swift-only macOS frameworks from Python — 2026-04-28
+
+Apple's newer macOS frameworks (Foundation Models / Apple Intelligence, Speech's SpeechAnalyzer, ImagePlayground, Translation, etc.) are **Swift-native**, not `@objc`-bridged. pyobjc can `loadBundle` and `lookUpClass` on them — instances exist — but calling their public methods raises `does not implement methodSignatureForSelector:`. The Objective-C runtime can't reach Swift-only entry points.
+
+**The bridge pattern: tiny Swift CLI + subprocess.** Concretely:
+
+1. Write a single-file Swift program (`@main` + `-parse-as-library`) that takes a JSON request on stdin and emits a JSON response on stdout.
+2. Compile with `swiftc -O -parse-as-library -o bridge main.swift` — 2-second build, ~100 KB Mach-O.
+3. Python `subprocess.create_subprocess_exec(...)` it; pipe JSON in, parse JSON out.
+4. Surface structured error JSON via stderr so the caller can distinguish "framework unavailable on this device" from "generation failed."
+
+Reference implementation: `fichero-api/bin/fm-bridge/` (Apple Intelligence). 90 LOC Swift, ~80 LOC Python wrapper in `llm.py:_apple_intelligence_chat`. Total round-trip ~150ms cold, ~50ms warm.
+
+**Diagnostic for picking the bridge:**
+
+```python
+import objc
+objc.loadBundle('FrameworkName', globals(),
+                bundle_path='/System/Library/Frameworks/FrameworkName.framework')
+cls = objc.lookUpClass('FrameworkName.SomeClass')
+# Then try a known method:
+try:
+    cls.alloc().init().someMethod_(arg)
+    # → works → use pyobjc directly (e.g. Vision.framework / VNRecognizeTextRequest)
+except objc.NSObjectError:
+    # → "does not implement methodSignatureForSelector" → Swift-only → subprocess bridge
+```
+
+**Why this matters for estimates**: I previously estimated Apple Intelligence integration at "3 weeks" assuming a Swift HTTP/IPC service. Reality was 2 hours of focused work because the subprocess pattern is dirt cheap once you know to reach for it. When estimating Swift-framework integrations, ask: "is the public API @objc-exposed or Swift-only?" — the answer dictates a 50× difference in effort.
+
 ## Audit existing infra before locking schema — 2026-04-28
 
 When a feature plan calls for new tables or new Pydantic models, **grep the codebase for existing equivalents first**. A 30-minute audit can save 3-4 days of throwaway implementation.

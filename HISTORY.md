@@ -1212,3 +1212,15 @@ Six items, all release-pipeline or pure content / Daniel-blocked:
 
 ### Audit finding
 Backend KG layer (KnowledgeEntity, KnowledgeClaim, EntityMergeAudit, /api/entities, /api/claims, /api/graph_*) was already built — this session connected catalogue extractors to existing infrastructure rather than duplicating it. Saved ~3-4 days of throwaway work.
+
+### Late-night addendum: Apple Intelligence shipped
+
+Daniel pushed back on my "3 weeks" estimate for Apple Intelligence. He was right — turned out to be 2 hours of focused work.
+
+- `fichero-api/bin/fm-bridge/main.swift` — 90 LOC Swift CLI wrapping `FoundationModels.LanguageModelSession`. Reads JSON request on stdin, emits JSON response on stdout.
+- `fichero-api/bin/fm-bridge/build.sh` — reproducible `swiftc -O -parse-as-library` build.
+- `fichero-api/src/fichero/llm.py` — adds `apple` branch to `chat()` that subprocesses fm-bridge. Surfaces structured error JSON (kind: unavailable / generation / json) so callers can distinguish "Apple Intelligence not available on this machine" from generation failures.
+- `fichero-api/src/fichero/resources/default_workflows/catalogue_apple_intelligence.json` — fourth default workflow, completes the 2×2 transcribe/catalogue × cloud/Apple matrix.
+- Closes #731.
+
+Verified end-to-end: `echo '{"prompt": "hello"}' | fm-bridge` → response, plus `await chat(...)` round-trip. 297 workflow tests pass.
