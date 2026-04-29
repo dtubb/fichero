@@ -91,7 +91,26 @@ Releases are dated by ship date (calendar versioning). Versions before 1.0 are A
 
 **Improved — Settings.** Defaults model picker reads from configured providers; folder inspector when nothing is selected; thumbnail aspect ratios respect document orientation in the grid.
 
-**Fixed** — Workflow Library list endpoint returning empty after Reset Defaults. Workflow templates duplicating on every install. Catalogue (composable) reducer running a duplicate extraction pass instead of consuming claims. Several inspector and sidebar bugs from 0.0.1.
+**Fixed** — Workflow Library list endpoint returning empty after Reset Defaults. Workflow templates duplicating on every install. Catalogue (composable) reducer running a duplicate extraction pass instead of consuming claims. Several inspector and sidebar bugs from earlier internal builds.
+
+#### What's in this release
+
+The Knowledge Graph layer and Apple Intelligence Catalogue are new in 2026.04.29. Already-built features that ship in this first public release:
+
+- **Document library** with folder organization and file import. LINK mode (security-scoped bookmarks; zero disk usage) or COPY mode (APFS instant-cloning).
+- **AI workflow engine** with visual node editor. 30+ tools: transcription, entity extraction, summarization, classification, document conversion, custom LLM prompts, logic and control flow.
+- **Multiple LLM providers** via LiteLLM. Local: Ollama, LM Studio, Apple Vision OCR, Apple Foundation Models. Cloud: OpenAI, Anthropic, Google, Mistral, Groq, DeepSeek, OpenRouter, DashScope, xAI, Perplexity, Azure, Bedrock, HuggingFace, and more.
+- **37+ supported file types** — PDFs, Word, RTF, plain text, images (JPEG/PNG/HEIC/RAW), audio, video, archives, code files.
+- **Embedded Python backend** (Fichero Engine) — auto-launches with the app; no separate server.
+- **Multi-window, multi-library** — open multiple libraries in separate windows.
+- **Sparkle auto-update** — built-in update detection (signed feed; first end-to-end update test happens against the next release).
+
+#### Not yet in this release
+
+These are visible in the codebase but not user-facing in 2026.04.29 — coming in upcoming Alpha builds:
+
+- **Semantic search** (vector embeddings exist; UI / retrieval flow not yet wired end-to-end).
+- **Chat**, **Agents**, **Automation**, **Workflow Chains**, **MCP integrations** (feature-flagged off).
 
 *Full changelog: [CHANGELOG.md on GitHub](https://github.com/dtubb/fichero/blob/main/CHANGELOG.md)*
 

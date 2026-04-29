@@ -146,5 +146,50 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
   provenance, catalogue-consumes-claims, and default-workflow locks.
   297 workflow tests pass; 1993 backend tests pass.
 
+### What's in this release (foundation features)
+
+The Knowledge Graph layer + Apple Intelligence Catalogue are new in
+2026.04.29. The features below are also in this first public release:
+
+- **Document library** with folder organization and file import. LINK
+  mode (security-scoped bookmarks; zero disk usage) or COPY mode (APFS
+  instant-cloning).
+- **AI workflow engine** with visual node editor. LangGraph-backed
+  execution with streaming progress. 30+ tools registered:
+  transcription, entity extraction, summarization, classification,
+  document conversion, custom LLM prompts, logic / control flow.
+- **Multiple LLM providers** via LiteLLM routing. Local: Ollama,
+  LM Studio, Apple Vision OCR, Apple Foundation Models (Apple
+  Intelligence). Cloud: OpenAI, Anthropic, Google, Mistral, Cohere,
+  Groq, Together, DeepSeek, OpenRouter, DashScope, xAI, Perplexity,
+  Azure, Bedrock, HuggingFace, and more.
+- **37+ supported file types** — PDFs, Word, RTF, plain text, images
+  (JPEG/PNG/HEIC/RAW), audio (MP3/WAV/M4A), video, archives, code
+  files, and more.
+- **Embedded Python backend** (Fichero Engine,
+  `com.fichero.fichero.engine`). Auto-launches when the app opens; no
+  separate server to install or maintain.
+- **Multi-window, multi-library** — open multiple libraries in
+  separate windows.
+- **Sparkle auto-update** wired (signed EdDSA appcast feed; first
+  end-to-end update test happens against the next release).
+
+### Not yet in this release (feature-gated or work-in-progress)
+
+These are visible in the codebase but not user-facing in 2026.04.29.
+Will land in upcoming Alpha builds:
+
+- **Semantic search** — vector embeddings exist (BAAI/bge-m3 via
+  fastembed) but search UI / retrieval flow not yet wired end-to-end.
+- **Chat** — feature-flagged off.
+- **Agents** — feature-flagged off.
+- **Automation** (triggers, schedules, folder watchers) — UI scaffolded,
+  backend not wired.
+- **Workflow Chains** (multi-workflow orchestration) — feature-flagged
+  off.
+- **MCP integrations** — feature-flagged off.
+
+---
+
 *This is the first public release. Earlier internal builds were never
 distributed.*
