@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_VENV="${ROOT_DIR}/.venv"
 HOME_VENV="${HOME}/.venv"
-BRIEFCASE_VENV="${ROOT_DIR}/fichero-api/.briefcase-venv"
-API_EDITABLE="${ROOT_DIR}/fichero-api[dev]"
+BRIEFCASE_VENV="${ROOT_DIR}/fichero-engine/.briefcase-venv"
+API_EDITABLE="${ROOT_DIR}/fichero-engine[dev]"
 PYTHON_VERSION_DEFAULT="3.12.13"
 PYTHON_VERSION="${PYTHON_VERSION:-$PYTHON_VERSION_DEFAULT}"
 

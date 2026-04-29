@@ -480,7 +480,7 @@ var body: some View {
 
 **Fix:** Always run backend before using previews:
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 ```
 
 ---

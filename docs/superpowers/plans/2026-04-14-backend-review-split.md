@@ -13,8 +13,8 @@
 ## File Map
 
 ### Phase 1 — Fix
-- Modify: `fichero-api/src/fichero/workflows/tasks.py` (934 lines)
-- Test: `fichero-api/tests/unit/test_background_tasks.py`
+- Modify: `fichero-engine/src/fichero/workflows/tasks.py` (934 lines)
+- Test: `fichero-engine/tests/unit/test_background_tasks.py`
 
 ### Phase 2 — Splits (hard-limit files > 1000 lines)
 
@@ -42,18 +42,18 @@
 **Fix:** Add a `threading.Lock` to serialize all write operations to the task DB.
 
 **Files:**
-- Modify: `fichero-api/src/fichero/workflows/tasks.py`
-- Test: `fichero-api/tests/unit/test_background_tasks.py`
+- Modify: `fichero-engine/src/fichero/workflows/tasks.py`
+- Test: `fichero-engine/tests/unit/test_background_tasks.py`
 
 - [ ] **Step 1: Verify current failures**
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_background_tasks.py -v 2>&1 | tail -20
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_background_tasks.py -v 2>&1 | tail -20
 ```
 Expected: 11 FAILED, 15 passed.
 
 - [ ] **Step 2: Add threading.Lock to TaskQueue.__init__**
 
-In `fichero-api/src/fichero/workflows/tasks.py`, add `import threading` to the imports block (near the existing `import asyncio`):
+In `fichero-engine/src/fichero/workflows/tasks.py`, add `import threading` to the imports block (near the existing `import asyncio`):
 ```python
 import threading
 ```
@@ -126,20 +126,20 @@ async def _save_task(self, task: BackgroundTask) -> None:
 
 - [ ] **Step 4: Run tests**
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_background_tasks.py -v 2>&1 | tail -20
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_background_tasks.py -v 2>&1 | tail -20
 ```
 Expected: 26 passed, 0 failed.
 
 - [ ] **Step 5: Run full suite + lint**
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived -q 2>&1 | tail -10
-ruff check fichero-api/src/fichero/workflows/tasks.py
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived -q 2>&1 | tail -10
+ruff check fichero-engine/src/fichero/workflows/tasks.py
 ```
 Expected: all passing, no ruff errors.
 
 - [ ] **Step 6: Commit**
 ```bash
-git add fichero-api/src/fichero/workflows/tasks.py
+git add fichero-engine/src/fichero/workflows/tasks.py
 git commit -m "fix: serialize TaskQueue DuckDB writes with threading.Lock — fixes 11 async test failures (#460)"
 ```
 
@@ -148,25 +148,25 @@ git commit -m "fix: serialize TaskQueue DuckDB writes with threading.Lock — fi
 ## Task 2: Split knowledge_graph.py → package (2378 lines)
 
 **Files:**
-- Create: `fichero-api/src/fichero/api/routes/knowledge_graph/` (new package)
-- Create: `fichero-api/src/fichero/api/routes/knowledge_graph/__init__.py`
-- Create: `fichero-api/src/fichero/api/routes/knowledge_graph/mutations.py` (~200 lines, lines ~315–488)
-- Create: `fichero-api/src/fichero/api/routes/knowledge_graph/entities.py` (~550 lines, lines ~489–1180)
-- Create: `fichero-api/src/fichero/api/routes/knowledge_graph/claims.py` (~550 lines, lines ~1181–1659)
-- Create: `fichero-api/src/fichero/api/routes/knowledge_graph/predictions.py` (~440 lines, lines ~1660–2090)
-- Create: `fichero-api/src/fichero/api/routes/knowledge_graph/analysis.py` (~290 lines, lines ~2091–2378)
-- Delete: `fichero-api/src/fichero/api/routes/knowledge_graph.py`
-- Verify: `fichero-api/src/fichero/api/main.py` import still works
+- Create: `fichero-engine/src/fichero/api/routes/knowledge_graph/` (new package)
+- Create: `fichero-engine/src/fichero/api/routes/knowledge_graph/__init__.py`
+- Create: `fichero-engine/src/fichero/api/routes/knowledge_graph/mutations.py` (~200 lines, lines ~315–488)
+- Create: `fichero-engine/src/fichero/api/routes/knowledge_graph/entities.py` (~550 lines, lines ~489–1180)
+- Create: `fichero-engine/src/fichero/api/routes/knowledge_graph/claims.py` (~550 lines, lines ~1181–1659)
+- Create: `fichero-engine/src/fichero/api/routes/knowledge_graph/predictions.py` (~440 lines, lines ~1660–2090)
+- Create: `fichero-engine/src/fichero/api/routes/knowledge_graph/analysis.py` (~290 lines, lines ~2091–2378)
+- Delete: `fichero-engine/src/fichero/api/routes/knowledge_graph.py`
+- Verify: `fichero-engine/src/fichero/api/main.py` import still works
 
 - [ ] **Step 1: Create the package directory and read the source**
 ```bash
-mkdir -p fichero-api/src/fichero/api/routes/knowledge_graph
+mkdir -p fichero-engine/src/fichero/api/routes/knowledge_graph
 ```
-Read `fichero-api/src/fichero/api/routes/knowledge_graph.py` fully to understand all imports and models.
+Read `fichero-engine/src/fichero/api/routes/knowledge_graph.py` fully to understand all imports and models.
 
 - [ ] **Step 2: Write __init__.py — combines all sub-routers**
 ```python
-# fichero-api/src/fichero/api/routes/knowledge_graph/__init__.py
+# fichero-engine/src/fichero/api/routes/knowledge_graph/__init__.py
 """Knowledge graph API routes — split by responsibility."""
 
 from fastapi import APIRouter
@@ -312,22 +312,22 @@ router = APIRouter()
 
 - [ ] **Step 8: Delete old flat file**
 ```bash
-rm fichero-api/src/fichero/api/routes/knowledge_graph.py
+rm fichero-engine/src/fichero/api/routes/knowledge_graph.py
 ```
 
 - [ ] **Step 9: Verify main.py import still works**
 
-Check that `fichero-api/src/fichero/api/main.py` imports `from fichero.api.routes.knowledge_graph import router` — this now resolves to the package `__init__.py` which is correct.
+Check that `fichero-engine/src/fichero/api/main.py` imports `from fichero.api.routes.knowledge_graph import router` — this now resolves to the package `__init__.py` which is correct.
 
 - [ ] **Step 10: Test + lint + commit**
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_routes_knowledge_graph.py -v 2>&1 | tail -15
-ruff check fichero-api/src/fichero/api/routes/knowledge_graph/
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_routes_knowledge_graph.py -v 2>&1 | tail -15
+ruff check fichero-engine/src/fichero/api/routes/knowledge_graph/
 ```
 Expected: all passing.
 ```bash
-git add fichero-api/src/fichero/api/routes/knowledge_graph/
-git rm fichero-api/src/fichero/api/routes/knowledge_graph.py
+git add fichero-engine/src/fichero/api/routes/knowledge_graph/
+git rm fichero-engine/src/fichero/api/routes/knowledge_graph.py
 git commit -m "refactor: split knowledge_graph.py (2378 lines) into 5-module package (#460)"
 ```
 
@@ -342,11 +342,11 @@ git commit -m "refactor: split knowledge_graph.py (2378 lines) into 5-module pac
 - Cache operations (~lines 1890–2188): new `workflow_cache.py`
 
 **Files:**
-- Modify: `fichero-api/src/fichero/api/routes/workflow_execution.py` (keep ~1095 lines)
-- Create: `fichero-api/src/fichero/api/routes/workflow_threads.py`
-- Create: `fichero-api/src/fichero/api/routes/workflow_visualization.py`
-- Create: `fichero-api/src/fichero/api/routes/workflow_cache.py`
-- Modify: `fichero-api/src/fichero/api/main.py` (add new routers)
+- Modify: `fichero-engine/src/fichero/api/routes/workflow_execution.py` (keep ~1095 lines)
+- Create: `fichero-engine/src/fichero/api/routes/workflow_threads.py`
+- Create: `fichero-engine/src/fichero/api/routes/workflow_visualization.py`
+- Create: `fichero-engine/src/fichero/api/routes/workflow_cache.py`
+- Modify: `fichero-engine/src/fichero/api/main.py` (add new routers)
 
 - [ ] **Step 1: Read workflow_execution.py fully** to understand shared helpers and which helpers each section needs.
 
@@ -422,19 +422,19 @@ Paste: `CacheStatsResponse`, `CacheClearResponse`, and all `/cache` routes.
 
 - [ ] **Step 6: Register new routers in main.py**
 
-In `fichero-api/src/fichero/api/main.py`, add imports and `app.include_router` calls for the three new routers under the same prefix as workflow_execution (likely `/api/workflow-execution` or similar — check current registration and match it).
+In `fichero-engine/src/fichero/api/main.py`, add imports and `app.include_router` calls for the three new routers under the same prefix as workflow_execution (likely `/api/workflow-execution` or similar — check current registration and match it).
 
 - [ ] **Step 7: Test + lint + commit**
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_routes_workflow_execution.py -v 2>&1 | tail -15
-ruff check fichero-api/src/fichero/api/routes/workflow_execution.py fichero-api/src/fichero/api/routes/workflow_threads.py fichero-api/src/fichero/api/routes/workflow_visualization.py fichero-api/src/fichero/api/routes/workflow_cache.py
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_routes_workflow_execution.py -v 2>&1 | tail -15
+ruff check fichero-engine/src/fichero/api/routes/workflow_execution.py fichero-engine/src/fichero/api/routes/workflow_threads.py fichero-engine/src/fichero/api/routes/workflow_visualization.py fichero-engine/src/fichero/api/routes/workflow_cache.py
 ```
 ```bash
-git add fichero-api/src/fichero/api/routes/workflow_execution.py \
-        fichero-api/src/fichero/api/routes/workflow_threads.py \
-        fichero-api/src/fichero/api/routes/workflow_visualization.py \
-        fichero-api/src/fichero/api/routes/workflow_cache.py \
-        fichero-api/src/fichero/api/main.py
+git add fichero-engine/src/fichero/api/routes/workflow_execution.py \
+        fichero-engine/src/fichero/api/routes/workflow_threads.py \
+        fichero-engine/src/fichero/api/routes/workflow_visualization.py \
+        fichero-engine/src/fichero/api/routes/workflow_cache.py \
+        fichero-engine/src/fichero/api/main.py
 git commit -m "refactor: split workflow_execution.py (2188 lines) into 4 files (#460)"
 ```
 
@@ -445,9 +445,9 @@ git commit -m "refactor: split workflow_execution.py (2188 lines) into 4 files (
 **Structure:** `FicheroAPIClient` + tool handlers (document, workflow, activity tools) + resource handlers + `main()`.
 
 **Files:**
-- Modify: `fichero-api/src/fichero/mcp_server.py` (keep: server setup, tool/resource registration, main)
-- Create: `fichero-api/src/fichero/mcp_document_tools.py` (document + search + ingest tool handlers)
-- Create: `fichero-api/src/fichero/mcp_workflow_tools.py` (workflow + activity + action tool handlers)
+- Modify: `fichero-engine/src/fichero/mcp_server.py` (keep: server setup, tool/resource registration, main)
+- Create: `fichero-engine/src/fichero/mcp_document_tools.py` (document + search + ingest tool handlers)
+- Create: `fichero-engine/src/fichero/mcp_workflow_tools.py` (workflow + activity + action tool handlers)
 
 - [ ] **Step 1: Read mcp_server.py fully** — identify exactly which tool handler functions fall into "document" vs "workflow/activity" categories by reading the `@server.call_tool` dispatch block.
 
@@ -478,11 +478,11 @@ Extract: handler functions for workflow execution, activity monitoring, action r
 
 - [ ] **Step 5: Test + lint + commit**
 ```bash
-ruff check fichero-api/src/fichero/mcp_server.py fichero-api/src/fichero/mcp_document_tools.py fichero-api/src/fichero/mcp_workflow_tools.py
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_mcp_tools.py -v 2>&1 | tail -10
+ruff check fichero-engine/src/fichero/mcp_server.py fichero-engine/src/fichero/mcp_document_tools.py fichero-engine/src/fichero/mcp_workflow_tools.py
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_mcp_tools.py -v 2>&1 | tail -10
 ```
 ```bash
-git add fichero-api/src/fichero/mcp_server.py fichero-api/src/fichero/mcp_document_tools.py fichero-api/src/fichero/mcp_workflow_tools.py
+git add fichero-engine/src/fichero/mcp_server.py fichero-engine/src/fichero/mcp_document_tools.py fichero-engine/src/fichero/mcp_workflow_tools.py
 git commit -m "refactor: split mcp_server.py (2055 lines) into server + document/workflow handler modules (#460)"
 ```
 
@@ -493,8 +493,8 @@ git commit -m "refactor: split mcp_server.py (2055 lines) into server + document
 **db.py has ~400 lines of `_migrate_*` methods** (lines ~1077–1366) that are called only from `__init__`. These are pure schema-migration logic with no external callers — perfect for extraction.
 
 **Files:**
-- Create: `fichero-api/src/fichero/db_migrations.py`
-- Modify: `fichero-api/src/fichero/db.py` (remove migration methods, import and delegate)
+- Create: `fichero-engine/src/fichero/db_migrations.py`
+- Modify: `fichero-engine/src/fichero/db.py` (remove migration methods, import and delegate)
 
 - [ ] **Step 1: Create db_migrations.py**
 
@@ -567,11 +567,11 @@ def _migrate_saved_search_table(self) -> None:
 
 - [ ] **Step 3: Test + lint + commit**
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_db.py -v 2>&1 | tail -15
-ruff check fichero-api/src/fichero/db.py fichero-api/src/fichero/db_migrations.py
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_db.py -v 2>&1 | tail -15
+ruff check fichero-engine/src/fichero/db.py fichero-engine/src/fichero/db_migrations.py
 ```
 ```bash
-git add fichero-api/src/fichero/db.py fichero-api/src/fichero/db_migrations.py
+git add fichero-engine/src/fichero/db.py fichero-engine/src/fichero/db_migrations.py
 git commit -m "refactor: extract db.py migration methods to db_migrations.py — reduces db.py from 1447 to ~1000 lines (#460)"
 ```
 
@@ -628,11 +628,11 @@ Extract: `APIKeyRequest`, `ConnectionTestResponse`, and routes for `/{type}/api-
 
 - [ ] **Step 5: Test + lint + commit**
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_routes_providers.py -v 2>&1 | tail -15
-ruff check fichero-api/src/fichero/api/routes/providers.py fichero-api/src/fichero/api/routes/provider_models.py fichero-api/src/fichero/api/routes/provider_keys.py
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_routes_providers.py -v 2>&1 | tail -15
+ruff check fichero-engine/src/fichero/api/routes/providers.py fichero-engine/src/fichero/api/routes/provider_models.py fichero-engine/src/fichero/api/routes/provider_keys.py
 ```
 ```bash
-git add fichero-api/src/fichero/api/routes/providers.py fichero-api/src/fichero/api/routes/provider_models.py fichero-api/src/fichero/api/routes/provider_keys.py fichero-api/src/fichero/api/main.py
+git add fichero-engine/src/fichero/api/routes/providers.py fichero-engine/src/fichero/api/routes/provider_models.py fichero-engine/src/fichero/api/routes/provider_keys.py fichero-engine/src/fichero/api/main.py
 git commit -m "refactor: split providers.py (1415 lines) into providers + provider_models + provider_keys (#460)"
 ```
 
@@ -645,9 +645,9 @@ git commit -m "refactor: split providers.py (1415 lines) into providers + provid
 - Traversal + interpretation views + subgraph (lines ~855–1259): new `graph_traversal.py`
 
 **Files:**
-- Modify: `fichero-api/src/fichero/api/routes/graph_exploration.py`
-- Create: `fichero-api/src/fichero/api/routes/graph_traversal.py`
-- Modify: `fichero-api/src/fichero/api/main.py`
+- Modify: `fichero-engine/src/fichero/api/routes/graph_exploration.py`
+- Create: `fichero-engine/src/fichero/api/routes/graph_traversal.py`
+- Modify: `fichero-engine/src/fichero/api/main.py`
 
 - [ ] **Step 1: Read graph_exploration.py** — identify shared models between sections (GraphNode, GraphEdge, etc. used in both halves).
 
@@ -673,11 +673,11 @@ Extract: `TraverseRequest`, `TraversedNode`, `TraversedEdge`, `GraphTraversalRes
 
 - [ ] **Step 4: Test + lint + commit**
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_routes_graph_exploration.py -v 2>&1 | tail -10
-ruff check fichero-api/src/fichero/api/routes/graph_exploration.py fichero-api/src/fichero/api/routes/graph_traversal.py
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_routes_graph_exploration.py -v 2>&1 | tail -10
+ruff check fichero-engine/src/fichero/api/routes/graph_exploration.py fichero-engine/src/fichero/api/routes/graph_traversal.py
 ```
 ```bash
-git add fichero-api/src/fichero/api/routes/graph_exploration.py fichero-api/src/fichero/api/routes/graph_traversal.py fichero-api/src/fichero/api/main.py
+git add fichero-engine/src/fichero/api/routes/graph_exploration.py fichero-engine/src/fichero/api/routes/graph_traversal.py fichero-engine/src/fichero/api/main.py
 git commit -m "refactor: split graph_exploration.py (1259 lines) — extract traversal routes to graph_traversal.py (#460)"
 ```
 
@@ -691,9 +691,9 @@ git commit -m "refactor: split graph_exploration.py (1259 lines) — extract tra
 - `ActivityTracker` + public API (lines 744–1249): keep in `activity.py`
 
 **Files:**
-- Create: `fichero-api/src/fichero/workflows/activity_types.py`
-- Create: `fichero-api/src/fichero/workflows/activity_store.py`
-- Modify: `fichero-api/src/fichero/workflows/activity.py` (ActivityTracker + get_activity_tracker only)
+- Create: `fichero-engine/src/fichero/workflows/activity_types.py`
+- Create: `fichero-engine/src/fichero/workflows/activity_store.py`
+- Modify: `fichero-engine/src/fichero/workflows/activity.py` (ActivityTracker + get_activity_tracker only)
 
 - [ ] **Step 1: Write activity_types.py**
 
@@ -759,16 +759,16 @@ Keep `ActivityTracker`, `get_activity_tracker`, `close_activity_tracker` in this
 
 - [ ] **Step 4: Update imports** — search for any other file importing from `fichero.workflows.activity` and verify they still work (they should since `__all__` re-exports everything).
 ```bash
-grep -r "from fichero.workflows.activity import\|from fichero.workflows import activity" fichero-api/src/ --include="*.py" | grep -v "__pycache__"
+grep -r "from fichero.workflows.activity import\|from fichero.workflows import activity" fichero-engine/src/ --include="*.py" | grep -v "__pycache__"
 ```
 
 - [ ] **Step 5: Test + lint + commit**
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_routes_activity.py -v 2>&1 | tail -10
-ruff check fichero-api/src/fichero/workflows/activity.py fichero-api/src/fichero/workflows/activity_store.py fichero-api/src/fichero/workflows/activity_types.py
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_routes_activity.py -v 2>&1 | tail -10
+ruff check fichero-engine/src/fichero/workflows/activity.py fichero-engine/src/fichero/workflows/activity_store.py fichero-engine/src/fichero/workflows/activity_types.py
 ```
 ```bash
-git add fichero-api/src/fichero/workflows/activity.py fichero-api/src/fichero/workflows/activity_store.py fichero-api/src/fichero/workflows/activity_types.py
+git add fichero-engine/src/fichero/workflows/activity.py fichero-engine/src/fichero/workflows/activity_store.py fichero-engine/src/fichero/workflows/activity_types.py
 git commit -m "refactor: split workflows/activity.py (1249 lines) into types + store + tracker (#460)"
 ```
 
@@ -812,11 +812,11 @@ from fichero.workflows.tools.llm_prompting import (
 
 - [ ] **Step 4: Test + lint + commit**
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived -q 2>&1 | tail -5
-ruff check fichero-api/src/fichero/workflows/tools/llm_base.py fichero-api/src/fichero/workflows/tools/llm_prompting.py
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived -q 2>&1 | tail -5
+ruff check fichero-engine/src/fichero/workflows/tools/llm_base.py fichero-engine/src/fichero/workflows/tools/llm_prompting.py
 ```
 ```bash
-git add fichero-api/src/fichero/workflows/tools/llm_base.py fichero-api/src/fichero/workflows/tools/llm_prompting.py
+git add fichero-engine/src/fichero/workflows/tools/llm_base.py fichero-engine/src/fichero/workflows/tools/llm_prompting.py
 git commit -m "refactor: split llm_base.py (1078 lines) — extract prompt helpers to llm_prompting.py (#460)"
 ```
 
@@ -829,8 +829,8 @@ git commit -m "refactor: split llm_base.py (1078 lines) — extract prompt helpe
 - `_register_builtin_tools()` — the 800-line function registering all 30+ tools (lines 248–1062)
 
 **Files:**
-- Modify: `fichero-api/src/fichero/workflows/registry.py` (keep public API + thin `_register_builtin_tools` that delegates)
-- Create: `fichero-api/src/fichero/workflows/registry_builtins.py`
+- Modify: `fichero-engine/src/fichero/workflows/registry.py` (keep public API + thin `_register_builtin_tools` that delegates)
+- Create: `fichero-engine/src/fichero/workflows/registry_builtins.py`
 
 - [ ] **Step 1: Write registry_builtins.py**
 
@@ -864,11 +864,11 @@ def _register_builtin_tools():
 
 - [ ] **Step 3: Test + lint + commit**
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived -q 2>&1 | tail -5
-ruff check fichero-api/src/fichero/workflows/registry.py fichero-api/src/fichero/workflows/registry_builtins.py
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived -q 2>&1 | tail -5
+ruff check fichero-engine/src/fichero/workflows/registry.py fichero-engine/src/fichero/workflows/registry_builtins.py
 ```
 ```bash
-git add fichero-api/src/fichero/workflows/registry.py fichero-api/src/fichero/workflows/registry_builtins.py
+git add fichero-engine/src/fichero/workflows/registry.py fichero-engine/src/fichero/workflows/registry_builtins.py
 git commit -m "refactor: extract registry built-in registrations to registry_builtins.py — reduces registry.py to ~250 lines (#460)"
 ```
 
@@ -882,9 +882,9 @@ git commit -m "refactor: extract registry built-in registrations to registry_bui
 - Model info + cost estimation + provider listing (lines 580–1056): extract to `llm_models.py`
 
 **Files:**
-- Modify: `fichero-api/src/fichero/llm.py`
-- Create: `fichero-api/src/fichero/llm_embeddings.py`
-- Create: `fichero-api/src/fichero/llm_models.py`
+- Modify: `fichero-engine/src/fichero/llm.py`
+- Create: `fichero-engine/src/fichero/llm_embeddings.py`
+- Create: `fichero-engine/src/fichero/llm_models.py`
 
 - [ ] **Step 1: Write llm_embeddings.py**
 
@@ -932,16 +932,16 @@ from fichero.llm_models import get_model_info, get_model_cost, estimate_cost, li
 
 - [ ] **Step 4: Check callers** — grep for `from fichero.llm import` and verify each caller still works:
 ```bash
-grep -r "from fichero.llm import\|from fichero import llm" fichero-api/src/ --include="*.py" | grep -v __pycache__
+grep -r "from fichero.llm import\|from fichero import llm" fichero-engine/src/ --include="*.py" | grep -v __pycache__
 ```
 
 - [ ] **Step 5: Test + lint + commit**
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived -q 2>&1 | tail -5
-ruff check fichero-api/src/fichero/llm.py fichero-api/src/fichero/llm_embeddings.py fichero-api/src/fichero/llm_models.py
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived -q 2>&1 | tail -5
+ruff check fichero-engine/src/fichero/llm.py fichero-engine/src/fichero/llm_embeddings.py fichero-engine/src/fichero/llm_models.py
 ```
 ```bash
-git add fichero-api/src/fichero/llm.py fichero-api/src/fichero/llm_embeddings.py fichero-api/src/fichero/llm_models.py
+git add fichero-engine/src/fichero/llm.py fichero-engine/src/fichero/llm_embeddings.py fichero-engine/src/fichero/llm_models.py
 git commit -m "refactor: split llm.py (1056 lines) into llm + llm_embeddings + llm_models (#460)"
 ```
 
@@ -956,12 +956,12 @@ git commit -m "refactor: split llm.py (1056 lines) into llm + llm_embeddings + l
 - External tools (web-search, browser-navigate) (lines ~770–1034)
 
 **Files:**
-- Create: `fichero-api/src/fichero/api/routes/research_projects.py`
-- Create: `fichero-api/src/fichero/api/routes/research_tasks_steps.py`
-- Create: `fichero-api/src/fichero/api/routes/research_notes.py`
-- Create: `fichero-api/src/fichero/api/routes/research_tools_routes.py`
-- Modify: `fichero-api/src/fichero/api/main.py` (replace single router with 4)
-- Delete: `fichero-api/src/fichero/api/routes/research_agents.py`
+- Create: `fichero-engine/src/fichero/api/routes/research_projects.py`
+- Create: `fichero-engine/src/fichero/api/routes/research_tasks_steps.py`
+- Create: `fichero-engine/src/fichero/api/routes/research_notes.py`
+- Create: `fichero-engine/src/fichero/api/routes/research_tools_routes.py`
+- Modify: `fichero-engine/src/fichero/api/main.py` (replace single router with 4)
+- Delete: `fichero-engine/src/fichero/api/routes/research_agents.py`
 
 Each new file follows the same pattern:
 ```python
@@ -985,21 +985,21 @@ router = APIRouter()
 
 - [ ] **Step 4: Delete old file**
 ```bash
-git rm fichero-api/src/fichero/api/routes/research_agents.py
+git rm fichero-engine/src/fichero/api/routes/research_agents.py
 ```
 
 - [ ] **Step 5: Test + lint + commit**
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_routes_research_agents.py -v 2>&1 | tail -15
-ruff check fichero-api/src/fichero/api/routes/research_projects.py fichero-api/src/fichero/api/routes/research_tasks_steps.py fichero-api/src/fichero/api/routes/research_notes.py fichero-api/src/fichero/api/routes/research_tools_routes.py
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_routes_research_agents.py -v 2>&1 | tail -15
+ruff check fichero-engine/src/fichero/api/routes/research_projects.py fichero-engine/src/fichero/api/routes/research_tasks_steps.py fichero-engine/src/fichero/api/routes/research_notes.py fichero-engine/src/fichero/api/routes/research_tools_routes.py
 ```
 ```bash
-git add fichero-api/src/fichero/api/routes/research_projects.py \
-        fichero-api/src/fichero/api/routes/research_tasks_steps.py \
-        fichero-api/src/fichero/api/routes/research_notes.py \
-        fichero-api/src/fichero/api/routes/research_tools_routes.py \
-        fichero-api/src/fichero/api/main.py
-git rm fichero-api/src/fichero/api/routes/research_agents.py
+git add fichero-engine/src/fichero/api/routes/research_projects.py \
+        fichero-engine/src/fichero/api/routes/research_tasks_steps.py \
+        fichero-engine/src/fichero/api/routes/research_notes.py \
+        fichero-engine/src/fichero/api/routes/research_tools_routes.py \
+        fichero-engine/src/fichero/api/main.py
+git rm fichero-engine/src/fichero/api/routes/research_agents.py
 git commit -m "refactor: split research_agents.py (1034 lines) into 4 focused route files (#460)"
 ```
 
@@ -1017,11 +1017,11 @@ storage.py is at 1004 lines but has two clearly separable sections already visib
 
 - [ ] **Step 3: Test + lint + commit**
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_routes_storage.py -v 2>&1 | tail -10
-ruff check fichero-api/src/fichero/storage.py
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_routes_storage.py -v 2>&1 | tail -10
+ruff check fichero-engine/src/fichero/storage.py
 ```
 ```bash
-git add fichero-api/src/fichero/storage.py
+git add fichero-engine/src/fichero/storage.py
 # Add storage_library.py if split was done
 git commit -m "refactor: storage.py — split library snapshot functions to storage_library.py (#460)"
 ```
@@ -1032,19 +1032,19 @@ git commit -m "refactor: storage.py — split library snapshot functions to stor
 
 - [ ] **Step 1: Full test suite**
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived -q 2>&1 | tail -10
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived -q 2>&1 | tail -10
 ```
 Expected: all tests passing (was 1774 passing before; should be same or more).
 
 - [ ] **Step 2: Lint everything**
 ```bash
-ruff check fichero-api/src/
+ruff check fichero-engine/src/
 ```
 Expected: zero errors.
 
 - [ ] **Step 3: Verify no file exceeds 1000 lines**
 ```bash
-find fichero-api/src/fichero -name "*.py" | xargs wc -l | sort -rn | head -20
+find fichero-engine/src/fichero -name "*.py" | xargs wc -l | sort -rn | head -20
 ```
 Expected: all files < 1000 lines.
 

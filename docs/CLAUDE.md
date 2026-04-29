@@ -16,8 +16,8 @@ Fichero is a macOS document management application with AI processing capabiliti
 - Integration with 100+ LLM providers (local and commercial)
 
 **Architecture:**
-- **Swift/SwiftUI frontend** (`fichero-swiftui/`) - 100% pure SwiftUI native macOS app
-- **Python/FastAPI backend** (`fichero-api/src/fichero/`) - Document processing, AI workflows, and data storage
+- **Swift/SwiftUI frontend** (`fichero/`) - 100% pure SwiftUI native macOS app
+- **Python/FastAPI backend** (`fichero-engine/src/fichero/`) - Document processing, AI workflows, and data storage
 - **Dual database system**: DuckDB for metadata + LanceDB for vector embeddings
 - **Communication**: HTTP/REST on localhost:8765 with type-safe Swift client
 
@@ -33,7 +33,7 @@ Fichero is a macOS document management application with AI processing capabiliti
 
 ```bash
 # Start the FastAPI backend server (required for Swift app to function)
-PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 ```
 
 The backend must be running on port 8765 before launching the Swift app.
@@ -42,42 +42,42 @@ The backend must be running on port 8765 before launching the Swift app.
 
 ```bash
 # Build the Swift app
-xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero -configuration Debug
+xcodebuild -project fichero/fichero.xcodeproj -scheme Fichero -configuration Debug
 
 # Run SwiftLint (code quality)
-swiftlint lint fichero-swiftui/fichero-swiftui/
+swiftlint lint fichero/fichero/
 ```
 
-**Preferred method**: Open `fichero-swiftui/fichero-swiftui.xcodeproj` in Xcode and run (⌘R).
+**Preferred method**: Open `fichero/fichero.xcodeproj` in Xcode and run (⌘R).
 
 ### Testing
 
 ```bash
 # Python unit tests (ignore archived tests)
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
 
 # Python integration tests
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/integration/
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/integration/
 
 # Swift tests (run from Xcode or command line)
-xcodebuild test -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero
+xcodebuild test -project fichero/fichero.xcodeproj -scheme Fichero
 
 # OpenAPI contract tests (verify schema alignment)
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_api_contracts.py
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_api_contracts.py
 ```
 
 ### Code Quality
 
 ```bash
 # SwiftLint (MANDATORY before commit) — installed via Homebrew
-swiftlint lint fichero-swiftui/fichero-swiftui/
+swiftlint lint fichero/fichero/
 
 # Ruff — Python linting (MANDATORY before commit)
-ruff check fichero-api/src/
-ruff check fichero-api/tests/
+ruff check fichero-engine/src/
+ruff check fichero-engine/tests/
 
 # Sync OpenAPI schema after Python API changes
-./fichero-api/scripts/sync_openapi_schema.sh
+./fichero-engine/scripts/sync_openapi_schema.sh
 ```
 
 ## Architecture
@@ -151,9 +151,9 @@ The Swift app is a **pure UI layer** - all business logic, data persistence, and
 The Swift frontend uses **Apple's Swift OpenAPI Generator** to create type-safe API clients from the Python backend's OpenAPI schema. This ensures Swift and Python stay in sync.
 
 **Key files:**
-- `fichero-swiftui/fichero-api-client/` - Local Swift package with generated client
-- `fichero-api/tests/contracts/openapi.json` - OpenAPI schema (source of truth)
-- `fichero-api/scripts/sync_openapi_schema.sh` - Syncs schema from Python to Swift
+- `fichero/fichero-api-client/` - Local Swift package with generated client
+- `fichero-engine/tests/contracts/openapi.json` - OpenAPI schema (source of truth)
+- `fichero-engine/scripts/sync_openapi_schema.sh` - Syncs schema from Python to Swift
 
 **Usage:**
 ```swift
@@ -172,7 +172,7 @@ let workflows = try response.ok.body.json
 
 **When Python API changes:**
 ```bash
-./fichero-api/scripts/sync_openapi_schema.sh
+./fichero-engine/scripts/sync_openapi_schema.sh
 ```
 
 See `docs/architecture/swiftui/api_client.md` for detailed documentation
@@ -280,7 +280,7 @@ The Swift app **cannot function without the Python backend running**. Always sta
 
 ### Security-Scoped Bookmarks
 
-In LINK mode, the app uses macOS security-scoped bookmarks (`bookmarks.py`) to maintain access to files outside the sandbox. This requires proper entitlements in `fichero-swiftui/fichero-swiftui/Fichero.entitlements`.
+In LINK mode, the app uses macOS security-scoped bookmarks (`bookmarks.py`) to maintain access to files outside the sandbox. This requires proper entitlements in `fichero/fichero/Fichero.entitlements`.
 
 ### LiteLLM Integration
 
@@ -363,15 +363,15 @@ refactor: made it better
 
 Run before each commit:
 ```bash
-swiftlint lint fichero-swiftui/fichero-swiftui/
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived
-PYTHONPATH=fichero-api/src .venv/bin/ruff check fichero-api/src/
+swiftlint lint fichero/fichero/
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
+PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/
 ```
 
 ### Pre-Commit Checklist
 
 - [ ] SwiftLint passes with zero warnings
-- [ ] Ruff passes with zero errors (`ruff check fichero-api/src/ fichero-api/tests/`)
+- [ ] Ruff passes with zero errors (`ruff check fichero-engine/src/ fichero-engine/tests/`)
 - [ ] All tests pass (Python unit/integration + Swift tests)
 - [ ] OpenAPI schema synced if backend API changed
 - [ ] TODO.md updated with task status
@@ -617,7 +617,7 @@ Every API request includes `X-Fichero-Library-Path` header (except app-wide endp
 
 The project uses **Swift OpenAPI Generator** for type-safe API clients:
 
-1. **Source of Truth:** Python FastAPI exports OpenAPI schema (`fichero-api/tests/contracts/openapi.json`)
+1. **Source of Truth:** Python FastAPI exports OpenAPI schema (`fichero-engine/tests/contracts/openapi.json`)
 2. **Generation:** Swift OpenAPI Generator creates `Client.swift` and `Types.swift`
 3. **Generated Services:** 16 `*Generated.swift` files wrap generated client with typed methods
 4. **Manual Extensions:** Business logic goes in manual service wrappers (e.g., `ProviderService` wraps `ProviderServiceGenerated`)
@@ -704,8 +704,8 @@ class APIClient: ObservableObject {
 ### Critical Issues
 - **Port conflicts**: Backend MUST run on port 8765 (hardcoded in Swift app at `APIClient.swift`)
 - **Backend dependency**: Swift app cannot function without Python backend running
-- **PYTHONPATH**: MUST be set to `fichero-api/src` when running backend or tests
-- **Archived tests**: ALWAYS ignore `fichero-api/tests/unit/_archived` directory
+- **PYTHONPATH**: MUST be set to `fichero-engine/src` when running backend or tests
+- **Archived tests**: ALWAYS ignore `fichero-engine/tests/unit/_archived` directory
 
 ### SwiftUI Anti-Patterns
 - **Don't use DispatchQueue.main**: Use `@MainActor` instead for Swift 6 concurrency
@@ -715,7 +715,7 @@ class APIClient: ObservableObject {
 - **Don't ignore Task.isCancelled**: All `.task {}` blocks MUST check cancellation
 
 ### API & Backend
-- **OpenAPI schema sync**: Run `./fichero-api/scripts/sync_openapi_schema.sh` after Python API changes
+- **OpenAPI schema sync**: Run `./fichero-engine/scripts/sync_openapi_schema.sh` after Python API changes
 - **Library path header**: Multi-library operations require `X-Fichero-Library-Path` header
 - **Workflow parameters**: Always validate parameter types match tool expectations in registry
 - **Database access**: NEVER query DuckDB/LanceDB directly - always use `db.py`
@@ -753,17 +753,17 @@ class APIClient: ObservableObject {
 - **`WorkflowTypes.swift`** (272 lines) - Workflow data models
 
 ### Critical Python Files (Backend)
-- **`fichero-api/src/fichero/api/main.py`** - FastAPI app, route registration
-- **`fichero-api/src/fichero/db.py`** - Database layer (DuckDB + LanceDB)
-- **`fichero-api/src/fichero/models.py`** - Pydantic models (source of truth)
-- **`fichero-api/src/fichero/workflows/registry.py`** - Tool registry (30+ tools)
-- **`fichero-api/src/fichero/workflows/executor.py`** - Workflow execution with streaming
-- **`fichero-api/src/fichero/ingest.py`** - File ingestion pipeline
+- **`fichero-engine/src/fichero/api/main.py`** - FastAPI app, route registration
+- **`fichero-engine/src/fichero/db.py`** - Database layer (DuckDB + LanceDB)
+- **`fichero-engine/src/fichero/models.py`** - Pydantic models (source of truth)
+- **`fichero-engine/src/fichero/workflows/registry.py`** - Tool registry (30+ tools)
+- **`fichero-engine/src/fichero/workflows/executor.py`** - Workflow execution with streaming
+- **`fichero-engine/src/fichero/ingest.py`** - File ingestion pipeline
 
 ### Generated Files (DO NOT EDIT MANUALLY)
-- **`fichero-swiftui/fichero-api-client/`** - Generated Swift OpenAPI client
-- **`fichero-swiftui/Services/*Generated.swift`** - 16 generated service wrappers
-- **`fichero-api/tests/contracts/openapi.json`** - OpenAPI schema (regenerated from Python)
+- **`fichero/fichero-api-client/`** - Generated Swift OpenAPI client
+- **`fichero/Services/*Generated.swift`** - 16 generated service wrappers
+- **`fichero-engine/tests/contracts/openapi.json`** - OpenAPI schema (regenerated from Python)
 
 ### Refactoring Complete
 All 35 oversized files refactored to target sizes (completed Feb 2026).

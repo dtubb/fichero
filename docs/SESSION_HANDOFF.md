@@ -147,10 +147,10 @@ Use Xcode MCP tools (XcodeRead, XcodeWrite, BuildProject, etc.)
 
 ```bash
 # Build verification
-xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero
+xcodebuild -project fichero/fichero.xcodeproj -scheme Fichero
 
 # SwiftLint check
-swiftlint lint fichero-swiftui/fichero-swiftui/
+swiftlint lint fichero/fichero/
 
 # Commit pattern
 git add -A
@@ -165,7 +165,7 @@ git push origin codex/restructure-api-swiftui
 - ❌ Don't use: `Read`, `Write`, `Edit`
 
 **File Paths:**
-- Format: `fichero-swiftui/fichero-swiftui/Views/Inspector/DocumentInspector.swift`
+- Format: `fichero/fichero/Views/Inspector/DocumentInspector.swift`
 - NOT absolute filesystem paths
 
 **Common Patterns:**

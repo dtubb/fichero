@@ -47,7 +47,7 @@ These routes are in `_DEV_ROUTE_SPECS` and require `FICHERO_FEATURE_TIER=dev`:
 
 A component is promoted from `dev` → `release` tier when:
 
-1. **Unit tests pass** — `pytest fichero-api/tests/unit/`
+1. **Unit tests pass** — `pytest fichero-engine/tests/unit/`
 2. **API contract tests pass** — `pytest test_api_contracts.py`
 3. **Swift client builds** — `xcodebuild build` succeeds with generated client
 4. **SwiftLint zero warnings** — no serious violations
@@ -57,7 +57,7 @@ A component is promoted from `dev` → `release` tier when:
 
 ## Feature Flags (Backend)
 
-Feature flags live in `fichero-api/src/fichero/api/main.py`:
+Feature flags live in `fichero-engine/src/fichero/api/main.py`:
 
 ```python
 # Tier resolution
@@ -84,9 +84,9 @@ Gate enforcement in SwiftUI is view-level visibility — routes still exist on t
 
 For each phase, before promoting to `release` tier:
 
-- [ ] Python: `ruff check fichero-api/src/` — zero errors
-- [ ] Python: `python -m pytest fichero-api/tests/unit/` — all pass
-- [ ] Python: `python -m pytest fichero-api/tests/unit/test_api_contracts.py` — all pass
+- [ ] Python: `ruff check fichero-engine/src/` — zero errors
+- [ ] Python: `python -m pytest fichero-engine/tests/unit/` — all pass
+- [ ] Python: `python -m pytest fichero-engine/tests/unit/test_api_contracts.py` — all pass
 - [ ] Swift: `swiftlint lint` — zero serious violations
 - [ ] Swift: `xcodebuild build` — succeeds
 - [ ] Backend: `uvicorn` starts cleanly with `FICHERO_FEATURE_TIER=release`

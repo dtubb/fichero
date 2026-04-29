@@ -108,7 +108,7 @@ If a feature is not listed as `release` here, it must be gated off in the 0.0.1 
 
 ### Frontend (Swift)
 
-**File:** `FeatureFlags.swift` (`fichero-swiftui/fichero-swiftui/App/FeatureFlags.swift`)
+**File:** `FeatureFlags.swift` (`fichero/fichero/App/FeatureFlags.swift`)
 
 - Singleton `FeatureManager` controls all frontend flags.
 - Each flag backed by `AppStorage` for per-flag persistence.
@@ -117,7 +117,7 @@ If a feature is not listed as `release` here, it must be gated off in the 0.0.1 
 
 ### Backend (Python)
 
-**File:** `feature_flags.py` (`fichero-api/src/fichero/feature_flags.py`)
+**File:** `feature_flags.py` (`fichero-engine/src/fichero/feature_flags.py`)
 
 - `FICHERO_FEATURE_TIER` environment variable controls the active tier.
 - Default: `release` (only release routes are registered).
@@ -130,10 +130,10 @@ If a feature is not listed as `release` here, it must be gated off in the 0.0.1 
 
 The 0.0.1 release is accepted when all of the following pass:
 
-1. `xcodebuild -scheme fichero-swiftui -destination 'platform=macOS' build` exits 0
-2. `PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived` passes with 0 failures
-3. `swiftlint lint fichero-swiftui/fichero-swiftui/` produces 0 errors
-4. `PYTHONPATH=fichero-api/src .venv/bin/ruff check fichero-api/src/` produces 0 errors
+1. `xcodebuild -scheme fichero -destination 'platform=macOS' build` exits 0
+2. `PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived` passes with 0 failures
+3. `swiftlint lint fichero/fichero/` produces 0 errors
+4. `PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/` produces 0 errors
 5. Hidden features (Chat, Batches, Automation, Activity) do not appear in the sidebar
 6. Off-tier backend routes return 404 when `FICHERO_FEATURE_TIER=release`
 7. Dev-tier routes (providers, models) are accessible when `FICHERO_FEATURE_TIER=dev`
@@ -146,16 +146,16 @@ Run these four commands to validate a 0.0.1 candidate:
 
 ```bash
 # 1. Swift lint
-swiftlint lint fichero-swiftui/fichero-swiftui/
+swiftlint lint fichero/fichero/
 
 # 2. Xcode build
-xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme fichero-swiftui -configuration Debug -sdk macosx build
+xcodebuild -project fichero/fichero.xcodeproj -scheme fichero -configuration Debug -sdk macosx build
 
 # 3. Python lint
-PYTHONPATH=fichero-api/src .venv/bin/ruff check fichero-api/src/
+PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/
 
 # 4. Python tests
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
 ```
 
 All four must pass with zero errors before the release is shipped.

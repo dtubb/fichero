@@ -8,7 +8,7 @@ set -euo pipefail
 # Usage: scripts/build-release.sh [--skip-backend]
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-API_ROOT="$ROOT_DIR/fichero-api"
+API_ROOT="$ROOT_DIR/fichero-engine"
 SWIFTUI_ROOT="$ROOT_DIR/fichero-swiftui"
 PROJECT="$SWIFTUI_ROOT/fichero-swiftui.xcodeproj"
 SCHEME="Fichero"
@@ -43,8 +43,8 @@ else
     export PATH="$API_ROOT/.briefcase-venv/bin:$PATH"
   elif ! command -v briefcase >/dev/null 2>&1; then
     echo "error: briefcase not found. Set up with:" >&2
-    echo "  python3.13 -m venv fichero-api/.briefcase-venv" >&2
-    echo "  fichero-api/.briefcase-venv/bin/pip install briefcase" >&2
+    echo "  python3.13 -m venv fichero-engine/.briefcase-venv" >&2
+    echo "  fichero-engine/.briefcase-venv/bin/pip install briefcase" >&2
     exit 1
   fi
 

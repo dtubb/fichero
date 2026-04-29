@@ -7,15 +7,15 @@ All code for bundling the Python backend inside Fichero.app has been created and
 ### Files Created
 
 1. **Backend Entry Point**
-   - `fichero-api/src/fichero_backend/__init__.py` - Module initialization
-   - `fichero-api/src/fichero_backend/__main__.py` - Starts FastAPI without hot-reload
+   - `fichero-engine/src/fichero_backend/__init__.py` - Module initialization
+   - `fichero-engine/src/fichero_backend/__main__.py` - Starts FastAPI without hot-reload
 
 2. **Build Scripts**
-   - `fichero-api/scripts/build_backend_bundle.sh` - Builds backend with Briefcase
-   - `fichero-api/scripts/xcode_copy_backend.sh` - Copies backend into Swift app during build
+   - `fichero-engine/scripts/build_backend_bundle.sh` - Builds backend with Briefcase
+   - `fichero-engine/scripts/xcode_copy_backend.sh` - Copies backend into Swift app during build
 
 3. **Swift Integration**
-   - `fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` - Manages backend lifecycle
+   - `fichero/fichero/Services/EmbeddedBackendService.swift` - Manages backend lifecycle
    - Updated `FicheroApp.swift` - Launches backend on app startup
 
 4. **Configuration**
@@ -37,18 +37,18 @@ build/fichero-backend/macos/app/FicheroBackend.app
 ### Quick Setup (5 minutes)
 
 1. **Add Swift file to Xcode:**
-   - Open `fichero-swiftui/fichero-swiftui.xcodeproj`
-   - Add `fichero-swiftui/fichero-swiftui/Services/EmbeddedBackendService.swift` to project
+   - Open `fichero/fichero.xcodeproj`
+   - Add `fichero/fichero/Services/EmbeddedBackendService.swift` to project
    - (Right-click Services folder → Add Files)
 
 2. **Add build script:**
    - Xcode → Fichero target → Build Phases
-   - Add Run Script Phase: `${PROJECT_DIR}/../fichero-api/scripts/xcode_copy_backend.sh`
+   - Add Run Script Phase: `${PROJECT_DIR}/../fichero-engine/scripts/xcode_copy_backend.sh`
 
 3. **Build and run:**
    ```bash
    # Terminal 1: Build backend
-   ./fichero-api/scripts/build_backend_bundle.sh
+   ./fichero-engine/scripts/build_backend_bundle.sh
 
    # Xcode: Build and run (⌘R)
    ```
@@ -98,7 +98,7 @@ Fichero.app/
 
 ```bash
 # Terminal 1: Backend with hot-reload
-PYTHONPATH=fichero-api/src uvicorn fichero.api.main:app --reload
+PYTHONPATH=fichero-engine/src uvicorn fichero.api.main:app --reload
 
 # Xcode: Run app (⌘R)
 ```
@@ -146,7 +146,7 @@ PYTHONPATH=fichero-api/src uvicorn fichero.api.main:app --reload
 
 After Xcode setup:
 
-- [ ] Backend builds: `./fichero-api/scripts/build_backend_bundle.sh`
+- [ ] Backend builds: `./fichero-engine/scripts/build_backend_bundle.sh`
 - [ ] Xcode builds: Press ⌘B
 - [ ] Backend copied: Check `DerivedData/.../Fichero.app/Contents/Resources/FicheroBackend.app`
 - [ ] App launches: Press ⌘R
@@ -193,7 +193,7 @@ After Xcode setup:
 
 - **Setup Guide:** `docs/SETUP_BUNDLED_BACKEND.md` ← START HERE
 - **Architecture:** `docs/BUNDLING_BACKEND.md`
-- **Build Backend:** `./fichero-api/scripts/build_backend_bundle.sh`
+- **Build Backend:** `./fichero-engine/scripts/build_backend_bundle.sh`
 - **This Summary:** `BACKEND_BUNDLING_SUMMARY.md`
 
 ---

@@ -14,7 +14,7 @@ This avoids external dependencies (no LaunchDarkly, no database table). Agents t
 
 ## 2. Swift Implementation
 
-### File: `fichero-swiftui/fichero-swiftui/App/FeatureFlags.swift`
+### File: `fichero/fichero/App/FeatureFlags.swift`
 
 ```swift
 import Foundation
@@ -190,7 +190,7 @@ In the "Debug" scheme, add environment variable `FICHERO_DEV_MODE=1` under Run >
 
 ## 3. Python Implementation
 
-### File: `fichero-api/src/fichero/feature_flags.py`
+### File: `fichero-engine/src/fichero/feature_flags.py`
 
 ```python
 """
@@ -454,7 +454,7 @@ extension FeatureFlags {
 
 ### Phase 1: Core Infrastructure (do first)
 
-1. **Create `fichero-api/src/fichero/feature_flags.py`**
+1. **Create `fichero-engine/src/fichero/feature_flags.py`**
    - Implement the `FeatureFlags` class with all flags and `as_dict()` method.
    - Wire up `_flag()` helper for env var reading.
    - Wire up `DEV_MODE` master toggle.
@@ -463,7 +463,7 @@ extension FeatureFlags {
    - Add the `get_feature_flags()` route.
    - Gate existing `include_router()` calls with flag checks.
 
-3. **Create `fichero-swiftui/fichero-swiftui/App/FeatureFlags.swift`**
+3. **Create `fichero/fichero/App/FeatureFlags.swift`**
    - Implement the `FeatureFlags` class with all flags, `mergeFromBackend()`, and `syncFromBackend()`.
    - Wire up `devMode` from `ProcessInfo` environment and `UserDefaults`.
 

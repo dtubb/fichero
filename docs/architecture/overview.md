@@ -2,15 +2,15 @@
 
 Fichero is a two-part system:
 
-- `fichero-swiftui/`: native macOS SwiftUI app (UI/client)
-- `fichero-api/`: Python FastAPI backend (API/workflows/storage/AI)
+- `fichero/`: native macOS SwiftUI app (UI/client)
+- `fichero-engine/`: Python FastAPI backend (API/workflows/storage/AI)
 
 ## Runtime model
 
 ```text
-fichero-swiftui (SwiftUI app)
+fichero (SwiftUI app)
     -> HTTP (localhost:8765)
-fichero-api (FastAPI)
+fichero-engine (FastAPI)
     -> DuckDB + LanceDB
     -> workflow engine + tools
     -> LLM providers
@@ -26,6 +26,6 @@ fichero-api (FastAPI)
 
 ```bash
 # repo root
-PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
-open fichero-swiftui/fichero-swiftui.xcodeproj
+PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+open fichero/fichero.xcodeproj
 ```

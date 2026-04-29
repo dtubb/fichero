@@ -18,7 +18,7 @@ Supporting services: ActionLibraryService, ActionsService, ArtifactService, Chai
 
 ## Test Files
 
-Located in `fichero-swiftui/fichero-swiftui-tests/`:
+Located in `fichero/fichero-tests/`:
 - ActivityTypesTests.swift
 - ContractTests.swift
 - EndpointValidationTests.swift
@@ -29,7 +29,7 @@ Located in `fichero-swiftui/fichero-swiftui-tests/`:
 - WorkflowCanvasTests.swift
 - WorkflowStreamParsingTests.swift
 
-UI tests directory exists at `fichero-swiftui/fichero-swiftui-ui-tests/` (contents not inspected).
+UI tests directory exists at `fichero/fichero-ui-tests/` (contents not inspected).
 
 ---
 

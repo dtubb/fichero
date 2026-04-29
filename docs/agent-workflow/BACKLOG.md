@@ -7,7 +7,7 @@ No coding until this phase is complete and approved.
 ### Dev Environment Setup
 
 - [ ] P0 Create Python venv and install dependencies @fichero-lead
-  - Context: .venv does not exist. Need: `cd ~/code/fichero && python3 -m venv fichero-api/.venv && fichero-api/.venv/bin/pip install -e fichero-api/`
+  - Context: .venv does not exist. Need: `cd ~/code/fichero && python3 -m venv fichero-engine/.venv && fichero-engine/.venv/bin/pip install -e fichero-engine/`
   - Blocker for: all backend tests, pylint, API contract validation
 - [ ] P0 Install swiftlint @fichero-lead
   - Context: `brew install swiftlint`. Blocker for: all frontend lint checks.

@@ -9,8 +9,8 @@
 
 ## Prerequisites
 
-1. Build the app: `xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme fichero-swiftui -configuration Debug -sdk macosx build`
-2. Start the backend: `PYTHONPATH=fichero-api/src python -m fichero` (or however the server launches)
+1. Build the app: `xcodebuild -project fichero/fichero.xcodeproj -scheme fichero -configuration Debug -sdk macosx build`
+2. Start the backend: `PYTHONPATH=fichero-engine/src python -m fichero` (or however the server launches)
 3. Launch the app from Xcode or the build output
 4. Have a test PDF or DOCX file ready for ingest
 

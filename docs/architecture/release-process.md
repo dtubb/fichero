@@ -33,11 +33,11 @@ Run before any frontend work begins. The backend must be green before wiring.
 
 ```bash
 # Unit tests
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ \
-  --ignore=fichero-api/tests/unit/_archived -q
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ \
+  --ignore=fichero-engine/tests/unit/_archived -q
 
 # Lint
-ruff check fichero-api/src/
+ruff check fichero-engine/src/
 ```
 
 **Pass criteria:** All tests pass, lint clean.
@@ -49,14 +49,14 @@ ruff check fichero-api/src/
 1. Enable the feature flag in `FeatureManager.swift` (or `resetToV0X()` tier)
 2. Verify Xcode build compiles without errors:
    ```bash
-   xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj \
-     -scheme fichero-swiftui -configuration Debug build \
+   xcodebuild -project fichero/fichero.xcodeproj \
+     -scheme fichero -configuration Debug build \
      CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO \
      2>&1 | grep -E "error:|BUILD SUCCEEDED|BUILD FAILED"
    ```
 3. Run SwiftLint:
    ```bash
-   swiftlint lint fichero-swiftui/fichero-swiftui/
+   swiftlint lint fichero/fichero/
    ```
 4. Verify Xcode Previews compile for the feature's views (open in Xcode, check Preview canvas)
 
@@ -70,7 +70,7 @@ Claude calls the backend API directly via MCP tools to verify the feature's endp
 
 **Pattern per feature:**
 ```
-1. Start backend: PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+1. Start backend: PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 2. Call each relevant endpoint via Fichero MCP
 3. Verify: correct response shape, correct data, correct error codes for bad input
 4. Verify: feature flag toggle affects endpoint availability

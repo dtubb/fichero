@@ -22,7 +22,7 @@ Swift UI App → HTTP/REST (port 8765) → FastAPI
 ## Package Layout
 
 ```
-fichero-api/src/
+fichero-engine/src/
 ├── fichero/           # Main library — API, database, AI, workflows
 └── fichero_backend/   # Briefcase entry-point wrapper (app lifecycle only)
 ```
@@ -152,17 +152,17 @@ Text extraction engines in `loaders/`:
 
 ```bash
 # Start server
-PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 
 # Start with dev-tier routes
-FICHERO_FEATURE_TIER=dev PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+FICHERO_FEATURE_TIER=dev PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 
 # Tests
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
 
 # Lint
-ruff check fichero-api/src/
+ruff check fichero-engine/src/
 
 # Sync OpenAPI schema to Swift client (after any API change)
-./fichero-api/scripts/sync_openapi_schema.sh
+./fichero-engine/scripts/sync_openapi_schema.sh
 ```

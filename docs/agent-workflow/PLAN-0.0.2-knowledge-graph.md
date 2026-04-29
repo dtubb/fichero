@@ -213,7 +213,7 @@ Layer 6: Mind Palace (Synthesis Workspace — Visual + Text Assembly)
 
 ### Phase 0: Layer 0 — Agent Research Infrastructure
 
-**New File:** `fichero-api/src/fichero/research_models.py`
+**New File:** `fichero-engine/src/fichero/research_models.py`
 
 ```python
 class ResearchProject(BaseModel):
@@ -282,7 +282,7 @@ class ResearchChecklist(BaseModel):
     items: list[dict]  # [{description, checked, evidence}]
 ```
 
-**New File:** `fichero-api/src/fichero/api/routes/research_agents.py`
+**New File:** `fichero-engine/src/fichero/api/routes/research_agents.py`
 
 Sandboxed agent tools (no filesystem/CLI access):
 
@@ -336,7 +336,7 @@ async def save_research_artifact(
 
 #### 1. Enhanced Models (knowledge_models.py)
 
-**File:** `fichero-api/src/fichero/knowledge_models.py`
+**File:** `fichero-engine/src/fichero/knowledge_models.py`
 
 Add new enums:
 
@@ -404,7 +404,7 @@ class KnowledgeClaim(BaseModel):
 
 ### 2. New Endpoints (knowledge_graph.py)
 
-**File:** `fichero-api/src/fichero/api/routes/knowledge_graph.py`
+**File:** `fichero-engine/src/fichero/api/routes/knowledge_graph.py`
 
 **Design Principle:** SwiftUI should have simple, focused endpoints. Three separate endpoints for claims (simpler than one endpoint with many filters).
 
@@ -481,7 +481,7 @@ class KnowledgeClaim(BaseModel):
 
 ### 3. Helper Functions
 
-**File:** `fichero-api/src/fichero/api/routes/knowledge_graph.py`
+**File:** `fichero-engine/src/fichero/api/routes/knowledge_graph.py`
 
 ```python
 def _resolve_sources(db: Database, sources: list[str]) -> list[dict]:
@@ -523,7 +523,7 @@ def _migrate_claim_to_multi_source(claim: KnowledgeClaim) -> KnowledgeClaim:
 
 ### 4. Embeddings Integration (LanceDB)
 
-**File:** `fichero-api/src/fichero/db.py` (existing infrastructure)
+**File:** `fichero-engine/src/fichero/db.py` (existing infrastructure)
 
 **Existing Embedding Infrastructure:**
 - `db.embed(doc)` - Create embedding for a document/claim
@@ -748,7 +748,7 @@ result = pipeline(
 
 ### 5. Tests
 
-**File:** `fichero-api/tests/unit/test_knowledge_graph_api.py`
+**File:** `fichero-engine/tests/unit/test_knowledge_graph_api.py`
 
 **Core functionality tests:**
 - `test_knowledge_graph_claim_create_with_multiple_sources()` - claim with 3 documents
@@ -792,7 +792,7 @@ result = pipeline(
 
 ### Phase 3: Layer 5 — Hermeneutics (Interpretation & Meaning)
 
-**New File:** `fichero-api/src/fichero/hermeneutics_models.py`
+**New File:** `fichero-engine/src/fichero/hermeneutics_models.py`
 
 ```python
 class InterpretiveFramework(BaseModel):
@@ -845,7 +845,7 @@ class HermeneuticCircleState(BaseModel):
     navigation_history: list[dict]
 ```
 
-**New File:** `fichero-api/src/fichero/api/routes/hermeneutics.py`
+**New File:** `fichero-engine/src/fichero/api/routes/hermeneutics.py`
 
 ```python
 @router.post("/hermeneutics/frameworks")
@@ -902,7 +902,7 @@ async def navigate_part_whole(
 
 ### Phase 4: Layer 6 — Mind Palace (Visual + Text Assembly)
 
-**New File:** `fichero-api/src/fichero/spatial_models.py`
+**New File:** `fichero-engine/src/fichero/spatial_models.py`
 
 ```python
 class SpatialRoom(BaseModel):
@@ -977,7 +977,7 @@ class SpatialViewport(BaseModel):
     bookmark_name: str | None
 ```
 
-**New File:** `fichero-api/src/fichero/api/routes/mind_palace.py`
+**New File:** `fichero-engine/src/fichero/api/routes/mind_palace.py`
 
 ```python
 # Room Management
@@ -1069,7 +1069,7 @@ async def import_from_tinderbox(
 
 ### Phase 5: MCP Tools for Agent Control
 
-**File:** `fichero-api/src/fichero/mcp_server.py` (extension)
+**File:** `fichero-engine/src/fichero/mcp_server.py` (extension)
 
 ```python
 # Layer 0: Research Agent Tools
@@ -1154,7 +1154,7 @@ class MindPalaceTools:
 **SwiftUI Components:**
 
 ```
-fichero-swiftui/
+fichero/
 ├── Views/
 │   ├── Research/           # Layer 0: Research Agent UI
 │   │   ├── ResearchProjectListView.swift
@@ -1186,7 +1186,7 @@ fichero-swiftui/
 
 **Step 1: Update OpenAPI Schema**
 
-Update `fichero-api/tests/contracts/openapi.json` with:
+Update `fichero-engine/tests/contracts/openapi.json` with:
 - `KnowledgePrediction` model
 - `PredictionMetadata` model
 - `PredictionEntity` model
@@ -1199,21 +1199,21 @@ Update `fichero-api/tests/contracts/openapi.json` with:
 **Step 2: Regenerate Swift Client**
 
 ```bash
-cd fichero-api
+cd fichero-engine
 ./scripts/sync_openapi_schema.sh
 
 # Verify new types exported:
-grep -A5 "SourceType" fichero-api/tests/contracts/openapi.json
-grep -A10 "PredictionMetadata" fichero-api/tests/contracts/openapi.json
+grep -A5 "SourceType" fichero-engine/tests/contracts/openapi.json
+grep -A10 "PredictionMetadata" fichero-engine/tests/contracts/openapi.json
 
 # Validate Swift compiles:
-cd ../fichero-swiftui
-xcodebuild -scheme fichero-swiftui -destination 'platform=macOS' build
+cd ../fichero
+xcodebuild -scheme fichero -destination 'platform=macOS' build
 ```
 
 **Step 3: Add Swift API Endpoints**
 
-**File:** `fichero-swiftui/fichero-swiftui/Services/APIEndpoints.swift`
+**File:** `fichero/fichero/Services/APIEndpoints.swift`
 
 Add to existing `APIEndpoints` enum:
 
@@ -1331,11 +1331,11 @@ let ontologyClaims = try await apiClient.get(
 **Phase 1 Complete When:** User can create multi-source claims, browse ontology, see epistemology relationships, and work with PyKEEN predictions. All quality gates pass.
 
 **Quality Gates (run at each step):**
-- [ ] `ruff check fichero-api/src/` — Python linting
-- [ ] `python -m pytest fichero-api/tests/unit/test_knowledge_graph_api.py` — tests
-- [ ] `swiftlint lint fichero-swiftui/fichero-swiftui/` — Swift linting
-- [ ] `xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero -sdk macosx build` — Swift build
-- [ ] Backend running: `source .venv/bin/activate && PYTHONPATH=fichero-api/src uvicorn fichero.api.main:app --port 8765 --reload`
+- [ ] `ruff check fichero-engine/src/` — Python linting
+- [ ] `python -m pytest fichero-engine/tests/unit/test_knowledge_graph_api.py` — tests
+- [ ] `swiftlint lint fichero/fichero/` — Swift linting
+- [ ] `xcodebuild -project fichero/fichero.xcodeproj -scheme Fichero -sdk macosx build` — Swift build
+- [ ] Backend running: `source .venv/bin/activate && PYTHONPATH=fichero-engine/src uvicorn fichero.api.main:app --port 8765 --reload`
 
 ---
 
@@ -1380,10 +1380,10 @@ let ontologyClaims = try await apiClient.get(
 **Phase 2 Complete When:** User can apply frameworks, see patterns, navigate part-whole, and view AI interpretation suggestions. All quality gates pass.
 
 **Quality Gates:**
-- [ ] `ruff check fichero-api/src/`
-- [ ] `python -m pytest fichero-api/tests/unit/test_hermeneutics_api.py`
-- [ ] `swiftlint lint fichero-swiftui/fichero-swiftui/`
-- [ ] `xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero -sdk macosx build`
+- [ ] `ruff check fichero-engine/src/`
+- [ ] `python -m pytest fichero-engine/tests/unit/test_hermeneutics_api.py`
+- [ ] `swiftlint lint fichero/fichero/`
+- [ ] `xcodebuild -project fichero/fichero.xcodeproj -scheme Fichero -sdk macosx build`
 - [ ] Backend running with reload
 
 ---
@@ -1447,10 +1447,10 @@ let ontologyClaims = try await apiClient.get(
 **Phase 3 Complete When:** User can create rooms, place nodes in 3D, make connections, edit notes, capture viewport, and export/import with Tinderbox. All quality gates pass.
 
 **Quality Gates:**
-- [ ] `ruff check fichero-api/src/`
-- [ ] `python -m pytest fichero-api/tests/unit/test_mind_palace_api.py`
-- [ ] `swiftlint lint fichero-swiftui/fichero-swiftui/`
-- [ ] `xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero -sdk macosx build`
+- [ ] `ruff check fichero-engine/src/`
+- [ ] `python -m pytest fichero-engine/tests/unit/test_mind_palace_api.py`
+- [ ] `swiftlint lint fichero/fichero/`
+- [ ] `xcodebuild -project fichero/fichero.xcodeproj -scheme Fichero -sdk macosx build`
 - [ ] RealityKit scene renders without errors
 - [ ] Backend running with reload
 
@@ -1506,11 +1506,11 @@ let ontologyClaims = try await apiClient.get(
 **Phase 4 Complete When:** Agents can execute systematic research, discover sources, and save to the full knowledge graph system. All quality gates pass.
 
 **Quality Gates:**
-- [ ] `ruff check fichero-api/src/`
-- [ ] `python -m pytest fichero-api/tests/unit/test_research_agents_api.py`
+- [ ] `ruff check fichero-engine/src/`
+- [ ] `python -m pytest fichero-engine/tests/unit/test_research_agents_api.py`
 - [ ] Sandbox security tests pass (filesystem/CLI escape blocked)
-- [ ] `swiftlint lint fichero-swiftui/fichero-swiftui/`
-- [ ] `xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero -sdk macosx build`
+- [ ] `swiftlint lint fichero/fichero/`
+- [ ] `xcodebuild -project fichero/fichero.xcodeproj -scheme Fichero -sdk macosx build`
 - [ ] Backend running with reload
 
 ---
@@ -1526,9 +1526,9 @@ let ontologyClaims = try await apiClient.get(
    - All layers accessible via unified MCP interface
 
 **2. Quality Checks**
-   - `ruff check fichero-api/src/`
-   - `python -m pytest fichero-api/tests/unit/`
-   - `swiftlint lint fichero-swiftui/fichero-swiftui/`
+   - `ruff check fichero-engine/src/`
+   - `python -m pytest fichero-engine/tests/unit/`
+   - `swiftlint lint fichero/fichero/`
    - Xcode build validation
    - Integration tests (end-to-end workflow)
 
@@ -1540,10 +1540,10 @@ let ontologyClaims = try await apiClient.get(
 **Phase 5 Complete When:** All seven layers work together, tests pass, documentation complete. All quality gates pass.
 
 **Quality Gates:**
-- [ ] `ruff check fichero-api/src/` — zero errors
-- [ ] `python -m pytest fichero-api/tests/unit/` — all tests pass
-- [ ] `swiftlint lint fichero-swiftui/fichero-swiftui/` — zero warnings
-- [ ] `xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero -sdk macosx build` — build succeeds
+- [ ] `ruff check fichero-engine/src/` — zero errors
+- [ ] `python -m pytest fichero-engine/tests/unit/` — all tests pass
+- [ ] `swiftlint lint fichero/fichero/` — zero warnings
+- [ ] `xcodebuild -project fichero/fichero.xcodeproj -scheme Fichero -sdk macosx build` — build succeeds
 - [ ] Integration tests pass (end-to-end workflow)
 - [ ] OpenAPI schema synced and Swift client regenerated
 - [ ] Backend running with reload
@@ -1571,7 +1571,7 @@ let ontologyClaims = try await apiClient.get(
 
 17. **Update OpenAPI schema**
     ```bash
-    cd fichero-api
+    cd fichero-engine
     ./scripts/sync_openapi_schema.sh
     ```
 
@@ -1583,10 +1583,10 @@ let ontologyClaims = try await apiClient.get(
 
 ### Phase 7: Quality Assurance
 19. **Run all quality checks**
-    - `ruff check fichero-api/src/`
-    - `uvx ruff check fichero-api/src/`
-    - `python -m pytest fichero-api/tests/unit/`
-    - `swiftlint lint fichero-swiftui/fichero-swiftui/`
+    - `ruff check fichero-engine/src/`
+    - `uvx ruff check fichero-engine/src/`
+    - `python -m pytest fichero-engine/tests/unit/`
+    - `swiftlint lint fichero/fichero/`
     - Xcode build validation
 
 ## Verification Checklist

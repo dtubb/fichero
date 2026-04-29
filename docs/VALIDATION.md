@@ -3,12 +3,12 @@
 Run all repo validation checks from repo root:
 
 ```bash
-./fichero-api/scripts/validate_repo.sh
+./fichero-engine/scripts/validate_repo.sh
 ```
 
 Checks included:
-- SwiftLint (`fichero-swiftui/fichero-swiftui/`)
-- Xcode build (`fichero-swiftui/fichero-swiftui.xcodeproj`)
+- SwiftLint (`fichero/fichero/`)
+- Xcode build (`fichero/fichero.xcodeproj`)
 - Xcode tests
 - `pylint --errors-only` for backend packages
 - Python unit tests
@@ -30,5 +30,5 @@ Current validation status:
 - OpenAPI sync + parity: passing
 
 Pylint baseline policy:
-- `validate_repo.sh` runs `pylint --errors-only` with `fichero-api/.pylintrc`.
+- `validate_repo.sh` runs `pylint --errors-only` with `fichero-engine/.pylintrc`.
 - Global `no-member` is not disabled; use narrow inline suppressions only for dynamic runtime APIs.

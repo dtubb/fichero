@@ -14,16 +14,16 @@
 
 | File | Change |
 |------|--------|
-| `fichero-api/src/fichero/workflows/tools/sources.py` | Add `selected_doc_ids` priority-0 branch to `files_tool` |
-| `fichero-api/tests/unit/test_workflow_tools.py` | Add tests for the new branch |
-| `fichero-swiftui/fichero-swiftui/Views/Workflow/WorkflowEditor+Actions.swift` | Pass `selected_doc_ids` in `execute()` call |
+| `fichero-engine/src/fichero/workflows/tools/sources.py` | Add `selected_doc_ids` priority-0 branch to `files_tool` |
+| `fichero-engine/tests/unit/test_workflow_tools.py` | Add tests for the new branch |
+| `fichero/fichero/Views/Workflow/WorkflowEditor+Actions.swift` | Pass `selected_doc_ids` in `execute()` call |
 
 ---
 
 ## Task 1: Failing test — files_tool with selected_doc_ids
 
 **Files:**
-- Modify: `fichero-api/tests/unit/test_workflow_tools.py`
+- Modify: `fichero-engine/tests/unit/test_workflow_tools.py`
 
 - [ ] **Step 1: Add the two failing tests at the end of `test_workflow_tools.py`**
 
@@ -91,7 +91,7 @@ async def test_files_tool_explicit_inputs_override_selected_doc_ids(mock_state, 
 
 ```bash
 cd /Users/danieltubb/code/fichero-0.0.2
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_workflow_tools.py::test_files_tool_uses_selected_doc_ids fichero-api/tests/unit/test_workflow_tools.py::test_files_tool_selected_doc_ids_skips_missing fichero-api/tests/unit/test_workflow_tools.py::test_files_tool_explicit_inputs_override_selected_doc_ids -v
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_workflow_tools.py::test_files_tool_uses_selected_doc_ids fichero-engine/tests/unit/test_workflow_tools.py::test_files_tool_selected_doc_ids_skips_missing fichero-engine/tests/unit/test_workflow_tools.py::test_files_tool_explicit_inputs_override_selected_doc_ids -v
 ```
 
 Expected: All 3 FAIL (the first two will return empty files, the third should already pass since explicit inputs work).
@@ -99,7 +99,7 @@ Expected: All 3 FAIL (the first two will return empty files, the third should al
 - [ ] **Step 3: Commit the failing tests**
 
 ```bash
-git add fichero-api/tests/unit/test_workflow_tools.py
+git add fichero-engine/tests/unit/test_workflow_tools.py
 git commit -m "test: failing tests for files_tool selected_doc_ids resolution (#609)"
 ```
 
@@ -108,7 +108,7 @@ git commit -m "test: failing tests for files_tool selected_doc_ids resolution (#
 ## Task 2: Implement — files_tool selected_doc_ids branch
 
 **Files:**
-- Modify: `fichero-api/src/fichero/workflows/tools/sources.py:67-98`
+- Modify: `fichero-engine/src/fichero/workflows/tools/sources.py:67-98`
 
 - [ ] **Step 4: Replace the `files_tool` body with the new priority order**
 
@@ -170,7 +170,7 @@ async def files_tool(
 
 ```bash
 cd /Users/danieltubb/code/fichero-0.0.2
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_workflow_tools.py::test_files_tool_uses_selected_doc_ids fichero-api/tests/unit/test_workflow_tools.py::test_files_tool_selected_doc_ids_skips_missing fichero-api/tests/unit/test_workflow_tools.py::test_files_tool_explicit_inputs_override_selected_doc_ids -v
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_workflow_tools.py::test_files_tool_uses_selected_doc_ids fichero-engine/tests/unit/test_workflow_tools.py::test_files_tool_selected_doc_ids_skips_missing fichero-engine/tests/unit/test_workflow_tools.py::test_files_tool_explicit_inputs_override_selected_doc_ids -v
 ```
 
 Expected: All 3 PASS.
@@ -179,7 +179,7 @@ Expected: All 3 PASS.
 
 ```bash
 cd /Users/danieltubb/code/fichero-0.0.2
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived -x -q
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived -x -q
 ```
 
 Expected: All pass (or same failures as before this change).
@@ -188,7 +188,7 @@ Expected: All pass (or same failures as before this change).
 
 ```bash
 cd /Users/danieltubb/code/fichero-0.0.2
-ruff check fichero-api/src/
+ruff check fichero-engine/src/
 ```
 
 Expected: No new errors.
@@ -196,7 +196,7 @@ Expected: No new errors.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add fichero-api/src/fichero/workflows/tools/sources.py
+git add fichero-engine/src/fichero/workflows/tools/sources.py
 git commit -m "fix: files_tool resolves documents from UI selection via selected_doc_ids (#609)"
 ```
 
@@ -205,7 +205,7 @@ git commit -m "fix: files_tool resolves documents from UI selection via selected
 ## Task 3: Frontend — pass selected_doc_ids in execute call
 
 **Files:**
-- Modify: `fichero-swiftui/fichero-swiftui/Views/Workflow/WorkflowEditor+Actions.swift:54-56`
+- Modify: `fichero/fichero/Views/Workflow/WorkflowEditor+Actions.swift:54-56`
 
 - [ ] **Step 9: Capture selection and pass it in the execute call**
 
@@ -249,8 +249,8 @@ Use Xcode MCP `mcp__xcode__BuildProject` or:
 
 ```bash
 xcodebuild build \
-  -workspace fichero-swiftui/fichero-swiftui.xcodeproj/project.xcworkspace \
-  -scheme fichero-swiftui \
+  -workspace fichero/fichero.xcodeproj/project.xcworkspace \
+  -scheme fichero \
   -destination "platform=macOS" \
   -derivedDataPath /tmp/fichero-build \
   | tail -5
@@ -261,7 +261,7 @@ Expected: `** BUILD SUCCEEDED **`
 - [ ] **Step 11: Run SwiftLint**
 
 ```bash
-swiftlint lint fichero-swiftui/fichero-swiftui/
+swiftlint lint fichero/fichero/
 ```
 
 Expected: No new errors or warnings.
@@ -269,7 +269,7 @@ Expected: No new errors or warnings.
 - [ ] **Step 12: Commit**
 
 ```bash
-git add fichero-swiftui/fichero-swiftui/Views/Workflow/WorkflowEditor+Actions.swift
+git add fichero/fichero/Views/Workflow/WorkflowEditor+Actions.swift
 git commit -m "fix: pass selected_doc_ids to workflow execute so Files node receives UI selection (#609)"
 ```
 
@@ -281,7 +281,7 @@ git commit -m "fix: pass selected_doc_ids to workflow execute so Files node rece
 
 ```bash
 cd /Users/danieltubb/code/fichero-0.0.2
-PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 ```
 
 - [ ] **Step 14: On-device test**

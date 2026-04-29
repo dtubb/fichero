@@ -51,7 +51,7 @@ if [ ! -x "$RUFF_BIN" ]; then
 fi
 
 if [ -x "$RUFF_BIN" ]; then
-  if PYTHONPATH="$ROOT_DIR/fichero-api/src" "$RUFF_BIN" check fichero-api/src/ 2>&1; then
+  if PYTHONPATH="$ROOT_DIR/fichero-engine/src" "$RUFF_BIN" check fichero-engine/src/ 2>&1; then
     ok "Ruff clean"
   else
     fail "Ruff violations found"
@@ -68,9 +68,9 @@ if [ ! -x "$PYTHON_BIN" ]; then
 fi
 
 if [ -x "$PYTHON_BIN" ]; then
-  if PYTHONPATH="$ROOT_DIR/fichero-api/src" "$PYTHON_BIN" -m pytest \
-    fichero-api/tests/unit/ \
-    --ignore=fichero-api/tests/unit/_archived \
+  if PYTHONPATH="$ROOT_DIR/fichero-engine/src" "$PYTHON_BIN" -m pytest \
+    fichero-engine/tests/unit/ \
+    --ignore=fichero-engine/tests/unit/_archived \
     -q 2>&1; then
     ok "pytest passed"
   else
@@ -82,7 +82,7 @@ fi
 
 # ── 4. Briefcase backend build ──────────────────────────────────────────────
 echo "[4/8] Briefcase backend build"
-cd "$ROOT_DIR/fichero-api"
+cd "$ROOT_DIR/fichero-engine"
 
 if ! command -v briefcase >/dev/null 2>&1; then
   fail "Briefcase not installed (pip install briefcase)"
@@ -104,7 +104,7 @@ cd "$ROOT_DIR"
 
 # ── 5. Copy backend + Xcode Release build ───────────────────────────────────
 echo "[5/8] Xcode Release build"
-BACKEND_APP="$ROOT_DIR/fichero-api/build/fichero-backend/macos/app/FicheroBackend.app"
+BACKEND_APP="$ROOT_DIR/fichero-engine/build/fichero-backend/macos/app/FicheroBackend.app"
 RESOURCES_DEST="$ROOT_DIR/fichero-swiftui/fichero-swiftui/Resources/FicheroBackend.app"
 
 if [ -d "$BACKEND_APP" ]; then

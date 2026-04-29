@@ -16,13 +16,13 @@
 
 | File | Change |
 |---|---|
-| `fichero-swiftui/fichero-swiftui/Views/Activity/ActivityDetailView.swift` | Fix liveExecution key lookup |
-| `fichero-swiftui/fichero-swiftui/Views/Activity/ActivityLogView.swift` | Fix liveExecution key lookup |
-| `fichero-swiftui/fichero-swiftui/Services/WorkflowExecutionObserver.swift` | Add completedExecutions archive |
-| `fichero-swiftui/fichero-swiftui/Services/WorkflowExecutionObserver+Events.swift` | Archive instead of 2-second delete |
-| `fichero-swiftui/fichero-swiftui/Views/Activity/ActivityOverviewView.swift` | Add per-file doc progress to live card |
-| `fichero-swiftui/fichero-swiftui/Views/Workflow/WorkflowOutputLog.swift` | Filter source-tool columns |
-| `fichero-api/src/fichero/workflows/tools/sources.py` | collection_tool respects selected_doc_ids |
+| `fichero/fichero/Views/Activity/ActivityDetailView.swift` | Fix liveExecution key lookup |
+| `fichero/fichero/Views/Activity/ActivityLogView.swift` | Fix liveExecution key lookup |
+| `fichero/fichero/Services/WorkflowExecutionObserver.swift` | Add completedExecutions archive |
+| `fichero/fichero/Services/WorkflowExecutionObserver+Events.swift` | Archive instead of 2-second delete |
+| `fichero/fichero/Views/Activity/ActivityOverviewView.swift` | Add per-file doc progress to live card |
+| `fichero/fichero/Views/Workflow/WorkflowOutputLog.swift` | Filter source-tool columns |
+| `fichero-engine/src/fichero/workflows/tools/sources.py` | collection_tool respects selected_doc_ids |
 
 ---
 
@@ -31,12 +31,12 @@
 **Root cause:** `ActivityDetailView.liveExecution` does `activeExecutions[selectedRun.id]` but `selectedRun.id` is the **threadId** while `activeExecutions` is keyed by **workflowId**. Every Activity tab that depends on `liveExecution` sees nil and falls through to its empty state. Same bug in `ActivityLogView`.
 
 **Files:**
-- Modify: `fichero-swiftui/fichero-swiftui/Views/Activity/ActivityDetailView.swift:19-22`
-- Modify: `fichero-swiftui/fichero-swiftui/Views/Activity/ActivityLogView.swift:18-21`
+- Modify: `fichero/fichero/Views/Activity/ActivityDetailView.swift:19-22`
+- Modify: `fichero/fichero/Views/Activity/ActivityLogView.swift:18-21`
 
 - [ ] **Step 1: Fix liveExecution in ActivityDetailView**
 
-Open `fichero-swiftui/fichero-swiftui/Views/Activity/ActivityDetailView.swift`.
+Open `fichero/fichero/Views/Activity/ActivityDetailView.swift`.
 
 Replace lines 19–22:
 ```swift
@@ -60,7 +60,7 @@ private var liveExecution: WorkflowExecution? {
 
 - [ ] **Step 2: Fix liveExecution in ActivityLogView**
 
-Open `fichero-swiftui/fichero-swiftui/Views/Activity/ActivityLogView.swift`.
+Open `fichero/fichero/Views/Activity/ActivityLogView.swift`.
 
 Replace lines 17–21:
 ```swift
@@ -87,8 +87,8 @@ Note: `completedExecutions` is added in Task 2. This file will fail to compile u
 
 ```bash
 cd /Users/danieltubb/code/fichero-0.0.2
-xcodebuild -workspace fichero-swiftui/fichero-swiftui.xcodeproj/project.xcworkspace \
-  -scheme fichero-swiftui -destination 'platform=macOS' \
+xcodebuild -workspace fichero/fichero.xcodeproj/project.xcworkspace \
+  -scheme fichero -destination 'platform=macOS' \
   -derivedDataPath /tmp/fichero-build build 2>&1 | grep -E "error:|warning:|BUILD"
 ```
 
@@ -97,8 +97,8 @@ Expected: `** BUILD SUCCEEDED **`
 - [ ] **Step 4: Commit**
 
 ```bash
-git add fichero-swiftui/fichero-swiftui/Views/Activity/ActivityDetailView.swift \
-        fichero-swiftui/fichero-swiftui/Views/Activity/ActivityLogView.swift
+git add fichero/fichero/Views/Activity/ActivityDetailView.swift \
+        fichero/fichero/Views/Activity/ActivityLogView.swift
 git commit -m "fix: Activity liveExecution key was threadId, must be workflowId (#627 #629 #630 #631)"
 ```
 
@@ -109,12 +109,12 @@ git commit -m "fix: Activity liveExecution key was threadId, must be workflowId 
 **Root cause:** In `WorkflowExecutionObserver+Events.swift`, the `.complete`, `.error`, and `.systemicError` event handlers schedule `activeExecutions.removeValue(forKey:)` after 2 seconds. The Activity view opens after the run finishes — the execution is gone before the user looks. Add a `completedExecutions` dict and move entries there instead of deleting.
 
 **Files:**
-- Modify: `fichero-swiftui/fichero-swiftui/Services/WorkflowExecutionObserver.swift`
-- Modify: `fichero-swiftui/fichero-swiftui/Services/WorkflowExecutionObserver+Events.swift`
+- Modify: `fichero/fichero/Services/WorkflowExecutionObserver.swift`
+- Modify: `fichero/fichero/Services/WorkflowExecutionObserver+Events.swift`
 
 - [ ] **Step 1: Add completedExecutions to WorkflowExecutionObserver**
 
-Open `fichero-swiftui/fichero-swiftui/Services/WorkflowExecutionObserver.swift`.
+Open `fichero/fichero/Services/WorkflowExecutionObserver.swift`.
 
 After line 26 (`var fileCompletedCount: Int = 0`), add:
 
@@ -152,7 +152,7 @@ func endExecution(workflowId: String, status: WorkflowStatus = .completed) {
 
 - [ ] **Step 3: Remove 2-second auto-deletions from event handlers**
 
-Open `fichero-swiftui/fichero-swiftui/Services/WorkflowExecutionObserver+Events.swift`.
+Open `fichero/fichero/Services/WorkflowExecutionObserver+Events.swift`.
 
 Find the `.complete` case (around line 146). It currently has:
 ```swift
@@ -197,8 +197,8 @@ After all three removals, the `.complete`, `.error`, and `.systemicError` handle
 
 ```bash
 cd /Users/danieltubb/code/fichero-0.0.2
-xcodebuild -workspace fichero-swiftui/fichero-swiftui.xcodeproj/project.xcworkspace \
-  -scheme fichero-swiftui -destination 'platform=macOS' \
+xcodebuild -workspace fichero/fichero.xcodeproj/project.xcworkspace \
+  -scheme fichero -destination 'platform=macOS' \
   -derivedDataPath /tmp/fichero-build build 2>&1 | grep -E "error:|warning:|BUILD"
 ```
 
@@ -207,8 +207,8 @@ Expected: `** BUILD SUCCEEDED **`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add fichero-swiftui/fichero-swiftui/Services/WorkflowExecutionObserver.swift \
-        fichero-swiftui/fichero-swiftui/Services/WorkflowExecutionObserver+Events.swift
+git add fichero/fichero/Services/WorkflowExecutionObserver.swift \
+        fichero/fichero/Services/WorkflowExecutionObserver+Events.swift
 git commit -m "fix: archive completed executions so Activity tabs persist after run (#637)"
 ```
 
@@ -221,11 +221,11 @@ git commit -m "fix: archive completed executions so Activity tabs persist after 
 **Fix:** At the start of `collection_tool`, check if `selected_doc_ids` is non-empty. If it is, return only those specific documents instead of fetching the whole collection.
 
 **Files:**
-- Modify: `fichero-api/src/fichero/workflows/tools/sources.py:180-243`
+- Modify: `fichero-engine/src/fichero/workflows/tools/sources.py:180-243`
 
 - [ ] **Step 1: Write the failing test**
 
-Open `fichero-api/tests/unit/test_sources_selected_doc_ids.py` (create new file):
+Open `fichero-engine/tests/unit/test_sources_selected_doc_ids.py` (create new file):
 
 ```python
 """Tests that collection_tool respects selected_doc_ids when present."""
@@ -291,14 +291,14 @@ async def test_collection_tool_no_selected_ids_uses_collection(mock_db):
 
 ```bash
 cd /Users/danieltubb/code/fichero-0.0.2
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_sources_selected_doc_ids.py -v
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_sources_selected_doc_ids.py -v
 ```
 
 Expected: FAIL — `test_collection_tool_respects_selected_doc_ids` fails because collection_tool ignores `selected_doc_ids`.
 
 - [ ] **Step 3: Implement the fix in collection_tool**
 
-Open `fichero-api/src/fichero/workflows/tools/sources.py`.
+Open `fichero-engine/src/fichero/workflows/tools/sources.py`.
 
 In `async def collection_tool(...)`, after the `collection_id` empty check (around line 204) and before fetching `library_path`, insert this block:
 
@@ -339,7 +339,7 @@ The `Document` import is already at the top of sources.py (line 21: `from ficher
 
 ```bash
 cd /Users/danieltubb/code/fichero-0.0.2
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/test_sources_selected_doc_ids.py -v
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_sources_selected_doc_ids.py -v
 ```
 
 Expected: both tests PASS.
@@ -348,8 +348,8 @@ Expected: both tests PASS.
 
 ```bash
 cd /Users/danieltubb/code/fichero-0.0.2
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ \
-  --ignore=fichero-api/tests/unit/_archived -x -q 2>&1 | tail -20
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ \
+  --ignore=fichero-engine/tests/unit/_archived -x -q 2>&1 | tail -20
 ```
 
 Expected: pre-existing failures only (test_providers.py, test_routes_settings.py — 8 known failures).
@@ -357,8 +357,8 @@ Expected: pre-existing failures only (test_providers.py, test_routes_settings.py
 - [ ] **Step 6: Commit**
 
 ```bash
-git add fichero-api/src/fichero/workflows/tools/sources.py \
-        fichero-api/tests/unit/test_sources_selected_doc_ids.py
+git add fichero-engine/src/fichero/workflows/tools/sources.py \
+        fichero-engine/tests/unit/test_sources_selected_doc_ids.py
 git commit -m "fix: collection_tool respects selected_doc_ids — run on selection no longer runs whole folder (#634)"
 ```
 
@@ -371,11 +371,11 @@ git commit -m "fix: collection_tool respects selected_doc_ids — run on selecti
 **Fix:** Filter `workflow.nodes` to exclude known source tools before building the table.
 
 **Files:**
-- Modify: `fichero-swiftui/fichero-swiftui/Views/Workflow/WorkflowOutputLog.swift:103-140`
+- Modify: `fichero/fichero/Views/Workflow/WorkflowOutputLog.swift:103-140`
 
 - [ ] **Step 1: Add a source-tool filter property**
 
-Open `fichero-swiftui/fichero-swiftui/Views/Workflow/WorkflowOutputLog.swift`.
+Open `fichero/fichero/Views/Workflow/WorkflowOutputLog.swift`.
 
 After the `executionState` computed property (around line 27), add:
 
@@ -424,8 +424,8 @@ ForEach(processingNodes) { node in
 
 ```bash
 cd /Users/danieltubb/code/fichero-0.0.2
-xcodebuild -workspace fichero-swiftui/fichero-swiftui.xcodeproj/project.xcworkspace \
-  -scheme fichero-swiftui -destination 'platform=macOS' \
+xcodebuild -workspace fichero/fichero.xcodeproj/project.xcworkspace \
+  -scheme fichero -destination 'platform=macOS' \
   -derivedDataPath /tmp/fichero-build build 2>&1 | grep -E "error:|warning:|BUILD"
 ```
 
@@ -434,7 +434,7 @@ Expected: `** BUILD SUCCEEDED **`
 - [ ] **Step 4: Commit**
 
 ```bash
-git add fichero-swiftui/fichero-swiftui/Views/Workflow/WorkflowOutputLog.swift
+git add fichero/fichero/Views/Workflow/WorkflowOutputLog.swift
 git commit -m "fix: hide source-tool columns (Collection, Files) in Output Log — they never have per-file data (#632)"
 ```
 
@@ -450,12 +450,12 @@ The backend runner already filters `_aggregate` nodes from `nodeBegin` SSE event
 **Fix for Graph:** Filter known internal channel names from the checkpoint detail view.
 
 **Files:**
-- Modify: `fichero-swiftui/fichero-swiftui/Views/Activity/ActivityGraphView.swift`
-- Modify: `fichero-swiftui/fichero-swiftui/Services/WorkflowExecutionObserver+Events.swift` (defensive filter)
+- Modify: `fichero/fichero/Views/Activity/ActivityGraphView.swift`
+- Modify: `fichero/fichero/Services/WorkflowExecutionObserver+Events.swift` (defensive filter)
 
 - [ ] **Step 1: Add internal-name filter to the event observer**
 
-Open `fichero-swiftui/fichero-swiftui/Services/WorkflowExecutionObserver+Events.swift`.
+Open `fichero/fichero/Services/WorkflowExecutionObserver+Events.swift`.
 
 In the `.nodeBegin` case, after `workflowExecutionLogger.info("[EVENT] Node started...")`, add a guard to skip LangGraph internal nodes:
 
@@ -477,7 +477,7 @@ case .nodeBegin(_, let nodeId, let nodeName):
 
 - [ ] **Step 2: Filter internal channels in ActivityGraphView checkpoint detail**
 
-Open `fichero-swiftui/fichero-swiftui/Views/Activity/ActivityGraphView.swift`.
+Open `fichero/fichero/Views/Activity/ActivityGraphView.swift`.
 
 Find where the checkpoint's `channelValues` (or equivalent state keys) are displayed. The checkpoint detail view renders LangGraph state keys. Add a filter to skip internal keys:
 
@@ -505,8 +505,8 @@ In the view's channel-rendering loop (wherever it iterates state keys), wrap wit
 
 ```bash
 cd /Users/danieltubb/code/fichero-0.0.2
-xcodebuild -workspace fichero-swiftui/fichero-swiftui.xcodeproj/project.xcworkspace \
-  -scheme fichero-swiftui -destination 'platform=macOS' \
+xcodebuild -workspace fichero/fichero.xcodeproj/project.xcworkspace \
+  -scheme fichero -destination 'platform=macOS' \
   -derivedDataPath /tmp/fichero-build build 2>&1 | grep -E "error:|warning:|BUILD"
 ```
 
@@ -515,8 +515,8 @@ Expected: `** BUILD SUCCEEDED **`
 - [ ] **Step 4: Commit**
 
 ```bash
-git add fichero-swiftui/fichero-swiftui/Services/WorkflowExecutionObserver+Events.swift \
-        fichero-swiftui/fichero-swiftui/Views/Activity/ActivityGraphView.swift
+git add fichero/fichero/Services/WorkflowExecutionObserver+Events.swift \
+        fichero/fichero/Views/Activity/ActivityGraphView.swift
 git commit -m "fix: filter LangGraph internal node names from Console and Graph tabs (#628)"
 ```
 
@@ -527,11 +527,11 @@ git commit -m "fix: filter LangGraph internal node names from Console and Graph 
 **Root cause / context:** The Activity Overview shows an empty progress card for live runs when `overallProgress == nil` (no `parallelStart` event). After Task 1 and 2, `liveExecution` is properly populated — but the Overview `liveStatsCard` only shows an overall progress bar and current file. It should also show which files have been processed (like the Progress tab's "Recent Files" list).
 
 **Files:**
-- Modify: `fichero-swiftui/fichero-swiftui/Views/Activity/ActivityOverviewView.swift:52-85`
+- Modify: `fichero/fichero/Views/Activity/ActivityOverviewView.swift:52-85`
 
 - [ ] **Step 1: Add document progress list to liveStatsCard**
 
-Open `fichero-swiftui/fichero-swiftui/Views/Activity/ActivityOverviewView.swift`.
+Open `fichero/fichero/Views/Activity/ActivityOverviewView.swift`.
 
 Replace the `liveStatsCard` function (lines 52–86) with:
 
@@ -628,8 +628,8 @@ private func docStatusIcon(_ doc: DocumentProgress) -> some View {
 
 ```bash
 cd /Users/danieltubb/code/fichero-0.0.2
-xcodebuild -workspace fichero-swiftui/fichero-swiftui.xcodeproj/project.xcworkspace \
-  -scheme fichero-swiftui -destination 'platform=macOS' \
+xcodebuild -workspace fichero/fichero.xcodeproj/project.xcworkspace \
+  -scheme fichero -destination 'platform=macOS' \
   -derivedDataPath /tmp/fichero-build build 2>&1 | grep -E "error:|warning:|BUILD"
 ```
 
@@ -639,7 +639,7 @@ Expected: `** BUILD SUCCEEDED **`
 
 ```bash
 cd /Users/danieltubb/code/fichero-0.0.2
-swiftlint lint fichero-swiftui/fichero-swiftui/Views/Activity/ActivityOverviewView.swift
+swiftlint lint fichero/fichero/Views/Activity/ActivityOverviewView.swift
 ```
 
 Expected: no errors.
@@ -647,7 +647,7 @@ Expected: no errors.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add fichero-swiftui/fichero-swiftui/Views/Activity/ActivityOverviewView.swift
+git add fichero/fichero/Views/Activity/ActivityOverviewView.swift
 git commit -m "fix: Activity Overview live card shows per-file document progress grid (#636)"
 ```
 

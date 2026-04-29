@@ -1,0 +1,2238 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 90;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		001 /* FicheroApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 101 /* FicheroApp.swift */; };
+		002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 102 /* ContentView.swift */; };
+		003 /* Document.swift in Sources */ = {isa = PBXBuildFile; fileRef = 103 /* Document.swift */; };
+		008 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 108 /* EditorView.swift */; };
+		009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 201 /* Assets.xcassets */; };
+		010 /* SidebarItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 109 /* SidebarItem.swift */; };
+		011 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110 /* SearchView.swift */; };
+		018 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 117 /* ChatView.swift */; };
+		019 /* DocumentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 118 /* DocumentStore.swift */; };
+		020 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 119 /* APIClient.swift */; };
+		023 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 122 /* ChatService.swift */; };
+		025 /* SavedSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124 /* SavedSearchService.swift */; };
+		028 /* ModelService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127 /* ModelService.swift */; };
+		035 /* WorkflowTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 134 /* WorkflowTypes.swift */; };
+		036 /* WorkflowStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135 /* WorkflowStore.swift */; };
+		037 /* WorkflowExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 136 /* WorkflowExporter.swift */; };
+		038 /* WorkflowChain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 137 /* WorkflowChain.swift */; };
+		039 /* ChainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 138 /* ChainService.swift */; };
+		040 /* WorkflowChainListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 139 /* WorkflowChainListView.swift */; };
+		041 /* WorkflowStreamService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 140 /* WorkflowStreamService.swift */; };
+		042 /* AppleScriptSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 141 /* AppleScriptSupport.swift */; };
+		043 /* Fichero.sdef in Resources */ = {isa = PBXBuildFile; fileRef = 142 /* Fichero.sdef */; };
+		044 /* WorkflowServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143 /* WorkflowServiceGenerated.swift */; };
+		045 /* SavedSearchServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 144 /* SavedSearchServiceGenerated.swift */; };
+		046 /* ConversationServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 145 /* ConversationServiceGenerated.swift */; };
+		047 /* ChatServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 146 /* ChatServiceGenerated.swift */; };
+		048 /* WorkflowExecutionObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149 /* WorkflowExecutionObserver.swift */; };
+		049 /* DocumentServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148 /* DocumentServiceGenerated.swift */; };
+		0EB90A1DBB324F96AE256464 /* PDFThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1786CA1F532B414196BAAABE /* PDFThumbnailView.swift */; };
+		150 /* ChainEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 151 /* ChainEditorView.swift */; };
+		154 /* ScheduleCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152 /* ScheduleCreationSheet.swift */; };
+		155 /* TriggerCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153 /* TriggerCreationSheet.swift */; };
+		200BCF2C2F3D501800D7851A /* ContentView+State.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF2B2F3D501800D7851A /* ContentView+State.swift */; };
+		200BCF362F3D547F00D7851A /* ContentView+ViewBuilders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF352F3D547F00D7851A /* ContentView+ViewBuilders.swift */; };
+		200BCF382F3D548000D7851A /* ContentView+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF372F3D548000D7851A /* ContentView+Persistence.swift */; };
+		200BCF3A2F3D548000D7851A /* ContentView+Navigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF392F3D548000D7851A /* ContentView+Navigation.swift */; };
+		200BCF3C2F3D548000D7851A /* ContentView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF3B2F3D548000D7851A /* ContentView+Actions.swift */; };
+		2011E35A2F93ADF700606651 /* ComparisonTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2011E3592F93ADF700606651 /* ComparisonTypes.swift */; };
+		202674952F475B1D008EAB5D /* NodeConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674942F475B1D008EAB5D /* NodeConfigView.swift */; };
+		202674972F475B23008EAB5D /* CollectionNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674962F475B23008EAB5D /* CollectionNodeConfig.swift */; };
+		202674992F475B33008EAB5D /* SearchNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674982F475B33008EAB5D /* SearchNodeConfig.swift */; };
+		2026749B2F475B4A008EAB5D /* FilesNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749A2F475B4A008EAB5D /* FilesNodeConfig.swift */; };
+		2026749D2F475B64008EAB5D /* TranscribeNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749C2F475B64008EAB5D /* TranscribeNodeConfig.swift */; };
+		2026749F2F475B7A008EAB5D /* DescribeNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749E2F475B7A008EAB5D /* DescribeNodeConfig.swift */; };
+		202674A22F4762E6008EAB5D /* ImageZoomToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A12F4762E6008EAB5D /* ImageZoomToolbar.swift */; };
+		202674A42F47642A008EAB5D /* SummarizeFileNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A32F47642A008EAB5D /* SummarizeFileNodeConfig.swift */; };
+		202674A62F476439008EAB5D /* SummarizeFolderNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A52F476439008EAB5D /* SummarizeFolderNodeConfig.swift */; };
+		202674A82F476447008EAB5D /* SummarizeCollectionNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A72F476447008EAB5D /* SummarizeCollectionNodeConfig.swift */; };
+		202674AA2F476453008EAB5D /* ExtractEntitiesNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A92F476453008EAB5D /* ExtractEntitiesNodeConfig.swift */; };
+		202674AC2F4779AA008EAB5D /* NodeProviderModelSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674AB2F4779AA008EAB5D /* NodeProviderModelSelector.swift */; };
+		202674AE2F477AFE008EAB5D /* NodeInputMappings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674AD2F477AFE008EAB5D /* NodeInputMappings.swift */; };
+		202674B02F4781BA008EAB5D /* TrackingImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674AF2F4781BA008EAB5D /* TrackingImageView.swift */; };
+		202674B22F478206008EAB5D /* ImageWithCursorTracking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674B12F478206008EAB5D /* ImageWithCursorTracking.swift */; };
+		202674B42F4783A9008EAB5D /* WorkflowNodeCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674B32F4783A9008EAB5D /* WorkflowNodeCard.swift */; };
+		202674B62F4783BC008EAB5D /* WorkflowNodeRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674B52F4783BC008EAB5D /* WorkflowNodeRow.swift */; };
+		202674B82F4783D5008EAB5D /* WorkflowDiagramPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674B72F4783D5008EAB5D /* WorkflowDiagramPreview.swift */; };
+		202674BC2F478636008EAB5D /* SidebarCreationHandlers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674BB2F478636008EAB5D /* SidebarCreationHandlers.swift */; };
+		202674BF2F478647008EAB5D /* SidebarActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674BE2F478647008EAB5D /* SidebarActions.swift */; };
+		202674C22F47865B008EAB5D /* SidebarObservers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674C12F47865B008EAB5D /* SidebarObservers.swift */; };
+		202674C52F4788CB008EAB5D /* WorkflowDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674C42F4788CB008EAB5D /* WorkflowDetailView.swift */; };
+		202674C72F4788E0008EAB5D /* WorkflowMiniPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674C62F4788E0008EAB5D /* WorkflowMiniPreview.swift */; };
+		202674C92F4788EB008EAB5D /* WorkflowThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674C82F4788EB008EAB5D /* WorkflowThumbnailView.swift */; };
+		202674CC2F4788F2008EAB5D /* WorkflowLibraryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674CB2F4788F2008EAB5D /* WorkflowLibraryRow.swift */; };
+		202674CE2F4788FF008EAB5D /* NewWorkflowSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674CD2F4788FF008EAB5D /* NewWorkflowSheet.swift */; };
+		202674D02F4789BF008EAB5D /* LibraryViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674CF2F4789BF008EAB5D /* LibraryViewComponents.swift */; };
+		202674D22F478A13008EAB5D /* LibraryView+DisplayModes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D12F478A13008EAB5D /* LibraryView+DisplayModes.swift */; };
+		202674D42F489633008EAB5D /* SearchFiltersPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D32F489633008EAB5D /* SearchFiltersPanel.swift */; };
+		202674D62F48963F008EAB5D /* SearchResultRowFromAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D52F48963F008EAB5D /* SearchResultRowFromAPI.swift */; };
+		202674D82F48964E008EAB5D /* SearchMapComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D72F48964E008EAB5D /* SearchMapComponents.swift */; };
+		202674DA2F489665008EAB5D /* SearchResultsDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D92F489665008EAB5D /* SearchResultsDisplay.swift */; };
+		202674DC2F489677008EAB5D /* SearchView+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674DB2F489677008EAB5D /* SearchView+Helpers.swift */; };
+		202674DE2F48972A008EAB5D /* MessageCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674DD2F48972A008EAB5D /* MessageCard.swift */; };
+		202674E02F489737008EAB5D /* ChatStatusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674DF2F489737008EAB5D /* ChatStatusViews.swift */; };
+		202674E22F48973E008EAB5D /* ChatInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E12F48973E008EAB5D /* ChatInputView.swift */; };
+		202674E42F489742008EAB5D /* ChatMapGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E32F489742008EAB5D /* ChatMapGrid.swift */; };
+		202674E62F489757008EAB5D /* ChatMessagesList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E52F489757008EAB5D /* ChatMessagesList.swift */; };
+		202674E82F48976C008EAB5D /* ChatView+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E72F48976C008EAB5D /* ChatView+Extensions.swift */; };
+		20D8ED492F48E2B1006950A3 /* WorkflowInspector+AgentsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED482F48E2B1006950A3 /* WorkflowInspector+AgentsSection.swift */; };
+		20D8ED4B2F48E2B3006950A3 /* ActivityProgressModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED4A2F48E2B3006950A3 /* ActivityProgressModels.swift */; };
+		20D8ED4D2F48E2BE006950A3 /* WorkflowInspector+MCPTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED4C2F48E2BE006950A3 /* WorkflowInspector+MCPTools.swift */; };
+		20D8ED4F2F48E2C1006950A3 /* ActivityProgressView+LiveProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED4E2F48E2C1006950A3 /* ActivityProgressView+LiveProgress.swift */; };
+		20D8ED512F48E2C4006950A3 /* WorkflowPreviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED502F48E2C4006950A3 /* WorkflowPreviewSheet.swift */; };
+		20D8ED532F48E2CA006950A3 /* WorkflowInspector+DataLoading.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED522F48E2CA006950A3 /* WorkflowInspector+DataLoading.swift */; };
+		20D8ED552F48E2CC006950A3 /* WorkflowExecutionRow+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED542F48E2CC006950A3 /* WorkflowExecutionRow+Helpers.swift */; };
+		20D8ED572F48E2D7006950A3 /* ActivityProgressView+HistoricalProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED562F48E2D7006950A3 /* ActivityProgressView+HistoricalProgress.swift */; };
+		20D8ED592F48E2DE006950A3 /* ActivityProgressView+DataLoading.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED582F48E2DE006950A3 /* ActivityProgressView+DataLoading.swift */; };
+		20D8ED5B2F48E4CA006950A3 /* TriggerDetailView+Configuration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED5A2F48E4CA006950A3 /* TriggerDetailView+Configuration.swift */; };
+		20D8ED5D2F48E4D4006950A3 /* TriggerDetailView+ExecutionHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED5C2F48E4D4006950A3 /* TriggerDetailView+ExecutionHistory.swift */; };
+		20D8ED5F2F48E4DA006950A3 /* TriggerDetailView+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED5E2F48E4DA006950A3 /* TriggerDetailView+Helpers.swift */; };
+		20D8ED612F48E604006950A3 /* WorkflowSupportTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED602F48E604006950A3 /* WorkflowSupportTypes.swift */; };
+		20D8ED632F48E61C006950A3 /* SidebarItem+MoreFactories.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED622F48E61B006950A3 /* SidebarItem+MoreFactories.swift */; };
+		20D8ED652F48E61C006950A3 /* WorkflowToolTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED642F48E61C006950A3 /* WorkflowToolTypes.swift */; };
+		20D8ED672F48E626006950A3 /* DocumentStore+CRUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED662F48E626006950A3 /* DocumentStore+CRUD.swift */; };
+		20D8ED692F48E626006950A3 /* SidebarChatTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED682F48E626006950A3 /* SidebarChatTypes.swift */; };
+		20D8ED6B2F48E62B006950A3 /* WorkflowResponseTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED6A2F48E62B006950A3 /* WorkflowResponseTypes.swift */; };
+		20D8ED6D2F48E62F006950A3 /* DocumentStore+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED6C2F48E62F006950A3 /* DocumentStore+Helpers.swift */; };
+		20D8ED6F2F48E633006950A3 /* SidebarSearchTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED6E2F48E633006950A3 /* SidebarSearchTypes.swift */; };
+		20D8ED712F48E63B006950A3 /* DocumentStoreTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED702F48E63B006950A3 /* DocumentStoreTypes.swift */; };
+		20D8ED732F48E644006950A3 /* SidebarViewTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED722F48E644006950A3 /* SidebarViewTypes.swift */; };
+		20D8EDCA2F48F49C006950A3 /* BatchTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDC92F48F49C006950A3 /* BatchTypes.swift */; };
+		20D8EDCC2F48F4A8006950A3 /* LibraryWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDCB2F48F4A8006950A3 /* LibraryWindow.swift */; };
+		20D8EDCE2F48F4AE006950A3 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDCD2F48F4AE006950A3 /* WelcomeView.swift */; };
+		20D8EDD02F48F4AE006950A3 /* CheckpointTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDCF2F48F4AE006950A3 /* CheckpointTypes.swift */; };
+		20D8EDD22F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDD12F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift */; };
+		20D8EDD42F48F4BE006950A3 /* WorkflowRunResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDD32F48F4BE006950A3 /* WorkflowRunResponse.swift */; };
+		20D8EDF82F4BBC04006950A3 /* WorkflowStreamTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDF72F4BBC04006950A3 /* WorkflowStreamTypes.swift */; };
+		20D8EDFA2F4BBC12006950A3 /* ModelComparisonTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDF92F4BBC12006950A3 /* ModelComparisonTypes.swift */; };
+		20D8EDFC2F4BBC1A006950A3 /* WorkflowStreamService+Parsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDFB2F4BBC1A006950A3 /* WorkflowStreamService+Parsing.swift */; };
+		20D8EE202F4BBFAF006950A3 /* AppleScriptCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE1F2F4BBFAF006950A3 /* AppleScriptCommands.swift */; };
+		20D8EE222F4BBFB8006950A3 /* AutomationServiceTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE212F4BBFB8006950A3 /* AutomationServiceTypes.swift */; };
+		20D8EE242F4BBFBA006950A3 /* ProviderServiceTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE232F4BBFBA006950A3 /* ProviderServiceTypes.swift */; };
+		20D8EE262F4BC0E2006950A3 /* IntegrationsServiceTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE252F4BC0E2006950A3 /* IntegrationsServiceTypes.swift */; };
+		20D8EE282F4BC0ED006950A3 /* IntegrationsService+AppSpecific.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE272F4BC0ED006950A3 /* IntegrationsService+AppSpecific.swift */; };
+		20D8EE2A2F4BC0F3006950A3 /* WorkflowExecutionTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE292F4BC0F3006950A3 /* WorkflowExecutionTypes.swift */; };
+		20D8EE302F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE2F2F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift */; };
+		20D8EE382F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE372F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift */; };
+		20D8EE3A2F4BD9F6006950A3 /* LibraryView+InlineEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE392F4BD9F6006950A3 /* LibraryView+InlineEditing.swift */; };
+		20D8EE3C2F4BE0D8006950A3 /* ActionsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE3B2F4BE0D8006950A3 /* ActionsService.swift */; };
+		20D8EE3E2F4BE1AB006950A3 /* ActionLibraryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE3D2F4BE1AB006950A3 /* ActionLibraryService.swift */; };
+		20D8EE452F4BE260006950A3 /* ActionLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE442F4BE260006950A3 /* ActionLibraryView.swift */; };
+		20D8EE472F4BE285006950A3 /* ActionPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE462F4BE285006950A3 /* ActionPickerView.swift */; };
+		20D8EE492F4BED4B006950A3 /* ActionRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE482F4BED4B006950A3 /* ActionRowView.swift */; };
+		20D8EE4B2F4BED57006950A3 /* ActionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE4A2F4BED57006950A3 /* ActionDetailView.swift */; };
+		2133BF0B15424FFDBA37619B /* FolderContentsGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747AC1DB57A54EA79D0817E8 /* FolderContentsGrid.swift */; };
+		2ED84CCBA91252EA2D0C5D34 /* TriggerEditorPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */; };
+		3D3445F0B90D093149C9A7D6 /* DocumentInspectorContentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */; };
+		4458475E8C2BF728591E504F /* AIDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */; };
+		4EBA402FBE51F9F56366C3A5 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */; };
+		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
+		64574A29B56CBA1F27542556 /* BackendSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */; };
+		71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */; };
+		7C874A46B0C0C85ACD9F23AA /* DocumentInspectorArtifactsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */; };
+		832 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
+		836 /* CacheModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4119 /* CacheModel.swift */; };
+		838 /* PerformanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4121 /* PerformanceService.swift */; };
+		840 /* ErrorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4123 /* ErrorService.swift */; };
+		841 /* ErrorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4124 /* ErrorModel.swift */; };
+		842 /* SidebarState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4125 /* SidebarState.swift */; };
+		843 /* DragDropModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4126 /* DragDropModel.swift */; };
+		852B1713BA5220E613865101 /* LibraryManager+Operations.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBFA9C3247C03BDCE9BE6092 /* LibraryManager+Operations.swift */; };
+		898AABCC531843909C0C6AA8 /* TriggerEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75371C597B1E4689B6E1803F /* TriggerEditorView.swift */; };
+		8C35E319E4B9A46AB0383C10 /* TriggerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C69898938F25CFEA64385A16 /* TriggerDetailView.swift */; };
+		9D71A811170D438B938FC1DA /* LibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */; };
+		A13E7C1F2F27E01E00EC9EE1 /* ActivityRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C122F27E01E00EC9EE1 /* ActivityRun.swift */; };
+		A13E7C272F27E03300EC9EE1 /* SidebarModeIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C262F27E03300EC9EE1 /* SidebarModeIcon.swift */; };
+		A13E7C282F27E03300EC9EE1 /* SidebarModeBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C252F27E03300EC9EE1 /* SidebarModeBar.swift */; };
+		A13E7C2A2F27E04300EC9EE1 /* ActivityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C292F27E04300EC9EE1 /* ActivityDetailView.swift */; };
+		A13E7C2E2F27E17F00EC9EE1 /* ProviderServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C2C2F27E17F00EC9EE1 /* ProviderServiceGenerated.swift */; };
+		A13E7C2F2F27E17F00EC9EE1 /* SearchServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C2D2F27E17F00EC9EE1 /* SearchServiceGenerated.swift */; };
+		A13E7C302F27E17F00EC9EE1 /* BatchServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C2B2F27E17F00EC9EE1 /* BatchServiceGenerated.swift */; };
+		A13E7C342F27F32E00EC9EE1 /* TriggerRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C332F27F32E00EC9EE1 /* TriggerRow.swift */; };
+		A13E7C352F27F32E00EC9EE1 /* ScheduleRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C322F27F32E00EC9EE1 /* ScheduleRow.swift */; };
+		A13E7C382F27F33C00EC9EE1 /* WorkflowExecutionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C372F27F33C00EC9EE1 /* WorkflowExecutionRow.swift */; };
+		A13E7C3A2F27F36000EC9EE1 /* ActivityServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */; };
+		A13E7C3C2F27F36000EC9EE1 /* ActivityTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3B2F27F36000EC9EE1 /* ActivityTypes.swift */; };
+		A13E7C462F280BE900EC9EE1 /* ActivityProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C432F280BE900EC9EE1 /* ActivityProgressView.swift */; };
+		A13E7C472F280BE900EC9EE1 /* ActivityDiagramView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3E2F280BE900EC9EE1 /* ActivityDiagramView.swift */; };
+		A13E7C482F280BE900EC9EE1 /* ActivityErrorsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3F2F280BE900EC9EE1 /* ActivityErrorsView.swift */; };
+		A13E7C492F280BE900EC9EE1 /* ActivityConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3C2F280BE900EC9EE1 /* ActivityConsoleView.swift */; };
+		A13E7C4B2F280BE900EC9EE1 /* ActivityOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C422F280BE900EC9EE1 /* ActivityOverviewView.swift */; };
+		A13E7C4C2F280BE900EC9EE1 /* ActivityLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C412F280BE900EC9EE1 /* ActivityLogView.swift */; };
+		A13E7C4D2F280BE900EC9EE1 /* ActivityCodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3B2F280BE900EC9EE1 /* ActivityCodeView.swift */; };
+		A13E7C4E2F280BE900EC9EE1 /* ActivityViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C442F280BE900EC9EE1 /* ActivityViewHelpers.swift */; };
+		A13E7C4F2F280BE900EC9EE1 /* ActivityGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C402F280BE900EC9EE1 /* ActivityGraphView.swift */; };
+		A13E7C642F27F36000EC9EE1 /* ArtifactServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C632F27F36000EC9EE1 /* ArtifactServiceGenerated.swift */; };
+		A13E7C652F27F36000EC9EE1 /* StorageServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C662F27F36000EC9EE1 /* StorageServiceGenerated.swift */; };
+		A13E80A22F2AD75100EC9EE1 /* ModelComparisonService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E80A12F2AD75100EC9EE1 /* ModelComparisonService.swift */; };
+		A13E80A52F2AD78100EC9EE1 /* ModelComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E80A32F2AD78100EC9EE1 /* ModelComparisonView.swift */; };
+		A14AD1B92F2E2E07001CF205 /* EmbeddedBackendService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14AD1B82F2E2E07001CF205 /* EmbeddedBackendService.swift */; };
+		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
+		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
+		A1A3A9C02F1028480021909D /* MCPToolsCatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BE2F1028480021909D /* MCPToolsCatalogView.swift */; };
+		A1A3A9C12F1028480021909D /* AddMCPServerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BA2F1028480021909D /* AddMCPServerSheet.swift */; };
+		A1A3A9C22F1028480021909D /* MCPServerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BB2F1028480021909D /* MCPServerDetailView.swift */; };
+		A1A3A9C32F1028480021909D /* MCPServersSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BC2F1028480021909D /* MCPServersSheet.swift */; };
+		A1A3A9C42F1028480021909D /* MCPServersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BD2F1028480021909D /* MCPServersView.swift */; };
+		A1A3A9F42F1028E70021909D /* MCPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9F32F1028E70021909D /* MCPService.swift */; };
+		A1A3A9F72F110CFD0021909D /* WorkflowExecutionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9F62F110CFD0021909D /* WorkflowExecutionService.swift */; };
+		A1A3A9FA2F110D170021909D /* ContentViewModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9F92F110D170021909D /* ContentViewModifiers.swift */; };
+		A1A3A9FE2F110D260021909D /* AgentSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9FC2F110D260021909D /* AgentSettingsView.swift */; };
+		A1A3A9FF2F110D260021909D /* AgentConfigurationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9FB2F110D260021909D /* AgentConfigurationView.swift */; };
+		A1A3AA112F110D520021909D /* WorkflowCanvasView+DropHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA052F110D520021909D /* WorkflowCanvasView+DropHandling.swift */; };
+		A1A3AA122F110D520021909D /* WorkflowCanvasView+Gestures.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA072F110D520021909D /* WorkflowCanvasView+Gestures.swift */; };
+		A1A3AA132F110D520021909D /* NodePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA022F110D520021909D /* NodePopover.swift */; };
+		A1A3AA142F110D520021909D /* WorkflowCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA042F110D520021909D /* WorkflowCanvasView.swift */; };
+		A1A3AA152F110D520021909D /* WorkflowEdgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA082F110D520021909D /* WorkflowEdgeView.swift */; };
+		A1A3AA162F110D520021909D /* WorkflowEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA092F110D520021909D /* WorkflowEditor.swift */; };
+		A1A3AA172F110D520021909D /* WorkflowExecutionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA0A2F110D520021909D /* WorkflowExecutionView.swift */; };
+		A1A3AA182F110D520021909D /* WorkflowNodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA0D2F110D520021909D /* WorkflowNodeView.swift */; };
+		A1A3AA192F110D520021909D /* WorkflowLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA0C2F110D520021909D /* WorkflowLibraryView.swift */; };
+		A1A3AA1A2F110D520021909D /* AgentNodeBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA002F110D520021909D /* AgentNodeBlockView.swift */; };
+		A1A3AA1B2F110D520021909D /* SimpleWorkflowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA032F110D520021909D /* SimpleWorkflowView.swift */; };
+		A1A3AA1C2F110D520021909D /* WorkflowOutputLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA0E2F110D520021909D /* WorkflowOutputLog.swift */; };
+		A1A3AA1D2F110D520021909D /* WorkflowPortView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA0F2F110D520021909D /* WorkflowPortView.swift */; };
+		A1A3AA1E2F110D520021909D /* WorkflowInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA0B2F110D520021909D /* WorkflowInspector.swift */; };
+		A1A3AA1F2F110D520021909D /* WorkflowCanvasView+EdgeConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA062F110D520021909D /* WorkflowCanvasView+EdgeConnection.swift */; };
+		A1A3AA202F110D520021909D /* CanvasHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA012F110D520021909D /* CanvasHelpers.swift */; };
+		A1A3AA212F110D520021909D /* WorkflowToolBlocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA102F110D520021909D /* WorkflowToolBlocks.swift */; };
+		A1A3AA282F113E6F0021909D /* AutomationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA272F113E6F0021909D /* AutomationService.swift */; };
+		A1A3AA362F11665B0021909D /* IntegrationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA342F11665B0021909D /* IntegrationsView.swift */; };
+		A1A3AA382F1166660021909D /* IntegrationsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA372F1166660021909D /* IntegrationsService.swift */; };
+		A1A3AB242F11CCC70021909D /* Artifact.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB162F11CCC70021909D /* Artifact.swift */; };
+		A1A3AB252F11CCC70021909D /* Event.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB172F11CCC70021909D /* Event.swift */; };
+		A1A3AB262F11CCC70021909D /* Trace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB1E2F11CCC70021909D /* Trace.swift */; };
+		A1A3AB2B2F11CCC70021909D /* MCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB192F11CCC70021909D /* MCPServer.swift */; };
+		A1A3AB2C2F11CCC70021909D /* Run.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB1C2F11CCC70021909D /* Run.swift */; };
+		A1A3AB2F2F11CCC70021909D /* Note.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB1A2F11CCC70021909D /* Note.swift */; };
+		A1BFB2C82F042C0500EAA55A /* ViewSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2C62F042C0500EAA55A /* ViewSettings.swift */; };
+		A1BFB2C92F042C0500EAA55A /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2C52F042C0500EAA55A /* AppState.swift */; };
+		A1BFB2CF2F042C4100EAA55A /* AIModelSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2CC2F042C4100EAA55A /* AIModelSelectionView.swift */; };
+		A1BFB2D02F042C4100EAA55A /* AIProviderAddModelsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2CD2F042C4100EAA55A /* AIProviderAddModelsSheet.swift */; };
+		A1BFB2D12F042C4100EAA55A /* ProvidersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2CE2F042C4100EAA55A /* ProvidersView.swift */; };
+		A1BFB2D32F042C4100EAA55A /* AddProviderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2CA2F042C4100EAA55A /* AddProviderSheet.swift */; };
+		A1BFB2D72F042C6D00EAA55A /* ProviderLogoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2D42F042C6D00EAA55A /* ProviderLogoView.swift */; };
+		A1BFB2D82F042C6D00EAA55A /* StatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2D52F042C6D00EAA55A /* StatusBadge.swift */; };
+		A1BFB2DC2F042E5100EAA55A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2DA2F042E5100EAA55A /* SettingsView.swift */; };
+		A1BFB2DF2F04328300EAA55A /* ImagePreviewMenuCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2DE2F04328300EAA55A /* ImagePreviewMenuCommands.swift */; };
+		A1BFB2E02F04328300EAA55A /* FocusedCommandButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2DD2F04328300EAA55A /* FocusedCommandButtons.swift */; };
+		A1BFB2E22F0432A600EAA55A /* ProvidersSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2E12F0432A600EAA55A /* ProvidersSettingsSheet.swift */; };
+		A1BFB2E42F0439FE00EAA55A /* ImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2E32F0439FE00EAA55A /* ImportService.swift */; };
+		A1BFB2E72F043D2300EAA55A /* StorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2E62F043D2300EAA55A /* StorageService.swift */; };
+		A1BFB2EB2F043F4500EAA55A /* ViewContexts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2EA2F043F4500EAA55A /* ViewContexts.swift */; };
+		A1BFB2EC2F043F4500EAA55A /* FicheroDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2E92F043F4500EAA55A /* FicheroDocument.swift */; };
+		A1BFB2EE2F043F5800EAA55A /* DocumentTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2ED2F043F5800EAA55A /* DocumentTabView.swift */; };
+		A1BFB2F02F043FA100EAA55A /* BackendConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2EF2F043FA100EAA55A /* BackendConnectionView.swift */; };
+		A1BFB2F32F045C8A00EAA55A /* LibraryImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2F22F045C8A00EAA55A /* LibraryImageView.swift */; };
+		A1BFB4012F057B9300EAA55A /* ImageViewerComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB3FC2F057B9300EAA55A /* ImageViewerComponents.swift */; };
+		A1BFB4022F057B9300EAA55A /* NavigatorMiniMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB3FE2F057B9300EAA55A /* NavigatorMiniMap.swift */; };
+		A1BFB4032F057B9300EAA55A /* QuickLookComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB3FF2F057B9300EAA55A /* QuickLookComponents.swift */; };
+		A1BFB4042F057B9300EAA55A /* ScrollWheelZoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4002F057B9300EAA55A /* ScrollWheelZoom.swift */; };
+		A1BFB4052F057B9300EAA55A /* FolderAccessManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB3FB2F057B9300EAA55A /* FolderAccessManager.swift */; };
+		A1BFB4062F057B9300EAA55A /* MagnifierPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB3FD2F057B9300EAA55A /* MagnifierPanel.swift */; };
+		A1BFB4072F057B9300EAA55A /* CheckerboardPattern.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB3FA2F057B9300EAA55A /* CheckerboardPattern.swift */; };
+		A1BFB4092F057BAC00EAA55A /* ViewMenuCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4082F057BAC00EAA55A /* ViewMenuCommands.swift */; };
+		A1BFB4502F0AABA600EAA55A /* ItemTypeRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB44E2F0AABA600EAA55A /* ItemTypeRegistry.swift */; };
+		A1BFB4532F0AABBC00EAA55A /* AddItemMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4522F0AABBC00EAA55A /* AddItemMenu.swift */; };
+		A1BFB4552F0AABE200EAA55A /* MainToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4542F0AABE200EAA55A /* MainToolbar.swift */; };
+		A1BFB4572F0AAC1E00EAA55A /* MiniToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4562F0AAC1E00EAA55A /* MiniToolbar.swift */; };
+		A1BFB45C2F0AAC3700EAA55A /* WorkflowToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB45B2F0AAC3700EAA55A /* WorkflowToolbar.swift */; };
+		A1BFB45E2F0AAC3700EAA55A /* ChatViewToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4582F0AAC3700EAA55A /* ChatViewToolbar.swift */; };
+		A1BFB45F2F0AAC3700EAA55A /* SearchViewToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB45A2F0AAC3700EAA55A /* SearchViewToolbar.swift */; };
+		A1BFB4612F0AADC000EAA55A /* LayoutMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4602F0AADC000EAA55A /* LayoutMode.swift */; };
+		A1BFB4F22F30000100EAA55A /* MacPlainTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4F12F30000100EAA55A /* MacPlainTextEditor.swift */; };
+		A1D8BCE82F2CD054006D91D7 /* WorkflowPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D8BCE62F2CD054006D91D7 /* WorkflowPickerSheet.swift */; };
+		A1D8BCE92F2CD054006D91D7 /* DocumentPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D8BCE52F2CD054006D91D7 /* DocumentPickerSheet.swift */; };
+		A1FB1D7B2F0420310023093C /* AIModelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D792F0420310023093C /* AIModelCatalog.swift */; };
+		A1FB1D7D2F0420930023093C /* ChatInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D7C2F0420930023093C /* ChatInspector.swift */; };
+		A1FB1D812F0420A90023093C /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D7F2F0420A90023093C /* LibraryView.swift */; };
+		A1FB1D822F0420A90023093C /* DocumentInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D7E2F0420A90023093C /* DocumentInspector.swift */; };
+		A1FB1D9B2F0420D50023093C /* SidebarItemContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D952F0420D50023093C /* SidebarItemContextMenu.swift */; };
+		A1FB1D9C2F0420D50023093C /* SidebarItemRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D962F0420D50023093C /* SidebarItemRow.swift */; };
+		A1FB1D9D2F0420D50023093C /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D992F0420D50023093C /* SidebarView.swift */; };
+		A1FB1D9F2F0420D50023093C /* SidebarStateManagers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D982F0420D50023093C /* SidebarStateManagers.swift */; };
+		A1FB1DA02F0420D50023093C /* SidebarViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D9A2F0420D50023093C /* SidebarViewExtensions.swift */; };
+		A1FB1DA12F0420D50023093C /* SidebarSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D972F0420D50023093C /* SidebarSectionHeader.swift */; };
+		A1FB1DA22F0420D50023093C /* SidebarConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D932F0420D50023093C /* SidebarConstants.swift */; };
+		A3C1803DF6559D5BFCC9935E /* ComparisonDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */; };
+		A48C3E366EB68F5DFBD38499 /* ThinkingModePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E8C3EFBCE91C295309468AB /* ThinkingModePicker.swift */; };
+		AA112233001122AA /* LibraryView+Sorting.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122BB /* LibraryView+Sorting.swift */; };
+		AA112233001122CC /* LibraryView+ColumnConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122DD /* LibraryView+ColumnConfig.swift */; };
+		AA112233001122EE /* LibraryView+FilterAndBatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122FF /* LibraryView+FilterAndBatch.swift */; };
+		AA214031892F4668F16A3E75 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */; };
+		AD284E03A3377968AE568677 /* DocumentInspectorMetadataTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */; };
+		AF3C46E684A7D133B1BAA5D2 /* TriggerEditorFormPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0264B7B8616BA5159B2CEF1 /* TriggerEditorFormPanel.swift */; };
+		AUT00022F27F36000EC9EE1 /* AutomationServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = AUT00012F27F36000EC9EE1 /* AutomationServiceGenerated.swift */; };
+		B2A0020100000000BATCH2S1 /* SidebarItemRow+Label.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010100000000BATCH2S1 /* SidebarItemRow+Label.swift */; };
+		B2A0020200000000BATCH2S2 /* SidebarItemRow+DropHandlers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010200000000BATCH2S2 /* SidebarItemRow+DropHandlers.swift */; };
+		B2A0020300000000BATCH2S3 /* SidebarItemRow+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010300000000BATCH2S3 /* SidebarItemRow+Helpers.swift */; };
+		B2A0020400000000BATCH2S4 /* SidebarItemRow+Rename.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010400000000BATCH2S4 /* SidebarItemRow+Rename.swift */; };
+		B2A0020500000000BATCH2W1 /* WorkflowEditor+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010500000000BATCH2W1 /* WorkflowEditor+Actions.swift */; };
+		B2A0020600000000BATCH2W2 /* WorkflowEditor+NodeViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010600000000BATCH2W2 /* WorkflowEditor+NodeViews.swift */; };
+		B2A0020700000000BATCH2W3 /* WorkflowEditor+Preview.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010700000000BATCH2W3 /* WorkflowEditor+Preview.swift */; };
+		B2A0020800000000BATCH2C1 /* ChainListContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010800000000BATCH2C1 /* ChainListContent.swift */; };
+		B2A0020900000000BATCH2C2 /* ChainListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010900000000BATCH2C2 /* ChainListRow.swift */; };
+		B2A0020A00000000BATCH2C3 /* ChainStepRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010A00000000BATCH2C3 /* ChainStepRow.swift */; };
+		B2A0020B00000000BATCH2C4 /* ChainDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010B00000000BATCH2C4 /* ChainDetailContent.swift */; };
+		B2A0020C00000000BATCH2C5 /* ChainDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010C00000000BATCH2C5 /* ChainDetailSheet.swift */; };
+		B2A0020D00000000BATCH2C6 /* NewChainSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010D00000000BATCH2C6 /* NewChainSheet.swift */; };
+		B3A002010000000000BATCH3 /* ProvidersView+ModelTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001010000000000BATCH3 /* ProvidersView+ModelTypes.swift */; };
+		B3A002020000000000BATCH3 /* ProvidersView+ProviderDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001020000000000BATCH3 /* ProvidersView+ProviderDetailView.swift */; };
+		B3A002030000000000BATCH3 /* ProvidersView+ProviderSettingsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001030000000000BATCH3 /* ProvidersView+ProviderSettingsRow.swift */; };
+		B3A002040000000000BATCH3 /* ChatInspector+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001040000000000BATCH3 /* ChatInspector+Actions.swift */; };
+		B3A002050000000000BATCH3 /* ChatInspector+Header.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001050000000000BATCH3 /* ChatInspector+Header.swift */; };
+		B3A002060000000000BATCH3 /* ChatInspector+ScopedDocuments.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001060000000000BATCH3 /* ChatInspector+ScopedDocuments.swift */; };
+		B3A002070000000000BATCH3 /* ChatInspector+Search.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001070000000000BATCH3 /* ChatInspector+Search.swift */; };
+		B3A002080000000000BATCH3 /* ActivityDataProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001080000000000BATCH3 /* ActivityDataProcessing.swift */; };
+		B4A002010000000000BATCH4 /* ModelComparisonView+Sidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001010000000000BATCH4 /* ModelComparisonView+Sidebar.swift */; };
+		B4A002020000000000BATCH4 /* ComparisonResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001020000000000BATCH4 /* ComparisonResultView.swift */; };
+		B4A002030000000000BATCH4 /* ModelResultCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001030000000000BATCH4 /* ModelResultCard.swift */; };
+		B4A002040000000000BATCH4 /* ModelPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001040000000000BATCH4 /* ModelPickerSheet.swift */; };
+		B4A002050000000000BATCH4 /* PresetPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001050000000000BATCH4 /* PresetPickerSheet.swift */; };
+		B4A0020B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift */; };
+		B4A0020C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift */; };
+		B4A0020D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift */; };
+		B5A0020400000000BATCH5W1 /* WorkflowOutputLog+Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010400000000BATCH5W1 /* WorkflowOutputLog+Models.swift */; };
+		B5A0020500000000BATCH5W2 /* WorkflowOutputLog+StatusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010500000000BATCH5W2 /* WorkflowOutputLog+StatusViews.swift */; };
+		B5A0020600000000BATCH5W3 /* WorkflowOutputLog+ErrorCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010600000000BATCH5W3 /* WorkflowOutputLog+ErrorCell.swift */; };
+		B5A0020700000000BATCH5W4 /* WorkflowOutputLog+EmptyStates.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010700000000BATCH5W4 /* WorkflowOutputLog+EmptyStates.swift */; };
+		B5A0020800000000BATCH5S1 /* ScheduleEditorView+Category.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010800000000BATCH5S1 /* ScheduleEditorView+Category.swift */; };
+		B6A0020100000000BATCH6C1 /* ComparisonDetailView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010100000000BATCH6C1 /* ComparisonDetailView+Actions.swift */; };
+		B6A0020200000000BATCH6C2 /* ComparisonDetailView+Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010200000000BATCH6C2 /* ComparisonDetailView+Models.swift */; };
+		B6A0020300000000BATCH6C3 /* ComparisonDetailView+Sections.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010300000000BATCH6C3 /* ComparisonDetailView+Sections.swift */; };
+		B6A0020500000000BATCH6S2 /* SidebarView+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010500000000BATCH6S2 /* SidebarView+Helpers.swift */; };
+		B6A0020600000000BATCH6S3 /* SidebarView+SelectionHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010600000000BATCH6S3 /* SidebarView+SelectionHandling.swift */; };
+		B6A0020700000000BATCH6S4 /* SidebarView+ViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010700000000BATCH6S4 /* SidebarView+ViewComponents.swift */; };
+		B6A0020800000000BATCH6A1 /* AddProviderSheet+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010800000000BATCH6A1 /* AddProviderSheet+Helpers.swift */; };
+		B6A0020900000000BATCH6A2 /* AddProviderSheet+Step1.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010900000000BATCH6A2 /* AddProviderSheet+Step1.swift */; };
+		B6A0020A00000000BATCH6A3 /* AddProviderSheet+Step2.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010A00000000BATCH6A3 /* AddProviderSheet+Step2.swift */; };
+		B6A0020B00000000BATCH6A4 /* AddProviderSheet+Step3.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010B00000000BATCH6A4 /* AddProviderSheet+Step3.swift */; };
+		B8CED5AA645840B7AC1696DD /* WindowState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E04EE1958EB4E23A7E1E328 /* WindowState.swift */; };
+		BFC56BC755C4B7C58EEAE341 /* LibraryManager+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF91C082286A2B7BB74E438D /* LibraryManager+Persistence.swift */; };
+		C10000010000000000000001 /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000110000000000000001 /* SparkleUpdater.swift */; };
+		C10000010000000000000002 /* AppInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000110000000000000002 /* AppInstaller.swift */; };
+		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = C10000310000000000000001 /* Sparkle */; };
+		C1C484907B28189E223436BE /* LibraryManager+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */; };
+		C340001000000000PROMPT01 /* PromptPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C340001100000000PROMPT01 /* PromptPreviewPanel.swift */; };
+		C96A47B8A003AF3A6FC98CF8 /* AISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C07B489C8F89204C43BD6E46 /* AISettingsView.swift */; };
+		D2A64087B8C786EE95E842A5 /* LocalModelsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */; };
+		DDE8A1E95DE61B0723A40BC9 /* DynamicConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */; };
+		E6E64CE83B1FF1235DCFDF80 /* ScheduleDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */; };
+		E8DB4DEABBD7388DB33D81DA /* DocumentInspectorInfoTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */; };
+		ED0E3300104D4A70958C3844 /* AttributedTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 004167806445469D9A3595E4 /* AttributedTextEditor.swift */; };
+		FC3F95AC0E1F4A7DB6B9993E /* FeatureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */; };
+		GTE2 /* GeneratedTypeExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = GTE1 /* GeneratedTypeExtensions.swift */; };
+		IMP00012F27F36000EC9EE1 /* ImportServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMP00022F27F36000EC9EE1 /* ImportServiceGenerated.swift */; };
+		MOD00012F27F36000EC9EE1 /* ModelServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = MOD00022F27F36000EC9EE1 /* ModelServiceGenerated.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A10521AD2EFDC92400B28C3E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 700 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 500;
+			remoteInfo = Fichero;
+		};
+		A10521C52EFDC94100B28C3E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 700 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 500;
+			remoteInfo = Fichero;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A1624FF62F2EE5710019C019 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = "";
+			dstSubfolder = Resources;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		004167806445469D9A3595E4 /* AttributedTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AttributedTextEditor.swift; path = "fichero/Views/Library/DocumentInspector/AttributedTextEditor.swift"; sourceTree = SOURCE_ROOT; };
+		04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DynamicConfigView.swift; sourceTree = "<group>"; };
+		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Fichero.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		101 /* FicheroApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FicheroApp.swift; sourceTree = "<group>"; };
+		102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		103 /* Document.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Document.swift; sourceTree = "<group>"; };
+		108 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
+		109 /* SidebarItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItem.swift; sourceTree = "<group>"; };
+		110 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
+		117 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		118 /* DocumentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStore.swift; sourceTree = "<group>"; };
+		119 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		122 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
+		124 /* SavedSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedSearchService.swift; sourceTree = "<group>"; };
+		127 /* ModelService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelService.swift; sourceTree = "<group>"; };
+		134 /* WorkflowTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowTypes.swift; sourceTree = "<group>"; };
+		135 /* WorkflowStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowStore.swift; sourceTree = "<group>"; };
+		136 /* WorkflowExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExporter.swift; sourceTree = "<group>"; };
+		137 /* WorkflowChain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowChain.swift; sourceTree = "<group>"; };
+		138 /* ChainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainService.swift; sourceTree = "<group>"; };
+		139 /* WorkflowChainListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowChainListView.swift; sourceTree = "<group>"; };
+		140 /* WorkflowStreamService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowStreamService.swift; sourceTree = "<group>"; };
+		141 /* AppleScriptSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleScriptSupport.swift; sourceTree = "<group>"; };
+		142 /* Fichero.sdef */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = Fichero.sdef; sourceTree = "<group>"; };
+		143 /* WorkflowServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowServiceGenerated.swift; sourceTree = "<group>"; };
+		144 /* SavedSearchServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedSearchServiceGenerated.swift; sourceTree = "<group>"; };
+		145 /* ConversationServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationServiceGenerated.swift; sourceTree = "<group>"; };
+		146 /* ChatServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatServiceGenerated.swift; sourceTree = "<group>"; };
+		148 /* DocumentServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentServiceGenerated.swift; sourceTree = "<group>"; };
+		149 /* WorkflowExecutionObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExecutionObserver.swift; sourceTree = "<group>"; };
+		151 /* ChainEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainEditorView.swift; sourceTree = "<group>"; };
+		152 /* ScheduleCreationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleCreationSheet.swift; sourceTree = "<group>"; };
+		153 /* TriggerCreationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerCreationSheet.swift; sourceTree = "<group>"; };
+		16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScheduleDetailView.swift; sourceTree = "<group>"; };
+		1786CA1F532B414196BAAABE /* PDFThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFThumbnailView.swift; sourceTree = "<group>"; };
+		1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIDefaults.swift; path = "fichero/Views/Settings/AIDefaults.swift"; sourceTree = SOURCE_ROOT; };
+		1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Helpers.swift"; sourceTree = "<group>"; };
+		1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LocalModelsSettingsView.swift; path = "fichero/Views/Settings/LocalModelsSettingsView.swift"; sourceTree = SOURCE_ROOT; };
+		200BCF2B2F3D501800D7851A /* ContentView+State.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+State.swift"; sourceTree = "<group>"; };
+		200BCF352F3D547F00D7851A /* ContentView+ViewBuilders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+ViewBuilders.swift"; sourceTree = "<group>"; };
+		200BCF372F3D548000D7851A /* ContentView+Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+Persistence.swift"; sourceTree = "<group>"; };
+		200BCF392F3D548000D7851A /* ContentView+Navigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+Navigation.swift"; sourceTree = "<group>"; };
+		200BCF3B2F3D548000D7851A /* ContentView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+Actions.swift"; sourceTree = "<group>"; };
+		201 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		2011E3592F93ADF700606651 /* ComparisonTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComparisonTypes.swift; sourceTree = "<group>"; };
+		202 /* Fichero.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Fichero.entitlements; sourceTree = "<group>"; };
+		202674942F475B1D008EAB5D /* NodeConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeConfigView.swift; sourceTree = "<group>"; };
+		202674962F475B23008EAB5D /* CollectionNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionNodeConfig.swift; sourceTree = "<group>"; };
+		202674982F475B33008EAB5D /* SearchNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchNodeConfig.swift; sourceTree = "<group>"; };
+		2026749A2F475B4A008EAB5D /* FilesNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesNodeConfig.swift; sourceTree = "<group>"; };
+		2026749C2F475B64008EAB5D /* TranscribeNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscribeNodeConfig.swift; sourceTree = "<group>"; };
+		2026749E2F475B7A008EAB5D /* DescribeNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DescribeNodeConfig.swift; sourceTree = "<group>"; };
+		202674A12F4762E6008EAB5D /* ImageZoomToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageZoomToolbar.swift; sourceTree = "<group>"; };
+		202674A32F47642A008EAB5D /* SummarizeFileNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummarizeFileNodeConfig.swift; sourceTree = "<group>"; };
+		202674A52F476439008EAB5D /* SummarizeFolderNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummarizeFolderNodeConfig.swift; sourceTree = "<group>"; };
+		202674A72F476447008EAB5D /* SummarizeCollectionNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummarizeCollectionNodeConfig.swift; sourceTree = "<group>"; };
+		202674A92F476453008EAB5D /* ExtractEntitiesNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtractEntitiesNodeConfig.swift; sourceTree = "<group>"; };
+		202674AB2F4779AA008EAB5D /* NodeProviderModelSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeProviderModelSelector.swift; sourceTree = "<group>"; };
+		202674AD2F477AFE008EAB5D /* NodeInputMappings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeInputMappings.swift; sourceTree = "<group>"; };
+		202674AF2F4781BA008EAB5D /* TrackingImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackingImageView.swift; sourceTree = "<group>"; };
+		202674B12F478206008EAB5D /* ImageWithCursorTracking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageWithCursorTracking.swift; sourceTree = "<group>"; };
+		202674B32F4783A9008EAB5D /* WorkflowNodeCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowNodeCard.swift; sourceTree = "<group>"; };
+		202674B52F4783BC008EAB5D /* WorkflowNodeRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowNodeRow.swift; sourceTree = "<group>"; };
+		202674B72F4783D5008EAB5D /* WorkflowDiagramPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowDiagramPreview.swift; sourceTree = "<group>"; };
+		202674BB2F478636008EAB5D /* SidebarCreationHandlers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarCreationHandlers.swift; sourceTree = "<group>"; };
+		202674BE2F478647008EAB5D /* SidebarActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarActions.swift; sourceTree = "<group>"; };
+		202674C12F47865B008EAB5D /* SidebarObservers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarObservers.swift; sourceTree = "<group>"; };
+		202674C42F4788CB008EAB5D /* WorkflowDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowDetailView.swift; sourceTree = "<group>"; };
+		202674C62F4788E0008EAB5D /* WorkflowMiniPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowMiniPreview.swift; sourceTree = "<group>"; };
+		202674C82F4788EB008EAB5D /* WorkflowThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowThumbnailView.swift; sourceTree = "<group>"; };
+		202674CB2F4788F2008EAB5D /* WorkflowLibraryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowLibraryRow.swift; sourceTree = "<group>"; };
+		202674CD2F4788FF008EAB5D /* NewWorkflowSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewWorkflowSheet.swift; sourceTree = "<group>"; };
+		202674CF2F4789BF008EAB5D /* LibraryViewComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewComponents.swift; sourceTree = "<group>"; };
+		202674D12F478A13008EAB5D /* LibraryView+DisplayModes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+DisplayModes.swift"; sourceTree = "<group>"; };
+		202674D32F489633008EAB5D /* SearchFiltersPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchFiltersPanel.swift; sourceTree = "<group>"; };
+		202674D52F48963F008EAB5D /* SearchResultRowFromAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResultRowFromAPI.swift; sourceTree = "<group>"; };
+		202674D72F48964E008EAB5D /* SearchMapComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchMapComponents.swift; sourceTree = "<group>"; };
+		202674D92F489665008EAB5D /* SearchResultsDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResultsDisplay.swift; sourceTree = "<group>"; };
+		202674DB2F489677008EAB5D /* SearchView+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SearchView+Helpers.swift"; sourceTree = "<group>"; };
+		202674DD2F48972A008EAB5D /* MessageCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageCard.swift; sourceTree = "<group>"; };
+		202674DF2F489737008EAB5D /* ChatStatusViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatStatusViews.swift; sourceTree = "<group>"; };
+		202674E12F48973E008EAB5D /* ChatInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatInputView.swift; sourceTree = "<group>"; };
+		202674E32F489742008EAB5D /* ChatMapGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMapGrid.swift; sourceTree = "<group>"; };
+		202674E52F489757008EAB5D /* ChatMessagesList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessagesList.swift; sourceTree = "<group>"; };
+		202674E72F48976C008EAB5D /* ChatView+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatView+Extensions.swift"; sourceTree = "<group>"; };
+		20D8ED482F48E2B1006950A3 /* WorkflowInspector+AgentsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowInspector+AgentsSection.swift"; sourceTree = "<group>"; };
+		20D8ED4A2F48E2B3006950A3 /* ActivityProgressModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityProgressModels.swift; sourceTree = "<group>"; };
+		20D8ED4C2F48E2BE006950A3 /* WorkflowInspector+MCPTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowInspector+MCPTools.swift"; sourceTree = "<group>"; };
+		20D8ED4E2F48E2C1006950A3 /* ActivityProgressView+LiveProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivityProgressView+LiveProgress.swift"; sourceTree = "<group>"; };
+		20D8ED502F48E2C4006950A3 /* WorkflowPreviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowPreviewSheet.swift; sourceTree = "<group>"; };
+		20D8ED522F48E2CA006950A3 /* WorkflowInspector+DataLoading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowInspector+DataLoading.swift"; sourceTree = "<group>"; };
+		20D8ED542F48E2CC006950A3 /* WorkflowExecutionRow+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowExecutionRow+Helpers.swift"; sourceTree = "<group>"; };
+		20D8ED562F48E2D7006950A3 /* ActivityProgressView+HistoricalProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivityProgressView+HistoricalProgress.swift"; sourceTree = "<group>"; };
+		20D8ED582F48E2DE006950A3 /* ActivityProgressView+DataLoading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivityProgressView+DataLoading.swift"; sourceTree = "<group>"; };
+		20D8ED5A2F48E4CA006950A3 /* TriggerDetailView+Configuration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TriggerDetailView+Configuration.swift"; sourceTree = "<group>"; };
+		20D8ED5C2F48E4D4006950A3 /* TriggerDetailView+ExecutionHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TriggerDetailView+ExecutionHistory.swift"; sourceTree = "<group>"; };
+		20D8ED5E2F48E4DA006950A3 /* TriggerDetailView+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TriggerDetailView+Helpers.swift"; sourceTree = "<group>"; };
+		20D8ED602F48E604006950A3 /* WorkflowSupportTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowSupportTypes.swift; sourceTree = "<group>"; };
+		20D8ED622F48E61B006950A3 /* SidebarItem+MoreFactories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarItem+MoreFactories.swift"; sourceTree = "<group>"; };
+		20D8ED642F48E61C006950A3 /* WorkflowToolTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowToolTypes.swift; sourceTree = "<group>"; };
+		20D8ED662F48E626006950A3 /* DocumentStore+CRUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DocumentStore+CRUD.swift"; sourceTree = "<group>"; };
+		20D8ED682F48E626006950A3 /* SidebarChatTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarChatTypes.swift; sourceTree = "<group>"; };
+		20D8ED6A2F48E62B006950A3 /* WorkflowResponseTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowResponseTypes.swift; sourceTree = "<group>"; };
+		20D8ED6C2F48E62F006950A3 /* DocumentStore+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DocumentStore+Helpers.swift"; sourceTree = "<group>"; };
+		20D8ED6E2F48E633006950A3 /* SidebarSearchTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarSearchTypes.swift; sourceTree = "<group>"; };
+		20D8ED702F48E63B006950A3 /* DocumentStoreTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStoreTypes.swift; sourceTree = "<group>"; };
+		20D8ED722F48E644006950A3 /* SidebarViewTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewTypes.swift; sourceTree = "<group>"; };
+		20D8EDC92F48F49C006950A3 /* BatchTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchTypes.swift; sourceTree = "<group>"; };
+		20D8EDCB2F48F4A8006950A3 /* LibraryWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryWindow.swift; sourceTree = "<group>"; };
+		20D8EDCD2F48F4AE006950A3 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
+		20D8EDCF2F48F4AE006950A3 /* CheckpointTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckpointTypes.swift; sourceTree = "<group>"; };
+		20D8EDD12F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsPlaceholderSheet.swift; sourceTree = "<group>"; };
+		20D8EDD32F48F4BE006950A3 /* WorkflowRunResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowRunResponse.swift; sourceTree = "<group>"; };
+		20D8EDF72F4BBC04006950A3 /* WorkflowStreamTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowStreamTypes.swift; sourceTree = "<group>"; };
+		20D8EDF92F4BBC12006950A3 /* ModelComparisonTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelComparisonTypes.swift; sourceTree = "<group>"; };
+		20D8EDFB2F4BBC1A006950A3 /* WorkflowStreamService+Parsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowStreamService+Parsing.swift"; sourceTree = "<group>"; };
+		20D8EE1F2F4BBFAF006950A3 /* AppleScriptCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleScriptCommands.swift; sourceTree = "<group>"; };
+		20D8EE212F4BBFB8006950A3 /* AutomationServiceTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationServiceTypes.swift; sourceTree = "<group>"; };
+		20D8EE232F4BBFBA006950A3 /* ProviderServiceTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderServiceTypes.swift; sourceTree = "<group>"; };
+		20D8EE252F4BC0E2006950A3 /* IntegrationsServiceTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsServiceTypes.swift; sourceTree = "<group>"; };
+		20D8EE272F4BC0ED006950A3 /* IntegrationsService+AppSpecific.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "IntegrationsService+AppSpecific.swift"; sourceTree = "<group>"; };
+		20D8EE292F4BC0F3006950A3 /* WorkflowExecutionTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExecutionTypes.swift; sourceTree = "<group>"; };
+		20D8EE2F2F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowExecutionObserver+Events.swift"; sourceTree = "<group>"; };
+		20D8EE372F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+KeyboardShortcuts.swift"; sourceTree = "<group>"; };
+		20D8EE392F4BD9F6006950A3 /* LibraryView+InlineEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+InlineEditing.swift"; sourceTree = "<group>"; };
+		20D8EE3B2F4BE0D8006950A3 /* ActionsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionsService.swift; sourceTree = "<group>"; };
+		20D8EE3D2F4BE1AB006950A3 /* ActionLibraryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionLibraryService.swift; sourceTree = "<group>"; };
+		20D8EE442F4BE260006950A3 /* ActionLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionLibraryView.swift; sourceTree = "<group>"; };
+		20D8EE462F4BE285006950A3 /* ActionPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionPickerView.swift; sourceTree = "<group>"; };
+		20D8EE482F4BED4B006950A3 /* ActionRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionRowView.swift; sourceTree = "<group>"; };
+		20D8EE4A2F4BED57006950A3 /* ActionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionDetailView.swift; sourceTree = "<group>"; };
+		312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorArtifactsTab.swift; path = "fichero/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab.swift"; sourceTree = SOURCE_ROOT; };
+		36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorContentTab.swift; path = "fichero/Views/Library/DocumentInspector/DocumentInspectorContentTab.swift"; sourceTree = SOURCE_ROOT; };
+		371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BackendSettingsView.swift; path = "fichero/Views/Settings/BackendSettingsView.swift"; sourceTree = SOURCE_ROOT; };
+		377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
+		38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComparisonDetailView.swift; sourceTree = "<group>"; };
+		3E8C3EFBCE91C295309468AB /* ThinkingModePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThinkingModePicker.swift; sourceTree = "<group>"; };
+		4119 /* CacheModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheModel.swift; sourceTree = "<group>"; };
+		4121 /* PerformanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceService.swift; sourceTree = "<group>"; };
+		4123 /* ErrorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorService.swift; sourceTree = "<group>"; };
+		4124 /* ErrorModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorModel.swift; sourceTree = "<group>"; };
+		4125 /* SidebarState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarState.swift; sourceTree = "<group>"; };
+		4126 /* DragDropModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropModel.swift; sourceTree = "<group>"; };
+		462 /* Workflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Workflow.swift; sourceTree = "<group>"; };
+		5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TriggerEditorPreviewPanel.swift; path = "fichero/Views/Automation/TriggerEditorView/TriggerEditorPreviewPanel.swift"; sourceTree = SOURCE_ROOT; };
+		747AC1DB57A54EA79D0817E8 /* FolderContentsGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderContentsGrid.swift; sourceTree = "<group>"; };
+		75371C597B1E4689B6E1803F /* TriggerEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerEditorView.swift; sourceTree = "<group>"; };
+		7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleEditorView.swift; sourceTree = "<group>"; };
+		9E04EE1958EB4E23A7E1E328 /* WindowState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowState.swift; sourceTree = "<group>"; };
+		A0264B7B8616BA5159B2CEF1 /* TriggerEditorFormPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TriggerEditorFormPanel.swift; path = "fichero/Views/Automation/TriggerEditorView/TriggerEditorFormPanel.swift"; sourceTree = SOURCE_ROOT; };
+		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A13E7C122F27E01E00EC9EE1 /* ActivityRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityRun.swift; sourceTree = "<group>"; };
+		A13E7C252F27E03300EC9EE1 /* SidebarModeBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarModeBar.swift; sourceTree = "<group>"; };
+		A13E7C262F27E03300EC9EE1 /* SidebarModeIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarModeIcon.swift; sourceTree = "<group>"; };
+		A13E7C292F27E04300EC9EE1 /* ActivityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityDetailView.swift; sourceTree = "<group>"; };
+		A13E7C2B2F27E17F00EC9EE1 /* BatchServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchServiceGenerated.swift; sourceTree = "<group>"; };
+		A13E7C2C2F27E17F00EC9EE1 /* ProviderServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderServiceGenerated.swift; sourceTree = "<group>"; };
+		A13E7C2D2F27E17F00EC9EE1 /* SearchServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchServiceGenerated.swift; sourceTree = "<group>"; };
+		A13E7C322F27F32E00EC9EE1 /* ScheduleRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleRow.swift; sourceTree = "<group>"; };
+		A13E7C332F27F32E00EC9EE1 /* TriggerRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerRow.swift; sourceTree = "<group>"; };
+		A13E7C372F27F33C00EC9EE1 /* WorkflowExecutionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExecutionRow.swift; sourceTree = "<group>"; };
+		A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityServiceGenerated.swift; sourceTree = "<group>"; };
+		A13E7C3B2F27F36000EC9EE1 /* ActivityTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityTypes.swift; sourceTree = "<group>"; };
+		A13E7C3B2F280BE900EC9EE1 /* ActivityCodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityCodeView.swift; sourceTree = "<group>"; };
+		A13E7C3C2F280BE900EC9EE1 /* ActivityConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityConsoleView.swift; sourceTree = "<group>"; };
+		A13E7C3E2F280BE900EC9EE1 /* ActivityDiagramView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityDiagramView.swift; sourceTree = "<group>"; };
+		A13E7C3F2F280BE900EC9EE1 /* ActivityErrorsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityErrorsView.swift; sourceTree = "<group>"; };
+		A13E7C402F280BE900EC9EE1 /* ActivityGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityGraphView.swift; sourceTree = "<group>"; };
+		A13E7C412F280BE900EC9EE1 /* ActivityLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLogView.swift; sourceTree = "<group>"; };
+		A13E7C422F280BE900EC9EE1 /* ActivityOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityOverviewView.swift; sourceTree = "<group>"; };
+		A13E7C432F280BE900EC9EE1 /* ActivityProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityProgressView.swift; sourceTree = "<group>"; };
+		A13E7C442F280BE900EC9EE1 /* ActivityViewHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityViewHelpers.swift; sourceTree = "<group>"; };
+		A13E7C632F27F36000EC9EE1 /* ArtifactServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactServiceGenerated.swift; sourceTree = "<group>"; };
+		A13E7C662F27F36000EC9EE1 /* StorageServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageServiceGenerated.swift; sourceTree = "<group>"; };
+		A13E80A12F2AD75100EC9EE1 /* ModelComparisonService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelComparisonService.swift; sourceTree = "<group>"; };
+		A13E80A32F2AD78100EC9EE1 /* ModelComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelComparisonView.swift; sourceTree = "<group>"; };
+		A14AD1B82F2E2E07001CF205 /* EmbeddedBackendService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddedBackendService.swift; sourceTree = "<group>"; };
+		A151C6DE2EFDCD4300E46CE0 /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-tests.xctestplan"; sourceTree = "<group>"; };
+		A1624FD12F2ED7B50019C019 /* FicheroRelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FicheroRelease.entitlements; sourceTree = "<group>"; };
+		A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-tests.xctestplan"; sourceTree = "<group>"; };
+		A18B76672EFDCD6E001C9EC2 /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-tests.xctestplan"; sourceTree = "<group>"; };
+		A1A3A9BA2F1028480021909D /* AddMCPServerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddMCPServerSheet.swift; sourceTree = "<group>"; };
+		A1A3A9BB2F1028480021909D /* MCPServerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerDetailView.swift; sourceTree = "<group>"; };
+		A1A3A9BC2F1028480021909D /* MCPServersSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServersSheet.swift; sourceTree = "<group>"; };
+		A1A3A9BD2F1028480021909D /* MCPServersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServersView.swift; sourceTree = "<group>"; };
+		A1A3A9BE2F1028480021909D /* MCPToolsCatalogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPToolsCatalogView.swift; sourceTree = "<group>"; };
+		A1A3A9F32F1028E70021909D /* MCPService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPService.swift; sourceTree = "<group>"; };
+		A1A3A9F62F110CFD0021909D /* WorkflowExecutionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExecutionService.swift; sourceTree = "<group>"; };
+		A1A3A9F92F110D170021909D /* ContentViewModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewModifiers.swift; sourceTree = "<group>"; };
+		A1A3A9FB2F110D260021909D /* AgentConfigurationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentConfigurationView.swift; sourceTree = "<group>"; };
+		A1A3A9FC2F110D260021909D /* AgentSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSettingsView.swift; sourceTree = "<group>"; };
+		A1A3AA002F110D520021909D /* AgentNodeBlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentNodeBlockView.swift; sourceTree = "<group>"; };
+		A1A3AA012F110D520021909D /* CanvasHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasHelpers.swift; sourceTree = "<group>"; };
+		A1A3AA022F110D520021909D /* NodePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodePopover.swift; sourceTree = "<group>"; };
+		A1A3AA032F110D520021909D /* SimpleWorkflowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleWorkflowView.swift; sourceTree = "<group>"; };
+		A1A3AA042F110D520021909D /* WorkflowCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowCanvasView.swift; sourceTree = "<group>"; };
+		A1A3AA052F110D520021909D /* WorkflowCanvasView+DropHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowCanvasView+DropHandling.swift"; sourceTree = "<group>"; };
+		A1A3AA062F110D520021909D /* WorkflowCanvasView+EdgeConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowCanvasView+EdgeConnection.swift"; sourceTree = "<group>"; };
+		A1A3AA072F110D520021909D /* WorkflowCanvasView+Gestures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowCanvasView+Gestures.swift"; sourceTree = "<group>"; };
+		A1A3AA082F110D520021909D /* WorkflowEdgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowEdgeView.swift; sourceTree = "<group>"; };
+		A1A3AA092F110D520021909D /* WorkflowEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowEditor.swift; sourceTree = "<group>"; };
+		A1A3AA0A2F110D520021909D /* WorkflowExecutionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExecutionView.swift; sourceTree = "<group>"; };
+		A1A3AA0B2F110D520021909D /* WorkflowInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowInspector.swift; sourceTree = "<group>"; };
+		A1A3AA0C2F110D520021909D /* WorkflowLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowLibraryView.swift; sourceTree = "<group>"; };
+		A1A3AA0D2F110D520021909D /* WorkflowNodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowNodeView.swift; sourceTree = "<group>"; };
+		A1A3AA0E2F110D520021909D /* WorkflowOutputLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowOutputLog.swift; sourceTree = "<group>"; };
+		A1A3AA0F2F110D520021909D /* WorkflowPortView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowPortView.swift; sourceTree = "<group>"; };
+		A1A3AA102F110D520021909D /* WorkflowToolBlocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowToolBlocks.swift; sourceTree = "<group>"; };
+		A1A3AA272F113E6F0021909D /* AutomationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationService.swift; sourceTree = "<group>"; };
+		A1A3AA342F11665B0021909D /* IntegrationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsView.swift; sourceTree = "<group>"; };
+		A1A3AA372F1166660021909D /* IntegrationsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsService.swift; sourceTree = "<group>"; };
+		A1A3AB162F11CCC70021909D /* Artifact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Artifact.swift; sourceTree = "<group>"; };
+		A1A3AB172F11CCC70021909D /* Event.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Event.swift; sourceTree = "<group>"; };
+		A1A3AB192F11CCC70021909D /* MCPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServer.swift; sourceTree = "<group>"; };
+		A1A3AB1A2F11CCC70021909D /* Note.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Note.swift; sourceTree = "<group>"; };
+		A1A3AB1C2F11CCC70021909D /* Run.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Run.swift; sourceTree = "<group>"; };
+		A1A3AB1E2F11CCC70021909D /* Trace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Trace.swift; sourceTree = "<group>"; };
+		A1BFB2C52F042C0500EAA55A /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		A1BFB2C62F042C0500EAA55A /* ViewSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewSettings.swift; sourceTree = "<group>"; };
+		A1BFB2CA2F042C4100EAA55A /* AddProviderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddProviderSheet.swift; sourceTree = "<group>"; };
+		A1BFB2CC2F042C4100EAA55A /* AIModelSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIModelSelectionView.swift; sourceTree = "<group>"; };
+		A1BFB2CD2F042C4100EAA55A /* AIProviderAddModelsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIProviderAddModelsSheet.swift; sourceTree = "<group>"; };
+		A1BFB2CE2F042C4100EAA55A /* ProvidersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvidersView.swift; sourceTree = "<group>"; };
+		A1BFB2D42F042C6D00EAA55A /* ProviderLogoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderLogoView.swift; sourceTree = "<group>"; };
+		A1BFB2D52F042C6D00EAA55A /* StatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadge.swift; sourceTree = "<group>"; };
+		A1BFB2DA2F042E5100EAA55A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A1BFB2DD2F04328300EAA55A /* FocusedCommandButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusedCommandButtons.swift; sourceTree = "<group>"; };
+		A1BFB2DE2F04328300EAA55A /* ImagePreviewMenuCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePreviewMenuCommands.swift; sourceTree = "<group>"; };
+		A1BFB2E12F0432A600EAA55A /* ProvidersSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvidersSettingsSheet.swift; sourceTree = "<group>"; };
+		A1BFB2E32F0439FE00EAA55A /* ImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportService.swift; sourceTree = "<group>"; };
+		A1BFB2E62F043D2300EAA55A /* StorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageService.swift; sourceTree = "<group>"; };
+		A1BFB2E92F043F4500EAA55A /* FicheroDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FicheroDocument.swift; sourceTree = "<group>"; };
+		A1BFB2EA2F043F4500EAA55A /* ViewContexts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewContexts.swift; sourceTree = "<group>"; };
+		A1BFB2ED2F043F5800EAA55A /* DocumentTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentTabView.swift; sourceTree = "<group>"; };
+		A1BFB2EF2F043FA100EAA55A /* BackendConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendConnectionView.swift; sourceTree = "<group>"; };
+		A1BFB2F22F045C8A00EAA55A /* LibraryImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryImageView.swift; sourceTree = "<group>"; };
+		A1BFB3FA2F057B9300EAA55A /* CheckerboardPattern.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckerboardPattern.swift; sourceTree = "<group>"; };
+		A1BFB3FB2F057B9300EAA55A /* FolderAccessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderAccessManager.swift; sourceTree = "<group>"; };
+		A1BFB3FC2F057B9300EAA55A /* ImageViewerComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerComponents.swift; sourceTree = "<group>"; };
+		A1BFB3FD2F057B9300EAA55A /* MagnifierPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MagnifierPanel.swift; sourceTree = "<group>"; };
+		A1BFB3FE2F057B9300EAA55A /* NavigatorMiniMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigatorMiniMap.swift; sourceTree = "<group>"; };
+		A1BFB3FF2F057B9300EAA55A /* QuickLookComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookComponents.swift; sourceTree = "<group>"; };
+		A1BFB4002F057B9300EAA55A /* ScrollWheelZoom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollWheelZoom.swift; sourceTree = "<group>"; };
+		A1BFB4082F057BAC00EAA55A /* ViewMenuCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewMenuCommands.swift; sourceTree = "<group>"; };
+		A1BFB44E2F0AABA600EAA55A /* ItemTypeRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemTypeRegistry.swift; sourceTree = "<group>"; };
+		A1BFB4522F0AABBC00EAA55A /* AddItemMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddItemMenu.swift; sourceTree = "<group>"; };
+		A1BFB4542F0AABE200EAA55A /* MainToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainToolbar.swift; sourceTree = "<group>"; };
+		A1BFB4562F0AAC1E00EAA55A /* MiniToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniToolbar.swift; sourceTree = "<group>"; };
+		A1BFB4582F0AAC3700EAA55A /* ChatViewToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewToolbar.swift; sourceTree = "<group>"; };
+		A1BFB45A2F0AAC3700EAA55A /* SearchViewToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchViewToolbar.swift; sourceTree = "<group>"; };
+		A1BFB45B2F0AAC3700EAA55A /* WorkflowToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowToolbar.swift; sourceTree = "<group>"; };
+		A1BFB4602F0AADC000EAA55A /* LayoutMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutMode.swift; sourceTree = "<group>"; };
+		A1BFB4F12F30000100EAA55A /* MacPlainTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPlainTextEditor.swift; sourceTree = "<group>"; };
+		A1D8BCE52F2CD054006D91D7 /* DocumentPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentPickerSheet.swift; sourceTree = "<group>"; };
+		A1D8BCE62F2CD054006D91D7 /* WorkflowPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowPickerSheet.swift; sourceTree = "<group>"; };
+		A1FB1D792F0420310023093C /* AIModelCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIModelCatalog.swift; sourceTree = "<group>"; };
+		A1FB1D7C2F0420930023093C /* ChatInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatInspector.swift; sourceTree = "<group>"; };
+		A1FB1D7E2F0420A90023093C /* DocumentInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentInspector.swift; sourceTree = "<group>"; };
+		A1FB1D7F2F0420A90023093C /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
+		A1FB1D932F0420D50023093C /* SidebarConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarConstants.swift; sourceTree = "<group>"; };
+		A1FB1D952F0420D50023093C /* SidebarItemContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemContextMenu.swift; sourceTree = "<group>"; };
+		A1FB1D962F0420D50023093C /* SidebarItemRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemRow.swift; sourceTree = "<group>"; };
+		A1FB1D972F0420D50023093C /* SidebarSectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarSectionHeader.swift; sourceTree = "<group>"; };
+		A1FB1D982F0420D50023093C /* SidebarStateManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarStateManagers.swift; sourceTree = "<group>"; };
+		A1FB1D992F0420D50023093C /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		A1FB1D9A2F0420D50023093C /* SidebarViewExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewExtensions.swift; sourceTree = "<group>"; };
+		A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FlowLayout.swift; path = "fichero/Views/Components/FlowLayout.swift"; sourceTree = SOURCE_ROOT; };
+		A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureManager.swift; sourceTree = "<group>"; };
+		AA112233001122BB /* LibraryView+Sorting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+Sorting.swift"; sourceTree = "<group>"; };
+		AA112233001122DD /* LibraryView+ColumnConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+ColumnConfig.swift"; sourceTree = "<group>"; };
+		AA112233001122FF /* LibraryView+FilterAndBatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+FilterAndBatch.swift"; sourceTree = "<group>"; };
+		AUT00012F27F36000EC9EE1 /* AutomationServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationServiceGenerated.swift; sourceTree = "<group>"; };
+		B2A0010100000000BATCH2S1 /* SidebarItemRow+Label.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+Label.swift"; sourceTree = "<group>"; };
+		B2A0010200000000BATCH2S2 /* SidebarItemRow+DropHandlers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+DropHandlers.swift"; sourceTree = "<group>"; };
+		B2A0010300000000BATCH2S3 /* SidebarItemRow+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+Helpers.swift"; sourceTree = "<group>"; };
+		B2A0010400000000BATCH2S4 /* SidebarItemRow+Rename.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+Rename.swift"; sourceTree = "<group>"; };
+		B2A0010500000000BATCH2W1 /* WorkflowEditor+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowEditor+Actions.swift"; sourceTree = "<group>"; };
+		B2A0010600000000BATCH2W2 /* WorkflowEditor+NodeViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowEditor+NodeViews.swift"; sourceTree = "<group>"; };
+		B2A0010700000000BATCH2W3 /* WorkflowEditor+Preview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowEditor+Preview.swift"; sourceTree = "<group>"; };
+		B2A0010800000000BATCH2C1 /* ChainListContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainListContent.swift; sourceTree = "<group>"; };
+		B2A0010900000000BATCH2C2 /* ChainListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainListRow.swift; sourceTree = "<group>"; };
+		B2A0010A00000000BATCH2C3 /* ChainStepRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainStepRow.swift; sourceTree = "<group>"; };
+		B2A0010B00000000BATCH2C4 /* ChainDetailContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainDetailContent.swift; sourceTree = "<group>"; };
+		B2A0010C00000000BATCH2C5 /* ChainDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainDetailSheet.swift; sourceTree = "<group>"; };
+		B2A0010D00000000BATCH2C6 /* NewChainSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewChainSheet.swift; sourceTree = "<group>"; };
+		B3A001010000000000BATCH3 /* ProvidersView+ModelTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProvidersView+ModelTypes.swift"; sourceTree = "<group>"; };
+		B3A001020000000000BATCH3 /* ProvidersView+ProviderDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProvidersView+ProviderDetailView.swift"; sourceTree = "<group>"; };
+		B3A001030000000000BATCH3 /* ProvidersView+ProviderSettingsRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProvidersView+ProviderSettingsRow.swift"; sourceTree = "<group>"; };
+		B3A001040000000000BATCH3 /* ChatInspector+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatInspector+Actions.swift"; sourceTree = "<group>"; };
+		B3A001050000000000BATCH3 /* ChatInspector+Header.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatInspector+Header.swift"; sourceTree = "<group>"; };
+		B3A001060000000000BATCH3 /* ChatInspector+ScopedDocuments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatInspector+ScopedDocuments.swift"; sourceTree = "<group>"; };
+		B3A001070000000000BATCH3 /* ChatInspector+Search.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatInspector+Search.swift"; sourceTree = "<group>"; };
+		B3A001080000000000BATCH3 /* ActivityDataProcessing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityDataProcessing.swift; sourceTree = "<group>"; };
+		B4A001010000000000BATCH4 /* ModelComparisonView+Sidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ModelComparisonView+Sidebar.swift"; sourceTree = "<group>"; };
+		B4A001020000000000BATCH4 /* ComparisonResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComparisonResultView.swift; sourceTree = "<group>"; };
+		B4A001030000000000BATCH4 /* ModelResultCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelResultCard.swift; sourceTree = "<group>"; };
+		B4A001040000000000BATCH4 /* ModelPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPickerSheet.swift; sourceTree = "<group>"; };
+		B4A001050000000000BATCH4 /* PresetPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetPickerSheet.swift; sourceTree = "<group>"; };
+		B4A0010B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DynamicConfigView+FieldRendering.swift"; sourceTree = "<group>"; };
+		B4A0010C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DynamicConfigView+SchemaHelpers.swift"; sourceTree = "<group>"; };
+		B4A0010D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DynamicConfigView+StateManagement.swift"; sourceTree = "<group>"; };
+		B5A0010400000000BATCH5W1 /* WorkflowOutputLog+Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowOutputLog+Models.swift"; sourceTree = "<group>"; };
+		B5A0010500000000BATCH5W2 /* WorkflowOutputLog+StatusViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowOutputLog+StatusViews.swift"; sourceTree = "<group>"; };
+		B5A0010600000000BATCH5W3 /* WorkflowOutputLog+ErrorCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowOutputLog+ErrorCell.swift"; sourceTree = "<group>"; };
+		B5A0010700000000BATCH5W4 /* WorkflowOutputLog+EmptyStates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkflowOutputLog+EmptyStates.swift"; sourceTree = "<group>"; };
+		B5A0010800000000BATCH5S1 /* ScheduleEditorView+Category.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScheduleEditorView+Category.swift"; sourceTree = "<group>"; };
+		B6A0010100000000BATCH6C1 /* ComparisonDetailView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ComparisonDetailView+Actions.swift"; sourceTree = "<group>"; };
+		B6A0010200000000BATCH6C2 /* ComparisonDetailView+Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ComparisonDetailView+Models.swift"; sourceTree = "<group>"; };
+		B6A0010300000000BATCH6C3 /* ComparisonDetailView+Sections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ComparisonDetailView+Sections.swift"; sourceTree = "<group>"; };
+		B6A0010500000000BATCH6S2 /* SidebarView+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarView+Helpers.swift"; sourceTree = "<group>"; };
+		B6A0010600000000BATCH6S3 /* SidebarView+SelectionHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarView+SelectionHandling.swift"; sourceTree = "<group>"; };
+		B6A0010700000000BATCH6S4 /* SidebarView+ViewComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarView+ViewComponents.swift"; sourceTree = "<group>"; };
+		B6A0010800000000BATCH6A1 /* AddProviderSheet+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Helpers.swift"; sourceTree = "<group>"; };
+		B6A0010900000000BATCH6A2 /* AddProviderSheet+Step1.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Step1.swift"; sourceTree = "<group>"; };
+		B6A0010A00000000BATCH6A3 /* AddProviderSheet+Step2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Step2.swift"; sourceTree = "<group>"; };
+		B6A0010B00000000BATCH6A4 /* AddProviderSheet+Step3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Step3.swift"; sourceTree = "<group>"; };
+		BF91C082286A2B7BB74E438D /* LibraryManager+Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Persistence.swift"; sourceTree = "<group>"; };
+		C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GeneralSettingsView.swift; path = "fichero/Views/Settings/GeneralSettingsView.swift"; sourceTree = SOURCE_ROOT; };
+		C07B489C8F89204C43BD6E46 /* AISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AISettingsView.swift; path = "fichero/Views/Settings/AISettingsView.swift"; sourceTree = SOURCE_ROOT; };
+		C10000110000000000000001 /* SparkleUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdater.swift; sourceTree = "<group>"; };
+		C10000110000000000000002 /* AppInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInstaller.swift; sourceTree = "<group>"; };
+		C340001100000000PROMPT01 /* PromptPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptPreviewPanel.swift; sourceTree = "<group>"; };
+		C69898938F25CFEA64385A16 /* TriggerDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TriggerDetailView.swift; sourceTree = "<group>"; };
+		CE9 /* SidebarItemBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemBuilder.swift; sourceTree = "<group>"; };
+		DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorInfoTab.swift; path = "fichero/Views/Library/DocumentInspector/DocumentInspectorInfoTab.swift"; sourceTree = SOURCE_ROOT; };
+		E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorMetadataTab.swift; path = "fichero/Views/Library/DocumentInspector/DocumentInspectorMetadataTab.swift"; sourceTree = SOURCE_ROOT; };
+		EBFA9C3247C03BDCE9BE6092 /* LibraryManager+Operations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Operations.swift"; sourceTree = "<group>"; };
+		GTE1 /* GeneratedTypeExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedTypeExtensions.swift; sourceTree = "<group>"; };
+		IMP00022F27F36000EC9EE1 /* ImportServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportServiceGenerated.swift; sourceTree = "<group>"; };
+		MOD00022F27F36000EC9EE1 /* ModelServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelServiceGenerated.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		A10521AA2EFDC92400B28C3E /* fichero-tests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "fichero-tests";
+			sourceTree = "<group>";
+		};
+		A10521C22EFDC94100B28C3E /* fichero-ui-tests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "fichero-ui-tests";
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		300 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+				A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */,
+				A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */,
+				C10000020000000000000001 /* Sparkle in Frameworks */,
+			);
+		};
+		A10521A62EFDC92400B28C3E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+		A10521BE2EFDC94100B28C3E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		202674932F475B06008EAB5D /* NodeConfigs */ = {
+			isa = PBXGroup;
+			children = (
+				202674942F475B1D008EAB5D /* NodeConfigView.swift */,
+				202674962F475B23008EAB5D /* CollectionNodeConfig.swift */,
+				202674982F475B33008EAB5D /* SearchNodeConfig.swift */,
+				2026749A2F475B4A008EAB5D /* FilesNodeConfig.swift */,
+				2026749C2F475B64008EAB5D /* TranscribeNodeConfig.swift */,
+				3E8C3EFBCE91C295309468AB /* ThinkingModePicker.swift */,
+				2026749E2F475B7A008EAB5D /* DescribeNodeConfig.swift */,
+				202674A32F47642A008EAB5D /* SummarizeFileNodeConfig.swift */,
+				202674A52F476439008EAB5D /* SummarizeFolderNodeConfig.swift */,
+				202674A72F476447008EAB5D /* SummarizeCollectionNodeConfig.swift */,
+				202674A92F476453008EAB5D /* ExtractEntitiesNodeConfig.swift */,
+			);
+			path = NodeConfigs;
+			sourceTree = "<group>";
+		};
+		202674A02F4762DA008EAB5D /* ImageViewer */ = {
+			isa = PBXGroup;
+			children = (
+				202674A12F4762E6008EAB5D /* ImageZoomToolbar.swift */,
+				202674AF2F4781BA008EAB5D /* TrackingImageView.swift */,
+				202674B12F478206008EAB5D /* ImageWithCursorTracking.swift */,
+			);
+			path = ImageViewer;
+			sourceTree = "<group>";
+		};
+		202674B92F478626008EAB5D /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				202674BB2F478636008EAB5D /* SidebarCreationHandlers.swift */,
+				202674BE2F478647008EAB5D /* SidebarActions.swift */,
+				202674C12F47865B008EAB5D /* SidebarObservers.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		202674C32F4788B4008EAB5D /* WorkflowLibraryView */ = {
+			isa = PBXGroup;
+			children = (
+				202674C42F4788CB008EAB5D /* WorkflowDetailView.swift */,
+				202674C62F4788E0008EAB5D /* WorkflowMiniPreview.swift */,
+				202674C82F4788EB008EAB5D /* WorkflowThumbnailView.swift */,
+				202674CB2F4788F2008EAB5D /* WorkflowLibraryRow.swift */,
+				202674CD2F4788FF008EAB5D /* NewWorkflowSheet.swift */,
+			);
+			path = WorkflowLibraryView;
+			sourceTree = "<group>";
+		};
+		20D8EE432F4BE22F006950A3 /* Actions */ = {
+			isa = PBXGroup;
+			children = (
+				20D8EE442F4BE260006950A3 /* ActionLibraryView.swift */,
+				20D8EE462F4BE285006950A3 /* ActionPickerView.swift */,
+				20D8EE482F4BED4B006950A3 /* ActionRowView.swift */,
+				20D8EE4A2F4BED57006950A3 /* ActionDetailView.swift */,
+			);
+			path = Actions;
+			sourceTree = "<group>";
+		};
+		400 = {
+			isa = PBXGroup;
+			children = (
+				A18B76672EFDCD6E001C9EC2 /* fichero-tests.xctestplan */,
+				A151C6DE2EFDCD4300E46CE0 /* fichero-tests.xctestplan */,
+				A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */,
+				410 /* fichero */,
+				A10521AA2EFDC92400B28C3E /* fichero-tests */,
+				A10521C22EFDC94100B28C3E /* fichero-ui-tests */,
+				420 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		410 /* fichero */ = {
+			isa = PBXGroup;
+			children = (
+				A1BFB2C72F042C0500EAA55A /* App */,
+				202 /* Fichero.entitlements */,
+				142 /* Fichero.sdef */,
+				101 /* FicheroApp.swift */,
+				A1624FD12F2ED7B50019C019 /* FicheroRelease.entitlements */,
+				412 /* Models */,
+				414 /* Resources */,
+				413 /* Services */,
+				411 /* Views */,
+			);
+			path = "fichero";
+			sourceTree = "<group>";
+		};
+		411 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A1A3AA252F1115F90021909D /* Activity */,
+				A1A3A9FD2F110D260021909D /* Agents */,
+				A1FB1D7A2F0420310023093C /* AIProviders */,
+				A1A3AA2A2F113E850021909D /* Automation */,
+				4118 /* Chat */,
+				A1BFB2D62F042C6D00EAA55A /* Components */,
+				102 /* ContentView.swift */,
+				200BCF3B2F3D548000D7851A /* ContentView+Actions.swift */,
+				200BCF392F3D548000D7851A /* ContentView+Navigation.swift */,
+				200BCF372F3D548000D7851A /* ContentView+Persistence.swift */,
+				200BCF2B2F3D501800D7851A /* ContentView+State.swift */,
+				200BCF352F3D547F00D7851A /* ContentView+ViewBuilders.swift */,
+				A1A3A9F92F110D170021909D /* ContentViewModifiers.swift */,
+				A1BFB2ED2F043F5800EAA55A /* DocumentTabView.swift */,
+				A1A3AA352F11665B0021909D /* Integrations */,
+				A1FB1D802F0420A90023093C /* Library */,
+				A1A3A9BF2F1028480021909D /* MCPServers */,
+				A1BFB2D92F042CBB00EAA55A /* Menu */,
+				A13E80A42F2AD78100EC9EE1 /* ModelComparison */,
+				4115 /* Search */,
+				A1BFB2DB2F042E5100EAA55A /* Settings */,
+				A1D8BCE72F2CD054006D91D7 /* Sheets */,
+				4111 /* Sidebar */,
+				A1BFB4102F057C4000EAA55A /* Toolbars */,
+				4116 /* Workflow */,
+				20D8EE432F4BE22F006950A3 /* Actions */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		4111 /* Sidebar */ = {
+			isa = PBXGroup;
+			children = (
+				A1FB1D932F0420D50023093C /* SidebarConstants.swift */,
+				A1FB1D952F0420D50023093C /* SidebarItemContextMenu.swift */,
+				A1FB1D962F0420D50023093C /* SidebarItemRow.swift */,
+				B2A0010100000000BATCH2S1 /* SidebarItemRow+Label.swift */,
+				B2A0010200000000BATCH2S2 /* SidebarItemRow+DropHandlers.swift */,
+				B2A0010300000000BATCH2S3 /* SidebarItemRow+Helpers.swift */,
+				B2A0010400000000BATCH2S4 /* SidebarItemRow+Rename.swift */,
+				A1FB1D972F0420D50023093C /* SidebarSectionHeader.swift */,
+				A1FB1D982F0420D50023093C /* SidebarStateManagers.swift */,
+				A1FB1D992F0420D50023093C /* SidebarView.swift */,
+				B6A0010500000000BATCH6S2 /* SidebarView+Helpers.swift */,
+				B6A0010600000000BATCH6S3 /* SidebarView+SelectionHandling.swift */,
+				B6A0010700000000BATCH6S4 /* SidebarView+ViewComponents.swift */,
+				A1FB1D9A2F0420D50023093C /* SidebarViewExtensions.swift */,
+				A13E7C1B2F27E01E00EC9EE1 /* Modes */,
+				A13E7C252F27E03300EC9EE1 /* SidebarModeBar.swift */,
+				A13E7C262F27E03300EC9EE1 /* SidebarModeIcon.swift */,
+				202674B92F478626008EAB5D /* Components */,
+				B3A001080000000000BATCH3 /* ActivityDataProcessing.swift */,
+			);
+			path = Sidebar;
+			sourceTree = "<group>";
+		};
+		4115 /* Search */ = {
+			isa = PBXGroup;
+			children = (
+				110 /* SearchView.swift */,
+				202674D32F489633008EAB5D /* SearchFiltersPanel.swift */,
+				202674D52F48963F008EAB5D /* SearchResultRowFromAPI.swift */,
+				202674D72F48964E008EAB5D /* SearchMapComponents.swift */,
+				202674D92F489665008EAB5D /* SearchResultsDisplay.swift */,
+				202674DB2F489677008EAB5D /* SearchView+Helpers.swift */,
+			);
+			path = Search;
+			sourceTree = "<group>";
+		};
+		4116 /* Workflow */ = {
+			isa = PBXGroup;
+			children = (
+				A1A3AA002F110D520021909D /* AgentNodeBlockView.swift */,
+				A1A3AA012F110D520021909D /* CanvasHelpers.swift */,
+				A1A3AA022F110D520021909D /* NodePopover.swift */,
+				A1A3AA032F110D520021909D /* SimpleWorkflowView.swift */,
+				A1A3AA042F110D520021909D /* WorkflowCanvasView.swift */,
+				A1A3AA052F110D520021909D /* WorkflowCanvasView+DropHandling.swift */,
+				A1A3AA062F110D520021909D /* WorkflowCanvasView+EdgeConnection.swift */,
+				A1A3AA072F110D520021909D /* WorkflowCanvasView+Gestures.swift */,
+				A1A3AA082F110D520021909D /* WorkflowEdgeView.swift */,
+				A1A3AA092F110D520021909D /* WorkflowEditor.swift */,
+				B2A0010500000000BATCH2W1 /* WorkflowEditor+Actions.swift */,
+				B2A0010600000000BATCH2W2 /* WorkflowEditor+NodeViews.swift */,
+				B2A0010700000000BATCH2W3 /* WorkflowEditor+Preview.swift */,
+				A1A3AA0A2F110D520021909D /* WorkflowExecutionView.swift */,
+				A1A3AA0B2F110D520021909D /* WorkflowInspector.swift */,
+				A1A3AA0C2F110D520021909D /* WorkflowLibraryView.swift */,
+				A1A3AA0D2F110D520021909D /* WorkflowNodeView.swift */,
+				A1A3AA0E2F110D520021909D /* WorkflowOutputLog.swift */,
+				B5A0010400000000BATCH5W1 /* WorkflowOutputLog+Models.swift */,
+				B5A0010500000000BATCH5W2 /* WorkflowOutputLog+StatusViews.swift */,
+				B5A0010600000000BATCH5W3 /* WorkflowOutputLog+ErrorCell.swift */,
+				B5A0010700000000BATCH5W4 /* WorkflowOutputLog+EmptyStates.swift */,
+				A1A3AA0F2F110D520021909D /* WorkflowPortView.swift */,
+				A1A3AA102F110D520021909D /* WorkflowToolBlocks.swift */,
+				139 /* WorkflowChainListView.swift */,
+				151 /* ChainEditorView.swift */,
+				04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */,
+				B4A0010B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift */,
+				B4A0010C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift */,
+				B4A0010D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift */,
+				202674932F475B06008EAB5D /* NodeConfigs */,
+				C340001100000000PROMPT01 /* PromptPreviewPanel.swift */,
+				202674AB2F4779AA008EAB5D /* NodeProviderModelSelector.swift */,
+				202674AD2F477AFE008EAB5D /* NodeInputMappings.swift */,
+				202674B32F4783A9008EAB5D /* WorkflowNodeCard.swift */,
+				202674B52F4783BC008EAB5D /* WorkflowNodeRow.swift */,
+				202674B72F4783D5008EAB5D /* WorkflowDiagramPreview.swift */,
+				202674C32F4788B4008EAB5D /* WorkflowLibraryView */,
+				B2A003000000000000BATCH2 /* WorkflowChainListView */,
+				20D8ED482F48E2B1006950A3 /* WorkflowInspector+AgentsSection.swift */,
+				20D8ED4C2F48E2BE006950A3 /* WorkflowInspector+MCPTools.swift */,
+				20D8ED522F48E2CA006950A3 /* WorkflowInspector+DataLoading.swift */,
+			);
+			path = Workflow;
+			sourceTree = "<group>";
+		};
+		4118 /* Chat */ = {
+			isa = PBXGroup;
+			children = (
+				117 /* ChatView.swift */,
+				A1FB1D7C2F0420930023093C /* ChatInspector.swift */,
+				B3A001040000000000BATCH3 /* ChatInspector+Actions.swift */,
+				B3A001050000000000BATCH3 /* ChatInspector+Header.swift */,
+				B3A001060000000000BATCH3 /* ChatInspector+ScopedDocuments.swift */,
+				B3A001070000000000BATCH3 /* ChatInspector+Search.swift */,
+				38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */,
+				B6A0010100000000BATCH6C1 /* ComparisonDetailView+Actions.swift */,
+				B6A0010200000000BATCH6C2 /* ComparisonDetailView+Models.swift */,
+				B6A0010300000000BATCH6C3 /* ComparisonDetailView+Sections.swift */,
+				202674DD2F48972A008EAB5D /* MessageCard.swift */,
+				202674DF2F489737008EAB5D /* ChatStatusViews.swift */,
+				202674E12F48973E008EAB5D /* ChatInputView.swift */,
+				202674E32F489742008EAB5D /* ChatMapGrid.swift */,
+				202674E52F489757008EAB5D /* ChatMessagesList.swift */,
+				202674E72F48976C008EAB5D /* ChatView+Extensions.swift */,
+			);
+			path = Chat;
+			sourceTree = "<group>";
+		};
+		412 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A1A3AB162F11CCC70021909D /* Artifact.swift */,
+				4119 /* CacheModel.swift */,
+				103 /* Document.swift */,
+				118 /* DocumentStore.swift */,
+				4126 /* DragDropModel.swift */,
+				4124 /* ErrorModel.swift */,
+				A1A3AB172F11CCC70021909D /* Event.swift */,
+				A1BFB2E92F043F4500EAA55A /* FicheroDocument.swift */,
+				A1BFB44E2F0AABA600EAA55A /* ItemTypeRegistry.swift */,
+				A1BFB4602F0AADC000EAA55A /* LayoutMode.swift */,
+				377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */,
+				EBFA9C3247C03BDCE9BE6092 /* LibraryManager+Operations.swift */,
+				1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */,
+				BF91C082286A2B7BB74E438D /* LibraryManager+Persistence.swift */,
+				A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */,
+				A1A3AB192F11CCC70021909D /* MCPServer.swift */,
+				A1A3AB1A2F11CCC70021909D /* Note.swift */,
+				A1A3AB1C2F11CCC70021909D /* Run.swift */,
+				109 /* SidebarItem.swift */,
+				CE9 /* SidebarItemBuilder.swift */,
+				4125 /* SidebarState.swift */,
+				A1A3AB1E2F11CCC70021909D /* Trace.swift */,
+				A1BFB2EA2F043F4500EAA55A /* ViewContexts.swift */,
+				9E04EE1958EB4E23A7E1E328 /* WindowState.swift */,
+				462 /* Workflow.swift */,
+				137 /* WorkflowChain.swift */,
+				136 /* WorkflowExporter.swift */,
+				135 /* WorkflowStore.swift */,
+				134 /* WorkflowTypes.swift */,
+				GTE1 /* GeneratedTypeExtensions.swift */,
+				20D8ED602F48E604006950A3 /* WorkflowSupportTypes.swift */,
+				20D8ED622F48E61B006950A3 /* SidebarItem+MoreFactories.swift */,
+				20D8ED642F48E61C006950A3 /* WorkflowToolTypes.swift */,
+				20D8ED662F48E626006950A3 /* DocumentStore+CRUD.swift */,
+				20D8ED682F48E626006950A3 /* SidebarChatTypes.swift */,
+				20D8ED6A2F48E62B006950A3 /* WorkflowResponseTypes.swift */,
+				20D8ED6C2F48E62F006950A3 /* DocumentStore+Helpers.swift */,
+				20D8ED6E2F48E633006950A3 /* SidebarSearchTypes.swift */,
+				20D8ED702F48E63B006950A3 /* DocumentStoreTypes.swift */,
+				20D8ED722F48E644006950A3 /* SidebarViewTypes.swift */,
+				2011E3592F93ADF700606651 /* ComparisonTypes.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		413 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				119 /* APIClient.swift */,
+				138 /* ChainService.swift */,
+				122 /* ChatService.swift */,
+				124 /* SavedSearchService.swift */,
+				143 /* WorkflowServiceGenerated.swift */,
+				144 /* SavedSearchServiceGenerated.swift */,
+				145 /* ConversationServiceGenerated.swift */,
+				146 /* ChatServiceGenerated.swift */,
+				148 /* DocumentServiceGenerated.swift */,
+				127 /* ModelService.swift */,
+				4121 /* PerformanceService.swift */,
+				4123 /* ErrorService.swift */,
+				A1BFB2E32F0439FE00EAA55A /* ImportService.swift */,
+				A1BFB2E62F043D2300EAA55A /* StorageService.swift */,
+				A1A3A9F32F1028E70021909D /* MCPService.swift */,
+				A1A3A9F62F110CFD0021909D /* WorkflowExecutionService.swift */,
+				140 /* WorkflowStreamService.swift */,
+				149 /* WorkflowExecutionObserver.swift */,
+				141 /* AppleScriptSupport.swift */,
+				A1A3AA272F113E6F0021909D /* AutomationService.swift */,
+				A1A3AA372F1166660021909D /* IntegrationsService.swift */,
+				A13E7C2B2F27E17F00EC9EE1 /* BatchServiceGenerated.swift */,
+				A13E7C2C2F27E17F00EC9EE1 /* ProviderServiceGenerated.swift */,
+				A13E7C2D2F27E17F00EC9EE1 /* SearchServiceGenerated.swift */,
+				A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */,
+				AUT00012F27F36000EC9EE1 /* AutomationServiceGenerated.swift */,
+				A13E7C632F27F36000EC9EE1 /* ArtifactServiceGenerated.swift */,
+				A13E7C662F27F36000EC9EE1 /* StorageServiceGenerated.swift */,
+				MOD00022F27F36000EC9EE1 /* ModelServiceGenerated.swift */,
+				IMP00022F27F36000EC9EE1 /* ImportServiceGenerated.swift */,
+				A13E7C3B2F27F36000EC9EE1 /* ActivityTypes.swift */,
+				A13E80A12F2AD75100EC9EE1 /* ModelComparisonService.swift */,
+				A14AD1B82F2E2E07001CF205 /* EmbeddedBackendService.swift */,
+				20D8EDC92F48F49C006950A3 /* BatchTypes.swift */,
+				20D8EDCF2F48F4AE006950A3 /* CheckpointTypes.swift */,
+				20D8EDD32F48F4BE006950A3 /* WorkflowRunResponse.swift */,
+				20D8EDF72F4BBC04006950A3 /* WorkflowStreamTypes.swift */,
+				20D8EDF92F4BBC12006950A3 /* ModelComparisonTypes.swift */,
+				20D8EDFB2F4BBC1A006950A3 /* WorkflowStreamService+Parsing.swift */,
+				20D8EE1F2F4BBFAF006950A3 /* AppleScriptCommands.swift */,
+				20D8EE212F4BBFB8006950A3 /* AutomationServiceTypes.swift */,
+				20D8EE232F4BBFBA006950A3 /* ProviderServiceTypes.swift */,
+				20D8EE252F4BC0E2006950A3 /* IntegrationsServiceTypes.swift */,
+				20D8EE272F4BC0ED006950A3 /* IntegrationsService+AppSpecific.swift */,
+				20D8EE292F4BC0F3006950A3 /* WorkflowExecutionTypes.swift */,
+				20D8EE2F2F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift */,
+				20D8EE3B2F4BE0D8006950A3 /* ActionsService.swift */,
+				20D8EE3D2F4BE1AB006950A3 /* ActionLibraryService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		414 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				201 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		420 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				100 /* Fichero.app */,
+				A10521A92EFDC92400B28C3E /* FicheroTests.xctest */,
+				A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A13E7C1B2F27E01E00EC9EE1 /* Modes */ = {
+			isa = PBXGroup;
+			children = (
+				A13E7C122F27E01E00EC9EE1 /* ActivityRun.swift */,
+			);
+			path = Modes;
+			sourceTree = "<group>";
+		};
+		A13E80A42F2AD78100EC9EE1 /* ModelComparison */ = {
+			isa = PBXGroup;
+			children = (
+				A13E80A32F2AD78100EC9EE1 /* ModelComparisonView.swift */,
+				B4A001010000000000BATCH4 /* ModelComparisonView+Sidebar.swift */,
+				B4A001020000000000BATCH4 /* ComparisonResultView.swift */,
+				B4A001030000000000BATCH4 /* ModelResultCard.swift */,
+				B4A001040000000000BATCH4 /* ModelPickerSheet.swift */,
+				B4A001050000000000BATCH4 /* PresetPickerSheet.swift */,
+			);
+			path = ModelComparison;
+			sourceTree = "<group>";
+		};
+		A1A3A9BF2F1028480021909D /* MCPServers */ = {
+			isa = PBXGroup;
+			children = (
+				A1A3A9BA2F1028480021909D /* AddMCPServerSheet.swift */,
+				A1A3A9BB2F1028480021909D /* MCPServerDetailView.swift */,
+				A1A3A9BC2F1028480021909D /* MCPServersSheet.swift */,
+				A1A3A9BD2F1028480021909D /* MCPServersView.swift */,
+				A1A3A9BE2F1028480021909D /* MCPToolsCatalogView.swift */,
+			);
+			path = MCPServers;
+			sourceTree = "<group>";
+		};
+		A1A3A9FD2F110D260021909D /* Agents */ = {
+			isa = PBXGroup;
+			children = (
+				A1A3A9FB2F110D260021909D /* AgentConfigurationView.swift */,
+				A1A3A9FC2F110D260021909D /* AgentSettingsView.swift */,
+			);
+			path = Agents;
+			sourceTree = "<group>";
+		};
+		A1A3AA252F1115F90021909D /* Activity */ = {
+			isa = PBXGroup;
+			children = (
+				A13E7C3B2F280BE900EC9EE1 /* ActivityCodeView.swift */,
+				A13E7C3C2F280BE900EC9EE1 /* ActivityConsoleView.swift */,
+				A13E7C292F27E04300EC9EE1 /* ActivityDetailView.swift */,
+				A13E7C3E2F280BE900EC9EE1 /* ActivityDiagramView.swift */,
+				A13E7C3F2F280BE900EC9EE1 /* ActivityErrorsView.swift */,
+				A13E7C402F280BE900EC9EE1 /* ActivityGraphView.swift */,
+				A13E7C412F280BE900EC9EE1 /* ActivityLogView.swift */,
+				A13E7C422F280BE900EC9EE1 /* ActivityOverviewView.swift */,
+				A13E7C432F280BE900EC9EE1 /* ActivityProgressView.swift */,
+				A13E7C442F280BE900EC9EE1 /* ActivityViewHelpers.swift */,
+				20D8ED4A2F48E2B3006950A3 /* ActivityProgressModels.swift */,
+				20D8ED4E2F48E2C1006950A3 /* ActivityProgressView+LiveProgress.swift */,
+				20D8ED562F48E2D7006950A3 /* ActivityProgressView+HistoricalProgress.swift */,
+				20D8ED582F48E2DE006950A3 /* ActivityProgressView+DataLoading.swift */,
+			);
+			path = Activity;
+			sourceTree = "<group>";
+		};
+		A1A3AA2A2F113E850021909D /* Automation */ = {
+			isa = PBXGroup;
+			children = (
+				16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */,
+				7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */,
+				B5A0010800000000BATCH5S1 /* ScheduleEditorView+Category.swift */,
+				152 /* ScheduleCreationSheet.swift */,
+				75371C597B1E4689B6E1803F /* TriggerEditorView.swift */,
+				D11000012F99900100ABC002 /* TriggerEditorView */,
+				C69898938F25CFEA64385A16 /* TriggerDetailView.swift */,
+				153 /* TriggerCreationSheet.swift */,
+				20D8ED5A2F48E4CA006950A3 /* TriggerDetailView+Configuration.swift */,
+				20D8ED5C2F48E4D4006950A3 /* TriggerDetailView+ExecutionHistory.swift */,
+				20D8ED5E2F48E4DA006950A3 /* TriggerDetailView+Helpers.swift */,
+			);
+			path = Automation;
+			sourceTree = "<group>";
+		};
+		A1A3AA352F11665B0021909D /* Integrations */ = {
+			isa = PBXGroup;
+			children = (
+				A1A3AA342F11665B0021909D /* IntegrationsView.swift */,
+			);
+			path = Integrations;
+			sourceTree = "<group>";
+		};
+		A1BFB2C72F042C0500EAA55A /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A1BFB2C52F042C0500EAA55A /* AppState.swift */,
+				A1BFB2C62F042C0500EAA55A /* ViewSettings.swift */,
+				20D8EDCB2F48F4A8006950A3 /* LibraryWindow.swift */,
+				20D8EDCD2F48F4AE006950A3 /* WelcomeView.swift */,
+				20D8EDD12F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift */,
+				C10000110000000000000002 /* AppInstaller.swift */,
+				C10000110000000000000001 /* SparkleUpdater.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A1BFB2D62F042C6D00EAA55A /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				A1BFB2EF2F043FA100EAA55A /* BackendConnectionView.swift */,
+				A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */,
+				A1BFB2F22F045C8A00EAA55A /* LibraryImageView.swift */,
+				A1BFB2D42F042C6D00EAA55A /* ProviderLogoView.swift */,
+				A13E7C322F27F32E00EC9EE1 /* ScheduleRow.swift */,
+				A1BFB2D52F042C6D00EAA55A /* StatusBadge.swift */,
+				A1BFB4F12F30000100EAA55A /* MacPlainTextEditor.swift */,
+				A13E7C332F27F32E00EC9EE1 /* TriggerRow.swift */,
+				A13E7C372F27F33C00EC9EE1 /* WorkflowExecutionRow.swift */,
+				20D8ED502F48E2C4006950A3 /* WorkflowPreviewSheet.swift */,
+				20D8ED542F48E2CC006950A3 /* WorkflowExecutionRow+Helpers.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		A1BFB2D92F042CBB00EAA55A /* Menu */ = {
+			isa = PBXGroup;
+			children = (
+				A1BFB2DD2F04328300EAA55A /* FocusedCommandButtons.swift */,
+				A1BFB2DE2F04328300EAA55A /* ImagePreviewMenuCommands.swift */,
+				A1BFB4082F057BAC00EAA55A /* ViewMenuCommands.swift */,
+				A1BFB4522F0AABBC00EAA55A /* AddItemMenu.swift */,
+			);
+			path = Menu;
+			sourceTree = "<group>";
+		};
+		A1BFB2DB2F042E5100EAA55A /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */,
+				C07B489C8F89204C43BD6E46 /* AISettingsView.swift */,
+				371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */,
+				C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */,
+				1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */,
+				A1BFB2DA2F042E5100EAA55A /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		A1BFB4102F057C4000EAA55A /* Toolbars */ = {
+			isa = PBXGroup;
+			children = (
+				A1BFB4542F0AABE200EAA55A /* MainToolbar.swift */,
+				A1BFB4562F0AAC1E00EAA55A /* MiniToolbar.swift */,
+				A1BFB4582F0AAC3700EAA55A /* ChatViewToolbar.swift */,
+				A1BFB45A2F0AAC3700EAA55A /* SearchViewToolbar.swift */,
+				A1BFB45B2F0AAC3700EAA55A /* WorkflowToolbar.swift */,
+			);
+			path = Toolbars;
+			sourceTree = "<group>";
+		};
+		A1D8BCE72F2CD054006D91D7 /* Sheets */ = {
+			isa = PBXGroup;
+			children = (
+				A1D8BCE52F2CD054006D91D7 /* DocumentPickerSheet.swift */,
+				A1D8BCE62F2CD054006D91D7 /* WorkflowPickerSheet.swift */,
+			);
+			path = Sheets;
+			sourceTree = "<group>";
+		};
+		A1FB1D7A2F0420310023093C /* AIProviders */ = {
+			isa = PBXGroup;
+			children = (
+				A1FB1D792F0420310023093C /* AIModelCatalog.swift */,
+				A1BFB2CA2F042C4100EAA55A /* AddProviderSheet.swift */,
+				B6A0010800000000BATCH6A1 /* AddProviderSheet+Helpers.swift */,
+				B6A0010900000000BATCH6A2 /* AddProviderSheet+Step1.swift */,
+				B6A0010A00000000BATCH6A3 /* AddProviderSheet+Step2.swift */,
+				B6A0010B00000000BATCH6A4 /* AddProviderSheet+Step3.swift */,
+				A1BFB2CC2F042C4100EAA55A /* AIModelSelectionView.swift */,
+				A1BFB2CD2F042C4100EAA55A /* AIProviderAddModelsSheet.swift */,
+				A1BFB2CE2F042C4100EAA55A /* ProvidersView.swift */,
+				B3A001010000000000BATCH3 /* ProvidersView+ModelTypes.swift */,
+				B3A001020000000000BATCH3 /* ProvidersView+ProviderDetailView.swift */,
+				B3A001030000000000BATCH3 /* ProvidersView+ProviderSettingsRow.swift */,
+				A1BFB2E12F0432A600EAA55A /* ProvidersSettingsSheet.swift */,
+			);
+			path = AIProviders;
+			sourceTree = "<group>";
+		};
+		A1FB1D802F0420A90023093C /* Library */ = {
+			isa = PBXGroup;
+			children = (
+				A1FB1D7E2F0420A90023093C /* DocumentInspector.swift */,
+				D11000012F99900100ABC001 /* DocumentInspector */,
+				108 /* EditorView.swift */,
+				747AC1DB57A54EA79D0817E8 /* FolderContentsGrid.swift */,
+				A1FB1D7F2F0420A90023093C /* LibraryView.swift */,
+				A1BFB3FA2F057B9300EAA55A /* CheckerboardPattern.swift */,
+				A1BFB3FB2F057B9300EAA55A /* FolderAccessManager.swift */,
+				A1BFB3FC2F057B9300EAA55A /* ImageViewerComponents.swift */,
+				A1BFB3FD2F057B9300EAA55A /* MagnifierPanel.swift */,
+				A1BFB3FE2F057B9300EAA55A /* NavigatorMiniMap.swift */,
+				A1BFB3FF2F057B9300EAA55A /* QuickLookComponents.swift */,
+				A1BFB4002F057B9300EAA55A /* ScrollWheelZoom.swift */,
+				202674A02F4762DA008EAB5D /* ImageViewer */,
+				202674CF2F4789BF008EAB5D /* LibraryViewComponents.swift */,
+				1786CA1F532B414196BAAABE /* PDFThumbnailView.swift */,
+				202674D12F478A13008EAB5D /* LibraryView+DisplayModes.swift */,
+				20D8EE372F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift */,
+				20D8EE392F4BD9F6006950A3 /* LibraryView+InlineEditing.swift */,
+				AA112233001122BB /* LibraryView+Sorting.swift */,
+				AA112233001122DD /* LibraryView+ColumnConfig.swift */,
+				AA112233001122FF /* LibraryView+FilterAndBatch.swift */,
+			);
+			path = Library;
+			sourceTree = "<group>";
+		};
+		B2A003000000000000BATCH2 /* WorkflowChainListView */ = {
+			isa = PBXGroup;
+			children = (
+				B2A0010800000000BATCH2C1 /* ChainListContent.swift */,
+				B2A0010900000000BATCH2C2 /* ChainListRow.swift */,
+				B2A0010A00000000BATCH2C3 /* ChainStepRow.swift */,
+				B2A0010B00000000BATCH2C4 /* ChainDetailContent.swift */,
+				B2A0010C00000000BATCH2C5 /* ChainDetailSheet.swift */,
+				B2A0010D00000000BATCH2C6 /* NewChainSheet.swift */,
+			);
+			path = WorkflowChainListView;
+			sourceTree = "<group>";
+		};
+		D11000012F99900100ABC001 /* DocumentInspector */ = {
+			isa = PBXGroup;
+			children = (
+				004167806445469D9A3595E4 /* AttributedTextEditor.swift */,
+				DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */,
+				E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */,
+				312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */,
+				36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */,
+			);
+			path = DocumentInspector;
+			sourceTree = "<group>";
+		};
+		D11000012F99900100ABC002 /* TriggerEditorView */ = {
+			isa = PBXGroup;
+			children = (
+				A0264B7B8616BA5159B2CEF1 /* TriggerEditorFormPanel.swift */,
+				5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */,
+			);
+			path = TriggerEditorView;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		500 /* Fichero */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 600 /* Build configuration list for PBXNativeTarget "Fichero" */;
+			buildPhases = (
+				510 /* Sources */,
+				300 /* Frameworks */,
+				520 /* Resources */,
+				A1624FF62F2EE5710019C019 /* CopyFiles */,
+				CC0011223344556677889902 /* SwiftLint */,
+			);
+			buildRules = (
+			);
+			name = Fichero;
+			packageProductDependencies = (
+				A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */,
+				A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */,
+				C10000310000000000000001 /* Sparkle */,
+			);
+			productName = Fichero;
+			productReference = 100 /* Fichero.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A10521A82EFDC92400B28C3E /* FicheroTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10521B12EFDC92400B28C3E /* Build configuration list for PBXNativeTarget "FicheroTests" */;
+			buildPhases = (
+				A10521A52EFDC92400B28C3E /* Sources */,
+				A10521A62EFDC92400B28C3E /* Frameworks */,
+				A10521A72EFDC92400B28C3E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A10521AE2EFDC92400B28C3E /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A10521AA2EFDC92400B28C3E /* fichero-tests */,
+			);
+			name = FicheroTests;
+			productName = FicheroTests;
+			productReference = A10521A92EFDC92400B28C3E /* FicheroTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		A10521C02EFDC94100B28C3E /* FicheroUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10521C72EFDC94100B28C3E /* Build configuration list for PBXNativeTarget "FicheroUITests" */;
+			buildPhases = (
+				A10521BD2EFDC94100B28C3E /* Sources */,
+				A10521BE2EFDC94100B28C3E /* Frameworks */,
+				A10521BF2EFDC94100B28C3E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A10521C62EFDC94100B28C3E /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A10521C22EFDC94100B28C3E /* fichero-ui-tests */,
+			);
+			name = FicheroUITests;
+			productName = FicheroUITests;
+			productReference = A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		700 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1640;
+				LastUpgradeCheck = 2630;
+				TargetAttributes = {
+					500 = {
+						CreatedOnToolsVersion = 15.1;
+					};
+					A10521A82EFDC92400B28C3E = {
+						CreatedOnToolsVersion = 16.4;
+						TestTargetID = 500;
+					};
+					A10521C02EFDC94100B28C3E = {
+						CreatedOnToolsVersion = 16.4;
+						TestTargetID = 500;
+					};
+				};
+			};
+			buildConfigurationList = 710 /* Build configuration list for PBXProject "fichero" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 400;
+			packageReferences = (
+				A18ED3F02F141DFE007C2C6E /* XCLocalSwiftPackageReference "fichero-api-client" */,
+				C10000210000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
+			preferredProjectObjectVersion = 90;
+			productRefGroup = 420 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				500 /* Fichero */,
+				A10521A82EFDC92400B28C3E /* FicheroTests */,
+				A10521C02EFDC94100B28C3E /* FicheroUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		520 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+				009 /* Assets.xcassets in Resources */,
+				043 /* Fichero.sdef in Resources */,
+			);
+		};
+		A10521A72EFDC92400B28C3E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		A10521BF2EFDC94100B28C3E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		CC0011223344556677889902 /* SwiftLint */ = {
+			isa = PBXShellScriptBuildPhase;
+			inputPaths = (
+				"$(SRCROOT)/../.swiftlint.yml",
+				"$(SRCROOT)/fichero",
+			);
+			name = SwiftLint;
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/swiftlint.done",
+			);
+			shellPath = /bin/sh;
+			shellScript = (
+				"SWIFTLINT_BIN=\"${SWIFTLINT_PATH:-/opt/homebrew/bin/swiftlint}\"",
+				"if [ ! -x \"$SWIFTLINT_BIN\" ]; then",
+				"  SWIFTLINT_BIN=\"$(command -v swiftlint || true)\"",
+				"fi",
+				"",
+				"if [ -x \"$SWIFTLINT_BIN\" ]; then",
+				"  \"$SWIFTLINT_BIN\" lint --config \"$SRCROOT/../.swiftlint.yml\" \"$SRCROOT/fichero\"",
+				"else",
+				"  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"",
+				"fi",
+				"",
+				"mkdir -p \"$DERIVED_FILE_DIR\"",
+				"touch \"$DERIVED_FILE_DIR/swiftlint.done\"",
+				"",
+			);
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		510 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+				A1BFB2DF2F04328300EAA55A /* ImagePreviewMenuCommands.swift in Sources */,
+				20D8ED592F48E2DE006950A3 /* ActivityProgressView+DataLoading.swift in Sources */,
+				A1BFB2F02F043FA100EAA55A /* BackendConnectionView.swift in Sources */,
+				A1BFB4552F0AABE200EAA55A /* MainToolbar.swift in Sources */,
+				A1BFB4012F057B9300EAA55A /* ImageViewerComponents.swift in Sources */,
+				A1BFB4572F0AAC1E00EAA55A /* MiniToolbar.swift in Sources */,
+				A1BFB4022F057B9300EAA55A /* NavigatorMiniMap.swift in Sources */,
+				A1BFB4032F057B9300EAA55A /* QuickLookComponents.swift in Sources */,
+				202674E62F489757008EAB5D /* ChatMessagesList.swift in Sources */,
+				202674D02F4789BF008EAB5D /* LibraryViewComponents.swift in Sources */,
+				0EB90A1DBB324F96AE256464 /* PDFThumbnailView.swift in Sources */,
+				20D8EE202F4BBFAF006950A3 /* AppleScriptCommands.swift in Sources */,
+				B3A002080000000000BATCH3 /* ActivityDataProcessing.swift in Sources */,
+				A13E7C1F2F27E01E00EC9EE1 /* ActivityRun.swift in Sources */,
+				20D8ED712F48E63B006950A3 /* DocumentStoreTypes.swift in Sources */,
+				A1BFB4042F057B9300EAA55A /* ScrollWheelZoom.swift in Sources */,
+				A1BFB4052F057B9300EAA55A /* FolderAccessManager.swift in Sources */,
+				A1BFB4062F057B9300EAA55A /* MagnifierPanel.swift in Sources */,
+				20D8ED4B2F48E2B3006950A3 /* ActivityProgressModels.swift in Sources */,
+				20D8ED612F48E604006950A3 /* WorkflowSupportTypes.swift in Sources */,
+				A1BFB4072F057B9300EAA55A /* CheckerboardPattern.swift in Sources */,
+				A1BFB45C2F0AAC3700EAA55A /* WorkflowToolbar.swift in Sources */,
+				A13E7C2E2F27E17F00EC9EE1 /* ProviderServiceGenerated.swift in Sources */,
+				A13E7C2F2F27E17F00EC9EE1 /* SearchServiceGenerated.swift in Sources */,
+				A13E7C302F27E17F00EC9EE1 /* BatchServiceGenerated.swift in Sources */,
+				A1BFB45E2F0AAC3700EAA55A /* ChatViewToolbar.swift in Sources */,
+				A1BFB45F2F0AAC3700EAA55A /* SearchViewToolbar.swift in Sources */,
+				202674D62F48963F008EAB5D /* SearchResultRowFromAPI.swift in Sources */,
+				A1BFB2E02F04328300EAA55A /* FocusedCommandButtons.swift in Sources */,
+				001 /* FicheroApp.swift in Sources */,
+				C10000010000000000000002 /* AppInstaller.swift in Sources */,
+				C10000010000000000000001 /* SparkleUpdater.swift in Sources */,
+				002 /* ContentView.swift in Sources */,
+				003 /* Document.swift in Sources */,
+				200BCF3C2F3D548000D7851A /* ContentView+Actions.swift in Sources */,
+				20D8EDD22F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift in Sources */,
+				202674DE2F48972A008EAB5D /* MessageCard.swift in Sources */,
+				010 /* SidebarItem.swift in Sources */,
+				FC3F95AC0E1F4A7DB6B9993E /* FeatureManager.swift in Sources */,
+				A13E7C2A2F27E04300EC9EE1 /* ActivityDetailView.swift in Sources */,
+				5E8 /* SidebarItemBuilder.swift in Sources */,
+				200BCF362F3D547F00D7851A /* ContentView+ViewBuilders.swift in Sources */,
+				A13E7C382F27F33C00EC9EE1 /* WorkflowExecutionRow.swift in Sources */,
+				836 /* CacheModel.swift in Sources */,
+				A1D8BCE82F2CD054006D91D7 /* WorkflowPickerSheet.swift in Sources */,
+				A1D8BCE92F2CD054006D91D7 /* DocumentPickerSheet.swift in Sources */,
+				838 /* PerformanceService.swift in Sources */,
+				202674AC2F4779AA008EAB5D /* NodeProviderModelSelector.swift in Sources */,
+				840 /* ErrorService.swift in Sources */,
+				A1BFB2CF2F042C4100EAA55A /* AIModelSelectionView.swift in Sources */,
+				A1BFB2D02F042C4100EAA55A /* AIProviderAddModelsSheet.swift in Sources */,
+				A1A3AA282F113E6F0021909D /* AutomationService.swift in Sources */,
+				20D8ED6D2F48E62F006950A3 /* DocumentStore+Helpers.swift in Sources */,
+				20D8EE3E2F4BE1AB006950A3 /* ActionLibraryService.swift in Sources */,
+				2026749D2F475B64008EAB5D /* TranscribeNodeConfig.swift in Sources */,
+				A48C3E366EB68F5DFBD38499 /* ThinkingModePicker.swift in Sources */,
+				20D8ED632F48E61C006950A3 /* SidebarItem+MoreFactories.swift in Sources */,
+				202674DC2F489677008EAB5D /* SearchView+Helpers.swift in Sources */,
+				A1BFB2D12F042C4100EAA55A /* ProvidersView.swift in Sources */,
+				B3A002010000000000BATCH3 /* ProvidersView+ModelTypes.swift in Sources */,
+				B3A002020000000000BATCH3 /* ProvidersView+ProviderDetailView.swift in Sources */,
+				B3A002030000000000BATCH3 /* ProvidersView+ProviderSettingsRow.swift in Sources */,
+				A1BFB2D32F042C4100EAA55A /* AddProviderSheet.swift in Sources */,
+				A1A3AA362F11665B0021909D /* IntegrationsView.swift in Sources */,
+				A1A3A9C02F1028480021909D /* MCPToolsCatalogView.swift in Sources */,
+				202674C72F4788E0008EAB5D /* WorkflowMiniPreview.swift in Sources */,
+				A1A3A9C12F1028480021909D /* AddMCPServerSheet.swift in Sources */,
+				A1A3AA112F110D520021909D /* WorkflowCanvasView+DropHandling.swift in Sources */,
+				A1A3AA122F110D520021909D /* WorkflowCanvasView+Gestures.swift in Sources */,
+				20D8ED572F48E2D7006950A3 /* ActivityProgressView+HistoricalProgress.swift in Sources */,
+				A1A3AA132F110D520021909D /* NodePopover.swift in Sources */,
+				C340001000000000PROMPT01 /* PromptPreviewPanel.swift in Sources */,
+				20D8ED5F2F48E4DA006950A3 /* TriggerDetailView+Helpers.swift in Sources */,
+				20D8EE3A2F4BD9F6006950A3 /* LibraryView+InlineEditing.swift in Sources */,
+				2026749F2F475B7A008EAB5D /* DescribeNodeConfig.swift in Sources */,
+				A1A3AA142F110D520021909D /* WorkflowCanvasView.swift in Sources */,
+				202674BC2F478636008EAB5D /* SidebarCreationHandlers.swift in Sources */,
+				A1A3AA152F110D520021909D /* WorkflowEdgeView.swift in Sources */,
+				A1A3AA162F110D520021909D /* WorkflowEditor.swift in Sources */,
+				B2A0020100000000BATCH2S1 /* SidebarItemRow+Label.swift in Sources */,
+				B2A0020200000000BATCH2S2 /* SidebarItemRow+DropHandlers.swift in Sources */,
+				B2A0020300000000BATCH2S3 /* SidebarItemRow+Helpers.swift in Sources */,
+				20D8EDFA2F4BBC12006950A3 /* ModelComparisonTypes.swift in Sources */,
+				B2A0020400000000BATCH2S4 /* SidebarItemRow+Rename.swift in Sources */,
+				B2A0020500000000BATCH2W1 /* WorkflowEditor+Actions.swift in Sources */,
+				B2A0020600000000BATCH2W2 /* WorkflowEditor+NodeViews.swift in Sources */,
+				B2A0020700000000BATCH2W3 /* WorkflowEditor+Preview.swift in Sources */,
+				B2A0020800000000BATCH2C1 /* ChainListContent.swift in Sources */,
+				B2A0020900000000BATCH2C2 /* ChainListRow.swift in Sources */,
+				B2A0020A00000000BATCH2C3 /* ChainStepRow.swift in Sources */,
+				B2A0020B00000000BATCH2C4 /* ChainDetailContent.swift in Sources */,
+				B2A0020C00000000BATCH2C5 /* ChainDetailSheet.swift in Sources */,
+				B2A0020D00000000BATCH2C6 /* NewChainSheet.swift in Sources */,
+				A1A3AA172F110D520021909D /* WorkflowExecutionView.swift in Sources */,
+				A1A3AA182F110D520021909D /* WorkflowNodeView.swift in Sources */,
+				A1A3AA192F110D520021909D /* WorkflowLibraryView.swift in Sources */,
+				20D8EE492F4BED4B006950A3 /* ActionRowView.swift in Sources */,
+				20D8EE382F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift in Sources */,
+				2026749B2F475B4A008EAB5D /* FilesNodeConfig.swift in Sources */,
+				202674A62F476439008EAB5D /* SummarizeFolderNodeConfig.swift in Sources */,
+				038 /* WorkflowChain.swift in Sources */,
+				20D8EDD02F48F4AE006950A3 /* CheckpointTypes.swift in Sources */,
+				20D8EDCC2F48F4A8006950A3 /* LibraryWindow.swift in Sources */,
+				039 /* ChainService.swift in Sources */,
+				200BCF382F3D548000D7851A /* ContentView+Persistence.swift in Sources */,
+				A13E7C3A2F27F36000EC9EE1 /* ActivityServiceGenerated.swift in Sources */,
+				202674AA2F476453008EAB5D /* ExtractEntitiesNodeConfig.swift in Sources */,
+				202674B42F4783A9008EAB5D /* WorkflowNodeCard.swift in Sources */,
+				AUT00022F27F36000EC9EE1 /* AutomationServiceGenerated.swift in Sources */,
+				20D8ED532F48E2CA006950A3 /* WorkflowInspector+DataLoading.swift in Sources */,
+				202674AE2F477AFE008EAB5D /* NodeInputMappings.swift in Sources */,
+				20D8ED6B2F48E62B006950A3 /* WorkflowResponseTypes.swift in Sources */,
+				A13E7C642F27F36000EC9EE1 /* ArtifactServiceGenerated.swift in Sources */,
+				20D8ED4D2F48E2BE006950A3 /* WorkflowInspector+MCPTools.swift in Sources */,
+				20D8EE262F4BC0E2006950A3 /* IntegrationsServiceTypes.swift in Sources */,
+				202674E02F489737008EAB5D /* ChatStatusViews.swift in Sources */,
+				A13E7C652F27F36000EC9EE1 /* StorageServiceGenerated.swift in Sources */,
+				MOD00012F27F36000EC9EE1 /* ModelServiceGenerated.swift in Sources */,
+				IMP00012F27F36000EC9EE1 /* ImportServiceGenerated.swift in Sources */,
+				A13E7C3C2F27F36000EC9EE1 /* ActivityTypes.swift in Sources */,
+				040 /* WorkflowChainListView.swift in Sources */,
+				20D8EDCA2F48F49C006950A3 /* BatchTypes.swift in Sources */,
+				150 /* ChainEditorView.swift in Sources */,
+				154 /* ScheduleCreationSheet.swift in Sources */,
+				155 /* TriggerCreationSheet.swift in Sources */,
+				A1A3AA1A2F110D520021909D /* AgentNodeBlockView.swift in Sources */,
+				20D8ED5D2F48E4D4006950A3 /* TriggerDetailView+ExecutionHistory.swift in Sources */,
+				A1A3AA1B2F110D520021909D /* SimpleWorkflowView.swift in Sources */,
+				A13E7C342F27F32E00EC9EE1 /* TriggerRow.swift in Sources */,
+				A13E7C352F27F32E00EC9EE1 /* ScheduleRow.swift in Sources */,
+				202674B82F4783D5008EAB5D /* WorkflowDiagramPreview.swift in Sources */,
+				202674C92F4788EB008EAB5D /* WorkflowThumbnailView.swift in Sources */,
+				A1A3AA1C2F110D520021909D /* WorkflowOutputLog.swift in Sources */,
+				20D8ED552F48E2CC006950A3 /* WorkflowExecutionRow+Helpers.swift in Sources */,
+				A1A3AA1D2F110D520021909D /* WorkflowPortView.swift in Sources */,
+				A1A3AA1E2F110D520021909D /* WorkflowInspector.swift in Sources */,
+				A1A3AA1F2F110D520021909D /* WorkflowCanvasView+EdgeConnection.swift in Sources */,
+				A1A3AA202F110D520021909D /* CanvasHelpers.swift in Sources */,
+				A1A3AA212F110D520021909D /* WorkflowToolBlocks.swift in Sources */,
+				20D8ED6F2F48E633006950A3 /* SidebarSearchTypes.swift in Sources */,
+				A14AD1B92F2E2E07001CF205 /* EmbeddedBackendService.swift in Sources */,
+				202674D42F489633008EAB5D /* SearchFiltersPanel.swift in Sources */,
+				202674D82F48964E008EAB5D /* SearchMapComponents.swift in Sources */,
+				A1A3A9C22F1028480021909D /* MCPServerDetailView.swift in Sources */,
+				A13E7C462F280BE900EC9EE1 /* ActivityProgressView.swift in Sources */,
+				A13E7C472F280BE900EC9EE1 /* ActivityDiagramView.swift in Sources */,
+				A13E7C482F280BE900EC9EE1 /* ActivityErrorsView.swift in Sources */,
+				202674B22F478206008EAB5D /* ImageWithCursorTracking.swift in Sources */,
+				A13E7C492F280BE900EC9EE1 /* ActivityConsoleView.swift in Sources */,
+				A13E7C4B2F280BE900EC9EE1 /* ActivityOverviewView.swift in Sources */,
+				A13E7C4C2F280BE900EC9EE1 /* ActivityLogView.swift in Sources */,
+				A13E7C4D2F280BE900EC9EE1 /* ActivityCodeView.swift in Sources */,
+				A13E7C4E2F280BE900EC9EE1 /* ActivityViewHelpers.swift in Sources */,
+				A13E7C4F2F280BE900EC9EE1 /* ActivityGraphView.swift in Sources */,
+				A1A3A9C32F1028480021909D /* MCPServersSheet.swift in Sources */,
+				A1A3A9C42F1028480021909D /* MCPServersView.swift in Sources */,
+				A1A3AB242F11CCC70021909D /* Artifact.swift in Sources */,
+				202674DA2F489665008EAB5D /* SearchResultsDisplay.swift in Sources */,
+				A1A3AB252F11CCC70021909D /* Event.swift in Sources */,
+				A1A3AB262F11CCC70021909D /* Trace.swift in Sources */,
+				A1A3AB2B2F11CCC70021909D /* MCPServer.swift in Sources */,
+				A1A3AB2C2F11CCC70021909D /* Run.swift in Sources */,
+				A1A3AB2F2F11CCC70021909D /* Note.swift in Sources */,
+				202674A82F476447008EAB5D /* SummarizeCollectionNodeConfig.swift in Sources */,
+				841 /* ErrorModel.swift in Sources */,
+				A1BFB4612F0AADC000EAA55A /* LayoutMode.swift in Sources */,
+				A1BFB2F32F045C8A00EAA55A /* LibraryImageView.swift in Sources */,
+				202674952F475B1D008EAB5D /* NodeConfigView.swift in Sources */,
+				202674D22F478A13008EAB5D /* LibraryView+DisplayModes.swift in Sources */,
+				AA112233001122AA /* LibraryView+Sorting.swift in Sources */,
+				AA112233001122CC /* LibraryView+ColumnConfig.swift in Sources */,
+				AA112233001122EE /* LibraryView+FilterAndBatch.swift in Sources */,
+				842 /* SidebarState.swift in Sources */,
+				843 /* DragDropModel.swift in Sources */,
+				202674BF2F478647008EAB5D /* SidebarActions.swift in Sources */,
+				A1BFB2DC2F042E5100EAA55A /* SettingsView.swift in Sources */,
+				008 /* EditorView.swift in Sources */,
+				2133BF0B15424FFDBA37619B /* FolderContentsGrid.swift in Sources */,
+				A1BFB4502F0AABA600EAA55A /* ItemTypeRegistry.swift in Sources */,
+				011 /* SearchView.swift in Sources */,
+				A1FB1D7B2F0420310023093C /* AIModelCatalog.swift in Sources */,
+				202674E82F48976C008EAB5D /* ChatView+Extensions.swift in Sources */,
+				A1A3A9FA2F110D170021909D /* ContentViewModifiers.swift in Sources */,
+				A1A3AA382F1166660021909D /* IntegrationsService.swift in Sources */,
+				202674CE2F4788FF008EAB5D /* NewWorkflowSheet.swift in Sources */,
+				A1FB1D812F0420A90023093C /* LibraryView.swift in Sources */,
+				A1FB1D822F0420A90023093C /* DocumentInspector.swift in Sources */,
+				A1BFB2D72F042C6D00EAA55A /* ProviderLogoView.swift in Sources */,
+				A1BFB2D82F042C6D00EAA55A /* StatusBadge.swift in Sources */,
+				A1BFB4F22F30000100EAA55A /* MacPlainTextEditor.swift in Sources */,
+				A1BFB4092F057BAC00EAA55A /* ViewMenuCommands.swift in Sources */,
+				20D8ED512F48E2C4006950A3 /* WorkflowPreviewSheet.swift in Sources */,
+				A1BFB2C82F042C0500EAA55A /* ViewSettings.swift in Sources */,
+				A1BFB2C92F042C0500EAA55A /* AppState.swift in Sources */,
+				20D8EDFC2F4BBC1A006950A3 /* WorkflowStreamService+Parsing.swift in Sources */,
+				018 /* ChatView.swift in Sources */,
+				202674A22F4762E6008EAB5D /* ImageZoomToolbar.swift in Sources */,
+				2011E35A2F93ADF700606651 /* ComparisonTypes.swift in Sources */,
+				202674992F475B33008EAB5D /* SearchNodeConfig.swift in Sources */,
+				200BCF2C2F3D501800D7851A /* ContentView+State.swift in Sources */,
+				20D8EDCE2F48F4AE006950A3 /* WelcomeView.swift in Sources */,
+				019 /* DocumentStore.swift in Sources */,
+				20D8EDF82F4BBC04006950A3 /* WorkflowStreamTypes.swift in Sources */,
+				020 /* APIClient.swift in Sources */,
+				20D8EE282F4BC0ED006950A3 /* IntegrationsService+AppSpecific.swift in Sources */,
+				A13E80A22F2AD75100EC9EE1 /* ModelComparisonService.swift in Sources */,
+				20D8EE452F4BE260006950A3 /* ActionLibraryView.swift in Sources */,
+				20D8EE222F4BBFB8006950A3 /* AutomationServiceTypes.swift in Sources */,
+				A1BFB2E42F0439FE00EAA55A /* ImportService.swift in Sources */,
+				A1A3A9FE2F110D260021909D /* AgentSettingsView.swift in Sources */,
+				A1A3A9FF2F110D260021909D /* AgentConfigurationView.swift in Sources */,
+				20D8EE4B2F4BED57006950A3 /* ActionDetailView.swift in Sources */,
+				023 /* ChatService.swift in Sources */,
+				025 /* SavedSearchService.swift in Sources */,
+				A1BFB4532F0AABBC00EAA55A /* AddItemMenu.swift in Sources */,
+				044 /* WorkflowServiceGenerated.swift in Sources */,
+				045 /* SavedSearchServiceGenerated.swift in Sources */,
+				202674E22F48973E008EAB5D /* ChatInputView.swift in Sources */,
+				20D8ED5B2F48E4CA006950A3 /* TriggerDetailView+Configuration.swift in Sources */,
+				046 /* ConversationServiceGenerated.swift in Sources */,
+				202674E42F489742008EAB5D /* ChatMapGrid.swift in Sources */,
+				200BCF3A2F3D548000D7851A /* ContentView+Navigation.swift in Sources */,
+				202674B62F4783BC008EAB5D /* WorkflowNodeRow.swift in Sources */,
+				047 /* ChatServiceGenerated.swift in Sources */,
+				20D8EDD42F48F4BE006950A3 /* WorkflowRunResponse.swift in Sources */,
+				049 /* DocumentServiceGenerated.swift in Sources */,
+				A1FB1D7D2F0420930023093C /* ChatInspector.swift in Sources */,
+				B3A002040000000000BATCH3 /* ChatInspector+Actions.swift in Sources */,
+				B3A002050000000000BATCH3 /* ChatInspector+Header.swift in Sources */,
+				B3A002060000000000BATCH3 /* ChatInspector+ScopedDocuments.swift in Sources */,
+				B3A002070000000000BATCH3 /* ChatInspector+Search.swift in Sources */,
+				A1BFB2EE2F043F5800EAA55A /* DocumentTabView.swift in Sources */,
+				202674972F475B23008EAB5D /* CollectionNodeConfig.swift in Sources */,
+				028 /* ModelService.swift in Sources */,
+				20D8EE242F4BBFBA006950A3 /* ProviderServiceTypes.swift in Sources */,
+				A1FB1D9B2F0420D50023093C /* SidebarItemContextMenu.swift in Sources */,
+				20D8ED732F48E644006950A3 /* SidebarViewTypes.swift in Sources */,
+				20D8EE472F4BE285006950A3 /* ActionPickerView.swift in Sources */,
+				A1BFB2E72F043D2300EAA55A /* StorageService.swift in Sources */,
+				202674CC2F4788F2008EAB5D /* WorkflowLibraryRow.swift in Sources */,
+				A1BFB2EB2F043F4500EAA55A /* ViewContexts.swift in Sources */,
+				202674B02F4781BA008EAB5D /* TrackingImageView.swift in Sources */,
+				20D8ED4F2F48E2C1006950A3 /* ActivityProgressView+LiveProgress.swift in Sources */,
+				A1BFB2EC2F043F4500EAA55A /* FicheroDocument.swift in Sources */,
+				9D71A811170D438B938FC1DA /* LibraryManager.swift in Sources */,
+				852B1713BA5220E613865101 /* LibraryManager+Operations.swift in Sources */,
+				C1C484907B28189E223436BE /* LibraryManager+Helpers.swift in Sources */,
+				BFC56BC755C4B7C58EEAE341 /* LibraryManager+Persistence.swift in Sources */,
+				B8CED5AA645840B7AC1696DD /* WindowState.swift in Sources */,
+				A1FB1D9C2F0420D50023093C /* SidebarItemRow.swift in Sources */,
+				A1FB1D9D2F0420D50023093C /* SidebarView.swift in Sources */,
+				A1A3A9F72F110CFD0021909D /* WorkflowExecutionService.swift in Sources */,
+				041 /* WorkflowStreamService.swift in Sources */,
+				20D8ED692F48E626006950A3 /* SidebarChatTypes.swift in Sources */,
+				048 /* WorkflowExecutionObserver.swift in Sources */,
+				20D8EE2A2F4BC0F3006950A3 /* WorkflowExecutionTypes.swift in Sources */,
+				A13E7C272F27E03300EC9EE1 /* SidebarModeIcon.swift in Sources */,
+				A13E7C282F27E03300EC9EE1 /* SidebarModeBar.swift in Sources */,
+				A13E80A52F2AD78100EC9EE1 /* ModelComparisonView.swift in Sources */,
+				B4A002010000000000BATCH4 /* ModelComparisonView+Sidebar.swift in Sources */,
+				B4A002020000000000BATCH4 /* ComparisonResultView.swift in Sources */,
+				B4A002030000000000BATCH4 /* ModelResultCard.swift in Sources */,
+				B4A002040000000000BATCH4 /* ModelPickerSheet.swift in Sources */,
+				B4A002050000000000BATCH4 /* PresetPickerSheet.swift in Sources */,
+				042 /* AppleScriptSupport.swift in Sources */,
+				A1FB1D9F2F0420D50023093C /* SidebarStateManagers.swift in Sources */,
+				A1FB1DA02F0420D50023093C /* SidebarViewExtensions.swift in Sources */,
+				A1FB1DA12F0420D50023093C /* SidebarSectionHeader.swift in Sources */,
+				A1FB1DA22F0420D50023093C /* SidebarConstants.swift in Sources */,
+				832 /* Workflow.swift in Sources */,
+				035 /* WorkflowTypes.swift in Sources */,
+				036 /* WorkflowStore.swift in Sources */,
+				GTE2 /* GeneratedTypeExtensions.swift in Sources */,
+				A1A3A9F42F1028E70021909D /* MCPService.swift in Sources */,
+				037 /* WorkflowExporter.swift in Sources */,
+				202674C22F47865B008EAB5D /* SidebarObservers.swift in Sources */,
+				A1BFB2E22F0432A600EAA55A /* ProvidersSettingsSheet.swift in Sources */,
+				A3C1803DF6559D5BFCC9935E /* ComparisonDetailView.swift in Sources */,
+				202674A42F47642A008EAB5D /* SummarizeFileNodeConfig.swift in Sources */,
+				202674C52F4788CB008EAB5D /* WorkflowDetailView.swift in Sources */,
+				E6E64CE83B1FF1235DCFDF80 /* ScheduleDetailView.swift in Sources */,
+				71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */,
+				20D8EE3C2F4BE0D8006950A3 /* ActionsService.swift in Sources */,
+				898AABCC531843909C0C6AA8 /* TriggerEditorView.swift in Sources */,
+				8C35E319E4B9A46AB0383C10 /* TriggerDetailView.swift in Sources */,
+				DDE8A1E95DE61B0723A40BC9 /* DynamicConfigView.swift in Sources */,
+				B4A0020B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift in Sources */,
+				20D8EE302F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift in Sources */,
+				20D8ED672F48E626006950A3 /* DocumentStore+CRUD.swift in Sources */,
+				B4A0020C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift in Sources */,
+				B4A0020D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift in Sources */,
+				E8DB4DEABBD7388DB33D81DA /* DocumentInspectorInfoTab.swift in Sources */,
+				AD284E03A3377968AE568677 /* DocumentInspectorMetadataTab.swift in Sources */,
+				7C874A46B0C0C85ACD9F23AA /* DocumentInspectorArtifactsTab.swift in Sources */,
+				3D3445F0B90D093149C9A7D6 /* DocumentInspectorContentTab.swift in Sources */,
+				ED0E3300104D4A70958C3844 /* AttributedTextEditor.swift in Sources */,
+				AF3C46E684A7D133B1BAA5D2 /* TriggerEditorFormPanel.swift in Sources */,
+				2ED84CCBA91252EA2D0C5D34 /* TriggerEditorPreviewPanel.swift in Sources */,
+				4EBA402FBE51F9F56366C3A5 /* FlowLayout.swift in Sources */,
+				4458475E8C2BF728591E504F /* AIDefaults.swift in Sources */,
+				C96A47B8A003AF3A6FC98CF8 /* AISettingsView.swift in Sources */,
+				AA214031892F4668F16A3E75 /* GeneralSettingsView.swift in Sources */,
+				20D8ED652F48E61C006950A3 /* WorkflowToolTypes.swift in Sources */,
+				64574A29B56CBA1F27542556 /* BackendSettingsView.swift in Sources */,
+				D2A64087B8C786EE95E842A5 /* LocalModelsSettingsView.swift in Sources */,
+				B5A0020400000000BATCH5W1 /* WorkflowOutputLog+Models.swift in Sources */,
+				20D8ED492F48E2B1006950A3 /* WorkflowInspector+AgentsSection.swift in Sources */,
+				B5A0020500000000BATCH5W2 /* WorkflowOutputLog+StatusViews.swift in Sources */,
+				B5A0020600000000BATCH5W3 /* WorkflowOutputLog+ErrorCell.swift in Sources */,
+				B5A0020700000000BATCH5W4 /* WorkflowOutputLog+EmptyStates.swift in Sources */,
+				B5A0020800000000BATCH5S1 /* ScheduleEditorView+Category.swift in Sources */,
+				B6A0020100000000BATCH6C1 /* ComparisonDetailView+Actions.swift in Sources */,
+				B6A0020200000000BATCH6C2 /* ComparisonDetailView+Models.swift in Sources */,
+				B6A0020300000000BATCH6C3 /* ComparisonDetailView+Sections.swift in Sources */,
+				B6A0020500000000BATCH6S2 /* SidebarView+Helpers.swift in Sources */,
+				B6A0020600000000BATCH6S3 /* SidebarView+SelectionHandling.swift in Sources */,
+				B6A0020700000000BATCH6S4 /* SidebarView+ViewComponents.swift in Sources */,
+				B6A0020800000000BATCH6A1 /* AddProviderSheet+Helpers.swift in Sources */,
+				B6A0020900000000BATCH6A2 /* AddProviderSheet+Step1.swift in Sources */,
+				B6A0020A00000000BATCH6A3 /* AddProviderSheet+Step2.swift in Sources */,
+				B6A0020B00000000BATCH6A4 /* AddProviderSheet+Step3.swift in Sources */,
+			);
+		};
+		A10521A52EFDC92400B28C3E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
+		A10521BD2EFDC94100B28C3E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A10521AE2EFDC92400B28C3E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 500 /* Fichero */;
+			targetProxy = A10521AD2EFDC92400B28C3E /* PBXContainerItemProxy */;
+		};
+		A10521C62EFDC94100B28C3E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 500 /* Fichero */;
+			targetProxy = A10521C52EFDC94100B28C3E /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		800 /* Debug configuration for PBXProject "fichero" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = QAPB6CWYR6;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		801 /* Release configuration for PBXProject "fichero" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = QAPB6CWYR6;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		810 /* Debug configuration for PBXNativeTarget "Fichero" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = YES;
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
+				CODE_SIGN_ENTITLEMENTS = "fichero/Fichero.entitlements";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "fichero/Info.plist";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
+					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
+					"$(SRCROOT)/fichero/Views/Components",
+					"$(SRCROOT)/fichero/Views/Settings",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 0.1.0.dev1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fichero.fichero;
+				PRODUCT_NAME = "Fichero";
+				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero-releases/main/appcast.xml";
+				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		811 /* Release configuration for PBXNativeTarget "Fichero" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = YES;
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
+				CODE_SIGN_ENTITLEMENTS = "fichero/FicheroRelease.entitlements";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "fichero/Info.plist";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
+					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
+					"$(SRCROOT)/fichero/Views/Components",
+					"$(SRCROOT)/fichero/Views/Settings",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 0.1.0.dev1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fichero.fichero;
+				PRODUCT_NAME = "Fichero";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero-releases/main/appcast.xml";
+				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		A10521AF2EFDC92400B28C3E /* Debug configuration for PBXNativeTarget "FicheroTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
+					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
+					"$(SRCROOT)/fichero/Views/Components",
+					"$(SRCROOT)/fichero/Views/Settings",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fichero.fichero.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
+			};
+			name = Debug;
+		};
+		A10521B02EFDC92400B28C3E /* Release configuration for PBXNativeTarget "FicheroTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
+					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
+					"$(SRCROOT)/fichero/Views/Components",
+					"$(SRCROOT)/fichero/Views/Settings",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fichero.fichero.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
+			};
+			name = Release;
+		};
+		A10521C82EFDC94100B28C3E /* Debug configuration for PBXNativeTarget "FicheroUITests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
+					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
+					"$(SRCROOT)/fichero/Views/Components",
+					"$(SRCROOT)/fichero/Views/Settings",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fichero.fichero.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
+			};
+			name = Debug;
+		};
+		A10521C92EFDC94100B28C3E /* Release configuration for PBXNativeTarget "FicheroUITests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
+					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
+					"$(SRCROOT)/fichero/Views/Components",
+					"$(SRCROOT)/fichero/Views/Settings",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fichero.fichero.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		600 /* Build configuration list for PBXNativeTarget "Fichero" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				810 /* Debug configuration for PBXNativeTarget "Fichero" */,
+				811 /* Release configuration for PBXNativeTarget "Fichero" */,
+			);
+			defaultConfigurationName = Debug;
+		};
+		710 /* Build configuration list for PBXProject "fichero" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				800 /* Debug configuration for PBXProject "fichero" */,
+				801 /* Release configuration for PBXProject "fichero" */,
+			);
+			defaultConfigurationName = Debug;
+		};
+		A10521B12EFDC92400B28C3E /* Build configuration list for PBXNativeTarget "FicheroTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10521AF2EFDC92400B28C3E /* Debug configuration for PBXNativeTarget "FicheroTests" */,
+				A10521B02EFDC92400B28C3E /* Release configuration for PBXNativeTarget "FicheroTests" */,
+			);
+			defaultConfigurationName = Debug;
+		};
+		A10521C72EFDC94100B28C3E /* Build configuration list for PBXNativeTarget "FicheroUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10521C82EFDC94100B28C3E /* Debug configuration for PBXNativeTarget "FicheroUITests" */,
+				A10521C92EFDC94100B28C3E /* Release configuration for PBXNativeTarget "FicheroUITests" */,
+			);
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A18ED3F02F141DFE007C2C6E /* XCLocalSwiftPackageReference "fichero-api-client" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "fichero-api-client";
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C10000210000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FicheroAPIClient;
+		};
+		A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FicheroAPIClient;
+		};
+		C10000310000000000000001 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C10000210000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 700 /* Project object */;
+}

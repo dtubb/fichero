@@ -123,14 +123,14 @@ All AI-dependent features (chat, workflows, providers, batch, activity) are OFF.
 
 ### Acceptance Criteria
 
-1. `xcodebuild -scheme fichero-swiftui -destination 'platform=macOS' build` exits 0
-2. `cd fichero-api && PYTHONPATH=src python -m pytest tests/ -x` passes with 0 failures
-3. `swiftlint lint --reporter json fichero-swiftui/` produces 0 errors (warnings acceptable)
-4. `pylint fichero-api/src/fichero/ --disable=all --enable=E` produces 0 errors
-5. `FeatureFlags.swift` exists at `fichero-swiftui/fichero-swiftui/App/FeatureFlags.swift` and compiles
-6. `feature_flags.py` exists at `fichero-api/src/fichero/feature_flags.py` and passes import test
+1. `xcodebuild -scheme fichero -destination 'platform=macOS' build` exits 0
+2. `cd fichero-engine && PYTHONPATH=src python -m pytest tests/ -x` passes with 0 failures
+3. `swiftlint lint --reporter json fichero/` produces 0 errors (warnings acceptable)
+4. `pylint fichero-engine/src/fichero/ --disable=all --enable=E` produces 0 errors
+5. `FeatureFlags.swift` exists at `fichero/fichero/App/FeatureFlags.swift` and compiles
+6. `feature_flags.py` exists at `fichero-engine/src/fichero/feature_flags.py` and passes import test
 7. `GET /api/feature-flags` returns valid JSON with all expected keys
-8. OpenAPI schema at `fichero-api/openapi.json` validates (no dangling refs, all M0-ON routes present)
+8. OpenAPI schema at `fichero-engine/openapi.json` validates (no dangling refs, all M0-ON routes present)
 9. `ContractTests.swift` and `EndpointValidationTests.swift` pass
 10. A `CONTRIBUTING.md` or equivalent doc describes how to set up the dev environment from scratch
 
@@ -214,8 +214,8 @@ M0-6 (FeatureFlags.swift) --> M0-7 (sync) --> M0-8 (wire startup)
 5. User can add an AI provider (e.g., OpenAI) with an API key and see its models listed
 6. All M1-ON backend routes have at least one passing unit test per endpoint
 7. All M1-ON frontend views have at least one basic test (render test or model test)
-8. `xcodebuild test` passes for the fichero-swiftui-tests target
-9. `pytest fichero-api/tests/` passes with 0 failures, coverage report generated
+8. `xcodebuild test` passes for the fichero-tests target
+9. `pytest fichero-engine/tests/` passes with 0 failures, coverage report generated
 10. Sidebar shows only: Library, Search (other modes hidden by flags)
 
 ### Task List
@@ -478,7 +478,7 @@ All tests --> M3-27 (coverage report) --> M3-28 (QA)
 
 1. All M3 acceptance criteria still pass
 2. All feature flags are ON (no DEV-only or OFF features remain)
-3. `xcodebuild -scheme fichero-swiftui -configuration Release build` succeeds
+3. `xcodebuild -scheme fichero -configuration Release build` succeeds
 4. Full test suite (Swift + Python) passes in CI-like environment
 5. Backend coverage >= 75% overall
 6. Zero pylint errors, zero swiftlint errors

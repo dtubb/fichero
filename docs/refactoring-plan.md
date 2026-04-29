@@ -457,7 +457,7 @@ After each refactoring:
 ### Integration Testing
 After each priority level:
 1. Full app build
-2. Run Swift tests: `xcodebuild test -project fichero-swiftui/fichero-swiftui.xcodeproj -scheme Fichero`
+2. Run Swift tests: `xcodebuild test -project fichero/fichero.xcodeproj -scheme Fichero`
 3. Manual testing of affected features
 
 ---

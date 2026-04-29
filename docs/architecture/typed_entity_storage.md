@@ -31,7 +31,7 @@
 
 ### What's missing
 
-The catalogue extractors (`fichero-api/src/fichero/workflows/tools/extractors.py`) write `Artifact(content=markdown, data={"items": [...]})` blobs **instead of** populating `KnowledgeEntity` and `KnowledgeClaim` rows. The KG layer exists in isolation — populated only by manual API calls or test fixtures, not by the actual extraction pipeline.
+The catalogue extractors (`fichero-engine/src/fichero/workflows/tools/extractors.py`) write `Artifact(content=markdown, data={"items": [...]})` blobs **instead of** populating `KnowledgeEntity` and `KnowledgeClaim` rows. The KG layer exists in isolation — populated only by manual API calls or test fixtures, not by the actual extraction pipeline.
 
 ### The 0.0.2 work — connect them
 
@@ -351,7 +351,7 @@ Free-form artifacts (`summary`, `catalogue`, narrative) keep using the existing 
 ### 4.2 Pydantic models
 
 ```python
-# fichero-api/src/fichero/models.py — new section
+# fichero-engine/src/fichero/models.py — new section
 
 class Person(BaseModel):
     id: str = Field(default_factory=_new_id)

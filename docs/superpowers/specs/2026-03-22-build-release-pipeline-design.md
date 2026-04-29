@@ -5,7 +5,7 @@
 
 ## Problem
 
-Fichero has a dual-codebase architecture (SwiftUI frontend + Python FastAPI backend) but no unified build, release, or distribution pipeline. The existing scripts in `fichero-api/scripts/` handle individual steps (Briefcase bundling, backend copy) but nothing orchestrates the full flow from source to notarized DMG to GitHub release.
+Fichero has a dual-codebase architecture (SwiftUI frontend + Python FastAPI backend) but no unified build, release, or distribution pipeline. The existing scripts in `fichero-engine/scripts/` handle individual steps (Briefcase bundling, backend copy) but nothing orchestrates the full flow from source to notarized DMG to GitHub release.
 
 ## Decision
 
@@ -29,7 +29,7 @@ scripts/release.sh              Orchestrator: validate → release → deploy
 
 ```
                     ┌──────────────────────┐
-                    │  fichero-api/        │
+                    │  fichero-engine/        │
                     │  (Python backend)    │
                     └──────┬───────────────┘
                            │ briefcase package
@@ -41,7 +41,7 @@ scripts/release.sh              Orchestrator: validate → release → deploy
                            │ copy to Resources/
                            ▼
                     ┌──────────────────────┐
-                    │  fichero-swiftui/    │
+                    │  fichero/    │
                     │  (SwiftUI frontend)  │
                     └──────┬───────────────┘
                            │ xcodebuild

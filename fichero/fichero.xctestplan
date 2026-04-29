@@ -1,0 +1,25 @@
+{
+  "configurations" : [
+    {
+      "id" : "1C37B94C-AD56-4CBE-9B8B-C2CE21D2F115",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:fichero.xcodeproj",
+        "identifier" : "A10521A82EFDC92400B28C3E",
+        "name" : "FicheroTests"
+      }
+    }
+  ],
+  "version" : 1
+}

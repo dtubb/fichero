@@ -16,24 +16,24 @@
 
 ### Files to modify
 
-- `fichero-api/src/fichero/workflows/tools/extractors.py` — refactor `_run_extractor` to write KG rows, not Artifact JSON, for structured types.
-- `fichero-api/src/fichero/workflows/tools/catalogue.py` — the reducer reads claims/entities instead of re-deriving from text; closes #727.
-- `fichero-api/src/fichero/resources/default_workflows/catalogue.json` — drop archive-specific sections from defaults, add places/organizations.
-- `fichero-api/src/fichero/resources/default_workflows/catalogue_composable.json` — same; closes #726.
-- `fichero-swiftui/fichero-swiftui/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab.swift` — read from `/api/entities` + `/api/claims` for structured types; keep current path for free-form.
+- `fichero-engine/src/fichero/workflows/tools/extractors.py` — refactor `_run_extractor` to write KG rows, not Artifact JSON, for structured types.
+- `fichero-engine/src/fichero/workflows/tools/catalogue.py` — the reducer reads claims/entities instead of re-deriving from text; closes #727.
+- `fichero-engine/src/fichero/resources/default_workflows/catalogue.json` — drop archive-specific sections from defaults, add places/organizations.
+- `fichero-engine/src/fichero/resources/default_workflows/catalogue_composable.json` — same; closes #726.
+- `fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab.swift` — read from `/api/entities` + `/api/claims` for structured types; keep current path for free-form.
 
 ### Files to create
 
-- `fichero-api/src/fichero/workflows/tools/_entity_writer.py` — small module: `_upsert_entity(name, type, db)` + `_save_claim(text, doc_id, entity_ids, db)` helpers. Imported by `extractors.py` and `catalogue.py`.
-- `fichero-api/tests/unit/workflows/test_entity_writer.py` — round-trip tests for the helpers.
-- `fichero-api/tests/unit/workflows/test_extractor_kg_integration.py` — extractor → KG row tests.
-- `fichero-swiftui/fichero-swiftui/Views/Library/DocumentInspector/EntityListView.swift` — generic per-type Inspector view; one impl, parameterized by EntityType.
+- `fichero-engine/src/fichero/workflows/tools/_entity_writer.py` — small module: `_upsert_entity(name, type, db)` + `_save_claim(text, doc_id, entity_ids, db)` helpers. Imported by `extractors.py` and `catalogue.py`.
+- `fichero-engine/tests/unit/workflows/test_entity_writer.py` — round-trip tests for the helpers.
+- `fichero-engine/tests/unit/workflows/test_extractor_kg_integration.py` — extractor → KG row tests.
+- `fichero/fichero/Views/Library/DocumentInspector/EntityListView.swift` — generic per-type Inspector view; one impl, parameterized by EntityType.
 
 ### Files to read (no changes, just reference)
 
-- `fichero-api/src/fichero/knowledge_models.py` — KnowledgeEntity, KnowledgeClaim, EntityType enum
-- `fichero-api/src/fichero/api/routes/entities.py` — existing endpoints
-- `fichero-api/src/fichero/api/routes/claims.py` — existing endpoints
+- `fichero-engine/src/fichero/knowledge_models.py` — KnowledgeEntity, KnowledgeClaim, EntityType enum
+- `fichero-engine/src/fichero/api/routes/entities.py` — existing endpoints
+- `fichero-engine/src/fichero/api/routes/claims.py` — existing endpoints
 
 ---
 
@@ -42,13 +42,13 @@
 ### Task 1: Create `_entity_writer.py` skeleton
 
 **Files:**
-- Create: `fichero-api/src/fichero/workflows/tools/_entity_writer.py`
-- Test: `fichero-api/tests/unit/workflows/test_entity_writer.py`
+- Create: `fichero-engine/src/fichero/workflows/tools/_entity_writer.py`
+- Test: `fichero-engine/tests/unit/workflows/test_entity_writer.py`
 
 - [ ] **Step 1: Write the failing test for `_upsert_entity` (new entity case)**
 
 ```python
-# fichero-api/tests/unit/workflows/test_entity_writer.py
+# fichero-engine/tests/unit/workflows/test_entity_writer.py
 import pytest
 from fichero.knowledge_models import KnowledgeEntity, EntityType
 from fichero.workflows.tools._entity_writer import upsert_entity
@@ -67,8 +67,8 @@ class TestUpsertEntity:
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest \
-  fichero-api/tests/unit/workflows/test_entity_writer.py::TestUpsertEntity::test_creates_new_entity_when_absent -v
+PYTHONPATH=fichero-engine/src .venv/bin/pytest \
+  fichero-engine/tests/unit/workflows/test_entity_writer.py::TestUpsertEntity::test_creates_new_entity_when_absent -v
 ```
 
 Expected: FAIL with `ModuleNotFoundError: fichero.workflows.tools._entity_writer`.
@@ -76,7 +76,7 @@ Expected: FAIL with `ModuleNotFoundError: fichero.workflows.tools._entity_writer
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# fichero-api/src/fichero/workflows/tools/_entity_writer.py
+# fichero-engine/src/fichero/workflows/tools/_entity_writer.py
 """Helpers for writing KnowledgeEntity and KnowledgeClaim rows from catalogue
 extractors. Centralizes the upsert + claim save pattern so each extractor
 doesn't reimplement it.
@@ -126,8 +126,8 @@ def upsert_entity(
 - [ ] **Step 4: Run test to verify it passes**
 
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest \
-  fichero-api/tests/unit/workflows/test_entity_writer.py::TestUpsertEntity::test_creates_new_entity_when_absent -v
+PYTHONPATH=fichero-engine/src .venv/bin/pytest \
+  fichero-engine/tests/unit/workflows/test_entity_writer.py::TestUpsertEntity::test_creates_new_entity_when_absent -v
 ```
 
 Expected: PASS.
@@ -135,15 +135,15 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add fichero-api/src/fichero/workflows/tools/_entity_writer.py \
-        fichero-api/tests/unit/workflows/test_entity_writer.py
+git add fichero-engine/src/fichero/workflows/tools/_entity_writer.py \
+        fichero-engine/tests/unit/workflows/test_entity_writer.py
 git commit -m "feat(kg): add upsert_entity helper for catalogue extractors (#728)"
 ```
 
 ### Task 2: Idempotency — calling upsert twice reuses entity
 
 **Files:**
-- Modify: `fichero-api/tests/unit/workflows/test_entity_writer.py`
+- Modify: `fichero-engine/tests/unit/workflows/test_entity_writer.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -165,15 +165,15 @@ Expected: PASS (the implementation already handles this).
 - [ ] **Step 3: Commit**
 
 ```bash
-git add fichero-api/tests/unit/workflows/test_entity_writer.py
+git add fichero-engine/tests/unit/workflows/test_entity_writer.py
 git commit -m "test(kg): assert upsert_entity idempotent on repeat call (#728)"
 ```
 
 ### Task 3: Add `save_claim` helper
 
 **Files:**
-- Modify: `fichero-api/src/fichero/workflows/tools/_entity_writer.py`
-- Modify: `fichero-api/tests/unit/workflows/test_entity_writer.py`
+- Modify: `fichero-engine/src/fichero/workflows/tools/_entity_writer.py`
+- Modify: `fichero-engine/tests/unit/workflows/test_entity_writer.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -200,8 +200,8 @@ class TestSaveClaim:
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest \
-  fichero-api/tests/unit/workflows/test_entity_writer.py::TestSaveClaim -v
+PYTHONPATH=fichero-engine/src .venv/bin/pytest \
+  fichero-engine/tests/unit/workflows/test_entity_writer.py::TestSaveClaim -v
 ```
 
 Expected: FAIL — `ImportError: cannot import name 'save_claim'`.
@@ -209,7 +209,7 @@ Expected: FAIL — `ImportError: cannot import name 'save_claim'`.
 - [ ] **Step 3: Implement**
 
 ```python
-# Append to fichero-api/src/fichero/workflows/tools/_entity_writer.py
+# Append to fichero-engine/src/fichero/workflows/tools/_entity_writer.py
 
 def save_claim(
     db: Database,
@@ -243,8 +243,8 @@ def save_claim(
 - [ ] **Step 4: Run tests to verify pass**
 
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest \
-  fichero-api/tests/unit/workflows/test_entity_writer.py -v
+PYTHONPATH=fichero-engine/src .venv/bin/pytest \
+  fichero-engine/tests/unit/workflows/test_entity_writer.py -v
 ```
 
 Expected: all green.
@@ -252,8 +252,8 @@ Expected: all green.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add fichero-api/src/fichero/workflows/tools/_entity_writer.py \
-        fichero-api/tests/unit/workflows/test_entity_writer.py
+git add fichero-engine/src/fichero/workflows/tools/_entity_writer.py \
+        fichero-engine/tests/unit/workflows/test_entity_writer.py
 git commit -m "feat(kg): add save_claim helper for document-scoped claims (#728)"
 ```
 
@@ -264,7 +264,7 @@ git commit -m "feat(kg): add save_claim helper for document-scoped claims (#728)
 ### Task 4: Add entity_type mapping per section
 
 **Files:**
-- Modify: `fichero-api/src/fichero/workflows/tools/extractors.py:91`
+- Modify: `fichero-engine/src/fichero/workflows/tools/extractors.py:91`
 
 - [ ] **Step 1: Augment `_SECTIONS` with `entity_type` field**
 
@@ -302,7 +302,7 @@ from fichero.knowledge_models import EntityType
 - [ ] **Step 3: Run existing tests — they should still pass (no behavioral change)**
 
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/workflows/ -v
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/workflows/ -v
 ```
 
 Expected: PASS.
@@ -310,20 +310,20 @@ Expected: PASS.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add fichero-api/src/fichero/workflows/tools/extractors.py
+git add fichero-engine/src/fichero/workflows/tools/extractors.py
 git commit -m "feat(kg): annotate extractor sections with EntityType (#728)"
 ```
 
 ### Task 5: Refactor `_run_extractor` to write KG rows for structured types
 
 **Files:**
-- Modify: `fichero-api/src/fichero/workflows/tools/extractors.py:287` (`_run_extractor`)
-- Test: `fichero-api/tests/unit/workflows/test_extractor_kg_integration.py` (new)
+- Modify: `fichero-engine/src/fichero/workflows/tools/extractors.py:287` (`_run_extractor`)
+- Test: `fichero-engine/tests/unit/workflows/test_extractor_kg_integration.py` (new)
 
 - [ ] **Step 1: Write the failing integration test**
 
 ```python
-# fichero-api/tests/unit/workflows/test_extractor_kg_integration.py
+# fichero-engine/tests/unit/workflows/test_extractor_kg_integration.py
 import pytest
 from unittest.mock import patch, AsyncMock
 from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim, EntityType
@@ -356,8 +356,8 @@ class TestPeopleExtractorKGIntegration:
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest \
-  fichero-api/tests/unit/workflows/test_extractor_kg_integration.py -v
+PYTHONPATH=fichero-engine/src .venv/bin/pytest \
+  fichero-engine/tests/unit/workflows/test_extractor_kg_integration.py -v
 ```
 
 Expected: FAIL — extractor still writes `Artifact`, no entity rows.
@@ -417,8 +417,8 @@ elif container and library_path and section.get("entity_type") is None:
 - [ ] **Step 4: Run integration test**
 
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest \
-  fichero-api/tests/unit/workflows/test_extractor_kg_integration.py -v
+PYTHONPATH=fichero-engine/src .venv/bin/pytest \
+  fichero-engine/tests/unit/workflows/test_extractor_kg_integration.py -v
 ```
 
 Expected: PASS.
@@ -426,15 +426,15 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add fichero-api/src/fichero/workflows/tools/extractors.py \
-        fichero-api/tests/unit/workflows/test_extractor_kg_integration.py
+git add fichero-engine/src/fichero/workflows/tools/extractors.py \
+        fichero-engine/tests/unit/workflows/test_extractor_kg_integration.py
 git commit -m "feat(kg): extractors write KnowledgeEntity + KnowledgeClaim rows (#728)"
 ```
 
 ### Task 6: Idempotency — second run on same doc doesn't duplicate entities
 
 **Files:**
-- Modify: `fichero-api/tests/unit/workflows/test_extractor_kg_integration.py`
+- Modify: `fichero-engine/tests/unit/workflows/test_extractor_kg_integration.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -470,7 +470,7 @@ Expected: PASS (upsert_entity is already idempotent; save_claim always creates n
 - [ ] **Step 3: Commit**
 
 ```bash
-git add fichero-api/tests/unit/workflows/test_extractor_kg_integration.py
+git add fichero-engine/tests/unit/workflows/test_extractor_kg_integration.py
 git commit -m "test(kg): assert extractor idempotent on entities, appends claims (#728)"
 ```
 
@@ -481,7 +481,7 @@ git commit -m "test(kg): assert extractor idempotent on entities, appends claims
 ### Task 7: Remove markdown artifact write for structured types
 
 **Files:**
-- Modify: `fichero-api/src/fichero/workflows/tools/extractors.py:362-385` (artifact save block)
+- Modify: `fichero-engine/src/fichero/workflows/tools/extractors.py:362-385` (artifact save block)
 
 - [ ] **Step 1: Write the test that asserts no artifact is created for structured types**
 
@@ -532,8 +532,8 @@ Keep the markdown rendering — it still becomes the `text` return value so down
 - [ ] **Step 4: Run all extractor tests**
 
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest \
-  fichero-api/tests/unit/workflows/ -v
+PYTHONPATH=fichero-engine/src .venv/bin/pytest \
+  fichero-engine/tests/unit/workflows/ -v
 ```
 
 Expected: all green.
@@ -541,8 +541,8 @@ Expected: all green.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add fichero-api/src/fichero/workflows/tools/extractors.py \
-        fichero-api/tests/unit/workflows/test_extractor_kg_integration.py
+git add fichero-engine/src/fichero/workflows/tools/extractors.py \
+        fichero-engine/tests/unit/workflows/test_extractor_kg_integration.py
 git commit -m "refactor(kg): drop Artifact write for structured types (#728)"
 ```
 
@@ -553,9 +553,9 @@ git commit -m "refactor(kg): drop Artifact write for structured types (#728)"
 ### Task 8: Generify catalogue.json + catalogue_composable.json
 
 **Files:**
-- Modify: `fichero-api/src/fichero/resources/default_workflows/catalogue.json`
-- Modify: `fichero-api/src/fichero/resources/default_workflows/catalogue_composable.json`
-- Modify: `fichero-api/tests/unit/workflows/test_default_workflows.py`
+- Modify: `fichero-engine/src/fichero/resources/default_workflows/catalogue.json`
+- Modify: `fichero-engine/src/fichero/resources/default_workflows/catalogue_composable.json`
+- Modify: `fichero-engine/tests/unit/workflows/test_default_workflows.py`
 
 - [ ] **Step 1: Update test locks**
 
@@ -575,8 +575,8 @@ def test_composable_has_generic_extractors(default_workflow_jsons):
 - [ ] **Step 2: Run to verify it fails**
 
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest \
-  fichero-api/tests/unit/workflows/test_default_workflows.py::test_composable_has_generic_extractors -v
+PYTHONPATH=fichero-engine/src .venv/bin/pytest \
+  fichero-engine/tests/unit/workflows/test_default_workflows.py::test_composable_has_generic_extractors -v
 ```
 
 Expected: FAIL.
@@ -594,7 +594,7 @@ Same: drop archive sections from any internal config that references them. Catal
 - [ ] **Step 5: Run tests**
 
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/workflows/ -v
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/workflows/ -v
 ```
 
 Expected: all green, including new lock test.
@@ -602,16 +602,16 @@ Expected: all green, including new lock test.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add fichero-api/src/fichero/resources/default_workflows/catalogue.json \
-        fichero-api/src/fichero/resources/default_workflows/catalogue_composable.json \
-        fichero-api/tests/unit/workflows/test_default_workflows.py
+git add fichero-engine/src/fichero/resources/default_workflows/catalogue.json \
+        fichero-engine/src/fichero/resources/default_workflows/catalogue_composable.json \
+        fichero-engine/tests/unit/workflows/test_default_workflows.py
 git commit -m "feat(workflow): generify default catalogue workflows (#726)"
 ```
 
 ### Task 9: Register new places + organizations extractors
 
 **Files:**
-- Modify: `fichero-api/src/fichero/workflows/tools/extractors.py:91` (_SECTIONS)
+- Modify: `fichero-engine/src/fichero/workflows/tools/extractors.py:91` (_SECTIONS)
 
 - [ ] **Step 1: Add `places_extract` and `organizations_extract` to `_SECTIONS`**
 
@@ -651,7 +651,7 @@ Drop the four archive-specific entries (`rivers_extract`, `mines_extract`, `prop
 - [ ] **Step 2: Run tool registry tests + composable workflow test**
 
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/workflows/ -v
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/workflows/ -v
 ```
 
 Expected: PASS.
@@ -659,7 +659,7 @@ Expected: PASS.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add fichero-api/src/fichero/workflows/tools/extractors.py
+git add fichero-engine/src/fichero/workflows/tools/extractors.py
 git commit -m "feat(workflow): add places + organizations, drop archive-specific (#726)"
 ```
 
@@ -670,21 +670,21 @@ git commit -m "feat(workflow): add places + organizations, drop archive-specific
 ### Task 10: Swift entity service wrapper
 
 **Files:**
-- Modify: `fichero-swiftui/fichero-swiftui/Services/` — add `EntityServiceGenerated.swift` if absent (likely OpenAPI-generated; verify)
+- Modify: `fichero/fichero/Services/` — add `EntityServiceGenerated.swift` if absent (likely OpenAPI-generated; verify)
 
 - [ ] **Step 1: Verify the generated client has entities endpoints**
 
-Check that `fichero-swiftui/fichero-api-client/Sources/FicheroAPIClient/Client.swift` has methods like `listEntitiesApiEntitiesGet`. Run:
+Check that `fichero/fichero-api-client/Sources/FicheroAPIClient/Client.swift` has methods like `listEntitiesApiEntitiesGet`. Run:
 
 ```bash
 grep -c "listEntitiesApiEntitiesGet\|listClaimsApiClaimsGet" \
-  fichero-swiftui/fichero-api-client/Sources/FicheroAPIClient/Client.swift
+  fichero/fichero-api-client/Sources/FicheroAPIClient/Client.swift
 ```
 
 Expected: > 0. If 0, regenerate the OpenAPI client:
 
 ```bash
-./fichero-api/scripts/sync_openapi_schema.sh
+./fichero-engine/scripts/sync_openapi_schema.sh
 ```
 
 - [ ] **Step 2: Add a service wrapper** (if not present)
@@ -696,7 +696,7 @@ Pattern: copy `WorkflowServiceGenerated.swift`'s shape. Methods:
 - [ ] **Step 3: Build to verify**
 
 ```bash
-xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj \
+xcodebuild -project fichero/fichero.xcodeproj \
   -scheme Fichero -destination 'platform=macOS,arch=arm64' \
   -derivedDataPath /tmp/fichero-build-728 -skipPackagePluginValidation build 2>&1 | tail -3
 ```
@@ -706,14 +706,14 @@ Expected: BUILD SUCCEEDED.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add fichero-swiftui/fichero-swiftui/Services/EntityServiceGenerated.swift
+git add fichero/fichero/Services/EntityServiceGenerated.swift
 git commit -m "feat(swift): EntityServiceGenerated for /api/entities + /api/claims (#728)"
 ```
 
 ### Task 11: EntityListView per-type Swift view
 
 **Files:**
-- Create: `fichero-swiftui/fichero-swiftui/Views/Library/DocumentInspector/EntityListView.swift`
+- Create: `fichero/fichero/Views/Library/DocumentInspector/EntityListView.swift`
 
 - [ ] **Step 1: Create the view**
 
@@ -777,14 +777,14 @@ Expected: BUILD SUCCEEDED.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add fichero-swiftui/fichero-swiftui/Views/Library/DocumentInspector/EntityListView.swift
+git add fichero/fichero/Views/Library/DocumentInspector/EntityListView.swift
 git commit -m "feat(inspector): EntityListView reads from /api/entities (#728)"
 ```
 
 ### Task 12: Wire EntityListView into DocumentInspectorArtifactsTab
 
 **Files:**
-- Modify: `fichero-swiftui/fichero-swiftui/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab.swift`
+- Modify: `fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab.swift`
 
 - [ ] **Step 1: Replace the markdown-artifact loader with EntityListView for structured types**
 
@@ -797,7 +797,7 @@ Expected: BUILD SUCCEEDED.
 - [ ] **Step 3: Three-leg check**
 
 ```bash
-swiftlint lint fichero-swiftui/fichero-swiftui/
+swiftlint lint fichero/fichero/
 xcodebuild ... build
 xcodebuild ... test
 ```
@@ -807,7 +807,7 @@ Expected: all pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add fichero-swiftui/fichero-swiftui/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab.swift
+git add fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab.swift
 git commit -m "feat(inspector): wire structured-type panels to entity API (#728)"
 ```
 
@@ -818,8 +818,8 @@ git commit -m "feat(inspector): wire structured-type panels to entity API (#728)
 ### Task 13: Catalogue tool reads claims for the document
 
 **Files:**
-- Modify: `fichero-api/src/fichero/workflows/tools/catalogue.py:312` (`catalogue` async function)
-- Test: `fichero-api/tests/unit/workflows/test_catalogue_consumes_claims.py` (new)
+- Modify: `fichero-engine/src/fichero/workflows/tools/catalogue.py:312` (`catalogue` async function)
+- Test: `fichero-engine/tests/unit/workflows/test_catalogue_consumes_claims.py` (new)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -903,8 +903,8 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add fichero-api/src/fichero/workflows/tools/catalogue.py \
-        fichero-api/tests/unit/workflows/test_catalogue_consumes_claims.py
+git add fichero-engine/src/fichero/workflows/tools/catalogue.py \
+        fichero-engine/tests/unit/workflows/test_catalogue_consumes_claims.py
 git commit -m "feat(kg): catalogue reducer consumes existing claims (#727)"
 ```
 
@@ -913,8 +913,8 @@ git commit -m "feat(kg): catalogue reducer consumes existing claims (#727)"
 - [ ] **Step 1: Full backend test suite**
 
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ \
-  --ignore=fichero-api/tests/unit/_archived -q
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ \
+  --ignore=fichero-engine/tests/unit/_archived -q
 ```
 
 Expected: all pass (or only pre-existing failures).
@@ -922,7 +922,7 @@ Expected: all pass (or only pre-existing failures).
 - [ ] **Step 2: Backend lint**
 
 ```bash
-ruff check fichero-api/src/
+ruff check fichero-engine/src/
 ```
 
 Expected: All checks passed.
@@ -930,7 +930,7 @@ Expected: All checks passed.
 - [ ] **Step 3: SwiftLint**
 
 ```bash
-swiftlint lint fichero-swiftui/fichero-swiftui/
+swiftlint lint fichero/fichero/
 ```
 
 Expected: clean for files we touched.
@@ -938,7 +938,7 @@ Expected: clean for files we touched.
 - [ ] **Step 4: Xcode build**
 
 ```bash
-xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj \
+xcodebuild -project fichero/fichero.xcodeproj \
   -scheme Fichero -destination 'platform=macOS,arch=arm64' \
   -derivedDataPath /tmp/fichero-build-728 -skipPackagePluginValidation build 2>&1 | tail -3
 ```

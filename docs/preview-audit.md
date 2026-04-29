@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-This document catalogs all SwiftUI view files in the `fichero-swiftui/Views/` directory, their preview status, and required dependencies.
+This document catalogs all SwiftUI view files in the `fichero/Views/` directory, their preview status, and required dependencies.
 
 **Key Findings:**
 - Most preview failures are due to missing `@EnvironmentObject` dependencies
@@ -350,7 +350,7 @@ This document catalogs all SwiftUI view files in the `fichero-swiftui/Views/` di
 
 ## Next Steps
 
-1. **Start backend:** `PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765`
+1. **Start backend:** `PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765`
 2. **Fix P0 categories:** Add previews to MCP Servers and Activity views
 3. **Fix P1 large files:** NodePopover, ImageViewerComponents, SidebarView, DocumentInspector
 4. **Add missing environment objects** to existing broken previews

@@ -19,7 +19,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Actions
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/actions.py`, 403 lines | |
+| File | `fichero-engine/src/fichero/api/routes/actions.py`, 403 lines | |
 | Endpoints | 16 (GET: 9, POST: 5, PUT: 1, DELETE: 1) | CRUD, search, import/export, from-node, composite |
 | Test file | exists (integration) | `test_action_library_integration.py` (573 lines) |
 | Dependencies | `db.Database`, `workflows.action_store.ActionStore` | |
@@ -29,7 +29,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Activity
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/activity.py`, 374 lines | |
+| File | `fichero-engine/src/fichero/api/routes/activity.py`, 374 lines | |
 | Endpoints | 7 (GET: 5, DELETE: 1, SSE stream: 1) | List, recent, stats, stream, by-workflow, by-batch, cleanup |
 | Test file | exists (unit) | `test_activity.py` (390 lines) |
 | Dependencies | `db.Database`, `workflows.activity` | |
@@ -39,7 +39,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Artifacts
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/artifacts.py`, 196 lines | |
+| File | `fichero-engine/src/fichero/api/routes/artifacts.py`, 196 lines | |
 | Endpoints | 5 (GET: 4, DELETE: 1) | By document, by ID, list all, types, delete |
 | Test file | none (directly) | Covered partially in `test_api.py` |
 | Dependencies | `db.Database`, `models.Artifact`, `models.Document` | |
@@ -49,7 +49,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Batch
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/batch.py`, 384 lines | |
+| File | `fichero-engine/src/fichero/api/routes/batch.py`, 384 lines | |
 | Endpoints | 10 (GET: 3, POST: 5, DELETE: 1) | CRUD, execute, pause/resume/cancel/retry, progress |
 | Test file | exists (integration) | `test_batch_execution_integration.py` (547 lines) |
 | Dependencies | `app_db`, `workflows.batch`, `workflows.workflow_store` | |
@@ -59,7 +59,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Chains
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/chains.py`, 468 lines | |
+| File | `fichero-engine/src/fichero/api/routes/chains.py`, 468 lines | |
 | Endpoints | 8 (GET: 3, POST: 2, PUT: 1, DELETE: 2) | CRUD, execute, execution history |
 | Test file | none | No dedicated test file |
 | Dependencies | `workflows.chaining`, `workflows.types`, `workflows.workflow_store`, `db.Database` | |
@@ -69,7 +69,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Chat
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/chat.py`, 617 lines | |
+| File | `fichero-engine/src/fichero/api/routes/chat.py`, 617 lines | |
 | Endpoints | 9 (GET: 3, POST: 4, PUT: 1, DELETE: 1) | Send message, conversations CRUD, duplicate, reorder, providers, extract-text |
 | Test file | none (directly) | Partially covered in `test_api.py` |
 | Dependencies | `db.Database`, `app_db.AppDatabase`, `models.*`, `keychain`, `providers` | |
@@ -79,7 +79,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Documents
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/documents.py`, 313 lines | |
+| File | `fichero-engine/src/fichero/api/routes/documents.py`, 313 lines | |
 | Endpoints | 12 (GET: 5, POST: 3, PUT: 2, DELETE: 1) | List, collections, roots, get, children, ancestors, create, update, delete, reorder, import, move |
 | Test file | exists (unit) | `test_api.py` (747 lines, shared), `test_new_data_layer.py` |
 | Dependencies | `db.Database`, `models.Document`, `models.DocType/FileType/Status` | |
@@ -89,7 +89,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Folders
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/folders.py`, 262 lines | |
+| File | `fichero-engine/src/fichero/api/routes/folders.py`, 262 lines | |
 | Endpoints | 5 (GET: 1, POST: 1, PUT: 2, DELETE: 1) | List, create, rename, move items, delete |
 | Test file | none | No dedicated test file |
 | Dependencies | `db.Database`, `models.Workflow/SavedSearch/Conversation` | |
@@ -99,7 +99,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Ingest
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/ingest.py`, 198 lines | |
+| File | `fichero-engine/src/fichero/api/routes/ingest.py`, 198 lines | |
 | Endpoints | 3 (GET: 1, POST: 2) | File upload, folder scan, status check |
 | Test file | exists (unit + integration) | `test_ingest_module.py` (1396 lines), `test_ingest_pipeline.py` (566 lines) |
 | Dependencies | `models.Document`, `db.Database` | |
@@ -109,7 +109,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Integrations
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/integrations.py`, 485 lines | |
+| File | `fichero-engine/src/fichero/api/routes/integrations.py`, 485 lines | |
 | Endpoints | 15 (GET: 9, POST: 4, PUT: 1) | List, available, per-app, refresh, items, import/export, open, DEVONthink/Bookends/Tinderbox specific |
 | Test file | exists (unit) | `test_integrations.py` (295 lines) |
 | Dependencies | `integrations.base` (registry), `integrations.devonthink/bookends/tinderbox` | |
@@ -119,7 +119,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Local Models
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/local_models.py`, 94 lines | |
+| File | `fichero-engine/src/fichero/api/routes/local_models.py`, 94 lines | |
 | Endpoints | 4 (GET: 2, POST: 1, DELETE: 1) | List, disk usage, download, delete |
 | Test file | none | No dedicated test file |
 | Dependencies | `local_models` (core module) | |
@@ -129,7 +129,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### MCP Servers
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/mcp_servers.py`, 444 lines | |
+| File | `fichero-engine/src/fichero/api/routes/mcp_servers.py`, 444 lines | |
 | Endpoints | 9 (GET: 3, POST: 4, PUT: 1, DELETE: 1) | CRUD, list tools, load into registry, reload registry |
 | Test file | exists (unit + integration) | `test_mcp_manager.py` (557), `test_mcp_server.py` (369), `test_mcp_workflow_integration.py` (414) |
 | Dependencies | `app_db`, `models.MCPServer`, `mcp_manager` | |
@@ -139,7 +139,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Model Comparison
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/model_comparison.py`, 343 lines | |
+| File | `fichero-engine/src/fichero/api/routes/model_comparison.py`, 343 lines | |
 | Endpoints | 10 (GET: 5, POST: 4) | Compare, history, presets, models, estimate cost, vision/tool compare |
 | Test file | exists (unit) | `test_model_comparison.py` (330 lines) |
 | Dependencies | `workflows.model_comparison` | |
@@ -149,7 +149,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Models (HuggingFace)
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/models.py`, 230 lines | |
+| File | `fichero-engine/src/fichero/api/routes/models.py`, 230 lines | |
 | Endpoints | 3 (GET: 3) | HuggingFace tasks, search, model details |
 | Test file | none | No dedicated test file |
 | Dependencies | `httpx` (external API calls to HuggingFace) | |
@@ -159,7 +159,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Providers
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/providers.py`, 1329 lines | |
+| File | `fichero-engine/src/fichero/api/routes/providers.py`, 1329 lines | |
 | Endpoints | 18 (GET: 7, POST: 5, PATCH: 2, DELETE: 3) | Catalog, CRUD, refs, API key management, test connection, models per provider |
 | Test file | exists (unit) | `test_api_providers.py` (334), `test_providers.py` (719) |
 | Dependencies | `db.Database`, `app_db`, `models.Provider/Model/ProviderType`, `providers`, `keychain` | |
@@ -169,7 +169,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Schedules
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/schedules.py`, 384 lines | |
+| File | `fichero-engine/src/fichero/api/routes/schedules.py`, 384 lines | |
 | Endpoints | 9 (GET: 3, POST: 3, PUT: 1, DELETE: 1) | CRUD, pause/resume, trigger, run history |
 | Test file | none (directly) | Partially in `test_phase8_integration.py` |
 | Dependencies | `db.Database`, `workflows.scheduler`, `workflows.workflow_store` | |
@@ -179,7 +179,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Search
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/search.py`, 369 lines | |
+| File | `fichero-engine/src/fichero/api/routes/search.py`, 369 lines | |
 | Endpoints | 10 (GET: 2, POST: 5, DELETE: 1, PUT: 1) | Hybrid search, stats, reindex, embed doc, saved searches CRUD, reorder |
 | Test file | exists (indirectly) | Covered in `test_api.py`, `test_new_data_layer.py` |
 | Dependencies | `db.Database`, `db.SearchResult` | |
@@ -189,7 +189,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Settings
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/settings.py`, 88 lines | |
+| File | `fichero-engine/src/fichero/api/routes/settings.py`, 88 lines | |
 | Endpoints | 3 (GET: 1, PUT: 1, DELETE: 1) | AI defaults get/set/reset |
 | Test file | none | No dedicated test file |
 | Dependencies | `app_db` | |
@@ -199,7 +199,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Storage
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/storage.py`, 217 lines | |
+| File | `fichero-engine/src/fichero/api/routes/storage.py`, 217 lines | |
 | Endpoints | 5 (GET: 5) | Thumbnail, display image, source file, stats, debug |
 | Test file | exists (unit) | `test_storage.py` (461 lines) |
 | Dependencies | `db.Database`, `models.Document` | |
@@ -209,7 +209,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Triggers
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/triggers.py`, 380 lines | |
+| File | `fichero-engine/src/fichero/api/routes/triggers.py`, 380 lines | |
 | Endpoints | 8 (GET: 3, POST: 2, PUT: 1, DELETE: 1) | CRUD, pause/resume, execution history |
 | Test file | none (directly) | Partially in `test_phase8_integration.py` |
 | Dependencies | `db.Database`, `workflows.file_watcher`, `workflows.workflow_store` | |
@@ -219,7 +219,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Workflow Execution
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/workflow_execution.py`, 2343 lines | |
+| File | `fichero-engine/src/fichero/api/routes/workflow_execution.py`, 2343 lines | |
 | Endpoints | 16 (GET: 10, POST: 3, DELETE: 3) | Execute, stream SSE, resume, status, history, threads, visualization, code gen, cache management |
 | Test file | exists (unit) | `test_workflow_executor.py` (836), `test_workflow_api_direct.py` (156), `test_workflow_api_verification.py` (147) |
 | Dependencies | `db.Database`, `models.Workflow`, `workflows.checkpointer`, `workflows.workflow_store`, `workflows.builder` | |
@@ -229,7 +229,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Workflows
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/api/routes/workflows.py`, 721 lines | |
+| File | `fichero-engine/src/fichero/api/routes/workflows.py`, 721 lines | |
 | Endpoints | 15 (GET: 5, POST: 5, PUT: 1, PATCH: 1, DELETE: 1) | Tools list/grouped/detail/prompt/create-node, CRUD, import/export, duplicate, reorder |
 | Test file | exists (unit) | `test_workflows.py` (532), `test_workflow_crud_operations.py` (320), `test_workflow_import_export.py` (388), `test_workflow_rename_duplicate.py` (467), `test_workflow_tools.py` (1071) |
 | Dependencies | `db.Database`, `workflows.types`, `workflows.registry` | |
@@ -243,7 +243,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### db.py (Database Layer)
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/db.py`, 1366 lines | |
+| File | `fichero-engine/src/fichero/db.py`, 1366 lines | |
 | Test file | `test_db.py` (827 lines), `test_new_data_layer.py` (302 lines) | |
 | Role | DuckDB + LanceDB wrapper, CRUD, hybrid search, embedding management | |
 | Feature status | complete | Multi-library support via `DatabaseManager`, `X-Fichero-Library-Path` header |
@@ -252,7 +252,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### models.py (Data Models)
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/models.py`, 844 lines | |
+| File | `fichero-engine/src/fichero/models.py`, 844 lines | |
 | Test file | `test_contract_models.py` (302 lines) | |
 | Role | Pydantic models: Document, Artifact, Workflow, Provider, Model, Conversation, MCPServer, SavedSearch, etc. | |
 | Feature status | complete | Shared with Swift via OpenAPI schema validation |
@@ -261,7 +261,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### ingest.py (Document Processing)
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/ingest.py`, 669 lines | |
+| File | `fichero-engine/src/fichero/ingest.py`, 669 lines | |
 | Test file | `test_ingest_module.py` (1396 lines), `test_ingest_pipeline.py` (566 lines) | |
 | Role | PDF/image/text extraction, thumbnail generation, OCR via Vision framework | |
 | Feature status | complete | Multi-format pipeline with macOS native OCR |
@@ -270,7 +270,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### llm.py (LLM Interface)
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/llm.py`, 1007 lines | |
+| File | `fichero-engine/src/fichero/llm.py`, 1007 lines | |
 | Test file | `test_llm.py` (253 lines) | |
 | Role | Multi-provider LLM abstraction via LangChain, tool calling, streaming | |
 | Feature status | complete | Supports OpenAI, Anthropic, Google, AWS, Ollama, Cohere, Mistral, DashScope |
@@ -279,7 +279,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### providers.py (Provider Catalog)
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/providers.py`, 430 lines | |
+| File | `fichero-engine/src/fichero/providers.py`, 430 lines | |
 | Test file | `test_providers.py` (719 lines) | |
 | Role | Static provider catalog, model listings, capability flags | |
 | Feature status | complete | Comprehensive provider metadata |
@@ -288,7 +288,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### bookmarks.py
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/bookmarks.py`, 314 lines | |
+| File | `fichero-engine/src/fichero/bookmarks.py`, 314 lines | |
 | Test file | `test_bookmarks.py` (334 lines) | |
 | Role | macOS security-scoped bookmark management for file access | |
 | Feature status | complete | Essential for sandbox file access persistence |
@@ -297,7 +297,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### app_db.py (App-Level Database)
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/app_db.py`, 516 lines | |
+| File | `fichero-engine/src/fichero/app_db.py`, 516 lines | |
 | Test file | none (directly) | Covered through route tests |
 | Role | Global settings, provider configs, MCP server configs (not per-library) | |
 | Feature status | complete | Singleton app-level DuckDB |
@@ -306,7 +306,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### storage.py (File Storage)
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/storage.py`, 641 lines | |
+| File | `fichero-engine/src/fichero/storage.py`, 641 lines | |
 | Test file | `test_storage.py` (461 lines) | |
 | Role | .fichero package structure management, file copying, thumbnail paths | |
 | Feature status | complete | macOS package-based storage |
@@ -315,7 +315,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### keychain.py
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/keychain.py`, 241 lines | |
+| File | `fichero-engine/src/fichero/keychain.py`, 241 lines | |
 | Test file | none | No dedicated test file |
 | Role | macOS Keychain access for API key storage via `security` CLI | |
 | Feature status | complete | Secure credential storage |
@@ -324,7 +324,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### errors.py
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/errors.py`, 371 lines | |
+| File | `fichero-engine/src/fichero/errors.py`, 371 lines | |
 | Test file | none | No dedicated test file |
 | Role | Custom exception hierarchy, error codes | |
 | Feature status | complete | Structured error handling |
@@ -333,7 +333,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### logging.py
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/logging.py`, 475 lines | |
+| File | `fichero-engine/src/fichero/logging.py`, 475 lines | |
 | Test file | none | No dedicated test file |
 | Role | Structured logging configuration | |
 | Feature status | complete | |
@@ -351,7 +351,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### local_models.py (Core)
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/local_models.py`, 343 lines | |
+| File | `fichero-engine/src/fichero/local_models.py`, 343 lines | |
 | Test file | none | No dedicated test file |
 | Role | Local model management (Ollama, fastembed) | |
 | Feature status | partial | Download/delete but limited model registry |
@@ -364,7 +364,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Registry
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/workflows/registry.py`, 869 lines | |
+| File | `fichero-engine/src/fichero/workflows/registry.py`, 869 lines | |
 | Registered tools | 39 tools across 36 tool files | via `@register_tool` decorator |
 | Test file | `test_tool_registry.py` (521 lines) | |
 | Tool categories | Vision (caption, describe, faces, objects, scene, layout, quality, colors, style, safety), Text (classify, entities, keywords, sentiment, summarize, rewrite, questions, tags, timeline, key_people), Document (analyze, extract, table_extract, sources, handwriting, transcribe, catalogue), Media (audio_transcribe, video_describe, convert, diagram), AI (agent, multi_agent, compare, similarity), MCP (mcp) | |
@@ -372,7 +372,7 @@ The Fichero backend is a FastAPI application serving a macOS SwiftUI frontend. I
 ### Executor
 | Aspect | Status | Details |
 |--------|--------|---------|
-| File | `fichero-api/src/fichero/workflows/executor.py`, 760 lines | |
+| File | `fichero-engine/src/fichero/workflows/executor.py`, 760 lines | |
 | Test file | `test_workflow_executor.py` (836 lines) | |
 | Role | LangGraph-based workflow execution with checkpointing, streaming, human-in-the-loop | |
 

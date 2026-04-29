@@ -151,7 +151,7 @@ DEV tier only: /api/knowledge-graph  (Layers 1-4)
 
 For each layer, before promoting from `dev` → `release`:
 
-- [ ] All unit tests pass (`python -m pytest fichero-api/tests/unit/`)
+- [ ] All unit tests pass (`python -m pytest fichero-engine/tests/unit/`)
 - [ ] All API integration tests pass for the layer
 - [ ] Layer-specific quality gates documented above are complete
 - [ ] SwiftUI views built and reviewed (or explicit opt-out documented)
@@ -165,13 +165,13 @@ For each layer, before promoting from `dev` → `release`:
 
 ## Implementation
 
-- Gate system: `fichero-api/src/fichero/api/main.py`
+- Gate system: `fichero-engine/src/fichero/api/main.py`
   - `_CORE_ROUTE_SPECS`: always-on routes
   - `_DEV_ROUTE_SPECS`: dev-only routes
   - `resolve_feature_tier()`: reads `FICHERO_FEATURE_TIER` env
 - Feature flags (route-internal): currently none beyond tier system
 - SwiftUI tier gating: not yet implemented — views show all features; gate in API only
-- Tests: `fichero-api/tests/unit/test_feature_tier_routing.py`
+- Tests: `fichero-engine/tests/unit/test_feature_tier_routing.py`
 
 ---
 

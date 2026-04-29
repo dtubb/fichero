@@ -11,7 +11,7 @@ This guide documents required `@EnvironmentObject` dependencies for each view ca
 **Backend Required:** YES
 
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 ```
 
 All services connect to `localhost:8765`. Previews will timeout without the backend running.
@@ -521,7 +521,7 @@ MyView()
 
 **Fix:** Start backend:
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 ```
 
 ### "Cannot find 'LibraryManager' in scope"
