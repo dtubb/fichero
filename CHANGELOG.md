@@ -148,7 +148,7 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ---
 
-## 2026.04.22 — Alpha (initial release)
+## 2026.04.01 — Alpha (initial release)
 
 - Document library with folder organization and file import (LINK or
   COPY mode with APFS instant-cloning).
