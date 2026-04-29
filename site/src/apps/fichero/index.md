@@ -85,7 +85,7 @@ Releases are dated by ship date (calendar versioning). Versions before 1.0 are A
 
 **New — Four catalogue workflows out of the box.** *Catalogue* runs the full nine-section archival entry in one cloud LLM pass. *Catalogue (composable)* fans the work out across six per-section extractors (people / places / organizations / events / dates / keywords) so you can swap or customize any one. *Catalogue (Apple Intelligence)* runs the same pipeline entirely on-device using Apple's Foundation Models — zero cloud calls, no API quota, full privacy. Plus two Transcribe variants: *Transcribe (Apple Vision)* (on-device OCR) and *Transcribe* (cloud vision LLM, better for handwriting and historical scripts).
 
-**New — Per-page entity extraction.** When a workflow processes multi-page documents, each page is extracted separately and each extracted entity carries its source page label. The substrate is ready for cross-document views ("show me every page that mentions María Angel") that ship in 0.0.3.
+**New — Per-page entity extraction.** When a workflow processes multi-page documents, each page is extracted separately and each extracted entity carries its source page label. The substrate is ready for cross-document views ("show me every page that mentions María Angel") in upcoming releases.
 
 **Improved — Workflow Library.** Folder grouping in the list (Transcribe, Catalogue), generic extractors by default (archive-specific extractors like rivers, mines, properties remain available as draggable tools, but no longer ship in the default workflow), and proper SF Symbol icons for every node on the canvas instead of generic gears.
 
