@@ -24,7 +24,7 @@
       "position_y": 200,
       "inputs": {},
       "config": {
-        "vision_mode": "apple",
+        "vision_mode": "llm",
         "language": "en",
         "update_page_content": true
       }
