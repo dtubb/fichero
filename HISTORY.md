@@ -1182,3 +1182,33 @@ Six items, all release-pipeline or pure content / Daniel-blocked:
 - Backend reinstall-defaults endpoint with `force=True` deletes is_template=True rows and re-inserts from current JSON — safe re-deploys of preset updates.
 - Two default-template systems coexisted (Swift `WorkflowStore` + backend JSON). Removing the Swift side and standardizing on backend JSON eliminates name duplication.
 
+
+## 2026-04-28 (evening) — Typed entity storage + per-page extraction
+
+### Shipped (typed entity storage, #728)
+- Phase 1: `_entity_writer.py` helpers — upsert_entity (idempotent on canonical_name+entity_type) + save_claim (with source_page_label).
+- Phase 2: catalogue extractors dual-write — KnowledgeEntity + KnowledgeClaim rows alongside markdown artifacts.
+- Phase 4: generic defaults — drop rivers/mines/properties/legal_references from `catalogue_composable.json`; add Places + Organizations extractors. Closes #726.
+- Phase 5: KnowledgeGraphInspectorSection in DocumentInspectorArtifactsTab — typed views per EntityType (people / places / organizations / events / dates / keywords).
+- Phase 6: catalogue reducer reads existing claims (skips duplicate full-extraction LLM call when extractors already ran). Closes #727.
+- Bonus: click-to-copy entity names + context-menu "Copy with context" for cross-doc search.
+- Per-page extraction: `_split_into_pages` splits on aggregate's `\n\n---\n\n` separator; asyncio.gather LLM calls per chunk; claims carry source_page_label + source_excerpt.
+
+### Shipped (workflow polish)
+- `transcribe_cloud.json` (NEW) — cloud-LLM Transcribe variant; existing renamed to "Transcribe (Apple Vision)".
+- `catalogue.json` + `catalogue_composable.json` — vision_mode flipped from "apple" to "llm" so they use user's default vision provider.
+- `AISettingsView.swift` — Defaults model picker now pulls full LiteLLM catalog instead of just user-configured models (was empty for providers without curated lists).
+
+### Tests added
+49 new tests: 24 KG unit + 8 API integration + 2 catalogue-consumes-claims + 13 edge cases + 2 default-workflow locks. 297 workflow tests pass.
+
+### Closed
+- #723 (list endpoint regression), #724 (library list grouping), #725 (canvas icons), #726 (generify), #727 (catalogue claims), #728 (typed entity storage).
+
+### Filed for 0.0.3
+- #729: KG navigation UI (cross-doc views, detail pages, optional graph viz)
+- #730: SVO-style claim text + structured triples in metadata
+- #731: Apple Intelligence Catalogue (Foundation Models bridge + build-up primitives)
+
+### Audit finding
+Backend KG layer (KnowledgeEntity, KnowledgeClaim, EntityMergeAudit, /api/entities, /api/claims, /api/graph_*) was already built — this session connected catalogue extractors to existing infrastructure rather than duplicating it. Saved ~3-4 days of throwaway work.

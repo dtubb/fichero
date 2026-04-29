@@ -1,5 +1,36 @@
 # Durable Lessons Learned / Decisions
 
+## Audit existing infra before locking schema — 2026-04-28
+
+When a feature plan calls for new tables or new Pydantic models, **grep the codebase for existing equivalents first**. A 30-minute audit can save 3-4 days of throwaway implementation.
+
+Concrete example from this session: the typed entity storage plan (#728) was about to build six new entity tables (people, places, organizations, events, dates, keywords) plus a registry table from scratch. A 10-minute audit revealed `knowledge_models.py` already shipped `KnowledgeEntity` with an `EntityType` enum (person/location/organization/event/concept/other), `KnowledgeClaim` with full document/page provenance fields, `EntityMergeAudit` for dedup machinery, and `/api/entities` + `/api/claims` + `/api/graph_*` routes. The whole 0.2.x KG substrate was already built. The actual work was *connecting* catalogue extractors to the existing layer — a one-day refactor instead of a 7-10 day greenfield build.
+
+**Practical heuristic before any non-trivial schema/model work:**
+- `grep -rn "class.*Entity\|class.*Person\|class.*Document" src/ | grep -v __pycache__` — does someone already have this model?
+- `ls api/routes/` — is there already a router that does this?
+- `git log --diff-filter=A --name-only -- "*Models.py" "*models.py"` — was an architectural layer added that I'd be duplicating?
+
+This belongs in the `writing-plans` skill checklist as a prerequisite step, not a nice-to-have.
+
+## OpenAPI generates two enum types per Python enum — 2026-04-28
+
+For a single Python enum used in both query params and response bodies, the swift-openapi-generator emits TWO Swift types — input and output. Same cases, different generated names.
+
+Example with `EntityType` (knowledge_models.py):
+- `Components.Schemas.FicheroKnowledgeModelsEntityType` — used in input/query params (`/api/entities?entity_type=person`).
+- `Components.Schemas.EntityTypeOutput` — used in response bodies (`KnowledgeEntity.entity_type`).
+
+If you see "cannot convert value of type 'EntityTypeOutput?' to expected argument type 'FicheroKnowledgeModelsEntityType?'" — that's why. Map between them in your Swift conversion layer; don't try to unify them in the OpenAPI spec.
+
+## Swift main target uses traditional file references — 2026-04-28 (refresher)
+
+The `fichero-swiftui` main target uses traditional PBXFileReference, not PBXFileSystemSynchronizedRootGroup. New `.swift` files don't auto-include — they need pbxproj edits OR appending to existing files in the target.
+
+Practical pattern: append new content to an existing file in the same logical area. e.g. EntityServiceGenerated lives appended in `ArtifactServiceGenerated.swift`; KnowledgeGraphInspectorSection lives appended in `DocumentInspectorArtifactsTab.swift`. Splits into proper standalone files happen later when target membership patterns are revisited.
+
+Confirmed via `grep -A 3 "PBXFileSystemSynchronizedRootGroup" *.xcodeproj/project.pbxproj` — only the test targets use sync groups.
+
 ## Pydantic + OpenAPI contract — three silent-failure shapes — 2026-04-28
 
 The two-stack OpenAPI round-trip has three known failure modes that are all *silent* (no exception, no failing test, just data that disappears or filters that hide rows). All three are the same underlying shape: **schema and data drift apart**. Treat them as load-bearing rules.

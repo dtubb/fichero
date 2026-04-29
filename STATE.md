@@ -2,19 +2,12 @@
 
 ## Current Focus
 
-**Branch:** `0.0.2` — HEAD `076d3ed7`. Two big workstreams today (2026-04-28):
+**Branch:** `0.0.2` — HEAD `76c04822`. Long session today (2026-04-28): morning polish + afternoon typed entity storage rewrite. Foundation shipped; review-ready pending Daniel's hands-on test of the full Catalogue (composable) round trip.
 
-1. **Workflow polish** (morning): #723 list-endpoint regression, #724 list-grouping by folder, #725 canvas icon registry. Plus AGENTS.md + MEMORY.md docs on Pydantic/OpenAPI contract discipline.
+**Goal:** Daniel reviews 0.0.2 → release pipeline (#658-#660 → #661/#662/#665).
 
-2. **Typed entity storage** (afternoon, 14 commits): #728 — catalogue extractors dual-write `KnowledgeEntity` + `KnowledgeClaim` rows alongside markdown artifacts. Inspector shows a typed "Knowledge Graph" section per document. Catalogue reducer reads existing claims (skips duplicate LLM extraction). Closes #726, #727, #728. Audit of existing backend revealed the KG layer (`knowledge_models.py`, `/api/entities`, `/api/claims`, `/api/graph_*`) was already built — this work *connects* extractors to the existing infrastructure rather than duplicating it.
+## Open Issues (0.0.2 milestone — only release/content remains)
 
-**Build state:** 1993 backend tests pass (10 pre-existing settings/provider failures unrelated). Ruff clean. SwiftLint clean for touched files. Xcode build succeeds.
-
-**Goal:** ship 0.0.2 — Daniel reviews, then release pipeline (#658-#660).
-
-## Open Issues (0.0.2 milestone)
-
-### Real remaining 0.0.2 work — all release-pipeline / content
 | # | Title | Status |
 |---|---|---|
 | #658 | Set up fichero-releases GitHub repo | Needs Daniel to create repo |
@@ -24,45 +17,45 @@
 | #662 | Update tubb.ca/fichero with release notes | Content writing |
 | #665 | Dev blog post — 3 years AI coding | Content writing |
 
-### Filed but should be moved to 0.0.3 or deferred
-| # | Title | Notes |
-|---|---|---|
-| #713 | Sidebar drag icon/name asymmetry — NSOutlineView wrapper | 0.0.3 — deferred, SwiftUI gap |
-| #714 | Workflow Templates Install Defaults undercount alert | Likely fixed by #722 dedupe |
-| #715 | Inspector RTF editor: ⌥←/⌥→ shortcuts don't work | 0.0.3 — likely AttributedTextEditor keyDown swallow |
-| #716 | Paleography Transcribe (SILReST 6-step chain) | 0.0.3 — multi-day prompt engineering, manuals need repo move |
-| #717 | Grid icon click highlight | Likely fixed by #712 browserSelection clear; verify |
-| #719 | Eager-prefetch thumbnails per-folder | 0.0.3 — TaskGroup + LRU cache work |
-| #711 | Sidebar drag unification | Closed by `4ee5e608` (whitespace path); icon/name path → #713 |
-| #598 / #702 | Sidebar drop routing / drop-target type matrix | Subsumed by #711 / #713 |
-| #603 / #694–705 | Various V1 inspector / sidebar bugs | Most are completed in code per task list — need GitHub close |
+## Filed for 0.0.3 today
 
-### 0.0.3 milestone — already filed
-| # | Title |
-|---|---|
-| #712 | Folder inspector + hide preview pane (SHIPPED on 0.0.2 this session) |
-| #713 | Sidebar drag NSOutlineView wrapper |
-| #720 | Catalogue (composable) reducer (SHIPPED) |
+- **#729** — KG navigation UI (cross-doc views, entity detail pages, optional graph viz). 2-3 weeks. Most of 0.2.0 KG Entities milestone collapses if landed.
+- **#730** — SVO-style claim text + structured triples in metadata. ~1 day. Natural follow-on to per-page extraction.
+- **#731** — Apple Intelligence Catalogue (Foundation Models bridge + chunk/for_each/merge primitives). ~3 weeks. Completes the 2×2 transcribe/catalogue × Apple/cloud matrix.
+
+## Earlier-filed 0.0.3 carry-overs
+
+#713 sidebar drag NSOutlineView wrapper, #714 install-defaults undercount (verify-then-close), #715 Inspector RTF shortcuts, #716 Paleography Transcribe, #717 grid icon click highlight (verify-then-close), #719 thumbnail prefetch.
 
 ## Blocked
-- #658–#660 release pipeline blocked on Daniel creating the `fichero-releases` repo + getting Apple notarytool credentials.
+
+- #658–#660 release pipeline blocked on Daniel creating the `fichero-releases` repo + Apple notarytool credentials.
 
 ## Next Session — Start Here
 
-1. **Close GitHub issues already done in code.** Many issues (#603, #694, #695, #696, #697, #698, #699, #700, #701, #703, #704, #705, #696, #720, #721, #722) are completed in commits but still open on GitHub. Close them with a comment linking to the commit. About 15 minutes of cleanup.
-2. **Move deferred-but-shippable issues to 0.0.3** explicitly: #713, #715, #716, #717, #719. Update STATE.md after.
-3. **If nothing else broken in user testing** → start the release pipeline: ask Daniel to create `dtubb/fichero-releases` repo, then begin #659 (codesign + notarytool). Read `docs/architecture/release-process.md` first.
-4. **Architecture docs to read for orientation**: `docs/architecture/swiftui/inspector_redesign.md`, `docs/architecture/swiftui/api_client.md`, `docs/architecture/api/development_standards.md`, `docs/architecture/release-process.md`.
-5. **Diagnostic log markers still in the code** (`🎯` on `.dropDestination`, `🔵` on `.onMove`, `📥` on `.onDrop`) — leave them in for #713 work, they don't fire in normal use.
+1. **Daniel's review**: rebuild the app, restart backend, Reset Defaults, run Catalogue (composable) on a fresh folder with the now-shipped per-page extraction. Inspect the Knowledge Graph section — claims should now have `source_page_label` populated ("Page 1", "Page 2", …).
+2. **If review is approved**: close out 0.0.2 housekeeping (~17 issues completed in code but still open on GitHub) and start #658 → #659 → #660 release pipeline.
+3. **If review surfaces issues**: triage. Per-page extraction is the biggest single behavior change today; if results are surprising, the extractor at `fichero-api/src/fichero/workflows/tools/extractors.py:_run_extractor` is the place to look — it now splits the aggregated text on `\n\n---\n\n` and runs N parallel LLM calls.
+4. **Apple Intelligence**: registered as a provider but `chat()` has no `apple` branch — `llm.py:599`. Selecting Apple as provider will error with "Unknown provider". This is #731's prerequisite. Tracked, not blocking.
+5. **Settings → Defaults Text picker**: now pulls full LiteLLM catalog (not just user-curated). If Daniel decides he prefers user-curated only, revert in `AISettingsView.swift:230`.
 
 ## Key constraints carried forward (still hot)
 
-- `inspectorDocument` precedence: grid match (only if child of current sidebar folder) → viewMode.library doc → detailDocument. **Don't reorder** — the precedence matters for the folder inspector to show on sidebar clicks (#712).
-- Inspector V2 strict per-document scope: every `getArtifacts` call must pass `includeDescendants: false` (#721). The legacy aggregation default is V1-only and should never be used in new V2 code paths.
-- SwiftUI `Text` registers `NSDraggingSource` at AppKit level — `.allowsHitTesting(false)` directly on `Text` is the only suppression; `.textSelection(.disabled)` is not enough (#711 / #713 history).
-- Workflow templates ship in `fichero-api/src/fichero/resources/default_workflows/*.json` with `folder_path` for menu grouping. Backend is canonical; Swift `WorkflowStore.defaultWorkflowTemplates` is empty (#722).
-- `reinstall-defaults` endpoint with `force=True` deletes is_template=True rows and re-inserts. Reinstalling the app's defaults pulls in updated JSON.
+- **KG dual-write pattern**: structured types (people/places/orgs/events/dates/keywords) write KnowledgeEntity + KnowledgeClaim rows AND a markdown Artifact. Free-form types (summary/catalogue narrative) write Artifact only. Both render in Inspector — markdown above, typed view below (#728).
+- **Per-page extraction**: extractors split aggregated text on `\n\n---\n\n` (the aggregate node's separator). N pages = N parallel LLM calls. Each claim carries `source_page_label = "Page {i+1}"` and a 500-char `source_excerpt`. Single-chunk text falls through to legacy single-call behavior with no page label. (#728 follow-on, this evening.)
+- **EntityType enum**: person, location, organization, event, concept, other. Hard-coded for 0.0.2; user-defined types are the natural extension via #706 phase 3 (0.0.3).
+- **EntityType API quirk**: OpenAPI generates two types — `Components.Schemas.FicheroKnowledgeModelsEntityType` (input/query params) and `Components.Schemas.EntityTypeOutput` (response bodies). Same six cases. Use the Output version for KnowledgeEntity.entityType.
+- **Swift file additions need pbxproj edits**: main target uses traditional file references, not synchronized groups. New .swift files don't auto-include — append to existing files in the same dir, or split properly later. EntityServiceGenerated lives appended in `ArtifactServiceGenerated.swift`; KnowledgeGraphInspectorSection lives appended in `DocumentInspectorArtifactsTab.swift`.
+- **Workflow defaults vision_mode**: cloud Catalogue + Catalogue (composable) now use `vision_mode: "llm"` (uses workflow's provider, falling back to Settings → Defaults → Vision). Apple Vision OCR is via standalone "Transcribe (Apple Vision)" workflow.
+- **`inspectorDocument` precedence** (carry from earlier): grid match (only if child of current sidebar folder) → viewMode.library doc → detailDocument. Don't reorder.
+- **Inspector V2 strict per-document scope** (carry from earlier): every `getArtifacts` call must pass `includeDescendants: false` (#721).
+
+## Architecture docs to read before resuming
+
+- `docs/architecture/typed_entity_storage.md` — design + locked decisions, revised post-audit. §0 has the as-shipped plan.
+- `docs/superpowers/plans/2026-04-28-typed-entity-storage.md` — implementation plan with per-task TDD steps.
+- `docs/architecture/swiftui/inspector_redesign.md`, `swiftui/api_client.md`, `api/development_standards.md`, `release-process.md`.
 
 ---
 
-*Last updated: 2026-04-28* — session-end after the 7-commit 0.0.2 polish day.
+*Last updated: 2026-04-28 evening — typed entity storage shipped (Phases 1-6 + per-page) + workflow polish + 3 issues filed for 0.0.3. Daniel reviews tomorrow.*
