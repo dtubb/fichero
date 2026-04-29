@@ -201,3 +201,80 @@ class TestDatesExtractorKG:
         }
         assert normalized_dates == {"1930-05-12", "1931-08-03"}
         assert all(c.entity_ids == [] for c in claims)
+
+
+class TestPerPageProvenance:
+    @pytest.mark.asyncio
+    async def test_per_page_extraction_writes_page_labels_and_excerpts(
+        self, db, test_package, container_doc, llm_config
+    ):
+        """When the upstream node aggregated transcripts with the standard
+        '\\n\\n---\\n\\n' separator, the extractor splits into per-page
+        chunks, runs an LLM call per chunk, and saves claims with
+        source_page_label + source_excerpt populated (#728 follow-up).
+        """
+        from fichero.workflows.tools.extractors import _run_extractor, _SECTIONS
+
+        people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
+
+        # Two-page aggregated text. Each page yields a different person so
+        # we can verify per-page provenance, not just per-document.
+        page1 = "On page one, María Angel signed the deed."
+        page2 = "On page two, Juan Pérez objected to the sale."
+        aggregated = f"{page1}\n\n---\n\n{page2}"
+
+        # Mock chat to return different responses per call.
+        responses = iter([
+            '{"personas_clave": [{"nombre": "María Angel", "contexto": "deed signer"}]}',
+            '{"personas_clave": [{"nombre": "Juan Pérez", "contexto": "objected"}]}',
+        ])
+
+        async def fake_chat(*args, **kwargs):
+            return next(responses)
+
+        with patch(
+            "fichero.workflows.tools.extractors.chat",
+            new=AsyncMock(side_effect=fake_chat),
+        ):
+            state = {
+                "library_path": str(test_package),
+                "selected_doc_ids": [container_doc.id],
+            }
+            await _run_extractor(people_section, {"text": aggregated}, state, llm_config)
+
+        people = db.query(KnowledgeEntity, entity_type=EntityType.person)
+        assert {p.canonical_name for p in people} == {"María Angel", "Juan Pérez"}
+
+        claims = db.query(KnowledgeClaim, source_document_id=container_doc.id)
+        assert len(claims) == 2
+        page_labels = {c.source_page_label for c in claims}
+        assert page_labels == {"Page 1", "Page 2"}
+
+    @pytest.mark.asyncio
+    async def test_single_chunk_no_separator_no_page_label(
+        self, db, test_package, container_doc, llm_config
+    ):
+        """Workflows that don't aggregate (single-source text) get a
+        single LLM call and no page_label — preserves pre-refactor
+        behavior for non-aggregate paths."""
+        from fichero.workflows.tools.extractors import _run_extractor, _SECTIONS
+
+        people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
+        # No '\n\n---\n\n' separator anywhere
+        plain_text = "A single page of text mentioning María Angel only."
+        fake_response = '{"personas_clave": [{"nombre": "María Angel", "contexto": "x"}]}'
+
+        with patch(
+            "fichero.workflows.tools.extractors.chat",
+            new=AsyncMock(return_value=fake_response),
+        ):
+            state = {
+                "library_path": str(test_package),
+                "selected_doc_ids": [container_doc.id],
+            }
+            await _run_extractor(people_section, {"text": plain_text}, state, llm_config)
+
+        claims = db.query(KnowledgeClaim, source_document_id=container_doc.id)
+        assert len(claims) == 1
+        # No page label when there was no separator (single chunk path)
+        assert claims[0].source_page_label is None

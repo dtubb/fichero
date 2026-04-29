@@ -63,6 +63,7 @@ def save_claim(
     source_document_id: str,
     entity_ids: Optional[list[str]] = None,
     source_excerpt: Optional[str] = None,
+    source_page_label: Optional[str] = None,
     claim_type: ClaimType = ClaimType.fact,
     confidence: float = 0.5,
     metadata: Optional[dict] = None,
@@ -73,12 +74,17 @@ def save_claim(
     ``entity_ids``. Date-style claims (no canonical entity to dedup) pass
     an empty list for ``entity_ids``; the normalized date lives in
     ``metadata['date_normalized']``.
+
+    ``source_page_label`` lands on the dedicated ``KnowledgeClaim`` field
+    so cross-doc views and graph traversal can answer "which page of
+    which document mentions this entity?"
     """
     claim = KnowledgeClaim(
         text=text,
         source_document_id=source_document_id,
         entity_ids=entity_ids or [],
         source_excerpt=source_excerpt,
+        source_page_label=source_page_label,
         claim_type=claim_type,
         confidence=confidence,
         metadata=metadata or {},

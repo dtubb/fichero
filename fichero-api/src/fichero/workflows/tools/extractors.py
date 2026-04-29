@@ -27,6 +27,7 @@ from __future__ import annotations
 # to the section table below.
 from fichero.knowledge_models import EntityType
 
+import asyncio
 import json
 import logging
 from datetime import datetime
@@ -284,6 +285,28 @@ def _build_section_prompt(section: dict[str, Any], output_language: str) -> str:
     )
 
 
+def _split_into_pages(text: str) -> list[str]:
+    """Split aggregated workflow text into per-page chunks.
+
+    The aggregate node joins per-file/per-page transcripts with a
+    ``\\n\\n---\\n\\n`` separator (its default). Splitting on the same
+    boundary recovers the original chunks so each extractor can run a
+    focused LLM call per page and attach per-page provenance to the
+    resulting KG claims (#728).
+
+    Falls back gracefully when the upstream isn't an aggregate (no
+    separator present) — returns a single-element list with the full
+    text. That preserves the pre-refactor single-pass behavior for
+    workflows that don't use the aggregate node.
+    """
+    sep = "\n\n---\n\n"
+    if not text:
+        return []
+    if sep not in text:
+        return [text]
+    return [chunk.strip() for chunk in text.split(sep) if chunk.strip()]
+
+
 def _strip_fences(raw: str) -> str:
     """Strip ```json``` fences that some models emit around structured output."""
     stripped = raw.strip()
@@ -381,35 +404,52 @@ async def _run_extractor(
                 "cached": True,
             }
 
+    # Per-page extraction: split the aggregated text on the separator the
+    # aggregate node uses (default \n\n---\n\n) and run the LLM per chunk
+    # in parallel. Each item's claim then carries source_page_label +
+    # source_excerpt pointing to its page (#728 follow-up).
+    #
+    # If the upstream node didn't aggregate (single chunk), this falls
+    # through to a single LLM call exactly like before.
+    chunks = _split_into_pages(text)
     prompt = _build_section_prompt(section, output_language)
-    full_prompt = f"{prompt}\n\n---\nSource text:\n\n{text}"
 
-    try:
-        response = await chat(
-            [{"role": "user", "content": full_prompt}],
-            config=llm_config,
-        )
-    except Exception as exc:
-        logger.error(f"{section['name']} LLM call failed: {exc}")
-        return {"text": "", "value": [], "error": str(exc)}
+    async def _extract_chunk(chunk_text: str) -> list[Any]:
+        full_prompt = f"{prompt}\n\n---\nSource text:\n\n{chunk_text}"
+        try:
+            response = await chat(
+                [{"role": "user", "content": full_prompt}],
+                config=llm_config,
+            )
+        except Exception as exc:
+            logger.error(f"{section['name']} LLM call failed: {exc}")
+            return []
 
-    try:
-        parsed = json.loads(_strip_fences(response))
-    except json.JSONDecodeError as exc:
-        logger.warning(f"{section['name']}: JSON parse failed ({exc}); saving raw")
-        parsed = None
+        try:
+            parsed = json.loads(_strip_fences(response))
+        except json.JSONDecodeError as exc:
+            logger.warning(f"{section['name']}: JSON parse failed ({exc}); skipping chunk")
+            return []
 
-    items: list[Any] = []
-    if isinstance(parsed, dict):
-        raw_items = parsed.get(section["schema_key"])
-        if isinstance(raw_items, list):
-            items = raw_items
-    elif isinstance(parsed, list):
-        items = parsed
+        if isinstance(parsed, dict):
+            raw_items = parsed.get(section["schema_key"])
+            if isinstance(raw_items, list):
+                return raw_items
+        elif isinstance(parsed, list):
+            return parsed
+        return []
+
+    chunk_results: list[list[Any]] = await asyncio.gather(
+        *[_extract_chunk(c) for c in chunks]
+    )
+
+    # Flatten for the markdown artifact (legacy view); attach per-page
+    # provenance for the KG write below.
+    items: list[Any] = [item for chunk_items in chunk_results for item in chunk_items]
 
     markdown = _render_section_markdown(section, items)
 
-    # Dual write: KG rows + markdown artifact.
+    # Dual write: KG rows (with per-page provenance) + markdown artifact.
     #
     # KG rows (KnowledgeEntity + KnowledgeClaim) are the queryable substrate
     # for cross-doc search and the 0.2.x KG layer (#728). Markdown artifacts
@@ -417,10 +457,18 @@ async def _run_extractor(
     # markdown so we can debug as a user more easily"). Both writes are
     # idempotent on canonical_name+entity_type for entities; claims always
     # append (provenance trail).
-    if container and library_path and items:
+    if container and library_path and any(chunk_results):
         try:
             db = db_manager.get_database(library_path)
-            _write_kg_rows(db, section, items, container.id)
+            for page_idx, (chunk_text, chunk_items) in enumerate(zip(chunks, chunk_results)):
+                if not chunk_items:
+                    continue
+                page_label = f"Page {page_idx + 1}" if len(chunks) > 1 else None
+                excerpt = chunk_text[:500] if chunk_text else None
+                _write_kg_rows(
+                    db, section, chunk_items, container.id,
+                    page_label=page_label, source_excerpt=excerpt,
+                )
         except Exception as exc:
             logger.error(f"{section['name']}: KG write failed: {exc}")
 
@@ -456,6 +504,8 @@ def _write_kg_rows(
     section: dict[str, Any],
     items: list[Any],
     container_id: str,
+    page_label: str | None = None,
+    source_excerpt: str | None = None,
 ) -> None:
     """Persist extractor items as KnowledgeEntity + KnowledgeClaim rows.
 
@@ -463,10 +513,16 @@ def _write_kg_rows(
     by canonical_name) plus one claim linking the entity to the source
     document. Sections with ``entity_type=None`` (dates) produce claims
     only — the date itself is the claim, no canonical entity to dedup.
+
+    ``page_label`` and ``source_excerpt`` carry per-page provenance — set
+    when the caller is processing per-page chunks via ``_split_into_pages``.
+    Both fields land on the ``KnowledgeClaim`` so cross-doc views can
+    answer "which page of which document mentions this entity?"
     """
     from fichero.workflows.tools._entity_writer import upsert_entity, save_claim
 
     entity_type = section.get("entity_type")
+    page_excerpt = source_excerpt  # rename for clarity below
 
     for item in items:
         if not isinstance(item, dict):
@@ -484,6 +540,12 @@ def _write_kg_rows(
             or ""
         )
         context = item.get("contexto") or item.get("context") or ""
+        # The chunk excerpt anchors provenance to the page the LLM saw;
+        # the per-item context is its narrower description. Prefer item
+        # context for the source_excerpt field, fall back to chunk.
+        excerpt = context or page_excerpt or None
+
+        meta: dict[str, Any] = {}
 
         if entity_type is None:
             # Date-style section: claim only. Normalized date in metadata.
@@ -493,15 +555,15 @@ def _write_kg_rows(
                 f"{normalized or date_text}: {context}" if context
                 else (normalized or date_text)
             )
+            meta["date_text"] = date_text
+            meta["date_normalized"] = normalized
             save_claim(
                 db,
                 text=claim_text,
                 source_document_id=container_id,
-                source_excerpt=context or None,
-                metadata={
-                    "date_text": date_text,
-                    "date_normalized": normalized,
-                },
+                source_excerpt=excerpt,
+                source_page_label=page_label,
+                metadata=meta,
             )
             continue
 
@@ -525,7 +587,8 @@ def _write_kg_rows(
             text=f"{canonical}: {context}" if context else canonical,
             source_document_id=container_id,
             entity_ids=[entity_id],
-            source_excerpt=context or None,
+            source_excerpt=excerpt,
+            source_page_label=page_label,
         )
 
 
