@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "TriggerCreationSheet")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "TriggerCreationSheet")
 
 /// Sheet for creating a new file trigger
 struct TriggerCreationSheet: View {

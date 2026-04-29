@@ -17,7 +17,7 @@ from pathlib import Path
 # Mirrors the `MODELS_BASE` path in `fichero.local_models` — app-data
 # root owned by Fichero, invisible to git, stable across relaunches.
 _CACHE_ROOT = (
-    Path.home() / "Library" / "Application Support" / "com.tubb.fichero"
+    Path.home() / "Library" / "Application Support" / "com.fichero.fichero"
 )
 _KREUZBERG_CACHE = _CACHE_ROOT / "kreuzberg"
 

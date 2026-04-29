@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "MCPServerDetailView")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "MCPServerDetailView")
 
 /// MCP Server detail view showing configuration and loaded tools
 struct MCPServerDetailView: View {

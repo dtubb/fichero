@@ -887,7 +887,7 @@ class LibrarySnapshot(BaseModel):
     or schema changes.
 
     Stored in:
-        ~/Library/Application Support/com.tubb.fichero/snapshots/{library_name}/
+        ~/Library/Application Support/com.fichero.fichero/snapshots/{library_name}/
     """
 
     model_config = ConfigDict(from_attributes=True)

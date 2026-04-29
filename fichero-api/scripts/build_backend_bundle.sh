@@ -15,9 +15,9 @@ if ! command -v briefcase >/dev/null 2>&1; then
   pip install briefcase
 fi
 
-if [ -d "build/fichero-backend" ]; then
-  chmod -R u+w build/fichero-backend 2>/dev/null || true
-  rm -rf build/fichero-backend || /bin/rm -rf build/fichero-backend
+if [ -d "build/engine" ]; then
+  chmod -R u+w build/engine 2>/dev/null || true
+  rm -rf build/engine || /bin/rm -rf build/engine
 fi
 
 SIGNING_IDENTITY=$(security find-identity -v -p codesigning | grep "Apple Development" | head -1 | awk -F'"' '{print $2}')
@@ -26,9 +26,9 @@ if [ -z "$SIGNING_IDENTITY" ]; then
   exit 1
 fi
 
-briefcase package macOS --app fichero-backend --identity "$SIGNING_IDENTITY"
+briefcase package macOS --app engine --identity "$SIGNING_IDENTITY"
 
-BACKEND_APP_SOURCE="build/fichero-backend/macos/app/FicheroBackend.app"
+BACKEND_APP_SOURCE="build/engine/macos/app/Fichero Engine.app"
 if [ -d "$BACKEND_APP_SOURCE" ]; then
   echo "✅ Backend bundle ready: $BACKEND_APP_SOURCE"
 else

@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "AgentSettingsView")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "AgentSettingsView")
 
 /// Settings view for configuring agent defaults (similar to Model Provider settings)
 /// This is accessed from the Fichero menu

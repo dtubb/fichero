@@ -4,7 +4,7 @@ import FicheroAPIClient
 import OpenAPIRuntime
 import OpenAPIURLSession
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "KnowledgeGraphServiceGenerated")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "KnowledgeGraphServiceGenerated")
 
 /// Service for interacting with the Knowledge Graph API using generated OpenAPI client
 @MainActor

@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ActivityCodeView")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "ActivityCodeView")
 
 /// Shows the saved Python code for a workflow run
 struct ActivityCodeView: View {

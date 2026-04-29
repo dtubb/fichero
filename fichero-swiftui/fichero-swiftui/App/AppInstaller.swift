@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 import OSLog
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "AppInstaller")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "AppInstaller")
 
 /// Offers to move Fichero.app to /Applications on first launch from a DMG or Downloads folder.
 enum AppInstaller {

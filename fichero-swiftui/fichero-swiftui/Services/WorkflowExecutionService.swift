@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowExecutionService")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "WorkflowExecutionService")
 
 /// Service for executing workflows via the backend API
 @MainActor

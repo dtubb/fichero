@@ -1,7 +1,7 @@
 """Tests for local AI model management routes.
 
 Local models (Whisper speech-to-text, embedding models) are downloaded to
-~/Library/Application Support/com.tubb.fichero/models/. Routes list,
+~/Library/Application Support/com.fichero.fichero/models/. Routes list,
 download, and delete models without external calls (LocalModelManager mocked).
 """
 

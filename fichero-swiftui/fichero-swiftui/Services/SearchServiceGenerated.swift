@@ -3,7 +3,7 @@ import OSLog
 import FicheroAPIClient
 import OpenAPIRuntime
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "SearchServiceGenerated")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "SearchServiceGenerated")
 
 /// Service for search operations using generated OpenAPI client
 @MainActor

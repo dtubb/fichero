@@ -5,7 +5,7 @@ import SwiftUI
 // Agent: PersistenceAgent
 // Responsibility: State serialization/deserialization for @SceneStorage
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ContentView")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "ContentView")
 
 extension ContentView {
 

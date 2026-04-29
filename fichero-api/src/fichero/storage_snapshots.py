@@ -4,7 +4,7 @@ Creates, lists, restores, and deletes point-in-time snapshots of Fichero librari
 Each snapshot exports DuckDB tables to Parquet and copies the LanceDB vector directory.
 
 Snapshot metadata is stored as JSON alongside snapshot data:
-    ~/Library/Application Support/com.tubb.fichero/snapshots/{library_name}/{snapshot_id}/
+    ~/Library/Application Support/com.fichero.fichero/snapshots/{library_name}/{snapshot_id}/
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ def snapshot_library(
 
     Exports DuckDB tables to Parquet and copies the LanceDB vector directory.
     Snapshot metadata is stored in app.duckdb and the data lives in:
-        ~/Library/Application Support/com.tubb.fichero/snapshots/{library_name}/{snapshot_id}/
+        ~/Library/Application Support/com.fichero.fichero/snapshots/{library_name}/{snapshot_id}/
 
     Args:
         library_path: Path to the .fichero package

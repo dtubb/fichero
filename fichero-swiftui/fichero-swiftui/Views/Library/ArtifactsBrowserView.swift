@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ArtifactsBrowserView")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "ArtifactsBrowserView")
 
 // View for browsing all artifacts in the library
 // swiftlint:disable:next type_body_length

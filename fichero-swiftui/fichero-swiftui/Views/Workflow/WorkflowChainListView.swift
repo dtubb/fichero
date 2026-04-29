@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowChainListView")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "WorkflowChainListView")
 
 /// View for browsing and managing workflow chains
 struct WorkflowChainListView: View {

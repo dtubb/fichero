@@ -6,7 +6,7 @@ import OSLog
 @MainActor
 // swiftlint:disable:next type_body_length
 final class ActionLibraryService: ObservableObject {
-    private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ActionLibraryService")
+    private let logger = Logger(subsystem: "com.fichero.fichero", category: "ActionLibraryService")
 
     @Published var actions: [ActionItem] = []
     @Published var categories: [String] = []

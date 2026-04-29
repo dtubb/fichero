@@ -15,7 +15,7 @@ class PerformanceService: ObservableObject {
         let max: TimeInterval
     }
 
-    private let logger = Logger(subsystem: "com.tubb.Fichero", category: "monitoring")
+    private let logger = Logger(subsystem: "com.fichero.fichero", category: "monitoring")
     private var benchmarks: [String: [TimeInterval]] = [:]
     private var memoryMeasurements: [String: [Int64]] = [:]
 

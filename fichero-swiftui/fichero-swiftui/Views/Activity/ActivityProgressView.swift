@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-let activityProgressLogger = Logger(subsystem: "com.tubb.Fichero", category: "ActivityProgressView")
+let activityProgressLogger = Logger(subsystem: "com.fichero.fichero", category: "ActivityProgressView")
 
 // MARK: - View
 

@@ -39,7 +39,7 @@ class AppState: ObservableObject {
     let providerService: ProviderServiceGenerated  // Public for @EnvironmentObject injection
     let mcpService: MCPService  // Public for @EnvironmentObject injection
     let modelService: ModelServiceGenerated  // Public for @EnvironmentObject injection (HuggingFace browsing)
-    private let logger = Logger(subsystem: "com.tubb.Fichero", category: "AppState")
+    private let logger = Logger(subsystem: "com.fichero.fichero", category: "AppState")
 
     // MARK: - Initialization
 

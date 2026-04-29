@@ -3,7 +3,7 @@ import OSLog
 import FicheroAPIClient
 import OpenAPIRuntime
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "DocumentService")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "DocumentService")
 
 /// DocumentService using the generated OpenAPI client.
 /// Handles document CRUD operations via the Python backend documents API.

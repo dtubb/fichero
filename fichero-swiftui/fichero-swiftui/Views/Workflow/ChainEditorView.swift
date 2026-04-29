@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ChainEditorView")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "ChainEditorView")
 
 /// Editor view for a workflow chain
 /// Uses the ChainDetailContent as the main content

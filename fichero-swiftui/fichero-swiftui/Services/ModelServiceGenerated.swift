@@ -3,7 +3,7 @@ import OSLog
 import FicheroAPIClient
 import OpenAPIRuntime
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ModelServiceGenerated")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "ModelServiceGenerated")
 
 /// ModelService using the generated OpenAPI client.
 /// Handles HuggingFace model browsing and selection.

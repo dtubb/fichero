@@ -4,7 +4,7 @@ import OSLog
 import FicheroAPIClient
 import OpenAPIRuntime
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ChatService")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "ChatService")
 
 /// ChatService using the generated OpenAPI client.
 /// This replaces the manual APIClient with type-safe generated calls.

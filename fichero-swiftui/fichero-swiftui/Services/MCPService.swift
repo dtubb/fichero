@@ -2,7 +2,7 @@ import Foundation
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "MCPService")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "MCPService")
 
 /// Service for managing MCP (Model Context Protocol) servers and tools.
 @MainActor

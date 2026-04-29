@@ -3,7 +3,7 @@ import OSLog
 import FicheroAPIClient
 import OpenAPIRuntime
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ProviderServiceGenerated")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "ProviderServiceGenerated")
 
 /// Service for managing AI providers using generated OpenAPI client
 /// Note: Most provider endpoints are global (not library-scoped).

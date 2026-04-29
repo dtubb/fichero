@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-private let sidebarBuilderLogger = Logger(subsystem: "com.tubb.Fichero", category: "Startup")
+private let sidebarBuilderLogger = Logger(subsystem: "com.fichero.fichero", category: "Startup")
 
 /// Helper functions for building hierarchical sidebar items
 enum SidebarItemBuilder {

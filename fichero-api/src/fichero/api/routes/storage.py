@@ -290,7 +290,7 @@ async def create_snapshot(
 
     Exports the DuckDB database to Parquet files and copies the LanceDB
     vector directory. Snapshot data is stored in:
-        ~/Library/Application Support/com.tubb.fichero/snapshots/{library_name}/{snapshot_id}/
+        ~/Library/Application Support/com.fichero.fichero/snapshots/{library_name}/{snapshot_id}/
 
     Use after bulk AI operations or before schema changes.
     """

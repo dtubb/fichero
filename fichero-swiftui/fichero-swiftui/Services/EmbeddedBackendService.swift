@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 import OSLog
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "EmbeddedBackend")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "EmbeddedBackend")
 
 /// Manages the embedded Python backend lifecycle
 @MainActor
@@ -120,9 +120,11 @@ final class EmbeddedBackendService: ObservableObject {
             throw BackendError.bundleNotFound
         }
 
-        // Path to nested Briefcase backend app's executable
-        let backendAppPath = "\(resourcePath)/FicheroBackend.app"
-        let executablePath = "\(backendAppPath)/Contents/MacOS/FicheroBackend"
+        // Path to nested Briefcase backend app's executable. Bundle is named
+        // "Fichero Engine.app" (briefcase formal_name = "Fichero Engine"),
+        // bundle ID com.fichero.fichero.engine (#renamed today).
+        let backendAppPath = "\(resourcePath)/Fichero Engine.app"
+        let executablePath = "\(backendAppPath)/Contents/MacOS/Fichero Engine"
 
         // Check if backend executable exists
         guard FileManager.default.fileExists(atPath: executablePath) else {

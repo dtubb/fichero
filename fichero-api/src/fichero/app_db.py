@@ -7,7 +7,7 @@ Stores app-level configuration that is shared across all libraries:
 - App preferences
 - User settings
 
-Location: ~/Library/Application Support/com.tubb.fichero/app.duckdb
+Location: ~/Library/Application Support/com.fichero.fichero/app.duckdb
 
 This is separate from library databases which store:
 - Documents, workflows, conversations
@@ -39,7 +39,7 @@ class AppDatabase:
         Initialize app-wide database connection.
 
         Args:
-            path: Path to app database file. Defaults to ~/Library/Application Support/com.tubb.fichero/app.duckdb
+            path: Path to app database file. Defaults to ~/Library/Application Support/com.fichero.fichero/app.duckdb
         """
         if path is None:
             path = settings.app_db_path

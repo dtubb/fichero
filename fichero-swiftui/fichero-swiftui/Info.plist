@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDisplayName</key>
+	<string>Fichero</string>
 	<key>NSAppleScriptEnabled</key>
 	<true/>
 	<key>OSAScriptingDefinition</key>
@@ -16,7 +18,7 @@
 			<key>UTTypeDescription</key>
 			<string>Fichero Library</string>
 			<key>UTTypeIdentifier</key>
-			<string>com.tubb.fichero.library</string>
+			<string>com.fichero.fichero.library</string>
 			<key>UTTypeIcons</key>
 			<dict/>
 			<key>UTTypeTagSpecification</key>
@@ -39,7 +41,7 @@
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.tubb.fichero.library</string>
+				<string>com.fichero.fichero.library</string>
 			</array>
 		</dict>
 	</array>

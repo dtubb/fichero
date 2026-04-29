@@ -2014,7 +2014,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 0.1.0.dev1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.Fichero;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fichero.fichero;
 				PRODUCT_NAME = "Fichero Research";
 				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero-releases/main/appcast.xml";
 				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
@@ -2061,7 +2061,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 0.1.0.dev1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.Fichero;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fichero.fichero;
 				PRODUCT_NAME = "Fichero Research";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero-releases/main/appcast.xml";
@@ -2086,7 +2086,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.fichero.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fichero.fichero.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 6.0;
@@ -2109,7 +2109,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.fichero.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fichero.fichero.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 6.0;
@@ -2132,7 +2132,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.fichero.uitests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fichero.fichero.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 6.0;
@@ -2155,7 +2155,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.fichero.uitests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fichero.fichero.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 6.0;

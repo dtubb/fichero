@@ -4,7 +4,7 @@ File storage management for Fichero.
 Handles derived files (thumbnails), path resolution, and file organization.
 Uses Pydantic Settings for configuration and explicit functions for operations.
 
-Location: ~/Library/Application Support/com.tubb.fichero/
+Location: ~/Library/Application Support/com.fichero.fichero/
 ├── library.duckdb          # Database (managed by db.py)
 ├── vectors/                # LanceDB embeddings
 └── thumbnails/             # Sharded thumbnail storage
@@ -74,7 +74,7 @@ class StorageSettings(BaseSettings):
 
     # Base path - can be overridden for testing
     base_path: Path = Path(
-        "~/Library/Application Support/com.tubb.fichero"
+        "~/Library/Application Support/com.fichero.fichero"
     ).expanduser()
 
     # Thumbnail settings

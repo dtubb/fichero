@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "TriggerRow")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "TriggerRow")
 
 /// Trigger action types
 enum TriggerAction {

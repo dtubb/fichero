@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ScheduleRow")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "ScheduleRow")
 
 /// Schedule action types
 enum ScheduleAction {

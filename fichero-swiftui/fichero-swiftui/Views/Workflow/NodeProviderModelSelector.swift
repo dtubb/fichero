@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "NodeProviderModelSelector")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "NodeProviderModelSelector")
 
 /// Sentinel provider ID for Apple Vision (on-device OCR)
 let appleVisionProviderId = "apple_vision"

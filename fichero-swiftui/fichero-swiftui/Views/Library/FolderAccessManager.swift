@@ -10,7 +10,7 @@ import SwiftUI
 class FolderAccessManager: ObservableObject {
     static let shared = FolderAccessManager()
 
-    private let logger = Logger(subsystem: "com.tubb.Fichero", category: "FolderAccess")
+    private let logger = Logger(subsystem: "com.fichero.fichero", category: "FolderAccess")
     private let bookmarksKey = "FolderAccessBookmarks"
     @Published private(set) var accessedFolders: [URL] = []
 

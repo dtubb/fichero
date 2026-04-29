@@ -2,7 +2,7 @@ import FicheroAPIClient
 import OSLog
 import SwiftUI
 
-let libraryManagerLogger = Logger(subsystem: "com.tubb.Fichero", category: "LibraryManager")
+let libraryManagerLogger = Logger(subsystem: "com.fichero.fichero", category: "LibraryManager")
 
 /// Manages multiple open .fichero libraries
 /// Allows multiple windows and tabs to reference the same library instance
@@ -145,11 +145,11 @@ class LibraryManager: ObservableObject {
     }
 
     /// Load or create the Global library
-    /// Global library is stored at ~/Library/Application Support/com.tubb.fichero/global.fichero
+    /// Global library is stored at ~/Library/Application Support/com.fichero.fichero/global.fichero
     private func loadGlobalLibrary() {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let globalURL = appSupport
-            .appendingPathComponent("com.tubb.fichero")
+            .appendingPathComponent("com.fichero.fichero")
             .appendingPathComponent("global.fichero")
 
         // Check if Global library already exists

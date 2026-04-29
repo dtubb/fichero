@@ -5,7 +5,7 @@ import SwiftUI
 
 extension LibraryView {
     private var logger: Logger {
-        Logger(subsystem: "com.tubb.Fichero", category: "LibraryView")
+        Logger(subsystem: "com.fichero.fichero", category: "LibraryView")
     }
 
     var libraryWorkflows: [WorkflowSidebarItem] {

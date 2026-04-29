@@ -9,7 +9,7 @@ struct ZoomableImagePreview: View {
     let url: URL
     var documentId: String?
 
-    private static let logger = Logger(subsystem: "com.tubb.Fichero", category: "ZoomableImagePreview")
+    private static let logger = Logger(subsystem: "com.fichero.fichero", category: "ZoomableImagePreview")
 
     private var scaleKey: String? {
         documentId.map { "imageZoom_\($0)" }

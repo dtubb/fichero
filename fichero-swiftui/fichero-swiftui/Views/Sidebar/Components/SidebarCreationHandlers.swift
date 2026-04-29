@@ -2,7 +2,7 @@ import OSLog
 import SwiftUI
 
 /// Structured logger for sidebar creation operations
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "SidebarCreation")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "SidebarCreation")
 
 // MARK: - Creation Methods Extension
 

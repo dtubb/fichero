@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "AutomationService")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "AutomationService")
 
 /// Service for interacting with the Automation API (schedules and triggers)
 /// Note: Data refresh is handled by SidebarView via callback pattern (onRefresh)

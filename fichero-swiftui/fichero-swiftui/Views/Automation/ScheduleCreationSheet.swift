@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ScheduleCreationSheet")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "ScheduleCreationSheet")
 
 /// Sheet for creating a new schedule
 struct ScheduleCreationSheet: View {

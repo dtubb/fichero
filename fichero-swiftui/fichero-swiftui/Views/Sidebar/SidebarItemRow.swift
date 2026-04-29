@@ -3,7 +3,7 @@ import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 
-let sidebarRowLogger = Logger(subsystem: "com.tubb.Fichero", category: "SidebarRow")
+let sidebarRowLogger = Logger(subsystem: "com.fichero.fichero", category: "SidebarRow")
 
 /// Transferable wrapper for sidebar row drags (#711).
 ///

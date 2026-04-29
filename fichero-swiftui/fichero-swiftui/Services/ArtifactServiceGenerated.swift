@@ -3,7 +3,7 @@ import Foundation
 import OpenAPIRuntime
 import OSLog
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "ArtifactServiceGenerated")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "ArtifactServiceGenerated")
 
 /// ArtifactService using the generated OpenAPI client.
 /// Manages document artifacts (transcripts, descriptions, etc.)
@@ -351,7 +351,7 @@ private struct ArtifactJSON: Codable {
 // files would need pbxproj edits. See MEMORY: feedback_swift_file_sync.md.
 
 private let entityServiceLogger = Logger(
-    subsystem: "com.tubb.Fichero",
+    subsystem: "com.fichero.fichero",
     category: "EntityServiceGenerated"
 )
 

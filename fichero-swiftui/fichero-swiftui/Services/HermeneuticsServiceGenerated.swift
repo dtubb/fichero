@@ -4,7 +4,7 @@ import FicheroAPIClient
 import OpenAPIRuntime
 import OpenAPIURLSession
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "HermeneuticsServiceGenerated")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "HermeneuticsServiceGenerated")
 
 /// Service for interacting with the Hermeneutics API (interpretations, frameworks, patterns, circle navigation)
 @MainActor

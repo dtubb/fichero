@@ -2,7 +2,7 @@ import FicheroAPIClient
 import OSLog
 import SwiftUI
 
-let addProviderLogger = Logger(subsystem: "com.tubb.Fichero", category: "AddProviderSheet")
+let addProviderLogger = Logger(subsystem: "com.fichero.fichero", category: "AddProviderSheet")
 
 struct AddProviderSheet: View {
     @Environment(\.dismiss) var dismiss

@@ -3,7 +3,7 @@ import OSLog
 import SwiftUI
 // swiftlint:disable file_length
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "WorkflowLibraryView")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "WorkflowLibraryView")
 
 /// Tab selection for workflow library
 enum WorkflowLibraryTab: String, CaseIterable {

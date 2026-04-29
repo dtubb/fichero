@@ -47,7 +47,7 @@ extension LibraryManager {
                 <plist version="1.0">
                 <dict>
                     <key>CFBundleIdentifier</key>
-                    <string>com.tubb.fichero.library</string>
+                    <string>com.fichero.fichero.library</string>
                     <key>CFBundleName</key>
                     <string>\(url.deletingPathExtension().lastPathComponent)</string>
                 </dict>

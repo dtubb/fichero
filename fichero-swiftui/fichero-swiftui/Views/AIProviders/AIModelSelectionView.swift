@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "AIModelSelectionView")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "AIModelSelectionView")
 
 /// Selection mode for model browser
 enum ModelSelectionMode {

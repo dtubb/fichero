@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "Settings")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "Settings")
 
 // MARK: - Local Models Settings
 

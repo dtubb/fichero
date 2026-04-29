@@ -2,7 +2,7 @@ import OSLog
 import SwiftUI
 
 /// Structured logger for sidebar action operations
-private let logger = Logger(subsystem: "com.tubb.Fichero", category: "SidebarActions")
+private let logger = Logger(subsystem: "com.fichero.fichero", category: "SidebarActions")
 
 // MARK: - Import/Delete/Rename Extension
 
