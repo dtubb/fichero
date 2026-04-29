@@ -10,6 +10,10 @@ title: Home
   <a href="#download" class="btn">Download for macOS</a>
 </section>
 
+> **⚠️ This is Alpha software.** Fichero is in active daily development. Things will change. Things will break. Don't put irreplaceable work in it yet — keep originals elsewhere, treat each release as an experiment. If you find a bug, please file it on [GitHub Issues](https://github.com/dtubb/fichero/issues) so it can be fixed.
+
+> **🤖 Fichero is 100% vibe-coded.** Every line was written conversationally with Claude — Daniel describes what he wants, an AI implements it, they iterate in real time. There's no traditional engineering team. [Read more about how it's done →](/apps/fichero/how-its-made/)
+
 ## What is Fichero?
 
 "Fichero" is Spanish for a card-file cabinet. The name recalls the index-card filing systems used by researchers, archivists, and scholars — from Niklas Luhmann's Zettelkasten to the physical card catalogues of archives and libraries, to the field notes ethnographers write, to Walter Benjamin's *Arcades Project*.
@@ -65,23 +69,31 @@ Fichero is a work in progress. Iterative. It is, I hope, something useful.
 
 <h2 id="download">Download</h2>
 
-Fichero 0.0.2 is available for early access.
+The latest Alpha release is **Fichero 2026.04.29 Alpha**.
 
-<a href="#" class="btn">Download Fichero 0.0.2</a>
+<a href="#" class="btn">Download Fichero 2026.04.29 Alpha</a>
+
+Releases are dated by ship date (calendar versioning). Versions before 1.0 are Alpha — features change, bugs happen, expect rough edges. See the [download notes](#download-notes) below.
 
 ---
 
 ## Releases
 
-### 0.0.2 — April 2026
+### 2026.04.29 — Alpha
 
-**New** — **Catalogue workflow**: run on any folder to produce a nine-section archival catalogue entry covering people, dates, rivers, legal references, mines, properties, events, keywords, and a summary narrative. **Locked default workflows**: Transcribe and Catalogue ship as built-in presets that auto-update when the app launches — duplicate them to customize; originals stay protected. **Folder inspector**: click a folder in the sidebar to inspect its contents, metadata, and workflow artifacts in the right-hand panel. **Run Workflow from context menu**: right-click any document selection and choose Run Workflow to execute a workflow directly. **Artifact previews**: the Inspector Artifacts tab shows structured previews for catalogue sections (people, dates, rivers, etc.) as readable tables.
+**New — Knowledge Graph layer.** Catalogue workflows now write structured entity rows (people, places, organizations, events, dates, keywords) into a queryable knowledge graph alongside the human-readable artifact. Same data, two views: the markdown for reading, the typed graph for searching, cross-referencing, and future cross-document navigation. Each claim carries page-level provenance — every entity row knows which page of which document it came from.
 
-**Improved** — PDF preview now includes a zoom toolbar (zoom in/out, fit to window, 100%). PDF pages navigate with horizontal trackpad swipe. Sidebar section headers now show system icons. The AI Providers menu entry now shows an icon. The Activity monitor shows human-readable workflow node names instead of internal IDs.
+**New — Four catalogue workflows out of the box.** *Catalogue* runs the full nine-section archival entry in one cloud LLM pass. *Catalogue (composable)* fans the work out across six per-section extractors (people / places / organizations / events / dates / keywords) so you can swap or customize any one. *Catalogue (Apple Intelligence)* runs the same pipeline entirely on-device using Apple's Foundation Models — zero cloud calls, no API quota, full privacy. Plus two Transcribe variants: *Transcribe (Apple Vision)* (on-device OCR) and *Transcribe* (cloud vision LLM, better for handwriting and historical scripts).
 
-**Fixed** — Sidebar drag-and-drop routing for files and folders dropped from Finder. Workflow first-click and activity run display. Document inspector showing stale transcription after workflow completion. Catalogue artifacts not appearing after a workflow run.
+**New — Per-page entity extraction.** When a workflow processes multi-page documents, each page is extracted separately and each extracted entity carries its source page label. The substrate is ready for cross-document views ("show me every page that mentions María Angel") that ship in 0.0.3.
 
-### 0.0.1 — Initial Release
+**Improved — Workflow Library.** Folder grouping in the list (Transcribe, Catalogue), generic extractors by default (archive-specific extractors like rivers, mines, properties remain available as draggable tools, but no longer ship in the default workflow), and proper SF Symbol icons for every node on the canvas instead of generic gears.
+
+**Improved — Settings.** Defaults model picker reads from configured providers; folder inspector when nothing is selected; thumbnail aspect ratios respect document orientation in the grid.
+
+**Fixed** — Workflow Library list endpoint returning empty after Reset Defaults. Workflow templates duplicating on every install. Catalogue (composable) reducer running a duplicate extraction pass instead of consuming claims. Several inspector and sidebar bugs from 0.0.1.
+
+### 2026.04.22 — Alpha (initial release)
 
 - Document library with folder organization and file import
 - Semantic search via local vector embeddings
@@ -91,6 +103,17 @@ Fichero 0.0.2 is available for early access.
 - Embedded Python backend — no separate server to install or manage
 
 *Full changelog: [CHANGELOG.md on GitHub](https://github.com/dtubb/fichero/blob/main/CHANGELOG.md)*
+
+---
+
+<h3 id="download-notes">Download notes</h3>
+
+Versions are dated by ship day (e.g. `2026.04.29` shipped April 29, 2026). Until Fichero hits version 1.0:
+
+- **Treat every Alpha as an experiment.** Keep originals of any documents you import. The library can be wiped between releases.
+- **Things will change.** Workflows, default settings, and UI conventions are still being figured out. A workflow you saved this week may need re-running next week.
+- **Bug reports are welcome.** File on [GitHub Issues](https://github.com/dtubb/fichero/issues) — include what you were doing and what happened. The author reads them all.
+- **No telemetry, no analytics.** Fichero doesn't phone home. The only network calls are the AI provider you chose (or none, if you use Apple Vision + Apple Intelligence).
 
 ---
 
