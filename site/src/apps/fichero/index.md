@@ -93,15 +93,6 @@ Releases are dated by ship date (calendar versioning). Versions before 1.0 are A
 
 **Fixed** — Workflow Library list endpoint returning empty after Reset Defaults. Workflow templates duplicating on every install. Catalogue (composable) reducer running a duplicate extraction pass instead of consuming claims. Several inspector and sidebar bugs from 0.0.1.
 
-### 2026.04.01 — Alpha (initial release)
-
-- Document library with folder organization and file import
-- Semantic search via local vector embeddings
-- AI workflow engine with visual node editor
-- Support for 37+ file types including PDF, Word, images, audio, and video
-- Connect to local models (Ollama) or cloud providers (OpenAI, Anthropic, Google, and more)
-- Embedded Python backend — no separate server to install or manage
-
 *Full changelog: [CHANGELOG.md on GitHub](https://github.com/dtubb/fichero/blob/main/CHANGELOG.md)*
 
 ---

@@ -146,17 +146,5 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
   provenance, catalogue-consumes-claims, and default-workflow locks.
   297 workflow tests pass; 1993 backend tests pass.
 
----
-
-## 2026.04.01 — Alpha (initial release)
-
-- Document library with folder organization and file import (LINK or
-  COPY mode with APFS instant-cloning).
-- Semantic search via local vector embeddings (BAAI/bge-m3 via
-  fastembed; no cloud).
-- AI workflow engine with visual node editor (LangGraph backed).
-- Support for 37+ file types: PDF, Word, images, audio, video,
-  archives.
-- Local model support (Ollama, LM Studio, Apple Vision OCR) and cloud
-  providers (OpenAI, Anthropic, Google, 100+ via LiteLLM).
-- Embedded Python backend — no separate server to install or manage.
+*This is the first public release. Earlier internal builds were never
+distributed.*

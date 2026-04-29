@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "500"
-               BuildableName = "Fichero Research.app"
+               BuildableName = "Fichero.app"
                BlueprintName = "Fichero"
                ReferencedContainer = "container:fichero-swiftui.xcodeproj">
             </BuildableReference>
@@ -74,7 +74,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "500"
-            BuildableName = "Fichero Research.app"
+            BuildableName = "Fichero.app"
             BlueprintName = "Fichero"
             ReferencedContainer = "container:fichero-swiftui.xcodeproj">
          </BuildableReference>
@@ -91,7 +91,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "500"
-            BuildableName = "Fichero Research.app"
+            BuildableName = "Fichero.app"
             BlueprintName = "Fichero"
             ReferencedContainer = "container:fichero-swiftui.xcodeproj">
          </BuildableReference>
