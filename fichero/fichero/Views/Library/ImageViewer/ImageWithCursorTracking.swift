@@ -421,8 +421,24 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                 // #596: write the final magnification back to the @Binding
                 // so the next updateNSView sync-check sees matching values
                 // and doesn't snap the zoom back to the pre-pinch scale.
-                isUserMagnifying = false
+                //
+                // #748: ORDER MATTERS. Setting `isUserMagnifying = false`
+                // synchronously before `onScaleChanged` runs lets SwiftUI
+                // fire `updateNSView` in the gap before the Task @MainActor
+                // queued inside `onScaleChanged` writes the binding. That
+                // updateNSView sees `scale` still at the pre-pinch value
+                // and reverts magnification — the user sees a ~250ms flash
+                // to the old zoom. Defer the gate-reopen until after the
+                // binding write has had a chance to propagate.
                 onScaleChanged?(scrollView.magnification)
+                Task { @MainActor [weak self] in
+                    // Yield once so the binding-write task scheduled inside
+                    // `onScaleChanged` runs first (Swift Concurrency
+                    // preserves FIFO order on the main actor; yielding
+                    // makes that explicit and survives priority changes).
+                    await Task.yield()
+                    self?.isUserMagnifying = false
+                }
             default:
                 break
             }
