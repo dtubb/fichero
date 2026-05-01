@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 import OSLog
 
@@ -90,7 +91,14 @@ class APIClient: ObservableObject {
         let isAppWideProviderEndpoint = path.contains("/providers") && !path.contains("/providers/refs")
         let isSettingsEndpoint = path.contains("/settings")
 
-        // Skip header for app-wide endpoints
+        // Auth: every non-health request needs the engine's per-launch token
+        // (#742). Health is the readiness probe and stays unauthenticated;
+        // the rest must carry Bearer.
+        if !isHealthEndpoint, let token = AuthTokenMiddleware.readTokenFromDisk() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        // Skip library-path header for app-wide endpoints
         if isHealthEndpoint || isAppWideProviderEndpoint || isSettingsEndpoint {
             return
         }
@@ -390,6 +398,26 @@ enum APIError: LocalizedError {
             return "HTTP \(code): \(message)"
         case .connectionFailed:
             return "Failed to connect to backend. Is `fichero serve` running?"
+        }
+    }
+}
+
+// MARK: - URLRequest engine-auth helper
+
+extension URLRequest {
+    /// Attach `Authorization: Bearer <token>` (#742) and, if provided, the
+    /// per-library `X-Fichero-Library-Path` header. Use on every raw
+    /// URLSession callsite that does not flow through the OpenAPI middleware
+    /// (FicheroClient) or `APIClient.configureRequest`.
+    ///
+    /// Health endpoint never needs auth and is the only one we deliberately
+    /// skip — see `AuthTokenMiddleware.unauthenticatedPaths`.
+    mutating func addEngineAuth(libraryPath: String? = nil) {
+        if let token = AuthTokenMiddleware.readTokenFromDisk() {
+            setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        if let libraryPath {
+            setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
         }
     }
 }

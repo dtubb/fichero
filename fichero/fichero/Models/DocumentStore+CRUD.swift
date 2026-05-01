@@ -180,17 +180,17 @@ extension DocumentStore {
         let boundary = "Boundary-\(UUID().uuidString)"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
-        // Add library path header for multi-library support
-        if let libraryPath = api.currentLibraryPath {
-            // Sanitize library path to prevent header injection
-            let sanitizedPath = libraryPath
-                .replacingOccurrences(of: "\r", with: "")
-                .replacingOccurrences(of: "\n", with: "")
-            request.setValue(sanitizedPath, forHTTPHeaderField: "X-Fichero-Library-Path")
+        // Sanitize library path to prevent header injection, then attach
+        // auth + library path. Auth is required post-#742 for /api/documents.
+        let sanitizedPath = api.currentLibraryPath?
+            .replacingOccurrences(of: "\r", with: "")
+            .replacingOccurrences(of: "\n", with: "")
+        if let sanitizedPath {
             logger.info("Importing to library: \(sanitizedPath)")
         } else {
             logger.warning("WARNING: No library path set for import!")
         }
+        request.addEngineAuth(libraryPath: sanitizedPath)
 
         var body = Data()
 

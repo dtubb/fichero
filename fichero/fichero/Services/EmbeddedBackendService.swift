@@ -44,9 +44,12 @@ final class EmbeddedBackendService: ObservableObject {
         }
         #endif
 
-        // Launch embedded backend (DEBUG fallback or RELEASE always)
+        // Launch embedded backend (DEBUG fallback or RELEASE always).
+        // Briefcase-bundled engine cold-starts in ~25s on Apple Silicon
+        // (heavy ML imports + DB init); 90s gives margin on slower I/O,
+        // first-launch caches, and contended startup.
         try launchEmbeddedBackend()
-        try await waitForBackend(timeout: 30)
+        try await waitForBackend(timeout: 90)
         status = .running
         logger.info("Embedded backend started successfully")
     }
@@ -202,6 +205,7 @@ final class EmbeddedBackendService: ObservableObject {
         let workflowsURL = backendURL.appendingPathComponent("api/workflows")
         var request = URLRequest(url: workflowsURL)
         request.httpMethod = "GET"
+        request.addEngineAuth()
 
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
@@ -209,6 +213,8 @@ final class EmbeddedBackendService: ObservableObject {
                 return false
             }
             // Missing library header may return 422; route absence returns 404.
+            // 401 means engine present but token mismatch — treat as supported
+            // so we don't double-launch.
             return httpResponse.statusCode != 404
         } catch {
             return false
@@ -245,7 +251,7 @@ enum BackendError: LocalizedError {
         case .bundleNotFound:
             return "App bundle resources not found"
         case .backendAppNotFound:
-            return "Backend app not found in bundle. Run: ./scripts/build_backend_bundle.sh"
+            return "Backend app not found in bundle. Build the engine with: briefcase build macOS --app engine (in fichero-engine/), then rebuild Fichero in Xcode."
         case .launchFailed(let error):
             return "Failed to launch backend app: \(error.localizedDescription)"
         case .timeout:

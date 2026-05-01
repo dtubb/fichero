@@ -77,11 +77,7 @@ class WorkflowStreamService: ObservableObject {
         var executeRequest = URLRequest(url: executeUrl)
         executeRequest.httpMethod = "POST"
         executeRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        // Add library path header (required by backend)
-        if let libraryPath = api.currentLibraryPath {
-            executeRequest.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-        }
+        executeRequest.addEngineAuth(libraryPath: api.currentLibraryPath)
 
         let bodyData = try JSONSerialization.data(withJSONObject: requestBody, options: [])
         executeRequest.httpBody = bodyData
@@ -133,11 +129,7 @@ class WorkflowStreamService: ObservableObject {
 
         var request = URLRequest(url: streamUrl)
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-
-        // Add library path header (required by backend)
-        if let libraryPath = api.currentLibraryPath {
-            request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-        }
+        request.addEngineAuth(libraryPath: api.currentLibraryPath)
 
         logger.info("Subscribing to event stream: \(streamUrl)")
 
@@ -231,11 +223,7 @@ class WorkflowStreamService: ObservableObject {
 
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
-
-        // Add library path header (required by backend)
-        if let libraryPath = api.currentLibraryPath {
-            request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-        }
+        request.addEngineAuth(libraryPath: api.currentLibraryPath)
 
         logger.info("Stopping workflow thread: \(threadId)")
 
@@ -263,11 +251,7 @@ class WorkflowStreamService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        // Add library path header (required by backend)
-        if let libraryPath = api.currentLibraryPath {
-            request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-        }
+        request.addEngineAuth(libraryPath: api.currentLibraryPath)
 
         logger.info("Resuming workflow thread: \(threadId)")
 

@@ -364,9 +364,7 @@ class WorkflowServiceGenerated: ObservableObject {
         }
         var request = URLRequest(url: baseURL)
         request.httpMethod = "POST"
-        if let libraryPath = client.currentLibraryPath {
-            request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-        }
+        request.addEngineAuth(libraryPath: client.currentLibraryPath)
         let (_, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {

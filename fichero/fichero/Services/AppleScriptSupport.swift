@@ -68,6 +68,14 @@ class AppleScriptBridge {
     static let shared = AppleScriptBridge()
 
     private let baseURL = URL(string: "http://127.0.0.1:8765/api")!
+
+    /// GET request with engine Bearer token (#742). Replaces former
+    /// `session.data(from: url)` callsites which strip headers.
+    private func authedGet(_ url: URL) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.addEngineAuth()
+        return request
+    }
     private let session: URLSession
 
     private init() {
@@ -84,6 +92,7 @@ class AppleScriptBridge {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addEngineAuth()
 
         let body: [String: any Sendable] = [
             "workflow_id": workflowId,
@@ -98,7 +107,7 @@ class AppleScriptBridge {
 
     func getWorkflowStatus(threadId: String) async throws -> String {
         let url = baseURL.appendingPathComponent("workflow-execution/threads/\(threadId)/status")
-        let (data, _) = try await session.data(from: url)
+        let (data, _) = try await session.data(for: authedGet(url))
         let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         return result?["status"] as? String ?? "unknown"
     }
@@ -114,6 +123,7 @@ class AppleScriptBridge {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addEngineAuth()
         request.httpBody = Data("{}".utf8)
 
         let (data, _) = try await session.data(for: request)
@@ -123,7 +133,7 @@ class AppleScriptBridge {
 
     func listWorkflows() async throws -> [String] {
         let url = baseURL.appendingPathComponent("workflows")
-        let (data, _) = try await session.data(from: url)
+        let (data, _) = try await session.data(for: authedGet(url))
         let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         let workflows = result?["workflows"] as? [[String: Any]] ?? []
         return workflows.compactMap { $0["name"] as? String }
@@ -136,6 +146,7 @@ class AppleScriptBridge {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addEngineAuth()
 
         let body: [String: any Sendable] = [
             "inputs": inputs,
@@ -162,7 +173,7 @@ class AppleScriptBridge {
             urlComponents.queryItems?.append(URLQueryItem(name: "folder_path", value: folder))
         }
 
-        let (data, _) = try await session.data(from: urlComponents.url!)
+        let (data, _) = try await session.data(for: authedGet(urlComponents.url!))
         let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         let documents = result?["documents"] as? [[String: Any]] ?? []
         return documents.compactMap { $0["name"] as? String }
@@ -178,7 +189,7 @@ class AppleScriptBridge {
             URLQueryItem(name: "limit", value: String(limit))
         ]
 
-        let (data, _) = try await session.data(from: urlComponents.url!)
+        let (data, _) = try await session.data(for: authedGet(urlComponents.url!))
         let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         let documents = result?["documents"] as? [[String: Any]] ?? []
         return documents.compactMap { $0["name"] as? String }
@@ -189,6 +200,7 @@ class AppleScriptBridge {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addEngineAuth()
 
         var body: [String: Any] = [
             "source_path": filePath,
@@ -206,7 +218,7 @@ class AppleScriptBridge {
 
     func getDocumentInfo(documentId: String) async throws -> [String: any Sendable] {
         let url = baseURL.appendingPathComponent("documents/\(documentId)")
-        let (data, _) = try await session.data(from: url)
+        let (data, _) = try await session.data(for: authedGet(url))
         return try JSONSerialization.jsonObject(with: data) as? [String: any Sendable] ?? [:]
     }
 }

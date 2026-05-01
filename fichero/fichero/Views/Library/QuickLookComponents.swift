@@ -35,18 +35,12 @@ struct QuickLookDownloadView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let error = error {
                 ZStack {
-                    // Show thumbnail in background if available
-                    AsyncImage(url: apiClient.thumbnailURL(for: document.id)) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .opacity(0.3)
-                        default:
-                            Color.clear
-                        }
-                    }
+                    // Show thumbnail in background if available. AsyncImage(url:)
+                    // can't pass the Bearer auth header (#742), so route through
+                    // LibraryImageView which uses StorageService.fetchImageData.
+                    LibraryImageView(documentId: document.id, imageType: .thumbnail)
+                        .aspectRatio(contentMode: .fit)
+                        .opacity(0.3)
 
                     // Error overlay
                     VStack(spacing: 16) {
@@ -182,13 +176,11 @@ struct QuickLookDownloadView: View {
         let sourceURL = apiClient.sourceURL(for: document.id)
 
         do {
-            // Create request with required header
-            var request = URLRequest(url: sourceURL)
-            if let libraryPath = apiClient.currentLibraryPath {
-                request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-            } else {
+            if apiClient.currentLibraryPath == nil {
                 logger.warning("Downloading source without library path - API may reject request")
             }
+            var request = URLRequest(url: sourceURL)
+            request.addEngineAuth(libraryPath: apiClient.currentLibraryPath)
 
             // Download file from API
             let (tempURL, response) = try await URLSession.shared.download(for: request)

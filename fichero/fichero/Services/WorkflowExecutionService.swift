@@ -24,14 +24,12 @@ class WorkflowExecutionService: ObservableObject {
         self.libraryPath = path
     }
 
-    /// Create a URLRequest with common headers
+    /// Create a URLRequest with common headers (auth + library path).
     private func createRequest(url: URL, method: String) -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let libraryPath = libraryPath {
-            request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-        }
+        request.addEngineAuth(libraryPath: libraryPath)
         return request
     }
 

@@ -10,7 +10,7 @@ extension IntegrationsService {
             throw IntegrationsError.invalidURL
         }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await URLSession.shared.data(for: authedGet(url))
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -27,7 +27,7 @@ extension IntegrationsService {
             throw IntegrationsError.invalidURL
         }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await URLSession.shared.data(for: authedGet(url))
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -44,7 +44,7 @@ extension IntegrationsService {
             throw IntegrationsError.invalidURL
         }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await URLSession.shared.data(for: authedGet(url))
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -61,7 +61,7 @@ extension IntegrationsService {
             throw IntegrationsError.invalidURL
         }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await URLSession.shared.data(for: authedGet(url))
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -87,6 +87,7 @@ extension IntegrationsService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addEngineAuth()
 
         let body: [String: Any?] = [
             "name": name,

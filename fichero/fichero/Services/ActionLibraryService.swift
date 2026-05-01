@@ -26,9 +26,7 @@ final class ActionLibraryService: ObservableObject {
 
     private func request(for url: URL) -> URLRequest {
         var request = URLRequest(url: url)
-        if !libraryPath.isEmpty {
-            request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-        }
+        request.addEngineAuth(libraryPath: libraryPath.isEmpty ? nil : libraryPath)
         return request
     }
 

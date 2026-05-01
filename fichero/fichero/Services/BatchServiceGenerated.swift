@@ -136,9 +136,7 @@ class BatchServiceGenerated: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let libraryPath = client.currentLibraryPath {
-            request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-        }
+        request.addEngineAuth(libraryPath: client.currentLibraryPath)
 
         // Fire the request — the backend starts processing and streams SSE.
         // We just need to confirm it started (2xx status).

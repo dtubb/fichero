@@ -12,6 +12,15 @@ final class IntegrationsService: ObservableObject {
 
     let baseURL = "http://localhost:8765/api/integrations"
 
+    /// GET request with engine Bearer token (#742). Replaces former
+    /// `URLSession.shared.data(from: url)` callsites. `internal` so the
+    /// `+AppSpecific` extension in another file can use it.
+    func authedGet(_ url: URL) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.addEngineAuth()
+        return request
+    }
+
     // MARK: - Integration Management
 
     /// Load all available integrations
@@ -24,7 +33,7 @@ final class IntegrationsService: ObservableObject {
                 throw IntegrationsError.invalidURL
             }
 
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await URLSession.shared.data(for: authedGet(url))
 
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200 else {
@@ -51,6 +60,7 @@ final class IntegrationsService: ObservableObject {
 
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
+            request.addEngineAuth()
 
             let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -105,7 +115,7 @@ final class IntegrationsService: ObservableObject {
             throw IntegrationsError.invalidURL
         }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await URLSession.shared.data(for: authedGet(url))
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw IntegrationsError.serverError
@@ -129,7 +139,7 @@ final class IntegrationsService: ObservableObject {
             throw IntegrationsError.invalidURL
         }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await URLSession.shared.data(for: authedGet(url))
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -155,6 +165,7 @@ final class IntegrationsService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addEngineAuth()
 
         let body: [String: Any?] = [
             "external_id": externalId,
@@ -190,6 +201,7 @@ final class IntegrationsService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addEngineAuth()
 
         let body: [String: Any?] = [
             "file_path": filePath,
@@ -220,6 +232,7 @@ final class IntegrationsService: ObservableObject {
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.addEngineAuth()
 
         let (data, response) = try await URLSession.shared.data(for: request)
 

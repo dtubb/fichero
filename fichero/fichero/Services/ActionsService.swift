@@ -13,6 +13,15 @@ final class ActionsService: ObservableObject {
 
     private let baseURL = "http://localhost:8765/api/actions"
 
+    /// Build a GET request that carries the engine Bearer token (#742).
+    /// All callers used to use `URLSession.shared.data(from: url)`, which
+    /// strips headers — that 401s post-#742.
+    private func authedGet(_ url: URL) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.addEngineAuth()
+        return request
+    }
+
     // MARK: - List Actions
 
     func loadActions() async {
@@ -21,7 +30,7 @@ final class ActionsService: ObservableObject {
 
         do {
             guard let url = URL(string: baseURL) else { throw ActionsError.invalidURL }
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
             actions = try JSONDecoder().decode([ActionItem].self, from: data)
             logger.info("Loaded \(self.actions.count) actions")
         } catch {
@@ -35,7 +44,7 @@ final class ActionsService: ObservableObject {
     func loadCategories() async {
         do {
             guard let url = URL(string: "\(baseURL)/categories") else { return }
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
             let result = try JSONDecoder().decode(CategoriesResponse.self, from: data)
             categories = result.categories.map { $0.name }
         } catch {
@@ -46,7 +55,7 @@ final class ActionsService: ObservableObject {
     func loadBuiltinActions() async -> [ActionItem] {
         do {
             guard let url = URL(string: "\(baseURL)/builtin") else { return [] }
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
             return try JSONDecoder().decode([ActionItem].self, from: data)
         } catch {
             return []
@@ -56,7 +65,7 @@ final class ActionsService: ObservableObject {
     func loadCustomActions() async -> [ActionItem] {
         do {
             guard let url = URL(string: "\(baseURL)/custom") else { return [] }
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
             return try JSONDecoder().decode([ActionItem].self, from: data)
         } catch {
             return []
@@ -66,7 +75,7 @@ final class ActionsService: ObservableObject {
     func loadPopularActions(limit: Int = 10) async -> [ActionItem] {
         do {
             guard let url = URL(string: "\(baseURL)/popular?limit=\(limit)") else { return [] }
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
             return try JSONDecoder().decode([ActionItem].self, from: data)
         } catch {
             return []
@@ -93,7 +102,7 @@ final class ActionsService: ObservableObject {
 
         do {
             guard let url = components?.url else { return [] }
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
             return try JSONDecoder().decode([ActionItem].self, from: data)
         } catch {
             return []
@@ -104,7 +113,7 @@ final class ActionsService: ObservableObject {
 
     func getAction(id: String) async throws -> ActionItem {
         guard let url = URL(string: "\(baseURL)/\(id)") else { throw ActionsError.invalidURL }
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let (data, _) = try await URLSession.shared.data(for: authedGet(url))
         return try JSONDecoder().decode(ActionItem.self, from: data)
     }
 
@@ -114,6 +123,7 @@ final class ActionsService: ObservableObject {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.addEngineAuth()
         urlRequest.httpBody = try JSONEncoder().encode(request)
 
         let (data, _) = try await URLSession.shared.data(for: urlRequest)
@@ -127,6 +137,7 @@ final class ActionsService: ObservableObject {
 
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
+        request.addEngineAuth()
 
         let (_, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
@@ -141,6 +152,7 @@ final class ActionsService: ObservableObject {
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.addEngineAuth()
 
         _ = try? await URLSession.shared.data(for: request)
     }
@@ -149,7 +161,7 @@ final class ActionsService: ObservableObject {
 
     func exportAction(id: String) async throws -> String {
         guard let url = URL(string: "\(baseURL)/\(id)/export") else { throw ActionsError.invalidURL }
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let (data, _) = try await URLSession.shared.data(for: authedGet(url))
         let result = try JSONDecoder().decode([String: String].self, from: data)
         return result["json"] ?? ""
     }
@@ -160,6 +172,7 @@ final class ActionsService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addEngineAuth()
 
         let body = ["json_data": json, "new_id": true] as [String: Any]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)

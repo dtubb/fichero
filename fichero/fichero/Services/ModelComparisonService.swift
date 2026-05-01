@@ -33,6 +33,7 @@ final class ModelComparisonService: ObservableObject {
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.addEngineAuth()
 
             let body = CompareRequest(
                 prompt: prompt,
@@ -55,12 +56,20 @@ final class ModelComparisonService: ObservableObject {
         isComparing = false
     }
 
+    /// GET request with engine Bearer token (#742). Replaces former
+    /// `URLSession.shared.data(from: url)` callsites.
+    private func authedGet(_ url: URL) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.addEngineAuth()
+        return request
+    }
+
     // MARK: - Load Available Models
 
     func loadModels() async {
         do {
             guard let url = URL(string: "\(baseURL)/models") else { return }
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
             let response = try JSONDecoder().decode(ComparisonModelsResponse.self, from: data)
             availableModels = response.models
         } catch {
@@ -73,7 +82,7 @@ final class ModelComparisonService: ObservableObject {
     func loadPresets() async {
         do {
             guard let url = URL(string: "\(baseURL)/presets") else { return }
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
             let response = try JSONDecoder().decode(PresetsResponse.self, from: data)
             presets = response.presets
         } catch {
@@ -93,6 +102,7 @@ final class ModelComparisonService: ObservableObject {
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.addEngineAuth()
 
             let body = CompareRequest(prompt: prompt, models: models.map { $0.toDict() })
             request.httpBody = try JSONEncoder().encode(body)
@@ -110,7 +120,7 @@ final class ModelComparisonService: ObservableObject {
     func loadHistory(limit: Int = 10) async {
         do {
             guard let url = URL(string: "\(baseURL)/history?limit=\(limit)") else { return }
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
             let response = try JSONDecoder().decode(HistoryResponse.self, from: data)
             history = response.history
         } catch {
@@ -135,6 +145,7 @@ final class ModelComparisonService: ObservableObject {
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.addEngineAuth()
 
             let body = VisionCompareRequest(
                 images: images,
@@ -175,6 +186,7 @@ final class ModelComparisonService: ObservableObject {
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.addEngineAuth()
 
             let body = ToolCompareRequest(
                 toolName: toolName,
@@ -203,7 +215,7 @@ final class ModelComparisonService: ObservableObject {
     func loadModelsByTier() async {
         do {
             guard let url = URL(string: "\(baseURL)/models-by-tier") else { return }
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
             modelsByTier = try JSONDecoder().decode(ModelsByTier.self, from: data)
         } catch {
             logger.error("Failed to load models by tier: \(error.localizedDescription)")
@@ -215,7 +227,7 @@ final class ModelComparisonService: ObservableObject {
     func loadTools() async {
         do {
             guard let url = URL(string: "\(baseURL)/tools") else { return }
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
             let response = try JSONDecoder().decode(ToolsResponse.self, from: data)
             availableTools = response.tools
         } catch {

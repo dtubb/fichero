@@ -80,9 +80,7 @@ class StorageServiceGenerated: ObservableObject {
     /// network call; doesn't block main thread.
     private func fetchImageData(from url: URL) async throws -> Data {
         var request = URLRequest(url: url)
-        if let libraryPath = client.currentLibraryPath {
-            request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-        }
+        request.addEngineAuth(libraryPath: client.currentLibraryPath)
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -141,11 +139,7 @@ class StorageServiceGenerated: ObservableObject {
 
         let url = sourceURL(for: docId)
         var request = URLRequest(url: url)
-
-        // Add library path header
-        if let libraryPath = client.currentLibraryPath {
-            request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-        }
+        request.addEngineAuth(libraryPath: client.currentLibraryPath)
 
         let (localURL, response) = try await session.download(for: request)
 

@@ -180,9 +180,7 @@ struct WorkflowDiagramPreview: View {
 
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
-            if let libraryPath = apiClient.currentLibraryPath {
-                request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-            }
+            request.addEngineAuth(libraryPath: apiClient.currentLibraryPath)
 
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
@@ -204,9 +202,7 @@ struct WorkflowDiagramPreview: View {
 
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
-            if let libraryPath = apiClient.currentLibraryPath {
-                request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-            }
+            request.addEngineAuth(libraryPath: apiClient.currentLibraryPath)
 
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {

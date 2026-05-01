@@ -126,6 +126,7 @@ struct LocalModelsSettingsView: View {
             let url = URL(string: "http://127.0.0.1:8765/api/local-models/download/\(type)/\(modelId)")!
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
+            request.addEngineAuth()
             let (_, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else { return }
@@ -140,6 +141,7 @@ struct LocalModelsSettingsView: View {
             let url = URL(string: "http://127.0.0.1:8765/api/local-models/\(type)/\(modelId)")!
             var request = URLRequest(url: url)
             request.httpMethod = "DELETE"
+            request.addEngineAuth()
             let (_, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else { return }
@@ -151,14 +153,18 @@ struct LocalModelsSettingsView: View {
 
     private func fetchLocalModels() async throws -> [LocalModelStatus] {
         let url = URL(string: "http://127.0.0.1:8765/api/local-models")!
-        let (data, _) = try await URLSession.shared.data(from: url)
+        var request = URLRequest(url: url)
+        request.addEngineAuth()
+        let (data, _) = try await URLSession.shared.data(for: request)
         let response = try JSONDecoder().decode(LocalModelsResponse.self, from: data)
         return response.models
     }
 
     private func fetchDiskUsage() async throws -> DiskUsageInfo {
         let url = URL(string: "http://127.0.0.1:8765/api/local-models/disk-usage")!
-        let (data, _) = try await URLSession.shared.data(from: url)
+        var request = URLRequest(url: url)
+        request.addEngineAuth()
+        let (data, _) = try await URLSession.shared.data(for: request)
         return try JSONDecoder().decode(DiskUsageInfo.self, from: data)
     }
 

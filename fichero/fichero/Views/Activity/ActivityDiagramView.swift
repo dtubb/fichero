@@ -118,10 +118,7 @@ struct ActivityDiagramView: View {
 
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
-
-            if let libraryPath = apiClient.currentLibraryPath {
-                request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-            }
+            request.addEngineAuth(libraryPath: apiClient.currentLibraryPath)
 
             let (data, response) = try await URLSession.shared.data(for: request)
 

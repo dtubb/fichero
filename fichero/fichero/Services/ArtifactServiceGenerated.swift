@@ -120,9 +120,7 @@ class ArtifactServiceGenerated: ObservableObject {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        if let libraryPath = client.currentLibraryPath {
-            request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-        }
+        request.addEngineAuth(libraryPath: client.currentLibraryPath)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 

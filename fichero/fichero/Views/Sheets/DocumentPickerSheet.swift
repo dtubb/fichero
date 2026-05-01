@@ -168,6 +168,7 @@ struct DocumentPickerSheet: View {
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.addEngineAuth()
             request.httpBody = jsonData
 
             let (data, response) = try await URLSession.shared.data(for: request)
