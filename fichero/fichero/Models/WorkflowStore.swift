@@ -31,7 +31,10 @@ class WorkflowStore: ObservableObject {
     /// fichero-engine/.../resources/default_workflows. The Swift-side
     /// `Default · Transcribe Files` / `Default · Transcribe Collection`
     /// duplicated backend's Transcribe — removed in #722.
-    private let defaultWorkflowTemplates: [DefaultWorkflowTemplate] = []
+    // Note: there used to be a Swift-defined `defaultWorkflowTemplates`
+    // array of `DefaultWorkflowTemplate` here. Defaults now live in the
+    // backend's JSON files and are re-seeded by `reinstallDefaults` on
+    // every session start. Removed in #722 to stop creating duplicates.
 
     init(ficheroClient: FicheroClient) {
         self.ficheroClient = ficheroClient
@@ -366,46 +369,26 @@ class WorkflowStore: ObservableObject {
 
     @discardableResult
     private func syncDefaultWorkflowTemplates(resetExisting: Bool) async throws -> [WorkflowSidebarItem] {
-        let toolsByName = try await loadToolRegistry()
-        let workflowResponses = try await workflowService.listWorkflows()
-        let existingByName = Dictionary(
-            uniqueKeysWithValues: workflowResponses.map { ($0.name, $0) }
-        )
-
+        // The Swift-side `DefaultWorkflowTemplate` enum used to define
+        // a few simple Transcribe templates here, but those overlapped
+        // with backend-shipped defaults (Catalogue, Transcribe,
+        // Catalogue (composable), Apple variants) and just created
+        // duplicates. Source of truth is now backend JSON in
+        // fichero-engine/src/fichero/resources/default_workflows/. (#722 part 1)
+        //
+        // The reset path delegates to `reinstallDefaults` which deletes
+        // existing presets server-side and re-seeds from the backend's
+        // canonical JSON. Install is a no-op because `loadWorkflows`
+        // already re-seeds defaults on every session start (see line 59).
         if resetExisting {
-            for template in defaultWorkflowTemplates {
-                if let existing = existingByName[template.name] {
-                    try await workflowService.deleteWorkflow(existing.id)
-                }
-            }
+            try await workflowService.reinstallDefaults()
         }
-
-        var created: [WorkflowSidebarItem] = []
-        for template in defaultWorkflowTemplates {
-            if !resetExisting, existingByName[template.name] != nil {
-                continue
-            }
-
-            let definition = try template.makeDefinition(toolsByName: toolsByName)
-            let response = try await workflowService.createWorkflow(definition)
-            created.append(
-                WorkflowSidebarItem(
-                    id: response.id,
-                    name: response.name,
-                    description: response.description,
-                    nodeCount: response.nodes.count,
-                    isEnabled: true,
-                    folderPath: response.folderPath,
-                    sortOrder: response.sortOrder,
-                    isSystem: response.isSystem,
-                    createdAt: Date(),
-                    updatedAt: Date()
-                )
-            )
-        }
-
         await loadWorkflows()
-        return created
+
+        // Return the system-default workflows that exist after the
+        // operation so callers (e.g., the "Reset Defaults" button) can
+        // surface a "Reinstalled N workflows" message.
+        return workflows.filter(\.isSystem)
     }
 
     private func loadToolRegistry() async throws -> [String: ToolInfo] {
@@ -509,69 +492,5 @@ enum WorkflowStoreError: Error, LocalizedError {
     }
 }
 
-// MARK: - Default Workflow Templates
-
-private enum DefaultWorkflowTemplate {
-    case filesToTranscribe
-    case collectionToTranscribe
-
-    var name: String {
-        switch self {
-        case .filesToTranscribe:
-            return "Default · Transcribe Files"
-        case .collectionToTranscribe:
-            return "Default · Transcribe Collection"
-        }
-    }
-
-    var description: String {
-        switch self {
-        case .filesToTranscribe:
-            return "Run transcription over selected files."
-        case .collectionToTranscribe:
-            return "Run transcription over a collection source."
-        }
-    }
-
-    func makeDefinition(toolsByName: [String: ToolInfo]) throws -> WorkflowDefinition {
-        let sourceToolName = switch self {
-        case .filesToTranscribe: "files"
-        case .collectionToTranscribe: "collection"
-        }
-
-        guard let sourceTool = toolsByName[sourceToolName] else {
-            throw WorkflowStoreError.templateInstallFailed("Missing source tool '\(sourceToolName)'")
-        }
-        guard let transcribeTool = toolsByName["transcribe"] else {
-            throw WorkflowStoreError.templateInstallFailed("Missing tool 'transcribe'")
-        }
-
-        let sourceNode = WorkflowNode(
-            from: sourceTool,
-            positionX: 220,
-            positionY: 220
-        )
-        let transcribeNode = WorkflowNode(
-            from: transcribeTool,
-            positionX: 540,
-            positionY: 220
-        )
-
-        let sourcePort = sourceNode.outputPorts.first?.id ?? "output"
-        let targetPort = transcribeNode.inputPorts.first?.id ?? "input"
-
-        return WorkflowDefinition(
-            name: name,
-            description: description,
-            nodes: [sourceNode, transcribeNode],
-            edges: [
-                WorkflowEdge(
-                    sourceNodeId: sourceNode.id,
-                    targetNodeId: transcribeNode.id,
-                    sourcePortId: sourcePort,
-                    targetPortId: targetPort
-                )
-            ]
-        )
-    }
-}
+// Removed: `DefaultWorkflowTemplate` enum (Transcribe Files / Transcribe Collection)
+// — replaced by backend-shipped JSON workflows. See #722.
