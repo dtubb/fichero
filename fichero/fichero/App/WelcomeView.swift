@@ -1,3 +1,9 @@
+// User-facing UI copy contains long sentences (welcome blurb, choice-card
+// descriptions); splitting them in source for SwiftLint hurts readability
+// without changing the rendered output. Wizard is also naturally long —
+// it owns 4 screens. Both rules suppressed file-wide.
+// swiftlint:disable line_length file_length
+
 import FicheroAPIClient
 import SwiftUI
 
@@ -63,6 +69,7 @@ enum OnboardingChoice: String, Identifiable {
 // automatically reflects every provider the engine supports — see
 // `localCatalog` / `cloudCatalog` accessors on `OnboardingWizardView`.
 
+// swiftlint:disable:next type_body_length
 struct OnboardingWizardView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var apiClient: APIClient
@@ -91,7 +98,7 @@ struct OnboardingWizardView: View {
 
     // Local server connectivity check.
     @State private var localTestState: LocalTestState = .idle
-    enum LocalTestState { case idle, testing, ok, failed(String) }
+    enum LocalTestState { case idle, testing, connected, failed(String) }
 
     /// Default for new imports. Mirrors GeneralSettingsView's
     /// @AppStorage("defaultImportMode"). Default = link.
@@ -160,7 +167,6 @@ struct OnboardingWizardView: View {
         default: return nil
         }
     }
-
 
     // MARK: - Step 0: Welcome
 
@@ -562,7 +568,7 @@ struct OnboardingWizardView: View {
                             .textFieldStyle(.roundedBorder)
                             .disableAutocorrection(true)
                             .onChange(of: serverURL) { _, _ in
-                                if case .ok = localTestState { localTestState = .idle }
+                                if case .connected = localTestState { localTestState = .idle }
                                 if case .failed = localTestState { localTestState = .idle }
                             }
                         Button("Test") { Task { await testLocalConnection() } }
@@ -579,7 +585,7 @@ struct OnboardingWizardView: View {
                         ProgressView().controlSize(.small)
                         Text("Testing…").font(.caption).foregroundStyle(.secondary)
                     }
-                case .ok:
+                case .connected:
                     Label("Connected", systemImage: "checkmark.circle.fill")
                         .font(.caption).foregroundStyle(.green)
                 case .failed(let reason):
@@ -730,7 +736,7 @@ struct OnboardingWizardView: View {
                 localTestState = .failed("Server responded with HTTP \(code).")
                 return
             }
-            localTestState = .ok
+            localTestState = .connected
         } catch {
             localTestState = .failed("Couldn't reach \(probeURL.host ?? "server") — is \(entry.name) running?")
         }
@@ -807,3 +813,5 @@ struct OnboardingWizardView: View {
         try await appState.saveAIDefaults(defaults)
     }
 }
+
+// swiftlint:enable line_length file_length
