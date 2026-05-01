@@ -133,7 +133,15 @@ extension ContentView {
                 .overlay { paneFocusIndicator(for: .preview) }
                 .frame(maxWidth: .infinity)
         } else {
-            switch currentLayoutMode {
+            // When the active "detail" item is a folder there's nothing to
+            // preview — `EditorView` renders `FolderContentsGrid`, which is
+            // the same children the main grid is already showing. Force
+            // layout to `.none` so the grid takes full width and we don't
+            // duplicate the folder's contents in a side/below pane. (#749)
+            let layout: LayoutMode = (detailDocument?.docType == .folder)
+                ? .none
+                : currentLayoutMode
+            switch layout {
             case .none:
                 contentWithOptionalModeRail
                     .overlay { paneFocusIndicator(for: .content) }
