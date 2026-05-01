@@ -46,9 +46,42 @@ func emitError(_ message: String, kind: String) -> Never {
     exit(1)
 }
 
+/// Emit a probe result `{"available": Bool, "reason": String?}` to stdout
+/// and exit. Used by `--probe` mode for the onboarding wizard's "Is Apple
+/// Intelligence available on this Mac?" check, so we don't have to spin up
+/// a real generation to find out.
+struct ProbeResponse: Codable {
+    let available: Bool
+    let reason: String?
+}
+
+func emitProbe(available: Bool, reason: String?) -> Never {
+    let payload = ProbeResponse(available: available, reason: reason)
+    if let data = try? JSONEncoder().encode(payload) {
+        FileHandle.standardOutput.write(data)
+    }
+    exit(available ? 0 : 1)
+}
+
 @main
 struct FmBridge {
     static func main() async {
+        // Probe mode — availability check only, no generation. Runs in tens
+        // of milliseconds; safe to call from the wizard's onAppear.
+        if CommandLine.arguments.contains("--probe") {
+            let model = SystemLanguageModel.default
+            switch model.availability {
+            case .available:
+                emitProbe(available: true, reason: nil)
+            default:
+                emitProbe(
+                    available: false,
+                    reason: "Apple Intelligence is not available on this device. " +
+                            "Requires macOS 26+ on Apple Silicon with Apple Intelligence enabled."
+                )
+            }
+        }
+
         // Availability check first — fail fast on machines without
         // Apple Intelligence (older OS, unsupported chip, not opted-in).
         let model = SystemLanguageModel.default

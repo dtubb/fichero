@@ -52,6 +52,70 @@ def _safe_isoformat(value) -> str:
 
 
 # =============================================================================
+# Apple Intelligence availability probe
+# =============================================================================
+
+
+class AppleIntelligenceProbeResponse(BaseModel):
+    """Result of probing whether Apple Intelligence is usable on this Mac."""
+
+    available: bool
+    reason: str | None = None
+
+
+@router.get("/apple-intelligence/probe")
+async def probe_apple_intelligence() -> AppleIntelligenceProbeResponse:
+    """Quick check: is Apple Intelligence usable on this device?
+
+    Used by the onboarding wizard so the user doesn't pick "Apple Intelligence"
+    and then hit `kind: unavailable` later when they run a workflow. Runs fm-bridge
+    in `--probe` mode (availability check only — no generation, no model warm-up).
+    """
+    import asyncio
+    import json as _json
+    from pathlib import Path
+
+    here = Path(__file__).resolve()
+    candidates = [
+        here.parents[4] / "bin" / "fm-bridge" / "fm-bridge",
+        Path("fichero-engine/bin/fm-bridge/fm-bridge").resolve(),
+    ]
+    binary = next(
+        (p for p in candidates if p.is_file() and p.stat().st_mode & 0o111), None
+    )
+    if binary is None:
+        return AppleIntelligenceProbeResponse(
+            available=False,
+            reason="fm-bridge binary not found. Build it with fichero-engine/bin/fm-bridge/build.sh",
+        )
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            str(binary),
+            "--probe",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout_bytes, stderr_bytes = await proc.communicate()
+    except Exception as exc:  # noqa: BLE001
+        return AppleIntelligenceProbeResponse(
+            available=False, reason=f"Couldn't run fm-bridge: {exc}"
+        )
+
+    try:
+        result = _json.loads(stdout_bytes.decode())
+    except _json.JSONDecodeError:
+        return AppleIntelligenceProbeResponse(
+            available=False,
+            reason=stderr_bytes.decode().strip() or "fm-bridge probe returned invalid JSON",
+        )
+    return AppleIntelligenceProbeResponse(
+        available=bool(result.get("available")),
+        reason=result.get("reason"),
+    )
+
+
+# =============================================================================
 # Dependencies
 # =============================================================================
 
