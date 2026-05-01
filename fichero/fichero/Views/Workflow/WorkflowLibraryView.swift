@@ -510,7 +510,9 @@ struct WorkflowListView: View {
 
         do {
             let created = try await workflowStore.resetDefaultWorkflowTemplates()
-            templateOperationMessage = "Reset defaults complete (\(created.count) recreated)."
+            templateOperationMessage = created.isEmpty
+                ? "Default workflows are already up to date."
+                : "Reinstalled \(created.count) default workflow\(created.count == 1 ? "" : "s")."
         } catch {
             templateOperationMessage = "Failed to reset defaults: \(error.localizedDescription)"
         }

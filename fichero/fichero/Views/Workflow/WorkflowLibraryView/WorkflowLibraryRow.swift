@@ -26,7 +26,8 @@ struct WorkflowLibraryRow: View {
                     Text(desc)
                         .font(.caption)
                         .foregroundColor(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 HStack(spacing: 8) {

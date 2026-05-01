@@ -293,7 +293,44 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
     @AppStorage("editor.marginHorizontal") private var marginH: Double = 16
     @AppStorage("editor.marginVertical") private var marginV: Double = 12
 
-    @State private var isExpanded: Bool = true
+    /// Whether the panel starts expanded if there's no remembered choice.
+    /// `true` for Page Content; `false` for generated artifacts.
+    let defaultExpanded: Bool
+
+    @State private var isExpanded: Bool
+
+    /// UserDefaults key for this panel's expansion state, keyed by artifact
+    /// type so the user's expand/collapse choice persists across documents
+    /// AND across app launches. Toggling Transcription open on doc A means
+    /// Transcription opens for doc B, and stays that way after relaunch.
+    private static func storageKey(for kind: PanelKind) -> String {
+        switch kind {
+        case .pageContent:
+            return "inspector.panel.expanded.pageContent"
+        case .artifact(let artifact):
+            return "inspector.panel.expanded.\(artifact.artifactType)"
+        }
+    }
+
+    init(
+        kind: PanelKind,
+        defaultExpanded: Bool = true,
+        onDelete: (() -> Void)? = nil,
+        onSave: ((String) async -> Void)? = nil
+    ) {
+        self.kind = kind
+        self.defaultExpanded = defaultExpanded
+        self.onDelete = onDelete
+        self.onSave = onSave
+
+        // Read remembered choice if any; otherwise fall back to default.
+        // `object(forKey:)` distinguishes "never set" (nil) from "set to
+        // false" — required so first-run uses the parameter default,
+        // not a coerced `false` from `bool(forKey:)`.
+        let key = Self.storageKey(for: kind)
+        let initial = (UserDefaults.standard.object(forKey: key) as? Bool) ?? defaultExpanded
+        self._isExpanded = State(initialValue: initial)
+    }
     @State private var confirmingDelete: Bool = false
     @State private var draftAttributedText: NSAttributedString = NSAttributedString(string: "")
     @State private var editorRevision: Int = 0
@@ -309,6 +346,12 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
         // horizontal padding), let separation between panels be just the
         // VStack spacing. Header still gets a little horizontal padding so
         // the title doesn't kiss the inspector edge.
+        //
+        // Sizing: when expanded, the panel flexes (maxHeight: .infinity) so
+        // it fills remaining inspector space — and when there are multiple
+        // expanded siblings, SwiftUI's VStack splits space equally. When
+        // collapsed, the panel has no flex, so it shrinks to its header
+        // height (~30 px) and lets siblings absorb the freed space.
         VStack(alignment: .leading, spacing: 0) {
             DisclosureGroup(isExpanded: $isExpanded) {
                 contentBody
@@ -319,6 +362,12 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
+        }
+        .frame(maxHeight: isExpanded ? .infinity : nil)
+        .onChange(of: isExpanded) { _, newValue in
+            // Persist the user's choice so it carries across documents
+            // and across app launches. See `storageKey(for:)` for keying.
+            UserDefaults.standard.set(newValue, forKey: Self.storageKey(for: kind))
         }
         .confirmationDialog(
             "Delete this artifact?",
@@ -468,6 +517,14 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
         isSaving = true
         defer { isSaving = false }
         let encoded = encodeArtifactContent(draftAttributedText)
+        // Mark the watermark BEFORE the save round-trips. When the engine echoes
+        // the new pageContent/artifact content back through `rawArtifactContent`,
+        // the `.task(id:)` guard `lastSeededContent != rawArtifactContent` will
+        // short-circuit instead of reseeding the editor. Without this, every
+        // successful save re-runs decodeArtifactContent on the just-saved RTF,
+        // which costs the cursor/selection and looks to the user like the edit
+        // didn't take.
+        lastSeededContent = encoded
         await onSave(encoded)
     }
 
@@ -647,28 +704,16 @@ struct DocumentInspectorContentV2: View {
 
     var body: some View {
         // Equal-divide panels: 1 fills, 2 split half, 3 split third, etc.
-        // Only scroll when there are 2+ panels AND the available height drops
-        // below minPanelHeight × N. With one panel the ScrollView is omitted
-        // so a stray drag never overscrolls.
-        GeometryReader { geo in
-            let count = panelCount
-            let spacing: CGFloat = 8
-            let minPanelHeight: CGFloat = 200
-            let available = max(0, geo.size.height)
-            let evenHeight = count > 0
-                ? (available - spacing * CGFloat(max(0, count - 1))) / CGFloat(count)
-                : available
-            let panelHeight = max(minPanelHeight, evenHeight)
-            let needsScroll = count > 1 && (panelHeight * CGFloat(count) + spacing * CGFloat(count - 1) > available)
-
-            Group {
-                if needsScroll {
-                    ScrollView { panelStack(panelHeight: panelHeight, spacing: spacing) }
-                } else {
-                    panelStack(panelHeight: panelHeight, spacing: spacing)
-                }
-            }
-        }
+        // Panel sizing rule (see ArtifactPanel.body): expanded panels flex
+        // to fill remaining space and split it equally among themselves;
+        // collapsed panels shrink to their header height. The VStack lives
+        // directly in the inspector pane (no ScrollView wrapper) so that
+        // .frame(maxHeight: .infinity) inside expanded panels actually
+        // resolves against the inspector's bounded height. Each expanded
+        // panel's content (the text editor) scrolls internally if its text
+        // exceeds the panel's allotted height.
+        panelStack(spacing: 8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .task(id: document.id) {
             await loadArtifacts()
         }
@@ -685,7 +730,7 @@ struct DocumentInspectorContentV2: View {
     // MARK: - Subviews
 
     @ViewBuilder
-    private func panelStack(panelHeight: CGFloat, spacing: CGFloat) -> some View {
+    private func panelStack(spacing: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: spacing) {
             if let loadError {
                 errorBox(loadError)
@@ -694,26 +739,34 @@ struct DocumentInspectorContentV2: View {
                 errorBox(actionError)
             }
 
+            // Page Content comes first — it's the source text the artifacts
+            // were generated from, so it anchors the top of the stack.
+            // No `onDelete:` (or `.frame(height:)`) — Page Content is a
+            // Document field, not a deletable artifact, and panels size
+            // to their own content so collapsed disclosures shrink to
+            // their header rather than holding equal-divide height.
+            if let pageContent = document.pageContent, !pageContent.isEmpty {
+                ArtifactPanel(
+                    kind: .pageContent(text: pageContent),
+                    onSave: { newContent in
+                        await savePageContent(newContent)
+                    }
+                )
+            }
+
             ForEach(sortedArtifacts) { artifact in
                 ArtifactPanel(
                     kind: .artifact(artifact),
+                    // Generated artifacts (Transcription, Catalogue, etc.)
+                    // start collapsed so the inspector reads as a list of
+                    // headers; users expand the one they want. Page Content
+                    // above stays expanded because it's the source text.
+                    defaultExpanded: false,
                     onDelete: { Task { await deleteArtifact(artifact) } },
                     onSave: { newContent in
                         await saveArtifact(artifact, content: newContent)
                     }
                 )
-                .frame(height: panelHeight)
-            }
-
-            if let pageContent = document.pageContent, !pageContent.isEmpty {
-                ArtifactPanel(
-                    kind: .pageContent(text: pageContent),
-                    onDelete: { Task { await clearPageContent() } },
-                    onSave: { newContent in
-                        await savePageContent(newContent)
-                    }
-                )
-                .frame(height: panelHeight)
             }
 
             if !isLoading
