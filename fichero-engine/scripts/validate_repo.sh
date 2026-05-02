@@ -39,7 +39,7 @@ run_check() {
 run_check "SwiftLint" swiftlint lint fichero/fichero/
 run_check "Xcode build" xcodebuild -project fichero/fichero.xcodeproj -scheme Fichero -configuration Debug build
 run_check "Xcode tests" xcodebuild test -project fichero/fichero.xcodeproj -scheme Fichero -destination "platform=macOS" -quiet
-run_check "Pylint (errors only)" env PYTHONPATH=fichero-engine/src "$PYTHON_BIN" -m pylint --rcfile=fichero-engine/.pylintrc --errors-only fichero-engine/src/fichero fichero-engine/src/fichero_engine
+run_check "Pylint (errors only)" env PYTHONPATH=fichero-engine/src "$PYTHON_BIN" -m pylint --rcfile=fichero-engine/.pylintrc --errors-only fichero-engine/src/fichero fichero-engine/src/engine
 run_check "Pytest unit" env PYTHONPATH=fichero-engine/src "$PYTHON_BIN" -m pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived -q
 
 run_check "OpenAPI sync script" ./fichero-engine/scripts/sync_openapi_schema.sh

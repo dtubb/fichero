@@ -31,18 +31,18 @@ author_email = "dtubb@me.com"
 #
 # Sources:
 #   - src/fichero: Main backend code (API, workflows, database, etc.)
-#   - src/fichero_engine: Briefcase entry point wrapper
+#   - src/engine: Briefcase entry point wrapper
 # =============================================================================
 
 [tool.briefcase.app.engine]
 formal_name = "Fichero Engine"
 description = "Headless engine for Fichero — embedded FastAPI service that powers document processing, AI workflows, and data storage."
 long_description = "FastAPI backend service embedded inside the Fichero Swift app. Provides document processing, AI workflows, and data storage."
-icon = "src/fichero_engine/resources/fichero-engine"  # Briefcase strips extension, adds platform suffixes
+icon = "src/engine/resources/engine"  # Briefcase strips extension, adds platform suffixes
 console_app = true  # Headless app (no window, runs in background)
 sources = [
     "src/fichero",          # Main backend code
-    "src/fichero_engine",  # Briefcase entry point
+    "src/engine",  # Briefcase entry point
 ]
 requires = [
     # Core — 0.0.1 release surface (keep slim for bundle size)
