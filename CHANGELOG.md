@@ -75,6 +75,25 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
 - Folder inspector: click a folder in the sidebar to see its contents,
   metadata, and workflow artifacts in the right-hand panel.
 
+### Security
+
+- **Engine API now requires a per-launch shared-secret token** (#742).
+  The embedded engine binds to `127.0.0.1` (not exposed to any network)
+  and additionally requires `Authorization: Bearer <token>` on every
+  request. The token is generated fresh at engine startup, written to
+  `~/Library/Application Support/Fichero/.api-key` with mode `0600`, and
+  read by Fichero.app. Other apps running as the same user can no
+  longer hit the API at `127.0.0.1:8765` without first reading the
+  permission-restricted token file.
+- Fichero is **not reachable from the internet or the local network** —
+  loopback-only binding means external packets to `127.0.0.1` are
+  dropped at the kernel before they reach the engine, with or without
+  the token. The token closes the remaining gap of co-resident apps on
+  the same Mac.
+- Planned for 0.0.3: migration to a Unix domain socket for tighter
+  filesystem-permission-based isolation. Real macOS App Sandbox + XPC
+  is on the longer-term roadmap.
+
 ### Changed
 
 - **Generic catalogue extractors by default.** Archive-specific extractors
