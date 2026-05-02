@@ -68,6 +68,10 @@ else
   # Developer ID later in scripts/notarize.sh. Using `build` (not `package`)
   # avoids briefcase's installer-cert path which can't be satisfied with
   # only Apple Development.
+  #
+  # `briefcase update` first: `briefcase build` alone re-signs the bundle but
+  # does NOT re-copy source files, so .py edits ship stale otherwise.
+  briefcase update macOS --app engine
   briefcase build macOS --app engine
 
   if [ ! -d "$ENGINE_APP" ]; then

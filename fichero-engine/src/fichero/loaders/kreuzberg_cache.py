@@ -1,6 +1,6 @@
 """
-Route the kreuzberg extraction cache to Fichero's app-data folder so it
-stays out of the working directory of whichever process invokes it.
+Route the kreuzberg extraction cache to ~/Library/Caches/com.fichero.fichero/kreuzberg/
+so it stays out of the working directory of whichever process invokes it.
 
 Without this shim, kreuzberg writes its msgpack/meta cache to `.kreuzberg/`
 relative to cwd — which means running the backend or tests from the repo
@@ -12,14 +12,27 @@ so any callsite that triggers an extraction has the env var set.
 """
 
 import os
+import shutil
 from pathlib import Path
 
-# Mirrors the `MODELS_BASE` path in `fichero.local_models` — app-data
-# root owned by Fichero, invisible to git, stable across relaunches.
-_CACHE_ROOT = (
-    Path.home() / "Library" / "Application Support" / "com.fichero.fichero"
+# ~/Library/Caches per Apple HIG: this is regenerable derived data, not user
+# content. OS may prune it under disk pressure; Time Machine skips it.
+_KREUZBERG_CACHE = (
+    Path.home() / "Library" / "Caches" / "com.fichero.fichero" / "kreuzberg"
 )
-_KREUZBERG_CACHE = _CACHE_ROOT / "kreuzberg"
+
+# One-time migration from the previous Application Support location.
+# Safe to remove this block after 0.0.3 ships.
+_LEGACY_CACHE = (
+    Path.home()
+    / "Library"
+    / "Application Support"
+    / "com.fichero.fichero"
+    / "kreuzberg"
+)
+if _LEGACY_CACHE.exists() and not _KREUZBERG_CACHE.exists():
+    _KREUZBERG_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(_LEGACY_CACHE), str(_KREUZBERG_CACHE))
 
 # Only set if the operator hasn't already overridden via env — respects
 # explicit user config (e.g. tests pointing to a tmpdir).

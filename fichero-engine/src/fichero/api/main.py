@@ -21,6 +21,12 @@ import os
 # This must be set before any imports that use transformers/tokenizers
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
+# Route the kreuzberg extraction cache to ~/Library/Caches/ and run the
+# one-time legacy-location migration. Imported here (not lazily via loaders)
+# so the side effect fires at engine startup regardless of whether the
+# user triggers an extraction this session.
+from fichero.loaders import kreuzberg_cache  # noqa: F401, E402
+
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path

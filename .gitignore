@@ -20,13 +20,13 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
-fichero-api/.venv/
+fichero-engine/.venv/
 venv/
 .ipynb_checkpoints/
-fichero-api/.briefcase/
-fichero-api/.briefcase-venv/
-fichero-api/.pytest_cache/
-fichero-api/.mypy_cache/
+fichero-engine/.briefcase/
+fichero-engine/.briefcase-venv/
+fichero-engine/.pytest_cache/
+fichero-engine/.mypy_cache/
 
 # Build / generated
 .build/
@@ -68,6 +68,3 @@ dump.rdb
 .mcp.json
 .claude/settings.local.json
 
-# Kreuzberg extraction cache — cwd-relative by default; see #589
-.kreuzberg/
-fichero-api/.kreuzberg/
