@@ -12,7 +12,7 @@ DMG_PATH="$ROOT_DIR/build/releases/Fichero.dmg"
 MANIFEST_PATH="$ROOT_DIR/build/releases/release-manifest.txt"
 VOLUME_NAME="Fichero"
 APP_NAME="Fichero.app"
-APP_PATH="$ROOT_DIR/fichero-swiftui/build/xcode/Products/Release/$APP_NAME"
+APP_PATH="$ROOT_DIR/fichero/build/xcode/Products/Release/$APP_NAME"
 ICON_SOURCE="$ROOT_DIR/icon.png"
 
 EXTRA_ARGS=()
