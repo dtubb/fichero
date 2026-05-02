@@ -209,6 +209,17 @@ app = FastAPI(
 )
 
 
+# Local-host shared-secret authentication (#742). Initialized once at module
+# import; the token is also written to ~/Library/Application Support/Fichero/.api-key
+# (mode 0600) so the Swift app can read it. Tests can disable by setting
+# FICHERO_DISABLE_AUTH=1 before importing this module.
+if os.environ.get("FICHERO_DISABLE_AUTH", "").lower() not in {"1", "true", "yes"}:
+    from fichero.api.auth import attach_auth_middleware, initialize_token
+
+    _api_token = initialize_token()
+    attach_auth_middleware(app, _api_token)
+
+
 # CORS configuration
 # Production: Restrict origins to specific domains
 # Development: Allow localhost origins

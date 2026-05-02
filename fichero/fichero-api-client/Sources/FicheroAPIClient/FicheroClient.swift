@@ -52,7 +52,10 @@ public final class FicheroClient: ObservableObject {
             serverURL: baseURL,
             configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
             transport: URLSessionTransport(),
-            middlewares: [libraryPathProvider.createMiddleware()]
+            middlewares: [
+                AuthTokenMiddleware(),
+                libraryPathProvider.createMiddleware(),
+            ]
         )
     }
 
@@ -62,7 +65,10 @@ public final class FicheroClient: ObservableObject {
             serverURL: baseURL,
             configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
             transport: URLSessionTransport(),
-            middlewares: [libraryPathProvider.createMiddleware()]
+            middlewares: [
+                AuthTokenMiddleware(),
+                libraryPathProvider.createMiddleware(),
+            ]
         )
     }
 
