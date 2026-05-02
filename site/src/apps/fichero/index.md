@@ -10,9 +10,12 @@ title: Home
   <a href="#download" class="btn">Download for macOS</a>
 </section>
 
-> **⚠️ This is Alpha software.** Fichero is in active daily development. Things will change. Things will break. Don't put irreplaceable work in it yet — keep originals elsewhere, treat each release as an experiment. If you find a bug, please file it on [GitHub Issues](https://github.com/dtubb/fichero/issues) so it can be fixed.
 
-> **🤖 Fichero is 100% vibe-coded.** Every line was written conversationally with Claude — Daniel describes what he wants, an AI implements it, they iterate in real time. There's no traditional engineering team. [Read more about how it's done →](/apps/fichero/how-its-made/)
+Fichero turns scanned archives, PDFs, field notes, and historical documents into a searchable research library — using visual AI workflows you build yourself. To learn more about how Fichero works, please read the FAQ. Fichero is available as a free Alpha download.
+
+> **⚠️ This is Alpha software.** Fichero is in active daily development. Things will change. Things will break. Don't put irreplaceable work in it yet — keep originals elsewhere, treat each release as an experiment.
+
+> **🤖 Fichero is vibe-coded.** Every line is written conversationally with [Claude](https://www.anthropic.com/claude). Daniel directs; the AI types. See the [FAQ](/apps/fichero/faq/#how-is-fichero-built) for what that looks like in practice.
 
 ## What is Fichero?
 
@@ -71,7 +74,7 @@ Fichero is a work in progress. Iterative. It is, I hope, something useful.
 
 The latest Alpha release is **Fichero 2026.04.29 Alpha**.
 
-<a href="#" class="btn">Download Fichero 2026.04.29 Alpha</a>
+<a href="https://github.com/dtubb/fichero-releases/releases/latest" class="btn">Download Fichero 2026.04.29 Alpha</a>
 
 Releases are dated by ship date (calendar versioning). Versions before 1.0 are Alpha — features change, bugs happen, expect rough edges. See the [download notes](#download-notes) below.
 
@@ -91,6 +94,8 @@ Releases are dated by ship date (calendar versioning). Versions before 1.0 are A
 
 **Improved — Settings.** Defaults model picker reads from configured providers; folder inspector when nothing is selected; thumbnail aspect ratios respect document orientation in the grid.
 
+**Security — Engine API now requires a per-launch shared-secret token.** The embedded engine binds to `127.0.0.1` (loopback only — not reachable from the internet or the local network, with or without a token) and additionally requires `Authorization: Bearer <token>` on every request. The token is generated fresh at engine startup and written to `~/Library/Application Support/Fichero/.api-key` (mode `0600`). This closes the remaining gap of other apps on the same Mac being able to hit the API. Migration to a Unix domain socket (tighter filesystem-permission-based isolation) is planned for 0.0.3.
+
 **Fixed** — Workflow Library list endpoint returning empty after Reset Defaults. Workflow templates duplicating on every install. Catalogue (composable) reducer running a duplicate extraction pass instead of consuming claims. Several inspector and sidebar bugs from earlier internal builds.
 
 #### What's in this release
@@ -99,7 +104,7 @@ The Knowledge Graph layer and Apple Intelligence Catalogue are new in 2026.04.29
 
 - **Document library** with folder organization and file import. LINK mode (security-scoped bookmarks; zero disk usage) or COPY mode (APFS instant-cloning).
 - **AI workflow engine** with visual node editor. 30+ tools: transcription, entity extraction, summarization, classification, document conversion, custom LLM prompts, logic and control flow.
-- **Multiple LLM providers** via LiteLLM. Local: Ollama, LM Studio, Apple Vision OCR, Apple Foundation Models. Cloud: OpenAI, Anthropic, Google, Mistral, Groq, DeepSeek, OpenRouter, DashScope, xAI, Perplexity, Azure, Bedrock, HuggingFace, and more.
+- **Multiple LLM providers** via LiteLLM. Local: Ollama, LM Studio, Apple Vision OCR, Apple Intelligence (Foundation Models). Cloud: OpenAI, Anthropic, Google, Mistral, Groq, DeepSeek, OpenRouter, DashScope, xAI, Perplexity, Azure, Bedrock, HuggingFace, and more.
 - **37+ supported file types** — PDFs, Word, RTF, plain text, images (JPEG/PNG/HEIC/RAW), audio, video, archives, code files.
 - **Embedded Python backend** (Fichero Engine) — auto-launches with the app; no separate server.
 - **Multi-window, multi-library** — open multiple libraries in separate windows.
@@ -122,7 +127,6 @@ Versions are dated by ship day (e.g. `2026.04.29` shipped April 29, 2026). Until
 
 - **Treat every Alpha as an experiment.** Keep originals of any documents you import. The library can be wiped between releases.
 - **Things will change.** Workflows, default settings, and UI conventions are still being figured out. A workflow you saved this week may need re-running next week.
-- **Bug reports are welcome.** File on [GitHub Issues](https://github.com/dtubb/fichero/issues) — include what you were doing and what happened. The author reads them all.
 - **No telemetry, no analytics.** Fichero doesn't phone home. The only network calls are the AI provider you chose (or none, if you use Apple Vision + Apple Intelligence).
 
 ---

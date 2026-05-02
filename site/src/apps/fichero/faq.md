@@ -41,6 +41,10 @@ Please open an issue on the [GitHub repository](https://github.com/dtubb/fichero
 
 Fichero is currently free during early development. Pricing for future versions has not been determined.
 
+### How is Fichero built?
+
+Fichero is vibe-coded. Daniel is an anthropologist, not a software engineer — he doesn't write Swift or Python from scratch. Instead, he sits down with [Claude](https://www.anthropic.com/claude) (Anthropic's AI assistant) and describes what he wants in plain language. Claude does the typing; Daniel directs: what the app should do, where it's broken, what to work on next. Sessions are conversational and long, and code, tests, and commits all come out the other end.
+
 ### What is the relationship between Fichero and Fichero Toolbox?
 
 They are separate apps. Fichero manages documents with AI processing. [Fichero Toolbox](/apps/fichero-toolbox/) connects AI agents to Tinderbox and other Mac apps via MCP. Both are built by Daniel Tubb.
