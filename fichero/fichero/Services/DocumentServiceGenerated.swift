@@ -393,7 +393,13 @@ class DocumentServiceGenerated: ObservableObject {
         let path = extras["path"] as? String
         let sequence = extras["sequence"] as? Int
         let bbox = extras["bbox"] as? [Int]
-        let pageContent = extras["page_content"] as? String
+        // page_content is a TYPED field on the OpenAPI Document schema
+        // (Types.swift declares `var pageContent: String?`). Reading it from
+        // additionalProperties always returns nil because typed fields are
+        // decoded into the typed property, not the extras dict — so saving
+        // page content used to round-trip as 200 OK + locally-erased text.
+        // Mirror image of the request-side bug fixed in commit 31fc4141.
+        let pageContent = doc.pageContent ?? (extras["page_content"] as? String)
 
         return Document(
             id: doc.id ?? UUID().uuidString,
