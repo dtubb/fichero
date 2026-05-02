@@ -18,12 +18,17 @@ DERIVED_DATA="$SWIFTUI_ROOT/build/xcode"
 APP_PATH="$DERIVED_DATA/Products/$CONFIGURATION/Fichero.app"
 
 SKIP_BACKEND=false
-SKIP_OPENAPI_SYNC=false
 for arg in "$@"; do
   case $arg in
     --skip-backend) SKIP_BACKEND=true ;;
-    --skip-openapi-sync) SKIP_OPENAPI_SYNC=true ;;
-    --help|-h) echo "Usage: $0 [--skip-backend] [--skip-openapi-sync]"; exit 0 ;;
+    --skip-openapi-sync)
+      echo "error: --skip-openapi-sync removed; sync_openapi_schema.sh now" >&2
+      echo "       self-skips when the schema is unchanged. Pre-2026-05-02" >&2
+      echo "       silent-stale-bindings bugs (31fc4141, page_content decode)" >&2
+      echo "       trace back to this flag being passed through to release builds." >&2
+      exit 2
+      ;;
+    --help|-h) echo "Usage: $0 [--skip-backend]"; exit 0 ;;
   esac
 done
 
@@ -32,15 +37,12 @@ ENGINE_APP="$ENGINE_ROOT/build/engine/macos/app/Fichero Engine.app"
 # ── 0. Sync OpenAPI schema engine → Swift client ────────────────────────────
 # Re-export the engine's openapi.json and copy it into the Swift package so
 # the SwiftPM OpenAPIGenerator plugin regenerates Swift types from the
-# *current* engine routes. Without this, an engine route change ships in the
-# DMG with stale Swift bindings — see #742-style "silently dropped field"
-# bugs (commit 31fc4141).
-if [ "$SKIP_OPENAPI_SYNC" = true ]; then
-  echo "[0/4] Skipping OpenAPI sync (--skip-openapi-sync)"
-else
-  echo "[0/4] Syncing OpenAPI schema engine → Swift client"
-  "$ENGINE_ROOT/scripts/sync_openapi_schema.sh"
-fi
+# *current* engine routes. The script self-skips (~2s) when the schema
+# hasn't changed, so it's safe on every build — there's no flag to skip it.
+# Stale Swift bindings caused #742 (31fc4141) and the page_content decode
+# bug (2026-05-02); never let either ship again.
+echo "[0/4] Syncing OpenAPI schema engine → Swift client"
+"$ENGINE_ROOT/scripts/sync_openapi_schema.sh"
 
 # ── 1. Build engine with Briefcase ──────────────────────────────────────────
 if [ "$SKIP_BACKEND" = true ]; then
