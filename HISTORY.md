@@ -1224,3 +1224,28 @@ Daniel pushed back on my "3 weeks" estimate for Apple Intelligence. He was right
 - Closes #731.
 
 Verified end-to-end: `echo '{"prompt": "hello"}' | fm-bridge` → response, plus `await chat(...)` round-trip. 297 workflow tests pass.
+
+## 2026-05-01 — Token auth sweep, onboarding wizard, polish push
+
+### Shipped (10 commits on 0.0.2)
+- **#742 follow-up:** auth Bearer token applied to all 22 raw URLSession callsites in the Swift app via new `URLRequest.addEngineAuth(libraryPath:)` helper. Storage thumbnails, workflow execution + SSE, document import, settings, integrations, AppleScript, actions, model comparison, embedded backend route check, workflow reinstall — all now sign their requests. Health-check polling left unauthenticated by design.
+- **Apple Intelligence availability probe:** new `--probe` mode on `fm-bridge` (sub-100ms, no model warm-up) + `GET /api/providers/apple-intelligence/probe` engine route. Returns `{available, reason}` for the wizard's "Ready" / "Not available on this Mac" badge.
+- **First-launch onboarding wizard:** 4 screens — Welcome, Choose where AI runs (Cloud recommended / Apple Intelligence / Local), Configure (catalog-driven cards with `ProviderLogoView`, API key field for cloud, server-URL field with Test button for local, probe state for Apple), Import mode (Link recommended / Copy / Move). On finish, calls `createProvider` (skipped for built-in Apple) and writes AIDefaults so text/vision are pre-populated. Dropped 70 lines of hardcoded Swift provider enums.
+- **#748 pinch-to-zoom flash:** fixed the race between gesture-end's synchronous `isUserMagnifying = false` and async `@Binding scale` write by deferring the gate-reopen via `Task { @MainActor in await Task.yield(); flag = false }`.
+- **#749 folder grid full-width on launch:** when restored selection is a folder, locally compute layout = .none so the main grid takes full width and EditorView's FolderContentsGrid (which would have duplicated the children) doesn't render.
+- **#722 part 1:** wired the workflow library's "Reset Defaults" button to actually call `reinstallDefaults` (was a no-op iterating an empty Swift template array). Dropped the dead `DefaultWorkflowTemplate` enum.
+- **RTF page-content save flicker:** mark `lastSeededContent = encoded` BEFORE the save, so when the engine echoes content back through `rawArtifactContent` the `.task(id:)` guard short-circuits instead of reseeding the editor.
+- **Workflow row description:** bumped from 1-line truncation to 2 with `fixedSize(horizontal: false, vertical: true)` so the row grows.
+- **Reset-defaults dialog copy:** "Reset defaults complete (0 recreated)." → "Default workflows are already up to date." / "Reinstalled N workflows."
+- **OpenAPI sync as release-pipeline step 0/4:** `scripts/build-release.sh` now runs `fichero-engine/scripts/sync_openapi_schema.sh` before xcodebuild. `--skip-openapi-sync` flag for fast iteration.
+
+### Closed (15 GitHub issues)
+- **Verified-fixed in code:** #696, #703, #704, #705, #699, #698, #700, #701, #603, #694, #697.
+- **Shipped this session:** #748, #749, #722 (part 1), #742 (umbrella).
+
+### Filed for 0.0.3
+- **#750** Test fixtures: starlette TestClient requests rejected by AuthTokenMiddleware (~700 tests fail since #742; needs Bearer-token injection fixture).
+- **#751** Workflow context menu: group Run Workflow submenu by `folder_path` (#722 part 2).
+
+### Deliberately not closed
+- **#695** (folder workflow run stores artifacts on folder) and **#720** (catalogue composable artifact emission) remain open. Task list says they're fixed but I couldn't find direct in-code evidence; safer to verify before closing than risk re-shipping broken behavior.

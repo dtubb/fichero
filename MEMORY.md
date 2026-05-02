@@ -593,3 +593,38 @@ When PyKEEN unavailable, use co-occurrence counts:
 - Predictions stored with metadata and confidence scores
 - User verification: verified=True/False with notes
 - Filterable by model_id and verified status
+
+## 2026-05-01 — Token auth, catalog-driven UI, gesture races
+
+### Auth + raw URLSession
+Every raw URLSession callsite that talks to the engine MUST add the Bearer token. Use `URLRequest.addEngineAuth(libraryPath:)` (helper at the bottom of `fichero/fichero/Services/APIClient.swift`). Health-check polling to `/api/health` is the only deliberate exception — `AuthTokenMiddleware._UNAUTHENTICATED_PATHS` is the canonical list. The OpenAPI-generated client gets auth via middleware in FicheroClient; APIClient.configureRequest gets it via the same helper. Adding any third HTTP path means using `addEngineAuth` — anything else 401s in production.
+
+### Catalog over hardcoded enums
+When listing providers anywhere in the Swift app, drive from `/providers/catalog` and filter — never hardcode a Swift enum. The catalog already carries `name`, `description`, `api_key_url`, `default_model`, `supports_vision`, `is_local`, `is_builtin`, `logo_asset`, `sort_order`. `ProviderLogoView` (Views/Components/) renders the bundled logo asset. `AddProviderSheet` is the canonical example: same pattern. Hardcoded provider lists drift the moment the engine adds a new provider and break "we support X" claims silently.
+
+### `AddProviderSheet` already implements first-launch onboarding semantics
+`AddProviderSheet(isFirstLaunch: Bool)` exists with the parameter wired through to its choose/configure/models steps. Future onboarding work should embed or extend that sheet rather than re-implementing a parallel wizard.
+
+### `@Binding` write vs `updateNSView` ordering
+SwiftUI `NSViewRepresentable.updateNSView` can fire between a gesture-end handler and the `Task @MainActor` it schedules to write a `@Binding`. If `updateNSView` reads the binding to compute layout, it sees the *pre-gesture* value. Two fixes work:
+1. Mark a "we just wrote this" watermark BEFORE the binding write, gate `updateNSView`'s sync logic on the watermark (e.g. `lastSeededContent` in DocumentInspector RTF flow).
+2. Defer the post-gesture flag flip into a `Task { @MainActor in await Task.yield(); flag = false }` so the binding-write task runs first (Swift Concurrency preserves FIFO on the main actor).
+Both patterns avoid the visible flash where the view briefly snaps back to the pre-gesture state.
+
+### Folder docs in EditorView render `FolderContentsGrid`
+EditorView has an `if doc.docType == .folder { FolderContentsGrid(folder: doc) }` branch. In a side-by-side layout (widescreen), this means a folder selection renders the children twice: once in the main grid, once in the side pane. Whenever a layout decision uses `detailDocument`, treat folder docs as "no detail" so the layout collapses to single-pane. (#749)
+
+### SwiftLint `type_body_length` on naturally-large views
+Wizards / multi-screen views legitimately exceed the 500-line type body limit. Using `// swiftlint:disable:next type_body_length` on the struct declaration is preferred to artificially splitting state across files just to satisfy lint. Pair with `// swiftlint:disable line_length file_length` at the top of the file (and `// swiftlint:enable` at the bottom) when user-facing UI strings push lines over 140 chars — splitting them in source hurts readability.
+
+### Pbxproj-edit avoidance
+The main `fichero` target uses traditional file references, not synchronized groups (only `fichero-tests` and `fichero-ui-tests` are sync'd). Adding a new `.swift` file requires three coordinated pbxproj entries (PBXFileReference + PBXBuildFile + PBXGroup membership). Prefer appending into an existing target file when the new code is one logical concern. The wizard appended to `App/WelcomeView.swift` (already in target, related concern) — no pbxproj edit, no risk of stale-build-system breakage.
+
+### `is_builtin` providers don't need a config row
+Provider types where `is_builtin: true` (today: only `apple`) don't require a row in the providers table. The engine recognizes them as always-available without any config. Wizard skips `createProvider` for built-ins and just sets the AI defaults. Future built-ins (e.g. on-device Whisper) follow the same pattern.
+
+### OpenAPI sync is manual; release script does it
+`fichero-engine/scripts/sync_openapi_schema.sh` exports the engine's openapi.json and copies it into the Swift package. Running this before any release build is now step 0/4 of `scripts/build-release.sh`. The SwiftPM OpenAPIGenerator plugin regenerates Swift types from the *checked-in* openapi.json on every Xcode build — so a stale openapi.json silently ships old bindings. Daniel's wizard work hit this when adding the Apple-Intelligence probe route; sync ran cleanly. The "swift build" tail of the sync script can fail on stale `.build` cache after directory renames — `rm -rf fichero/fichero-api-client/.build` fixes it; SwiftPM regenerates.
+
+### SourceKit module-resolution false alarms
+SourceKit consistently fails to resolve `FicheroAPIClient` (the SwiftPM-generated module) and reports cascading "Cannot find type X" diagnostics across files that import it. The actual `xcodebuild` resolves the module fine and builds cleanly. Rule: trust `xcodebuild`'s exit code, not SourceKit's red squigglies, on Swift Package Manager modules. Don't waste time chasing SourceKit-only failures.
