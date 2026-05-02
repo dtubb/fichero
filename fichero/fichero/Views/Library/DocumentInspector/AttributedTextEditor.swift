@@ -110,6 +110,11 @@ struct AttributedTextEditor: NSViewRepresentable {
         let textView = NSTextView()
         configureTextView(textView)
         textView.delegate = context.coordinator
+        // Also delegate the text storage so attribute-only edits (bold,
+        // italic, paragraph styles) propagate to our @Binding. NSTextView's
+        // `textDidChange(_:)` fires only on text-content changes; attribute
+        // changes go through textStorage's didProcessEditing instead. (#746)
+        textView.textStorage?.delegate = context.coordinator
         context.coordinator.isApplyingModelUpdate = true
         textView.textStorage?.setAttributedString(text)
         context.coordinator.isApplyingModelUpdate = false
@@ -171,20 +176,35 @@ struct AttributedTextEditor: NSViewRepresentable {
         }
 
         if context.coordinator.lastAppliedRevision != contentRevision {
-            let selectedRanges = textView.selectedRanges
+            // When the *content* changes (e.g., switched documents),
+            // collapse the selection to the start. Preserving stale offsets
+            // from the previous document would highlight unrelated text in
+            // the new one. (#747)
+            //
+            // When only typography (font/size/lineSpacing) changed, the
+            // earlier branch already wrote through and `text` here matches
+            // current content — selection should stay put. We detect that
+            // by comparing strings; if they match, keep selection.
+            let isContentSwap = (textView.string != text.string)
+            let preservedRanges = textView.selectedRanges
             context.coordinator.isApplyingModelUpdate = true
             textView.textStorage?.setAttributedString(text)
-            textView.setSelectedRanges(
-                selectedRanges,
-                affinity: textView.selectionAffinity,
-                stillSelecting: false
-            )
+            if isContentSwap {
+                textView.setSelectedRange(NSRange(location: 0, length: 0))
+            } else {
+                textView.setSelectedRanges(
+                    preservedRanges,
+                    affinity: textView.selectionAffinity,
+                    stillSelecting: false
+                )
+            }
             context.coordinator.lastAppliedRevision = contentRevision
             context.coordinator.isApplyingModelUpdate = false
         }
     }
 
-    final class Coordinator: NSObject, NSTextViewDelegate {
+    @MainActor
+    final class Coordinator: NSObject, NSTextViewDelegate, NSTextStorageDelegate {
         @Binding var text: NSAttributedString
         weak var textView: NSTextView?
 
@@ -221,6 +241,44 @@ struct AttributedTextEditor: NSViewRepresentable {
                 onTextChanged()
             }
             onEditingChanged(false)
+        }
+
+        // MARK: - NSTextStorageDelegate
+
+        /// Catches attribute-only edits — bold, italic, underline, color,
+        /// paragraph styles, ruler tab stops — that NSTextView's
+        /// `textDidChange(_:)` does NOT fire for. (#746)
+        ///
+        /// `editedMask` tells us what kind of edit happened:
+        ///   - `.editedCharacters` — text content changed (already covered
+        ///     by `textDidChange`, no-op here to avoid double-write)
+        ///   - `.editedAttributes` — only attributes changed (bold/etc.) —
+        ///     update the binding so `performSave` sees the new RTF
+        nonisolated func textStorage(
+            _ textStorage: NSTextStorage,
+            didProcessEditing editedMask: NSTextStorageEditActions,
+            range editedRange: NSRange,
+            changeInLength delta: Int
+        ) {
+            // Only care about attribute-only edits — character edits are
+            // already handled by textDidChange, and dispatching twice would
+            // cause the auto-save timer to thrash.
+            guard editedMask.contains(.editedAttributes),
+                  !editedMask.contains(.editedCharacters) else { return }
+            // Hop to the main actor to read the text view + write the
+            // binding. The NSTextStorageDelegate protocol is nonisolated,
+            // but in practice this call comes from main-thread NSTextView
+            // edits — Task @MainActor formalizes that for Swift 6.
+            // Also defers the binding write past the storage's editing
+            // transaction, dodging the "Modifying state during view
+            // update" warning.
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard !self.isApplyingModelUpdate else { return }
+                guard let textView = self.textView else { return }
+                self.text = textView.attributedString()
+                self.onTextChanged()
+            }
         }
     }
 

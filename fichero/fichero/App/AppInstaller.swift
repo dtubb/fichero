@@ -33,8 +33,7 @@ enum AppInstaller {
         alert.messageText = "Fichero Is Not in Applications"
         alert.informativeText = """
         Fichero is not running from the Applications folder. \
-        It will work best if installed there — updates, file associations, \
-        and Spotlight integration all depend on it.
+        It will work best there.
 
         Move to \(targetPath)?
         """

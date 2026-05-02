@@ -1,46 +1,110 @@
+import AppKit
 import SwiftUI
 
-/// View shown when backend is not running
+/// View shown while the embedded engine is booting (or when it failed to start).
+///
+/// The engine takes ~25-40s to boot on first launch (heavy ML imports — see
+/// engine#743 for the lazy-import refactor that will fix this). To make that
+/// wait feel less dead, we cycle through a few honest messages that match
+/// what the engine is actually doing, and use the app icon instead of a
+/// generic SF symbol.
 struct BackendConnectionView: View {
     @ObservedObject var appState: AppState
     @EnvironmentObject var backendService: EmbeddedBackendService
 
+    /// Index into `Self.startupMessages`, advanced by a timer.
+    @State private var messageIndex: Int = 0
+
+    /// Animation phase for the connecting-dots between app + engine icons.
+    @State private var dotPhase: Int = 0
+
+    /// Messages cycled while `backendService.status == .starting`.
+    ///
+    /// Honest phrasing only: the engine doesn't load models, prepare the
+    /// graph, or index the library at startup — it imports Python libraries
+    /// and initializes its database. Aspirational copy ("loading language
+    /// models", "indexing your library") is a lie; users notice. Each line
+    /// describes what the engine is *actually* doing in that window.
+    private static let startupMessages: [String] = [
+        "Connecting to the engine…",
+        "Loading runtime libraries…",
+        "Opening the database…",
+        "Almost ready…"
+    ]
+
+    /// Engine icon resolved from the bundled Fichero Engine.app.
+    /// Falls back to the system server icon if the engine icon isn't found.
+    private var engineIconImage: NSImage {
+        if let resourcePath = Bundle.main.resourcePath {
+            let iconPath = "\(resourcePath)/Fichero Engine.app/Contents/Resources/engine.icns"
+            if let image = NSImage(contentsOfFile: iconPath) {
+                return image
+            }
+        }
+        return NSImage(systemSymbolName: "server.rack", accessibilityDescription: nil) ?? NSImage()
+    }
+
     var body: some View {
         VStack(spacing: 24) {
-            // Icon
-            Image(systemName: "server.rack")
-                .font(.system(size: 72))
-                .foregroundColor(.secondary)
+            // Two icons side-by-side — Fichero (app) on the left, Engine
+            // (Python helper) on the right — with three dots animating
+            // between them to visualize "the app is talking to the engine".
+            // The dots cycle through three phases on a 0.4s timer; the
+            // single "active" dot lights up while the others dim.
+            HStack(spacing: 16) {
+                Image(nsImage: NSApp.applicationIconImage ?? NSImage())
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 72, height: 72)
 
-            // Title
-            Text("Connecting to Backend")
+                HStack(spacing: 6) {
+                    ForEach(0..<3, id: \.self) { i in
+                        Circle()
+                            .fill(dotPhase == i ? Color.accentColor : Color.secondary.opacity(0.3))
+                            .frame(width: 8, height: 8)
+                    }
+                }
+                .frame(width: 50)
+
+                Image(nsImage: engineIconImage)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 72, height: 72)
+            }
+
+            Text("Starting Fichero")
                 .font(.title)
                 .fontWeight(.semibold)
 
-            // Status message
-            if backendService.status == .starting {
-                // Backend is starting - show progress
+            // Decide which state to show. `.stopped` is a transient state
+            // at app-launch (we haven't called `start()` yet) — UI-wise it
+            // belongs with `.starting`, not in the red-error branch. Only
+            // `.failed` triggers the red error text and the Retry button.
+            // This prevents the "engine not running" flash that happens in
+            // the ~100ms gap between view-mount and `start()` being called.
+            let isFailed = backendService.status == .failed
+            let isBootingOrChecking = !isFailed
+
+            if isBootingOrChecking {
                 VStack(spacing: 16) {
                     ProgressView()
                         .scaleEffect(1.2)
 
-                    Text("Starting backend server...")
+                    // Cycling status. The transition gives a soft fade so
+                    // the message change isn't a jarring text-swap.
+                    Text(Self.startupMessages[messageIndex])
                         .font(.headline)
                         .foregroundColor(.primary)
+                        .id(messageIndex) // force re-render for transition
+                        .transition(.opacity)
 
-                    Text("This may take 30-40 seconds on first launch")
+                    Text("This can take a moment.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-            } else if appState.isCheckingBackend {
-                ProgressView()
-                    .scaleEffect(0.8)
-                Text("Checking backend connection...")
-                    .foregroundColor(.secondary)
             } else {
-                // Error state
                 VStack(spacing: 12) {
-                    Text("Backend Not Running")
+                    Text("Engine Not Running")
                         .font(.headline)
                         .foregroundColor(.red)
 
@@ -54,25 +118,42 @@ struct BackendConnectionView: View {
                 }
             }
 
-            // Retry button
-            Button {
-                Task {
-                    await appState.checkBackendHealth()
+            // Retry button only on failure — during normal startup the user
+            // shouldn't see a "retry" affordance suggesting something went
+            // wrong. Auto-retry runs in the .task block regardless.
+            if isFailed {
+                Button {
+                    Task { await appState.checkBackendHealth() }
+                } label: {
+                    Label("Retry Connection", systemImage: "arrow.clockwise")
                 }
-            } label: {
-                Label("Retry Connection", systemImage: "arrow.clockwise")
+                .buttonStyle(.borderedProminent)
+                .disabled(appState.isCheckingBackend)
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(appState.isCheckingBackend)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
         .task {
-            // Auto-retry every 5 seconds
+            // Cycle the status message every 5 seconds while booting.
             while !appState.isBackendRunning {
                 try? await Task.sleep(for: .seconds(5))
-                if !Task.isCancelled {
-                    await appState.checkBackendHealth()
+                if Task.isCancelled { return }
+                if backendService.status == .starting {
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        messageIndex = min(messageIndex + 1, Self.startupMessages.count - 1)
+                    }
+                }
+                await appState.checkBackendHealth()
+            }
+        }
+        .task {
+            // Dot animation — runs independently at a faster cadence so the
+            // visual stays alive even while the message timer waits.
+            while !appState.isBackendRunning {
+                try? await Task.sleep(for: .milliseconds(450))
+                if Task.isCancelled { return }
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    dotPhase = (dotPhase + 1) % 3
                 }
             }
         }
