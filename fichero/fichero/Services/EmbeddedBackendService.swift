@@ -149,9 +149,20 @@ final class EmbeddedBackendService: ObservableObject {
         #endif
         process.environment = environment
 
-        // Redirect output to /dev/null (or we could log it)
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
+        // Diagnostic (#757): capture engine stdout/stderr to a tail-able file
+        // in ~/Library/Logs/ so Release-build engine failures surface instead
+        // of getting silently swallowed.
+        let logURL = FileManager.default
+            .urls(for: .libraryDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Logs/Fichero/engine.log")
+        try? FileManager.default.createDirectory(
+            at: logURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        FileManager.default.createFile(atPath: logURL.path, contents: nil)
+        let logHandle = try FileHandle(forWritingTo: logURL)
+        process.standardOutput = logHandle
+        process.standardError = logHandle
 
         // Launch the process
         try process.run()

@@ -82,6 +82,13 @@ enum AppInstaller {
     private static func relaunchInstalledCopy(at targetURL: URL) -> Bool {
         terminateOtherRunningInstances()
 
+        // Kill any embedded "Fichero Engine" subprocess before launching the
+        // moved copy. Without this, the new instance's engine fails with
+        // "Port 8765 already in use" because our orphan engine still holds it
+        // (#757). pgrep matches any engine started from this app's bundle.
+        terminateEmbeddedEngines()
+        waitForPortToClear(8765, timeout: 3.0)
+
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
         task.arguments = ["-n", targetURL.path]
@@ -109,6 +116,55 @@ enum AppInstaller {
         for app in NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
         where app.processIdentifier != currentPID {
             _ = app.terminate()
+        }
+    }
+
+    private static func terminateEmbeddedEngines() {
+        let pgrep = Process()
+        pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        pgrep.arguments = ["-f", "Fichero Engine.app/Contents/MacOS"]
+        let pipe = Pipe()
+        pgrep.standardOutput = pipe
+        pgrep.standardError = FileHandle.nullDevice
+        do {
+            try pgrep.run()
+            pgrep.waitUntilExit()
+            let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
+            guard let output = String(data: data, encoding: .utf8) else { return }
+            for line in output.split(separator: "\n") {
+                if let pid = pid_t(line.trimmingCharacters(in: .whitespaces)) {
+                    logger.info("SIGTERM engine PID \(pid) before relaunch")
+                    kill(pid, SIGTERM)
+                }
+            }
+        } catch {
+            logger.warning("Could not enumerate engine processes: \(error.localizedDescription)")
+        }
+    }
+
+    private static func waitForPortToClear(_ port: UInt16, timeout: TimeInterval) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !portInUse(port) { return }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        logger.warning("Port \(port) still in use after \(timeout)s, proceeding anyway")
+    }
+
+    private static func portInUse(_ port: UInt16) -> Bool {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
+        task.arguments = ["-i", ":\(port)", "-sTCP:LISTEN", "-t"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        do {
+            try task.run()
+            task.waitUntilExit()
+            let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
+            return !data.isEmpty
+        } catch {
+            return false
         }
     }
 
