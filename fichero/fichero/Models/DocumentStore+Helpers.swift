@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 // MARK: - Helpers
 
@@ -92,26 +93,41 @@ extension DocumentStore {
     /// This is used during workflow execution to show visual feedback.
     /// The status is in-memory only and reverts on app restart.
     func updateProcessingStatus(forPath filePath: String, status: Status) {
+        var matchCount = 0
+
         // Update in collections
         if let index = collections.firstIndex(where: { $0.path == filePath }) {
             collections[index].status = status
+            matchCount += 1
         }
 
         // Update in current documents
         if let index = currentDocuments.firstIndex(where: { $0.path == filePath }) {
             currentDocuments[index].status = status
+            matchCount += 1
         }
 
         // Update in cache
         for (parentId, children) in childrenCache {
             if let index = children.firstIndex(where: { $0.path == filePath }) {
                 childrenCache[parentId]?[index].status = status
+                matchCount += 1
             }
         }
 
         // Update selection if needed
         if selectedDocument?.path == filePath {
             selectedDocument?.status = status
+            matchCount += 1
+        }
+
+        // Diagnostic for #767: if the SSE-supplied filePath never matches any
+        // tracked Document.path, the spinner never updates. Log the miss so
+        // future investigations can see whether the issue is "events don't
+        // fire" or "events fire but paths don't match".
+        if matchCount == 0 {
+            let logger = Logger(subsystem: "com.fichero.fichero", category: "DocumentStore")
+            logger.warning("updateProcessingStatus: no document matched path '\(filePath, privacy: .public)' — spinner won't update (#767)")
         }
     }
 }
