@@ -84,9 +84,11 @@ extension LibraryView {
                 }
                 .onChange(of: listScrollTarget) { _, id in
                     guard let id else { return }
-                    withAnimation {
-                        proxy.scrollTo(id, anchor: .center)
-                    }
+                    // anchor: nil = minimal scroll (only enough to bring
+                    // selection into view). anchor: .center recentered the
+                    // whole grid every arrow-key press, which felt jarring
+                    // and broke long-list ergonomics. (#769)
+                    proxy.scrollTo(id, anchor: nil)
                     listScrollTarget = nil
                 }
             }
