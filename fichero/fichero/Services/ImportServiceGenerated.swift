@@ -344,9 +344,14 @@ class ImportServiceGenerated: ObservableObject {
     // MARK: - Type Conversions
 
     private func convertToDocument(_ generated: Components.Schemas.Document) throws -> Document {
+        // Same typed-first / extras-fallback pattern as
+        // DocumentServiceGenerated.convertToDocument — typed schema fields
+        // decode into typed properties, NOT additionalProperties. Reading
+        // typed fields only from extras silently returns nil and corrupts
+        // the local cache (#762, #774, audit on 2026-05-03).
         let extras = generated.additionalProperties.value
-        let parentId = extras["parent_id"] as? String
-        let fileType = extras["file_type"] as? String
+        let parentId = generated.parentId ?? (extras["parent_id"] as? String)
+        let fileType = generated.fileType?.rawValue ?? (extras["file_type"] as? String)
         let sortOrder = extras["sort_order"] as? Int ?? 0
 
         return Document(
@@ -355,12 +360,12 @@ class ImportServiceGenerated: ObservableObject {
             docType: convertFromGeneratedDocType(generated.docType),
             fileType: fileType.flatMap { FileType(rawValue: $0) },
             name: generated.name,
-            path: extras["path"] as? String,
-            sequence: extras["sequence"] as? Int,
-            bbox: extras["bbox"] as? [Int],
+            path: generated.path ?? (extras["path"] as? String),
+            sequence: generated.sequence ?? (extras["sequence"] as? Int),
+            bbox: (generated.bbox?.value as? [Int]) ?? (extras["bbox"] as? [Int]),
             status: convertFromGeneratedStatus(generated.status),
             metadata: convertMetadata(generated.metadata),
-            pageContent: extras["page_content"] as? String,
+            pageContent: generated.pageContent ?? (extras["page_content"] as? String),
             sortOrder: sortOrder,
             createdAt: generated.createdAt ?? Date(),
             updatedAt: generated.updatedAt ?? Date(),
