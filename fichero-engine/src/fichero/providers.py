@@ -90,8 +90,8 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
     # ==========================================================================
     ProviderType.apple: ProviderInfo(
         type=ProviderType.apple,
-        name="Apple",
-        description="On-device: Vision (OCR), Speech, Intelligence",
+        name="Apple Intelligence",
+        description="On-device LLM (Foundation Models, macOS 26+)",
         api_key_env=None,
         api_key_url=None,
         is_local=True,

@@ -80,21 +80,68 @@ def _validate_model_sync() -> bool:
 
 
 def _seed_builtin_providers() -> None:
-    """Ensure Apple (on-device) provider exists — no API key, always available on macOS."""
+    """Ensure Apple Intelligence (on-device) provider exists — no API key, always available on macOS."""
     try:
         from fichero.app_db import get_app_db
-        from fichero.models import Provider, ProviderType
+        from fichero.models import Model, Provider, ProviderType
 
         app_db = get_app_db()
-        existing = {p.provider_type for p in app_db.list_providers()}
-        if ProviderType.apple not in existing:
-            provider = Provider(
-                name="Apple",
+        existing_providers = app_db.list_providers()
+        existing_types = {p.provider_type for p in existing_providers}
+        apple_provider: Provider | None = None
+        if ProviderType.apple not in existing_types:
+            apple_provider = Provider(
+                name="Apple Intelligence",
                 provider_type=ProviderType.apple,
                 enabled=True,
             )
-            app_db.save_provider(provider)
-            logger.info("Seeded built-in Apple provider (Vision + Transcribe)")
+            app_db.save_provider(apple_provider)
+            logger.info("Seeded built-in Apple Intelligence provider")
+        else:
+            # Migrate the legacy "Apple" name → "Apple Intelligence" so users
+            # who installed before #761 don't see the duplicate-looking entry
+            # next to "Apple Vision (On-Device)" in the workflow picker.
+            for p in existing_providers:
+                if p.provider_type == ProviderType.apple:
+                    apple_provider = p
+                    if p.name == "Apple":
+                        p.name = "Apple Intelligence"
+                        app_db.save_provider(p)
+                        logger.info(
+                            "Renamed Apple provider to Apple Intelligence (#761)"
+                        )
+                    break
+
+        # Seed built-in models for the Apple provider so Settings → Defaults
+        # has something to pick. Without this, picking Apple as Audio (or
+        # any other) provider leaves Model dropdown empty. (#762)
+        if apple_provider is not None:
+            existing_model_ids = {
+                m.model_id for m in app_db.list_models(apple_provider.id)
+            }
+            builtins = [
+                Model(
+                    provider_id=apple_provider.id,
+                    name="Apple Vision Transcribe",
+                    model_id="apple-vision",
+                    capabilities=["vision", "transcription", "audio"],
+                    is_default=True,
+                ),
+                Model(
+                    provider_id=apple_provider.id,
+                    name="Apple Intelligence (Foundation Models)",
+                    model_id="apple-intelligence",
+                    capabilities=["text"],
+                ),
+            ]
+            for model in builtins:
+                if model.model_id not in existing_model_ids:
+                    app_db.save_model(model)
+                    logger.info(
+                        "Seeded built-in Apple model: %s (%s)",
+                        model.name,
+                        model.model_id,
+                    )
     except Exception as exc:
         logger.warning("Could not seed built-in providers: %s", exc)
 
