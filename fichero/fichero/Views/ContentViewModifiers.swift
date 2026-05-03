@@ -285,10 +285,16 @@ struct MainContentModifiers: ViewModifier {
     }
 
     private func handleBrowserSelectionChange(_ newSelection: Set<String>) {
-        if let firstId = newSelection.first,
-           let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }) {
-            detailDocument = doc
-        } else if newSelection.isEmpty {
+        // Per Daniel's click model (#778): single-click in grid should ONLY
+        // update the inspector (via inspectorDocument's browserSelection
+        // priority). It must NOT swap the preview pane / shrink the grid.
+        // detailDocument is only mutated by handleDoubleClick or the
+        // sidebar nav. We previously had this same bug in ContentView.swift
+        // (fixed in a2cb74a5) but missed this twin path. (#778)
+        //
+        // Keep clearing on empty so the preview pane doesn't keep showing
+        // a stale doc after an explicit deselect.
+        if newSelection.isEmpty {
             detailDocument = nil
         }
     }
