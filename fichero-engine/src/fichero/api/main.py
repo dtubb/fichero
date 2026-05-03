@@ -167,6 +167,40 @@ def _prewarm_embeddings() -> None:
         logger.warning("Embeddings pre-warm failed (will retry on first use): %s", exc)
 
 
+async def _watch_parent_process() -> None:
+    """If FICHERO_PARENT_PID is set, exit when that PID disappears.
+
+    Belt-and-braces with the Swift side's applicationWillTerminate path —
+    catches SIGKILL / crash / force-quit cases where the Swift app can't
+    cleanly shut us down.
+    """
+    import asyncio
+    import signal
+
+    parent_pid_str = os.environ.get("FICHERO_PARENT_PID")
+    if not parent_pid_str:
+        return
+    try:
+        parent_pid = int(parent_pid_str)
+    except ValueError:
+        return
+
+    while True:
+        try:
+            await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            return
+        try:
+            os.kill(parent_pid, 0)  # signal 0 just probes existence
+        except (ProcessLookupError, PermissionError, OSError):
+            logger.warning(
+                "Parent PID %d gone — engine self-terminating to free port",
+                parent_pid,
+            )
+            os.kill(os.getpid(), signal.SIGTERM)
+            return
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
@@ -195,7 +229,14 @@ async def lifespan(app: FastAPI):
     loop = asyncio.get_event_loop()
     loop.run_in_executor(None, _prewarm_embeddings)
 
+    # Watch FICHERO_PARENT_PID (set by EmbeddedBackendService on spawn).
+    # If the Swift app dies without a chance to call .stop() (e.g. SIGKILL,
+    # crash, force-quit), this self-terminates the engine so it doesn't
+    # become an orphan holding port 8765.
+    parent_watcher = asyncio.create_task(_watch_parent_process())
+
     yield
+    parent_watcher.cancel()
     # Shutdown: close all database connections
     logger.info("Fichero API shutting down...")
     db_manager.close_all()

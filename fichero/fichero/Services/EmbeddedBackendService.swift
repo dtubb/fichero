@@ -136,6 +136,13 @@ final class EmbeddedBackendService: ObservableObject {
             throw BackendError.backendAppNotFound
         }
 
+        // Defensive cleanup: if a previous Fichero was SIGKILL'd (or crashed
+        // without applicationWillTerminate firing), the engine subprocess is
+        // an orphan still bound to port 8765. Sweep it before spawning ours,
+        // otherwise our spawn will fail with "Address already in use".
+        EmbeddedBackendService.terminateOrphanEngines()
+        EmbeddedBackendService.waitForPortToClear(8765, timeout: 3.0)
+
         logger.info("Launching backend process: \(executablePath)")
 
         // Use Process for direct process control - much simpler than NSWorkspace
@@ -143,6 +150,10 @@ final class EmbeddedBackendService: ObservableObject {
         process.executableURL = URL(fileURLWithPath: executablePath)
         process.arguments = []
         var environment = ProcessInfo.processInfo.environment
+        // Engine watches this PID and self-terminates if we die without a
+        // chance to call .stop() (e.g., SIGKILL). Belt-and-braces with the
+        // applicationWillTerminate path.
+        environment["FICHERO_PARENT_PID"] = String(ProcessInfo.processInfo.processIdentifier)
         #if DEBUG
         // Ensure workflow/provider routes are available for debug UI surfaces.
         environment["FICHERO_FEATURE_TIER"] = environment["FICHERO_FEATURE_TIER"] ?? "dev"
@@ -243,6 +254,51 @@ final class EmbeddedBackendService: ObservableObject {
         } catch {
             return false
         }
+    }
+
+    // MARK: - Orphan-engine cleanup
+
+    /// SIGTERM any "Fichero Engine" subprocess left over from a previous
+    /// Fichero run that didn't get a chance to call .stop() (e.g. SIGKILL,
+    /// crash, or force-quit). Called before spawning a new engine so the
+    /// new spawn can bind port 8765 cleanly.
+    static func terminateOrphanEngines() {
+        let pgrep = Process()
+        pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        pgrep.arguments = ["-f", "Fichero Engine.app/Contents/MacOS"]
+        let pipe = Pipe()
+        pgrep.standardOutput = pipe
+        pgrep.standardError = FileHandle.nullDevice
+        guard (try? pgrep.run()) != nil else { return }
+        pgrep.waitUntilExit()
+        let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
+        guard let output = String(data: data, encoding: .utf8) else { return }
+        for line in output.split(separator: "\n") {
+            if let pid = pid_t(line.trimmingCharacters(in: .whitespaces)) {
+                kill(pid, SIGTERM)
+            }
+        }
+    }
+
+    static func waitForPortToClear(_ port: UInt16, timeout: TimeInterval) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !portInUse(port) { return }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+    }
+
+    private static func portInUse(_ port: UInt16) -> Bool {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
+        task.arguments = ["-i", ":\(port)", "-sTCP:LISTEN", "-t"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        guard (try? task.run()) != nil else { return false }
+        task.waitUntilExit()
+        let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
+        return !data.isEmpty
     }
 }
 
