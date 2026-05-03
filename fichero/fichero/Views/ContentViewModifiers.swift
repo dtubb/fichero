@@ -291,21 +291,20 @@ struct MainContentModifiers: ViewModifier {
 
     private func handleBrowserSelectionChange(_ newSelection: Set<String>) {
         // Click model (#778/#779): behavior depends on whether the preview
-        // pane is currently visible.
-        //   • Preview HIDDEN (.none layout): single-click must NOT auto-open
-        //     the preview / shrink the grid. detailDocument stays put.
-        //   • Preview SHOWN (.standard or .widescreen): single-click updates
-        //     the preview to the selected doc — that's what the preview pane
-        //     is for; not updating it on selection makes the pane feel dead.
-        //
-        // Detail-only path (handleDoubleClick) overrides regardless of
-        // current layout — double-click always activates and may force
-        // the layout to show preview.
+        // pane is currently visible — but the EFFECTIVE layout, not the
+        // user's preference. When detailDocument is a folder, ContentView
+        // forces layout to .none (#749) regardless of currentLayoutMode,
+        // so we have to check both. (#779 fix v2)
+        //   • Effective layout HIDDEN (folder selected): single-click stays
+        //     in full-grid browse mode; don't promote selection to detail.
+        //   • Effective layout SHOWN: single-click refreshes preview live.
         if newSelection.isEmpty {
             detailDocument = nil
             return
         }
-        if currentLayoutMode != .none,
+        let effectivePreviewVisible = currentLayoutMode != .none
+            && detailDocument?.docType != .folder
+        if effectivePreviewVisible,
            let firstId = newSelection.first,
            let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }),
            detailDocument?.id != firstId {

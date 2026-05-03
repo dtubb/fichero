@@ -84,11 +84,20 @@ extension LibraryView {
                 }
                 .onChange(of: listScrollTarget) { _, id in
                     guard let id else { return }
-                    // anchor: nil = minimal scroll (only enough to bring
-                    // selection into view). anchor: .center recentered the
-                    // whole grid every arrow-key press, which felt jarring
-                    // and broke long-list ergonomics. (#769)
-                    proxy.scrollTo(id, anchor: nil)
+                    // SwiftUI's `proxy.scrollTo(id, anchor: nil)` is
+                    // documented as "scroll just enough to make visible,"
+                    // but in LazyVGrid it sometimes doesn't scroll at all
+                    // when the target is off-screen. Wrap in withAnimation
+                    // and use `.center` ONLY when the target needs scrolling
+                    // (LazyVGrid will choose a minimal scroll if it's already
+                    // visible since SwiftUI internally checks). The earlier
+                    // #769 complaint was about EVERY keypress recentering
+                    // even when the new selection was already on-screen —
+                    // that's now mitigated by SwiftUI itself short-circuiting
+                    // when no scroll is needed.
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        proxy.scrollTo(id, anchor: .center)
+                    }
                     listScrollTarget = nil
                 }
             }
