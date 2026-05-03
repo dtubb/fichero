@@ -211,17 +211,14 @@ async def update_document(
     # Apply updates
     update_data = update.model_dump(exclude_unset=True)
 
-    # Validate parent exists if parent_id is being updated to a non-null value
-    # Allow parent_id=None to move to root
-    if "parent_id" in update_data:
-        if update_data["parent_id"] is not None:
-            parent = db.get(Document, update_data["parent_id"])
-            if not parent:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Parent not found: {update_data['parent_id']}",
-                )
-        # parent_id=None is allowed (moves to root)
+    # parent_id is NEVER mutated by this endpoint, even if the request body
+    # carries it. The Swift OpenAPI client serializes every optional field
+    # as a JSON null when omitted, so a routine page_content edit arrives
+    # here as `{page_content: "...", parent_id: null}`. Treating that null
+    # as "move to root" silently re-parented folders whenever the user
+    # typed a note (#774). Use PUT /api/documents/{doc_id}/move for
+    # explicit reparenting.
+    update_data.pop("parent_id", None)
 
     # Mark user edits to page_content BEFORE applying field updates, so
     # downstream workflows (transcription, etc.) can detect and avoid
