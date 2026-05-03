@@ -67,8 +67,15 @@ struct NodeProviderModelSelector: View {
             // Foundation Models LLM). The hardcoded option covers OCR;
             // Apple Intelligence text-LLM isn't appropriate for tools that
             // need vision input anyway. (#761)
-            if toolSupportsAppleVision && provider.providerType == "apple" {
-                return false
+            // LLMProvider doesn't carry providerType, but the catalog Apple
+            // provider is renamed to "Apple Intelligence" (#761) — match by
+            // name. The legacy "Apple" name is migrated on engine startup
+            // but we accept either to be defensive against stale UI state.
+            if toolSupportsAppleVision {
+                let lower = provider.name.lowercased()
+                if lower == "apple" || lower == "apple intelligence" {
+                    return false
+                }
             }
             if toolRequiresVision {
                 return provider.supportsVision
