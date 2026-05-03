@@ -746,18 +746,19 @@ struct DocumentInspectorContentV2: View {
 
             // Page Content comes first — it's the source text the artifacts
             // were generated from, so it anchors the top of the stack.
+            // Always rendered (even when empty) so users can write notes for
+            // folders or backfill text for docs whose extraction yielded
+            // nothing — every item should be note-able.
             // No `onDelete:` (or `.frame(height:)`) — Page Content is a
             // Document field, not a deletable artifact, and panels size
             // to their own content so collapsed disclosures shrink to
             // their header rather than holding equal-divide height.
-            if let pageContent = document.pageContent, !pageContent.isEmpty {
-                ArtifactPanel(
-                    kind: .pageContent(text: pageContent),
-                    onSave: { newContent in
-                        await savePageContent(newContent)
-                    }
-                )
-            }
+            ArtifactPanel(
+                kind: .pageContent(text: document.pageContent ?? ""),
+                onSave: { newContent in
+                    await savePageContent(newContent)
+                }
+            )
 
             ForEach(sortedArtifacts) { artifact in
                 ArtifactPanel(
@@ -774,10 +775,10 @@ struct DocumentInspectorContentV2: View {
                 )
             }
 
-            if !isLoading
-                && sortedArtifacts.isEmpty
-                && (document.pageContent ?? "").isEmpty
-                && loadError == nil {
+            // Hint shown when no generated artifacts exist. Page Content
+            // panel always renders above (so users can add notes directly),
+            // so this hint is purely about workflows now.
+            if !isLoading && sortedArtifacts.isEmpty && loadError == nil {
                 emptyState
             }
 
