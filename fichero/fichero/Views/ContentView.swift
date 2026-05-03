@@ -619,13 +619,13 @@ struct ContentView: View {
             if let encoded = try? JSONEncoder().encode(newSelection) {
                 browserSelectionData = encoded
             }
-            // Sync preview with selection (covers both user clicks and restoration)
-            if let firstId = newSelection.first,
-               let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }) {
-                if detailDocument?.id != firstId {
-                    detailDocument = doc
-                }
-            }
+            // Note: previously this auto-synced detailDocument from selection
+            // so single-clicks in the grid would swap the preview pane. Per
+            // Daniel's intended click model (#772): single-click should only
+            // update the right inspector (via inspectorDocument's
+            // browserSelection priority), NOT the preview pane. detailDocument
+            // is now only mutated by handleDoubleClick (and explicit
+            // openSelectedDocument keyboard shortcut + sidebar selection).
         }
         .onChange(of: detailDocument) { _, newDoc in
             // Keep documentStore.selectedDocument in sync so WorkflowEditor
