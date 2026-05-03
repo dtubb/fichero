@@ -396,10 +396,13 @@ class DocumentServiceGenerated: ObservableObject {
         // (and for any field we add to the schema that lags this list).
         let extras = doc.additionalProperties.value
         let parentId = doc.parentId ?? (extras["parent_id"] as? String)
-        let fileType = doc.fileType ?? (extras["file_type"] as? String)
+        // fileType is a typed enum (Components.Schemas.FileType?); take its
+        // raw value so the local Document's own FileType enum can decode it.
+        let fileType = doc.fileType?.rawValue ?? (extras["file_type"] as? String)
         let path = doc.path ?? (extras["path"] as? String)
         let sequence = doc.sequence ?? (extras["sequence"] as? Int)
-        let bbox = doc.bbox ?? (extras["bbox"] as? [Int])
+        // bbox is OpenAPIArrayContainer — extract its inner [Int] payload.
+        let bbox = (doc.bbox?.value as? [Int]) ?? (extras["bbox"] as? [Int])
         let pageContent = doc.pageContent ?? (extras["page_content"] as? String)
 
         return Document(
