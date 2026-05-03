@@ -70,21 +70,29 @@ extension ContentView {
             return nil
         }()
 
-        // 1. Grid selection — but ONLY if the selected doc actually
-        //    belongs to the current sidebar folder. A stale or cross-
-        //    folder browserSelection (e.g. left over from a previous
-        //    folder, or auto-set when the grid first loaded) must NOT
-        //    shadow the sidebar-selected folder. (#712)
-        if let firstId = browserSelection.first,
-           let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }),
-           doc.parentId == currentSidebarFolder?.id {
-            return doc
+        // 1. detailDocument — set by handleDoubleClick. Single-click only
+        //    updates `browserSelection` (visual highlight). Inspector should
+        //    NOT swap on single-click — single-click is "select / highlight",
+        //    double-click is "activate / show in inspector". This matches
+        //    Finder semantics. (#772)
+        //    Constrain to the current sidebar context: only honor
+        //    detailDocument if it belongs to the current sidebar folder, so
+        //    a stale double-click target doesn't shadow a sidebar nav. (#712)
+        if let detail = detailDocument,
+           detail.parentId == currentSidebarFolder?.id || detail.id == currentSidebarFolder?.id {
+            return detail
         }
         // 2. Sidebar viewMode's folder doc.
         if let folder = currentSidebarFolder {
             return folder
         }
-        // 3. Legacy fallback.
+        // 3. Legacy fallback — keep browserSelection wired in case other
+        //    code paths rely on it before any double-click happens.
+        if let firstId = browserSelection.first,
+           let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }),
+           doc.parentId == currentSidebarFolder?.id {
+            return doc
+        }
         return detailDocument
     }
 
