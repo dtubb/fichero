@@ -63,6 +63,8 @@ struct WorkflowListView: View {
     @State private var isManagingDefaults = false
     @State private var showResetDefaultsConfirmation = false
     @State private var templateOperationMessage: String?
+    @State private var workflowToRename: WorkflowSidebarItem?
+    @State private var renameDraft: String = ""
     @ObservedObject var featureManager = FeatureManager.shared
 
     /// View display mode from toolbar
@@ -96,6 +98,31 @@ struct WorkflowListView: View {
                 if let workflow = workflowToDelete {
                     Text("Are you sure you want to delete \"\(workflow.name)\"? This action cannot be undone.")
                 }
+            }
+            .alert(
+                "Rename Workflow",
+                isPresented: Binding(
+                    get: { workflowToRename != nil },
+                    set: { show in if !show { workflowToRename = nil } }
+                ),
+                presenting: workflowToRename
+            ) { workflow in
+                TextField("Name", text: $renameDraft)
+                Button("Cancel", role: .cancel) {}
+                Button("Rename") {
+                    let newName = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !newName.isEmpty, newName != workflow.name else { return }
+                    Task {
+                        do {
+                            _ = try await workflowStore.renameWorkflow(workflow.id, to: newName)
+                            await workflowStore.loadWorkflows()
+                        } catch {
+                            templateOperationMessage = "Rename failed: \(error.localizedDescription)"
+                        }
+                    }
+                }
+            } message: { workflow in
+                Text("Enter a new name for \"\(workflow.name)\".")
             }
             .alert("Reset Default Workflows?", isPresented: $showResetDefaultsConfirmation) {
                 Button("Cancel", role: .cancel) {}
@@ -367,6 +394,13 @@ struct WorkflowListView: View {
                 openWorkflow(workflow)
             } label: {
                 Label("Edit", systemImage: "pencil")
+            }
+
+            Button {
+                renameDraft = workflow.name
+                workflowToRename = workflow
+            } label: {
+                Label("Rename…", systemImage: "character.cursor.ibeam")
             }
 
             Button {
