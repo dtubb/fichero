@@ -368,6 +368,27 @@ class NodeDef(BaseModel):
         return v if v is not None else []
 
     @field_validator(
+        "label",
+        "description",
+        "provider_name",
+        "model_name",
+        mode="before",
+    )
+    @classmethod
+    def convert_none_to_empty_string(cls, v):
+        """Convert null to empty string for string fields.
+
+        Swift's OpenAPI client serializes every omitted optional argument as
+        a JSON null, so a routine "set this node's tool" save arrives with
+        provider_name=null + model_name=null even when the user has them
+        configured. Without this validator, NodeDef construction either
+        rejects the save (Pydantic strict) or silently sets the field to
+        the string "None" (Pydantic lax) — both manifest as #780 (model
+        selection lost on save/restart).
+        """
+        return v if v is not None else ""
+
+    @field_validator(
         "label", "description", "provider_name", "model_name", mode="before"
     )
     @classmethod

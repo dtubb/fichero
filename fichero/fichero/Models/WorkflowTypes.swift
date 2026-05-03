@@ -124,7 +124,7 @@ struct WorkflowDefinition: Codable {
 }
 
 /// Workflow node model
-struct WorkflowNode: Codable, Identifiable {
+struct WorkflowNode: Codable, Identifiable, Equatable {
     let id: String
     let tool: String
     var label: String?
@@ -241,7 +241,7 @@ struct WorkflowNode: Codable, Identifiable {
 }
 
 /// Workflow edge model
-struct WorkflowEdge: Codable, Identifiable {
+struct WorkflowEdge: Codable, Identifiable, Equatable {
     let id: String
     let sourceNodeId: String  // UI uses this
     let targetNodeId: String  // UI uses this

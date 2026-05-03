@@ -18,6 +18,7 @@ struct WorkflowEditor: View {
     @State var isSaving: Bool = false
     @State var saveError: String?
     @State var showSaveSuccess: Bool = false
+    @State private var autosaveTask: Task<Void, Never>?
     @State var showOutputLog: Bool = true
     @State var executionState: WorkflowExecutionState?
 
@@ -168,6 +169,23 @@ struct WorkflowEditor: View {
             )
             .environmentObject(libraryManager)
             .environmentObject(documentStore)
+        }
+        // Debounced autosave on any editingWorkflow change (#780). Without
+        // this, model/provider selections in the node inspector live
+        // in-memory only — never persisted to the engine — and are lost
+        // on relaunch. 600ms debounce avoids saving on every keystroke
+        // / drag tick while keeping the save responsive enough that the
+        // user feels safe.
+        .task(id: editingWorkflow.id) {
+            // Reset debounce when the user switches to a different workflow.
+        }
+        .onChange(of: editingWorkflow) { _, _ in
+            autosaveTask?.cancel()
+            autosaveTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(600))
+                guard !Task.isCancelled else { return }
+                await saveWorkflow()
+            }
         }
     }
 }

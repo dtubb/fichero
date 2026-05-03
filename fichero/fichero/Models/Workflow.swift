@@ -1,7 +1,7 @@
 import Foundation
 
 /// Local workflow model for UI operations
-struct Workflow: Identifiable, Codable {
+struct Workflow: Identifiable, Codable, Equatable {
     let id: String
     var name: String
     var description: String

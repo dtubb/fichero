@@ -29,7 +29,7 @@ struct OutputSchema: Codable, Hashable {
 // MARK: - Input Mapping
 
 /// Maps a node input port to a data source
-struct InputMapping: Codable, Identifiable {
+struct InputMapping: Codable, Identifiable, Equatable {
     var id: String { portId }
     let portId: String
     var sourcePath: String
