@@ -182,6 +182,11 @@ struct MainContentModifiers: ViewModifier {
     @Binding var importProgress: String?
     @Binding var importError: String?
 
+    // Read currentLayoutMode via SceneStorage so handleBrowserSelectionChange
+    // can decide whether single-click should update the preview pane.
+    // Same SceneStorage key as ContentView, so they share state. (#779)
+    @SceneStorage("currentLayoutMode") private var currentLayoutMode: LayoutMode = .widescreen
+
     let handleDocumentChange: (DocumentChange) -> Void
     let handleFileDrop: ([URL]) -> Void
 
@@ -285,17 +290,26 @@ struct MainContentModifiers: ViewModifier {
     }
 
     private func handleBrowserSelectionChange(_ newSelection: Set<String>) {
-        // Per Daniel's click model (#778): single-click in grid should ONLY
-        // update the inspector (via inspectorDocument's browserSelection
-        // priority). It must NOT swap the preview pane / shrink the grid.
-        // detailDocument is only mutated by handleDoubleClick or the
-        // sidebar nav. We previously had this same bug in ContentView.swift
-        // (fixed in a2cb74a5) but missed this twin path. (#778)
+        // Click model (#778/#779): behavior depends on whether the preview
+        // pane is currently visible.
+        //   • Preview HIDDEN (.none layout): single-click must NOT auto-open
+        //     the preview / shrink the grid. detailDocument stays put.
+        //   • Preview SHOWN (.standard or .widescreen): single-click updates
+        //     the preview to the selected doc — that's what the preview pane
+        //     is for; not updating it on selection makes the pane feel dead.
         //
-        // Keep clearing on empty so the preview pane doesn't keep showing
-        // a stale doc after an explicit deselect.
+        // Detail-only path (handleDoubleClick) overrides regardless of
+        // current layout — double-click always activates and may force
+        // the layout to show preview.
         if newSelection.isEmpty {
             detailDocument = nil
+            return
+        }
+        if currentLayoutMode != .none,
+           let firstId = newSelection.first,
+           let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }),
+           detailDocument?.id != firstId {
+            detailDocument = doc
         }
     }
 

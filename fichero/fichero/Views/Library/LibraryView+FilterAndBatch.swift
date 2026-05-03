@@ -142,13 +142,22 @@ extension LibraryView {
     /// first leaves the previous selection highlighted while the new doc
     /// shows in the preview pane. (#779)
     func handleDoubleClick(_ doc: Document) {
-        selection = [doc.id]
-        selectionAnchor = doc.id
-        if canNavigateInto(doc) {
-            onNavigateInto(doc)
-        } else {
-            detailDocument = doc
+        let before = selection
+        let logger = Logger(subsystem: "com.fichero.fichero", category: "LibraryView")
+        // Wrap in withAnimation so the layout transition from .none →
+        // .standard/.widescreen animates instead of flashing — combined with
+        // the .animation(value: layout) on the centerContent Group, this
+        // makes the first click smooth.
+        withAnimation(.easeInOut(duration: 0.2)) {
+            selection = [doc.id]
+            selectionAnchor = doc.id
+            if canNavigateInto(doc) {
+                onNavigateInto(doc)
+            } else {
+                detailDocument = doc
+            }
         }
+        logger.info("⏱ handleDoubleClick id=\(doc.id, privacy: .public) before=\(before.count) after=\(self.selection.count)")
     }
 
     func handleTap(_ doc: Document) {
