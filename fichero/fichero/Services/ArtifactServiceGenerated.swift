@@ -142,10 +142,8 @@ class ArtifactServiceGenerated: ObservableObject {
     // MARK: - JSON Conversion for direct HTTP calls
 
     private func convertToArtifactFromJSON(_ json: ArtifactJSON) -> Artifact {
-        // Parse date from string
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let createdAt = formatter.date(from: json.createdAt) ?? Date()
+        // Use the multi-format parser (audit class F).
+        let createdAt = parseEngineDate(json.createdAt) ?? Date()
 
         // Convert data dict
         var data: [String: AnyCodable]?
@@ -273,9 +271,10 @@ class ArtifactServiceGenerated: ObservableObject {
         }
 
         // Parse date from string
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let createdAt = formatter.date(from: generated.createdAt) ?? Date()
+        // Use the multi-format parser; falling back to Date() (today) silently
+        // mis-dated artifacts whose timestamp didn't match the rigid format.
+        // (Audit class F.)
+        let createdAt = parseEngineDate(generated.createdAt) ?? Date()
 
         return Artifact(
             id: generated.id,

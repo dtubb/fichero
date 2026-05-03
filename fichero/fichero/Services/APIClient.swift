@@ -12,6 +12,33 @@ private let logger = Logger(subsystem: "com.fichero.fichero", category: "APIClie
 /// **Per-Window Instance**: Each DocumentTabView creates its own APIClient instance
 /// with its own currentLibraryPath. This ensures operations in one window don't
 /// affect other windows operating on different .fichero libraries.
+/// Parse a date string from the engine's API in any of the four formats
+/// the engine emits (ISO with/without fractional seconds, Python isoformat
+/// with/without fractional). Used by hand-written response parsers that
+/// don't go through the OpenAPI-generated client's LenientISO8601DateTranscoder.
+/// Returns nil on parse failure rather than silently coercing to today.
+func parseEngineDate(_ dateString: String) -> Date? {
+    let isoFractional = ISO8601DateFormatter()
+    isoFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let date = isoFractional.date(from: dateString) { return date }
+
+    let isoPlain = ISO8601DateFormatter()
+    isoPlain.formatOptions = [.withInternetDateTime]
+    if let date = isoPlain.date(from: dateString) { return date }
+
+    let dateFormatter = DateFormatter()
+    dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+    dateFormatter.timeZone = TimeZone(identifier: "UTC")
+
+    dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"
+    if let date = dateFormatter.date(from: dateString) { return date }
+
+    dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+    if let date = dateFormatter.date(from: dateString) { return date }
+
+    return nil
+}
+
 @MainActor
 class APIClient: ObservableObject {
     let baseURL: URL  // Internal access for SSE streaming services
