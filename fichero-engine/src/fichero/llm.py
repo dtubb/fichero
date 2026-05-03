@@ -75,6 +75,36 @@ def _get_litellm():
     return _litellm
 
 
+# Match a markdown code fence at the start (optional language hint) and end
+# of an LLM response. Some providers (notably Qwen via OpenRouter) wrap
+# their entire output in ``` even when the prompt asks for raw text. (#776)
+_CODE_FENCE_OPEN = re.compile(r"\A`{3,}[a-zA-Z0-9_+\-]*\s*\n")
+_CODE_FENCE_CLOSE = re.compile(r"\n`{3,}\s*\Z")
+
+
+def _strip_outer_code_fences(content: Any) -> Any:
+    """Strip a single outer markdown code fence from an LLM string response.
+
+    Only strips when both an opening fence at the very start AND a closing
+    fence at the very end are present — preserves stray ``` mid-content
+    (e.g., a transcription that legitimately contains code samples).
+
+    Returns non-string values unchanged so multimodal / structured-output
+    responses pass through untouched.
+    """
+    if not isinstance(content, str):
+        return content
+    text = content.strip()
+    open_match = _CODE_FENCE_OPEN.match(text)
+    if not open_match:
+        return content
+    close_match = _CODE_FENCE_CLOSE.search(text)
+    if not close_match:
+        return content
+    inner = text[open_match.end():close_match.start()]
+    return inner
+
+
 # =============================================================================
 # Configuration
 # =============================================================================
@@ -200,7 +230,7 @@ async def chat(
         return _stream_chat_langchain(model, messages)
     else:
         response = await model.ainvoke(messages)
-        return response.content
+        return _strip_outer_code_fences(response.content)
 
 
 async def _apple_intelligence_chat(
@@ -362,7 +392,7 @@ async def vision(
 
     # Call model
     response = await model.ainvoke([message])
-    return response.content
+    return _strip_outer_code_fences(response.content)
 
 
 # =============================================================================
