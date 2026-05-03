@@ -233,6 +233,21 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                     Task { @MainActor in
                         self.imageSize = image.size
                     }
+                    // Apply the right zoom IN THE SAME FRAME as the new image
+                    // is set. Otherwise the new image renders at the previous
+                    // image's magnification for one frame, then snaps —
+                    // visible flash. The current `scale` binding holds either
+                    // the previous image's saved scale (if user customized it)
+                    // or the previous fit. Always recalculate fit for the new
+                    // image here; the parent will overwrite via `scale`
+                    // binding on next updateNSView if a saved scale exists for
+                    // this image. (#773 + #777)
+                    if let fitScale = context.coordinator.calculateFitScale() {
+                        scrollView.magnification = fitScale
+                        Task { @MainActor in
+                            self.scale = fitScale
+                        }
+                    }
                     centerImage(scrollView: scrollView, imageView: imageView)
                 }
             }

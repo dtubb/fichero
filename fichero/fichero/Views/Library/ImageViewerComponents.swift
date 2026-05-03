@@ -252,24 +252,13 @@ struct ZoomableImagePreview: View {
             } else {
                 Self.logger.error("Failed to load NSImage from: \(newURL.path)")
             }
-            if let key = scaleKey {
-                if let saved = loadSavedScale(for: key) {
-                    scale = saved
-                } else {
-                    // No saved scale — explicitly fit on next run loop after
-                    // the new image has been rendered into the scroll view.
-                    // Without this dispatch, the image shows at 100% (the
-                    // default scale) until the user manually hits Fit (#773).
-                    scale = 1.0
-                    DispatchQueue.main.async {
-                        fitToWindow()
-                    }
-                }
-            } else {
-                scale = 1.0
-                DispatchQueue.main.async {
-                    fitToWindow()
-                }
+            // Restore saved zoom for this scaleKey if present. Otherwise
+            // leave scale untouched — the NSViewRepresentable's
+            // updateNSView handles fit-to-window in the same frame as the
+            // new image is set, so we don't go through a 1.0 intermediate
+            // that would flash at 100%. (#773)
+            if let key = scaleKey, let saved = loadSavedScale(for: key) {
+                scale = saved
             }
         }
         .onChange(of: scale) { _, newScale in
