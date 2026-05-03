@@ -386,18 +386,20 @@ class DocumentServiceGenerated: ObservableObject {
 
     /// Convert generated Document to local Document
     private func convertToDocument(_ doc: Components.Schemas.Document) throws -> Document {
-        // Read TYPED schema fields first; fall back to additionalProperties
-        // for legacy compat. Reading typed fields only from extras silently
-        // returns nil and corrupts the local cache — pageContent did this
-        // (#762 / 34de4335), parent_id did the SAME thing causing folders
-        // to "move to root" in the sidebar after edits even though the DB
-        // kept the correct hierarchy (#774 follow-up). Always-typed-first.
+        // Every field that's TYPED on the OpenAPI Document schema decodes
+        // into the typed property, NOT additionalProperties. Reading them
+        // from extras silently returns nil and corrupts the local cache.
+        // Verified with the Types.swift audit on 2026-05-03: parent_id,
+        // file_type, path, sequence, bbox, page_content,
+        // expected_thumbnail_path, expected_display_path are ALL typed.
+        // Always read typed-first; fall back to extras for legacy compat
+        // (and for any field we add to the schema that lags this list).
         let extras = doc.additionalProperties.value
         let parentId = doc.parentId ?? (extras["parent_id"] as? String)
-        let fileType = extras["file_type"] as? String
-        let path = extras["path"] as? String
-        let sequence = extras["sequence"] as? Int
-        let bbox = extras["bbox"] as? [Int]
+        let fileType = doc.fileType ?? (extras["file_type"] as? String)
+        let path = doc.path ?? (extras["path"] as? String)
+        let sequence = doc.sequence ?? (extras["sequence"] as? Int)
+        let bbox = doc.bbox ?? (extras["bbox"] as? [Int])
         let pageContent = doc.pageContent ?? (extras["page_content"] as? String)
 
         return Document(
