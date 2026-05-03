@@ -198,7 +198,7 @@ async def update_framework(
             status_code=404, detail=f"Framework not found: {framework_id}"
         )
 
-    updates = request.model_dump(exclude_unset=True)
+    updates = request.model_dump(exclude_unset=True, exclude_none=True)
     for key, value in updates.items():
         setattr(framework, key, value)
     framework.updated_at = datetime.now()
@@ -313,7 +313,7 @@ async def update_interpretation(
             status_code=404, detail=f"Interpretation not found: {interpretation_id}"
         )
 
-    updates = request.model_dump(exclude_unset=True)
+    updates = request.model_dump(exclude_unset=True, exclude_none=True)
     for key, value in updates.items():
         setattr(interpretation, key, value)
     interpretation.updated_at = datetime.now()
@@ -389,7 +389,7 @@ async def update_pattern(
     if not pattern:
         raise HTTPException(status_code=404, detail=f"Pattern not found: {pattern_id}")
 
-    updates = request.model_dump(exclude_unset=True)
+    updates = request.model_dump(exclude_unset=True, exclude_none=True)
     for key, value in updates.items():
         setattr(pattern, key, value)
     pattern.updated_at = datetime.now()

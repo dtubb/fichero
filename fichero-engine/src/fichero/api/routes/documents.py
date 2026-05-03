@@ -209,15 +209,20 @@ async def update_document(
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
 
     # Apply updates
-    update_data = update.model_dump(exclude_unset=True)
+    # exclude_unset filters fields the client didn't provide. exclude_none
+    # ALSO filters fields the client sent as JSON null. The Swift OpenAPI
+    # client serializes every optional argument as a JSON null when the
+    # caller omits it — so a routine page_content edit arrives here as
+    # `{page_content: "...", name: null, parent_id: null, ...}`. Without
+    # exclude_none, those nulls would clobber existing values. Combined,
+    # the only fields that mutate are ones the client explicitly set to a
+    # non-null value. (#774 + audit on 2026-05-03.)
+    update_data = update.model_dump(exclude_unset=True, exclude_none=True)
 
-    # parent_id is NEVER mutated by this endpoint, even if the request body
-    # carries it. The Swift OpenAPI client serializes every optional field
-    # as a JSON null when omitted, so a routine page_content edit arrives
-    # here as `{page_content: "...", parent_id: null}`. Treating that null
-    # as "move to root" silently re-parented folders whenever the user
-    # typed a note (#774). Use PUT /api/documents/{doc_id}/move for
-    # explicit reparenting.
+    # parent_id is NEVER mutated by this endpoint even if the client sends
+    # a non-null value — reparenting must go through the dedicated
+    # PUT /api/documents/{doc_id}/move endpoint to keep hierarchy mutations
+    # explicit and auditable.
     update_data.pop("parent_id", None)
 
     # Mark user edits to page_content BEFORE applying field updates, so

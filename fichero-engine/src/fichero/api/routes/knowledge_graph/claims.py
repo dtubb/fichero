@@ -419,7 +419,7 @@ async def patch_claim(
         k: v for k, v in claim.model_dump().items() if k not in ("id", "created_at")
     }
 
-    data = request.model_dump(exclude_unset=True)
+    data = request.model_dump(exclude_unset=True, exclude_none=True)
     if "entity_ids" in data and data["entity_ids"] is not None:
         missing_entities = [
             entity_id

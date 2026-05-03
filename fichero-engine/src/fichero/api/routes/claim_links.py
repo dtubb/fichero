@@ -151,7 +151,7 @@ async def update_claim_link(
         raise HTTPException(status_code=404, detail=f"Claim link not found: {link_id}")
 
     # Update fields
-    data = request.model_dump(exclude_unset=True)
+    data = request.model_dump(exclude_unset=True, exclude_none=True)
     for key, value in data.items():
         setattr(link, key, value)
     db.save(link)

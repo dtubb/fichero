@@ -156,7 +156,7 @@ async def patch_claim(
     if claim is None:
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
 
-    data = request.model_dump(exclude_unset=True)
+    data = request.model_dump(exclude_unset=True, exclude_none=True)
 
     # Validate entity IDs if provided
     if "entity_ids" in data and data["entity_ids"] is not None:

@@ -218,7 +218,7 @@ async def update_room(
     if not room:
         raise HTTPException(status_code=404, detail=f"Room not found: {room_id}")
 
-    updates = request.model_dump(exclude_unset=True)
+    updates = request.model_dump(exclude_unset=True, exclude_none=True)
     for key, value in updates.items():
         setattr(room, key, value)
     room.updated_at = datetime.now()
@@ -585,7 +585,7 @@ async def update_note(
     if not note:
         raise HTTPException(status_code=404, detail=f"Note not found: {note_id}")
 
-    updates = request.model_dump(exclude_unset=True)
+    updates = request.model_dump(exclude_unset=True, exclude_none=True)
     for key, value in updates.items():
         setattr(note, key, value)
     note.updated_at = datetime.now()
