@@ -141,52 +141,59 @@ extension ContentView {
             let layout: LayoutMode = (detailDocument?.docType == .folder)
                 ? .none
                 : currentLayoutMode
-            switch layout {
-            case .none:
-                contentWithOptionalModeRail
-                    .overlay { paneFocusIndicator(for: .content) }
-                    .frame(maxWidth: .infinity)
-
-            case .standard:
-                VSplitView {
+            // Group + .animation gives SwiftUI a stable outer identity so the
+            // first .none → .standard/.widescreen transition (when the user
+            // first activates a doc from full-grid) animates smoothly instead
+            // of remounting + flashing every grid cell. (#770/#778 follow-up)
+            Group {
+                switch layout {
+                case .none:
                     contentWithOptionalModeRail
                         .overlay { paneFocusIndicator(for: .content) }
-                        .frame(minHeight: 150, idealHeight: 180)
+                        .frame(maxWidth: .infinity)
 
-                    previewView
+                case .standard:
+                    VSplitView {
+                        contentWithOptionalModeRail
+                            .overlay { paneFocusIndicator(for: .content) }
+                            .frame(minHeight: 150, idealHeight: 180)
+
+                        previewView
+                            .overlay { paneFocusIndicator(for: .preview) }
+                            .frame(minHeight: 400, idealHeight: 720)
+                    }
+                    .frame(maxWidth: .infinity)
+
+                case .widescreen:
+                    // Widescreen: Content and preview side-by-side.
+                    // Uses HStack + ResizableDivider so content pane width is stored
+                    // and only changes on user drag (HSplitView ignores idealWidth).
+                    HStack(spacing: 0) {
+                        contentWithOptionalModeRail
+                            .overlay { paneFocusIndicator(for: .content) }
+                            .frame(width: clampedWidescreenContentPaneWidth)
+
+                        ResizableDivider(
+                            width: $widescreenContentPaneWidth,
+                            minWidth: 180,
+                            maxWidth: 900,
+                            edge: .leading
+                        )
+
+                        EditorView(
+                            document: detailDocument,
+                            showHeader: false,
+                            onPDFPageIndexChange: { index in
+                                syncGridSelectionToPDFPage(index: index)
+                            }
+                        )
                         .overlay { paneFocusIndicator(for: .preview) }
-                        .frame(minHeight: 400, idealHeight: 720)
-                }
-                .frame(maxWidth: .infinity)
-
-            case .widescreen:
-                // Widescreen: Content and preview side-by-side.
-                // Uses HStack + ResizableDivider so content pane width is stored
-                // and only changes on user drag (HSplitView ignores idealWidth).
-                HStack(spacing: 0) {
-                    contentWithOptionalModeRail
-                        .overlay { paneFocusIndicator(for: .content) }
-                        .frame(width: clampedWidescreenContentPaneWidth)
-
-                    ResizableDivider(
-                        width: $widescreenContentPaneWidth,
-                        minWidth: 180,
-                        maxWidth: 900,
-                        edge: .leading
-                    )
-
-                    EditorView(
-                        document: detailDocument,
-                        showHeader: false,
-                        onPDFPageIndexChange: { index in
-                            syncGridSelectionToPDFPage(index: index)
-                        }
-                    )
-                    .overlay { paneFocusIndicator(for: .preview) }
+                        .frame(maxWidth: .infinity)
+                    }
                     .frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: .infinity)
             }
+            .animation(.easeInOut(duration: 0.18), value: layout)
         }
     }
 

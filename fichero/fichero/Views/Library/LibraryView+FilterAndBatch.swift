@@ -137,7 +137,13 @@ extension LibraryView {
     }
 
     /// Handle double-click: navigate into folders/PDFs, preview everything else.
+    /// Also updates selection so the highlighted row matches the activated
+    /// doc — without this, double-clicking a doc that wasn't single-clicked
+    /// first leaves the previous selection highlighted while the new doc
+    /// shows in the preview pane. (#779)
     func handleDoubleClick(_ doc: Document) {
+        selection = [doc.id]
+        selectionAnchor = doc.id
         if canNavigateInto(doc) {
             onNavigateInto(doc)
         } else {
