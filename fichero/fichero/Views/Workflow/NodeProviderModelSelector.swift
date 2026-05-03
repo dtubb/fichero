@@ -60,6 +60,16 @@ struct NodeProviderModelSelector: View {
     private var providerPicker: some View {
         let availableProviders = providers.filter { provider in
             guard provider.available else { return false }
+            // When the tool exposes "Apple Vision (On-Device)" as a hardcoded
+            // option below, hide the catalog Apple Intelligence entry from
+            // this list — they look like duplicates to the user even though
+            // they route to different on-device APIs (Vision OCR vs
+            // Foundation Models LLM). The hardcoded option covers OCR;
+            // Apple Intelligence text-LLM isn't appropriate for tools that
+            // need vision input anyway. (#761)
+            if toolSupportsAppleVision && provider.providerType == "apple" {
+                return false
+            }
             if toolRequiresVision {
                 return provider.supportsVision
             }
