@@ -211,8 +211,15 @@ struct ZoomableImagePreview: View {
                     }
                 }
 
-                // Mini-map navigator (top right) - show when zoomed in (visible rect < full) or loupe active
-                if let img = image, visibleRect.width < 0.99 || visibleRect.height < 0.99 || loupeEnabled {
+                // Mini-map navigator (top right) - show when zoomed in (visible rect < full) or loupe active.
+                // visibleRect starts at (0,0,0,0) before layout completes, which would
+                // pass the "< 0.99" zoom check and flash the minimap on every image
+                // load (#771). Require positive area so the predicate only fires once
+                // the viewport has actually measured the image.
+                let visibleRectIsMeasured = visibleRect.width > 0 && visibleRect.height > 0
+                let isActuallyZoomed = visibleRectIsMeasured
+                    && (visibleRect.width < 0.99 || visibleRect.height < 0.99)
+                if let img = image, isActuallyZoomed || loupeEnabled {
                     NavigatorMiniMap(
                         image: img,
                         visibleRect: visibleRect,
@@ -249,11 +256,20 @@ struct ZoomableImagePreview: View {
                 if let saved = loadSavedScale(for: key) {
                     scale = saved
                 } else {
-                    // No saved scale — fit-to-window will be applied on next layout
+                    // No saved scale — explicitly fit on next run loop after
+                    // the new image has been rendered into the scroll view.
+                    // Without this dispatch, the image shows at 100% (the
+                    // default scale) until the user manually hits Fit (#773).
                     scale = 1.0
+                    DispatchQueue.main.async {
+                        fitToWindow()
+                    }
                 }
             } else {
                 scale = 1.0
+                DispatchQueue.main.async {
+                    fitToWindow()
+                }
             }
         }
         .onChange(of: scale) { _, newScale in
