@@ -299,16 +299,21 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
 
     @State private var isExpanded: Bool
 
-    /// UserDefaults key for this panel's expansion state, keyed by artifact
-    /// type so the user's expand/collapse choice persists across documents
-    /// AND across app launches. Toggling Transcription open on doc A means
-    /// Transcription opens for doc B, and stays that way after relaunch.
+    /// UserDefaults key for this panel's expansion state, keyed by both
+    /// artifact type AND producing provider so two transcriptions on the same
+    /// document (Apple Vision + Qwen VL) maintain independent expand/collapse
+    /// state across document switches and app launches. Without the provider
+    /// in the key, collapsing the Apple Vision transcription on doc A would
+    /// also collapse the Qwen transcription on doc B (#765).
     private static func storageKey(for kind: PanelKind) -> String {
         switch kind {
         case .pageContent:
             return "inspector.panel.expanded.pageContent"
         case .artifact(let artifact):
-            return "inspector.panel.expanded.\(artifact.artifactType)"
+            let providerSuffix = (artifact.provider?.isEmpty == false)
+                ? ".\(artifact.provider!)"
+                : ""
+            return "inspector.panel.expanded.\(artifact.artifactType)\(providerSuffix)"
         }
     }
 
