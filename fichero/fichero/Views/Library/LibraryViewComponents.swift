@@ -250,6 +250,7 @@ struct ProgressCell: View {
 struct DocumentThumbnailView: View {
     let document: Document
     let isSelected: Bool
+    var scale: CGFloat = 1.0
     @EnvironmentObject private var documentStore: DocumentStore
 
     /// Page-child docs store the original drop's PDF path in
@@ -290,7 +291,7 @@ struct DocumentThumbnailView: View {
                 // For PDFs + PDF page children, render locally via PDFKit.
                 if document.docType == .folder {
                     Image(systemName: "folder.fill")
-                        .font(.system(size: 48))
+                        .font(.system(size: 48 * scale))
                         .foregroundColor(.accentColor)
                 } else if document.fileType == .pdf, let path = document.path, !path.isEmpty {
                     PDFThumbnailView(path: path, size: CGSize(width: 240, height: 320))
@@ -341,7 +342,7 @@ struct DocumentThumbnailView: View {
                 .multilineTextAlignment(.center)
                 .foregroundColor(isSelected ? .accentColor : .primary)
         }
-        .frame(width: 100)
+        .frame(width: 100 * scale)
         .padding(6)
         .background(
             RoundedRectangle(cornerRadius: 8)

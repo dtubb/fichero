@@ -19,7 +19,8 @@ extension LibraryView {
                         ForEach(filteredDocuments) { doc in
                             DocumentThumbnailView(
                                 document: doc,
-                                isSelected: selection.contains(doc.id)
+                                isSelected: selection.contains(doc.id),
+                                scale: CGFloat(iconViewScale)
                             )
                             .id(doc.id)
                             .draggable(doc.id)
