@@ -37,7 +37,7 @@
     {
       "id": "aggregate",
       "tool": "aggregate",
-      "label": "Merge transcripts",
+      "label": "Marshal page records",
       "position_x": 620,
       "position_y": 400,
       "inputs": {},
@@ -115,7 +115,7 @@
     {
       "id": "merge_extracts",
       "tool": "aggregate",
-      "label": "Merge entities",
+      "label": "Wait for cleanups",
       "position_x": 1100,
       "position_y": 400,
       "inputs": {},

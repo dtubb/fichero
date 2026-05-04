@@ -32,6 +32,8 @@ from fichero.workflows.tools.llm_base import (
     merge_ports,
     LLMToolConfig,
 )
+import asyncio
+
 from fichero.llm import LLMConfig, chat
 from fichero.db import db_manager
 from fichero.models import Document, DocType, Artifact
@@ -402,12 +404,13 @@ async def catalogue(
         # KnowledgeGraph tab renders) so duplicating it here is noise.
         markdown = (data.get("resumen", "") if data else "") or ""
 
-    # Save artifacts on the container document. Each section gets its own
-    # artifact for the inspector's per-type rendering, plus one combined
-    # "catalogue" artifact holding the full markdown for export.
+    # Multi-output catalogue (Phase E, #805): produce THREE artifacts —
+    # narrative, timeline, keywords — each from a focused LLM call.
+    # Small models follow short prompts more reliably than one big prompt
+    # asking for everything. Idempotent: prior catalogue.* artifacts on
+    # this container are deleted before saving new ones, so reruns don't
+    # accumulate (Daniel: "I see multiple Catalogue entries").
     saved_artifact_ids: list[str] = []
-    # Save when we have markdown content, regardless of whether we have
-    # parsed JSON data (the new direct-markdown prompt path has no data).
     if container and library_path and markdown:
         try:
             db = db_manager.get_database(library_path)
@@ -415,31 +418,52 @@ async def catalogue(
             model = getattr(llm_config, "model", None)
             run_id = state.get("task_id")
 
-            # Per-section typed artifacts are NO longer written by the
-            # catalogue tool — the Extract* nodes (people_extract,
-            # places_extract, dates_extract, etc.) already wrote them
-            # before catalogue ran. Saving them here too produced
-            # duplicate artifacts that drifted out of sync with the
-            # extractor outputs. (composable workflow refactor)
-
-            # Combined catalogue artifact with the full markdown — always
-            # save so the user sees the headline catalogue entry.
-            combined = Artifact(
-                document_id=container.id,
-                artifact_type="catalogue",
-                content=markdown,
-                data=data,
-                provider=provider,
-                model=model,
-                run_id=run_id,
+            # Generate timeline + keywords from claim context (chunked
+            # to fit small-model windows). Run in parallel.
+            claim_context = _format_claims_as_context(data) if data else ""
+            timeline_md, keywords_md = await asyncio.gather(
+                _generate_timeline(text, output_language, llm_config, claim_context),
+                _generate_keywords(text, output_language, llm_config, claim_context),
             )
-            db.save(combined)
-            saved_artifact_ids.append(combined.id)
 
-            # Also write the catalogue markdown into the container's
-            # page_content so the folder's Content tab shows the catalogue
-            # entry directly. The individual per-section artifacts stay
-            # available under the Artifacts tab once its UI lands.
+            # Delete prior catalogue.* artifacts so reruns overwrite, not
+            # accumulate. Keep legacy 'catalogue' (no-suffix) deletions too
+            # so existing libraries stop showing both old and new on rerun.
+            from fichero.models import Artifact as ArtifactModel
+            try:
+                prior = list(db.query(ArtifactModel, document_id=container.id))
+                for a in prior:
+                    at = a.artifact_type or ""
+                    if at == "catalogue" or at.startswith("catalogue."):
+                        try:
+                            db.delete(a)
+                        except Exception as ex:
+                            logger.warning(f"Catalogue: prior artifact delete failed ({ex})")
+            except Exception as ex:
+                logger.warning(f"Catalogue: prior artifact query failed ({ex})")
+
+            # Three new artifacts.
+            artifacts_to_save = [
+                ("catalogue.narrative", markdown),
+                ("catalogue.timeline", timeline_md),
+                ("catalogue.keywords", keywords_md),
+            ]
+            for atype, content in artifacts_to_save:
+                if not content:
+                    continue
+                a = Artifact(
+                    document_id=container.id,
+                    artifact_type=atype,
+                    content=content,
+                    data=data if atype == "catalogue.narrative" else None,
+                    provider=provider,
+                    model=model,
+                    run_id=run_id,
+                )
+                db.save(a)
+                saved_artifact_ids.append(a.id)
+
+            # Folder's page_content shows the narrative (the headline)
             container.page_content = markdown
             container.updated_at = datetime.now()
             db.save(container)
@@ -812,6 +836,88 @@ async def _generate_resumen(
         )
     except Exception as exc:
         logger.warning(f"Catalogue: final synthesis failed ({exc}); using empty")
+        return ""
+    return response.strip()
+
+
+async def _generate_timeline(
+    text: str,
+    output_language: str,
+    llm_config: LLMConfig,
+    claim_context: str = "",
+) -> str:
+    """Generate a chronological events timeline as markdown.
+
+    Focused single-purpose prompt — easier for small models to follow than
+    a multi-output prompt asking for narrative + timeline + keywords at
+    once. Uses the date claims from claim_context when available so the
+    timeline is grounded in extracted dates rather than re-derived.
+    Returns empty string on failure.
+    """
+    if not text and not claim_context:
+        return ""
+    context_block = (
+        f"\n\nExtracted entities (from prior workflow steps):\n{claim_context}\n"
+        if claim_context else ""
+    )
+    # Truncate text aggressively for the timeline call — focused prompt
+    # works better with bounded input. Take first chunk only.
+    bounded = text[:_RESUMEN_CHUNK_SIZE] if text else ""
+    prompt = (
+        f"Build a chronological timeline of events from the document below "
+        f"in {output_language}. Output as markdown with one bullet per event:\n"
+        f"  * **YYYY-MM-DD** — Brief event description.\n"
+        f"Order chronologically (earliest first). If only year or year-month is "
+        f"known, use that. Skip undated events. Plain markdown, no headers, "
+        f"no preamble."
+        f"{context_block}"
+        f"\n\n---\nSource:\n{bounded}"
+    )
+    try:
+        response = await chat(
+            [{"role": "user", "content": prompt}],
+            config=llm_config,
+        )
+    except Exception as exc:
+        logger.warning(f"Catalogue: timeline LLM call failed ({exc}); using empty")
+        return ""
+    return response.strip()
+
+
+async def _generate_keywords(
+    text: str,
+    output_language: str,
+    llm_config: LLMConfig,
+    claim_context: str = "",
+) -> str:
+    """Generate collection-level subject keywords as a semicolon-joined list.
+
+    Distinct from per-page keyword extraction (#keywords_extract) — this is
+    the COLLECTION's headline subject keywords, not page-level concepts.
+    Returns empty string on failure.
+    """
+    if not text and not claim_context:
+        return ""
+    context_block = (
+        f"\n\nExtracted entities (from prior workflow steps):\n{claim_context}\n"
+        if claim_context else ""
+    )
+    bounded = text[:_RESUMEN_CHUNK_SIZE] if text else ""
+    prompt = (
+        f"Generate 10-20 subject keywords for this archival collection in "
+        f"{output_language}. Capture themes, subjects, geographic regions, "
+        f"time periods, legal/social concepts. Return ONE line: keywords "
+        f"separated by semicolons. No preamble, no markdown, no commentary."
+        f"{context_block}"
+        f"\n\n---\nSource:\n{bounded}"
+    )
+    try:
+        response = await chat(
+            [{"role": "user", "content": prompt}],
+            config=llm_config,
+        )
+    except Exception as exc:
+        logger.warning(f"Catalogue: keywords LLM call failed ({exc}); using empty")
         return ""
     return response.strip()
 
