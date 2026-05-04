@@ -31,10 +31,6 @@ struct ViewMenuCommands: View {
 
         Divider()
 
-        NavigateToParentButton()
-
-        Divider()
-
         ShowRulerButton()
         ShowFindBarButton()
     }
@@ -451,25 +447,6 @@ struct InspectorButton: View {
 /// Toggles the inspector's text-editor ruler globally. Lives in Format > Text
 /// in spirit but attaches to the View menu (FicheroApp wires this in).
 /// AppStorage key matches the editor's `editor.rulersVisible` flag.
-// MARK: - Go Up (Cmd+`)
-
-/// Walks one level up the folder hierarchy via the focused window's
-/// navigateToParent action. Lets users ascend when the sidebar is hidden,
-/// since there's no other way to climb back out of a folder. (#786)
-struct NavigateToParentButton: View {
-    @FocusedValue(\.navigateToParentAction) private var action
-
-    var body: some View {
-        Button {
-            action?()
-        } label: {
-            Label("Go Up", systemImage: "arrow.up.to.line.compact")
-        }
-        .keyboardShortcut("`", modifiers: [.command])
-        .disabled(action == nil)
-    }
-}
-
 struct ShowRulerButton: View {
     @AppStorage("editor.rulersVisible") private var rulersVisible: Bool = true
 
