@@ -111,56 +111,65 @@ _CATALOGUE_SCHEMA = """{
 def _build_prompt(output_language: str) -> str:
     """Build the catalogue prompt.
 
-    Produces a rich nine-section archival catalogue entry from aggregated
-    transcriptions. Schema matches the reference .docx format used for the
-    Archivo Judicial de Medellín catalogue.
+    Produces a librarian-style catalogue entry in clean markdown — title,
+    description, keywords, people, places, organizations, date coverage,
+    document type. Asks for markdown directly (no JSON intermediary) since
+    Daniel's mental model is "just give me the catalogue entry, not a data
+    structure to render". Per-section typed entities are produced by
+    separate extractor nodes (Extract People / Extract Dates / etc.) in
+    the composable workflow — this tool's job is the catalogue summary.
     """
-    schema = _CATALOGUE_SCHEMA.replace("__LANG__", output_language)
-    return f"""You are cataloguing a collection of archival documents. You receive
-the aggregated transcriptions (possibly across many pages or files).
+    return f"""You are creating a library catalogue entry for an archival document
+or collection. You receive the aggregated transcriptions (possibly across many
+pages or files) and produce a single catalogue entry that describes WHAT IS IN
+THE DOCUMENTS — objective, factual, no interpretation.
 
-Produce a structured catalogue entry in {output_language} with these sections:
+Write the entry as markdown with EXACTLY these sections, in this order:
 
-1. **Resumen** — a 150-300 word narrative summary of what the collection contains:
-   the subject, dates, key actors, central events, outcomes. Write in paragraph
-   form, not bullets.
+## Title
+A brief descriptive title based on the document content (one line).
 
-2. **Palabras Clave** — 10-20 descriptive keywords capturing themes, subjects,
-   locations, time periods, legal concepts. Return as an array of short strings.
+## Description
+One rich narrative paragraph (150-300 words) in the style of an archival
+finding-aid abstract. Pack it with concrete facts: full names of the principal
+actors, exact dates, place names, organizations involved, the chain of events,
+and the documented outcomes. Read like a scholar summarising the case file —
+not generic ("the documents discuss legal matters") but specific ("on the night
+of 23-24 August 1922 the dredge No. 1 of the Compañía Minera Chocó Pacífico
+sank in the río Condoto near Bazán island..."). Write in paragraph form, not
+bullets, no headings inside the paragraph.
 
-3. **Personas Clave** — 5-15 most important people. For each: canonical name,
-   role/importance in the case.
+## Subject Keywords
+A semicolon-separated list of 10-20 descriptive keywords capturing themes,
+subjects, locations, time periods, legal concepts.
 
-4. **Fechas** — every significant date mentioned. For each: the date as written
-   in the original (with ambiguity if any), normalized to YYYY-MM-DD (or
-   YYYY-MM-DD/YYYY-MM-DD for ranges, YYYY-MM for month-only), short context.
+## People
+Bulleted list of the people mentioned. One name per line. Use canonical
+(most complete) form, group alternative spellings under it.
 
-5. **Referencias Legales** — every law, article, decree, statute cited. Name +
-   context of how it's invoked.
+## Places
+Bulleted list of locations mentioned. One per line.
 
-6. **Rios** — every river, waterway, tributary mentioned. Canonical name,
-   alternative spellings found in the documents, context.
+## Organizations
+Bulleted list of organizations, courts, companies, institutions mentioned.
+One per line.
 
-7. **Eventos Clave** — significant events (incidents, decisions, hearings,
-   meetings, deaths, financial transactions). Event description + context.
+## Date Coverage
+Two lines:
+- Start: YYYY-MM-DD or YYYY (or "unknown")
+- End: YYYY-MM-DD or YYYY (or "unknown")
 
-8. **Minas** — every mine, mining company, mining claim mentioned. Name + context.
-
-9. **Propiedades** — every property, estate, parcel, building mentioned beyond
-   rivers and mines. Name + context.
+## Document Type
+One short phrase — e.g. "correspondence", "legal documents", "court records",
+"mining claim", "land grant", "photographs", etc.
 
 Rules:
-- Include ALL occurrences. Do not include page numbers in outputs.
-- Preserve exact spelling of names but capitalize properly. Group alternative
-  spellings under the canonical (most complete) form.
+- Write all prose in {output_language}. Section headers stay in English.
 - Only include facts supported by the text. Do not speculate.
-- Write all prose ({output_language}). Keep dates in ISO format.
-- Omit a section only if the text contains zero examples of it.
+- Omit the bulleted contents of a section only if the text contains zero
+  examples — keep the section header so the structure stays consistent.
 
-Return ONLY valid JSON matching this schema. No prose outside the JSON:
-
-{schema}
-"""
+Return ONLY the markdown. No surrounding prose, no code fences."""
 
 
 def build_catalogue_prompt(config: dict) -> str:
@@ -370,7 +379,8 @@ async def catalogue(
             logger.error(f"Catalogue LLM call failed: {exc}")
             return {"text": "", "value": None, "error": str(exc)}
 
-        # Parse structured JSON. Models sometimes wrap in ```json fences.
+        # Prompt asks for markdown directly (no JSON intermediary). Strip
+        # any stray code fences just in case the model wrapped the output.
         raw = response.strip()
         if raw.startswith("```"):
             lines = raw.splitlines()
@@ -380,39 +390,46 @@ async def catalogue(
                 lines = lines[:-1]
             raw = "\n".join(lines).strip()
 
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            logger.warning(f"Catalogue: JSON parse failed ({exc}); saving raw text")
-
-    markdown = _render_markdown(data) if data else ""
+        # Use the markdown response as-is. data stays None — per-section
+        # typed entity artifacts are produced by the separate Extract
+        # People / Extract Dates / etc. nodes in the composable workflow.
+        markdown = raw
+    else:
+        markdown = _render_markdown(data) if data else ""
 
     # Save artifacts on the container document. Each section gets its own
     # artifact for the inspector's per-type rendering, plus one combined
     # "catalogue" artifact holding the full markdown for export.
     saved_artifact_ids: list[str] = []
-    if container and library_path and data is not None:
+    # Save when we have markdown content, regardless of whether we have
+    # parsed JSON data (the new direct-markdown prompt path has no data).
+    if container and library_path and markdown:
         try:
             db = db_manager.get_database(library_path)
             provider = getattr(llm_config, "provider", None)
             model = getattr(llm_config, "model", None)
             run_id = state.get("task_id")
 
-            for section_type, section_data in _iter_section_artifacts(data):
-                artifact = Artifact(
-                    document_id=container.id,
-                    artifact_type=section_type,
-                    content=section_data["content"],
-                    data=section_data.get("data"),
-                    provider=provider,
-                    model=model,
-                    run_id=run_id,
-                )
-                db.save(artifact)
-                saved_artifact_ids.append(artifact.id)
+            # Per-section typed artifacts (only when we have parsed JSON,
+            # i.e. legacy claim-derived path). The new direct-markdown path
+            # leaves data=None and skips this loop — typed entities are
+            # produced by separate Extract nodes in the composable workflow.
+            if data is not None:
+                for section_type, section_data in _iter_section_artifacts(data):
+                    artifact = Artifact(
+                        document_id=container.id,
+                        artifact_type=section_type,
+                        content=section_data["content"],
+                        data=section_data.get("data"),
+                        provider=provider,
+                        model=model,
+                        run_id=run_id,
+                    )
+                    db.save(artifact)
+                    saved_artifact_ids.append(artifact.id)
 
-            # Combined catalogue artifact with the full markdown rendering —
-            # useful for exporting a single .docx matching the reference format.
+            # Combined catalogue artifact with the full markdown — always
+            # save so the user sees the headline catalogue entry.
             combined = Artifact(
                 document_id=container.id,
                 artifact_type="catalogue",
