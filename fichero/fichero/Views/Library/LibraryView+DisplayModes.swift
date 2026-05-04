@@ -72,6 +72,20 @@ extension LibraryView {
                 .focusable()
                 .focusEffectDisabled()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Pinch-to-zoom on the trackpad resizes icons live, like
+                // Finder's icon view. Clamped 0.5–2.5x to match the toolbar
+                // +/- buttons' usable range; persisted via @AppStorage on
+                // iconViewScale so the scale survives relaunch.
+                .gesture(
+                    MagnificationGesture()
+                        .onChanged { magnitude in
+                            let candidate = pinchBaseScale * magnitude
+                            iconViewScale = max(0.5, min(2.5, candidate))
+                        }
+                        .onEnded { _ in
+                            pinchBaseScale = iconViewScale
+                        }
+                )
                 .onChange(of: geometry.size.width) { _, newWidth in
                     let cellWidth = CGFloat(120 * iconViewScale) + 20
                     let availableWidth = newWidth - 32

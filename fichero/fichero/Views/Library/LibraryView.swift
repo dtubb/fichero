@@ -80,6 +80,10 @@ struct LibraryView: View {
     // Zoom scale for icon and map views (persisted per-app)
     @AppStorage("library.iconViewScale") var iconViewScale: Double = 1.0
     @State var mapCanvasScale: CGFloat = 1.0
+    // Captures iconViewScale at the start of a pinch so the gesture's
+    // multiplier multiplies against the gesture-start size, not the
+    // continuously-updating scale (which would compound exponentially).
+    @State var pinchBaseScale: Double = 1.0
 
     var body: some View {
         withKeyboardShortcuts(
