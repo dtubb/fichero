@@ -55,6 +55,7 @@ from fichero.workflows.tools import keywords
 from fichero.workflows.tools import questions
 from fichero.workflows.tools import classify_text
 from fichero.workflows.tools import extractors  # per-section catalogue extractors
+from fichero.workflows.tools import cleanup  # per-section page/folder canonical cleanup
 
 # Audio tools (use shared audio_base)
 from fichero.workflows.tools import audio_transcribe
@@ -113,6 +114,7 @@ __all__ = [
     "questions",
     "classify_text",
     "extractors",
+    "cleanup",
     # Audio
     "audio_transcribe",
     # Video

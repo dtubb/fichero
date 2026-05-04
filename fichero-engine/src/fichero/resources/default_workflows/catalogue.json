@@ -113,10 +113,118 @@
       }
     },
     {
+      "id": "people_page_clean",
+      "tool": "people_page_cleanup",
+      "label": "Clean People (page)",
+      "position_x": 1100,
+      "position_y": 80,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "people_folder_clean",
+      "tool": "people_folder_cleanup",
+      "label": "Clean People (folder)",
+      "position_x": 1300,
+      "position_y": 80,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "places_page_clean",
+      "tool": "places_page_cleanup",
+      "label": "Clean Places (page)",
+      "position_x": 1100,
+      "position_y": 180,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "places_folder_clean",
+      "tool": "places_folder_cleanup",
+      "label": "Clean Places (folder)",
+      "position_x": 1300,
+      "position_y": 180,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "organizations_page_clean",
+      "tool": "organizations_page_cleanup",
+      "label": "Clean Organizations (page)",
+      "position_x": 1100,
+      "position_y": 280,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "organizations_folder_clean",
+      "tool": "organizations_folder_cleanup",
+      "label": "Clean Organizations (folder)",
+      "position_x": 1300,
+      "position_y": 280,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "dates_page_clean",
+      "tool": "dates_page_cleanup",
+      "label": "Clean Dates (page)",
+      "position_x": 1100,
+      "position_y": 380,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "dates_folder_clean",
+      "tool": "dates_folder_cleanup",
+      "label": "Clean Dates (folder)",
+      "position_x": 1300,
+      "position_y": 380,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "events_page_clean",
+      "tool": "events_page_cleanup",
+      "label": "Clean Events (page)",
+      "position_x": 1100,
+      "position_y": 480,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "events_folder_clean",
+      "tool": "events_folder_cleanup",
+      "label": "Clean Events (folder)",
+      "position_x": 1300,
+      "position_y": 480,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "keywords_page_clean",
+      "tool": "keywords_page_cleanup",
+      "label": "Clean Keywords (page)",
+      "position_x": 1100,
+      "position_y": 580,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "keywords_folder_clean",
+      "tool": "keywords_folder_cleanup",
+      "label": "Clean Keywords (folder)",
+      "position_x": 1300,
+      "position_y": 580,
+      "inputs": {},
+      "config": {}
+    },
+    {
       "id": "merge_extracts",
       "tool": "aggregate",
       "label": "Wait for cleanups",
-      "position_x": 1100,
+      "position_x": 1500,
       "position_y": 400,
       "inputs": {},
       "config": {
@@ -128,7 +236,7 @@
       "id": "catalogue",
       "tool": "catalogue",
       "label": "Catalogue",
-      "position_x": 1380,
+      "position_x": 1780,
       "position_y": 400,
       "inputs": {},
       "config": {
@@ -194,48 +302,6 @@
       "target_port": "text"
     },
     {
-      "id": "e-people-merge_extracts",
-      "source": "people",
-      "target": "merge_extracts",
-      "source_port": "text",
-      "target_port": "text"
-    },
-    {
-      "id": "e-places-merge_extracts",
-      "source": "places",
-      "target": "merge_extracts",
-      "source_port": "text",
-      "target_port": "text"
-    },
-    {
-      "id": "e-organizations-merge_extracts",
-      "source": "organizations",
-      "target": "merge_extracts",
-      "source_port": "text",
-      "target_port": "text"
-    },
-    {
-      "id": "e-dates-merge_extracts",
-      "source": "dates",
-      "target": "merge_extracts",
-      "source_port": "text",
-      "target_port": "text"
-    },
-    {
-      "id": "e-events-merge_extracts",
-      "source": "events",
-      "target": "merge_extracts",
-      "source_port": "text",
-      "target_port": "text"
-    },
-    {
-      "id": "e-keywords-merge_extracts",
-      "source": "keywords",
-      "target": "merge_extracts",
-      "source_port": "text",
-      "target_port": "text"
-    },
-    {
       "id": "e-merge_extracts-catalogue",
       "source": "merge_extracts",
       "target": "catalogue",
@@ -287,6 +353,174 @@
     {
       "id": "e-aggregate-merge_extracts",
       "source": "aggregate",
+      "target": "merge_extracts",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-people-people_page_clean",
+      "source": "people",
+      "target": "people_page_clean",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-records-people_page_clean",
+      "source": "aggregate",
+      "target": "people_page_clean",
+      "source_port": "records",
+      "target_port": "records"
+    },
+    {
+      "id": "e-people_page_clean-people_folder_clean",
+      "source": "people_page_clean",
+      "target": "people_folder_clean",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-people_folder_clean-merge_extracts",
+      "source": "people_folder_clean",
+      "target": "merge_extracts",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-places-places_page_clean",
+      "source": "places",
+      "target": "places_page_clean",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-records-places_page_clean",
+      "source": "aggregate",
+      "target": "places_page_clean",
+      "source_port": "records",
+      "target_port": "records"
+    },
+    {
+      "id": "e-places_page_clean-places_folder_clean",
+      "source": "places_page_clean",
+      "target": "places_folder_clean",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-places_folder_clean-merge_extracts",
+      "source": "places_folder_clean",
+      "target": "merge_extracts",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-organizations-organizations_page_clean",
+      "source": "organizations",
+      "target": "organizations_page_clean",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-records-organizations_page_clean",
+      "source": "aggregate",
+      "target": "organizations_page_clean",
+      "source_port": "records",
+      "target_port": "records"
+    },
+    {
+      "id": "e-organizations_page_clean-organizations_folder_clean",
+      "source": "organizations_page_clean",
+      "target": "organizations_folder_clean",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-organizations_folder_clean-merge_extracts",
+      "source": "organizations_folder_clean",
+      "target": "merge_extracts",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-dates-dates_page_clean",
+      "source": "dates",
+      "target": "dates_page_clean",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-records-dates_page_clean",
+      "source": "aggregate",
+      "target": "dates_page_clean",
+      "source_port": "records",
+      "target_port": "records"
+    },
+    {
+      "id": "e-dates_page_clean-dates_folder_clean",
+      "source": "dates_page_clean",
+      "target": "dates_folder_clean",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-dates_folder_clean-merge_extracts",
+      "source": "dates_folder_clean",
+      "target": "merge_extracts",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-events-events_page_clean",
+      "source": "events",
+      "target": "events_page_clean",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-records-events_page_clean",
+      "source": "aggregate",
+      "target": "events_page_clean",
+      "source_port": "records",
+      "target_port": "records"
+    },
+    {
+      "id": "e-events_page_clean-events_folder_clean",
+      "source": "events_page_clean",
+      "target": "events_folder_clean",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-events_folder_clean-merge_extracts",
+      "source": "events_folder_clean",
+      "target": "merge_extracts",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-keywords-keywords_page_clean",
+      "source": "keywords",
+      "target": "keywords_page_clean",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-records-keywords_page_clean",
+      "source": "aggregate",
+      "target": "keywords_page_clean",
+      "source_port": "records",
+      "target_port": "records"
+    },
+    {
+      "id": "e-keywords_page_clean-keywords_folder_clean",
+      "source": "keywords_page_clean",
+      "target": "keywords_folder_clean",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-keywords_folder_clean-merge_extracts",
+      "source": "keywords_folder_clean",
       "target": "merge_extracts",
       "source_port": "text",
       "target_port": "text"
