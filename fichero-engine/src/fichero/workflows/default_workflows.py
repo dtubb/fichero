@@ -89,6 +89,27 @@ def seed_default_workflows(db: "Database", force: bool = False) -> int:
                     logger.warning(f"Could not delete preset '{name}' during reinstall: {exc}")
                 existing_by_name.pop(name, None)
 
+        # Also prune is_template workflows whose names are NO LONGER in the
+        # preset set (i.e. variants that used to ship but were deleted —
+        # e.g. 'Catalogue (Apple Vision)' / 'Transcribe (Apple Vision)' /
+        # 'Catalogue (composable)' after the architecture moved to a single
+        # preset per workflow + runtime model picker). Without this prune,
+        # users keep seeing stale variants in the toolbar Run menu after
+        # an app update because the seeder only ever INSERTED new names.
+        orphaned = []
+        for name, wf in existing_by_name.items():
+            if name in preset_names:
+                continue
+            if getattr(wf, "is_template", False) or getattr(wf, "is_system", False):
+                orphaned.append((name, wf))
+        for name, wf in orphaned:
+            try:
+                db.delete(wf)
+                logger.info(f"Pruned orphaned default workflow '{name}' (no preset file)")
+                existing_by_name.pop(name, None)
+            except Exception as exc:
+                logger.warning(f"Could not prune orphaned preset '{name}': {exc}")
+
     existing_names = set(existing_by_name.keys())
     seeded = 0
 
