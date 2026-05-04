@@ -7,17 +7,22 @@
 // split into their own files at that point.
 import SwiftUI
 
-/// Tab selection for document inspector
+/// Tab selection for document inspector. Order matters — left-to-right is
+/// content / knowledge graph / info, per Daniel's mental model:
+/// "the document itself" → "the structured world inside it" → "metadata
+/// about the document".
 enum InspectorTab: String, CaseIterable, Identifiable {
-    case info = "Info"
     case content = "Content"
+    case knowledgeGraph = "Knowledge Graph"
+    case info = "Info"
 
     var id: String { rawValue }
 
     var icon: String {
         switch self {
-        case .info: return "info.circle"
         case .content: return "doc.text"
+        case .knowledgeGraph: return "point.3.connected.trianglepath.dotted"
+        case .info: return "info.circle"
         }
     }
 }
@@ -26,7 +31,8 @@ enum InspectorTab: String, CaseIterable, Identifiable {
 struct DocumentInspector: View {
     let document: Document?
 
-    @SceneStorage("inspectorSelectedTab") private var selectedTab: InspectorTab = .info
+    @SceneStorage("inspectorSelectedTab") private var selectedTab: InspectorTab = .content
+    @EnvironmentObject private var entityService: EntityServiceGenerated
     @ObservedObject private var featureManager = FeatureManager.shared
 
     var body: some View {
@@ -74,10 +80,18 @@ struct DocumentInspector: View {
 
             // Tab content.
             // Content tab renders directly without ScrollView — NSTextView manages its own scrolling.
-            // Info tab wraps in ScrollView since it contains only static SwiftUI views.
+            // Knowledge Graph + Info wrap in ScrollView since they're static SwiftUI views.
             switch selectedTab {
             case .content:
                 DocumentInspectorContentV2(document: doc)
+            case .knowledgeGraph:
+                ScrollView {
+                    KnowledgeGraphInspectorSection(
+                        documentId: doc.id,
+                        entityService: entityService
+                    )
+                    .padding()
+                }
             case .info:
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {

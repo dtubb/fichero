@@ -56,15 +56,9 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
                 }
             }
 
-            // Knowledge-graph view: queryable typed entities/claims for this
-            // document, written by catalogue extractors alongside markdown
-            // artifacts (#728). Both render — markdown above for debug,
-            // typed view here for cross-doc search and KG layers.
-            Divider().padding(.vertical, 8)
-            KnowledgeGraphInspectorSection(
-                documentId: documentId,
-                entityService: entityService
-            )
+            // KnowledgeGraphInspectorSection lives in its own top-level
+            // inspector tab (Content / Knowledge Graph / Info) since the
+            // tab reorder. Removed from here to avoid duplicate rendering.
         }
         .task(id: documentId) {
             await loadArtifacts(for: documentId)
