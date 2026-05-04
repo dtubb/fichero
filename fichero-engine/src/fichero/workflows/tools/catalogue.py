@@ -111,18 +111,25 @@ _CATALOGUE_SCHEMA = """{
 def _build_prompt(output_language: str) -> str:
     """Build the catalogue prompt.
 
-    Produces a librarian-style catalogue entry in clean markdown — title,
-    description, keywords, people, places, organizations, date coverage,
-    document type. Asks for markdown directly (no JSON intermediary) since
-    Daniel's mental model is "just give me the catalogue entry, not a data
-    structure to render". Per-section typed entities are produced by
-    separate extractor nodes (Extract People / Extract Dates / etc.) in
-    the composable workflow — this tool's job is the catalogue summary.
+    Adapted directly from the legacy Generic_Catalogue pipeline's final
+    `library_catalogue_entry` step (fichero_archive/.../Generic_Catalogue.jsonl).
+    That pipeline used 7 sequential steps — extract people, places, dates,
+    timeline, tags, summary, then synthesize the catalogue entry. Here we
+    collapse the synthesis into one step that produces the markdown entry
+    directly. Per-section typed entities (Dates / People / Events) are
+    produced by separate Extract* nodes in the composable workflow —
+    this tool's job is the catalogue *synthesis*, not the extraction.
+
+    Output is markdown (no JSON intermediary) since Daniel's mental model
+    is "just give me the catalogue entry, not a data structure to render".
     """
-    return f"""You are creating a library catalogue entry for an archival document
-or collection. You receive the aggregated transcriptions (possibly across many
-pages or files) and produce a single catalogue entry that describes WHAT IS IN
-THE DOCUMENTS — objective, factual, no interpretation.
+    return f"""You are creating a structured library catalogue entry for an
+archival document or collection. You receive the aggregated transcriptions
+(possibly across many pages or files).
+
+Focus on documenting WHAT IS IN THE DOCUMENTS, not analysis or interpretation.
+The catalogue entry describes the content objectively. Use ALL available
+information to create the most accurate entry possible.
 
 Write the entry as markdown with EXACTLY these sections, in this order:
 
@@ -130,44 +137,50 @@ Write the entry as markdown with EXACTLY these sections, in this order:
 A brief descriptive title based on the document content (one line).
 
 ## Description
-One rich narrative paragraph (150-300 words) in the style of an archival
-finding-aid abstract. Pack it with concrete facts: full names of the principal
-actors, exact dates, place names, organizations involved, the chain of events,
-and the documented outcomes. Read like a scholar summarising the case file —
-not generic ("the documents discuss legal matters") but specific ("on the night
-of 23-24 August 1922 the dredge No. 1 of the Compañía Minera Chocó Pacífico
-sank in the río Condoto near Bazán island..."). Write in paragraph form, not
-bullets, no headings inside the paragraph.
+One rich narrative paragraph in the style of an archival finding-aid abstract.
+Pack it with concrete facts: full names of the principal actors, exact dates,
+place names, organizations involved, the chain of events, and the documented
+outcomes. Read like a scholar summarising the case file — not generic ("the
+documents discuss legal matters") but specific ("on the night of 23-24 August
+1922 the dredge No. 1 of the Compañía Minera Chocó Pacífico sank in the río
+Condoto near Bazán island, leading to a judicial investigation that
+eventually..."). Aim for 150-300 words. Paragraph form, no headings inside.
+Include key people, places, dates, and events. Write clearly and concisely.
+Do NOT include your own analysis. Do NOT invent or include details beyond
+what is explicitly provided in the source.
 
 ## Subject Keywords
-A semicolon-separated list of 10-20 descriptive keywords capturing themes,
-subjects, locations, time periods, legal concepts.
+A semicolon-separated list of 10-20 descriptive keywords capturing main
+themes, subjects, geographic locations, time periods, legal concepts.
 
 ## People
-Bulleted list of the people mentioned. One name per line. Use canonical
-(most complete) form, group alternative spellings under it.
+Bulleted list of the people mentioned in the documents. One name per line.
+Use canonical (most complete) form. Capitalize properly.
 
 ## Places
-Bulleted list of locations mentioned. One per line.
+Bulleted list of locations mentioned (cities, regions, addresses, rivers,
+mines, properties). One per line.
 
 ## Organizations
-Bulleted list of organizations, courts, companies, institutions mentioned.
-One per line.
+Bulleted list of organizations, courts, companies, institutions, government
+bodies mentioned. One per line.
 
 ## Date Coverage
-Two lines:
+The date range covered by the documents' content. Two lines:
 - Start: YYYY-MM-DD or YYYY (or "unknown")
 - End: YYYY-MM-DD or YYYY (or "unknown")
 
 ## Document Type
 One short phrase — e.g. "correspondence", "legal documents", "court records",
-"mining claim", "land grant", "photographs", etc.
+"mining claim", "land grant", "photographs", "notarial deeds", etc.
 
 Rules:
-- Write all prose in {output_language}. Section headers stay in English.
+- Write all prose in {output_language}. Section headers stay in English so
+  downstream parsers stay simple.
+- Include ALL occurrences of names/places/orgs found in the text.
+- Preserve exact spelling, capitalize properly, group alternative spellings
+  under the canonical form.
 - Only include facts supported by the text. Do not speculate.
-- Omit the bulleted contents of a section only if the text contains zero
-  examples — keep the section header so the structure stays consistent.
 
 Return ONLY the markdown. No surrounding prose, no code fences."""
 
