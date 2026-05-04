@@ -69,19 +69,16 @@ extension SidebarItemRow {
             }
             .frame(width: 20, height: 20)
         } else if documentIsProcessing {
-            // Per-doc / folder spinner driven by Document.status (#785).
-            // Different visual from workflow-row spinner: no purple pulse,
-            // just the indicator next to the doc icon so the row identity
-            // stays clear.
-            ZStack(alignment: .bottomTrailing) {
-                Image(systemName: item.icon)
-                ProgressView()
-                    .controlSize(.mini)
-                    .scaleEffect(0.7)
-                    .background(Circle().fill(.background).frame(width: 12, height: 12))
-                    .offset(x: 4, y: 4)
-            }
-            .frame(width: 16, alignment: .center)
+            // Per-doc / folder spinner — REPLACES the icon while in flight.
+            // Earlier version was a tiny corner overlay that Daniel
+            // couldn't see at glance ("spinner is not on the right of the
+            // folder, or replacing the icon"). Matches the workflow-row
+            // spinner visual so users get one consistent "this is in
+            // flight" signal across all sidebar rows. (#785)
+            ProgressView()
+                .controlSize(.small)
+                .scaleEffect(0.8)
+                .frame(width: 16, alignment: .center)
         } else if case .document(let doc) = item.itemType,
                   let badge = ingestBadge(for: doc) {
             // #603: visible per-mode badges driven by metadata.ingest_mode
