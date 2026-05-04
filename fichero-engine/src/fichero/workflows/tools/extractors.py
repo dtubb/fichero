@@ -443,7 +443,28 @@ async def _run_extractor(
 
     prompt = _build_section_prompt(section, output_language)
 
+    # Sub-chunk budget — small on-device models (Apple Intelligence's
+    # ~4K token window) can't accept a full page of dense handwritten
+    # archive OCR (~7K tokens per page). Split each page into ~3K char
+    # sub-chunks so prompt + sub-chunk fits comfortably. Cloud models
+    # have much larger windows but extra splits are cheap and parallel.
+    _MAX_CHUNK_CHARS = 3000
+
     async def _extract_chunk(chunk_text: str) -> list[Any]:
+        # Split a single page into sub-chunks if it exceeds the model's
+        # context budget. Each sub-chunk gets its own LLM call; results
+        # concatenate.
+        if len(chunk_text) > _MAX_CHUNK_CHARS:
+            sub_chunks = []
+            for start in range(0, len(chunk_text), _MAX_CHUNK_CHARS):
+                sub_chunks.append(chunk_text[start:start + _MAX_CHUNK_CHARS])
+            sub_results = await asyncio.gather(
+                *[_extract_one(s) for s in sub_chunks]
+            )
+            return [item for sub in sub_results for item in sub]
+        return await _extract_one(chunk_text)
+
+    async def _extract_one(chunk_text: str) -> list[Any]:
         full_prompt = f"{prompt}\n\n---\nSource text:\n\n{chunk_text}"
         try:
             response = await chat(

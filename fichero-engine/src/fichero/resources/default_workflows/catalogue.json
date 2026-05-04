@@ -283,6 +283,13 @@
       "target": "keywords",
       "source_port": "records",
       "target_port": "records"
+    },
+    {
+      "id": "e-aggregate-merge_extracts",
+      "source": "aggregate",
+      "target": "merge_extracts",
+      "source_port": "text",
+      "target_port": "text"
     }
   ],
   "config": {}
