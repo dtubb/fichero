@@ -26,6 +26,13 @@ class WorkflowStore: ObservableObject {
     private let logger = Logger(subsystem: "com.fichero.fichero", category: "WorkflowStore")
     private let workflowService: WorkflowServiceGenerated
     private let ficheroClient: FicheroClient
+    /// Per-process flag — true after the first reinstallDefaults() runs.
+    /// Subsequent loadWorkflows() calls skip the reinstall so user edits to
+    /// is_template preset workflows survive navigation. Without this, every
+    /// view-mode change wiped the preset and re-seeded from JSON, blowing
+    /// away the user's provider/model selection on the Transcribe (cloud)
+    /// node etc. (#780 — root cause)
+    private static var didReinstallDefaultsThisLaunch = false
     /// Empty: backend ships the canonical default workflows (Transcribe,
     /// Catalogue, Catalogue (composable)) via JSON in
     /// fichero-engine/.../resources/default_workflows. The Swift-side
@@ -58,8 +65,13 @@ class WorkflowStore: ObservableObject {
         error = nil
 
         do {
-            // Re-seed defaults first so updated presets reach the library
-            try? await workflowService.reinstallDefaults()
+            // NEVER auto-reinstall defaults on loadWorkflows — that wiped
+            // user edits to preset workflows (Transcribe provider/model)
+            // on every navigation AND every app launch. (#780 root cause)
+            // Updated presets after a Sparkle update reach old libraries
+            // via the explicit "Reset Defaults" button (#722). The backend
+            // also demotes is_template=False on user PUT so even if the
+            // reinstall does fire, edited presets survive.
 
             // Hydrate the tool registry alongside workflows so the canvas
             // can render correct icons for non-hardcoded tools (#725).

@@ -611,6 +611,13 @@ async def update_workflow(
         existing.nodes = [node.model_dump_for_storage() for node in workflow.nodes]
         existing.edges = [edge.model_dump() for edge in workflow.edges]
         existing.updated_at = datetime.now()
+        # Once a user edits a preset workflow, it stops being a template —
+        # reinstall-defaults must NOT wipe it on next app launch (#780).
+        # Same intent as macOS Finder's "user has customized this" flag —
+        # auto-restore is for files the user hasn't touched.
+        if getattr(existing, "is_template", False):
+            existing.is_template = False
+            print(f"[UPDATE]   demoted is_template -> False (user edit)")
 
         # Save changes
         db.save(existing)
