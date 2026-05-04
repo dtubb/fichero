@@ -131,10 +131,11 @@ Focus on documenting WHAT IS IN THE DOCUMENTS, not analysis or interpretation.
 The catalogue entry describes the content objectively. Use ALL available
 information to create the most accurate entry possible.
 
-Write the entry as markdown with EXACTLY these sections, in this order:
-
-## Title
-A brief descriptive title based on the document content (one line).
+Write the entry as markdown with EXACTLY these sections, in this order.
+Do NOT add a top-level title or heading above the first section — the
+catalogue artifact is identified by its surrounding context (document
+name + artifact type) in the inspector, so a body title would duplicate
+what the UI already shows.
 
 ## Description
 One rich narrative paragraph in the style of an archival finding-aid abstract.
