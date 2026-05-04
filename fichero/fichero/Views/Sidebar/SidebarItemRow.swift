@@ -110,6 +110,32 @@ struct SidebarItemRow: View {
         return executionObserver.isRunning(workflowId: workflow.id)
     }
 
+    /// True when this sidebar row's document is currently being processed
+    /// by a workflow, OR (for folders) any of its direct children is. Drives
+    /// a sidebar spinner so users can see processing activity even when the
+    /// item isn't visible in the grid. (#785)
+    ///
+    /// Reads `Document.status` from the live `DocumentStore` rather than the
+    /// captured `SidebarItem.itemType` snapshot — the store is what the
+    /// workflow stream mutates via `updateProcessingStatus(forPath:status:)`.
+    var documentIsProcessing: Bool {
+        guard case .document(let doc) = item.itemType, let store = documentStore else {
+            return false
+        }
+        let live = store.currentDocuments.first(where: { $0.id == doc.id })
+            ?? store.collections.first(where: { $0.id == doc.id })
+            ?? doc
+        if live.status == .processing { return true }
+        // Folder: also report processing if any direct child is. We read
+        // from childrenCache to avoid a fetch — if the cache isn't populated
+        // yet, the folder won't show a spinner until the user expands it,
+        // which is acceptable.
+        if doc.docType == .folder, let kids = store.childrenCache[doc.id] {
+            return kids.contains { $0.status == .processing }
+        }
+        return false
+    }
+
     var workflowProgress: Double? {
         guard case .workflow(let workflow) = item.itemType else { return nil }
         return executionObserver.getProgress(for: workflow.id)

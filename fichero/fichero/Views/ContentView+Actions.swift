@@ -143,6 +143,32 @@ extension ContentView {
         selectedSidebarItemId = "doc:\(doc.id)"
     }
 
+    /// Walk up to the current folder's parent. If the current folder is at
+    /// the library root (no parent_id), navigate to the library root view
+    /// (no selection). Bound to Cmd+` so users can ascend the hierarchy when
+    /// the sidebar is hidden — Finder uses Cmd+Up but that's already bound
+    /// to arrow-key selection. (#786)
+    @MainActor
+    func navigateToParent() {
+        guard let prefixedId = selectedSidebarItemId,
+              prefixedId.hasPrefix("doc:") else {
+            return  // Not in a doc-folder context; nothing to ascend from.
+        }
+        let docId = String(prefixedId.dropFirst("doc:".count))
+        let current = documentStore.currentDocuments.first(where: { $0.id == docId })
+            ?? detailDocument
+        guard let current else { return }
+        if let parentId = current.parentId, !parentId.isEmpty {
+            selectedSidebarItemId = "doc:\(parentId)"
+        } else {
+            // Already at library root — clear selection so we land on the
+            // root grid.
+            selectedSidebarItemId = nil
+            detailDocument = nil
+            viewMode = .library(nil)
+        }
+    }
+
     @MainActor
     func runWorkflowOnSelection(workflowId: String, preselectedIds: [String] = []) {
         let selectedIds = !preselectedIds.isEmpty

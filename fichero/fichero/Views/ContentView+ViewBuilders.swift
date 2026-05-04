@@ -67,6 +67,7 @@ extension ContentView {
         // Was 250 — felt bloated on small screens.
         .navigationSplitViewColumnWidth(min: 180, ideal: sidebarWidth, max: 360)
         .focusedSceneValue(\.sidebarMode, $sidebarMode)
+        .focusedSceneValue(\.navigateToParentAction, navigateToParent)
     }
 
     // MARK: - Center Content (with Layout Modes)
