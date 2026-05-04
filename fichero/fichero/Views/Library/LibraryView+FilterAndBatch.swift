@@ -157,9 +157,10 @@ extension LibraryView {
         }
         // Scroll grid to the activated doc so when the preview opens and
         // the grid shrinks, the user can still see what they just opened
-        // in the now-smaller grid pane. Set after the animation block so
-        // the .onChange(of: listScrollTarget) fires AFTER layout settles.
-        listScrollTarget = doc.id
+        // in the now-smaller grid pane. Use the *center* target so we force
+        // a recenter even when the item was technically visible in the old
+        // wide grid — after the layout shrinks, "visible" changes (#769).
+        listScrollCenterTarget = doc.id
     }
 
     func handleTap(_ doc: Document) {

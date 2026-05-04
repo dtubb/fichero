@@ -121,21 +121,24 @@ extension LibraryView {
                 }
                 .onChange(of: listScrollTarget) { _, id in
                     guard let id else { return }
-                    // SwiftUI's `proxy.scrollTo(id, anchor: nil)` is
-                    // documented as "scroll just enough to make visible,"
-                    // but in LazyVGrid it sometimes doesn't scroll at all
-                    // when the target is off-screen. Wrap in withAnimation
-                    // and use `.center` ONLY when the target needs scrolling
-                    // (LazyVGrid will choose a minimal scroll if it's already
-                    // visible since SwiftUI internally checks). The earlier
-                    // #769 complaint was about EVERY keypress recentering
-                    // even when the new selection was already on-screen —
-                    // that's now mitigated by SwiftUI itself short-circuiting
-                    // when no scroll is needed.
+                    // Arrow-key nav: minimal scroll. anchor: nil = "scroll just
+                    // enough to make visible, no-op if already visible." This
+                    // is what fixes #769 — earlier code used .center which
+                    // recentered on every keypress.
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        proxy.scrollTo(id, anchor: nil)
+                    }
+                    listScrollTarget = nil
+                }
+                .onChange(of: listScrollCenterTarget) { _, id in
+                    guard let id else { return }
+                    // Double-click / layout-change: force center so the user
+                    // can find the item they just opened in the now-shrunken
+                    // grid pane.
                     withAnimation(.easeInOut(duration: 0.15)) {
                         proxy.scrollTo(id, anchor: .center)
                     }
-                    listScrollTarget = nil
+                    listScrollCenterTarget = nil
                 }
             }
         }

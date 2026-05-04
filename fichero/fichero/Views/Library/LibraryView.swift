@@ -69,7 +69,12 @@ struct LibraryView: View {
     @State var typeSelectTask: Task<Void, Never>?
 
     // Keyboard scroll target for list view (set by arrow key nav, consumed by ScrollViewReader)
+    // listScrollTarget = minimal scroll (anchor: nil) — used by arrow keys so we
+    //   don't recenter on every keypress when the new item is already on-screen (#769).
+    // listScrollCenterTarget = forced center scroll — used by double-click and other
+    //   layout-changing actions where the user genuinely wants the item centered.
     @State var listScrollTarget: String?
+    @State var listScrollCenterTarget: String?
 
     // Selection anchor for Shift+click range select
     @State var selectionAnchor: String?
