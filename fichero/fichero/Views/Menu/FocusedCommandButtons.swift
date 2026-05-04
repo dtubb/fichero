@@ -96,6 +96,12 @@ struct RunWorkflowOnSelectionKey: FocusedValueKey {
     typealias Value = () -> Void
 }
 
+/// FocusedValue key for navigating to the current folder's parent. Bound to
+/// Cmd+\` so users can ascend the hierarchy when the sidebar is hidden. (#786)
+struct NavigateToParentActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
 extension FocusedValues {
     var imageZoomActions: ImageZoomActionsKey.Value? {
         get { self[ImageZoomActionsKey.self] }
@@ -135,6 +141,11 @@ extension FocusedValues {
     var runWorkflowOnSelection: RunWorkflowOnSelectionKey.Value? {
         get { self[RunWorkflowOnSelectionKey.self] }
         set { self[RunWorkflowOnSelectionKey.self] = newValue }
+    }
+
+    var navigateToParentAction: NavigateToParentActionKey.Value? {
+        get { self[NavigateToParentActionKey.self] }
+        set { self[NavigateToParentActionKey.self] = newValue }
     }
 }
 
