@@ -94,16 +94,19 @@ extension DocumentStore {
     /// The status is in-memory only and reverts on app restart.
     func updateProcessingStatus(forPath filePath: String, status: Status) {
         var matchCount = 0
+        var matchedDocId: String?
 
         // Update in collections
         if let index = collections.firstIndex(where: { $0.path == filePath }) {
             collections[index].status = status
+            matchedDocId = collections[index].id
             matchCount += 1
         }
 
         // Update in current documents
         if let index = currentDocuments.firstIndex(where: { $0.path == filePath }) {
             currentDocuments[index].status = status
+            matchedDocId = currentDocuments[index].id
             matchCount += 1
         }
 
@@ -111,6 +114,7 @@ extension DocumentStore {
         for (parentId, children) in childrenCache {
             if let index = children.firstIndex(where: { $0.path == filePath }) {
                 childrenCache[parentId]?[index].status = status
+                matchedDocId = children[index].id
                 matchCount += 1
             }
         }
@@ -118,7 +122,19 @@ extension DocumentStore {
         // Update selection if needed
         if selectedDocument?.path == filePath {
             selectedDocument?.status = status
+            matchedDocId = selectedDocument?.id
             matchCount += 1
+        }
+
+        // Persist to overlay so the status survives currentDocuments / cache
+        // reloads on navigation (#791). Pending = clear (don't shadow live
+        // backend state); processing/completed/failed = remember.
+        if let id = matchedDocId {
+            if status == .pending {
+                workflowStatusOverrides.removeValue(forKey: id)
+            } else {
+                workflowStatusOverrides[id] = status
+            }
         }
 
         // Diagnostic for #767: if the SSE-supplied filePath never matches any
@@ -128,6 +144,22 @@ extension DocumentStore {
         if matchCount == 0 {
             let logger = Logger(subsystem: "com.fichero.fichero", category: "DocumentStore")
             logger.warning("updateProcessingStatus: no document matched path '\(filePath, privacy: .public)' — spinner won't update (#767)")
+        }
+    }
+
+    /// Apply workflowStatusOverrides to a freshly-loaded array so the UI sees
+    /// the in-flight / failed state survive reloads. Called by every load
+    /// path that populates currentDocuments / collections / childrenCache.
+    /// (#791)
+    func applyStatusOverrides(_ docs: [Document]) -> [Document] {
+        guard !workflowStatusOverrides.isEmpty else { return docs }
+        return docs.map { doc in
+            if let override = workflowStatusOverrides[doc.id] {
+                var copy = doc
+                copy.status = override
+                return copy
+            }
+            return doc
         }
     }
 }

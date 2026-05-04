@@ -51,6 +51,15 @@ class DocumentStore: ObservableObject {
     /// Last error
     @Published var error: Error?
 
+    /// Per-document workflow status overlay, keyed by document.id. Survives
+    /// reloads of `currentDocuments` / `collections` / `childrenCache` so a
+    /// failed-state (red X) icon stays visible after navigating away and back.
+    /// Without this, Document.status was reset to .pending on every reload —
+    /// success icons appeared persistent only because artifact existence
+    /// derived completion separately, while errors silently disappeared (#791).
+    /// In-memory only; clears on app restart.
+    @Published var workflowStatusOverrides: [String: Status] = [:]
+
     /// Publisher for document changes.
     var documentChangePublisher: AnyPublisher<DocumentChange, Error> {
         documentChanges.eraseToAnyPublisher()
@@ -100,7 +109,8 @@ class DocumentStore: ObservableObject {
             // Load ALL documents so SidebarItemBuilder can construct full hierarchy from parent_id
             // No limit - load everything for complete tree structure
             let query = ["offset": "0"]
-            collections = try await api.get("/documents", query: query)
+            let fresh: [Document] = try await api.get("/documents", query: query)
+            collections = applyStatusOverrides(fresh)
             isConnected = true
             logger.info("Loaded \(self.collections.count) documents total")
 
@@ -154,7 +164,8 @@ class DocumentStore: ObservableObject {
         logger.info("loadChildren called for document: \(document.id), library path: \(libraryPath)")
 
         do {
-            let children: [Document] = try await self.api.get("/documents/\(document.id)/children")
+            let fresh: [Document] = try await self.api.get("/documents/\(document.id)/children")
+            let children = applyStatusOverrides(fresh)
             self.childrenCache[document.id] = children
             self.currentDocuments = children
             logger.info("loadChildren succeeded, got \(children.count) children")
@@ -174,7 +185,8 @@ class DocumentStore: ObservableObject {
         }
 
         do {
-            let children: [Document] = try await api.get("/documents/\(documentId)/children")
+            let fresh: [Document] = try await api.get("/documents/\(documentId)/children")
+            let children = applyStatusOverrides(fresh)
             childrenCache[documentId] = children
             return children
         } catch {
