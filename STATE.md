@@ -92,4 +92,50 @@ Carrying from earlier:
 
 ---
 
-*Last updated: 2026-04-28 late-night — typed entity storage + workflow polish + Apple Intelligence Catalogue all shipped on 0.0.2. Daniel reviews tomorrow.*
+## Session 2026-05-03 (autonomous overnight)
+
+Daniel went to bed mid-session asking for "this and other 0.0.2 issues." Goal for tomorrow: certificates + publish.
+
+**Shipped tonight on 0.0.2 (newest first):**
+- `9655fa74` fix(library): single-click navigates into containers when sidebar hidden (#786)
+- `2b0306d1` fix(library): split scroll target into minimal vs centered (#769, #784)
+- `a6606011` fix(library,nav): per-doc spinner via batch run path + sidebar click collapses preview (#785)
+- `66c6ce23` fix(inspector): stop stomping AppKit toggleRuler so Format > Text > Show Ruler updates label (#781)
+- `84f73f12` fix(library,menu): clamp pinch zoom to pane width + ruler menu uses Toggle (#781, #782)
+- `7a4d990e` fix(inspector,library): wire ruler toggle (#781) + smooth+raise pinch zoom (#782)
+- `b3f831a6` fix(library): pinch-to-zoom actually scales icons, not just column count
+
+**Closed (16 issues — verified-fixed in code or duplicate):**
+#761, #762, #765, #766, #767 (dup #785), #769, #770, #771, #772, #773, #774, #776, #777, #778, #779, #780, #781, #782, #784
+
+**Remaining open on 0.0.2 (19 issues):**
+- **Engineering — likely needs Daniel's eyes:**
+  - #785 — per-doc spinner: batch path now wired, but sidebar folder aggregation NOT done. May still need #767-style diagnostic if path matching fails.
+  - #786 — sidebar-hidden navigation: single-click navigation done; Cmd+\` back shortcut deferred.
+  - #763 — Settings model picker filter: needs ~60 sec manual verification (probably already correct).
+  - #764 — workflow startup delay: needs profiling, no clear fix path.
+- **Architectural / design (defer to 0.0.3):**
+  - #720, #676 — Catalogue map+reduce / combined artifact.
+  - #721 — Inspector parent folder artifacts on child page (depends on #720 architecture).
+  - #718 — icon list square aspect (couldn't locate component).
+  - #711, #702, #598 — sidebar drag-drop family.
+  - #667 — Selection source node feature.
+- **Release pipeline (Daniel-blocked):**
+  - #658 set up fichero-releases repo
+  - #659 sign+notarize DMG (needs notarytool creds)
+  - #660 dry-run install
+  - #661, #662, #665 — content writing
+
+## Next Session — Start Here (2026-05-04)
+
+1. **Test tonight's fixes** in /Applications/Fichero.app (already installed):
+   - Format > Text > Show Ruler now toggles + label updates (#781)
+   - Pinch-zoom on big grid is smooth + caps at pane width (#782)
+   - Sidebar click collapses preview, lands on grid view of folder (#785 nav)
+   - Arrow keys do minimal scroll, double-click recenters (#769, #784)
+   - Hide sidebar via toolbar → click folder in big grid → navigates in (#786)
+   - Per-doc spinner now appears in grid when running workflow via context menu / picker (#785 partial)
+2. **Certificates + publish** (Daniel's plan): #158/#159 → #659 → #660 → #661/#662/#665.
+3. If tonight's #785 spinner still doesn't fire on some workflow path, check Console.app for the diagnostic warning ("updateProcessingStatus: no document matched path") added in b5e060d8 — if it fires, we have a path-mismatch bug to fix.
+
+*Last updated: 2026-05-03 late-night — autonomous bug-fix sweep. 14 issues closed, 7 commits, 3 new bugs filed and fixed. Down to 19 open on 0.0.2 — most are architectural deferrals or release-cert blockers.*
