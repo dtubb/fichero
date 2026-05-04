@@ -451,13 +451,13 @@ struct ShowRulerButton: View {
     @AppStorage("editor.rulersVisible") private var rulersVisible: Bool = true
 
     var body: some View {
-        Button {
-            rulersVisible.toggle()
-        } label: {
-            Label(
-                rulersVisible ? "Hide Ruler" : "Show Ruler",
-                systemImage: "ruler"
-            )
+        // Toggle in a CommandMenu renders as a checkmark menu item — and
+        // unlike a Button with a dynamic label, the checkmark *does* update
+        // when @AppStorage changes from elsewhere (e.g. the keyboard
+        // shortcut). SwiftUI Commands cache Button labels and don't reliably
+        // re-evaluate them on UserDefaults change (#781 follow-up).
+        Toggle(isOn: $rulersVisible) {
+            Label("Show Ruler", systemImage: "ruler")
         }
         .keyboardShortcut("r", modifiers: [.command, .control])
     }

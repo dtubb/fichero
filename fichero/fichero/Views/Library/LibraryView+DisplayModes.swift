@@ -9,6 +9,11 @@ extension LibraryView {
         let itemMin = CGFloat(max(60, 120 * iconViewScale))
         let itemMax = CGFloat(max(80, 150 * iconViewScale))
         return GeometryReader { geometry in
+            // Clamp pinch max so a single thumbnail never exceeds the visible
+            // grid width. In the wide content grid this lets us zoom way in;
+            // in a narrow sidebar grid the ceiling stays small. Cell width is
+            // 100 * scale + ~16 padding, so max ≈ (width - 32) / 100.
+            let pinchMax = max(1.0, min(5.0, Double((geometry.size.width - 32) / 100)))
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVGrid(
@@ -86,7 +91,7 @@ extension LibraryView {
                     MagnificationGesture()
                         .onChanged { magnitude in
                             let candidate = pinchBaseScale * magnitude
-                            let clamped = max(0.5, min(5.0, candidate))
+                            let clamped = max(0.5, min(pinchMax, candidate))
                             let stepped = (clamped * 20).rounded() / 20
                             if stepped != iconViewScale {
                                 iconViewScale = stepped
@@ -100,6 +105,14 @@ extension LibraryView {
                     let cellWidth = CGFloat(120 * iconViewScale) + 20
                     let availableWidth = newWidth - 32
                     gridColumnCount = max(1, Int(availableWidth / cellWidth))
+                    // If the pane just shrank (e.g. a sidebar panel), also
+                    // shrink iconViewScale so a single icon can't be wider
+                    // than its container.
+                    let newPinchMax = max(1.0, min(5.0, Double((newWidth - 32) / 100)))
+                    if iconViewScale > newPinchMax {
+                        iconViewScale = newPinchMax
+                        pinchBaseScale = newPinchMax
+                    }
                 }
                 .onAppear {
                     let cellWidth = CGFloat(120 * iconViewScale) + 20
