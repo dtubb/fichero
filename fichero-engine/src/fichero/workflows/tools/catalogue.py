@@ -371,7 +371,7 @@ async def catalogue(
                 f"({len(claim_context)} chars of entity context)"
             )
 
-    # --- Path 2: fallback — full extraction LLM call -----------------------
+    # --- Path 2: fallback — no claims yet, generate from raw transcripts ----
     if data is None:
         if not text:
             logger.warning("Catalogue: no text input; nothing to catalogue")
@@ -381,18 +381,19 @@ async def catalogue(
                 "error": "No aggregated text provided to catalogue tool",
             }
 
-        prompt = inputs.get("prompt") or _build_prompt(output_language)
-        full_prompt = f"{prompt}\n\n---\nSource transcriptions:\n\n{text}"
-        logger.info(f"Catalogue: running on {len(text)} chars in {output_language}")
-
+        logger.info(f"Catalogue: Path 2 (no claims) running on {len(text)} chars in {output_language}")
+        # Reuse the chunked _generate_resumen — same map-reduce path used
+        # by Path 1 when claims exist. Without entity context, the LLM
+        # works from raw transcripts only, but still survives Apple
+        # Intelligence's small context window via chunking.
         try:
-            response = await chat(
-                [{"role": "user", "content": full_prompt}],
-                config=llm_config,
+            paragraph = await _generate_resumen(
+                text, output_language, llm_config, claim_context=""
             )
         except Exception as exc:
             logger.error(f"Catalogue LLM call failed: {exc}")
             return {"text": "", "value": None, "error": str(exc)}
+        response = paragraph
 
         # Prompt asks for markdown directly (no JSON intermediary). Strip
         # any stray code fences just in case the model wrapped the output.
@@ -711,6 +712,13 @@ def _format_claims_as_context(data: dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
+# Per-call character budget for on-device models (Apple Intelligence ≈ 4K
+# tokens, conservative ~12K chars). Cloud models tolerate much more but
+# also benefit from focused chunks: shorter context = sharper summaries.
+# Triggers map-reduce when transcripts exceed this size.
+_RESUMEN_CHUNK_SIZE = 12000
+
+
 async def _generate_resumen(
     text: str,
     output_language: str,
@@ -720,6 +728,12 @@ async def _generate_resumen(
     """Generate the catalogue narrative paragraph from the merged transcript
     plus optional typed-entity context surfaced from the Extract* nodes.
 
+    Map-reduce when text exceeds _RESUMEN_CHUNK_SIZE (Apple Intelligence's
+    on-device window can't hold 20K+ char transcripts). Each chunk produces
+    a brief summary; a final synthesis pass combines them with the claim
+    context into the catalogue narrative paragraph. Mirrors the legacy
+    Generic_Catalogue.jsonl 'summary' step's chunked approach.
+
     When ``claim_context`` is provided (composable workflow path), the LLM
     has both the raw transcripts and a structured summary of the entities
     already extracted — produces a richer, more grounded paragraph than
@@ -727,24 +741,129 @@ async def _generate_resumen(
     """
     if not text and not claim_context:
         return ""
+
     context_block = (
         f"\n\nExtracted entities (from prior workflow steps):\n{claim_context}\n"
         if claim_context else ""
     )
-    prompt = (
+
+    # Single-shot path — text fits comfortably in any model's context window.
+    if len(text) <= _RESUMEN_CHUNK_SIZE:
+        prompt = (
+            f"Write a 150-300 word narrative catalogue entry in {output_language} "
+            f"summarizing the following document. Plain prose, no headers, "
+            f"no bullet points, no JSON. Use the extracted entities listed below "
+            f"to ground the narrative in concrete names, places, and dates."
+            f"{context_block}"
+            f"\n\n---\nSource transcriptions:\n{text}"
+        )
+        try:
+            response = await chat(
+                [{"role": "user", "content": prompt}],
+                config=llm_config,
+            )
+        except Exception as exc:
+            logger.warning(f"Catalogue: resumen LLM call failed ({exc}); using empty")
+            return ""
+        return response.strip()
+
+    # Map-reduce path — text exceeds context window. Split, summarise each
+    # chunk briefly, then synthesise the final paragraph from the chunk
+    # summaries + entity context. Same shape as the legacy 7-step pipeline's
+    # 'summary' step.
+    chunks = _split_text_into_chunks(text, _RESUMEN_CHUNK_SIZE)
+    logger.info(
+        f"Catalogue: text {len(text)} chars > {_RESUMEN_CHUNK_SIZE} budget — "
+        f"map-reducing across {len(chunks)} chunks"
+    )
+
+    chunk_summaries: list[str] = []
+    for index, chunk in enumerate(chunks):
+        chunk_prompt = (
+            f"Summarize this section of an archival document in 3-5 sentences "
+            f"in {output_language}. Focus on concrete names, dates, places, "
+            f"and events. Plain prose, no headers, no bullets.\n\n"
+            f"Section {index + 1} of {len(chunks)}:\n{chunk}"
+        )
+        try:
+            chunk_text = await chat(
+                [{"role": "user", "content": chunk_prompt}],
+                config=llm_config,
+            )
+            chunk_summaries.append(chunk_text.strip())
+        except Exception as exc:
+            logger.warning(
+                f"Catalogue: chunk {index + 1}/{len(chunks)} summary failed ({exc})"
+            )
+
+    if not chunk_summaries:
+        return ""
+
+    combined_summaries = "\n\n".join(
+        f"Section {i + 1}: {s}" for i, s in enumerate(chunk_summaries)
+    )
+    final_prompt = (
         f"Write a 150-300 word narrative catalogue entry in {output_language} "
-        f"summarizing the following document. Plain prose, no headers, "
-        f"no bullet points, no JSON. Use the extracted entities listed below "
-        f"to ground the narrative in concrete names, places, and dates."
+        f"that synthesizes the section summaries below into a single coherent "
+        f"finding-aid abstract. Pack it with concrete facts: full names, exact "
+        f"dates, place names, organizations, chain of events, outcomes. Plain "
+        f"prose, no headers, no bullet points, no JSON."
         f"{context_block}"
-        f"\n\n---\nSource transcriptions:\n{text}"
+        f"\n\n---\nSection summaries:\n{combined_summaries}"
     )
     try:
         response = await chat(
-            [{"role": "user", "content": prompt}],
+            [{"role": "user", "content": final_prompt}],
             config=llm_config,
         )
     except Exception as exc:
-        logger.warning(f"Catalogue: resumen LLM call failed ({exc}); using empty")
+        logger.warning(f"Catalogue: final synthesis failed ({exc}); using empty")
         return ""
     return response.strip()
+
+
+def _split_text_into_chunks(text: str, max_chars: int) -> list[str]:
+    """Split text into chunks of at most max_chars. Prefers splitting on
+    page boundaries (\n\n---\n\n, the aggregate node's separator) so each
+    chunk is a coherent semantic unit. Falls back to paragraph or character
+    boundaries if pages are themselves too large.
+    """
+    if len(text) <= max_chars:
+        return [text]
+
+    # Try page boundaries first (legacy aggregate separator).
+    pages = text.split("\n\n---\n\n")
+    chunks: list[str] = []
+    current = ""
+    for page in pages:
+        if len(current) + len(page) + 8 <= max_chars:
+            current = page if not current else current + "\n\n---\n\n" + page
+        else:
+            if current:
+                chunks.append(current)
+            # If a single page exceeds the budget, fall back to paragraph
+            # split for that page.
+            if len(page) > max_chars:
+                paragraphs = page.split("\n\n")
+                sub = ""
+                for p in paragraphs:
+                    if len(sub) + len(p) + 2 <= max_chars:
+                        sub = p if not sub else sub + "\n\n" + p
+                    else:
+                        if sub:
+                            chunks.append(sub)
+                        # Last resort — slice on character count.
+                        if len(p) > max_chars:
+                            for i in range(0, len(p), max_chars):
+                                chunks.append(p[i:i + max_chars])
+                            sub = ""
+                        else:
+                            sub = p
+                if sub:
+                    chunks.append(sub)
+                current = ""
+            else:
+                current = page
+    if current:
+        chunks.append(current)
+    return chunks

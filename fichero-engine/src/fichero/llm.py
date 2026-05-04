@@ -279,15 +279,14 @@ async def _apple_intelligence_chat(
                 user_parts.append(str(content))
         user_text = "\n\n".join(user_parts)
 
-    # Locate fm-bridge. Multiple locations because the binary lives in
-    # different places between dev (repo) and the bundled engine (briefcase
-    # .app). Daniel's catalogue + extractors silently failed because none
-    # of these existed in the bundled engine — the binary wasn't being
-    # bundled, AND the path candidates didn't include the bundle's expected
-    # location next to the package.
+    # Locate fm-bridge. Lives in src/fichero/resources/bin/fm-bridge as
+    # part of the Python package — briefcase auto-bundles anything under
+    # src/fichero/. Dev path (repo/fichero-engine/bin/...) is kept as a
+    # fallback for working without the resources copy.
     here = Path(__file__).resolve()
     candidates = [
-        here.parent / "bin" / "fm-bridge" / "fm-bridge",  # bundled: app/fichero/bin/fm-bridge/...
+        here.parent / "resources" / "bin" / "fm-bridge",  # package data (bundled & dev)
+        here.parent / "bin" / "fm-bridge" / "fm-bridge",  # earlier hot-patch path (kept)
         here.parents[3] / "bin" / "fm-bridge" / "fm-bridge",  # dev: repo/fichero-engine/bin/...
         Path("fichero-engine/bin/fm-bridge/fm-bridge").resolve(),
     ]
