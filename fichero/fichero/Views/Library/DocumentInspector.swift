@@ -472,6 +472,9 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
                 onEditingChanged: { editing in
                     if !editing { Task { await flushAutoSave() } }
                 },
+                onRulerVisibilityChanged: { visible in
+                    if rulersVisible != visible { rulersVisible = visible }
+                },
                 marginLeading: marginH,
                 marginTrailing: 0,
                 controller: richTextController

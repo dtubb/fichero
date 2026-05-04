@@ -27,6 +27,11 @@ struct AttributedTextEditor: NSViewRepresentable {
     let contentRevision: Int
     let onTextChanged: () -> Void
     let onEditingChanged: (Bool) -> Void
+    /// Called when AppKit's `toggleRuler:` (Format > Text > Show Ruler) flips
+    /// the scrollView's `rulersVisible`. Lets the inspector mirror that back
+    /// to its `@AppStorage("editor.rulersVisible")` so all editors stay in
+    /// sync and the menu validation sees correct state. (#781 follow-up)
+    var onRulerVisibilityChanged: ((Bool) -> Void)?
 
     // Asymmetric horizontal padding. Default to symmetric `marginH` for back-compat
     // with V1 inspector callers; V2 inspector overrides trailing to 0 so the
@@ -126,6 +131,12 @@ struct AttributedTextEditor: NSViewRepresentable {
         scrollView.rulersVisible = rulersVisible
         context.coordinator.textView = textView
         context.coordinator.lastAppliedRevision = contentRevision
+        // KVO on scrollView.rulersVisible so AppKit's auto-injected
+        // Format > Text > Show Ruler menu (which calls `toggleRuler:`) can
+        // flip the ruler and have us mirror it back to @AppStorage. Without
+        // this, the menu validation reads stale state and the label never
+        // says "Hide Ruler" (#781 follow-up).
+        context.coordinator.observeRulerVisibility(on: scrollView)
         controller?.textView = textView
 
         return scrollView
@@ -135,9 +146,18 @@ struct AttributedTextEditor: NSViewRepresentable {
         guard let textView = context.coordinator.textView else { return }
         if controller?.textView !== textView { controller?.textView = textView }
         textView.isEditable = isEditable
-        textView.usesRuler = rulersVisible
         textView.usesInspectorBar = false
-        scrollView.rulersVisible = rulersVisible
+        // Only push rulersVisible into AppKit when it actually differs from
+        // the current state. Otherwise we stomp AppKit's `toggleRuler:`
+        // (Format > Text > Show Ruler) on every SwiftUI re-render and the
+        // ruler appears not to toggle. The KVO observer in Coordinator
+        // mirrors AppKit's writes back to @AppStorage to keep both in sync.
+        if scrollView.rulersVisible != rulersVisible {
+            context.coordinator.isApplyingRulerUpdate = true
+            textView.usesRuler = rulersVisible
+            scrollView.rulersVisible = rulersVisible
+            context.coordinator.isApplyingRulerUpdate = false
+        }
         scrollView.contentInsets = NSEdgeInsets(
             top: 0, left: leadingInset, bottom: 0, right: trailingInset
         )
@@ -213,10 +233,13 @@ struct AttributedTextEditor: NSViewRepresentable {
         weak var textView: NSTextView?
 
         var isApplyingModelUpdate = false
+        var isApplyingRulerUpdate = false
         var lastAppliedRevision = 0
         var lastTypographySignature = ""
         let onTextChanged: () -> Void
         let onEditingChanged: (Bool) -> Void
+        var onRulerVisibilityChanged: ((Bool) -> Void)?
+        private weak var observedScrollView: NSScrollView?
 
         init(
             text: Binding<NSAttributedString>,
@@ -226,6 +249,30 @@ struct AttributedTextEditor: NSViewRepresentable {
             _text = text
             self.onTextChanged = onTextChanged
             self.onEditingChanged = onEditingChanged
+        }
+
+        deinit {
+            observedScrollView?.removeObserver(self, forKeyPath: "rulersVisible")
+        }
+
+        func observeRulerVisibility(on scrollView: NSScrollView) {
+            observedScrollView = scrollView
+            scrollView.addObserver(self, forKeyPath: "rulersVisible", options: [.new], context: nil)
+        }
+
+        nonisolated override func observeValue(
+            forKeyPath keyPath: String?,
+            of object: Any?,
+            change: [NSKeyValueChangeKey: Any]?,
+            context: UnsafeMutableRawPointer?
+        ) {
+            guard keyPath == "rulersVisible",
+                  let visible = change?[.newKey] as? Bool else { return }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard !self.isApplyingRulerUpdate else { return }
+                self.onRulerVisibilityChanged?(visible)
+            }
         }
 
         func textDidChange(_ notification: Notification) {
@@ -287,10 +334,12 @@ struct AttributedTextEditor: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(
+        let coordinator = Coordinator(
             text: $text,
             onTextChanged: onTextChanged,
             onEditingChanged: onEditingChanged
         )
+        coordinator.onRulerVisibilityChanged = onRulerVisibilityChanged
+        return coordinator
     }
 }
