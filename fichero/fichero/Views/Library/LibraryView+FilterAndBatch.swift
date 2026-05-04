@@ -194,6 +194,12 @@ extension LibraryView {
             // Plain click: replace selection
             selection = [doc.id]
             selectionAnchor = doc.id
+            // Sidebar-hidden mode: a plain click on a navigable container
+            // also navigates into it. Without the sidebar there's no other
+            // way to descend the hierarchy. (#786)
+            if sidebarHidden, canNavigateInto(doc) {
+                onNavigateInto(doc)
+            }
         }
     }
 

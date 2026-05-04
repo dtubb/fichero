@@ -45,7 +45,8 @@ extension ContentView {
                 onRequestFocus: { focusedPane = .content },
                 onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
                 onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) },
-                onNavigateInto: { doc in navigateToDocument(doc) }
+                onNavigateInto: { doc in navigateToDocument(doc) },
+                sidebarHidden: !showSidebar
             )
 
         case .search(let savedSearch):

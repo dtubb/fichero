@@ -18,6 +18,12 @@ struct LibraryView: View {
     var onRequestPreviousPaneFocus: () -> Void = {}  // Left arrow in list/table — move to sidebar
     var onRequestNextPaneFocus: () -> Void = {}  // Right arrow in list/table — move to inspector
     var onNavigateInto: (Document) -> Void = { _ in }  // Double-click on folder/PDF — navigate into it
+    /// When the sidebar is hidden, single-click in the grid acts like Finder
+    /// (no-sidebar fallback): plain click navigates INTO navigable containers
+    /// instead of just selecting. Modified clicks (Shift/Cmd) still select
+    /// only — you can't have a multi-select if one click navigates away.
+    /// (#786)
+    var sidebarHidden: Bool = false
 
     @State var searchText: String = ""
     @State var showFilterBar = false
