@@ -1,18 +1,23 @@
 {
   "name": "Catalogue",
-  "description": "Transcribe every file in a collection or folder (skipping files already transcribed), then produce a nine-section archival catalogue entry on the folder.",
+  "description": "Transcribe every file (cloud vision LLM), extract typed entities (people, places, organizations, dates, events, keywords) and produce a narrative catalogue entry. Per-entity outputs feed the Knowledge Graph tab; the catalogue narrative is shown on the folder.",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
   "folder_path": "/Catalogue",
-  "tags": ["preset", "catalogue", "archival"],
+  "tags": [
+    "preset",
+    "catalogue",
+    "cloud",
+    "archival"
+  ],
   "nodes": [
     {
       "id": "files-source",
       "tool": "files",
       "label": "Files",
       "position_x": 80,
-      "position_y": 200,
+      "position_y": 400,
       "inputs": {},
       "config": {}
     },
@@ -20,8 +25,8 @@
       "id": "transcribe",
       "tool": "transcribe",
       "label": "Transcribe each file",
-      "position_x": 360,
-      "position_y": 200,
+      "position_x": 340,
+      "position_y": 400,
       "inputs": {},
       "config": {
         "vision_mode": "llm",
@@ -30,11 +35,103 @@
       }
     },
     {
+      "id": "aggregate",
+      "tool": "aggregate",
+      "label": "Merge transcripts",
+      "position_x": 620,
+      "position_y": 400,
+      "inputs": {},
+      "config": {
+        "mode": "concat",
+        "separator": "\n\n---\n\n"
+      }
+    },
+    {
+      "id": "people",
+      "tool": "people_extract",
+      "label": "People",
+      "position_x": 900,
+      "position_y": 80,
+      "inputs": {},
+      "config": {
+        "output_language": "Spanish"
+      }
+    },
+    {
+      "id": "places",
+      "tool": "places_extract",
+      "label": "Places",
+      "position_x": 900,
+      "position_y": 180,
+      "inputs": {},
+      "config": {
+        "output_language": "Spanish"
+      }
+    },
+    {
+      "id": "organizations",
+      "tool": "organizations_extract",
+      "label": "Organizations",
+      "position_x": 900,
+      "position_y": 280,
+      "inputs": {},
+      "config": {
+        "output_language": "Spanish"
+      }
+    },
+    {
+      "id": "dates",
+      "tool": "dates_extract",
+      "label": "Dates",
+      "position_x": 900,
+      "position_y": 380,
+      "inputs": {},
+      "config": {
+        "output_language": "Spanish"
+      }
+    },
+    {
+      "id": "events",
+      "tool": "events_extract",
+      "label": "Events",
+      "position_x": 900,
+      "position_y": 480,
+      "inputs": {},
+      "config": {
+        "output_language": "Spanish"
+      }
+    },
+    {
+      "id": "keywords",
+      "tool": "keywords_extract",
+      "label": "Keywords",
+      "position_x": 900,
+      "position_y": 580,
+      "inputs": {},
+      "config": {
+        "output_language": "Spanish"
+      }
+    },
+    {
+      "id": "export",
+      "tool": "write_file",
+      "label": "Export transcripts",
+      "position_x": 620,
+      "position_y": 640,
+      "inputs": {},
+      "config": {
+        "output_dir": "",
+        "filename_template": "{doc_name}-transcript.{ext}",
+        "format": "txt",
+        "mode": "per_file"
+      }
+    },
+    {
       "id": "catalogue",
       "tool": "catalogue",
-      "label": "Synthesize catalogue",
-      "position_x": 700,
-      "position_y": 200,
+      "label": "Catalogue",
+      "position_x": 1180,
+      "position_y": 400,
       "inputs": {},
       "config": {
         "output_language": "Spanish"
@@ -50,8 +147,64 @@
       "target_port": "files"
     },
     {
-      "id": "e-transcribe-catalogue",
+      "id": "e-transcribe-aggregate",
       "source": "transcribe",
+      "target": "aggregate",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-people",
+      "source": "aggregate",
+      "target": "people",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-places",
+      "source": "aggregate",
+      "target": "places",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-organizations",
+      "source": "aggregate",
+      "target": "organizations",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-dates",
+      "source": "aggregate",
+      "target": "dates",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-events",
+      "source": "aggregate",
+      "target": "events",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-keywords",
+      "source": "aggregate",
+      "target": "keywords",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-transcribe-export",
+      "source": "transcribe",
+      "target": "export",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-catalogue",
+      "source": "aggregate",
       "target": "catalogue",
       "source_port": "text",
       "target_port": "text"

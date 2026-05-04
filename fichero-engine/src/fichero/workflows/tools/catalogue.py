@@ -123,67 +123,36 @@ def _build_prompt(output_language: str) -> str:
     Output is markdown (no JSON intermediary) since Daniel's mental model
     is "just give me the catalogue entry, not a data structure to render".
     """
-    return f"""You are creating a structured library catalogue entry for an
-archival document or collection. You receive the aggregated transcriptions
-(possibly across many pages or files).
+    return f"""You are writing a catalogue entry for an archival document or
+collection. You receive the aggregated transcriptions (possibly across many
+pages or files).
 
 Focus on documenting WHAT IS IN THE DOCUMENTS, not analysis or interpretation.
-The catalogue entry describes the content objectively. Use ALL available
-information to create the most accurate entry possible.
+Use ALL available information to write the most accurate entry possible.
 
-Write the entry as markdown with EXACTLY these sections, in this order.
-Do NOT add a top-level title or heading above the first section — the
-catalogue artifact is identified by its surrounding context (document
-name + artifact type) in the inspector, so a body title would duplicate
-what the UI already shows.
-
-## Description
-One rich narrative paragraph in the style of an archival finding-aid abstract.
-Pack it with concrete facts: full names of the principal actors, exact dates,
-place names, organizations involved, the chain of events, and the documented
-outcomes. Read like a scholar summarising the case file — not generic ("the
-documents discuss legal matters") but specific ("on the night of 23-24 August
-1922 the dredge No. 1 of the Compañía Minera Chocó Pacífico sank in the río
-Condoto near Bazán island, leading to a judicial investigation that
-eventually..."). Aim for 150-300 words. Paragraph form, no headings inside.
-Include key people, places, dates, and events. Write clearly and concisely.
-Do NOT include your own analysis. Do NOT invent or include details beyond
-what is explicitly provided in the source.
-
-## Subject Keywords
-A semicolon-separated list of 10-20 descriptive keywords capturing main
-themes, subjects, geographic locations, time periods, legal concepts.
-
-## People
-Bulleted list of the people mentioned in the documents. One name per line.
-Use canonical (most complete) form. Capitalize properly.
-
-## Places
-Bulleted list of locations mentioned (cities, regions, addresses, rivers,
-mines, properties). One per line.
-
-## Organizations
-Bulleted list of organizations, courts, companies, institutions, government
-bodies mentioned. One per line.
-
-## Date Coverage
-The date range covered by the documents' content. Two lines:
-- Start: YYYY-MM-DD or YYYY (or "unknown")
-- End: YYYY-MM-DD or YYYY (or "unknown")
-
-## Document Type
-One short phrase — e.g. "correspondence", "legal documents", "court records",
-"mining claim", "land grant", "photographs", "notarial deeds", etc.
+Write ONE rich narrative paragraph in the style of an archival finding-aid
+abstract. Pack it with concrete facts: full names of the principal actors,
+exact dates, place names, organizations involved, the chain of events, and
+the documented outcomes. Read like a scholar summarising the case file —
+not generic ("the documents discuss legal matters") but specific ("on the
+night of 23-24 August 1922 the dredge No. 1 of the Compañía Minera Chocó
+Pacífico sank in the río Condoto near Bazán island, leading to a judicial
+investigation that eventually..."). Aim for 150-300 words. Paragraph form
+only. No headings, no bullet lists, no section labels — the artifact is
+labeled "Catalogue" in the inspector chrome and per-entity data (People,
+Places, Dates, Events) is produced by separate extractor nodes shown in
+the Knowledge Graph tab, so duplicating that structure here would just be
+two copies of the same data drifting out of sync.
 
 Rules:
-- Write all prose in {output_language}. Section headers stay in English so
-  downstream parsers stay simple.
-- Include ALL occurrences of names/places/orgs found in the text.
-- Preserve exact spelling, capitalize properly, group alternative spellings
-  under the canonical form.
-- Only include facts supported by the text. Do not speculate.
+- Write in {output_language}.
+- Only include facts supported by the text. Do not speculate. Do not
+  invent details.
+- Preserve exact spelling of names, capitalize properly.
+- Do not include your own analysis or commentary.
 
-Return ONLY the markdown. No surrounding prose, no code fences."""
+Return ONLY the paragraph. No surrounding prose, no headings, no code
+fences."""
 
 
 def build_catalogue_prompt(config: dict) -> str:

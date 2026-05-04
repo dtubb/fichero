@@ -1,11 +1,17 @@
 {
-  "name": "Catalogue (composable)",
-  "description": "Per-section catalogue with explicit fan-in and file export. Same nine artifacts as the default Catalogue, but each section is its own swappable extractor node — start here when customizing a pipeline.",
+  "name": "Catalogue (Apple Vision)",
+  "description": "On-device transcription via Apple Vision OCR (no cloud calls for OCR). Extract nodes + final catalogue narrative use whatever LLM provider is configured per-node (defaults to cloud).",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
   "folder_path": "/Catalogue",
-  "tags": ["preset", "catalogue", "composable", "archival"],
+  "tags": [
+    "preset",
+    "catalogue",
+    "apple-vision",
+    "on-device-ocr",
+    "archival"
+  ],
   "nodes": [
     {
       "id": "files-source",
@@ -19,12 +25,12 @@
     {
       "id": "transcribe",
       "tool": "transcribe",
-      "label": "Transcribe each file",
+      "label": "Transcribe (Apple Vision)",
       "position_x": 340,
       "position_y": 400,
       "inputs": {},
       "config": {
-        "vision_mode": "llm",
+        "vision_mode": "apple",
         "language": "en",
         "update_page_content": true
       }
@@ -48,7 +54,9 @@
       "position_x": 900,
       "position_y": 80,
       "inputs": {},
-      "config": {"output_language": "Spanish"}
+      "config": {
+        "output_language": "Spanish"
+      }
     },
     {
       "id": "places",
@@ -57,7 +65,9 @@
       "position_x": 900,
       "position_y": 180,
       "inputs": {},
-      "config": {"output_language": "Spanish"}
+      "config": {
+        "output_language": "Spanish"
+      }
     },
     {
       "id": "organizations",
@@ -66,7 +76,9 @@
       "position_x": 900,
       "position_y": 280,
       "inputs": {},
-      "config": {"output_language": "Spanish"}
+      "config": {
+        "output_language": "Spanish"
+      }
     },
     {
       "id": "dates",
@@ -75,7 +87,9 @@
       "position_x": 900,
       "position_y": 380,
       "inputs": {},
-      "config": {"output_language": "Spanish"}
+      "config": {
+        "output_language": "Spanish"
+      }
     },
     {
       "id": "events",
@@ -84,7 +98,9 @@
       "position_x": 900,
       "position_y": 480,
       "inputs": {},
-      "config": {"output_language": "Spanish"}
+      "config": {
+        "output_language": "Spanish"
+      }
     },
     {
       "id": "keywords",
@@ -93,7 +109,9 @@
       "position_x": 900,
       "position_y": 580,
       "inputs": {},
-      "config": {"output_language": "Spanish"}
+      "config": {
+        "output_language": "Spanish"
+      }
     },
     {
       "id": "export",
@@ -116,7 +134,9 @@
       "position_x": 1180,
       "position_y": 400,
       "inputs": {},
-      "config": {"output_language": "Spanish"}
+      "config": {
+        "output_language": "Spanish"
+      }
     }
   ],
   "edges": [
