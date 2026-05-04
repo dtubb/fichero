@@ -139,3 +139,34 @@ Daniel went to bed mid-session asking for "this and other 0.0.2 issues." Goal fo
 3. If tonight's #785 spinner still doesn't fire on some workflow path, check Console.app for the diagnostic warning ("updateProcessingStatus: no document matched path") added in b5e060d8 — if it fires, we have a path-mismatch bug to fix.
 
 *Last updated: 2026-05-03 late-night — autonomous bug-fix sweep. 14 issues closed, 7 commits, 3 new bugs filed and fixed. Down to 19 open on 0.0.2 — most are architectural deferrals or release-cert blockers.*
+
+## Session 2026-05-04 — punt-and-ship pass
+
+**Goal: shrink 0.0.2 to release-pipeline only so today is cert+publish.**
+
+- `0c589d52` revert(library,sidebar): roll back 06d7f43b (Cmd+\` Go Up + sidebar-row spinner) — Daniel reverted in working tree, committed cleanly. Navigate-into-when-sidebar-hidden (9655fa74) is kept.
+- **Punted to 0.0.3:** #720 #721 #676 #718 #711 #702 #598 #667 #785 (sidebar piece only — grid spinner shipped a6606011)
+- **Punted to Backend Operations:** #764 (workflow startup perf — needs profiling)
+- **Closed:** #786 (in-scope shipped) + #763 (verify-only, code already correct)
+
+**0.0.2 is now 6 issues, all release pipeline:**
+- #658 set up fichero-releases repo
+- #659 build/sign/notarize DMG
+- #660 dry-run install
+- #661 download page on tubb.ca
+- #662 release notes on tubb.ca
+- #665 dev blog post
+
+All Daniel-owned. Code-side work for 0.0.2 is complete.
+
+## Today — cert + publish path
+
+1. #158 — App Store Connect API key (notarytool creds)
+2. #159 — Verify Sparkle EdDSA private key matches Info.plist public key
+3. #658 — create `fichero-releases` repo
+4. #659 — build/sign/notarize DMG (briefcase + codesign + notarytool + stapler)
+5. #660 — install fresh on a clean Mac, verify Sparkle update flow
+6. #661/#662/#665 — content
+7. #165 — merge 0.0.2 → main
+
+Latest build at `/Applications/Fichero.app` includes the revert. App is in shippable state for the bits that landed.
