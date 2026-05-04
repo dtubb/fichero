@@ -320,8 +320,12 @@ struct ContentView: View {
             // Conditional based on sidebar mode
             if showNavigationToolbar {
                 ToolbarItemGroup(placement: .navigation) {
-                    // Layout mode picker (None/Standard/Widescreen) - only for modes with preview
+                    // Layout mode picker (None/Standard/Widescreen) - only for modes with preview.
+                    // Disabled when a folder is the active detail: centerContent forces layout
+                    // to .none for folders (per #749), so any picker change is a silent no-op.
+                    // Greyed out makes the dead-state obvious to the user (#787).
                     if showLayoutPicker {
+                        let folderActive = detailDocument?.docType == .folder
                         Picker("Layout", selection: $currentLayoutMode) {
                             ForEach(availableLayoutModes) { mode in
                                 Label(mode.rawValue, systemImage: mode.icon)
@@ -330,7 +334,10 @@ struct ContentView: View {
                             }
                         }
                         .pickerStyle(.segmented)
-                        .help("Layout: \(currentLayoutMode.rawValue)")
+                        .help(folderActive
+                            ? "Folder selected — preview pane disabled"
+                            : "Layout: \(currentLayoutMode.rawValue)")
+                        .disabled(folderActive)
                         .onChange(of: currentLayoutMode) { _, newMode in
                             withAnimation {
                                 // Sync toolbar with View menu previewMode

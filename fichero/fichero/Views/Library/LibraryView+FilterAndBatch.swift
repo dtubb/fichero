@@ -200,6 +200,12 @@ extension LibraryView {
             if sidebarHidden, canNavigateInto(doc) {
                 onNavigateInto(doc)
             }
+            // Scroll the (potentially shrunken) icon list to show the
+            // selected item. Common case: full grid → click → layout shifts
+            // to grid+preview, the now-narrow icon list still shows page 1
+            // and the selected item is off-screen. anchor: nil = minimal
+            // scroll, no-op if already visible. (#787 follow-up)
+            listScrollTarget = doc.id
         }
     }
 
