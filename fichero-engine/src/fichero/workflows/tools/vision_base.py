@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import tempfile
 import base64
 import dataclasses
 import io
@@ -183,12 +184,69 @@ def _render_pdf_page_to_cgimage(pdf_path: str, page_index: int = 0, dpi: int = 3
     return cg_image, CGPDFDocumentGetNumberOfPages(pdf_doc)
 
 
+# Maximum image dimension (longest side) handed to Apple Vision. Larger
+# images consume disproportionate memory + time without improving OCR
+# accuracy beyond this resolution. Daniel: "really we don't want to send
+# Apple Vision too large an image". (#796)
+_VISION_MAX_DIMENSION = 4096
+
+
+def _normalize_for_vision(image_path: str) -> tuple[str, str | None]:
+    """Pre-process an image for Apple Vision: convert to PNG via Pillow if
+    it's a TIF (CoreGraphics' TIF support varies by codec — some multi-page
+    or exotic-compression TIFs return nil from CGImageSourceCreateWithURL,
+    which is exactly what bit Daniel on EAP1740_*.tif). Also downscale if
+    longer side exceeds _VISION_MAX_DIMENSION.
+
+    Returns (path_to_use, temp_path_to_delete). temp_path_to_delete is None
+    when no conversion happened — caller should always pass it through to a
+    cleanup step. (#796)
+    """
+    lower = image_path.lower()
+    needs_format_convert = lower.endswith((".tif", ".tiff"))
+    needs_resize = False
+
+    try:
+        from PIL import Image
+        with Image.open(image_path) as img:
+            longest = max(img.width, img.height)
+            needs_resize = longest > _VISION_MAX_DIMENSION
+            if not needs_format_convert and not needs_resize:
+                return (image_path, None)
+
+            converted = img
+            if needs_resize:
+                ratio = _VISION_MAX_DIMENSION / longest
+                new_size = (int(img.width * ratio), int(img.height * ratio))
+                converted = img.resize(new_size, Image.LANCZOS)
+                logger.info(
+                    f"Apple Vision: downscaled {img.width}x{img.height} "
+                    f"-> {new_size[0]}x{new_size[1]}"
+                )
+            # PNG round-trip via Pillow normalises any source format Pillow
+            # can read into something CoreGraphics reliably opens.
+            if converted.mode not in ("RGB", "RGBA", "L"):
+                converted = converted.convert("RGB")
+            tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+            tmp.close()
+            converted.save(tmp.name, format="PNG")
+            return (tmp.name, tmp.name)
+    except Exception as exc:
+        logger.warning(
+            f"Apple Vision: Pillow normalize failed for {image_path} ({exc}); "
+            "falling back to original"
+        )
+        return (image_path, None)
+
+
 def apple_vision_ocr(image_path: str, language: str = "en") -> str:
     """Extract text from image or PDF using macOS Vision framework.
 
     Uses VNRecognizeTextRequest for on-device OCR. For PDFs, renders each
     page to a bitmap first since CGImageSource can't create CGImages from PDFs.
+    For TIFs and oversized images, normalizes via Pillow first (#796).
     """
+    cleanup_path: str | None = None
     try:
         from Quartz import (
             CGImageSourceCreateWithURL,
@@ -239,13 +297,17 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
 
             return "\n\n".join(all_lines)
         else:
-            # Standard image path
-            url = NSURL.fileURLWithPath_(image_path)
+            # Standard image path — normalise via Pillow first so TIFs and
+            # oversized images become well-formed bounded PNGs that
+            # CoreGraphics reliably opens. (#796)
+            effective_path, cleanup_path = _normalize_for_vision(image_path)
+
+            url = NSURL.fileURLWithPath_(effective_path)
             image_source = CGImageSourceCreateWithURL(url, None)
             if not image_source:
-                file_size = os.path.getsize(image_path)
+                file_size = os.path.getsize(effective_path)
                 raise ValueError(
-                    f"Could not load image (size: {file_size} bytes): {image_path}"
+                    f"Could not load image (size: {file_size} bytes): {effective_path}"
                 )
 
             props = CGImageSourceCopyPropertiesAtIndex(image_source, 0, None)
@@ -256,7 +318,7 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
 
             cg_image = CGImageSourceCreateImageAtIndex(image_source, 0, None)
             if not cg_image:
-                raise ValueError(f"CGImage creation failed: {image_path}")
+                raise ValueError(f"CGImage creation failed: {effective_path}")
 
             return _vision_ocr_cgimage(cg_image, language)
 
@@ -266,6 +328,12 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
     except Exception as e:
         logger.error(f"Apple Vision OCR failed: {e}")
         raise
+    finally:
+        if cleanup_path:
+            try:
+                os.remove(cleanup_path)
+            except OSError:
+                pass
 
 
 def _vision_ocr_cgimage(cg_image, language: str = "en") -> str:
