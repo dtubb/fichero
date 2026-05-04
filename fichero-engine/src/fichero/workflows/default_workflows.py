@@ -134,12 +134,19 @@ def seed_default_workflows(db: "Database", force: bool = False) -> int:
 
 
 def _resolve_apple_intelligence_id() -> str | None:
-    """Look up the runtime UUID of the built-in Apple Intelligence provider
-    so presets that reference '$APPLE_INTELLIGENCE' as a sentinel can be
-    rewritten to the real id at seed time. Returns None if the provider
-    isn't available (non-macOS dev install, seeding before _seed_builtin_providers
-    has run, etc.) — in that case nodes keep the sentinel and the user picks
-    a provider manually.
+    """Resolve the sentinel '$APPLE_INTELLIGENCE' to the id the Swift
+    workflow editor uses when comparing node.provider_name to the
+    /api/chat/providers list.
+
+    Important: the chat/providers endpoint returns provider TYPES as IDs
+    for built-in providers (id="apple"), NOT the actual app_db UUIDs.
+    So the resolved sentinel must be the provider_type string, not
+    Provider.id from app_db. (Round-trip mismatch caught by Daniel —
+    inspecting workflow DB showed UUID, but popover lookup never matched
+    because providers list returns "apple".)
+
+    Returns None if Apple Intelligence isn't enabled in app_db so the
+    sentinel survives in the preset and the user picks manually.
     """
     try:
         from fichero.app_db import get_app_db
@@ -147,7 +154,9 @@ def _resolve_apple_intelligence_id() -> str | None:
         app_db = get_app_db()
         for provider in app_db.list_providers():
             if provider.provider_type == ProviderType.apple:
-                return provider.id
+                # Return the provider_type ENUM VALUE — that's what the
+                # chat/providers endpoint exposes as the provider id.
+                return ProviderType.apple.value  # "apple"
     except Exception as exc:
         logger.warning(f"Apple Intelligence id lookup failed: {exc}")
     return None
