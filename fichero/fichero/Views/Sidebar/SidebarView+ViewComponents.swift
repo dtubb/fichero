@@ -418,9 +418,12 @@ extension SidebarView {
                 Text("Activity")
                     .lineLimit(1)
                 if executionObserver.isAnyWorkflowRunning {
-                    Image(systemName: "play.circle.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.blue)
+                    // Spinner instead of static play.circle so it's clear
+                    // something is actively in flight (#785). Daniel: "the
+                    // blue dot in activity is also not a spinner".
+                    ProgressView()
+                        .controlSize(.small)
+                        .scaleEffect(0.7)
                 }
             }
         } icon: {

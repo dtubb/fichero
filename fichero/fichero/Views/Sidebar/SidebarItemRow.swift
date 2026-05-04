@@ -126,12 +126,23 @@ struct SidebarItemRow: View {
             ?? store.collections.first(where: { $0.id == doc.id })
             ?? doc
         if live.status == .processing { return true }
-        // Folder: also report processing if any direct child is. We read
-        // from childrenCache to avoid a fetch — if the cache isn't populated
-        // yet, the folder won't show a spinner until the user expands it,
-        // which is acceptable.
-        if doc.docType == .folder, let kids = store.childrenCache[doc.id] {
-            return kids.contains { $0.status == .processing }
+        // Folder: report processing if ANY descendant is currently processing.
+        // Look in BOTH currentDocuments (the set actively shown in the grid;
+        // covers the very common "user is browsing the folder being processed"
+        // case Daniel hit) and childrenCache (other folders' kids cached for
+        // sidebar tree expansion). Without the currentDocuments check the
+        // folder spinner only appeared if the user had expanded the folder
+        // separately — silently broken in the most common workflow.
+        if doc.docType == .folder {
+            if store.currentDocuments.contains(where: {
+                $0.parentId == doc.id && $0.status == .processing
+            }) {
+                return true
+            }
+            if let kids = store.childrenCache[doc.id],
+               kids.contains(where: { $0.status == .processing }) {
+                return true
+            }
         }
         return false
     }
