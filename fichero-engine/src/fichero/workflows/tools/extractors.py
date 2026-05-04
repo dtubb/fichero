@@ -64,7 +64,21 @@ _EXTRACTOR_INPUT_PORTS = merge_ports(
             data_type=DataType.TEXT,
             required=True,
             description="Aggregated text to extract from.",
-        )
+        ),
+        PortDef(
+            id="records",
+            name="Records",
+            port_type="input",
+            data_type=DataType.ARRAY,
+            required=False,
+            description=(
+                "Optional per-page records [{doc_id, text}, ...] from "
+                "an upstream Aggregate node. When present, extractors "
+                "iterate per page and save entity claims to the PAGE "
+                "doc instead of the container. Enables page-level KG "
+                "search."
+            ),
+        ),
     ],
     [],
 )
@@ -404,14 +418,29 @@ async def _run_extractor(
                 "cached": True,
             }
 
-    # Per-page extraction: split the aggregated text on the separator the
-    # aggregate node uses (default \n\n---\n\n) and run the LLM per chunk
-    # in parallel. Each item's claim then carries source_page_label +
-    # source_excerpt pointing to its page (#728 follow-up).
-    #
-    # If the upstream node didn't aggregate (single chunk), this falls
-    # through to a single LLM call exactly like before.
-    chunks = _split_into_pages(text)
+    # Per-page extraction. Two paths:
+    #   (a) records present (aggregate node passed [{doc_id, text}, ...])
+    #       → iterate per record; claims write to PAGE doc_id (page-level KG).
+    #   (b) records absent (legacy / non-aggregate upstream)
+    #       → split text on separator and write to container.id.
+    # (a) is the new 0.0.2 path that enables page-level entity search.
+    records_input = inputs.get("records") or []
+    page_doc_ids: list[str | None] = []
+    if records_input and isinstance(records_input, list):
+        chunks = []
+        for rec in records_input:
+            if not isinstance(rec, dict):
+                continue
+            chunks.append(str(rec.get("text") or ""))
+            page_doc_ids.append(str(rec.get("doc_id") or "") or None)
+        # If records were empty / malformed, fall back to text split.
+        if not chunks:
+            chunks = _split_into_pages(text)
+            page_doc_ids = [None] * len(chunks)
+    else:
+        chunks = _split_into_pages(text)
+        page_doc_ids = [None] * len(chunks)
+
     prompt = _build_section_prompt(section, output_language)
 
     async def _extract_chunk(chunk_text: str) -> list[Any]:
@@ -460,13 +489,20 @@ async def _run_extractor(
     if container and library_path and any(chunk_results):
         try:
             db = db_manager.get_database(library_path)
-            for page_idx, (chunk_text, chunk_items) in enumerate(zip(chunks, chunk_results)):
+            for page_idx, (chunk_text, chunk_items, page_doc_id) in enumerate(
+                zip(chunks, chunk_results, page_doc_ids)
+            ):
                 if not chunk_items:
                     continue
                 page_label = f"Page {page_idx + 1}" if len(chunks) > 1 else None
                 excerpt = chunk_text[:500] if chunk_text else None
+                # Save to PAGE doc when we have its id (0.0.2: per-page KG
+                # search). Fall back to container only when records flow
+                # didn't carry doc_ids — preserves legacy behaviour for
+                # non-aggregate workflows.
+                target_doc_id = page_doc_id or container.id
                 _write_kg_rows(
-                    db, section, chunk_items, container.id,
+                    db, section, chunk_items, target_doc_id,
                     page_label=page_label, source_excerpt=excerpt,
                 )
         except Exception as exc:

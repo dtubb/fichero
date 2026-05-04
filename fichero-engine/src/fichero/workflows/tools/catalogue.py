@@ -69,30 +69,13 @@ CATALOGUE_INPUT_PORTS = merge_ports(
             required=True,
             description="Aggregated transcription text from upstream step",
         ),
-        # Optional inputs from upstream Extract* nodes. The catalogue tool
-        # already reads typed entities from the DB (Path 1 — KnowledgeClaim
-        # rows), but these explicit input ports let users wire the NER
-        # outputs into the catalogue node so the graph visibly shows the
-        # data flow. Wired in default presets; ignored at runtime if the
-        # claims path already hydrated the prompt context.
-        PortDef(id="people", name="People", port_type="input",
-                data_type=DataType.TEXT, required=False,
-                description="Optional: extracted people entities"),
-        PortDef(id="places", name="Places", port_type="input",
-                data_type=DataType.TEXT, required=False,
-                description="Optional: extracted place entities"),
-        PortDef(id="organizations", name="Organizations", port_type="input",
-                data_type=DataType.TEXT, required=False,
-                description="Optional: extracted organization entities"),
-        PortDef(id="dates", name="Dates", port_type="input",
-                data_type=DataType.TEXT, required=False,
-                description="Optional: extracted date entities"),
-        PortDef(id="events", name="Events", port_type="input",
-                data_type=DataType.TEXT, required=False,
-                description="Optional: extracted event entities"),
-        PortDef(id="keywords", name="Keywords", port_type="input",
-                data_type=DataType.TEXT, required=False,
-                description="Optional: extracted keyword entities"),
+        # Reverted the per-extractor input ports here: LangGraph fires a
+        # node once per arriving edge, which made catalogue run multiple
+        # times (once per extractor edge) instead of waiting for all.
+        # The catalogue tool already reads typed entities from the DB
+        # (Path 1 — KnowledgeClaim rows the Extract* nodes wrote earlier
+        # in the same run), so the extra graph edges weren't load-bearing
+        # — only confusing the scheduler.
     ],
     BASE_INPUT_PORTS,
 )
@@ -585,9 +568,20 @@ def _build_data_from_claims(
         KnowledgeClaim,
         KnowledgeEntity,
     )
+    from fichero.models import Document
 
     db = db_manager.get_database(library_path)
-    claims = db.query(KnowledgeClaim, source_document_id=container_id)
+    # Query claims for the container AND all descendant page docs.
+    # Per-page entity storage (0.0.2): extractors now write claims to
+    # PAGE doc_ids rather than the container. Without expanding the
+    # query to descendants, catalogue would see zero claims and fall
+    # to Path 2 (text-only synthesis) on every run.
+    container_descendants = list(db.query(Document, parent_id=container_id))
+    descendant_ids = [d.id for d in container_descendants]
+    all_doc_ids = [container_id] + descendant_ids
+    claims = []
+    for doc_id in all_doc_ids:
+        claims.extend(db.query(KnowledgeClaim, source_document_id=doc_id))
     if not claims:
         return None
 

@@ -113,10 +113,22 @@
       }
     },
     {
+      "id": "merge_extracts",
+      "tool": "aggregate",
+      "label": "Merge entities",
+      "position_x": 1100,
+      "position_y": 400,
+      "inputs": {},
+      "config": {
+        "mode": "concat",
+        "separator": "\n\n---\n\n"
+      }
+    },
+    {
       "id": "catalogue",
       "tool": "catalogue",
       "label": "Catalogue",
-      "position_x": 1180,
+      "position_x": 1380,
       "position_y": 400,
       "inputs": {},
       "config": {
@@ -182,53 +194,95 @@
       "target_port": "text"
     },
     {
-      "id": "e-aggregate-catalogue",
-      "source": "aggregate",
+      "id": "e-people-merge_extracts",
+      "source": "people",
+      "target": "merge_extracts",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-places-merge_extracts",
+      "source": "places",
+      "target": "merge_extracts",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-organizations-merge_extracts",
+      "source": "organizations",
+      "target": "merge_extracts",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-dates-merge_extracts",
+      "source": "dates",
+      "target": "merge_extracts",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-events-merge_extracts",
+      "source": "events",
+      "target": "merge_extracts",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-keywords-merge_extracts",
+      "source": "keywords",
+      "target": "merge_extracts",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-merge_extracts-catalogue",
+      "source": "merge_extracts",
       "target": "catalogue",
       "source_port": "text",
       "target_port": "text"
     },
     {
-      "id": "e-people-catalogue",
-      "source": "people",
-      "target": "catalogue",
-      "source_port": "text",
-      "target_port": "people"
+      "id": "e-aggregate-records-people",
+      "source": "aggregate",
+      "target": "people",
+      "source_port": "records",
+      "target_port": "records"
     },
     {
-      "id": "e-places-catalogue",
-      "source": "places",
-      "target": "catalogue",
-      "source_port": "text",
-      "target_port": "places"
+      "id": "e-aggregate-records-places",
+      "source": "aggregate",
+      "target": "places",
+      "source_port": "records",
+      "target_port": "records"
     },
     {
-      "id": "e-organizations-catalogue",
-      "source": "organizations",
-      "target": "catalogue",
-      "source_port": "text",
-      "target_port": "organizations"
+      "id": "e-aggregate-records-organizations",
+      "source": "aggregate",
+      "target": "organizations",
+      "source_port": "records",
+      "target_port": "records"
     },
     {
-      "id": "e-dates-catalogue",
-      "source": "dates",
-      "target": "catalogue",
-      "source_port": "text",
-      "target_port": "dates"
+      "id": "e-aggregate-records-dates",
+      "source": "aggregate",
+      "target": "dates",
+      "source_port": "records",
+      "target_port": "records"
     },
     {
-      "id": "e-events-catalogue",
-      "source": "events",
-      "target": "catalogue",
-      "source_port": "text",
-      "target_port": "events"
+      "id": "e-aggregate-records-events",
+      "source": "aggregate",
+      "target": "events",
+      "source_port": "records",
+      "target_port": "records"
     },
     {
-      "id": "e-keywords-catalogue",
-      "source": "keywords",
-      "target": "catalogue",
-      "source_port": "text",
-      "target_port": "keywords"
+      "id": "e-aggregate-records-keywords",
+      "source": "aggregate",
+      "target": "keywords",
+      "source_port": "records",
+      "target_port": "records"
     }
   ],
   "config": {}
