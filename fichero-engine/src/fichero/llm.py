@@ -331,6 +331,109 @@ async def _apple_intelligence_chat(
     return result.get("response", "")
 
 
+async def _apple_vision_dispatch(
+    images: list[str],
+    prompt: str,
+    config: LLMConfig,
+) -> str:
+    """Apple provider's vision dispatch — picks the right on-device API
+    based on config.model, since FoundationModels' Swift LLM (apple-
+    intelligence) is text-only on macOS 26 and a separate Vision
+    framework handles OCR (apple-vision).
+
+    Routes:
+      * model='apple-vision' (or empty / 'default') → on-device OCR via
+        the existing apple_vision_ocr() in vision_base. Multi-image
+        OCR concatenates results with page separators.
+      * model='apple-intelligence' → ValueError. FoundationModels can't
+        consume images yet; user should pick apple-vision for OCR or
+        switch provider for general image understanding.
+      * model='apple-speech' → ValueError. Wrong modality (audio).
+
+    Note: ignores `prompt` for OCR — Apple Vision's API is not prompt-
+    driven (it's a recognition pass, not a generative model). Caller's
+    prompt becomes effectively unused, which is fine for the catalogue
+    workflow's vision tools that just want text out.
+    """
+    from fichero.workflows.tools.vision_base import apple_vision_ocr
+    import asyncio
+    import base64
+    import tempfile
+    import os
+    from pathlib import Path
+    from urllib.parse import urlparse
+
+    model_id = (config.model or "").lower().strip()
+    # Treat empty / 'default' as apple-vision since OCR is the only
+    # dispatchable on-device vision route today.
+    if model_id in ("", "default", "apple-vision"):
+        pass  # fall through to OCR
+    elif model_id == "apple-intelligence":
+        raise ValueError(
+            "Apple Intelligence (Foundation Models) is text-only on macOS 26 "
+            "and cannot process images. Pick model='apple-vision' for OCR, or "
+            "switch provider for general image understanding."
+        )
+    elif model_id == "apple-speech":
+        raise ValueError(
+            "Apple Speech is for audio transcription, not vision. "
+            "Pick model='apple-vision' for image OCR."
+        )
+    else:
+        raise ValueError(
+            f"Unknown Apple model for vision: {config.model!r}. "
+            "Supported: apple-vision."
+        )
+
+    if not images:
+        return ""
+
+    # Apple Vision's Quartz-based image loader takes a file path. Most
+    # workflow callers pass base64 data URIs; write each to a temp file
+    # and clean up after. apple_vision_ocr is sync, so dispatch via
+    # asyncio.to_thread to keep the async caller non-blocking.
+    page_texts: list[str] = []
+    cleanup_paths: list[str] = []
+    try:
+        for index, img in enumerate(images):
+            file_path: str
+            cleanup_this = False
+            if img.startswith("data:"):
+                # data URI: data:image/jpeg;base64,XXXX
+                _header, _, b64 = img.partition(",")
+                # Infer extension from the mime type for CoreGraphics codec
+                mime = _header.split(";")[0].removeprefix("data:") or "image/png"
+                ext = "." + (mime.split("/")[1] if "/" in mime else "png")
+                tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
+                try:
+                    tmp.write(base64.b64decode(b64))
+                finally:
+                    tmp.close()
+                file_path = tmp.name
+                cleanup_this = True
+            elif urlparse(img).scheme in ("file", ""):
+                file_path = urlparse(img).path or img
+            else:
+                raise ValueError(
+                    f"Apple Vision can't fetch remote URLs ({img[:40]}...). "
+                    "Pass a local path or data: URI."
+                )
+            if cleanup_this:
+                cleanup_paths.append(file_path)
+            text = await asyncio.to_thread(apple_vision_ocr, file_path, "en")
+            if text:
+                if len(images) > 1:
+                    page_texts.append(f"--- Image {index + 1} ---")
+                page_texts.append(text)
+        return "\n\n".join(page_texts)
+    finally:
+        for p in cleanup_paths:
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+
+
 async def _stream_chat_langchain(model, messages: list) -> AsyncIterator[str]:
     """Stream chat response using LangChain."""
     async for chunk in model.astream(messages):
@@ -378,6 +481,19 @@ async def vision(
         Analysis text
     """
     from langchain_core.messages import HumanMessage
+
+    # Apple provider unified dispatch — Apple has no LangChain integration,
+    # so we route by model BEFORE falling through to LangChain. Three Apple
+    # models exist (per the bundled provider seed):
+    #   * apple-vision        → on-device OCR via Vision framework
+    #   * apple-speech        → audio-only (rejected here, vision call)
+    #   * apple-intelligence  → FoundationModels LLM, text-only on macOS 26
+    # This mirrors chat()'s apple branch — without it, every workflow node
+    # that does vision-with-provider=apple bombed with "Unknown LLM
+    # provider: 'apple'" (Daniel's regression after consolidating to a
+    # single Catalogue preset that uses provider=apple by default).
+    if config.provider == "apple":
+        return await _apple_vision_dispatch(images, prompt, config)
 
     # Get LangChain model
     model = get_langchain_model(config)
@@ -880,6 +996,19 @@ def get_langchain_model(config: LLMConfig) -> Any:
             base_url=config.api_base or "https://router.huggingface.co/v1",
             **common_params,
         )
+    elif provider == "apple":
+        # Apple has no LangChain integration (FoundationModels is Swift-only,
+        # not @objc-exposed). Workflow tools should call chat() / vision()
+        # which route to fm-bridge / apple_vision_ocr respectively. This
+        # branch only fires from direct get_langchain_model callers
+        # (multi_agent, agent) — surface a clear error so the caller knows
+        # the path doesn't exist yet.
+        raise NotImplementedError(
+            "Apple Intelligence has no LangChain ChatModel wrapper yet. "
+            "Use llm.chat() / llm.vision() (which route to fm-bridge / "
+            "apple_vision_ocr) or pick a different provider for "
+            "multi_agent / agent tools."
+        )
     else:
         # FAIL if provider is empty or unknown - don't silently default
         if not provider:
@@ -890,7 +1019,7 @@ def get_langchain_model(config: LLMConfig) -> Any:
             f"Unknown LLM provider: '{provider}'. "
             f"Supported providers: openai, anthropic, google, mistral, cohere, "
             f"ollama, lmstudio, groq, together, deepseek, openrouter, dashscope, "
-            f"xai, perplexity, fireworks, azure, bedrock, huggingface"
+            f"xai, perplexity, fireworks, azure, bedrock, huggingface, apple"
         )
 
 
