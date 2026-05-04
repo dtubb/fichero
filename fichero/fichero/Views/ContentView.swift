@@ -550,19 +550,40 @@ struct ContentView: View {
             guard let prefixedId = newFolderId,
                   prefixedId.hasPrefix("doc:") else { return }
             let docId = String(prefixedId.dropFirst("doc:".count))
+            // Closure to apply a resolved Document — sets detailDocument and,
+            // for folders, collapses the preview pane so navigating in the
+            // sidebar lands on a clean grid view (#785 follow-up). Daniel's
+            // mental model: "click sidebar to browse, click doc in grid to
+            // preview." Folders shouldn't be previewed; clicking a folder
+            // should reset the layout to grid-only.
+            let applyDoc: (Document) -> Void = { doc in
+                detailDocument = doc
+                if doc.docType == .folder, currentLayoutMode != .none {
+                    currentLayoutMode = .none
+                    viewSettings.previewMode = .none
+                }
+            }
             if detailDocument?.id != docId {
                 if let doc = documentStore.currentDocuments.first(where: { $0.id == docId }) {
-                    detailDocument = doc
+                    applyDoc(doc)
                 } else {
                     Task { @MainActor in
                         let fetched: Document? = try? await documentStore.api.get(
                             "/documents/\(docId)"
                         )
                         if let fetched, selectedSidebarItemId == prefixedId {
-                            detailDocument = fetched
+                            applyDoc(fetched)
                         }
                     }
                 }
+            } else if let existing = detailDocument,
+                      existing.docType == .folder,
+                      currentLayoutMode != .none {
+                // Re-clicking the already-selected folder: still collapse the
+                // preview. Earlier guard short-circuits the detailDocument
+                // assignment so we have to handle this branch explicitly.
+                currentLayoutMode = .none
+                viewSettings.previewMode = .none
             }
         }
         .onChange(of: sidebarMode) { _, _ in

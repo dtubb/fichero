@@ -294,8 +294,24 @@ extension LibraryView {
             let response = try await workflowStreamService.execute(
                 workflowId: workflowId,
                 inputs: ["selected_doc_ids": docIds],
-                onEvent: { event in
+                onEvent: { [weak documentStore = libraryManager.getLibrary(id: windowState.libraryId)?.documentStore] event in
                     executionObserver.handleEvent(event, for: workflowId)
+                    // Per-doc spinner: mirror SSE file events to Document.status
+                    // so grid icons + sidebar folders show processing state.
+                    // Without this branch the batch-run path (context menu /
+                    // workflow picker) silently never updates spinners (#785).
+                    if let store = documentStore {
+                        switch event {
+                        case .fileStart(_, _, let filePath, _, _, _):
+                            store.updateProcessingStatus(forPath: filePath, status: .processing)
+                        case .fileComplete(_, _, let filePath, _, _, _, _):
+                            store.updateProcessingStatus(forPath: filePath, status: .completed)
+                        case .fileError(_, _, let filePath, _, _):
+                            store.updateProcessingStatus(forPath: filePath, status: .failed)
+                        default:
+                            break
+                        }
+                    }
                     switch event {
                     case .complete, .error, .systemicError:
                         streamCompleted = true
