@@ -77,11 +77,20 @@ extension LibraryView {
                 // Finder's icon view. Clamped 0.5–2.5x to match the toolbar
                 // +/- buttons' usable range; persisted via @AppStorage on
                 // iconViewScale so the scale survives relaunch.
+                // Round to 0.05 steps so LazyVGrid relayouts a few times per
+                // gesture instead of every magnification tick — eliminates the
+                // jitter without losing perceived smoothness (#782). Max raised
+                // 2.5 → 5.0 to match the toolbar +/- range so users can really
+                // zoom in on stamps/handwriting (same rationale as #604).
                 .gesture(
                     MagnificationGesture()
                         .onChanged { magnitude in
                             let candidate = pinchBaseScale * magnitude
-                            iconViewScale = max(0.5, min(2.5, candidate))
+                            let clamped = max(0.5, min(5.0, candidate))
+                            let stepped = (clamped * 20).rounded() / 20
+                            if stepped != iconViewScale {
+                                iconViewScale = stepped
+                            }
                         }
                         .onEnded { _ in
                             pinchBaseScale = iconViewScale

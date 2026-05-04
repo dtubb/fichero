@@ -96,7 +96,6 @@ struct AttributedTextEditor: NSViewRepresentable {
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.hasHorizontalRuler = true
-        scrollView.rulersVisible = rulersVisible
         scrollView.automaticallyAdjustsContentInsets = false
         scrollView.contentInsets = NSEdgeInsets(
             top: 0, left: leadingInset, bottom: 0, right: trailingInset
@@ -120,6 +119,11 @@ struct AttributedTextEditor: NSViewRepresentable {
         context.coordinator.isApplyingModelUpdate = false
 
         scrollView.documentView = textView
+        // rulersVisible MUST be set AFTER documentView is attached. Setting it
+        // earlier silently no-ops because NSScrollView has no ruler accessory
+        // to install yet — the textView provides it. Once attached, AppKit
+        // wires the accessory and rulersVisible takes effect (#781).
+        scrollView.rulersVisible = rulersVisible
         context.coordinator.textView = textView
         context.coordinator.lastAppliedRevision = contentRevision
         controller?.textView = textView
