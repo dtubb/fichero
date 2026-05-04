@@ -173,17 +173,24 @@ struct WorkflowEditor: View {
         // Debounced autosave on any editingWorkflow change (#780). Without
         // this, model/provider selections in the node inspector live
         // in-memory only — never persisted to the engine — and are lost
-        // on relaunch. 600ms debounce avoids saving on every keystroke
+        // on relaunch. 300ms debounce avoids saving on every keystroke
         // / drag tick while keeping the save responsive enough that the
-        // user feels safe.
+        // user feels safe. (Tightened from 600ms — Daniel reported
+        // model still resetting on restart, faster save = less window
+        // for losing edits via popover-close races.)
         .task(id: editingWorkflow.id) {
             // Reset debounce when the user switches to a different workflow.
         }
-        .onChange(of: editingWorkflow) { _, _ in
+        .onChange(of: editingWorkflow) { _, newValue in
+            let firstNode = newValue.nodes.first
+            actionsLogger.info(
+                "[autosave] editingWorkflow changed — id=\(newValue.id), nodes=\(newValue.nodes.count), first node provider=\(firstNode?.providerName ?? "nil"), model=\(firstNode?.modelName ?? "nil")"
+            )
             autosaveTask?.cancel()
             autosaveTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(600))
+                try? await Task.sleep(for: .milliseconds(300))
                 guard !Task.isCancelled else { return }
+                actionsLogger.info("[autosave] firing saveWorkflow after debounce")
                 await saveWorkflow()
             }
         }

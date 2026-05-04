@@ -257,11 +257,28 @@ struct SidebarItemRow: View {
         Task { @MainActor in
             var streamCompleted = false
             do {
+                let store = library.documentStore
                 let response = try await stream.execute(
                     workflowId: workflowId,
                     inputs: ["selected_doc_ids": [docId]],
                     onEvent: { event in
                         observer.handleEvent(event, for: workflowId)
+                        // Per-doc spinner: mirror SSE file events to
+                        // Document.status so grid icons + sidebar folders
+                        // show processing state. Sidebar context-menu was
+                        // the 4th workflow run path missing this wire-up
+                        // (alongside ContentView+Actions, WorkflowEditor,
+                        // and LibraryView+FilterAndBatch). #785
+                        switch event {
+                        case .fileStart(_, _, let filePath, _, _, _):
+                            store.updateProcessingStatus(forPath: filePath, status: .processing)
+                        case .fileComplete(_, _, let filePath, _, _, _, _):
+                            store.updateProcessingStatus(forPath: filePath, status: .completed)
+                        case .fileError(_, _, let filePath, _, _):
+                            store.updateProcessingStatus(forPath: filePath, status: .failed)
+                        default:
+                            break
+                        }
                         switch event {
                         case .complete, .error, .systemicError:
                             streamCompleted = true
