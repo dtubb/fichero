@@ -1,6 +1,6 @@
 {
   "name": "Catalogue",
-  "description": "Transcribe every file (cloud vision LLM), extract typed entities (people, places, organizations, dates, events, keywords) and produce a narrative catalogue entry. Per-entity outputs feed the Knowledge Graph tab; the catalogue narrative is shown on the folder.",
+  "description": "Transcribe every file (cloud vision LLM), extract typed entities (people, places, organizations, dates, events, keywords) and produce a narrative catalogue entry. Per-entity outputs feed the Knowledge Graph tab.",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
@@ -113,20 +113,6 @@
       }
     },
     {
-      "id": "export",
-      "tool": "write_file",
-      "label": "Export transcripts",
-      "position_x": 620,
-      "position_y": 640,
-      "inputs": {},
-      "config": {
-        "output_dir": "",
-        "filename_template": "{doc_name}-transcript.{ext}",
-        "format": "txt",
-        "mode": "per_file"
-      }
-    },
-    {
       "id": "catalogue",
       "tool": "catalogue",
       "label": "Catalogue",
@@ -192,13 +178,6 @@
       "id": "e-aggregate-keywords",
       "source": "aggregate",
       "target": "keywords",
-      "source_port": "text",
-      "target_port": "text"
-    },
-    {
-      "id": "e-transcribe-export",
-      "source": "transcribe",
-      "target": "export",
       "source_port": "text",
       "target_port": "text"
     },

@@ -325,7 +325,10 @@ async def catalogue(
 
     # --- Path 1: claims already exist for this container -------------------
     # If extractors ran ahead of catalogue (composable workflow), use the
-    # rows they wrote instead of running a duplicate full-extraction pass.
+    # rows they wrote as additional context for the narrative paragraph.
+    # Note: data dict is no longer used to render structured markdown
+    # (per Daniel's "we don't need anything in the text" — body is just
+    # the paragraph). It's used only to surface entities to the LLM.
     data: dict[str, Any] | None = None
     if container and library_path:
         try:
@@ -334,9 +337,14 @@ async def catalogue(
             logger.warning(f"Catalogue: claim read failed ({exc}); falling through")
             data = None
         if data is not None:
-            data["resumen"] = await _generate_resumen(text, output_language, llm_config)
+            claim_context = _format_claims_as_context(data)
+            paragraph = await _generate_resumen(
+                text, output_language, llm_config, claim_context=claim_context
+            )
+            data["resumen"] = paragraph
             logger.info(
-                f"Catalogue: built from existing claims on {container.id}"
+                f"Catalogue: built from existing claims on {container.id} "
+                f"({len(claim_context)} chars of entity context)"
             )
 
     # --- Path 2: fallback — full extraction LLM call -----------------------
@@ -378,7 +386,13 @@ async def catalogue(
         # People / Extract Dates / etc. nodes in the composable workflow.
         markdown = raw
     else:
-        markdown = _render_markdown(data) if data else ""
+        # Path 1 (claims-derived): use only the LLM-generated paragraph
+        # stored under data["resumen"] as the catalogue body. The full
+        # 9-section markdown render is no longer used — Daniel: "we don't
+        # need anything in the text, it's already in the catalogue section".
+        # Per-entity data lives in the typed entity artifacts (which
+        # KnowledgeGraph tab renders) so duplicating it here is noise.
+        markdown = (data.get("resumen", "") if data else "") or ""
 
     # Save artifacts on the container document. Each section gets its own
     # artifact for the inspector's per-type rendering, plus one combined
@@ -393,23 +407,12 @@ async def catalogue(
             model = getattr(llm_config, "model", None)
             run_id = state.get("task_id")
 
-            # Per-section typed artifacts (only when we have parsed JSON,
-            # i.e. legacy claim-derived path). The new direct-markdown path
-            # leaves data=None and skips this loop — typed entities are
-            # produced by separate Extract nodes in the composable workflow.
-            if data is not None:
-                for section_type, section_data in _iter_section_artifacts(data):
-                    artifact = Artifact(
-                        document_id=container.id,
-                        artifact_type=section_type,
-                        content=section_data["content"],
-                        data=section_data.get("data"),
-                        provider=provider,
-                        model=model,
-                        run_id=run_id,
-                    )
-                    db.save(artifact)
-                    saved_artifact_ids.append(artifact.id)
+            # Per-section typed artifacts are NO longer written by the
+            # catalogue tool — the Extract* nodes (people_extract,
+            # places_extract, dates_extract, etc.) already wrote them
+            # before catalogue ran. Saving them here too produced
+            # duplicate artifacts that drifted out of sync with the
+            # extractor outputs. (composable workflow refactor)
 
             # Combined catalogue artifact with the full markdown — always
             # save so the user sees the headline catalogue entry.
@@ -637,24 +640,80 @@ def _build_data_from_claims(
     return data
 
 
+def _format_claims_as_context(data: dict[str, Any] | None) -> str:
+    """Render the claim-derived dict as inline context lines for the
+    catalogue prompt. The Extract* nodes already wrote KnowledgeClaim
+    rows; this surfaces them to the LLM so its narrative paragraph is
+    informed by typed entities (not just the raw transcripts).
+    Daniel: 'catalogue should take the output of all the previous ones
+    and add it together'.
+    """
+    if not data:
+        return ""
+    lines: list[str] = []
+    if people := data.get("personas_clave"):
+        names = [p.get("nombre", "") if isinstance(p, dict) else str(p) for p in people]
+        names = [n for n in names if n]
+        if names:
+            lines.append(f"People found: {', '.join(names)}")
+    if places := data.get("lugares"):
+        names = [p.get("nombre", "") if isinstance(p, dict) else str(p) for p in places]
+        names = [n for n in names if n]
+        if names:
+            lines.append(f"Places found: {', '.join(names)}")
+    if orgs := data.get("organizaciones"):
+        names = [o.get("nombre", "") if isinstance(o, dict) else str(o) for o in orgs]
+        names = [n for n in names if n]
+        if names:
+            lines.append(f"Organizations found: {', '.join(names)}")
+    if events := data.get("eventos_clave"):
+        descs = [e.get("evento", "") if isinstance(e, dict) else str(e) for e in events]
+        descs = [d for d in descs if d]
+        if descs:
+            lines.append("Events found:\n  - " + "\n  - ".join(descs))
+    if dates := data.get("fechas"):
+        bits = []
+        for d in dates:
+            if isinstance(d, dict):
+                f = d.get("fecha_normalizada") or d.get("fecha") or ""
+                if f:
+                    bits.append(f)
+        if bits:
+            lines.append(f"Dates found: {', '.join(bits)}")
+    if keywords := data.get("palabras_clave"):
+        kws = [str(k) for k in keywords if k]
+        if kws:
+            lines.append(f"Keywords: {'; '.join(kws)}")
+    return "\n".join(lines)
+
+
 async def _generate_resumen(
     text: str,
     output_language: str,
     llm_config: LLMConfig,
+    claim_context: str = "",
 ) -> str:
-    """Generate just the resumen narrative from the merged transcript.
+    """Generate the catalogue narrative paragraph from the merged transcript
+    plus optional typed-entity context surfaced from the Extract* nodes.
 
-    Tiny focused LLM call when we already have structured findings — the
-    model only writes the prose summary, doesn't re-extract entities.
-    Returns an empty string on failure (catalogue still ships with empty
-    resumen rather than refusing to save the structured findings).
+    When ``claim_context`` is provided (composable workflow path), the LLM
+    has both the raw transcripts and a structured summary of the entities
+    already extracted — produces a richer, more grounded paragraph than
+    transcripts alone. Returns empty string on failure.
     """
-    if not text:
+    if not text and not claim_context:
         return ""
+    context_block = (
+        f"\n\nExtracted entities (from prior workflow steps):\n{claim_context}\n"
+        if claim_context else ""
+    )
     prompt = (
-        f"Write a 150-300 word narrative resumen in {output_language} "
+        f"Write a 150-300 word narrative catalogue entry in {output_language} "
         f"summarizing the following document. Plain prose, no headers, "
-        f"no bullet points, no JSON.\n\n---\n{text}"
+        f"no bullet points, no JSON. Use the extracted entities listed below "
+        f"to ground the narrative in concrete names, places, and dates."
+        f"{context_block}"
+        f"\n\n---\nSource transcriptions:\n{text}"
     )
     try:
         response = await chat(
