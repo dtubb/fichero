@@ -85,8 +85,10 @@ class TestCatalogueWithExistingClaims:
                 llm_config,
             )
 
-        # At most ONE LLM call (for the resumen) — not the full extraction.
-        assert mock_chat.call_count <= 1, (
+        # Up to THREE LLM calls (narrative + timeline + keywords) — none of
+        # which is the legacy full-extraction call. Phase E split the single
+        # 9-section JSON call into three focused single-purpose calls.
+        assert mock_chat.call_count <= 3, (
             "catalogue should not run a full-extraction LLM call when claims "
             f"already exist; got {mock_chat.call_count} calls"
         )
@@ -129,5 +131,6 @@ class TestCatalogueWithExistingClaims:
                 llm_config,
             )
 
-        # Original behavior: one LLM call to extract everything.
-        assert mock_chat.call_count == 1
+        # Phase E: three focused single-purpose calls (narrative, timeline,
+        # keywords) replace the single 9-section JSON extraction call.
+        assert mock_chat.call_count == 3

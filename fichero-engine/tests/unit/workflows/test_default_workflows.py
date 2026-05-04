@@ -32,16 +32,16 @@ class TestLoadPresetFiles:
                 assert preset.get("nodes"), f"{preset['name']} has no nodes"
 
     def test_catalogue_preset_wiring(self):
+        """The single 0.0.2 Catalogue preset is the full composable pipeline:
+        Files → Transcribe → Aggregate → 6 extractors → merge → Catalogue.
+        (The earlier 'Catalogue (composable)' variant was merged into the
+        sole 'Catalogue' preset — runtime model picker replaces variants.)"""
         presets = {p["name"]: p for p in _load_preset_files()}
         catalogue = presets["Catalogue"]
 
-        node_tools = {n["id"]: n["tool"] for n in catalogue["nodes"]}
-        # Minimal 0.0.2 preset: Files → Transcribe (per file) → Catalogue.
-        # Additional extractors are available in the palette but not in the
-        # preset — users add them as needed. Visual fan-out / aggregate
-        # markers come in 0.0.3.
-        for tool in ("files", "transcribe", "catalogue"):
-            assert tool in node_tools.values(), f"preset missing {tool!r} node"
+        node_tools = {n["tool"] for n in catalogue["nodes"]}
+        for tool in ("files", "transcribe", "aggregate", "catalogue"):
+            assert tool in node_tools, f"preset missing {tool!r} node"
 
         # Edges use UI schema (source/target, source_port/target_port) so they
         # render in the workflow editor canvas.
@@ -49,79 +49,50 @@ class TestLoadPresetFiles:
             for key in ("source", "target", "source_port", "target_port"):
                 assert key in edge, f"edge missing {key!r}: {edge}"
 
-        # Transcribe flows into Catalogue via text/text.
+        # Transcribe → aggregate (per-page records flow downstream).
         transcribe_id = _node_id(catalogue, "transcribe")
-        catalogue_id = _node_id(catalogue, "catalogue")
-        cat_edge = next(
-            e for e in catalogue["edges"]
-            if e["source"] == transcribe_id and e["target"] == catalogue_id
-        )
-        assert cat_edge["source_port"] == "text"
-        assert cat_edge["target_port"] == "text"
+        aggregate_ids = [n["id"] for n in catalogue["nodes"] if n["tool"] == "aggregate"]
+        assert any(
+            e["source"] == transcribe_id and e["target"] in aggregate_ids
+            for e in catalogue["edges"]
+        ), "transcribe must flow into aggregate"
 
-    def test_catalogue_composable_has_final_catalogue_node(self):
-        """The composable preset must end with a catalogue node so the
-        workflow produces a unified Catalogue artifact, not just per-entity
-        outputs (#720)."""
+    def test_catalogue_has_final_catalogue_node_fed_by_merge(self):
+        """The preset must end with a catalogue node so the workflow produces
+        a unified Catalogue artifact, not just per-entity outputs (#720)."""
         presets = {p["name"]: p for p in _load_preset_files()}
-        composable = presets["Catalogue (composable)"]
+        catalogue = presets["Catalogue"]
 
-        node_tools = {n["id"]: n["tool"] for n in composable["nodes"]}
-        # The reducer node — produces the final container-level Catalogue
-        # artifact — must be present.
-        assert "catalogue" in node_tools.values(), (
-            "composable preset missing final 'catalogue' reducer node — "
-            "running the workflow without it produces only per-entity "
-            "artifacts and no unified catalogue (#720)"
-        )
+        node_tools = {n["tool"] for n in catalogue["nodes"]}
+        assert "catalogue" in node_tools
 
-        # And the merged transcripts must feed it (text/text).
-        aggregate_id = _node_id(composable, "aggregate")
-        catalogue_id = _node_id(composable, "catalogue")
-        edge = next(
-            (
-                e for e in composable["edges"]
-                if e["source"] == aggregate_id and e["target"] == catalogue_id
-            ),
-            None,
-        )
-        assert edge is not None, (
-            "aggregate → catalogue edge missing — final catalogue node "
-            "won't receive the merged transcripts"
-        )
-        assert edge["source_port"] == "text"
-        assert edge["target_port"] == "text"
+        # A merge/aggregate barrier feeds the final catalogue via text/text.
+        catalogue_id = _node_id(catalogue, "catalogue")
+        feeders = [
+            e for e in catalogue["edges"]
+            if e["target"] == catalogue_id and e["target_port"] == "text"
+        ]
+        assert feeders, "no edge feeds catalogue.text"
 
     def test_default_templates_have_folder_path_groups(self):
         """Templates ship with `folder_path` values so the Run Workflow
-        context menu can render them in submenus (#722). Catalogue
-        variants live under `/Catalogue`; Transcribe under `/Transcribe`.
-        Loose templates at `/` would show flat at the top of the menu —
-        none should ship at root today.
-        """
+        context menu can render them in submenus (#722)."""
         presets = {p["name"]: p for p in _load_preset_files()}
         expected = {
             "Transcribe": "/Transcribe",
             "Catalogue": "/Catalogue",
-            "Catalogue (composable)": "/Catalogue",
         }
         for name, expected_path in expected.items():
             assert name in presets, f"missing preset: {name}"
-            actual = presets[name].get("folder_path")
-            assert actual == expected_path, (
-                f"{name!r} has folder_path={actual!r}, expected {expected_path!r}"
-            )
+            assert presets[name].get("folder_path") == expected_path
 
-    def test_catalogue_composable_uses_generic_extractors(self):
-        """The composable preset uses six generic per-entity extractors
+    def test_catalogue_uses_generic_extractors(self):
+        """The Catalogue preset uses six generic per-entity extractors
         that produce individual artifacts in parallel. Archive-specific
-        extractors (rivers, mines, properties, legal_references) stay
-        registered as tools but are dropped from the default workflow
-        per #726 — users can drag them in for archival corpora."""
+        extractors stay registered as tools but are dropped from the default
+        workflow per #726."""
         presets = {p["name"]: p for p in _load_preset_files()}
-        composable = presets["Catalogue (composable)"]
-
-        node_tools = {n["tool"] for n in composable["nodes"]}
+        node_tools = {n["tool"] for n in presets["Catalogue"]["nodes"]}
         for extractor in (
             "people_extract",
             "places_extract",
@@ -131,24 +102,18 @@ class TestLoadPresetFiles:
             "keywords_extract",
         ):
             assert extractor in node_tools, (
-                f"composable preset missing generic extractor {extractor!r}"
+                f"Catalogue preset missing generic extractor {extractor!r}"
             )
 
-    def test_catalogue_composable_drops_archive_specific_extractors(self):
-        """Archive-specific extractors don't ship in the default composable
-        workflow (#726). They're still registered as tools — power users can
-        drag them in — but defaults stay generic for non-archival corpora."""
+    def test_catalogue_drops_archive_specific_extractors(self):
+        """Archive-specific extractors don't ship in the default workflow."""
         presets = {p["name"]: p for p in _load_preset_files()}
-        composable = presets["Catalogue (composable)"]
-        node_tools = {n["tool"] for n in composable["nodes"]}
+        node_tools = {n["tool"] for n in presets["Catalogue"]["nodes"]}
         archive_specific = {
             "rivers_extract", "mines_extract",
             "properties_extract", "legal_references_extract",
         }
-        assert not (archive_specific & node_tools), (
-            f"archive-specific extractors leaked into defaults: "
-            f"{archive_specific & node_tools}"
-        )
+        assert not (archive_specific & node_tools)
 
 
 def _node_id(preset: dict, tool: str) -> str:

@@ -36,20 +36,11 @@ class TestBuildPrompt:
         assert "English" in prompt
         assert "Spanish" not in prompt.split("\n\n")[0]
 
-    def test_schema_keys_are_present(self):
+    def test_prompt_asks_for_narrative_paragraph(self):
         prompt = _build_prompt("English")
-        for key in (
-            "resumen",
-            "palabras_clave",
-            "personas_clave",
-            "fechas",
-            "referencias_legales",
-            "rios",
-            "eventos_clave",
-            "minas",
-            "propiedades",
-        ):
-            assert key in prompt, f"schema key {key!r} missing from prompt"
+        # New prompt is a single archival paragraph, not a JSON schema
+        assert "paragraph" in prompt.lower()
+        assert "no headings" in prompt.lower() or "no bullet" in prompt.lower()
 
 
 # ---------------------------------------------------------------------------

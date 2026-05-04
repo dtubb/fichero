@@ -364,7 +364,6 @@ async def _apple_vision_dispatch(
     import base64
     import tempfile
     import os
-    from pathlib import Path
     from urllib.parse import urlparse
 
     model_id = (config.model or "").lower().strip()
