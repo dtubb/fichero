@@ -187,6 +187,48 @@
       "target": "catalogue",
       "source_port": "text",
       "target_port": "text"
+    },
+    {
+      "id": "e-people-catalogue",
+      "source": "people",
+      "target": "catalogue",
+      "source_port": "text",
+      "target_port": "people"
+    },
+    {
+      "id": "e-places-catalogue",
+      "source": "places",
+      "target": "catalogue",
+      "source_port": "text",
+      "target_port": "places"
+    },
+    {
+      "id": "e-organizations-catalogue",
+      "source": "organizations",
+      "target": "catalogue",
+      "source_port": "text",
+      "target_port": "organizations"
+    },
+    {
+      "id": "e-dates-catalogue",
+      "source": "dates",
+      "target": "catalogue",
+      "source_port": "text",
+      "target_port": "dates"
+    },
+    {
+      "id": "e-events-catalogue",
+      "source": "events",
+      "target": "catalogue",
+      "source_port": "text",
+      "target_port": "events"
+    },
+    {
+      "id": "e-keywords-catalogue",
+      "source": "keywords",
+      "target": "catalogue",
+      "source_port": "text",
+      "target_port": "keywords"
     }
   ],
   "config": {}

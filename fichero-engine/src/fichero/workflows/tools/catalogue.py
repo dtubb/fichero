@@ -68,7 +68,31 @@ CATALOGUE_INPUT_PORTS = merge_ports(
             data_type=DataType.TEXT,
             required=True,
             description="Aggregated transcription text from upstream step",
-        )
+        ),
+        # Optional inputs from upstream Extract* nodes. The catalogue tool
+        # already reads typed entities from the DB (Path 1 — KnowledgeClaim
+        # rows), but these explicit input ports let users wire the NER
+        # outputs into the catalogue node so the graph visibly shows the
+        # data flow. Wired in default presets; ignored at runtime if the
+        # claims path already hydrated the prompt context.
+        PortDef(id="people", name="People", port_type="input",
+                data_type=DataType.TEXT, required=False,
+                description="Optional: extracted people entities"),
+        PortDef(id="places", name="Places", port_type="input",
+                data_type=DataType.TEXT, required=False,
+                description="Optional: extracted place entities"),
+        PortDef(id="organizations", name="Organizations", port_type="input",
+                data_type=DataType.TEXT, required=False,
+                description="Optional: extracted organization entities"),
+        PortDef(id="dates", name="Dates", port_type="input",
+                data_type=DataType.TEXT, required=False,
+                description="Optional: extracted date entities"),
+        PortDef(id="events", name="Events", port_type="input",
+                data_type=DataType.TEXT, required=False,
+                description="Optional: extracted event entities"),
+        PortDef(id="keywords", name="Keywords", port_type="input",
+                data_type=DataType.TEXT, required=False,
+                description="Optional: extracted keyword entities"),
     ],
     BASE_INPUT_PORTS,
 )
