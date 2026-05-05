@@ -1249,3 +1249,87 @@ Verified end-to-end: `echo '{"prompt": "hello"}' | fm-bridge` → response, plus
 
 ### Deliberately not closed
 - **#695** (folder workflow run stores artifacts on folder) and **#720** (catalogue composable artifact emission) remain open. Task list says they're fixed but I couldn't find direct in-code evidence; safer to verify before closing than risk re-shipping broken behavior.
+
+## 2026-05-05 — Session Summary
+
+Catalogue pipeline shipped to per-page architecture + inspector V2 took
+the Finder Get Info shape Daniel asked for. 37 commits to origin/0.0.2.
+
+**Backend (catalogue / cleanup / extractors / transcribe):**
+- Phase E multi-output catalogue (#805): three focused LLM calls
+  (narrative + timeline + keywords) replace the legacy 9-section JSON
+  monolith. Idempotent reruns delete prior catalogue.* artifacts first.
+- Phase C/D per-section cleanup tools (#803, #804): 6 page_cleanup +
+  6 folder_cleanup tools, type-aware duplicate_rule per kind
+  (spelling-variant for people/places/orgs; same-incident for events;
+  same-subject for keywords; exact-string for dates). Title Case
+  post-processor on canonicals.
+- Catalogue prompt rewritten as evidentiary archival entry — treats
+  documents as primary sources, never adopts claims as fact ("the file
+  alleges X" not "X happened"). One ~150-word paragraph; no
+  presupposition of court-case genre.
+- All 6 NER extractor prompts rewritten — dropped "5-15 most important"
+  caps and "significant" filtering, added Title Case + evidentiary
+  verbs; places now includes rivers (rivers extractor isn't in default
+  preset); organisations expanded with court / ministry / prefectura /
+  alcaldía examples; events/dates use evidentiary phrasing.
+- Per-page extractor save: when records flow carries doc_ids, both the
+  cache lookup and the artifact save key on the page doc id, so each
+  file gets its own artifacts and reruns hit cache per-file (not just
+  per-folder). Falls back to container path when no records.
+- Page cleanup walks container's descendant docs directly (records'
+  doc_ids were unreliable mid-flight); writes <key>_clean artifacts
+  per page including dates.
+- Catalogue.json wiring fixed: transcribe.texts → aggregate.text
+  (per-file array, not concat string) + files-source.documents →
+  aggregate.documents so aggregate's records carry real doc_ids.
+- Apple Intelligence model dedup at startup. Closes #806 (was rendering
+  "Apple Intelligence" twice in the model picker).
+- Transcribe prompt: stricter — output ONLY the transcription, no
+  preamble / commentary / quality observations / repeated passages /
+  invented dates. [ilegible] inline; [sin texto] for empty images.
+- Apple Intelligence path bundled (PyObjC Vision + Quartz + Foundation
+  Models) — fixed missing fm-bridge binary in briefcase output, fixed
+  pyobjc-framework-Vision missing from app_packages, fixed Apple Vision
+  OCR ImportError on bundled Python.
+
+**Frontend (inspector V2 + KG):**
+- Tab order: Content / Knowledge Graph / Artifacts / Info — each tab
+  full pane height, Artifacts split out of Info.
+- Content tab: Page Content panel only.
+- Artifacts tab: editable artifact panels sorted with cleaned-pair
+  first within each base type, in a ScrollView so the inspector tab
+  bar stays pinned regardless of how many panels expand. Hides raw
+  extractor artifact when matching <key>_clean exists on the same doc.
+- KG inspector rewritten Finder Get Info-style: DisclosureGroup per
+  entity kind (open by default, persists choice), plain selectable
+  rows, no copy buttons / clipboard icons / click-to-copy actions.
+  Keywords render as wrapping pale-blue capsule lozenges via
+  FlowLayout.
+- KG dedup: skip claims pointing to merged entities (mergedIntoId set);
+  one row per canonical name even when multiple claims share it.
+- KG filter Menu: per-kind visibility toggles + Show All / Hide All,
+  persisted via @AppStorage. Keywords moved to top of display order.
+
+**Debug iteration speedups:**
+- Embed Fichero Engine script phase: skip entirely on Debug builds
+  (was wasting 10+s per build doing a cp -R of the briefcase bundle).
+- EmbeddedBackendService: skip orphan-engine SIGTERM in DEBUG (was
+  killing the developer's external engine on every Debug launch);
+  bumped external-backend probe from 2s to 5s; preview / playground
+  hosts skip the launch path entirely.
+- FicheroApp.init: skip AppInstaller modal + LibraryManager.restore
+  in preview / playground hosts.
+- Result: incremental Xcode build is ~1.5s, full launch under 5s end
+  to end.
+
+**Lint / minor (closes #807):**
+- DocumentInspectorArtifactsTab: drop dead `?? "(untitled)"` /
+  `?? ""` chains on non-optional claim.text.
+- ViewMenuCommands: `Selector("performFindPanelAction:")` →
+  `#selector(NSTextView.performFindPanelAction(_:))`.
+- SidebarView+ViewComponents: drop `try?` on non-throwing
+  `workflowStore.loadWorkflows()`.
+- EmbeddedBackendService: switch self-references to `Self.`.
+
+Tests: 332/332 workflow + 18/18 cleanup green.

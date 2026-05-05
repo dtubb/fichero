@@ -628,3 +628,27 @@ Provider types where `is_builtin: true` (today: only `apple`) don't require a ro
 
 ### SourceKit module-resolution false alarms
 SourceKit consistently fails to resolve `FicheroAPIClient` (the SwiftPM-generated module) and reports cascading "Cannot find type X" diagnostics across files that import it. The actual `xcodebuild` resolves the module fine and builds cleanly. Rule: trust `xcodebuild`'s exit code, not SourceKit's red squigglies, on Swift Package Manager modules. Don't waste time chasing SourceKit-only failures.
+
+### Per-page extractor cache must key on page doc id, not container
+Earlier extractors checked the cache once per (container, section, provider, model) tuple and returned the cached folder-level artifact even when called per-page. Result: claims accumulated on the folder doc, not on each file. Per-page records flow now keys cache lookup AND artifact save on the page doc id; falls back to container path only when records carry no doc_ids. Any future per-page tool that wants per-file artifacts needs the same shape.
+
+### Aggregate emits per-file records only when text+documents are paired
+`aggregate._coerce_records` zips `inputs["text"]` (LIST) with `inputs["documents"]` (LIST of {id, name, path}) by index. When upstream sends `text` as a concat STRING (default `transcribe.text` port), aggregate produces ONE record with empty doc_id, breaking every downstream tool that wants per-page provenance. The Catalogue preset wires `transcribe.texts` (plural array) → `aggregate.text` AND `files-source.documents` → `aggregate.documents` so records carry real doc_ids. Any new composable workflow needs both edges.
+
+### Embed Fichero Engine script must skip Debug
+Embedding the briefcase bundle on every Debug build wasted 10+ seconds of cp -R and competed with concurrent briefcase rebuilds (race left half-copied bundles). Debug developers run the engine externally; the in-process EmbeddedBackendService probes :8765 first and uses whatever's there. The Embed phase script now `exit 0`s on `CONFIGURATION != "Release"`. Don't re-enable for Debug.
+
+### EmbeddedBackendService never SIGTERMs in Debug
+`terminateOrphanEngines()` was indiscriminately killing any process matching "Fichero Engine.app/Contents/MacOS" — including the developer's externally-launched engine on every Debug app launch. Now `#if !DEBUG` around the orphan sweep. Also bumped DEBUG external-backend probe from 2s → 5s so the connect doesn't race a freshly-started external engine and fall through to the embedded path.
+
+### SwiftUI Previews launch the entire host app
+There is no isolated preview server on macOS. `#Preview` macros build + launch `Fichero.app`, then evaluate the preview block inside the live process. Any blocking work in `FicheroApp.init` (modal alerts, DB opens, file IO) hangs the 30s preview launch timeout. Gate those behind `XCODE_RUNNING_FOR_PREVIEWS == "1" || XCODE_RUNNING_FOR_PLAYGROUNDS == "1"` (Apple sets the latter for the preview executor). Don't leave heavy startup uncon­ditional.
+
+### SPM previews not worth it for app-coupled views
+Briefly extracted KG preview views into a Swift Package to get sub-3s previews. Shelved because: (a) views referencing FicheroAPIClient types can't import cleanly from outside the app, (b) the SPM duplicate would drift, and (c) after the Embed-skip + preview-mode short-circuits landed, regular `xcodebuild` + relaunch is ~5s end to end — fast enough that the SPM upkeep cost outweighs the second-or-two gain. Default to xcodebuild MCP `BuildProject` + `open <bundle>` instead.
+
+### KG inspector: Finder Get Info, not chips with click-actions
+First pass made entity rows clickable buttons that copied to pasteboard, with a clipboard icon affordance. Daniel rejected this as "not Mac OS X style" — clicking should never trigger an action; copying is `⌘C` on selected text via `.textSelection(.enabled)`. Each entity kind is a `DisclosureGroup` (open by default, persisted via `@AppStorage` "inspector.kg.expandedKinds"), rows are plain selectable Text. Only keywords get the lozenge treatment — they're short tag-like strings, naturally suited to capsule chips wrapped via FlowLayout.
+
+### Apple model dedup: collapse by model_id at startup
+`_seed_builtin_providers` now dedupes Apple models by `model_id` BEFORE seeding (keeps the row with the richest capabilities, deletes the rest). Earlier code only checked `model_id not in existing` before inserting — which prevented NEW duplicates but never cleaned up rows that were inserted by a previous code version. Same pattern (one-shot dedup at boot, then guard the insert) applies to any future built-in seed.
