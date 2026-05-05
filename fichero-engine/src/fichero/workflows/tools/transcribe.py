@@ -62,32 +62,50 @@ TRANSCRIBE_CONFIG = {
 
 
 def _build_prompt(language: str, return_boxes: bool) -> str:
-    """Build the transcription prompt."""
-    prompt = f"""Extract and transcribe all text from this image.
+    """Build the transcription prompt.
+
+    Archival principle: transcribe what is on the page, nothing more. The
+    extractors and catalogue downstream do the interpretation; this tool's
+    only job is to produce the raw text faithfully. Letting the model add
+    "notes" or "summaries" pollutes downstream extraction with hallucinated
+    or duplicated content.
+    """
+    prompt = f"""Transcribe the text visible on this image.
 
 Language: {language}
 
-Instructions:
-- Preserve the original text layout and structure
-- Include all visible text, including headers, labels, and annotations
-- If text is handwritten, transcribe as accurately as possible
-- If text is unclear, indicate with [unclear]
-- Maintain paragraph breaks and list formatting
+Rules:
+- Output ONLY the transcription. No headings, no preamble, no commentary,
+  no summary, no notes, no explanations, no observations about quality or
+  legibility, no descriptions of seals or images, no language about the
+  difficulty of the handwriting.
+- Preserve original layout, line breaks, and paragraph structure.
+- Preserve original spelling and capitalisation, including ALL CAPS
+  headers if they appear that way.
+- Include every visible text element — headers, body, marginalia, stamps,
+  signatures (transcribe the signed name as written), printed labels,
+  handwritten annotations.
+- For text you cannot confidently read, write [ilegible] inline at that
+  position. Do not guess. Do not fill in.
+- Do NOT invent dates, numbers, names, or words that are not legibly
+  present. Do not normalise dates ("23/7/1999" stays "23/7/1999", not
+  "1999-07-23").
+- Do NOT repeat any portion of the transcription. Output each visible
+  passage exactly once.
+- If the image contains no legible text, output the single token
+  [sin texto].
 """
 
     if return_boxes:
         prompt += """
-Additionally, provide bounding box coordinates for each text region in JSON format:
+Additionally, return bounding box coordinates as JSON:
 {
     "text": "transcribed text here",
     "boxes": [
-        {"text": "...", "x": 0, "y": 0, "width": 100, "height": 20},
-        ...
+        {"text": "...", "x": 0, "y": 0, "width": 100, "height": 20}
     ]
 }
 """
-    else:
-        prompt += "\nOutput only the transcribed text."
 
     return prompt
 

@@ -495,7 +495,7 @@ struct ShowFindBarButton: View {
             let item = NSMenuItem()
             item.tag = Int(NSFindPanelAction.showFindPanel.rawValue)
             NSApp.sendAction(
-                Selector(("performFindPanelAction:")),
+                #selector(NSTextView.performFindPanelAction(_:)),
                 to: nil,
                 from: item
             )

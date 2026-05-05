@@ -115,7 +115,39 @@ def _seed_builtin_providers() -> None:
         # Seed built-in models for the Apple provider so Settings → Defaults
         # has something to pick. Without this, picking Apple as Audio (or
         # any other) provider leaves Model dropdown empty. (#762)
+        #
+        # Dedup: collapse any pre-existing duplicates by model_id BEFORE
+        # seeding. Earlier code shipped two rows with model_id="apple-
+        # intelligence" — one with empty capabilities and one with
+        # ["text"]. Settings' model picker rendered both as "Apple
+        # Intelligence" (#806). Keep the row with the richest capabilities
+        # set; delete the others.
         if apple_provider is not None:
+            existing = list(app_db.list_models(apple_provider.id))
+            from collections import defaultdict
+            by_model_id: dict[str, list] = defaultdict(list)
+            for m in existing:
+                by_model_id[m.model_id].append(m)
+            for model_id, rows in by_model_id.items():
+                if len(rows) <= 1:
+                    continue
+                # Pick the row with the most capabilities as canonical;
+                # tie-break on earliest created_at for stability.
+                rows.sort(key=lambda r: (-len(r.capabilities or []),
+                                         r.created_at or 0))
+                keep = rows[0]
+                for dup in rows[1:]:
+                    try:
+                        app_db.delete_model(dup.id)
+                        logger.info(
+                            "Collapsed duplicate Apple model %s (%s) — kept %s",
+                            dup.name, dup.id, keep.id,
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            "Could not delete duplicate model %s: %s", dup.id, exc
+                        )
+
             existing_model_ids = {
                 m.model_id for m in app_db.list_models(apple_provider.id)
             }

@@ -223,7 +223,7 @@
     {
       "id": "merge_extracts",
       "tool": "aggregate",
-      "label": "Wait for cleanups",
+      "label": "Combine all per-section outputs",
       "position_x": 1500,
       "position_y": 400,
       "inputs": {},
@@ -256,7 +256,7 @@
       "id": "e-transcribe-aggregate",
       "source": "transcribe",
       "target": "aggregate",
-      "source_port": "text",
+      "source_port": "texts",
       "target_port": "text"
     },
     {
@@ -524,6 +524,13 @@
       "target": "merge_extracts",
       "source_port": "text",
       "target_port": "text"
+    },
+    {
+      "id": "e-files-aggregate-documents",
+      "source": "files-source",
+      "target": "aggregate",
+      "source_port": "documents",
+      "target_port": "documents"
     }
   ],
   "config": {}

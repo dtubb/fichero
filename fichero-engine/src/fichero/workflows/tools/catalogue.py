@@ -131,36 +131,39 @@ def _build_prompt(output_language: str) -> str:
     Output is markdown (no JSON intermediary) since Daniel's mental model
     is "just give me the catalogue entry, not a data structure to render".
     """
-    return f"""You are writing a catalogue entry for an archival document or
-collection. You receive the aggregated transcriptions (possibly across many
-pages or files).
+    return f"""You are writing an archival catalogue entry for a SET of
+documents that constitute a primary source. The file may be a court
+case, but it may equally be correspondence, a ledger, a deed series,
+a report, a register, photographs, or any other archival material.
+Don't presuppose its genre.
 
-Focus on documenting WHAT IS IN THE DOCUMENTS, not analysis or interpretation.
-Use ALL available information to write the most accurate entry possible.
+Your job is to describe what the documents CONTAIN, not to retell their
+contents as historical truth. Documents make claims; people allege
+things, sign things, write things, record things. You report the
+existence of those claims, never adopt them.
 
-Write ONE rich narrative paragraph in the style of an archival finding-aid
-abstract. Pack it with concrete facts: full names of the principal actors,
-exact dates, place names, organizations involved, the chain of events, and
-the documented outcomes. Read like a scholar summarising the case file —
-not generic ("the documents discuss legal matters") but specific ("on the
-night of 23-24 August 1922 the dredge No. 1 of the Compañía Minera Chocó
-Pacífico sank in the río Condoto near Bazán island, leading to a judicial
-investigation that eventually..."). Aim for 150-300 words. Paragraph form
-only. No headings, no bullet lists, no section labels — the artifact is
-labeled "Catalogue" in the inspector chrome and per-entity data (People,
-Places, Dates, Events) is produced by separate extractor nodes shown in
-the Knowledge Graph tab, so duplicating that structure here would just be
-two copies of the same data drifting out of sync.
+Write ONE paragraph of approximately 150 words in {output_language}. Cover,
+where the material supports it:
+- The principal people, organisations, places, and dates named in the
+  file, and the role each plays as the documents present it.
+- The subject matter the file is about — the dispute, transaction,
+  exchange, event, observation, or record being documented — framed in
+  evidentiary language ("the file contains...", "X writes that...",
+  "the document records...", "the testimony of Y states...", "the
+  ledger shows...", "the deed bears the signature of...").
 
-Rules:
-- Write in {output_language}.
-- Only include facts supported by the text. Do not speculate. Do not
-  invent details.
-- Preserve exact spelling of names, capitalize properly.
-- Do not include your own analysis or commentary.
-
-Return ONLY the paragraph. No surrounding prose, no headings, no code
-fences."""
+Strict rules:
+- Do NOT assert any claim as fact. Use evidentiary verbs: contains,
+  records, states, alleges, claims, testifies, asserts, writes, names,
+  appears, is described as, is reported to have, bears the signature
+  of. Avoid: happened, was, did, occurred, sank, signed (without
+  attribution).
+- Do NOT add interpretation, motive, significance, theme, or background
+  context the file itself does not state.
+- Do NOT invent facts, dates, names, or events the documents do not
+  contain.
+- Preserve original spelling and capitalisation of names.
+- One paragraph, no headings, no lists, no JSON, no code fences."""
 
 
 def build_catalogue_prompt(config: dict) -> str:

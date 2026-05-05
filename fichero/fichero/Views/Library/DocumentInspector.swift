@@ -14,6 +14,7 @@ import SwiftUI
 enum InspectorTab: String, CaseIterable, Identifiable {
     case content = "Content"
     case knowledgeGraph = "Knowledge Graph"
+    case artifacts = "Artifacts"
     case info = "Info"
 
     var id: String { rawValue }
@@ -22,6 +23,7 @@ enum InspectorTab: String, CaseIterable, Identifiable {
         switch self {
         case .content: return "doc.text"
         case .knowledgeGraph: return "point.3.connected.trianglepath.dotted"
+        case .artifacts: return "shippingbox"
         case .info: return "info.circle"
         }
     }
@@ -83,7 +85,7 @@ struct DocumentInspector: View {
             // Knowledge Graph + Info wrap in ScrollView since they're static SwiftUI views.
             switch selectedTab {
             case .content:
-                DocumentInspectorContentV2(document: doc)
+                DocumentInspectorContentV2(document: doc, mode: .pageContentOnly)
             case .knowledgeGraph:
                 ScrollView {
                     KnowledgeGraphInspectorSection(
@@ -92,6 +94,8 @@ struct DocumentInspector: View {
                     )
                     .padding()
                 }
+            case .artifacts:
+                DocumentInspectorContentV2(document: doc, mode: .artifactsOnly)
             case .info:
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
@@ -99,7 +103,6 @@ struct DocumentInspector: View {
                         if !doc.metadata.isEmpty || doc.path != nil {
                             DocumentInspectorMetadataTab(document: doc)
                         }
-                        DocumentInspectorArtifactsTab(documentId: doc.id)
                         Spacer()
                     }
                     .padding()
@@ -382,7 +385,14 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
         }
-        .frame(maxHeight: isExpanded ? .infinity : nil)
+        // Sizing: the AttributedTextEditor (NSTextView) has no SwiftUI
+        // intrinsic height. Without a min, expanding a panel collapses
+        // its content to 0pt and the panel becomes a header-only sliver
+        // (Daniel feedback 2026-05-05: "the height was 0"). We give it a
+        // sensible expanded floor (~5 visible lines) and let the editor
+        // grow taller when content needs more room. Collapsed panels
+        // have no frame and shrink to header height (~30 px).
+        .frame(minHeight: isExpanded ? 120 : nil)
         .onChange(of: isExpanded) { _, newValue in
             // Persist the user's choice so it carries across documents
             // and across app launches. See `storageKey(for:)` for keying.
@@ -712,7 +722,18 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
 /// we re-fetch artifacts when the document selection or workflow events
 /// change, full stop. See docs/architecture/swiftui/inspector_redesign.md.
 struct DocumentInspectorContentV2: View {
+    /// Which panels to render. The Content tab shows only the document's
+    /// page content (the source text), Artifacts shows only the generated
+    /// artifacts. `.all` keeps the original combined behaviour for any
+    /// caller that still wants both.
+    enum Mode {
+        case all
+        case pageContentOnly
+        case artifactsOnly
+    }
+
     let document: Document
+    var mode: Mode = .all
 
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
     @EnvironmentObject private var documentService: DocumentServiceGenerated
@@ -725,17 +746,29 @@ struct DocumentInspectorContentV2: View {
     @State private var actionError: String?
 
     var body: some View {
-        // Equal-divide panels: 1 fills, 2 split half, 3 split third, etc.
-        // Panel sizing rule (see ArtifactPanel.body): expanded panels flex
-        // to fill remaining space and split it equally among themselves;
-        // collapsed panels shrink to their header height. The VStack lives
-        // directly in the inspector pane (no ScrollView wrapper) so that
-        // .frame(maxHeight: .infinity) inside expanded panels actually
-        // resolves against the inspector's bounded height. Each expanded
-        // panel's content (the text editor) scrolls internally if its text
-        // exceeds the panel's allotted height.
-        panelStack(spacing: 8)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // Two layout modes:
+        //
+        // .pageContentOnly — exactly one panel (Page Content). Use a
+        // direct flex layout so the editor expands to fill the inspector
+        // pane height. No ScrollView (the editor manages its own scroll).
+        //
+        // .all / .artifactsOnly — many panels (transcription, catalogue,
+        // people, places, etc.). Each panel reserves at least 100pt; with
+        // 13+ panels the stack overflows the inspector — wrap in
+        // ScrollView so the user can scroll through them. Without the
+        // wrapper the overflow pushed sibling chrome (the inspector's
+        // own tab bar) offscreen.
+        Group {
+            if mode == .pageContentOnly {
+                panelStack(spacing: 8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            } else {
+                ScrollView {
+                    panelStack(spacing: 8)
+                        .frame(maxWidth: .infinity, alignment: .top)
+                }
+            }
+        }
         .task(id: document.id) {
             await loadArtifacts()
         }
@@ -761,42 +794,39 @@ struct DocumentInspectorContentV2: View {
                 errorBox(actionError)
             }
 
-            // Page Content comes first — it's the source text the artifacts
-            // were generated from, so it anchors the top of the stack.
-            // Always rendered (even when empty) so users can write notes for
-            // folders or backfill text for docs whose extraction yielded
-            // nothing — every item should be note-able.
-            // No `onDelete:` (or `.frame(height:)`) — Page Content is a
-            // Document field, not a deletable artifact, and panels size
-            // to their own content so collapsed disclosures shrink to
-            // their header rather than holding equal-divide height.
-            ArtifactPanel(
-                kind: .pageContent(text: document.pageContent ?? ""),
-                onSave: { newContent in
-                    await savePageContent(newContent)
-                }
-            )
-
-            ForEach(sortedArtifacts) { artifact in
+            // Page Content panel — only when the mode wants it. The Content
+            // tab shows just this so the user can edit / type notes against
+            // the source text without artifact noise; the Artifacts tab
+            // suppresses it so the panel list is purely workflow output.
+            if mode != .artifactsOnly {
                 ArtifactPanel(
-                    kind: .artifact(artifact),
-                    // Generated artifacts (Transcription, Catalogue, etc.)
-                    // start collapsed so the inspector reads as a list of
-                    // headers; users expand the one they want. Page Content
-                    // above stays expanded because it's the source text.
-                    defaultExpanded: false,
-                    onDelete: { Task { await deleteArtifact(artifact) } },
+                    kind: .pageContent(text: document.pageContent ?? ""),
                     onSave: { newContent in
-                        await saveArtifact(artifact, content: newContent)
+                        await savePageContent(newContent)
                     }
                 )
             }
 
-            // Hint shown when no generated artifacts exist. Page Content
-            // panel always renders above (so users can add notes directly),
-            // so this hint is purely about workflows now.
-            if !isLoading && sortedArtifacts.isEmpty && loadError == nil {
-                emptyState
+            // Generated artifacts — only when the mode wants them. Each one
+            // is editable (RTF round-trips, auto-save) and deletable.
+            if mode != .pageContentOnly {
+                ForEach(sortedArtifacts) { artifact in
+                    ArtifactPanel(
+                        kind: .artifact(artifact),
+                        // Start collapsed so the inspector reads as a list
+                        // of headers; users expand the one they want.
+                        defaultExpanded: false,
+                        onDelete: { Task { await deleteArtifact(artifact) } },
+                        onSave: { newContent in
+                            await saveArtifact(artifact, content: newContent)
+                        }
+                    )
+                }
+
+                // Hint shown when no generated artifacts exist.
+                if !isLoading && sortedArtifacts.isEmpty && loadError == nil {
+                    emptyState
+                }
             }
 
             if isLoading && artifacts.isEmpty {
@@ -853,7 +883,27 @@ struct DocumentInspectorContentV2: View {
     // MARK: - Data
 
     private var sortedArtifacts: [Artifact] {
-        artifacts.sorted { $0.createdAt > $1.createdAt }
+        // Group raw + cleaned pairs together (people / people_clean,
+        // keywords / keywords_clean) by base type, with the *_clean entry
+        // first within each pair (the cleaned canonical view is the
+        // authoritative one; raw is the per-page substrate that
+        // generated it). Within the same exact type, newer first —
+        // useful when multiple model runs of the same type exist.
+        artifacts.sorted {
+            let aBase = baseType(of: $0.artifactType)
+            let bBase = baseType(of: $1.artifactType)
+            if aBase != bBase { return aBase < bBase }
+            let aClean = $0.artifactType.hasSuffix("_clean")
+            let bClean = $1.artifactType.hasSuffix("_clean")
+            if aClean != bClean { return aClean }
+            return $0.createdAt > $1.createdAt
+        }
+    }
+
+    private func baseType(of artifactType: String) -> String {
+        artifactType.hasSuffix("_clean")
+            ? String(artifactType.dropLast("_clean".count))
+            : artifactType
     }
 
     private var panelCount: Int {

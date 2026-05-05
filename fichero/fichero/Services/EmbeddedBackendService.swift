@@ -25,15 +25,46 @@ final class EmbeddedBackendService: ObservableObject {
 
     /// Start the embedded backend
     func start() async throws {
+        // SwiftUI Previews / Xcode canvas: never spawn the embedded engine.
+        // Previews launch the full app to render a view — orphan-cleanup
+        // would SIGTERM the developer's external engine, and the briefcase
+        // cold-start (~25s) blows past the 30s preview launch timeout.
+        // Try a quick connect to a developer-managed external engine; if
+        // one is up, use it; otherwise mark as running (with no backend)
+        // so preview rendering doesn't block. Mocked previews don't hit
+        // the API anyway.
+        let env = ProcessInfo.processInfo.environment
+        let isPreview = env["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+            || env["XCODE_RUNNING_FOR_PLAYGROUNDS"] == "1"
+        if isPreview {
+            logger.info("Preview / playground host — connecting to external if up, else no-op")
+            do {
+                try await waitForBackend(timeout: 1.5)
+                status = .running
+                isExternalBackend = true
+                logger.info("✅ Preview connected to external backend")
+            } catch {
+                logger.info("No external backend; preview canvas runs without backend")
+                status = .running
+                isExternalBackend = true
+            }
+            return
+        }
+
         logger.info("Starting embedded backend...")
         status = .starting
 
         #if DEBUG
-        // Development mode: connect to external backend if running, skip embedded launch
+        // Development mode: connect to external backend if running, skip
+        // embedded launch. 5s window because a freshly-started external
+        // engine may still be in cold-start when Fichero.app launches in
+        // a paired-debug session — 2s was tight enough to miss it and
+        // fall through to embedded launch (which kills the developer's
+        // engine on the way up).
         logger.info("DEBUG mode: Checking for external backend on port 8765")
 
         do {
-            try await waitForBackend(timeout: 2)
+            try await waitForBackend(timeout: 5)
             status = .running
             isExternalBackend = true
             logger.info("✅ Connected to external backend (will not manage lifecycle)")
@@ -136,12 +167,21 @@ final class EmbeddedBackendService: ObservableObject {
             throw BackendError.backendAppNotFound
         }
 
-        // Defensive cleanup: if a previous Fichero was SIGKILL'd (or crashed
-        // without applicationWillTerminate firing), the engine subprocess is
-        // an orphan still bound to port 8765. Sweep it before spawning ours,
-        // otherwise our spawn will fail with "Address already in use".
-        EmbeddedBackendService.terminateOrphanEngines()
-        EmbeddedBackendService.waitForPortToClear(8765, timeout: 3.0)
+        // Defensive cleanup ONLY in RELEASE: if a previous Fichero was
+        // SIGKILL'd (or crashed without applicationWillTerminate firing),
+        // the engine subprocess is an orphan still bound to port 8765.
+        // Sweep it before spawning ours, otherwise our spawn will fail
+        // with "Address already in use".
+        //
+        // Skip in DEBUG: the developer often runs the engine externally
+        // (uvicorn, briefcase dev, etc.). The `start()` external-probe
+        // above should have caught that, but if for any reason we ended
+        // up here in DEBUG, we still must not SIGTERM the developer's
+        // engine — that would silently kill their workflow runs.
+        #if !DEBUG
+        Self.terminateOrphanEngines()
+        Self.waitForPortToClear(8765, timeout: 3.0)
+        #endif
 
         logger.info("Launching backend process: \(executablePath)")
 

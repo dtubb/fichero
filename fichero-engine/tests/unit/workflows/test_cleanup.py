@@ -37,29 +37,53 @@ class TestRegistration:
         assert "places_folder_cleanup" in folder_tools
 
 
+_PEOPLE_CFG = {
+    "key": "people",
+    "display": "People",
+    "noun": "person",
+    "duplicate_rule": "Two entries refer to the same person if names match.",
+}
+_PLACES_CFG = {
+    "key": "places",
+    "display": "Places",
+    "noun": "place",
+    "duplicate_rule": "Two entries refer to the same place if spelling variants.",
+}
+_ORGS_CFG = {
+    "key": "organizations",
+    "display": "Organizations",
+    "noun": "organisation",
+    "duplicate_rule": "Two entries refer to the same organisation if abbreviations.",
+}
+
+
 class TestBuildCleanupPrompt:
     def test_includes_all_names_numbered(self):
-        prompt = _build_cleanup_prompt("People", ["Don Mateo", "D. Mateo"])
+        prompt = _build_cleanup_prompt(_PEOPLE_CFG, ["Don Mateo", "D. Mateo"])
         assert "1. Don Mateo" in prompt
         assert "2. D. Mateo" in prompt
 
     def test_asks_for_groups_json_shape(self):
-        prompt = _build_cleanup_prompt("Places", ["Cali"])
+        prompt = _build_cleanup_prompt(_PLACES_CFG, ["Cali"])
         assert "groups" in prompt
         assert "canonical" in prompt
         assert "aliases" in prompt
 
     def test_lower_cased_display_in_body(self):
-        prompt = _build_cleanup_prompt("Organizations", ["X", "Y"])
-        # Display goes through .lower() in the prompt body
+        prompt = _build_cleanup_prompt(_ORGS_CFG, ["X", "Y"])
+        # type_cfg["display"].lower() = "organizations"
         assert "organizations" in prompt
+
+    def test_includes_per_type_duplicate_rule(self):
+        prompt = _build_cleanup_prompt(_PEOPLE_CFG, ["A", "B"])
+        assert _PEOPLE_CFG["duplicate_rule"] in prompt
 
 
 class TestAskLLMToDedupe:
     @pytest.mark.asyncio
     async def test_empty_input_returns_empty(self):
         cfg = MagicMock()
-        result = await _ask_llm_to_dedupe("People", [], cfg)
+        result = await _ask_llm_to_dedupe(_PEOPLE_CFG, [], cfg)
         assert result == []
 
     @pytest.mark.asyncio
@@ -69,7 +93,7 @@ class TestAskLLMToDedupe:
             "fichero.workflows.tools.cleanup.chat",
             new=AsyncMock(),
         ) as mock_chat:
-            result = await _ask_llm_to_dedupe("People", ["Solo"], cfg)
+            result = await _ask_llm_to_dedupe(_PEOPLE_CFG, ["Solo"], cfg)
         mock_chat.assert_not_called()
         assert result == [{"canonical": "Solo", "aliases": []}]
 
@@ -87,7 +111,7 @@ class TestAskLLMToDedupe:
             ),
         ):
             result = await _ask_llm_to_dedupe(
-                "People", ["Don Mateo", "D. Mateo", "Don Mateo Restrepo"], cfg
+                _PEOPLE_CFG, ["Don Mateo", "D. Mateo", "Don Mateo Restrepo"], cfg
             )
         assert result == [
             {"canonical": "Don Mateo Restrepo", "aliases": ["Don Mateo", "D. Mateo"]}
@@ -101,7 +125,7 @@ class TestAskLLMToDedupe:
             "fichero.workflows.tools.cleanup.chat",
             new=AsyncMock(return_value=fenced),
         ):
-            result = await _ask_llm_to_dedupe("People", ["X", "Y"], cfg)
+            result = await _ask_llm_to_dedupe(_PEOPLE_CFG, ["X", "Y"], cfg)
         assert result == [{"canonical": "X", "aliases": []}]
 
     @pytest.mark.asyncio
@@ -111,7 +135,7 @@ class TestAskLLMToDedupe:
             "fichero.workflows.tools.cleanup.chat",
             new=AsyncMock(return_value="not json"),
         ):
-            result = await _ask_llm_to_dedupe("People", ["A", "B"], cfg)
+            result = await _ask_llm_to_dedupe(_PEOPLE_CFG, ["A", "B"], cfg)
         assert result == []
 
     @pytest.mark.asyncio
@@ -121,7 +145,7 @@ class TestAskLLMToDedupe:
             "fichero.workflows.tools.cleanup.chat",
             new=AsyncMock(side_effect=RuntimeError("oom")),
         ):
-            result = await _ask_llm_to_dedupe("People", ["A", "B"], cfg)
+            result = await _ask_llm_to_dedupe(_PEOPLE_CFG, ["A", "B"], cfg)
         assert result == []
 
     @pytest.mark.asyncio
@@ -138,7 +162,7 @@ class TestAskLLMToDedupe:
                 )
             ),
         ):
-            result = await _ask_llm_to_dedupe("People", ["A", "B"], cfg)
+            result = await _ask_llm_to_dedupe(_PEOPLE_CFG, ["A", "B"], cfg)
         assert result == [{"canonical": "Real", "aliases": []}]
 
 

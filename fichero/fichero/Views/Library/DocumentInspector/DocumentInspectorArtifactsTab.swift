@@ -13,7 +13,20 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
     @State private var expandedArtifactTypes: Set<String> = []
 
     var body: some View {
-        let visibleArtifacts = artifacts.filter { !shouldHideArtifactType($0.artifactType) }
+        // Hide the raw extractor artifact when a `<key>_clean` exists on the
+        // same doc — the cleaned version is the canonical view, the raw one
+        // is just a per-page debug substrate. Show raw only when cleanup
+        // hasn't run yet (no _clean present).
+        let cleanedTypes = Set(
+            artifacts
+                .map(\.artifactType)
+                .filter { $0.hasSuffix("_clean") }
+                .map { String($0.dropLast("_clean".count)) }
+        )
+        let visibleArtifacts = artifacts.filter {
+            !shouldHideArtifactType($0.artifactType)
+                && !cleanedTypes.contains($0.artifactType)
+        }
 
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -169,16 +182,16 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
                 .help("Save to file…")
             }
 
-            // Content preview — longer line limit for catalogue-scale artifacts
-            // (summary/narrative), tight limit for list-style artifacts where
-            // the structured data rendering below carries the real content.
-            // RTF source ({\rtf1...}) is decoded to its plain projection so
-            // the Info tab doesn't dump raw markup at the user.
+            // Content preview — when the type's section is expanded, render
+            // the full text at its natural height so the whole artifact is
+            // readable (the parent inspector scrolls). Truncating the
+            // narrative to 10 lines or list previews to 3 hides exactly the
+            // content the user just clicked to see. RTF source ({\rtf1...})
+            // is decoded so the Info tab doesn't dump raw markup.
             if let content = artifact.content, !content.isEmpty {
                 Text(plainProjection(of: content))
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .lineLimit(lineLimitForArtifactType(artifact.artifactType))
                     .padding(6)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color(.textBackgroundColor))
@@ -212,18 +225,6 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
             return content
         }
         return attr.string
-    }
-
-    private func lineLimitForArtifactType(_ type: String) -> Int {
-        switch type {
-        case "catalogue", "summary":
-            return 10  // narrative — give it room
-        case "people", "dates", "rivers", "events",
-             "legal_references", "mines", "properties":
-            return 3   // preview; structured view below carries the real list
-        default:
-            return 4
-        }
     }
 
     // MARK: - Structured Preview Router
@@ -265,7 +266,6 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
                         Text(array.joined(separator: ", "))
                             .font(.caption2)
                             .foregroundColor(.primary)
-                            .lineLimit(2)
                     }
                 }
             }
@@ -431,7 +431,6 @@ enum CatalogueArtifactPreviews {
                                 Text(context)
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
-                                    .lineLimit(3)
                             }
                         }
                     }
@@ -461,7 +460,6 @@ enum CatalogueArtifactPreviews {
                             Text(context)
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
-                                .lineLimit(3)
                         }
                     }
                 }
@@ -494,7 +492,6 @@ enum CatalogueArtifactPreviews {
                             Text(context)
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
-                                .lineLimit(2)
                         }
                     }
                 }
@@ -541,22 +538,67 @@ struct KnowledgeGraphInspectorSection: View {
     @State private var isLoading = false
     @State private var loadError: String?
 
+    /// Comma-joined raw values of EntityKinds the user has hidden from the
+    /// KG list. Persisted across launches so the filter survives restarts.
+    /// Default: all kinds visible.
+    @AppStorage("inspector.kg.hiddenKinds") private var hiddenKindsCSV: String = ""
+
+    private var hiddenKinds: Set<EntityKind> {
+        Set(
+            hiddenKindsCSV
+                .split(separator: ",")
+                .compactMap { EntityKind(rawValue: String($0)) }
+        )
+    }
+
+    private func setHidden(_ kind: EntityKind, hidden: Bool) {
+        var set = hiddenKinds
+        if hidden { set.insert(kind) } else { set.remove(kind) }
+        hiddenKindsCSV = set.map(\.rawValue).sorted().joined(separator: ",")
+    }
+
     private var grouped: [(EntityKind, [GroupedItem])] {
         var byKind: [EntityKind: [GroupedItem]] = [:]
+        // Dedupe within a kind by canonical key. Folder cleanup leaves
+        // multiple claims referencing the same canonical entity, plus
+        // absorbed entities still carry their old claims — we collapse
+        // both into one row per canonical name (or per claim text for
+        // date-only claims that have no entity).
+        var seenKey: [EntityKind: Set<String>] = [:]
         for claim in claims {
             let entityId = claim.entityIds?.first
             let entity = entityId.flatMap { entitiesById[$0] }
+
+            // Skip absorbed entities — folder_cleanup merged them into a
+            // canonical, but the original claims still exist in the DB.
+            // The canonical entity's claims will represent them.
+            if let merged = entity?.mergedIntoId, !merged.isEmpty {
+                continue
+            }
+
             let kind = entity.flatMap { EntityKind(apiType: $0.entityType) } ?? .date
+            // claim.text is non-optional in the OpenAPI schema — fall back
+            // to it directly without an extra "(untitled)" guard.
+            let displayName = entity?.canonicalName ?? claim.text
+            // Dedupe key: canonical entity name when present, else claim text.
+            let key = displayName
+            if seenKey[kind, default: []].contains(key) {
+                continue
+            }
+            seenKey[kind, default: []].insert(key)
+
             let item = GroupedItem(
                 claimId: claim.id ?? UUID().uuidString,
-                displayName: entity?.canonicalName ?? claim.text ?? "(untitled)",
-                context: claim.sourceExcerpt ?? claim.text ?? "",
+                displayName: displayName,
+                context: claim.sourceExcerpt ?? claim.text,
                 aliases: entity?.aliases ?? []
             )
             byKind[kind, default: []].append(item)
         }
+        let hidden = hiddenKinds
         return EntityKind.displayOrder
             .compactMap { kind in
+                guard !hidden.contains(kind) else { return nil }
                 guard let items = byKind[kind], !items.isEmpty else { return nil }
                 return (kind, items)
             }
@@ -586,11 +628,41 @@ struct KnowledgeGraphInspectorSection: View {
     }
 
     private var sectionHeader: some View {
-        HStack {
+        HStack(spacing: 8) {
             Image(systemName: "circle.hexagongrid")
             Text("Knowledge Graph")
                 .font(.headline)
             Spacer()
+            // Filter Menu — Tinderbox-style "displayed attributes" picker.
+            // Each entity kind has its own checkbox; persistence lives in
+            // @AppStorage so the choice survives restarts and applies to
+            // every doc the user inspects.
+            Menu {
+                ForEach(EntityKind.displayOrder, id: \.self) { kind in
+                    let isHidden = hiddenKinds.contains(kind)
+                    Button {
+                        setHidden(kind, hidden: !isHidden)
+                    } label: {
+                        Label(kind.label, systemImage: isHidden ? "" : "checkmark")
+                    }
+                }
+                Divider()
+                Button("Show all") { hiddenKindsCSV = "" }
+                Button("Hide all") {
+                    hiddenKindsCSV = EntityKind.displayOrder
+                        .map(\.rawValue)
+                        .sorted()
+                        .joined(separator: ",")
+                }
+            } label: {
+                Image(systemName: hiddenKinds.isEmpty
+                      ? "line.3.horizontal.decrease.circle"
+                      : "line.3.horizontal.decrease.circle.fill")
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Pick which knowledge-graph kinds to show")
             Button {
                 Task { await load() }
             } label: {
@@ -683,92 +755,286 @@ private enum EntityKind: String, Hashable, CaseIterable {
     }
 
     static var displayOrder: [EntityKind] {
-        [.person, .location, .organization, .event, .date, .concept, .other]
+        // Keywords (concept) up top — they're the densest summary of the
+        // document and Daniel scans them first. Then named entities, then
+        // events/dates, then misc.
+        [.concept, .person, .location, .organization, .event, .date, .other]
     }
 }
 
 // MARK: - Per-kind list block
 
+/// Finder Get Info-style block: a DisclosureGroup labelled by entity kind,
+/// containing plain selectable rows. No buttons, no copy icons — clicks
+/// don't trigger actions, ⌘C copies the standard text selection.
 private struct EntityKindBlock: View {
     let kind: EntityKind
     let items: [GroupedItem]
 
+    @AppStorage("inspector.kg.expandedKinds") private var expandedKindsCSV: String = ""
+
+    private var isExpanded: Binding<Bool> {
+        Binding(
+            get: { isOpen },
+            set: { newValue in setOpen(newValue) }
+        )
+    }
+
+    private var isOpen: Bool {
+        expandedKindsCSV
+            .split(separator: ",")
+            .contains(Substring(kind.rawValue))
+            // Default open until the user explicitly collapses something
+            || expandedKindsCSV.isEmpty
+    }
+
+    private func setOpen(_ open: Bool) {
+        var set = Set(
+            expandedKindsCSV.split(separator: ",").map(String.init)
+        )
+        // First explicit toggle: seed with all currently-default-open kinds
+        // so collapsing one doesn't collapse them all.
+        if set.isEmpty {
+            set = Set(EntityKind.displayOrder.map(\.rawValue))
+        }
+        if open { set.insert(kind.rawValue) } else { set.remove(kind.rawValue) }
+        expandedKindsCSV = set.sorted().joined(separator: ",")
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 4) {
+        DisclosureGroup(isExpanded: isExpanded) {
+            if kind == .concept {
+                // Keywords render as wrapping pill chips, like Finder's tag
+                // lozenges. FlowLayout (already in the project from the
+                // Ontology browser) handles word-wrapping each capsule.
+                FlowLayout(spacing: 4) {
+                    ForEach(items) { item in
+                        Text(item.displayName)
+                            .font(.caption)
+                            .foregroundStyle(.primary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule().fill(Color.accentColor.opacity(0.18))
+                            )
+                            .textSelection(.enabled)
+                    }
+                }
+                .padding(.leading, 16)
+                .padding(.top, 4)
+            } else {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(items) { item in
+                        EntityKindRow(item: item)
+                    }
+                }
+                .padding(.leading, 16)
+                .padding(.top, 4)
+            }
+        } label: {
+            HStack(spacing: 6) {
                 Image(systemName: kind.systemImage)
                     .foregroundStyle(.secondary)
-                Text("\(kind.label) (\(items.count))")
+                    .font(.caption)
+                Text(kind.label)
                     .font(.subheadline)
+                    .fontWeight(.semibold)
                     .foregroundStyle(.primary)
-            }
-            ForEach(items) { item in
-                EntityKindRow(item: item, kind: kind)
-            }
-        }
-    }
-}
-
-private struct EntityKindRow: View {
-    let item: GroupedItem
-    let kind: EntityKind
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            // Tappable entity name. Clicking copies the canonical name to
-            // the pasteboard so the user can paste into the search bar to
-            // find every doc mentioning it. Proper cross-doc navigation
-            // (click-to-search) needs a global dispatcher and is a 0.0.3
-            // task — this is the cheap affordance for now.
-            Button(action: copyName) {
-                HStack(spacing: 4) {
-                    Text(item.displayName)
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                    Image(systemName: "doc.on.clipboard")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .opacity(0.6)
-                }
-            }
-            .buttonStyle(.plain)
-            .help("Copy '\(item.displayName)' — paste in search to find all sources")
-
-            if !item.aliases.isEmpty {
-                Text("Also: \(item.aliases.joined(separator: ", "))")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            if !item.context.isEmpty, item.context != item.displayName {
-                Text(item.context)
+                Text("(\(items.count))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
             }
         }
-        .padding(.leading, 18)
-        .padding(.vertical, 2)
-        .contextMenu {
-            Button("Copy name") { copyName() }
-            Button("Copy with context") {
-                let combined = item.context.isEmpty
-                    ? item.displayName
-                    : "\(item.displayName) — \(item.context)"
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(combined, forType: .string)
-            }
-        }
-    }
-
-    private func copyName() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(item.displayName, forType: .string)
     }
 }
 
-// MARK: - Preview
+/// One row inside an EntityKindBlock. Plain selectable text. Aliases
+/// shown inline if present. No interactive elements — the row is for
+/// reading + ⌘C, not for clicking.
+private struct EntityKindRow: View {
+    let item: GroupedItem
 
-#Preview {
-    Text("KnowledgeGraphInspectorSection — preview requires a backend")
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(item.displayName)
+                .font(.body)
+                .foregroundStyle(.primary)
+                .textSelection(.enabled)
+            if !item.aliases.isEmpty {
+                Text(item.aliases.joined(separator: ", "))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 1)
+    }
+}
+
+// MARK: - Previews
+//
+// Mock data + standalone surfaces so the inspector can iterate in Xcode
+// Previews without a running backend. Pure layout work (filter Menu,
+// kind ordering, keyword chip row, dedupe rendering, content lineLimits)
+// loops in seconds here instead of through a 60s rebuild cycle.
+
+private enum PreviewMocks {
+    static let people: [GroupedItem] = [
+        GroupedItem(
+            claimId: "p1",
+            displayName: "Federico W. Leighton",
+            context: "is named as engineer of the dredge",
+            aliases: ["F. W. Leighton", "Leighton"]
+        ),
+        GroupedItem(
+            claimId: "p2",
+            displayName: "Don Mateo Restrepo",
+            context: "appears as the lender in the deed",
+            aliases: ["Don Mateo", "D. Mateo"]
+        ),
+        GroupedItem(
+            claimId: "p3",
+            displayName: "Fenwic P. Caddy",
+            context: "is reported to have resigned as captain",
+            aliases: []
+        )
+    ]
+    static let places: [GroupedItem] = [
+        GroupedItem(
+            claimId: "l1",
+            displayName: "Río Condoto",
+            context: "is named as the site of the dredge sinking",
+            aliases: ["Río Conduto"]
+        ),
+        GroupedItem(
+            claimId: "l2",
+            displayName: "Bazán",
+            context: "is described as the point where the dredge worked",
+            aliases: ["Basán"]
+        )
+    ]
+    static let organizations: [GroupedItem] = [
+        GroupedItem(
+            claimId: "o1",
+            displayName: "Compañía Minera Chocó Pacífico",
+            context: "is named as operator of the dredge",
+            aliases: ["Cía. Minera Chocó Pacífico", "Choco Pacifico"]
+        ),
+        GroupedItem(
+            claimId: "o2",
+            displayName: "British Platinum & Gold Corporation Limited",
+            context: "is described as the dredge's owner",
+            aliases: []
+        )
+    ]
+    static let events: [GroupedItem] = [
+        GroupedItem(
+            claimId: "e1",
+            displayName: "Naufragio de la draga No. 1",
+            context: "the file alleges the dredge sank in March 1925",
+            aliases: ["sinking of dredge"]
+        ),
+        GroupedItem(
+            claimId: "e2",
+            displayName: "Renuncia del capitán",
+            context: "Caddy is reported to have resigned",
+            aliases: []
+        )
+    ]
+    static let dates: [GroupedItem] = [
+        GroupedItem(
+            claimId: "d1",
+            displayName: "1922-08-24: el naufragio de la draga",
+            context: "1922-08-24",
+            aliases: []
+        ),
+        GroupedItem(
+            claimId: "d2",
+            displayName: "1925-03-15: investigación judicial",
+            context: "1925-03-15",
+            aliases: []
+        )
+    ]
+    static let keywords: [GroupedItem] = [
+        GroupedItem(claimId: "k1", displayName: "minería", context: "", aliases: []),
+        GroupedItem(claimId: "k2", displayName: "draga", context: "", aliases: []),
+        GroupedItem(claimId: "k3", displayName: "Chocó", context: "", aliases: []),
+        GroupedItem(claimId: "k4", displayName: "Condoto", context: "", aliases: []),
+        GroupedItem(claimId: "k5", displayName: "naufragio", context: "", aliases: []),
+        GroupedItem(claimId: "k6", displayName: "sumario", context: "", aliases: []),
+        GroupedItem(claimId: "k7", displayName: "platino", context: "", aliases: []),
+        GroupedItem(claimId: "k8", displayName: "British Platinum", context: "", aliases: [])
+    ]
+
+    static let allGroups: [(EntityKind, [GroupedItem])] = [
+        (.concept, keywords),
+        (.person, people),
+        (.location, places),
+        (.organization, organizations),
+        (.event, events),
+        (.date, dates)
+    ]
+}
+
+/// Preview-only surface for the KG section. Takes pre-baked groups so
+/// previews can render every entity kind without a running backend.
+private struct KnowledgeGraphPreviewSurface: View {
+    let groups: [(EntityKind, [GroupedItem])]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "circle.hexagongrid")
+                Text("Knowledge Graph")
+                    .font(.headline)
+                Spacer()
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                    .foregroundStyle(.secondary)
+                Image(systemName: "arrow.clockwise")
+                    .foregroundStyle(.secondary)
+            }
+            .foregroundStyle(.primary)
+
+            ForEach(groups, id: \.0) { kind, items in
+                EntityKindBlock(kind: kind, items: items)
+            }
+        }
         .padding()
+        .frame(width: 320)
+    }
+}
+
+#Preview("KG — full") {
+    ScrollView {
+        KnowledgeGraphPreviewSurface(groups: PreviewMocks.allGroups)
+    }
+    .frame(height: 700)
+}
+
+#Preview("KG — keywords only (inline row)") {
+    KnowledgeGraphPreviewSurface(groups: [(.concept, PreviewMocks.keywords)])
+}
+
+#Preview("KG — people row") {
+    KnowledgeGraphPreviewSurface(groups: [(.person, PreviewMocks.people)])
+}
+
+#Preview("KG — dates (no duplicate context)") {
+    KnowledgeGraphPreviewSurface(groups: [(.date, PreviewMocks.dates)])
+}
+
+#Preview("KG — empty") {
+    VStack(alignment: .leading, spacing: 12) {
+        HStack {
+            Image(systemName: "circle.hexagongrid")
+            Text("Knowledge Graph").font(.headline)
+            Spacer()
+        }
+        Text("No knowledge-graph entries for this document yet.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+    }
+    .padding()
+    .frame(width: 320, height: 200)
 }

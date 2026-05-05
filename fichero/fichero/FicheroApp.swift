@@ -37,6 +37,18 @@ struct FicheroApp: App {
     @StateObject private var libraryManager = LibraryManager.shared
 
     init() {
+        // Xcode Previews / Playgrounds host the app to render a single view —
+        // skip everything that blocks (modal "Move to Applications?" prompt,
+        // saved-library restore that opens DuckDB files). The preview canvas
+        // doesn't need either; renders are pure SwiftUI tree walks against
+        // mock data.
+        let env = ProcessInfo.processInfo.environment
+        if env["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+            || env["XCODE_RUNNING_FOR_PLAYGROUNDS"] == "1" {
+            logger.info("FicheroApp.init: preview/playground host — skipping installer + library restore")
+            return
+        }
+
         let startupClock = Date()
         AppInstaller.promptToMoveToApplicationsIfNeeded()
         let installerMs = Date().timeIntervalSince(startupClock) * 1000

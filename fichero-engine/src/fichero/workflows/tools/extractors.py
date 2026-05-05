@@ -121,10 +121,12 @@ _SECTIONS: list[dict[str, Any]] = [
         "schema_key": "personas_clave",
         "item_shape": '{"nombre": "...", "contexto": "role and importance in __LANG__"}',
         "instruction": (
-            "List the 5-15 most important people mentioned. For each: canonical name "
-            "(preserve original spelling, capitalize properly), role and importance "
-            "in the case. Group alternative spellings under the canonical (most "
-            "complete) form."
+            "List every person named anywhere in the text. For each: canonical "
+            "name in Title Case (preserve original spelling and accents), and a "
+            "short context describing how they appear in the document — 'is named "
+            "as', 'appears as', 'signs as', 'is described as'. Group alternative "
+            "spellings under the most complete canonical form. Do not characterise "
+            "their importance or motive."
         ),
     },
     {
@@ -140,10 +142,11 @@ _SECTIONS: list[dict[str, Any]] = [
         ),
         "instruction": (
             "List every named place — cities, towns, regions, countries, "
-            "addresses, geographic features (excluding rivers, which have "
-            "their own extractor). For each: canonical name (preserve "
-            "original spelling, capitalize properly), alternative spellings "
-            "found in the text, short context."
+            "neighbourhoods, addresses, rivers, mines, estates, geographic "
+            "features. For each: canonical name in Title Case (preserve "
+            "original spelling and accents), alternative spellings that "
+            "appear in the text, and a short context of how the document "
+            "mentions the place."
         ),
     },
     {
@@ -158,9 +161,12 @@ _SECTIONS: list[dict[str, Any]] = [
             '{"nombre": "...", "ortografias_alternativas": ["..."], "contexto": "..."}'
         ),
         "instruction": (
-            "List every organization — companies, institutions, agencies, "
-            "governmental bodies, religious orders, cooperatives. For each: "
-            "canonical name + alternative spellings + context."
+            "List every named organisation — companies, courts, ministries, "
+            "prefectures, alcaldías, banks, institutions, agencies, religious "
+            "orders, cooperatives. For each: canonical name in Title Case "
+            "(preserve original spelling and accents), alternative spellings "
+            "that appear in the text, and a short context of how the document "
+            "mentions the organisation."
         ),
     },
     {
@@ -177,10 +183,12 @@ _SECTIONS: list[dict[str, Any]] = [
             '"contexto": "..."}'
         ),
         "instruction": (
-            "List every significant date. For each: the date as written in the "
-            "original (with ambiguity if any), normalized to YYYY-MM-DD (or "
-            "YYYY-MM-DD/YYYY-MM-DD for ranges, YYYY-MM for month-only), short "
-            "context of what happened on or around that date."
+            "List every date that appears in the text, regardless of how "
+            "important it seems. For each: the date as written in the original "
+            "(with ambiguity if any), normalized to YYYY-MM-DD (or "
+            "YYYY-MM-DD/YYYY-MM-DD for ranges, YYYY-MM for month-only), and a "
+            "short context of what the document records about that date — what "
+            "the file states or alleges, not what factually happened."
         ),
     },
     {
@@ -393,8 +401,71 @@ async def _run_extractor(
     selected_doc_ids = state.get("selected_doc_ids") or []
     container = _resolve_container_doc(selected_doc_ids, library_path)
 
-    # Cache: same (container, section, provider, model) reuses prior artifact.
-    if container and library_path:
+    # Per-page extraction. Two paths:
+    #   (a) records present (aggregate node passed [{doc_id, text}, ...])
+    #       → iterate per record; cache + claims + artifact write to PAGE
+    #         doc_id (per-file KG search + correct cache invalidation).
+    #   (b) records absent (legacy / non-aggregate upstream)
+    #       → split text on separator and write to container.id (legacy
+    #         container-level cache + artifact save).
+    records_input = inputs.get("records") or []
+    page_doc_ids: list[str | None] = []
+    if records_input and isinstance(records_input, list):
+        chunks = []
+        for rec in records_input:
+            if not isinstance(rec, dict):
+                continue
+            chunks.append(str(rec.get("text") or ""))
+            page_doc_ids.append(str(rec.get("doc_id") or "") or None)
+        # If records were empty / malformed, fall back to text split.
+        if not chunks:
+            chunks = _split_into_pages(text)
+            page_doc_ids = [None] * len(chunks)
+    else:
+        chunks = _split_into_pages(text)
+        page_doc_ids = [None] * len(chunks)
+
+    # Per-page records flow: cache check is per-page. If every page has a
+    # cached artifact for (provider, model), short-circuit. Otherwise we
+    # re-extract for ALL pages — keeping the parallel-extract code path
+    # simple at the cost of redoing already-cached pages on partial misses.
+    is_per_page = any(pid for pid in page_doc_ids)
+    if is_per_page and container and library_path:
+        all_cached_items: list[Any] = []
+        all_cached_text_parts: list[str] = []
+        every_page_cached = True
+        for pid in page_doc_ids:
+            if not pid:
+                every_page_cached = False
+                break
+            cached = find_existing_artifact(
+                document_id=pid,
+                file_path=None,
+                artifact_type=section["artifact"],
+                library_path=library_path,
+                provider=getattr(llm_config, "provider", None),
+                model=getattr(llm_config, "model", None),
+            )
+            if cached and cached.content:
+                if isinstance(cached.data, dict):
+                    all_cached_items.extend(cached.data.get("items") or [])
+                all_cached_text_parts.append(cached.content)
+            else:
+                every_page_cached = False
+                break
+        if every_page_cached:
+            logger.info(
+                f"{section['name']}: per-page cache hit on all "
+                f"{len(page_doc_ids)} pages"
+            )
+            return {
+                "text": "\n\n".join(all_cached_text_parts),
+                "value": all_cached_items,
+                "cached": True,
+            }
+
+    # Container-level cache (legacy / no records flow).
+    if not is_per_page and container and library_path:
         cached = find_existing_artifact(
             document_id=container.id,
             file_path=None,
@@ -417,29 +488,6 @@ async def _run_extractor(
                 "value": cached_items,
                 "cached": True,
             }
-
-    # Per-page extraction. Two paths:
-    #   (a) records present (aggregate node passed [{doc_id, text}, ...])
-    #       → iterate per record; claims write to PAGE doc_id (page-level KG).
-    #   (b) records absent (legacy / non-aggregate upstream)
-    #       → split text on separator and write to container.id.
-    # (a) is the new 0.0.2 path that enables page-level entity search.
-    records_input = inputs.get("records") or []
-    page_doc_ids: list[str | None] = []
-    if records_input and isinstance(records_input, list):
-        chunks = []
-        for rec in records_input:
-            if not isinstance(rec, dict):
-                continue
-            chunks.append(str(rec.get("text") or ""))
-            page_doc_ids.append(str(rec.get("doc_id") or "") or None)
-        # If records were empty / malformed, fall back to text split.
-        if not chunks:
-            chunks = _split_into_pages(text)
-            page_doc_ids = [None] * len(chunks)
-    else:
-        chunks = _split_into_pages(text)
-        page_doc_ids = [None] * len(chunks)
 
     prompt = _build_section_prompt(section, output_language)
 
@@ -529,27 +577,59 @@ async def _run_extractor(
         except Exception as exc:
             logger.error(f"{section['name']}: KG write failed: {exc}")
 
-    # Save artifact on the container (same doc catalogue writes to).
+    # Save artifact(s).
+    #
+    # Per-page records flow: save ONE artifact per page doc. This is the
+    # source of truth — the per-page cache check above looks here, and
+    # the inspector renders the artifact alongside the page. Page cleanup
+    # then writes <key>_clean artifacts on top.
+    #
+    # Legacy / no-records flow: save ONE artifact on the container.
     if container and library_path:
         try:
             db = db_manager.get_database(library_path)
-            artifact = Artifact(
-                document_id=container.id,
-                artifact_type=section["artifact"],
-                content=markdown,
-                data={"items": items} if items else None,
-                provider=getattr(llm_config, "provider", None),
-                model=getattr(llm_config, "model", None),
-                run_id=state.get("task_id"),
-            )
-            db.save(artifact)
-            # Bump container updated_at so the inspector refresh detects the change.
-            container.updated_at = datetime.now()
-            db.save(container)
-            logger.info(
-                f"{section['name']}: saved {section['artifact']} artifact "
-                f"{artifact.id} on container {container.id}"
-            )
+            if is_per_page:
+                for chunk_text, chunk_items, page_doc_id in zip(
+                    chunks, chunk_results, page_doc_ids
+                ):
+                    if not page_doc_id:
+                        continue
+                    page_md = _render_section_markdown(section, chunk_items)
+                    page_artifact = Artifact(
+                        document_id=page_doc_id,
+                        artifact_type=section["artifact"],
+                        content=page_md,
+                        data={"items": chunk_items} if chunk_items else None,
+                        provider=getattr(llm_config, "provider", None),
+                        model=getattr(llm_config, "model", None),
+                        run_id=state.get("task_id"),
+                    )
+                    db.save(page_artifact)
+                # Bump container updated_at so the folder inspector refreshes.
+                container.updated_at = datetime.now()
+                db.save(container)
+                logger.info(
+                    f"{section['name']}: saved {section['artifact']} on "
+                    f"{sum(1 for p in page_doc_ids if p)} page docs "
+                    f"(records-driven flow)"
+                )
+            else:
+                artifact = Artifact(
+                    document_id=container.id,
+                    artifact_type=section["artifact"],
+                    content=markdown,
+                    data={"items": items} if items else None,
+                    provider=getattr(llm_config, "provider", None),
+                    model=getattr(llm_config, "model", None),
+                    run_id=state.get("task_id"),
+                )
+                db.save(artifact)
+                container.updated_at = datetime.now()
+                db.save(container)
+                logger.info(
+                    f"{section['name']}: saved {section['artifact']} artifact "
+                    f"{artifact.id} on container {container.id}"
+                )
         except Exception as exc:
             logger.error(f"{section['name']}: artifact save failed: {exc}")
 
@@ -675,6 +755,10 @@ def _make_registered(section: dict[str, Any]):
         input_ports=_EXTRACTOR_INPUT_PORTS,
         output_ports=BASE_OUTPUT_PORTS,
         config_schema=merge_config_schema(BASE_CONFIG_SCHEMA, _LANGUAGE_CONFIG),
+        # Expose the prompt for transparency. The JSON-schema portion is a
+        # parser contract — editing the prompt is allowed but breaking the
+        # schema_key or shape will cause silent parse failures.
+        default_prompt=_build_section_prompt(section, "Spanish"),
         sort_order=10 + _SECTIONS.index(section),
     )(_tool)
 

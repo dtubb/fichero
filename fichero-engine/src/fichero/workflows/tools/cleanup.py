@@ -57,44 +57,91 @@ _TYPES: list[dict[str, Any]] = [
     {
         "key": "people",
         "display": "People",
+        "noun": "person",
         "entity_type": EntityType.person,
         "icon": "person.2.crop.square.stack",
         "color": "blue",
+        "duplicate_rule": (
+            "Two entries refer to the same person if their names match (full "
+            "name vs. partial form, with or without title or initials), or "
+            "one is clearly a misspelling, abbreviation, or accent variant "
+            "of the other. Pick the most complete form (longest, with title "
+            "if used in the document) as canonical."
+        ),
     },
     {
         "key": "places",
         "display": "Places",
+        "noun": "place",
         "entity_type": EntityType.location,
         "icon": "mappin.circle",
         "color": "green",
+        "duplicate_rule": (
+            "Two entries refer to the same place if names are spelling or "
+            "accent variants (Bazán / Basán), abbreviations, or recognised "
+            "alternate names of the same town, river, region, address, or "
+            "geographic feature. Pick the form the document uses most often "
+            "as canonical."
+        ),
     },
     {
         "key": "organizations",
         "display": "Organizations",
+        "noun": "organisation",
         "entity_type": EntityType.organization,
         "icon": "building.2.crop.circle",
         "color": "indigo",
+        "duplicate_rule": (
+            "Two entries refer to the same organisation if names are spelling "
+            "variants, abbreviations (Cía. / Compañía, S.A. / Sociedad "
+            "Anónima), or one is the long form and the other a short form. "
+            "Pick the most complete form as canonical."
+        ),
     },
     {
         "key": "dates",
         "display": "Dates",
+        "noun": "date",
         "entity_type": None,  # claim-only; cleanup runs over claim text
         "icon": "calendar.badge.checkmark",
         "color": "orange",
+        # Dates skip the LLM entirely — exact-string dedup on YYYY-MM-DD —
+        # so this rule is unused, kept for shape consistency.
+        "duplicate_rule": (
+            "Two entries refer to the same date if their normalised "
+            "YYYY-MM-DD strings are identical."
+        ),
     },
     {
         "key": "events",
         "display": "Events",
+        "noun": "event",
         "entity_type": EntityType.event,
         "icon": "star.circle",
         "color": "yellow",
+        "duplicate_rule": (
+            "Two entries refer to the same event if they describe the same "
+            "incident, transaction, signing, meeting, voyage, ruling, "
+            "death, or transfer — even when worded differently or seen from "
+            "different angles. Pick the most precise and concise description "
+            "as canonical, in evidentiary phrasing ('the file records that "
+            "X', 'Y is reported to have...'), with the alternative wordings "
+            "as aliases."
+        ),
     },
     {
         "key": "keywords",
         "display": "Keywords",
+        "noun": "keyword",
         "entity_type": EntityType.concept,
         "icon": "tag.circle",
         "color": "pink",
+        "duplicate_rule": (
+            "Two entries are duplicates if they describe the same subject "
+            "in different forms — singular vs. plural, language variant "
+            "(mining / minería), or one is a more specific instance of the "
+            "other. Pick the form the document uses, in Title Case."
+        ),
     },
 ]
 
@@ -151,27 +198,55 @@ _FOLDER_INPUT_PORTS = merge_ports(
 # =============================================================================
 
 
-def _build_cleanup_prompt(display: str, names: list[str]) -> str:
-    """Build the dedup prompt — given a list of names, return canonical
-    groupings as JSON.
+def _build_cleanup_prompt(type_cfg: dict[str, Any], items: list[str]) -> str:
+    """Build the dedup prompt for one entity type — given a list of items,
+    return canonical groupings as JSON.
 
     The schema is intentionally tiny: a flat list of {canonical, aliases}
     objects. Small models (Apple Intelligence) handle this far better
     than nested or polymorphic schemas.
+
+    Each type carries its own `duplicate_rule` — the framing that fits
+    *that* type. People/places use spelling-variant logic; events use
+    same-incident logic; keywords use same-subject logic. A single
+    one-size-fits-all prompt would over-merge for some types and
+    under-merge for others.
     """
-    numbered = "\n".join(f"{i + 1}. {n}" for i, n in enumerate(names))
+    plural = type_cfg["display"].lower()
+    noun = type_cfg["noun"]
+    duplicate_rule = type_cfg["duplicate_rule"]
+    numbered = "\n".join(f"{i + 1}. {item}" for i, item in enumerate(items))
     return (
-        f"You are deduplicating extracted {display.lower()} from an "
-        f"archival document. The following list contains near-duplicates "
-        f"caused by spelling variants, abbreviations, or capitalisation:\n\n"
+        f"You are deduplicating a list of {plural} extracted from an "
+        f"archival document. The list contains near-duplicates caused by "
+        f"different ways of referring to the same {noun}:\n\n"
         f"{numbered}\n\n"
-        f"Group near-duplicates together and pick the most complete spelling "
-        f"as the canonical form. Preserve original spelling and capitalisation "
-        f"for the canonical. Do NOT invent new names. If a name has no "
-        f"duplicates, list it alone with empty aliases.\n\n"
+        f"Rule for what counts as a duplicate:\n{duplicate_rule}\n\n"
+        f"Normalise the canonical to Title Case (Capitalise First Letter Of "
+        f"Each Word) — entries that arrive in ALL CAPS should be re-cased. "
+        f"Keep accents (María, José, Chocó). Do NOT invent new entries; only "
+        f"group what is in the list. If an entry has no duplicates, list it "
+        f"alone with empty aliases.\n\n"
         f"Return ONLY valid JSON in this exact shape (no prose, no fences):\n"
         f'{{"groups": [{{"canonical": "...", "aliases": ["...", "..."]}}, ...]}}\n'
     )
+
+
+def _normalize_case(name: str) -> str:
+    """Title-case a name only if it's entirely uppercase. Preserves
+    correctly-cased names ('von Neumann', 'de la Vega', 'O'Brien') and
+    initials ('J. F. Kennedy') — only intervenes when OCR / archival
+    convention shouted the whole thing.
+
+    Counts only alphabetic characters when deciding "all caps" so trailing
+    initials and punctuation don't muddy the test.
+    """
+    letters = [c for c in name if c.isalpha()]
+    if not letters:
+        return name
+    if all(c.isupper() for c in letters):
+        return name.title()
+    return name
 
 
 def _strip_fences(raw: str) -> str:
@@ -187,7 +262,7 @@ def _strip_fences(raw: str) -> str:
 
 
 async def _ask_llm_to_dedupe(
-    display: str,
+    type_cfg: dict[str, Any],
     names: list[str],
     llm_config: LLMConfig,
 ) -> list[dict[str, Any]]:
@@ -198,7 +273,8 @@ async def _ask_llm_to_dedupe(
     if len(names) < 2:
         return [{"canonical": names[0], "aliases": []}] if names else []
 
-    prompt = _build_cleanup_prompt(display, names)
+    display = type_cfg["display"]
+    prompt = _build_cleanup_prompt(type_cfg, names)
     try:
         response = await chat(
             [{"role": "user", "content": prompt}],
@@ -223,7 +299,7 @@ async def _ask_llm_to_dedupe(
     for g in groups:
         if not isinstance(g, dict):
             continue
-        canonical = (g.get("canonical") or "").strip()
+        canonical = _normalize_case((g.get("canonical") or "").strip())
         if not canonical:
             continue
         raw_aliases = g.get("aliases") or []
@@ -257,38 +333,61 @@ async def _run_page_cleanup(
     records = inputs.get("records") or []
     entity_type = type_cfg["entity_type"]
 
-    # Date-only type: claim-only, no entities to merge — passthrough.
-    if entity_type is None or not records:
-        return {"text": text, "records": records, "value": []}
-
     library_path = state.get("library_path", "")
-    if not library_path:
-        return {"text": text, "records": records, "value": []}
+    selected_doc_ids = state.get("selected_doc_ids") or []
+    container = _resolve_container_doc(selected_doc_ids, library_path)
+    if not container or not library_path:
+        return {"text": text, "records": records, "value": 0}
 
     try:
         db = db_manager.get_database(library_path)
     except Exception as exc:
         logger.warning(f"page_cleanup({type_cfg['key']}): cannot open db: {exc}")
-        return {"text": text, "records": records, "value": []}
+        return {"text": text, "records": records, "value": 0}
+
+    # Resolve per-page doc IDs from the container's descendants. Don't trust
+    # the records input — aggregate may emit empty doc_id when upstream
+    # doesn't carry document metadata (transcribe → aggregate without the
+    # documents port populated). Walking the doc tree is the source of truth.
+    page_ids = [did for did in _descendant_doc_ids(db, container.id) if did != container.id]
+    if not page_ids:
+        return {"text": text, "records": records, "value": 0}
 
     merged_count = 0
-    for rec in records:
-        if not isinstance(rec, dict):
+    saved_count = 0
+    artifact_type = f"{type_cfg['key']}_clean"
+    for page_doc_id in page_ids:
+        if entity_type is None:
+            # Dates: claim-only, exact-string dedup on normalized YYYY-MM-DD.
+            final_groups = _date_groups_for_doc(db, page_doc_id)
+        else:
+            entity_ids = _entity_ids_for_doc(db, page_doc_id)
+            entities = _live_entities(db, entity_ids, entity_type)
+            if not entities:
+                continue
+            names = [e.canonical_name for e in entities]
+            if len(entities) >= 2:
+                groups = await _ask_llm_to_dedupe(type_cfg, names, llm_config)
+                merged_count += _apply_groups(db, entities, groups)
+            else:
+                groups = []
+            final_groups = groups or [{"canonical": _normalize_case(n), "aliases": []} for n in names]
+
+        if not final_groups:
             continue
-        page_doc_id = str(rec.get("doc_id") or "")
-        if not page_doc_id:
-            continue
-        entity_ids = _entity_ids_for_doc(db, page_doc_id)
-        entities = _live_entities(db, entity_ids, entity_type)
-        if len(entities) < 2:
-            continue
-        names = [e.canonical_name for e in entities]
-        groups = await _ask_llm_to_dedupe(type_cfg["display"], names, llm_config)
-        merged_count += _apply_groups(db, entities, groups)
+        _replace_artifact(
+            db,
+            container_id=page_doc_id,
+            artifact_type=artifact_type,
+            groups=final_groups,
+            provider=getattr(llm_config, "provider", None),
+            model=getattr(llm_config, "model", None),
+        )
+        saved_count += 1
 
     logger.info(
-        f"page_cleanup({type_cfg['key']}): merged {merged_count} entities "
-        f"across {len(records)} pages"
+        f"page_cleanup({type_cfg['key']}): merged {merged_count} entities, "
+        f"wrote {artifact_type} on {saved_count}/{len(page_ids)} descendant docs"
     )
     return {"text": text, "records": records, "value": merged_count}
 
@@ -315,10 +414,6 @@ async def _run_folder_cleanup(
     text = inputs.get("text") or ""
     entity_type = type_cfg["entity_type"]
 
-    if entity_type is None:
-        # Date-only — no canonical entities to merge.
-        return {"text": text, "value": []}
-
     library_path = state.get("library_path", "")
     selected_doc_ids = state.get("selected_doc_ids") or []
     container = _resolve_container_doc(selected_doc_ids, library_path)
@@ -332,21 +427,36 @@ async def _run_folder_cleanup(
         return {"text": text, "value": []}
 
     descendant_ids = _descendant_doc_ids(db, container.id)
-    entity_ids: set[str] = set()
-    for did in descendant_ids:
-        entity_ids.update(_entity_ids_for_doc(db, did))
-    entities = _live_entities(db, sorted(entity_ids), entity_type)
-    if not entities:
-        return {"text": text, "value": []}
 
-    names = [e.canonical_name for e in entities]
-    groups = await _ask_llm_to_dedupe(type_cfg["display"], names, llm_config)
-    merged = _apply_groups(db, entities, groups)
+    if entity_type is None:
+        # Dates: aggregate normalized YYYY-MM-DD across all descendants.
+        # No LLM call — exact-string dedup is sufficient since the
+        # extractor already normalizes.
+        seen: dict[str, dict[str, Any]] = {}
+        for did in descendant_ids:
+            for grp in _date_groups_for_doc(db, did):
+                key = grp["canonical"]
+                if key not in seen:
+                    seen[key] = grp
+        if not seen:
+            return {"text": text, "value": []}
+        final_groups = sorted(seen.values(), key=lambda g: g["canonical"])
+        merged = 0
+    else:
+        entity_ids: set[str] = set()
+        for did in descendant_ids:
+            entity_ids.update(_entity_ids_for_doc(db, did))
+        entities = _live_entities(db, sorted(entity_ids), entity_type)
+        if not entities:
+            return {"text": text, "value": []}
+        names = [e.canonical_name for e in entities]
+        groups = await _ask_llm_to_dedupe(type_cfg, names, llm_config)
+        merged = _apply_groups(db, entities, groups)
+        final_groups = groups or [{"canonical": n, "aliases": []} for n in names]
 
     # Save cleaned list as an artifact on the folder doc so the inspector
     # has a single canonical view per type — separate from the per-page
     # extractor artifacts (those keep raw per-page provenance).
-    final_groups = groups or [{"canonical": n, "aliases": []} for n in names]
     artifact_type = f"{type_cfg['key']}_clean"
     _replace_artifact(
         db,
@@ -380,6 +490,35 @@ def _entity_ids_for_doc(db, doc_id: str) -> list[str]:
         for eid in c.entity_ids or []:
             out.add(eid)
     return list(out)
+
+
+def _date_groups_for_doc(db, doc_id: str) -> list[dict[str, Any]]:
+    """Build cleaned-date `groups` for a single document.
+
+    Dates extractor saves claims with empty entity_ids and normalized date
+    in metadata['date_normalized']. Group by normalized form, collect raw
+    `date_text` strings as aliases. Sorted by normalized date.
+    """
+    try:
+        claims = db.query(KnowledgeClaim, source_document_id=doc_id)
+    except Exception:
+        return []
+    by_norm: dict[str, set[str]] = {}
+    for c in claims:
+        if c.entity_ids:
+            continue
+        meta = c.metadata or {}
+        normalized = (meta.get("date_normalized") or "").strip()
+        raw = (meta.get("date_text") or "").strip()
+        if not normalized:
+            continue
+        by_norm.setdefault(normalized, set())
+        if raw and raw != normalized:
+            by_norm[normalized].add(raw)
+    return [
+        {"canonical": norm, "aliases": sorted(aliases)}
+        for norm, aliases in sorted(by_norm.items())
+    ]
 
 
 def _live_entities(
@@ -523,6 +662,12 @@ def _replace_artifact(
 # =============================================================================
 
 
+# Sample prompt rendering — the runtime swaps these placeholder names for
+# the real list of canonical names per page/folder. Showing the shape (with
+# placeholders) is more honest than showing nothing.
+_SAMPLE_NAMES = ["Don Mateo Restrepo", "Don Mateo", "D. Mateo"]
+
+
 def _make_page_cleanup(type_cfg: dict[str, Any]):
     async def _tool(inputs, state, llm_config):
         return await _run_page_cleanup(type_cfg, inputs, state, llm_config)
@@ -545,6 +690,7 @@ def _make_page_cleanup(type_cfg: dict[str, Any]):
         input_ports=_PAGE_INPUT_PORTS,
         output_ports=BASE_OUTPUT_PORTS,
         config_schema=BASE_CONFIG_SCHEMA,
+        default_prompt=_build_cleanup_prompt(type_cfg, _SAMPLE_NAMES),
         sort_order=20 + _TYPES.index(type_cfg),
     )(_tool)
     return _tool
@@ -572,6 +718,7 @@ def _make_folder_cleanup(type_cfg: dict[str, Any]):
         input_ports=_FOLDER_INPUT_PORTS,
         output_ports=BASE_OUTPUT_PORTS,
         config_schema=merge_config_schema(BASE_CONFIG_SCHEMA, {}),
+        default_prompt=_build_cleanup_prompt(type_cfg, _SAMPLE_NAMES),
         sort_order=30 + _TYPES.index(type_cfg),
     )(_tool)
     return _tool

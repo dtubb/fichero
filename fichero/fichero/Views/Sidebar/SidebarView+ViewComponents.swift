@@ -324,7 +324,7 @@ extension SidebarView {
             guard !ordered.isEmpty else { return }
             Task {
                 try? await library.workflowServiceGenerated.reorderWorkflows(ordered)
-                try? await library.workflowStore.loadWorkflows()
+                await library.workflowStore.loadWorkflows()
             }
         default:
             return
