@@ -1467,21 +1467,25 @@ async def _apple_intelligence_structured(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    # Subprocess timeout (#848 follow-up): a hung Apple Intelligence
-    # session shouldn't block the entire workflow. config.timeout
-    # defaults to 60s; we extend the floor to 30s and cap at 120s so
-    # short timeouts don't kill legitimate long generations.
+    # Subprocess timeout for structured calls. Apple Intelligence's
+    # small on-device model can genuinely take 30-90s on a complex
+    # multi-section schema (extract_all's 6-section _Extraction is the
+    # worst case). We extend config.timeout × 3 with a floor of 180s
+    # for structured calls — short timeouts shouldn't kill legitimate
+    # long generations. Free-form chat path uses a tighter budget
+    # because string generation finishes faster than guided decoding.
+    structured_budget = max(180.0, config.timeout * 3) if config.timeout else 300.0
     try:
         stdout_bytes, stderr_bytes = await asyncio.wait_for(
             proc.communicate(payload),
-            timeout=max(30, config.timeout) if config.timeout else 120,
+            timeout=structured_budget,
         )
     except asyncio.TimeoutError:
         proc.kill()
         await proc.wait()
         raise RuntimeError(
             f"Apple Intelligence (timeout): fm-bridge exceeded "
-            f"{config.timeout}s for structured prompt — provider hang"
+            f"{structured_budget}s for structured prompt — provider hang"
         )
 
     if proc.returncode != 0:

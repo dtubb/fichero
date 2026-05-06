@@ -30,8 +30,7 @@
       "config": {
         "vision_mode": "auto",
         "language": "en",
-        "update_page_content": true,
-        "provider_name": "$large"
+        "update_page_content": true
       }
     },
     {
@@ -252,6 +251,6 @@
     }
   ],
   "config": {
-    "preset_version": 4
+    "preset_version": 5
   }
 }

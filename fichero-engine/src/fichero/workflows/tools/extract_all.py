@@ -404,7 +404,13 @@ async def extract_all(
     markdown = "\n\n".join(text_parts)
 
     result: dict[str, Any] = {"text": markdown, "value": value, "cached": False}
-    if not value and chunk_errors:
+    # Only abort the workflow when EVERY chunk raised — partial errors
+    # are normal (Apple Intelligence on small chunks sometimes produces
+    # empty Pydantic from a valid-but-sparse page) and shouldn't kill
+    # downstream cleanup + catalogue. Per-page extraction_error
+    # artifacts (written above) tell the user which pages failed; the
+    # workflow proceeds with whatever the successful pages produced.
+    if chunk_errors and len(chunk_errors) >= len(chunks):
         actionable = next(
             (e for e in chunk_errors
              if any(k in e.lower() for k in ("quota", "limit", "401", "403", "402"))),
@@ -413,6 +419,13 @@ async def extract_all(
         result["error"] = (
             f"Extract All: {len(chunk_errors)}/{len(chunks)} "
             f"LLM calls failed — {actionable}"
+        )
+    elif chunk_errors:
+        # Soft signal — log but don't fail the node. Surfaces in
+        # logs / per-page extraction_error artifacts.
+        logger.warning(
+            f"extract_all: {len(chunk_errors)}/{len(chunks)} chunks failed "
+            f"(partial extraction continued)"
         )
     return result
 
