@@ -22,6 +22,9 @@ struct AISettingsView: View {
     @State private var audioModels: [ModelInfo] = []
     @State private var videoModels: [ModelInfo] = []
     @State private var embeddingsModels: [ModelInfo] = []
+    // Capability-tier model lists ($small / $large aliases — #810/#813).
+    @State private var smallModels: [ModelInfo] = []
+    @State private var largeModels: [ModelInfo] = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -121,6 +124,35 @@ struct AISettingsView: View {
             // to make — exposing a picker with Provider=None/Model=None was
             // confusing. (Daniel 2026-04-24)
 
+            // Capability-tier defaults referenced by workflow nodes via the
+            // $small / $large aliases (#810/#813). Set Apple Intelligence
+            // for $small (private + free local) and a frontier provider
+            // (Anthropic / OpenAI / OpenRouter Qwen) for $large to enable
+            // the Catalogue (Mixed) preset.
+            Section("Default Small Model ($small)") {
+                let smallHelp =
+                    "Workflow nodes that declare $small resolve to this " +
+                    "model — fast / cheap / local. Apple Intelligence is " +
+                    "the natural pick (free, private, on-device)."
+                Text(smallHelp)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                providerPicker(selection: $defaults.smallProvider)
+                modelPicker(selection: $defaults.smallModel, models: smallModels)
+            }
+
+            Section("Default Large Model ($large)") {
+                let largeHelp =
+                    "Workflow nodes that declare $large resolve to this " +
+                    "model — used for the catalogue narrative in the Mixed " +
+                    "preset. Pick a frontier model (Claude, GPT-4, Qwen 70B+)."
+                Text(largeHelp)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                providerPicker(selection: $defaults.largeProvider)
+                modelPicker(selection: $defaults.largeModel, models: largeModels)
+            }
+
             Section {
                 Label(
                     "Per-tool overrides in the workflow editor take precedence.",
@@ -149,6 +181,12 @@ struct AISettingsView: View {
         }
         .onChange(of: defaults.embeddingsProvider) { _, newValue in
             loadModels(for: newValue, into: $embeddingsModels)
+        }
+        .onChange(of: defaults.smallProvider) { _, newValue in
+            loadModels(for: newValue, into: $smallModels)
+        }
+        .onChange(of: defaults.largeProvider) { _, newValue in
+            loadModels(for: newValue, into: $largeModels)
         }
     }
 
@@ -331,6 +369,12 @@ private extension AISettingsView {
             if !defaults.embeddingsProvider.isEmpty {
                 loadModels(for: defaults.embeddingsProvider, into: $embeddingsModels)
             }
+            if !defaults.smallProvider.isEmpty {
+                loadModels(for: defaults.smallProvider, into: $smallModels)
+            }
+            if !defaults.largeProvider.isEmpty {
+                loadModels(for: defaults.largeProvider, into: $largeModels)
+            }
         } catch {
             logger.error("Failed to load AI defaults: \(error.localizedDescription)")
             errorMessage = "Failed to load: \(error.localizedDescription)"
@@ -359,6 +403,8 @@ private extension AISettingsView {
             audioModels = []
             videoModels = []
             embeddingsModels = []
+            smallModels = []
+            largeModels = []
             errorMessage = nil
         } catch {
             logger.error("Failed to reset AI defaults: \(error.localizedDescription)")

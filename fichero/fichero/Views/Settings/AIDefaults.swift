@@ -15,6 +15,12 @@ struct AIDefaults: Codable, Equatable {
     var videoModel: String = ""
     var embeddingsProvider: String = ""
     var embeddingsModel: String = ""
+    // Capability-tier defaults referenced by workflow nodes via the
+    // $small / $large model aliases (#810/#813).
+    var smallProvider: String = ""
+    var smallModel: String = ""
+    var largeProvider: String = ""
+    var largeModel: String = ""
     var temperature: String = ""
     var maxTokens: String = ""
     var promptPrefix: String = ""
@@ -30,6 +36,10 @@ struct AIDefaults: Codable, Equatable {
         case videoModel = "video_model"
         case embeddingsProvider = "embeddings_provider"
         case embeddingsModel = "embeddings_model"
+        case smallProvider = "small_provider"
+        case smallModel = "small_model"
+        case largeProvider = "large_provider"
+        case largeModel = "large_model"
         case temperature
         case maxTokens = "max_tokens"
         case promptPrefix = "prompt_prefix"
