@@ -587,10 +587,19 @@ struct KnowledgeGraphInspectorSection: View {
             }
             seenKey[kind, default: []].insert(key)
 
+            // Prefer the entity's curated description (set by the
+            // extractor from `contexto`) over the raw claim source
+            // excerpt — it's a one-line role/role-in-document blurb
+            // and is what the user wants ("a little bit of information
+            // about them"). Falls back to claim.sourceExcerpt then
+            // claim.text so date claims (no entity) still render.
+            let context = entity?.description?.trimmingCharacters(in: .whitespacesAndNewlines)
+                ?? claim.sourceExcerpt
+                ?? claim.text
             let item = GroupedItem(
                 claimId: claim.id ?? UUID().uuidString,
                 displayName: displayName,
-                context: claim.sourceExcerpt ?? claim.text,
+                context: context,
                 aliases: entity?.aliases ?? []
             )
             byKind[kind, default: []].append(item)
@@ -755,10 +764,13 @@ private enum EntityKind: String, Hashable, CaseIterable {
     }
 
     static var displayOrder: [EntityKind] {
-        // Keywords (concept) up top — they're the densest summary of the
-        // document and Daniel scans them first. Then named entities, then
-        // events/dates, then misc.
-        [.concept, .person, .location, .organization, .event, .date, .other]
+        // Keywords (concept) up top — densest summary, scan first.
+        // Named entities next; events last (they carry their own dates
+        // inside their descriptions, e.g. "Pronunciamiento ... el 23 de
+        // julio de 1993"). Bare Dates section is suppressed in the
+        // inspector — see body filter — because it duplicates info
+        // already visible in event descriptions.
+        [.concept, .person, .location, .organization, .event, .other]
     }
 }
 
@@ -804,9 +816,11 @@ private struct EntityKindBlock: View {
     var body: some View {
         DisclosureGroup(isExpanded: isExpanded) {
             if kind == .concept {
-                // Keywords render as wrapping pill chips, like Finder's tag
-                // lozenges. FlowLayout (already in the project from the
-                // Ontology browser) handles word-wrapping each capsule.
+                // Keywords as wrapping pale-blue capsule lozenges
+                // (Finder tag-pill style). Daniel's call: scan-ability
+                // beats single-block selection here. A context menu
+                // copies the full list as "; " joined for the rare
+                // case the user needs all keywords as text.
                 FlowLayout(spacing: 4) {
                     ForEach(items) { item in
                         Text(item.displayName)
@@ -822,6 +836,15 @@ private struct EntityKindBlock: View {
                 }
                 .padding(.leading, 16)
                 .padding(.top, 4)
+                .contextMenu {
+                    Button("Copy all keywords") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(
+                            items.map(\.displayName).joined(separator: "; "),
+                            forType: .string
+                        )
+                    }
+                }
             } else {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(items) { item in
@@ -848,27 +871,43 @@ private struct EntityKindBlock: View {
     }
 }
 
-/// One row inside an EntityKindBlock. Plain selectable text. Aliases
-/// shown inline if present. No interactive elements — the row is for
-/// reading + ⌘C, not for clicking.
+/// One row inside an EntityKindBlock. Plain selectable text — name on
+/// top, then aliases (if present), then a short context blurb (where
+/// the entity carries one). No interactive elements — read + ⌘C only.
 private struct EntityKindRow: View {
     let item: GroupedItem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(item.displayName)
-                .font(.body)
-                .foregroundStyle(.primary)
-                .textSelection(.enabled)
-            if !item.aliases.isEmpty {
-                Text(item.aliases.joined(separator: ", "))
+        // Two visual rows in ONE selectable Text run:
+        //   line 1: name  (aka alias1, alias2)
+        //   line 2: context (when non-empty, non-redundant)
+        // Because it's one composed Text, triple-click + ⌘C grabs the
+        // whole entity as a multi-line block.
+        composedText
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 2)
+            .textSelection(.enabled)
+    }
+
+    private var composedText: Text {
+        var text = Text(item.displayName)
+            .font(.body)
+            .foregroundStyle(.primary)
+        if !item.aliases.isEmpty {
+            text = text
+                + Text("  (aka " + item.aliases.joined(separator: ", ") + ")")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 1)
+        if !item.context.isEmpty,
+           item.context != item.displayName,
+           !item.displayName.contains(item.context) {
+            text = text
+                + Text("\n" + item.context)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+        }
+        return text
     }
 }
 
