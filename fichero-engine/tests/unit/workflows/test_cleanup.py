@@ -87,6 +87,26 @@ class TestBuildCleanupPrompt:
 
 
 class TestAskLLMToDedupe:
+    """Cleanup uses chat_structured_with_fallback (#845) — grammar-constrained
+    output returns a typed _DedupResult Pydantic instance. The old
+    json.loads / _strip_fences / invalid-JSON paths are gone because invalid
+    JSON cannot be emitted; tests now mock the structured call directly.
+    """
+
+    @staticmethod
+    def _mock_dedup(groups: list[dict[str, list[str]]]):
+        """Build a mock chat_structured_with_fallback that returns a
+        _DedupResult instance shaped like the LLM response."""
+        from fichero.workflows.tools.cleanup import _DedupGroup, _DedupResult
+        return AsyncMock(
+            return_value=_DedupResult(
+                groups=[
+                    _DedupGroup(canonical=g["canonical"], aliases=g.get("aliases", []))
+                    for g in groups
+                ]
+            )
+        )
+
     @pytest.mark.asyncio
     async def test_empty_input_returns_empty(self):
         cfg = MagicMock()
@@ -97,25 +117,25 @@ class TestAskLLMToDedupe:
     async def test_single_name_skips_llm(self):
         cfg = MagicMock()
         with patch(
-            "fichero.workflows.tools.cleanup.chat",
+            "fichero.workflows.tools.cleanup.chat_structured_with_fallback",
             new=AsyncMock(),
-        ) as mock_chat:
+        ) as mock_call:
             result = await _ask_llm_to_dedupe(_PEOPLE_CFG, ["Solo"], cfg)
-        mock_chat.assert_not_called()
+        mock_call.assert_not_called()
         assert result == [{"canonical": "Solo", "aliases": []}]
 
     @pytest.mark.asyncio
     async def test_parses_well_formed_groups(self):
         cfg = MagicMock()
+        mock = self._mock_dedup([
+            {
+                "canonical": "Don Mateo Restrepo",
+                "aliases": ["Don Mateo", "D. Mateo"],
+            },
+        ])
         with patch(
-            "fichero.workflows.tools.cleanup.chat",
-            new=AsyncMock(
-                return_value=(
-                    '{"groups": ['
-                    '{"canonical": "Don Mateo Restrepo", "aliases": ["Don Mateo", "D. Mateo"]}'
-                    ']}'
-                )
-            ),
+            "fichero.workflows.tools.cleanup.chat_structured_with_fallback",
+            new=mock,
         ):
             result = await _ask_llm_to_dedupe(
                 _PEOPLE_CFG, ["Don Mateo", "D. Mateo", "Don Mateo Restrepo"], cfg
@@ -125,39 +145,41 @@ class TestAskLLMToDedupe:
         ]
 
     @pytest.mark.asyncio
-    async def test_strips_markdown_fences(self):
+    async def test_backfills_missing_inputs_as_singletons(self):
+        """When the LLM drops inputs (despite the schema constraint), the
+        backfill pass adds them as their own single-item groups. We are
+        deduplicating, not curating — every input must end up somewhere."""
         cfg = MagicMock()
-        fenced = '```json\n{"groups":[{"canonical":"X","aliases":[]}]}\n```'
+        mock = self._mock_dedup([
+            {"canonical": "X", "aliases": []},
+        ])
         with patch(
-            "fichero.workflows.tools.cleanup.chat",
-            new=AsyncMock(return_value=fenced),
+            "fichero.workflows.tools.cleanup.chat_structured_with_fallback",
+            new=mock,
         ):
             result = await _ask_llm_to_dedupe(_PEOPLE_CFG, ["X", "Y"], cfg)
-        # Y is missing from LLM output → backfilled as a single-item group.
         assert result == [
             {"canonical": "X", "aliases": []},
             {"canonical": "Y", "aliases": []},
         ]
 
     @pytest.mark.asyncio
-    async def test_invalid_json_returns_empty(self):
+    async def test_llm_failure_returns_identity_grouping(self):
+        """LLM transport failures (network/auth/timeout) leave us without
+        a dedup decision; rather than dropping all entities for that section,
+        we return identity grouping (each input as its own canonical) so
+        the rest of the workflow continues. Replaces the old "return []"
+        which silently produced zero claims for the section (#845)."""
         cfg = MagicMock()
         with patch(
-            "fichero.workflows.tools.cleanup.chat",
-            new=AsyncMock(return_value="not json"),
+            "fichero.workflows.tools.cleanup.chat_structured_with_fallback",
+            new=AsyncMock(side_effect=RuntimeError("transport fail")),
         ):
             result = await _ask_llm_to_dedupe(_PEOPLE_CFG, ["A", "B"], cfg)
-        assert result == []
-
-    @pytest.mark.asyncio
-    async def test_chat_failure_returns_empty(self):
-        cfg = MagicMock()
-        with patch(
-            "fichero.workflows.tools.cleanup.chat",
-            new=AsyncMock(side_effect=RuntimeError("oom")),
-        ):
-            result = await _ask_llm_to_dedupe(_PEOPLE_CFG, ["A", "B"], cfg)
-        assert result == []
+        assert result == [
+            {"canonical": "A", "aliases": []},
+            {"canonical": "B", "aliases": []},
+        ]
 
     @pytest.mark.asyncio
     async def test_drops_aliases_equal_to_canonical(self):
@@ -165,14 +187,12 @@ class TestAskLLMToDedupe:
         list — produces redundant '(aka <self>)' suffixes in the inspector
         (#825). Cleanup must filter these out, casefold-equality."""
         cfg = MagicMock()
+        mock = self._mock_dedup([
+            {"canonical": "Alaska", "aliases": ["Alaska", "ALASKA", "Alaskan"]},
+        ])
         with patch(
-            "fichero.workflows.tools.cleanup.chat",
-            new=AsyncMock(
-                return_value=(
-                    '{"groups": [{"canonical": "Alaska", '
-                    '"aliases": ["Alaska", "ALASKA", "Alaskan"]}]}'
-                )
-            ),
+            "fichero.workflows.tools.cleanup.chat_structured_with_fallback",
+            new=mock,
         ):
             result = await _ask_llm_to_dedupe(
                 _PLACES_CFG, ["Alaska", "ALASKA", "Alaskan"], cfg,
@@ -183,31 +203,29 @@ class TestAskLLMToDedupe:
     @pytest.mark.asyncio
     async def test_drops_aliases_with_only_whitespace(self):
         cfg = MagicMock()
+        mock = self._mock_dedup([
+            {"canonical": "Real", "aliases": ["", "   ", "Realer"]},
+        ])
         with patch(
-            "fichero.workflows.tools.cleanup.chat",
-            new=AsyncMock(
-                return_value=(
-                    '{"groups": [{"canonical": "Real", '
-                    '"aliases": ["", "   ", "Realer"]}]}'
-                )
-            ),
+            "fichero.workflows.tools.cleanup.chat_structured_with_fallback",
+            new=mock,
         ):
             result = await _ask_llm_to_dedupe(_PEOPLE_CFG, ["Real", "Realer"], cfg)
         assert result == [{"canonical": "Real", "aliases": ["Realer"]}]
 
     @pytest.mark.asyncio
     async def test_drops_groups_without_canonical(self):
+        """The schema constraint forces `canonical: str` (non-Optional),
+        but the LLM can still emit empty strings. These get dropped and
+        the orphaned inputs are backfilled as their own groups."""
         cfg = MagicMock()
+        mock = self._mock_dedup([
+            {"canonical": "", "aliases": ["x"]},
+            {"canonical": "Real", "aliases": []},
+        ])
         with patch(
-            "fichero.workflows.tools.cleanup.chat",
-            new=AsyncMock(
-                return_value=(
-                    '{"groups": ['
-                    '{"canonical": "", "aliases": ["x"]}, '
-                    '{"canonical": "Real", "aliases": []}'
-                    ']}'
-                )
-            ),
+            "fichero.workflows.tools.cleanup.chat_structured_with_fallback",
+            new=mock,
         ):
             result = await _ask_llm_to_dedupe(_PEOPLE_CFG, ["A", "B"], cfg)
         # "Real" is the only valid LLM group; A and B are backfilled.

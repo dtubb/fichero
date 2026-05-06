@@ -29,13 +29,14 @@ LLM failure → log + passthrough (no merges, no data loss).
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 from fichero.db import db_manager
 from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
-from fichero.llm import LLMConfig, chat
+from fichero.llm import LLMConfig, chat_structured_with_fallback
 from fichero.models import Artifact
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools.catalogue import _resolve_container_doc
@@ -257,16 +258,27 @@ def _normalize_case(name: str) -> str:
     return name
 
 
-def _strip_fences(raw: str) -> str:
-    stripped = raw.strip()
-    if not stripped.startswith("```"):
-        return stripped
-    lines = stripped.splitlines()
-    if lines and lines[0].startswith("```"):
-        lines = lines[1:]
-    if lines and lines[-1].startswith("```"):
-        lines = lines[:-1]
-    return "\n".join(lines).strip()
+class _DedupGroup(BaseModel):
+    canonical: str = Field(
+        description="The canonical (most complete / preferred) form of the name. "
+        "Title Case. Re-cased from ALL-CAPS, accents preserved."
+    )
+    aliases: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Other surface forms in the input that refer to the same entity "
+            "as the canonical. Empty when the canonical has no duplicates."
+        ),
+    )
+
+
+class _DedupResult(BaseModel):
+    """Schema for the dedup LLM call. Total of canonicals + aliases must
+    equal the number of input names — see the system prompt's 'You are
+    deduplicating, not curating' rule. Backfilled in Python if the LLM
+    drops inputs anyway."""
+
+    groups: list[_DedupGroup] = Field(default_factory=list)
 
 
 async def _ask_llm_to_dedupe(
@@ -274,9 +286,19 @@ async def _ask_llm_to_dedupe(
     names: list[str],
     llm_config: LLMConfig,
 ) -> list[dict[str, Any]]:
-    """Call the LLM and parse {groups: [{canonical, aliases}]}.
+    """Call the LLM and return [{canonical, aliases}, ...].
 
-    Returns [] on any failure — caller treats that as "no merges".
+    Uses grammar-constrained structured output — Apple Intelligence via
+    fm-bridge's DynamicGenerationSchema, frontier providers via
+    LangChain `with_structured_output(method="function_calling")`. The
+    decoder cannot emit invalid JSON, so the previous "Expecting ',
+    ' delimiter" / "Unterminated string" failure modes (which silently
+    returned [] and disabled cleanup for that section) are gone (#845).
+
+    Returns [] only when no names were supplied. On LLM transport
+    failure (network/auth/timeout), logs the error and returns the
+    identity grouping (each name as its own canonical with no aliases),
+    so the workflow continues with no merges rather than aborting.
     """
     if len(names) < 2:
         return [{"canonical": names[0], "aliases": []}] if names else []
@@ -284,44 +306,37 @@ async def _ask_llm_to_dedupe(
     display = type_cfg["display"]
     instructions, user_prompt = _build_cleanup_prompt(type_cfg, names)
     try:
-        response = await chat(
-            user_prompt,
+        result = await chat_structured_with_fallback(
+            prompt=user_prompt,
+            schema=_DedupResult,
             config=llm_config,
             system=instructions,
+            # Schema is enforced at decode; instructions cover the
+            # dedup policy. Skip the auto-injected schema dump on Apple
+            # Intelligence to save prompt tokens (#843).
+            include_schema_in_prompt=False,
         )
     except Exception as exc:
-        logger.warning(f"cleanup LLM call failed for {display}: {exc}")
-        return []
+        logger.warning(
+            f"cleanup LLM call failed for {display}: {exc}; "
+            f"returning identity grouping (no merges)"
+        )
+        return [{"canonical": _normalize_case(n), "aliases": []} for n in names]
 
-    try:
-        parsed = json.loads(_strip_fences(response))
-    except json.JSONDecodeError as exc:
-        logger.warning(f"cleanup JSON parse failed for {display}: {exc}")
-        return []
-
-    if not isinstance(parsed, dict):
-        return []
-    groups = parsed.get("groups")
-    if not isinstance(groups, list):
-        return []
     cleaned: list[dict[str, Any]] = []
-    for g in groups:
-        if not isinstance(g, dict):
-            continue
-        canonical = _normalize_case((g.get("canonical") or "").strip())
+    for g in result.groups:
+        canonical = _normalize_case(g.canonical.strip())
         if not canonical:
             continue
-        raw_aliases = g.get("aliases") or []
         # Drop aliases that are casefold-equal to the canonical — they
         # render as redundant "(aka <self>)" suffixes in the inspector
-        # (#825). Also drop empty / whitespace-only aliases.
+        # (#825). Also drop empty / whitespace-only aliases and dedupe
+        # within the alias list itself.
         canonical_key = canonical.casefold()
         aliases: list[str] = []
         seen_alias_keys: set[str] = {canonical_key}
-        for a in raw_aliases:
-            if not isinstance(a, (str, int, float)):
-                continue
-            text = str(a).strip()
+        for a in g.aliases:
+            text = a.strip()
             if not text:
                 continue
             key = text.casefold()
@@ -332,8 +347,9 @@ async def _ask_llm_to_dedupe(
         cleaned.append({"canonical": canonical, "aliases": aliases})
 
     # Backfill: the LLM may silently drop inputs it judges as "not a real
-    # entry." We are deduplicating, not curating — every input must end up
-    # somewhere. Add anything missing as its own single-item group.
+    # entry" even with the schema constraint. We are deduplicating, not
+    # curating — every input must end up somewhere. Add anything missing
+    # as its own single-item group.
     seen: set[str] = set()
     for g in cleaned:
         seen.add(g["canonical"].casefold())
