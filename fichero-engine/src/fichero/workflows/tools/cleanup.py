@@ -36,7 +36,11 @@ from pydantic import BaseModel, Field
 
 from fichero.db import db_manager
 from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
-from fichero.llm import LLMConfig, chat_structured_with_fallback
+from fichero.llm import (
+    LLMConfig,
+    apple_intelligence_fits_in_context,
+    chat_structured_with_fallback,
+)
 from fichero.models import Artifact
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools.catalogue import _resolve_container_doc
@@ -319,6 +323,38 @@ async def _ask_llm_to_dedupe(
 
     display = type_cfg["display"]
     instructions, user_prompt = _build_cleanup_prompt(type_cfg, names)
+
+    # Proactive overflow check (#848 / #854 reactive variant). For
+    # Apple Intelligence's 4K context window, estimate whether prompt +
+    # instructions + headroom for the dedup response fits BEFORE
+    # submitting. If it doesn't, split now rather than waste a
+    # generation attempt that will fail with (decoding). Cleanup's
+    # response budget is generous (~768 tokens covers 50+ groups with
+    # short canonicals + alias lists). Non-Apple providers (256K+
+    # context) skip the check — they can absorb our prompts whole.
+    if (
+        llm_config.provider == "apple"
+        and len(names) >= 4
+        and _depth < _MAX_DEDUP_DEPTH
+        and not apple_intelligence_fits_in_context(
+            prompt=user_prompt,
+            instructions=instructions,
+            response_headroom=768,
+        )
+    ):
+        mid = len(names) // 2
+        logger.info(
+            f"cleanup proactive split on {display} "
+            f"({len(names)} names exceed Apple context, depth={_depth})"
+        )
+        left = await _ask_llm_to_dedupe(
+            type_cfg, names[:mid], llm_config, _depth=_depth + 1,
+        )
+        right = await _ask_llm_to_dedupe(
+            type_cfg, names[mid:], llm_config, _depth=_depth + 1,
+        )
+        return left + right
+
     try:
         result = await chat_structured_with_fallback(
             prompt=user_prompt,
