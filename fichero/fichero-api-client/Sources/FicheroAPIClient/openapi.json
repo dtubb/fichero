@@ -25296,6 +25296,26 @@
             "title": "Embeddings Model",
             "default": ""
           },
+          "small_provider": {
+            "type": "string",
+            "title": "Small Provider",
+            "default": ""
+          },
+          "small_model": {
+            "type": "string",
+            "title": "Small Model",
+            "default": ""
+          },
+          "large_provider": {
+            "type": "string",
+            "title": "Large Provider",
+            "default": ""
+          },
+          "large_model": {
+            "type": "string",
+            "title": "Large Model",
+            "default": ""
+          },
           "temperature": {
             "type": "string",
             "title": "Temperature",

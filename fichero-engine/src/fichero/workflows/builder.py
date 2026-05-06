@@ -51,10 +51,15 @@ def _resolve_node_llm_config(
     node_model = node_def.model_name or node_def.config.get("model_name", "")
 
     if node_provider or node_model:
-        return LLMConfig(
-            provider=node_provider or workflow_llm_config.provider,
-            model=node_model or workflow_llm_config.model,
-        )
+        provider = node_provider or workflow_llm_config.provider
+        model = node_model or workflow_llm_config.model
+        # $small / $large alias resolution against app-level defaults (#810).
+        # Lets shipped presets stay portable across users with different
+        # configured providers — the node declares a tier, the user picks
+        # the concrete model in Settings.
+        from fichero.llm import resolve_model_alias
+        provider, model = resolve_model_alias(provider, model)
+        return LLMConfig(provider=provider, model=model)
 
     tool_def = get_tool_def(node_def.tool)
     if not (tool_def and tool_def.uses_llm):

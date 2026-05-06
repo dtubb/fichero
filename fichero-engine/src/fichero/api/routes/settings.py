@@ -27,6 +27,13 @@ class AIDefaults(BaseModel):
     video_model: str = ""
     embeddings_provider: str = ""
     embeddings_model: str = ""
+    # Capability-tier defaults — referenced by workflow nodes via the
+    # $small / $large model aliases so presets stay portable across users
+    # with different configured providers (#810).
+    small_provider: str = ""
+    small_model: str = ""
+    large_provider: str = ""
+    large_model: str = ""
     # Advanced
     temperature: str = ""
     max_tokens: str = ""
@@ -51,6 +58,10 @@ def get_ai_defaults() -> AIDefaults:
         video_model=defaults.get("default_video_model", ""),
         embeddings_provider=defaults.get("default_embeddings_provider", ""),
         embeddings_model=defaults.get("default_embeddings_model", ""),
+        small_provider=defaults.get("default_small_provider", ""),
+        small_model=defaults.get("default_small_model", ""),
+        large_provider=defaults.get("default_large_provider", ""),
+        large_model=defaults.get("default_large_model", ""),
         temperature=defaults.get("default_temperature", ""),
         max_tokens=defaults.get("default_max_tokens", ""),
         prompt_prefix=defaults.get("default_prompt_prefix", ""),
@@ -74,6 +85,10 @@ def set_ai_defaults(body: AIDefaults) -> StatusOkResponse:
         "default_video_model": body.video_model,
         "default_embeddings_provider": body.embeddings_provider,
         "default_embeddings_model": body.embeddings_model,
+        "default_small_provider": body.small_provider,
+        "default_small_model": body.small_model,
+        "default_large_provider": body.large_provider,
+        "default_large_model": body.large_model,
         "default_temperature": body.temperature,
         "default_max_tokens": body.max_tokens,
         "default_prompt_prefix": body.prompt_prefix,

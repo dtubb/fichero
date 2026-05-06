@@ -134,6 +134,45 @@ class LLMConfig:
 
 
 # =============================================================================
+# Model aliases ($small / $large) — see #810
+# =============================================================================
+
+
+_MODEL_ALIASES = {"$small", "$large"}
+
+
+def resolve_model_alias(provider: str, model: str) -> tuple[str, str]:
+    """Resolve $small / $large aliases against app-level settings.
+
+    Returns the input pair unchanged when not an alias. Raises ValueError
+    with an actionable message when the alias is used but the matching
+    setting is unconfigured.
+
+    Aliases let workflow presets stay portable across users with different
+    provider configurations: a node can declare `provider: "$small"` and
+    the runtime fills in whichever concrete provider/model the user picked
+    in Settings → AI Defaults (#810).
+    """
+    raw = (provider or "").strip()
+    if raw not in _MODEL_ALIASES:
+        return (provider, model)
+
+    from fichero.app_db import get_app_db
+    db = get_app_db()
+    tier = "small" if raw == "$small" else "large"
+    resolved_provider = db.get_setting(f"default_{tier}_provider")
+    resolved_model = db.get_setting(f"default_{tier}_model")
+
+    if not resolved_provider or not resolved_model:
+        raise ValueError(
+            f"Workflow node uses {raw} but no default {tier} model is "
+            f"configured. Set one in Settings → AI Defaults → "
+            f"Default {tier} model."
+        )
+    return (resolved_provider, resolved_model)
+
+
+# =============================================================================
 # API Key Resolution
 # =============================================================================
 
