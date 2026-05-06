@@ -40,6 +40,23 @@ def second_doc(db):
     return doc
 
 
+
+def _pydantic_from_json_response(json_str: str):
+    """Translate a test's JSON-string fake_response into the Pydantic
+    instance the new chat_structured_with_fallback path returns. The
+    section is detected from which top-level key is present in the
+    JSON. Used by _MIGRATION tests #846."""
+    import json as _json
+    from fichero.workflows.tools.extractors import _SECTION_SCHEMAS
+    parsed = _json.loads(json_str)
+    if isinstance(parsed, dict):
+        for key in _SECTION_SCHEMAS:
+            if key in parsed:
+                schema = _SECTION_SCHEMAS[key]
+                return schema(items=parsed[key])
+    raise ValueError(f"can't infer section from {parsed!r}")
+
+
 # ---------------------------------------------------------------------------
 # All six generic extractors covered (parametrized)
 # ---------------------------------------------------------------------------
@@ -48,13 +65,26 @@ def second_doc(db):
 async def _run_one_extractor(
     db, test_package, container_doc, llm_config, section_name, fake_response
 ):
-    """Helper: run a single extractor with a mocked LLM response."""
-    from fichero.workflows.tools.extractors import _run_extractor, _SECTIONS
+    """Helper: run a single extractor with a mocked LLM response.
+
+    Tests pass `fake_response` as a JSON string for ergonomics; we
+    translate it into the Pydantic instance the new
+    chat_structured_with_fallback path expects (#846 migration).
+    """
+    import json as _json
+    from fichero.workflows.tools.extractors import (
+        _run_extractor, _SECTIONS, _SECTION_SCHEMAS,
+    )
 
     section = next(s for s in _SECTIONS if s["name"] == section_name)
+    schema = _SECTION_SCHEMAS[section["schema_key"]]
+    parsed = _json.loads(fake_response)
+    items = parsed.get(section["schema_key"], [])
+    fake_pydantic = schema(items=items)
+
     with patch(
-        "fichero.workflows.tools.extractors.chat",
-        new=AsyncMock(return_value=fake_response),
+        "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+        new=AsyncMock(return_value=fake_pydantic),
     ):
         state = {
             "library_path": str(test_package),
@@ -156,8 +186,8 @@ class TestCrossDocumentEntityReuse:
         )
 
         with patch(
-            "fichero.workflows.tools.extractors.chat",
-            new=AsyncMock(return_value=fake_response),
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(return_value=_pydantic_from_json_response(fake_response)),
         ):
             await _run_extractor(
                 people_section,
@@ -198,22 +228,25 @@ class TestMalformedItems:
     async def test_missing_canonical_name_skipped(
         self, db, test_package, container_doc, llm_config
     ):
-        """An item with no 'nombre'/'name' field is silently skipped — we
-        don't crash the extractor or write a nameless entity row."""
+        """Post #846: items missing a name field can't reach Python — the
+        Pydantic schema (_SectionPerson.name: str) is required, and the
+        grammar-constrained decoder can't emit a missing required field.
+        This test now asserts the contract: only valid items survive,
+        and the count matches what the LLM produced. The previous
+        scenario (malformed JSON with missing fields silently skipped
+        in Python) is now structurally impossible at the LLM layer."""
         from fichero.workflows.tools.extractors import _run_extractor, _SECTIONS
 
         people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
-        # Two items: one valid, one missing nombre
+        # Only valid items can come back — schema rejects nameless ones at
+        # the model's decode step.
         fake_response = (
-            '{"people": ['
-            '{"name": "Juan", "context": "valid"},'
-            '{"context": "no name field"}'
-            "]}"
+            '{"people": [{"name": "Juan", "context": "valid"}]}'
         )
 
         with patch(
-            "fichero.workflows.tools.extractors.chat",
-            new=AsyncMock(return_value=fake_response),
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(return_value=_pydantic_from_json_response(fake_response)),
         ):
             await _run_extractor(
                 people_section,
@@ -241,8 +274,8 @@ class TestMalformedItems:
         fake_response = '{"keywords": ["mining", "1930s", "Antioquia"]}'
 
         with patch(
-            "fichero.workflows.tools.extractors.chat",
-            new=AsyncMock(return_value=fake_response),
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(return_value=_pydantic_from_json_response(fake_response)),
         ):
             await _run_extractor(
                 keywords_section,
@@ -269,8 +302,8 @@ class TestMalformedItems:
         fake_response = '{"people": []}'
 
         with patch(
-            "fichero.workflows.tools.extractors.chat",
-            new=AsyncMock(return_value=fake_response),
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(return_value=_pydantic_from_json_response(fake_response)),
         ):
             await _run_extractor(
                 people_section,
@@ -311,8 +344,8 @@ class TestDateClaimMetadata:
         )
 
         with patch(
-            "fichero.workflows.tools.extractors.chat",
-            new=AsyncMock(return_value=fake_response),
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(return_value=_pydantic_from_json_response(fake_response)),
         ):
             await _run_extractor(
                 dates_section,
@@ -347,8 +380,8 @@ class TestDateClaimMetadata:
         )
 
         with patch(
-            "fichero.workflows.tools.extractors.chat",
-            new=AsyncMock(return_value=fake_response),
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(return_value=_pydantic_from_json_response(fake_response)),
         ):
             await _run_extractor(
                 dates_section,
@@ -388,8 +421,8 @@ class TestAliasPersistence:
         )
 
         with patch(
-            "fichero.workflows.tools.extractors.chat",
-            new=AsyncMock(return_value=fake_response),
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(return_value=_pydantic_from_json_response(fake_response)),
         ):
             await _run_extractor(
                 people_section,
@@ -428,8 +461,8 @@ class TestEntityDescription:
         )
 
         with patch(
-            "fichero.workflows.tools.extractors.chat",
-            new=AsyncMock(return_value=fake_response),
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(return_value=_pydantic_from_json_response(fake_response)),
         ):
             await _run_extractor(
                 people_section,

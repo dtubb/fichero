@@ -33,8 +33,10 @@ import logging
 from datetime import datetime
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 from fichero.db import db_manager
-from fichero.llm import LLMConfig, chat
+from fichero.llm import LLMConfig, chat_structured_with_fallback
 from fichero.models import Artifact
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools.catalogue import _resolve_container_doc
@@ -309,6 +311,112 @@ _SECTIONS: list[dict[str, Any]] = [
 # =============================================================================
 
 
+# Per-section Pydantic schemas (#846). Each per-section extractor
+# returns the same shape extract_all does for that section, just one
+# section at a time. The shapes mirror extract_all._Person /._Place /
+# etc. but live alongside the per-section tools so each can evolve
+# independently.
+
+
+class _SectionPerson(BaseModel):
+    name: str
+    alternative_spellings: list[str] = Field(
+        default_factory=list,
+        description="other surface forms found in the text (e.g. M. García for María García)",
+    )
+    context: str = Field(description="role and importance")
+
+
+class _SectionPlace(BaseModel):
+    name: str
+    alternative_spellings: list[str] = Field(default_factory=list)
+    context: str
+
+
+class _SectionOrganization(BaseModel):
+    name: str
+    alternative_spellings: list[str] = Field(default_factory=list)
+    context: str
+
+
+class _SectionDate(BaseModel):
+    date: str = Field(description="as written in the document")
+    date_normalized: str = Field(
+        description="YYYY-MM-DD (range YYYY-MM-DD/YYYY-MM-DD; month-only YYYY-MM; year-only YYYY)"
+    )
+    context: str
+
+
+class _SectionRiver(BaseModel):
+    name: str
+    alternative_spellings: list[str] = Field(default_factory=list)
+    context: str
+
+
+class _SectionEvent(BaseModel):
+    event: str = Field(description="Title Case noun phrase naming the event")
+    date: str | None = Field(default=None, description="YYYY-MM-DD when stated, else null")
+    context: str
+
+
+class _SectionMine(BaseModel):
+    name: str
+    context: str
+
+
+class _SectionProperty(BaseModel):
+    name: str
+    context: str
+
+
+class _SectionLegalReference(BaseModel):
+    name: str
+    context: str
+
+
+def _make_section_schema(item_model: type[BaseModel], schema_key: str) -> type[BaseModel]:
+    """Build a single-section wrapper Pydantic model. Each per-section
+    tool returns `{<schema_key>: [<items>]}` so the parsed result has
+    the same top-level shape as a slice of the extract_all output."""
+
+    class SectionResult(BaseModel):
+        # Use the section's schema_key as the field name via __fields__
+        # injection so the generated JSON Schema names the property
+        # consistently with extract_all's. We can't use a dynamic
+        # field name with normal Pydantic syntax; this generates the
+        # model class at module load.
+        items: list[item_model] = Field(default_factory=list)  # type: ignore[valid-type]
+
+    SectionResult.__name__ = f"_Section_{schema_key.title()}"
+    return SectionResult
+
+
+# Map schema_key → wrapper model. Used by _run_extractor's single-
+# section LLM call. The wrapper carries the items under `items`
+# regardless of section, so callers don't need a section-specific
+# accessor.
+_SECTION_SCHEMAS: dict[str, type[BaseModel]] = {
+    "people": _make_section_schema(_SectionPerson, "people"),
+    "places": _make_section_schema(_SectionPlace, "places"),
+    "organizations": _make_section_schema(_SectionOrganization, "organizations"),
+    "dates": _make_section_schema(_SectionDate, "dates"),
+    "rivers": _make_section_schema(_SectionRiver, "rivers"),
+    "events": _make_section_schema(_SectionEvent, "events"),
+    "mines": _make_section_schema(_SectionMine, "mines"),
+    "properties": _make_section_schema(_SectionProperty, "properties"),
+    "legal_references": _make_section_schema(_SectionLegalReference, "legal_references"),
+}
+
+
+class _KeywordsResult(BaseModel):
+    """Keywords are flat strings, not objects."""
+
+    items: list[str] = Field(default_factory=list)
+
+
+_SECTION_SCHEMAS["keywords"] = _KeywordsResult
+
+
 def _build_section_prompt(section: dict[str, Any], output_language: str) -> str:
     """Focused extraction prompt for a single section.
 
@@ -574,33 +682,41 @@ async def _run_extractor(
     chunk_errors: list[str] = []
 
     async def _extract_one(chunk_text: str) -> list[Any]:
-        # System+user split (#815) — rules to system, source to user.
+        # Grammar-constrained structured output (#846). Mirrors
+        # extract_all's migration: the decoder cannot emit invalid JSON
+        # so the previous "JSON parse failed" failure mode is gone.
+        # Apple Intelligence routes through fm-bridge structured mode;
+        # frontier providers route through LangChain's
+        # with_structured_output (json_schema or function_calling per
+        # model.profile). Errors fall through to chunk_errors so the
+        # caller can surface a meaningful message.
+        section_schema = _SECTION_SCHEMAS.get(section["schema_key"])
+        if section_schema is None:
+            chunk_errors.append(f"no Pydantic schema for {section['schema_key']}")
+            return []
+
         try:
-            response = await chat(
-                chunk_text,
+            result = await chat_structured_with_fallback(
+                prompt=chunk_text,
+                schema=section_schema,
                 config=llm_config,
                 system=prompt,
+                # Per-section instructions describe the section
+                # specifically; the schema describes the shape. Skip
+                # the auto-injected schema dump on Apple Intelligence
+                # to save the on-device 4K window (#843).
+                include_schema_in_prompt=False,
             )
         except Exception as exc:
-            msg = f"LLM call failed: {exc}"
+            msg = f"structured LLM call failed: {exc}"
             logger.error(f"{section['name']} {msg}")
             chunk_errors.append(str(exc))
             return []
 
-        try:
-            parsed = json.loads(_strip_fences(response))
-        except json.JSONDecodeError as exc:
-            logger.warning(f"{section['name']}: JSON parse failed ({exc}); skipping chunk")
-            chunk_errors.append(f"JSON parse failed: {exc}")
-            return []
-
-        if isinstance(parsed, dict):
-            raw_items = parsed.get(section["schema_key"])
-            if isinstance(raw_items, list):
-                return raw_items
-        elif isinstance(parsed, list):
-            return parsed
-        return []
+        # Pydantic instance → list of dicts (or strings for keywords).
+        if section["schema_key"] == "keywords":
+            return list(getattr(result, "items", []))
+        return [item.model_dump(mode="json") for item in getattr(result, "items", [])]
 
     chunk_results: list[list[Any]] = await asyncio.gather(
         *[_extract_chunk(c) for c in chunks]

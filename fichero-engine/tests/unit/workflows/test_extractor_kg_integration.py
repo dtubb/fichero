@@ -38,6 +38,22 @@ def container_doc(db):
     return doc
 
 
+
+def _pydantic_from_json_response(json_str):
+    """Translate a test's JSON-string fake_response into the Pydantic
+    instance the new chat_structured_with_fallback path returns (#846).
+    Section is detected from the JSON's top-level key."""
+    import json as _json
+    from fichero.workflows.tools.extractors import _SECTION_SCHEMAS
+    parsed = _json.loads(json_str)
+    if isinstance(parsed, dict):
+        for key in _SECTION_SCHEMAS:
+            if key in parsed:
+                return _SECTION_SCHEMAS[key](items=parsed[key])
+    raise ValueError(f"can't infer section from {parsed!r}")
+
+
+
 class TestPeopleExtractorKG:
     @pytest.mark.asyncio
     async def test_creates_entity_and_claim_for_each_person(
@@ -54,8 +70,8 @@ class TestPeopleExtractorKG:
         )
 
         with patch(
-            "fichero.workflows.tools.extractors.chat",
-            new=AsyncMock(return_value=fake_response),
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(return_value=_pydantic_from_json_response(fake_response)),
         ):
             state = {
                 "library_path": str(test_package),
@@ -86,8 +102,8 @@ class TestPeopleExtractorKG:
         fake_response = '{"people": [{"name": "Juan Pérez", "context": "x"}]}'
 
         with patch(
-            "fichero.workflows.tools.extractors.chat",
-            new=AsyncMock(return_value=fake_response),
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(return_value=_pydantic_from_json_response(fake_response)),
         ):
             state = {
                 "library_path": str(test_package),
@@ -113,8 +129,8 @@ class TestPeopleExtractorKG:
         fake_response = '{"people": [{"name": "Juan Pérez", "context": "x"}]}'
 
         with patch(
-            "fichero.workflows.tools.extractors.chat",
-            new=AsyncMock(return_value=fake_response),
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(return_value=_pydantic_from_json_response(fake_response)),
         ):
             state = {
                 "library_path": str(test_package),
@@ -143,8 +159,8 @@ class TestPeopleExtractorKG:
         cfg2 = LLMConfig(provider="anthropic", model="claude-sonnet-4-6")
 
         with patch(
-            "fichero.workflows.tools.extractors.chat",
-            new=AsyncMock(return_value=fake_response),
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(return_value=_pydantic_from_json_response(fake_response)),
         ):
             state = {
                 "library_path": str(test_package),
@@ -180,8 +196,8 @@ class TestDatesExtractorKG:
         )
 
         with patch(
-            "fichero.workflows.tools.extractors.chat",
-            new=AsyncMock(return_value=fake_response),
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(return_value=_pydantic_from_json_response(fake_response)),
         ):
             state = {
                 "library_path": str(test_package),
@@ -223,17 +239,21 @@ class TestPerPageProvenance:
         page2 = "On page two, Juan Pérez objected to the sale."
         aggregated = f"{page1}\n\n---\n\n{page2}"
 
-        # Mock chat to return different responses per call.
+        # Mock returns a different Pydantic instance per page (#846).
         responses = iter([
-            '{"people": [{"name": "María Angel", "context": "deed signer"}]}',
-            '{"people": [{"name": "Juan Pérez", "context": "objected"}]}',
+            _pydantic_from_json_response(
+                '{"people": [{"name": "María Angel", "context": "deed signer"}]}'
+            ),
+            _pydantic_from_json_response(
+                '{"people": [{"name": "Juan Pérez", "context": "objected"}]}'
+            ),
         ])
 
         async def fake_chat(*args, **kwargs):
             return next(responses)
 
         with patch(
-            "fichero.workflows.tools.extractors.chat",
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
             new=AsyncMock(side_effect=fake_chat),
         ):
             state = {
@@ -265,8 +285,8 @@ class TestPerPageProvenance:
         fake_response = '{"people": [{"name": "María Angel", "context": "x"}]}'
 
         with patch(
-            "fichero.workflows.tools.extractors.chat",
-            new=AsyncMock(return_value=fake_response),
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(return_value=_pydantic_from_json_response(fake_response)),
         ):
             state = {
                 "library_path": str(test_package),
