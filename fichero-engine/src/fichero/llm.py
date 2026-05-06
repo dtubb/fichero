@@ -946,6 +946,196 @@ async def structured_output(
     return result
 
 
+async def chat_structured(
+    prompt: str,
+    schema: type[BaseModel],
+    config: LLMConfig,
+    system: str | None = None,
+) -> BaseModel:
+    """Provider-routed structured output. Returns a Pydantic instance.
+
+    Two backends, both grammar-constrained at the decode level so the
+    "LLM emitted truncated JSON, parser threw" failure mode physically
+    cannot occur (#799/#819):
+
+    - **Apple Intelligence** (provider="apple"): fm-bridge structured
+      mode. Schema converted from Pydantic via `_pydantic_to_apple_schema`
+      and shipped to FoundationModels.DynamicGenerationSchema. Decoder
+      is constrained at the token level — invalid JSON cannot be emitted.
+
+    - **Everything else**: LangChain's `with_structured_output(schema)`
+      which routes to the provider's native structured-output API
+      (OpenAI / OpenRouter `response_format=json_schema`, Anthropic /
+      Mistral tool-calling, Gemini function-calling). Same guarantee.
+
+    `system` is forwarded as instructions on Apple Intelligence and as
+    a SystemMessage on LangChain models.
+
+    Replaces the old prompt-engineer-then-json.loads() pattern in
+    extract_all + cleanup, where the model emitted free-form text we
+    asked nicely to be JSON, then parsed and prayed.
+    """
+    if config.provider == "apple":
+        return await _apple_intelligence_structured(prompt, schema, config, system)
+
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    model = get_langchain_model(config)
+    structured_model = model.with_structured_output(schema)
+
+    messages: list[Any] = []
+    if system:
+        messages.append(SystemMessage(content=system))
+    messages.append(HumanMessage(content=prompt))
+    result = await structured_model.ainvoke(messages)
+    return result
+
+
+def _pydantic_to_apple_schema(model: type[BaseModel]) -> dict[str, Any]:
+    """Convert a Pydantic class into the schema-tree shape fm-bridge
+    builds DynamicGenerationSchema from. Inlines `$ref` definitions
+    against `$defs` so the bridge doesn't need cross-file references.
+
+    Pydantic emits JSON Schema; Apple's DynamicGenerationSchema is a
+    similar tree with object/array/primitive shape but a different
+    property layout (list of `{name, schema, optional}` instead of a
+    `properties` dict + separate `required` list). This helper bridges
+    the two without depending on any OpenAPI-style JSON-Schema library.
+    """
+    full = model.model_json_schema()
+    defs = full.get("$defs", {})
+
+    def resolve(node: dict[str, Any]) -> dict[str, Any]:
+        # Resolve a single $ref against $defs; deep-copy so callers can
+        # mutate without polluting the shared definition.
+        if "$ref" in node:
+            ref = node["$ref"]
+            assert ref.startswith("#/$defs/"), f"unexpected $ref: {ref}"
+            name = ref.split("/")[-1]
+            return resolve({**defs[name]})
+        return node
+
+    def convert(node: dict[str, Any]) -> dict[str, Any]:
+        node = resolve(node)
+        # anyOf with `null` is Pydantic's Optional[T] form — strip the
+        # null branch and recurse on the remaining type.
+        if "anyOf" in node and not node.get("type"):
+            non_null = [b for b in node["anyOf"] if b.get("type") != "null"]
+            if len(non_null) == 1:
+                return convert(non_null[0])
+
+        type_ = node.get("type", "object")
+        out: dict[str, Any] = {"type": type_}
+        if title := node.get("title"):
+            out["name"] = title
+        if desc := node.get("description"):
+            out["description"] = desc
+
+        if type_ == "object":
+            required = set(node.get("required", []))
+            properties = node.get("properties", {})
+            props_out: list[dict[str, Any]] = []
+            for pname, psub in properties.items():
+                psub_resolved = resolve(psub)
+                pschema = convert(psub_resolved)
+                pdesc = psub.get("description") or psub_resolved.get("description")
+                entry: dict[str, Any] = {"name": pname, "schema": pschema}
+                if pdesc:
+                    entry["description"] = pdesc
+                if pname not in required:
+                    entry["optional"] = True
+                props_out.append(entry)
+            out["properties"] = props_out
+        elif type_ == "array":
+            items = resolve(node.get("items", {"type": "string"}))
+            out["items"] = convert(items)
+            if (mn := node.get("minItems")) is not None:
+                out["minimum_elements"] = mn
+            if (mx := node.get("maxItems")) is not None:
+                out["maximum_elements"] = mx
+        # Primitives (string/integer/number/boolean): nothing extra.
+
+        return out
+
+    return convert(full)
+
+
+async def _apple_intelligence_structured(
+    prompt: str,
+    schema: type[BaseModel],
+    config: LLMConfig,
+    system: str | None = None,
+) -> BaseModel:
+    """Subprocess fm-bridge in structured mode and return a Pydantic
+    instance built from the grammar-constrained JSON output. Mirrors
+    `_apple_intelligence_chat`'s subprocess pattern but adds a `schema`
+    field to the request and parses `response_json` from the bridge.
+    """
+    import json as _json
+    from pathlib import Path
+
+    here = Path(__file__).resolve()
+    candidates = [
+        here.parent / "resources" / "bin" / "fm-bridge",
+        here.parent / "bin" / "fm-bridge" / "fm-bridge",
+        here.parents[3] / "bin" / "fm-bridge" / "fm-bridge",
+        Path("fichero-engine/bin/fm-bridge/fm-bridge").resolve(),
+    ]
+    binary: Path | None = next(
+        (p for p in candidates if p.is_file() and p.stat().st_mode & 0o111),
+        None,
+    )
+    if binary is None:
+        raise RuntimeError(
+            "fm-bridge binary not found; run "
+            "fichero-engine/bin/fm-bridge/build.sh and copy to "
+            "src/fichero/resources/bin/"
+        )
+
+    request: dict[str, Any] = {
+        "prompt": prompt,
+        "instructions": system or "",
+        "schema": _pydantic_to_apple_schema(schema),
+    }
+    if config.temperature is not None:
+        request["temperature"] = config.temperature
+    if config.max_tokens is not None and config.max_tokens > 0:
+        request["max_tokens"] = config.max_tokens
+    payload = _json.dumps(request).encode()
+
+    proc = await asyncio.create_subprocess_exec(
+        str(binary),
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout_bytes, stderr_bytes = await proc.communicate(payload)
+
+    if proc.returncode != 0:
+        stderr_text = stderr_bytes.decode()
+        try:
+            err = _json.loads(stderr_text)
+            kind = err.get("kind", "error")
+            message = err.get("error", stderr_text)
+            if "guardrailViolation" in message or "guardrail" in message.lower():
+                raise GuardrailViolationError(
+                    f"Apple Intelligence ({kind}): {message}"
+                )
+            raise RuntimeError(f"Apple Intelligence ({kind}): {message}")
+        except _json.JSONDecodeError:
+            raise RuntimeError(
+                f"fm-bridge exited {proc.returncode}: {stderr_text}"
+            )
+
+    bridge_result = _json.loads(stdout_bytes.decode())
+    response_json = bridge_result.get("response_json", "")
+    # Parse the grammar-constrained JSON (always valid by construction)
+    # into the Pydantic class. Validation here is belt-and-suspenders —
+    # the schema constraint should already guarantee shape, but a typed
+    # parse gives downstream code a real Pydantic instance to consume.
+    return schema.model_validate_json(response_json)
+
+
 # =============================================================================
 # LangChain Integration
 # =============================================================================
