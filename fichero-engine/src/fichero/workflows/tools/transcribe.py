@@ -136,7 +136,7 @@ def build_transcribe_prompt(config: dict) -> str:
     output_ports=BASE_OUTPUT_PORTS,
     config_schema=merge_config_schema(VISION_CONFIG_SCHEMA, TRANSCRIBE_CONFIG),
     config_defaults={
-        "vision_mode": "apple",
+        "vision_mode": "auto",
         "language": "en",
         "return_boxes": False,
         "update_page_content": True,
@@ -160,7 +160,7 @@ async def transcribe(
     input_metadata = inputs.get("metadata")
 
     # Get transcribe-specific config
-    vision_mode = inputs.get("vision_mode", "apple")
+    vision_mode = inputs.get("vision_mode", "auto")
     language = inputs.get("language", "en")
     return_boxes = inputs.get("return_boxes", False)
     update_page_content = inputs.get("update_page_content", True)

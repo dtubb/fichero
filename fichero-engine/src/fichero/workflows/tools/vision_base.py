@@ -30,6 +30,35 @@ if TYPE_CHECKING:
 
 from fichero.workflows.types import PortDef, DataType
 
+# Pre-import macOS Vision/Quartz framework symbols at module load on the
+# main thread. PyObjC's bridge resolves Foundation/Quartz symbols lazily
+# the first time they're accessed; doing that from a worker thread (which
+# is exactly what `loop.run_in_executor(None, apple_vision_ocr, ...)`
+# does for parallel transcribe runs) races and intermittently raises
+# `KeyError(<symbol>)`. Module-load resolution happens once on the main
+# thread before any executor task can fire.
+try:
+    from Quartz import (  # noqa: F401  (imported for side-effect)
+        CGImageSourceCreateWithURL,
+        CGImageSourceCreateImageAtIndex,
+        CGImageSourceCopyPropertiesAtIndex,
+        CGBitmapContextCreate,
+        CGBitmapContextCreateImage,
+        CGColorSpaceCreateDeviceRGB,
+        CGContextDrawPDFPage,
+        CGPDFDocumentCreateWithURL,
+        CGPDFDocumentGetPage,
+        CGPDFDocumentGetNumberOfPages,
+        CGPDFPageGetBoxRect,
+        kCGPDFCropBox,
+        kCGImageAlphaPremultipliedLast,
+    )
+    from Foundation import NSURL  # noqa: F401
+except ImportError:
+    # Non-macOS host (CI, Linux dev box) — Quartz isn't available.
+    # apple_vision_ocr() raises a clean error at call time.
+    pass
+
 # Import from llm_base - the parent layer
 from fichero.workflows.tools.llm_base import (
     # Port and config definitions
@@ -80,9 +109,13 @@ VISION_CONFIG_SCHEMA = merge_config_schema(
     {
         "vision_mode": {
             "type": "string",
-            "enum": ["apple", "llm"],
-            "default": "llm",
-            "description": "Vision engine",
+            "enum": ["auto", "apple", "llm"],
+            "default": "auto",
+            "description": (
+                "Vision engine. 'auto' picks based on the resolved "
+                "provider: apple → Apple Vision OCR; anything else → "
+                "LLM vision path."
+            ),
             "x-hidden": True,  # Hidden: most tools only support LLM
         },
         "max_image_dimension": {
@@ -191,12 +224,17 @@ def _render_pdf_page_to_cgimage(pdf_path: str, page_index: int = 0, dpi: int = 3
 _VISION_MAX_DIMENSION = 4096
 
 
-def _normalize_for_vision(image_path: str) -> tuple[str, str | None]:
+def _normalize_for_vision(
+    image_path: str, force: bool = False,
+) -> tuple[str, str | None]:
     """Pre-process an image for Apple Vision: convert to PNG via Pillow if
     it's a TIF (CoreGraphics' TIF support varies by codec — some multi-page
     or exotic-compression TIFs return nil from CGImageSourceCreateWithURL,
     which is exactly what bit Daniel on EAP1740_*.tif). Also downscale if
-    longer side exceeds _VISION_MAX_DIMENSION.
+    longer side exceeds _VISION_MAX_DIMENSION. Pass ``force=True`` to
+    always round-trip through PNG — used as a retry path when CoreGraphics
+    fails on a JPEG that Pillow opens fine (CMYK, progressive, exotic
+    EXIF/ICC).
 
     Returns (path_to_use, temp_path_to_delete). temp_path_to_delete is None
     when no conversion happened — caller should always pass it through to a
@@ -211,7 +249,7 @@ def _normalize_for_vision(image_path: str) -> tuple[str, str | None]:
         with Image.open(image_path) as img:
             longest = max(img.width, img.height)
             needs_resize = longest > _VISION_MAX_DIMENSION
-            if not needs_format_convert and not needs_resize:
+            if not needs_format_convert and not needs_resize and not force:
                 return (image_path, None)
 
             converted = img
@@ -297,28 +335,39 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
 
             return "\n\n".join(all_lines)
         else:
-            # Standard image path — normalise via Pillow first so TIFs and
-            # oversized images become well-formed bounded PNGs that
-            # CoreGraphics reliably opens. (#796)
-            effective_path, cleanup_path = _normalize_for_vision(image_path)
+            # Standard image path — ALWAYS Pillow-normalize first so
+            # CoreGraphics gets a clean bounded PNG. JPEGs with CMYK,
+            # progressive encoding, weird ICC/EXIF, or unusual chroma
+            # subsampling intermittently fail CGImageSourceCreateWithURL
+            # even though Pillow opens them fine. The Pillow round-trip
+            # is ~50ms vs ~5-10s for OCR, so the cost is negligible. (#796)
+            effective_path, cleanup_path = _normalize_for_vision(
+                image_path, force=True,
+            )
 
             url = NSURL.fileURLWithPath_(effective_path)
             image_source = CGImageSourceCreateWithURL(url, None)
             if not image_source:
                 file_size = os.path.getsize(effective_path)
                 raise ValueError(
-                    f"Could not load image (size: {file_size} bytes): {effective_path}"
+                    f"CG could not open Pillow-normalized image "
+                    f"(size: {file_size} bytes): {effective_path} "
+                    f"(original: {image_path})"
                 )
 
             props = CGImageSourceCopyPropertiesAtIndex(image_source, 0, None)
             if props:
                 logger.debug(
-                    f"Image: {props.get('PixelWidth', '?')}x{props.get('PixelHeight', '?')}"
+                    f"Image: {props.get('PixelWidth', '?')}x"
+                    f"{props.get('PixelHeight', '?')}"
                 )
 
             cg_image = CGImageSourceCreateImageAtIndex(image_source, 0, None)
             if not cg_image:
-                raise ValueError(f"CGImage creation failed: {effective_path}")
+                raise ValueError(
+                    f"CGImage creation failed on Pillow-normalized image: "
+                    f"{effective_path}"
+                )
 
             return _vision_ocr_cgimage(cg_image, language)
 
@@ -640,6 +689,14 @@ async def process_vision(
             "output_files": [],
             "error": "No input files provided",
         }
+
+    # vision_mode="auto" picks the engine from the resolved provider:
+    # apple → Apple Vision OCR (free, local, OCR-only); anything else
+    # → LLM vision path (sends image as data URI to a vision-capable
+    # LLM). Lets one preset work for users on Apple OR cloud vision.
+    if vision_mode == "auto":
+        provider = (getattr(llm_config, "provider", "") or "").lower()
+        vision_mode = "apple" if provider == "apple" else "llm"
 
     # Override LLMConfig with user values if provided
     effective_config = llm_config
