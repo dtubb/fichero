@@ -1307,6 +1307,27 @@ def _pydantic_to_apple_schema(model: type[BaseModel]) -> dict[str, Any]:
     property layout (list of `{name, schema, optional}` instead of a
     `properties` dict + separate `required` list). This helper bridges
     the two without depending on any OpenAPI-style JSON-Schema library.
+
+    Supported Pydantic shapes:
+    - object types (BaseModel subclasses, nested)
+    - list[T] arrays (with item type T)
+    - primitives: str, int, float, bool
+    - Optional[T] (anyOf with null) — flattened, marked optional
+    - Field(description=...) — propagates as `description`
+    - $ref / $defs — resolved (inlined)
+
+    NOT supported (raise on attempt):
+    - Discriminated unions (anyOf with non-null branches)
+    - Recursive types (model referencing itself)
+    - Enum types (str enums in particular)
+    - Annotated[T, ...] with custom validators
+    - JSON Schema `format` keywords (date, uri, email, etc.)
+
+    If your tool needs one of the unsupported shapes, either decompose
+    into supported primitives or extend this converter (#852-adjacent
+    work). The grammar-constrained generation will still work without
+    these — they just won't be expressed in the schema tree the bridge
+    consumes.
     """
     full = model.model_json_schema()
     defs = full.get("$defs", {})
