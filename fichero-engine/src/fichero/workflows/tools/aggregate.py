@@ -275,24 +275,31 @@ async def _wait_for_parallel_completion(state: State) -> None:
 def _records_from_state_outputs(
     inputs: dict[str, Any], state: State,
 ) -> list[dict[str, Any]]:
-    """Re-derive records from state.outputs after parallel completion.
+    """Re-derive records when the resolver-supplied inputs.text is stale.
 
-    The resolver runs once at node-start with whatever state was at the
-    time. If parallel completion happens AFTER the resolver but BEFORE
-    this tool actually processes records, the inputs dict has empty
-    values that are now stale. This re-walks the same input-mapping
-    paths against the current state to pick up the fresh data.
+    Two stale-state scenarios this handles (both #837):
+
+    1. **Resolver-before-parallel race.** The path resolver
+       (`$.nodes.X.text`) runs at node-start with whatever state was at
+       the time. If parallel completion happens AFTER the resolver,
+       inputs.text is empty even though state.outputs[X] now has data.
+       Scan state.outputs for non-empty text and use those.
+
+    2. **Cache-hit race.** When the parallel processor cache-hits, it
+       returns its result via `state.parallel_results[X] = [...]`
+       INSTANTLY — but the auto-aggregator (which is what populates
+       `state.outputs[X]`) hasn't fired yet. Resolver finds nothing in
+       state.outputs but state.parallel_results IS populated. Scan
+       parallel_results too and use the cached `result.text`.
 
     Conservative — only checks the standard text/documents shape; if
     inputs look custom, returns empty and caller falls back to the
     stale empty payload.
     """
-    # The path-style inputs were already resolved into raw values, so we
-    # can't easily re-resolve. Cheaper: scan state.outputs for any node
-    # that produced text/results matching the expected shape and use
-    # those if inputs.text is empty/None.
-    outputs = state.get("outputs", {}) or {}
     candidate_texts: list[str] = []
+
+    # Scenario 1: state.outputs has data (auto-aggregator already fired).
+    outputs = state.get("outputs", {}) or {}
     for _node_id, node_output in outputs.items():
         if not isinstance(node_output, dict):
             continue
@@ -303,6 +310,29 @@ def _records_from_state_outputs(
             for t in node_text:
                 if isinstance(t, str) and t.strip():
                     candidate_texts.append(t)
+
+    # Scenario 2: state.parallel_results has data but auto-aggregator
+    # hasn't run yet (cache-hit fast path). Walk per-Send results and
+    # extract their `result.text`. Sort by index to preserve page order.
+    if not candidate_texts:
+        parallel = state.get("parallel_results", {}) or {}
+        for _node_id, results in parallel.items():
+            if not isinstance(results, list):
+                continue
+            sorted_results = sorted(
+                (r for r in results if isinstance(r, dict)),
+                key=lambda r: r.get("index", 0),
+            )
+            for item in sorted_results:
+                if not item.get("success"):
+                    continue
+                result = item.get("result")
+                if not isinstance(result, dict):
+                    continue
+                text = result.get("text")
+                if isinstance(text, str) and text.strip():
+                    candidate_texts.append(text)
+
     if not candidate_texts:
         return []
     return [
