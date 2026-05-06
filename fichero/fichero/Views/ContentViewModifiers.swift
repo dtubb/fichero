@@ -263,7 +263,13 @@ struct MainContentModifiers: ViewModifier {
                 }
             } else {
                 logger.info("Showing single file in gallery: \(document.name)")
-                documentStore.currentDocuments = [document]
+                // Apply status overrides so failed/processing state survives
+                // navigation to single-file gallery — direct assignment was
+                // bypassing the override layer that other load paths use,
+                // making the red-X workflow-error icon vanish on click-away
+                // even though success checkmarks persisted (#791).
+                documentStore.currentDocuments =
+                    documentStore.applyStatusOverrides([document])
             }
         } else if case .library(nil) = newMode {
             logger.info("Library mode with no document selected - showing all documents")
