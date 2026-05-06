@@ -347,7 +347,21 @@ struct FmBridge {
         } else {
             guardrails = .default
         }
-        let chatModel = SystemLanguageModel(guardrails: guardrails)
+
+        // Optional use-case selection (#853). Apple ships a specialised
+        // model variant for content-tagging — one to a few lowercase
+        // tags per input, semantically grouped (the model recognises
+        // "hi", "hello", "yo" as one greet topic). Useful for the
+        // keywords section of extract_all + per-section keywords_extract.
+        // Falls back to the general-purpose model when not set.
+        let chatModel: SystemLanguageModel
+        if (raw["use_case"] as? String) == "content_tagging" {
+            chatModel = SystemLanguageModel(
+                useCase: .contentTagging, guardrails: guardrails
+            )
+        } else {
+            chatModel = SystemLanguageModel(guardrails: guardrails)
+        }
 
         let session: LanguageModelSession
         if let instructions, !instructions.isEmpty {

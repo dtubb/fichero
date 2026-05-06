@@ -244,6 +244,7 @@ async def chat(
     stream: bool = False,
     system: str | None = None,
     permissive_guardrails: bool = False,
+    use_case: str | None = None,
 ) -> str | AsyncIterator[str]:
     """Send a chat message using LangChain.
 
@@ -274,6 +275,7 @@ async def chat(
         return await _apple_intelligence_chat(
             prompt, config, system,
             permissive_guardrails=permissive_guardrails,
+            use_case=use_case,
         )
 
     # Get LangChain model
@@ -377,6 +379,7 @@ async def _apple_intelligence_chat(
     config: LLMConfig,
     system: str | None = None,
     permissive_guardrails: bool = False,
+    use_case: str | None = None,
 ) -> str:
     """Bridge to FoundationModels via the bundled Swift fm-bridge binary.
 
@@ -462,6 +465,13 @@ async def _apple_intelligence_chat(
     # which is why chat_structured doesn't expose this parameter.
     if permissive_guardrails:
         request_dict["guardrails"] = "permissive"
+    # Optional Apple Intelligence use-case (#853). Today only
+    # "content_tagging" is wired through to fm-bridge — Apple's specialised
+    # tagging model produces crisper lowercase topic/object tags than the
+    # general-purpose model. Use it for keyword extraction; ignore for
+    # everything else.
+    if use_case in {"content_tagging"}:
+        request_dict["use_case"] = use_case
     request_payload = _json.dumps(request_dict).encode()
 
     proc = await asyncio.create_subprocess_exec(
