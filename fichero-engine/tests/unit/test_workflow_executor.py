@@ -827,6 +827,72 @@ class TestErrorDetection:
 
 
 # =============================================================================
+# Aggregator barrier (#837)
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_aggregator_defers_when_partial_results():
+    """The auto-aggregator must NOT emit a partial aggregate when only some
+    parallel sub-nodes have completed. Returning the empty result early
+    would let downstream nodes consume an empty aggregate while transcribe
+    is still running — the #837 race that left catalogue/extract_all with
+    no text input. Each parallel_node_function carries its `total` count
+    in its result; the aggregator gates on len(results) >= total."""
+    from fichero.workflows.builder import _make_aggregation_function
+
+    agg = _make_aggregation_function("transcribe")
+
+    # Simulate: 3-file fan-out, only 1 result so far.
+    state = {
+        "parallel_results": {
+            "transcribe": [
+                {
+                    "file": "page1.jpeg",
+                    "index": 0,
+                    "total": 3,
+                    "result": {"text": "page 1 text"},
+                    "success": True,
+                },
+            ],
+        },
+    }
+    out = await agg(state)
+    assert out == {}, (
+        "aggregator must return empty (no state update) when partial — "
+        "got: %r" % (out,)
+    )
+
+
+@pytest.mark.asyncio
+async def test_aggregator_emits_when_all_results_arrive():
+    """Sanity: when all parallel sub-nodes have completed, the aggregator
+    DOES emit the merged result. Pairs with the deferral test above —
+    confirms the gate flips from 'wait' to 'emit' at the expected total."""
+    from fichero.workflows.builder import _make_aggregation_function
+
+    agg = _make_aggregation_function("transcribe")
+
+    state = {
+        "parallel_results": {
+            "transcribe": [
+                {"file": "page1.jpeg", "index": 0, "total": 2,
+                 "result": {"text": "page 1 text"}, "success": True},
+                {"file": "page2.jpeg", "index": 1, "total": 2,
+                 "result": {"text": "page 2 text"}, "success": True},
+            ],
+        },
+    }
+    out = await agg(state)
+    assert "outputs" in out, (
+        "aggregator must commit the merged result when complete — got: %r"
+        % (out,)
+    )
+    assert out["outputs"]["transcribe"]["text"] == "page 1 text\n\npage 2 text"
+    assert out["outputs"]["transcribe"]["success_count"] == 2
+
+
+# =============================================================================
 # Node-error abort behaviour (#839)
 # =============================================================================
 

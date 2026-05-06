@@ -877,11 +877,43 @@ def _make_aggregation_function(node_id: str):
     """
 
     async def aggregate(state: State) -> dict:
-        """Aggregate parallel processing results."""
+        """Aggregate parallel processing results.
+
+        Defers emission until all parallel sends have landed (#837). Each
+        parallel sub-node carries its `total` count alongside its result;
+        we use it as a barrier — until len(parallel_results) >= total,
+        return {} (no state update) so LangGraph re-fires the aggregator
+        on the next per-Send arrival without committing partial output
+        to downstream consumers.
+
+        Without this barrier, the auto-aggregator was firing on the first
+        Send dispatch with empty parallel_results and silently emitting
+        an empty aggregate, which downstream user-aggregate nodes then
+        consumed — leaving catalogue/extract_all with no text input even
+        though transcribe was still running (#837, full trace in the
+        issue). The deferred-emission pattern lets LangGraph's Send fan-
+        out work as a true barrier.
+        """
         parallel_results = state.get("parallel_results", {}).get(node_id, [])
 
         if not parallel_results:
             logger.warning(f"No parallel results to aggregate for {node_id}")
+            return {}
+
+        # Determine expected count from the first result that carries one.
+        # Returns 0 when no result carries `total` — defensive, would mean
+        # every parallel_node_function forgot to thread `total` through.
+        expected_total = 0
+        for item in parallel_results:
+            t = item.get("total") if isinstance(item, dict) else None
+            if isinstance(t, int) and t > 0:
+                expected_total = t
+                break
+        if expected_total > 0 and len(parallel_results) < expected_total:
+            logger.info(
+                f"Aggregator {node_id}: deferring — got "
+                f"{len(parallel_results)}/{expected_total} results so far"
+            )
             return {}
 
         # Sort by index to maintain order
