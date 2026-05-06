@@ -23,6 +23,7 @@ from fichero.llm import (
     GuardrailViolationError,
     LLMConfig,
     _pydantic_to_apple_schema,
+    apple_intelligence_supports_locale,
     chat_structured,
     chat_structured_with_fallback,
 )
@@ -323,3 +324,75 @@ class TestChatStructuredWithFallback:
                 await chat_structured_with_fallback(
                     prompt="x", schema=_Result, config=apple_cfg
                 )
+
+
+# =============================================================================
+# Locale precheck (#849)
+# =============================================================================
+
+
+class TestSupportsLocale:
+    """apple_intelligence_supports_locale subprocesses fm-bridge with
+    --supports-locale <code>. We mock subprocess.run since the unit
+    test environment may not have fm-bridge available."""
+
+    def setup_method(self):
+        # Cache is process-level; clear between tests so each test
+        # exercises the subprocess path freshly.
+        apple_intelligence_supports_locale.cache_clear()
+
+    def test_supported_locale_returns_true(self):
+        """Bridge stdout `{supported: true}` → helper returns True."""
+        import subprocess
+        with patch(
+            "subprocess.run",
+            return_value=subprocess.CompletedProcess(
+                args=[], returncode=0,
+                stdout=b'{"locale":"en","supported":true}',
+                stderr=b"",
+            ),
+        ):
+            assert apple_intelligence_supports_locale("en") is True
+
+    def test_unsupported_locale_returns_false(self):
+        """Bridge stdout `{supported: false}` → helper returns False."""
+        import subprocess
+        with patch(
+            "subprocess.run",
+            return_value=subprocess.CompletedProcess(
+                args=[], returncode=0,
+                stdout=b'{"locale":"yi","supported":false}',
+                stderr=b"",
+            ),
+        ):
+            assert apple_intelligence_supports_locale("yi") is False
+
+    def test_bridge_failure_returns_false(self):
+        """Any failure (binary missing, timeout, JSON parse error)
+        returns False so callers don't accidentally route to a
+        non-functional Apple Intelligence path."""
+        import subprocess
+        with patch(
+            "subprocess.run",
+            return_value=subprocess.CompletedProcess(
+                args=[], returncode=1,
+                stdout=b"",
+                stderr=b"fm-bridge crash",
+            ),
+        ):
+            assert apple_intelligence_supports_locale("en") is False
+
+    def test_result_is_cached(self):
+        """Cache hits avoid the subprocess overhead. Two calls to the
+        same locale should subprocess only once."""
+        import subprocess
+        mock = MagicMock(return_value=subprocess.CompletedProcess(
+            args=[], returncode=0,
+            stdout=b'{"locale":"en","supported":true}',
+            stderr=b"",
+        ))
+        with patch("subprocess.run", new=mock):
+            apple_intelligence_supports_locale("en")
+            apple_intelligence_supports_locale("en")
+            apple_intelligence_supports_locale("en")
+        assert mock.call_count == 1
