@@ -529,11 +529,12 @@ async def _run_extractor(
     chunk_errors: list[str] = []
 
     async def _extract_one(chunk_text: str) -> list[Any]:
-        full_prompt = f"{prompt}\n\n---\nSource text:\n\n{chunk_text}"
+        # System+user split (#815) — rules to system, source to user.
         try:
             response = await chat(
-                [{"role": "user", "content": full_prompt}],
+                chunk_text,
                 config=llm_config,
+                system=prompt,
             )
         except Exception as exc:
             msg = f"LLM call failed: {exc}"

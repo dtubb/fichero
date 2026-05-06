@@ -23,7 +23,6 @@ from datetime import datetime
 from typing import Any
 
 from fichero.db import db_manager
-from fichero.knowledge_models import EntityType
 from fichero.llm import LLMConfig, chat
 from fichero.models import Artifact
 from fichero.workflows.registry import register_tool

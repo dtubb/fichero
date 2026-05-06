@@ -617,7 +617,7 @@ async def update_workflow(
         # auto-restore is for files the user hasn't touched.
         if getattr(existing, "is_template", False):
             existing.is_template = False
-            print(f"[UPDATE]   demoted is_template -> False (user edit)")
+            print("[UPDATE]   demoted is_template -> False (user edit)")
 
         # Save changes
         db.save(existing)

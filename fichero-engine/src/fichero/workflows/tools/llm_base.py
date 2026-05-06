@@ -733,19 +733,23 @@ async def process_text(
     # Build thinking preamble
     thinking_preamble = build_thinking_preamble(thinking_mode)
 
-    # Combine prompt
-    final_prompt = (
-        f"{thinking_preamble}{context_section}{prompt}{ref_section}{output_constraint}"
-    )
-
-    # Add the input text
-    full_prompt = f"{final_prompt}\n\nText:\n{text}"
+    # System+user split (#815) — rules + role + context go to the
+    # system channel; only the source text is the user prompt. Apple
+    # Intelligence routes system → its authoritative Instructions
+    # channel; non-Apple LangChain providers also benefit from a
+    # proper system message. This shared site cascades to summarize,
+    # entities, timeline, key_people, rewrite, sentiment, keywords,
+    # questions, classify_text — every simple LLM tool.
+    instructions = (
+        f"{thinking_preamble}{context_section}{prompt}"
+        f"{ref_section}{output_constraint}"
+    ).strip()
 
     try:
-        # Call LLM
         response = await chat(
-            [{"role": "user", "content": full_prompt}],
+            text,
             config=effective_config,
+            system=instructions,
         )
 
         # Parse output
