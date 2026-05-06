@@ -353,16 +353,61 @@ def _split_into_pages(text: str) -> list[str]:
 
 
 def _strip_fences(raw: str) -> str:
-    """Strip ```json``` fences that some models emit around structured output."""
+    """Strip wrapping that gets between us and the JSON object.
+
+    Handles three common shapes that frontier cloud models (hit via the
+    \$large guardrail fallback, #838) emit instead of bare JSON:
+
+      1. Triple-backtick code fences (\\`\\`\\`json ... \\`\\`\\`)
+      2. Explanatory prose before/after ("Here are the entities: { ... }")
+      3. Both at once
+
+    Strategy: strip fences first, then if the remainder doesn't already
+    start with '{' or '[', slice from the first '{' to the matching last
+    '}' (or '[' / ']' for arrays). Conservative — only triggers when the
+    string isn't already clean JSON, so cases like "{...}" pass through
+    unchanged.
+    """
     stripped = raw.strip()
-    if not stripped.startswith("```"):
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        stripped = "\n".join(lines).strip()
+    if stripped.startswith("{") or stripped.startswith("["):
         return stripped
-    lines = stripped.splitlines()
-    if lines and lines[0].startswith("```"):
-        lines = lines[1:]
-    if lines and lines[-1].startswith("```"):
-        lines = lines[:-1]
-    return "\n".join(lines).strip()
+    # Wrapping prose — pull out the first balanced JSON object/array.
+    # The LLM's prompt asks for JSON, so the first { / [ is the start;
+    # find the matching closer by depth count.
+    for opener, closer in (("{", "}"), ("[", "]")):
+        start = stripped.find(opener)
+        if start == -1:
+            continue
+        depth = 0
+        in_string = False
+        escape = False
+        for i in range(start, len(stripped)):
+            ch = stripped[i]
+            if escape:
+                escape = False
+                continue
+            if ch == "\\":
+                escape = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == opener:
+                depth += 1
+            elif ch == closer:
+                depth -= 1
+                if depth == 0:
+                    return stripped[start:i + 1].strip()
+    return stripped
 
 
 def _render_section_markdown(section: dict[str, Any], items: list[Any]) -> str:

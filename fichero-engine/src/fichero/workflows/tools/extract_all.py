@@ -220,10 +220,21 @@ async def extract_all(
         try:
             parsed = json.loads(_strip_fences(response))
         except json.JSONDecodeError as exc:
-            logger.warning(f"extract_all: JSON parse failed ({exc})")
+            # Log a snippet of the actual response so we can see WHAT the
+            # model returned that didn't parse — frontier models hit via
+            # the guardrail fallback (#838) sometimes wrap JSON in
+            # explanatory prose or use single quotes that strict parsing
+            # rejects. Without this snippet, every parse failure looks
+            # the same: "JSON parse failed".
+            preview = response[:500].replace("\n", " ") if response else "(empty)"
+            logger.warning(
+                f"extract_all: JSON parse failed ({exc}); response[:500]={preview!r}"
+            )
             chunk_errors.append(f"JSON parse failed: {exc}")
             if idx >= 0:
-                page_errors[idx] = f"JSON parse failed: {exc}"
+                page_errors[idx] = (
+                    f"JSON parse failed: {exc}\nResponse preview: {preview}"
+                )
             return {}
 
         if not isinstance(parsed, dict):
