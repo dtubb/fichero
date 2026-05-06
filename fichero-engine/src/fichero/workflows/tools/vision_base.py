@@ -909,6 +909,48 @@ async def process_vision(
             if reference_values:
                 parsed = apply_reference_matching(parsed, reference_values)
 
+            # Empty-response retry. Vision LLMs occasionally return ""
+            # under provider load (rate-limit hiccup), safety-filter
+            # refusal, or timeout; one quick retry recovers most of
+            # them. If still empty after retry, fail this file rather
+            # than save a useless empty Transcription artifact and
+            # cascade into downstream tools (#837 follow-up).
+            # `[sin texto]` is the prompt's explicit no-text token and
+            # is a real result — don't retry that one.
+            if not (text or "").strip() and vision_mode != "apple":
+                logger.warning(
+                    f"Vision LLM returned empty for {Path(file_path).name}; "
+                    f"retrying once before declaring failure"
+                )
+                try:
+                    text = await vision(
+                        images=[image_uri],
+                        prompt=final_prompt,
+                        config=effective_config,
+                    )
+                    parsed = parse_output(text, output_format, output_options)
+                    if reference_values:
+                        parsed = apply_reference_matching(parsed, reference_values)
+                except Exception as retry_exc:
+                    logger.warning(
+                        f"Retry failed for {Path(file_path).name}: {retry_exc}"
+                    )
+
+            if not (text or "").strip():
+                msg = (
+                    f"Vision LLM returned empty response for "
+                    f"{Path(file_path).name} (after retry). Likely a "
+                    f"provider safety refusal or sustained timeout; no "
+                    f"transcription artifact saved."
+                )
+                logger.warning(msg)
+                results.append(
+                    {"file": file_path, "text": "", "value": "", "error": msg}
+                )
+                texts.append("")
+                values.append(None)
+                continue
+
             result = {"file": file_path, "text": text, "value": parsed}
 
             # Save to database
