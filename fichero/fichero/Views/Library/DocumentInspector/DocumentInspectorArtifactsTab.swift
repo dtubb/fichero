@@ -189,11 +189,17 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
             // content the user just clicked to see. RTF source ({\rtf1...})
             // is decoded so the Info tab doesn't dump raw markup.
             if let content = artifact.content, !content.isEmpty {
+                // Long-prose artifacts (transcription, catalogue.narrative)
+                // need to grow to natural height; without the explicit
+                // .fixedSize(vertical:) the parent VStack inside the
+                // DisclosureGroup inside the inspector ScrollView negotiates
+                // a smaller height and the Text gets visually capped (#822).
                 Text(plainProjection(of: content))
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .padding(6)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
                     .background(Color(.textBackgroundColor))
                     .cornerRadius(4)
                     .textSelection(.enabled)
