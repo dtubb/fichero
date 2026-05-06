@@ -255,7 +255,14 @@ extension ContentView {
     var inspectorView: some View {
         switch viewMode {
         case .library, .search:
-            DocumentInspector(document: inspectorDocument)
+            DocumentInspector(
+                document: inspectorDocument,
+                onNavigateToSource: { sourceDocId in
+                    Task { @MainActor in
+                        await navigateToSourcePage(sourceDocId)
+                    }
+                }
+            )
 
         case .chat, .comparison:
             ChatInspector(selectedDocuments: $chatSelectedDocuments)

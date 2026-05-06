@@ -143,6 +143,59 @@ extension ContentView {
         selectedSidebarItemId = "doc:\(doc.id)"
     }
 
+    /// Open the source page behind a KG entity click. The source claim
+    /// points at a page-level document (path=nil, parent = the real file
+    /// per #701). Resolution:
+    ///   1. Fetch the source doc by id.
+    ///   2. If it's a page child (no path), walk up to the parent file —
+    ///      that's the thing the user actually wants to look at.
+    ///   3. Navigate to the parent FOLDER (so the file appears in the
+    ///      grid) and select the file via browserSelection so the
+    ///      preview pane opens it.
+    /// Falls through silently if the source can't be resolved — a click
+    /// shouldn't crash and we don't have a UI surface for "couldn't
+    /// resolve source" yet. (#833)
+    @MainActor
+    func navigateToSourcePage(_ sourceDocId: String) async {
+        let source: Document
+        do {
+            source = try await documentStore.api.get("/documents/\(sourceDocId)")
+        } catch {
+            logger.warning("navigateToSourcePage: couldn't fetch \(sourceDocId): \(error.localizedDescription)")
+            return
+        }
+
+        // Resolve "the file the user wants" — page children (path == nil)
+        // bubble up to their parent file; everything else is its own target.
+        let target: Document
+        let sourceIsPageChild = source.path?.isEmpty ?? true
+        if sourceIsPageChild, let parentId = source.parentId, !parentId.isEmpty {
+            do {
+                target = try await documentStore.api.get("/documents/\(parentId)")
+            } catch {
+                logger.warning("navigateToSourcePage: couldn't fetch parent \(parentId): \(error.localizedDescription)")
+                return
+            }
+        } else {
+            target = source
+        }
+
+        // Open the containing folder so target shows up in the grid; if
+        // target has no parent (top-level), just point sidebar at it.
+        if let folderId = target.parentId, !folderId.isEmpty {
+            do {
+                let folder: Document = try await documentStore.api.get("/documents/\(folderId)")
+                navigateToDocument(folder)
+                browserSelection = [target.id]
+                detailDocument = target
+            } catch {
+                navigateToDocument(target)
+            }
+        } else {
+            navigateToDocument(target)
+        }
+    }
+
     /// Walk up to the current folder's parent. If the current folder is at
     /// the library root (no parent_id), navigate to the library root view
     /// (no selection). Bound to Cmd+` so users can ascend the hierarchy when

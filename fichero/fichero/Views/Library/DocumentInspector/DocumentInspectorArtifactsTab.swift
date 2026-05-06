@@ -538,6 +538,11 @@ import FicheroAPIClient
 struct KnowledgeGraphInspectorSection: View {
     let documentId: String
     let entityService: EntityServiceGenerated
+    /// Called when the user clicks the source-page arrow on an entity row.
+    /// Receives the source page document id; ContentView decides how to
+    /// navigate (typically: select the parent file in the grid). Optional
+    /// so previews and standalone uses still compile. (#833)
+    var onNavigateToSource: ((String) -> Void)?
 
     @State private var claims: [Components.Schemas.KnowledgeClaim] = []
     @State private var entitiesById: [String: Components.Schemas.KnowledgeEntity] = [:]
@@ -606,7 +611,9 @@ struct KnowledgeGraphInspectorSection: View {
                 claimId: claim.id ?? UUID().uuidString,
                 displayName: displayName,
                 context: context,
-                aliases: entity?.aliases ?? []
+                aliases: entity?.aliases ?? [],
+                sourceDocumentId: claim.sourceDocumentId,
+                sourcePageLabel: claim.sourcePageLabel
             )
             byKind[kind, default: []].append(item)
         }
@@ -635,7 +642,11 @@ struct KnowledgeGraphInspectorSection: View {
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(grouped, id: \.0) { kind, items in
-                    EntityKindBlock(kind: kind, items: items)
+                    EntityKindBlock(
+                        kind: kind,
+                        items: items,
+                        onNavigateToSource: onNavigateToSource
+                    )
                 }
             }
         }
@@ -731,6 +742,15 @@ private struct GroupedItem: Identifiable {
     let displayName: String
     let context: String
     let aliases: [String]
+    /// First source page document id for this entity. Multiple sources are
+    /// not surfaced yet — folder-cleanup merges retain the first claim's
+    /// source, which is good enough for click-through provenance. (#833)
+    /// Defaults to nil so existing #Preview fixtures and any non-claim
+    /// callers compile without modification.
+    var sourceDocumentId: String?
+    /// Page label as recorded on the claim (e.g. "page 4", "folio 12r").
+    /// Rendered as inline parenthetical when present.
+    var sourcePageLabel: String?
     var id: String { claimId }
 }
 
@@ -794,6 +814,7 @@ private enum EntityKind: String, Hashable, CaseIterable {
 private struct EntityKindBlock: View {
     let kind: EntityKind
     let items: [GroupedItem]
+    var onNavigateToSource: ((String) -> Void)?
 
     @AppStorage("inspector.kg.expandedKinds") private var expandedKindsCSV: String = ""
 
@@ -860,7 +881,10 @@ private struct EntityKindBlock: View {
             } else {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(items) { item in
-                        EntityKindRow(item: item)
+                        EntityKindRow(
+                            item: item,
+                            onNavigateToSource: onNavigateToSource
+                        )
                     }
                 }
                 .padding(.leading, 16)
@@ -888,17 +912,34 @@ private struct EntityKindBlock: View {
 /// the entity carries one). No interactive elements — read + ⌘C only.
 private struct EntityKindRow: View {
     let item: GroupedItem
+    var onNavigateToSource: ((String) -> Void)?
 
     var body: some View {
         // Two visual rows in ONE selectable Text run:
-        //   line 1: name  (aka alias1, alias2)
+        //   line 1: name  (aka alias1, alias2)  (p. label)
         //   line 2: context (when non-empty, non-redundant)
         // Because it's one composed Text, triple-click + ⌘C grabs the
         // whole entity as a multi-line block.
-        composedText
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 2)
-            .textSelection(.enabled)
+        // Trailing arrow button (when source is known) navigates to the
+        // source page — scholarly footnote style. (#833)
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            composedText
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
+            if let sourceId = item.sourceDocumentId,
+               let navigate = onNavigateToSource {
+                Button {
+                    navigate(sourceId)
+                } label: {
+                    Image(systemName: "arrow.right.circle")
+                        .font(.body)
+                        .foregroundStyle(Color.accentColor)
+                }
+                .buttonStyle(.plain)
+                .help("Go to source")
+            }
+        }
+        .padding(.vertical, 2)
     }
 
     private var composedText: Text {
@@ -912,6 +953,13 @@ private struct EntityKindRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
         }
+        if let pageRef = pageReference {
+            // swiftlint:disable:next shorthand_operator
+            text = text
+                + Text("  (\(pageRef))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+        }
         if !item.context.isEmpty,
            item.context != item.displayName,
            !item.displayName.contains(item.context) {
@@ -922,6 +970,21 @@ private struct EntityKindRow: View {
                     .foregroundStyle(.secondary)
         }
         return text
+    }
+
+    /// Scholarly-style page reference: prefer the recorded label
+    /// (e.g. "page 4", "folio 12r"); strip a leading "page " so we can
+    /// abbreviate it to "p. 4". Returns nil when no label is available
+    /// (don't fabricate a reference from nothing).
+    private var pageReference: String? {
+        guard let raw = item.sourcePageLabel?.trimmingCharacters(in: .whitespaces),
+              !raw.isEmpty
+        else { return nil }
+        let lower = raw.lowercased()
+        if lower.hasPrefix("page "), let numericPart = lower.split(separator: " ").last {
+            return "p. \(numericPart)"
+        }
+        return raw
     }
 }
 

@@ -32,6 +32,11 @@ enum InspectorTab: String, CaseIterable, Identifiable {
 /// Inspector panel showing document metadata and details
 struct DocumentInspector: View {
     let document: Document?
+    /// Click-through callback for KG entity rows: receives a source page
+    /// document id; ContentView resolves it to the parent file and selects
+    /// it so the user can read the source. Optional so the previews and
+    /// any non-ContentView host still compile. (#833)
+    var onNavigateToSource: ((String) -> Void)?
 
     @SceneStorage("inspectorSelectedTab") private var selectedTab: InspectorTab = .content
     @EnvironmentObject private var entityService: EntityServiceGenerated
@@ -90,7 +95,8 @@ struct DocumentInspector: View {
                 ScrollView {
                     KnowledgeGraphInspectorSection(
                         documentId: doc.id,
-                        entityService: entityService
+                        entityService: entityService,
+                        onNavigateToSource: onNavigateToSource
                     )
                     .padding()
                 }
