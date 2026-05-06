@@ -143,32 +143,51 @@ class TestChatStructuredDispatch:
         assert kwargs.get("include_schema_in_prompt") is False
 
     @pytest.mark.asyncio
-    async def test_non_apple_provider_uses_langchain_function_calling(self):
-        """Non-apple providers go through LangChain's
-        with_structured_output(method="function_calling"). Verify the
-        method kwarg is the one we ship by default (#844 docs note
-        function_calling is the lowest-common-denominator across
-        OpenAI / OpenRouter / Anthropic / Mistral)."""
+    async def test_non_apple_picks_json_schema_when_profile_advertises_it(self):
+        """Profile-driven method selection (#844 item 7): when
+        model.profile.structured_output is True, prefer json_schema —
+        faster + cheaper than tool-calling. Native OpenAI/Anthropic/
+        Gemini advertise this; OpenRouter-passthrough models often
+        don't."""
         cfg = LLMConfig(provider="openai", model="gpt-5")
 
-        # Build the chain of mocks: get_langchain_model -> .with_structured_output -> .ainvoke
         invoke_result = _Result(answer="from-openai")
         ainvoke_mock = AsyncMock(return_value=invoke_result)
         structured_model = MagicMock()
         structured_model.ainvoke = ainvoke_mock
         base_model = MagicMock()
+        base_model.profile = {"structured_output": True}
         base_model.with_structured_output = MagicMock(return_value=structured_model)
 
         with patch("fichero.llm.get_langchain_model", return_value=base_model):
             result = await chat_structured(
-                prompt="hi",
-                schema=_Result,
-                config=cfg,
-                system="ye",
+                prompt="hi", schema=_Result, config=cfg, system="ye",
             )
 
         assert result is invoke_result
-        # Method kwarg = "function_calling" by default
+        base_model.with_structured_output.assert_called_once_with(
+            _Result, method="json_schema"
+        )
+
+    @pytest.mark.asyncio
+    async def test_non_apple_falls_back_to_function_calling_without_profile(self):
+        """When the model has no .profile attribute (older provider
+        package) or profile.structured_output is False, fall back to
+        function_calling — the lowest-common-denominator that every
+        tool-capable provider supports."""
+        cfg = LLMConfig(provider="openai", model="some-old-model")
+
+        invoke_result = _Result(answer="ok")
+        structured_model = MagicMock()
+        structured_model.ainvoke = AsyncMock(return_value=invoke_result)
+        base_model = MagicMock(spec=["with_structured_output"])  # no profile attr
+        base_model.with_structured_output = MagicMock(return_value=structured_model)
+
+        with patch("fichero.llm.get_langchain_model", return_value=base_model):
+            await chat_structured(
+                prompt="hi", schema=_Result, config=cfg,
+            )
+
         base_model.with_structured_output.assert_called_once_with(
             _Result, method="function_calling"
         )

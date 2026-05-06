@@ -1037,16 +1037,21 @@ async def chat_structured(
 
     model = get_langchain_model(config)
 
-    # Prefer tool/function-calling over strict JSON-Schema mode. The
-    # `json_schema` default in LangChain only works on providers that
-    # implement OpenAI-style strict structured output (notably native
-    # OpenAI). OpenRouter proxies to many backends — some do, some
-    # don't — and strict mode silently degrades on the rest. Tool-
-    # calling is the lowest-common-denominator that every major provider
-    # and OpenRouter-routed model supports, so it's the safest default.
-    structured_model = model.with_structured_output(
-        schema, method="function_calling"
-    )
+    # Profile-driven method selection (#844 item 7). LangChain ≥1.1
+    # exposes `model.profile` — a dict of capability flags powered by
+    # models.dev. When the model reports native structured output
+    # (`structured_output: True`), use json_schema mode: faster,
+    # one round-trip, no tool-message overhead. Otherwise fall back
+    # to function_calling, the lowest-common-denominator that every
+    # tool-capable provider supports (OpenRouter-routed models that
+    # advertise structured_output but don't actually support strict
+    # mode silently degrade on json_schema; function_calling is safer).
+    profile = getattr(model, "profile", None)
+    if isinstance(profile, dict) and profile.get("structured_output"):
+        method = "json_schema"
+    else:
+        method = "function_calling"
+    structured_model = model.with_structured_output(schema, method=method)
 
     messages: list[Any] = []
     if system:
@@ -1309,162 +1314,128 @@ async def _apple_intelligence_structured(
 # =============================================================================
 
 
+_OPENAI_COMPATIBLE_BASE_URLS: dict[str, str] = {
+    # Providers that speak OpenAI's chat-completions API but live at a
+    # different base URL. ChatOpenAI handles them via base_url override;
+    # the per-config api_base wins when set, these are the defaults.
+    "ollama": "http://localhost:11434/v1",
+    "lmstudio": "http://localhost:1234/v1",
+    "groq": "https://api.groq.com/openai/v1",
+    "together": "https://api.together.xyz/v1",
+    "deepseek": "https://api.deepseek.com/v1",
+    "dashscope": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    "xai": "https://api.x.ai/v1",
+    "perplexity": "https://api.perplexity.ai",
+    "fireworks": "https://api.fireworks.ai/inference/v1",
+    "huggingface": "https://router.huggingface.co/v1",
+}
+
+# Providers that speak OpenAI but accept any string for the api_key
+# field — the actual auth is unsigned localhost. We pass a placeholder
+# so ChatOpenAI's required-key check doesn't reject empty.
+_KEYLESS_OPENAI_COMPATIBLE: set[str] = {"ollama", "lmstudio"}
+
+
 def get_langchain_model(config: LLMConfig) -> Any:
     """Create a LangChain ChatModel from Fichero LLMConfig.
 
-    This enables integration with LangChain/LangGraph tools like create_react_agent.
+    Architecture (#844):
+    - Native providers (openai, anthropic, google_genai, mistralai,
+      cohere) → `init_chat_model("provider:model")`. The canonical
+      LangChain ≥1.0 entrypoint; new model names work without
+      LangChain version bumps because the model string is parsed
+      dynamically. Per the late-2025 LangChain Models docs, this is
+      now the recommended way to instantiate chat models.
+    - OpenRouter → `ChatOpenRouter` (langchain-openrouter package).
+      Per the LangChain docs: "For OpenRouter and LiteLLM, prefer the
+      dedicated integrations" — provider-routing fields and tool-
+      support flags get preserved instead of being stripped by a bare
+      ChatOpenAI + base_url override.
+    - OpenAI-compatible third parties (groq, together, deepseek, xai,
+      etc.) → ChatOpenAI with a per-provider default base_url. The
+      _OPENAI_COMPATIBLE_BASE_URLS table is the single source of
+      truth — adding a new provider is a one-line change.
+    - Azure OpenAI → AzureChatOpenAI (different param shape).
+    - AWS Bedrock → ChatBedrock (different package).
+    - apple → NotImplementedError (Apple Intelligence has no LangChain
+      wrapper; chat()/chat_structured() route to fm-bridge directly).
 
-    Args:
-        config: Fichero LLM configuration
-
-    Returns:
-        LangChain ChatModel instance (ChatOpenAI, ChatAnthropic, etc.)
+    `max_retries=10` (LangChain default is 6) is set on every model so
+    transient OpenRouter / Anthropic blips recover silently with
+    exponential backoff + jitter.
     """
-    from langchain_openai import ChatOpenAI
-    from langchain_anthropic import ChatAnthropic
-    from langchain_google_genai import ChatGoogleGenerativeAI
-
-    # Map provider to LangChain class
     provider = config.provider.lower()
     model_name = config.model
-
-    # Resolve API key
     api_key = _resolve_api_key(config)
 
-    # Common parameters. max_retries=10 (LangChain default is 6) bumps
-    # the auto-retry budget on transient transport failures (network
-    # blips, 429 rate-limit, 5xx). Exponential backoff with jitter
-    # makes ~10 attempts cheap when most retries land in <5s, and means
-    # the qwen3.5/OpenRouter hiccups Daniel hit earlier (parallel
-    # extract_all chunks failing on transient provider load) recover
-    # silently rather than aborting the whole workflow (#844).
-    common_params = {
+    # Common parameters. max_retries=10 bumps LangChain's default 6 so
+    # transient transport failures (network blips, 429, 5xx) recover
+    # without breaking long parallel runs.
+    common_params: dict[str, Any] = {
         "temperature": config.temperature,
         "max_tokens": config.max_tokens,
         "timeout": config.timeout,
         "max_retries": 10,
     }
 
-    # Create provider-specific model
-    if provider == "openai":
-        return ChatOpenAI(
-            model=model_name,
-            api_key=api_key,
-            base_url=config.api_base,
-            **common_params,
-        )
-    elif provider == "anthropic":
-        return ChatAnthropic(
-            model=model_name,
-            api_key=api_key,
-            **common_params,
-        )
-    elif provider == "google":
-        return ChatGoogleGenerativeAI(
-            model=model_name,
-            google_api_key=api_key,
-            **common_params,
-        )
-    elif provider == "mistral":
-        from langchain_mistralai import ChatMistralAI
+    # Native LangChain providers via init_chat_model. The "provider:model"
+    # string form is the canonical entrypoint per docs.langchain.com.
+    # init_chat_model imports the right package automatically; we don't
+    # have to maintain per-provider class imports.
+    _NATIVE_PROVIDER_PREFIX = {
+        "openai": "openai",
+        "anthropic": "anthropic",
+        "google": "google_genai",
+        "mistral": "mistralai",
+        "cohere": "cohere",
+        "bedrock": "bedrock",
+    }
+    if provider in _NATIVE_PROVIDER_PREFIX:
+        from langchain.chat_models import init_chat_model
 
-        return ChatMistralAI(
-            model=model_name,
-            api_key=api_key,
-            **common_params,
-        )
-    elif provider == "cohere":
-        from langchain_cohere import ChatCohere
+        prefix = _NATIVE_PROVIDER_PREFIX[provider]
+        kwargs = dict(common_params)
+        if api_key:
+            kwargs["api_key"] = api_key
+        if provider == "openai" and config.api_base:
+            # OpenAI proper accepts a custom base_url for org proxies /
+            # corporate gateways. Pass through when set; pure init_chat_model
+            # doesn't expose it via the model string.
+            kwargs["base_url"] = config.api_base
+        if provider == "bedrock":
+            # ChatBedrock takes region_name, not api_key.
+            kwargs.pop("api_key", None)
+            kwargs["region_name"] = config.extra.get("region", "us-east-1")
+        return init_chat_model(f"{prefix}:{model_name}", **kwargs)
 
-        return ChatCohere(
-            model=model_name,
-            cohere_api_key=api_key,
-            **common_params,
-        )
-    elif provider == "ollama":
-        # Use ChatOpenAI with ollama base URL (OpenAI-compatible)
-        return ChatOpenAI(
-            model=model_name,
-            api_key="ollama",  # Ollama doesn't need real key
-            base_url=config.api_base or "http://localhost:11434/v1",
-            **common_params,
-        )
-    elif provider == "lmstudio":
-        # Use ChatOpenAI with LM Studio base URL (OpenAI-compatible)
-        return ChatOpenAI(
-            model=model_name,
-            api_key="lmstudio",  # LM Studio doesn't need real key
-            base_url=config.api_base or "http://localhost:1234/v1",
-            **common_params,
-        )
-    elif provider == "groq":
-        # Groq uses OpenAI-compatible API
-        return ChatOpenAI(
+    # OpenRouter via the dedicated package — preserves provider-routing
+    # fields and tool-support flags that bare ChatOpenAI strips.
+    if provider == "openrouter":
+        from langchain_openrouter import ChatOpenRouter
+
+        return ChatOpenRouter(
             model=model_name,
             api_key=api_key,
-            base_url=config.api_base or "https://api.groq.com/openai/v1",
             **common_params,
         )
-    elif provider == "together":
-        # Together uses OpenAI-compatible API
+
+    # OpenAI-compatible third parties: ChatOpenAI with per-provider
+    # default base_url (per-config api_base wins when set).
+    if provider in _OPENAI_COMPATIBLE_BASE_URLS:
+        from langchain_openai import ChatOpenAI
+
+        effective_key = api_key
+        if provider in _KEYLESS_OPENAI_COMPATIBLE and not effective_key:
+            effective_key = provider  # placeholder — local servers ignore it
         return ChatOpenAI(
             model=model_name,
-            api_key=api_key,
-            base_url=config.api_base or "https://api.together.xyz/v1",
+            api_key=effective_key,
+            base_url=config.api_base or _OPENAI_COMPATIBLE_BASE_URLS[provider],
             **common_params,
         )
-    elif provider == "deepseek":
-        # DeepSeek uses OpenAI-compatible API
-        return ChatOpenAI(
-            model=model_name,
-            api_key=api_key,
-            base_url=config.api_base or "https://api.deepseek.com/v1",
-            **common_params,
-        )
-    elif provider == "openrouter":
-        # OpenRouter uses OpenAI-compatible API
-        return ChatOpenAI(
-            model=model_name,
-            api_key=api_key,
-            base_url=config.api_base or "https://openrouter.ai/api/v1",
-            **common_params,
-        )
-    elif provider == "dashscope":
-        # Alibaba DashScope uses OpenAI-compatible API
-        # Default to international endpoint; China users can override via api_base
-        return ChatOpenAI(
-            model=model_name,
-            api_key=api_key,
-            base_url=config.api_base
-            or "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-            **common_params,
-        )
-    elif provider == "xai":
-        # xAI (Grok) uses OpenAI-compatible API
-        return ChatOpenAI(
-            model=model_name,
-            api_key=api_key,
-            base_url=config.api_base or "https://api.x.ai/v1",
-            **common_params,
-        )
-    elif provider == "perplexity":
-        # Perplexity uses OpenAI-compatible API
-        return ChatOpenAI(
-            model=model_name,
-            api_key=api_key,
-            base_url=config.api_base or "https://api.perplexity.ai",
-            **common_params,
-        )
-    elif provider == "fireworks":
-        # Fireworks uses OpenAI-compatible API
-        return ChatOpenAI(
-            model=model_name,
-            api_key=api_key,
-            base_url=config.api_base or "https://api.fireworks.ai/inference/v1",
-            **common_params,
-        )
-    elif provider == "azure":
-        # Azure OpenAI has special handling
+
+    # Azure OpenAI — different param shape (azure_endpoint + api_version).
+    if provider == "azure":
         from langchain_openai import AzureChatOpenAI
 
         return AzureChatOpenAI(
@@ -1474,48 +1445,32 @@ def get_langchain_model(config: LLMConfig) -> Any:
             api_version=config.extra.get("api_version", "2024-02-01"),
             **common_params,
         )
-    elif provider == "bedrock":
-        # AWS Bedrock
-        from langchain_aws import ChatBedrock
 
-        return ChatBedrock(
-            model_id=model_name,
-            region_name=config.extra.get("region", "us-east-1"),
-            **common_params,
-        )
-    elif provider == "huggingface":
-        # Hugging Face Inference API (OpenAI-compatible)
-        return ChatOpenAI(
-            model=model_name,
-            api_key=api_key,
-            base_url=config.api_base or "https://router.huggingface.co/v1",
-            **common_params,
-        )
-    elif provider == "apple":
-        # Apple has no LangChain integration (FoundationModels is Swift-only,
-        # not @objc-exposed). Workflow tools should call chat() / vision()
-        # which route to fm-bridge / apple_vision_ocr respectively. This
-        # branch only fires from direct get_langchain_model callers
-        # (multi_agent, agent) — surface a clear error so the caller knows
-        # the path doesn't exist yet.
+    if provider == "apple":
+        # Apple Intelligence has no LangChain ChatModel — Foundation
+        # Models is Swift-only and not @objc-exposed. Workflow tools
+        # should call chat() / chat_structured() which route to
+        # fm-bridge directly. This branch only fires from direct
+        # get_langchain_model callers (multi_agent, agent) — surface a
+        # clear error so the caller knows the path doesn't exist.
         raise NotImplementedError(
             "Apple Intelligence has no LangChain ChatModel wrapper yet. "
-            "Use llm.chat() / llm.vision() (which route to fm-bridge / "
-            "apple_vision_ocr) or pick a different provider for "
-            "multi_agent / agent tools."
+            "Use llm.chat() / llm.chat_structured() (which route to "
+            "fm-bridge) or pick a different provider for multi_agent / "
+            "agent tools."
         )
-    else:
-        # FAIL if provider is empty or unknown - don't silently default
-        if not provider:
-            raise ValueError(
-                "LLM provider not configured. Please set a provider on the workflow or node."
-            )
+
+    if not provider:
         raise ValueError(
-            f"Unknown LLM provider: '{provider}'. "
-            f"Supported providers: openai, anthropic, google, mistral, cohere, "
-            f"ollama, lmstudio, groq, together, deepseek, openrouter, dashscope, "
-            f"xai, perplexity, fireworks, azure, bedrock, huggingface, apple"
+            "LLM provider not configured. Please set a provider on the "
+            "workflow or node."
         )
+    raise ValueError(
+        f"Unknown LLM provider: '{provider}'. "
+        f"Supported: openai, anthropic, google, mistral, cohere, bedrock, "
+        f"openrouter, ollama, lmstudio, groq, together, deepseek, dashscope, "
+        f"xai, perplexity, fireworks, huggingface, azure, apple"
+    )
 
 
 # =============================================================================
