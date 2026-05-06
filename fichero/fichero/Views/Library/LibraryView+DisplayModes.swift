@@ -118,6 +118,19 @@ extension LibraryView {
                     let cellWidth = CGFloat(120 * iconViewScale) + 20
                     let availableWidth = geometry.size.width - 32
                     gridColumnCount = max(1, Int(availableWidth / cellWidth))
+
+                    // Restored-from-launch selection scroll (#808). On launch
+                    // the previous selection is restored but the LazyVGrid
+                    // boots scrolled to the top — selected item is offscreen.
+                    // Defer one tick so LazyVGrid materialises enough cells
+                    // for scrollTo to find the id, then center on it.
+                    if let id = selection.first {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                proxy.scrollTo(id, anchor: .center)
+                            }
+                        }
+                    }
                 }
                 .onChange(of: listScrollTarget) { _, id in
                     guard let id else { return }
@@ -187,6 +200,16 @@ extension LibraryView {
                 guard let id else { return }
                 proxy.scrollTo(id, anchor: nil)
                 listScrollTarget = nil
+            }
+            .onAppear {
+                // Restored-from-launch selection scroll for list view (#808).
+                if let id = selection.first {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            proxy.scrollTo(id, anchor: .center)
+                        }
+                    }
+                }
             }
         }
     }
