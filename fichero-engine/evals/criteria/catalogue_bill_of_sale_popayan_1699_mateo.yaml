@@ -1,0 +1,22 @@
+tool: catalogue
+scenario: bill_of_sale_popayan_1699_mateo
+checks:
+  - kind: not_contains
+    value: "vibrant tapestry"
+    rationale: "Purple prose blacklist."
+  - kind: not_contains
+    value: "**Catalogue Entry**"
+    rationale: "No title header per #828."
+  - kind: starts_with
+    value: ["Escritura", "Bill of sale"]
+    rationale: "Notarial deed opens with the document type per #824."
+  - kind: word_count_between
+    min: 30
+    max: 200
+    rationale: "Notarial deed exemplars are 30-100 words; allow 200 for verbose models."
+  - kind: contains
+    value: "Mateo del Mazo"
+    rationale: "Seller named in source."
+  - kind: contains
+    value: "patacones"
+    rationale: "Currency unit verbatim — the number is the catalogue's value."
