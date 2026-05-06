@@ -17,20 +17,20 @@ doc_id. Falls back to container.id when records absent (legacy path).
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from datetime import datetime
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 from fichero.db import db_manager
-from fichero.llm import LLMConfig, chat_with_fallback
+from fichero.llm import LLMConfig, chat_structured_with_fallback
 from fichero.models import Artifact
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools.catalogue import _resolve_container_doc
 from fichero.workflows.tools.extractors import (
     _SECTIONS,
     _split_into_pages,
-    _strip_fences,
     _render_section_markdown,
     _write_kg_rows,
 )
@@ -90,15 +90,63 @@ _LANGUAGE_CONFIG = {
 }
 
 
-def _build_combined_prompt(output_language: str) -> str:
-    """One prompt asking for all six entity types in a single JSON
-    response. Each section's per-section instruction is reused so the
-    behaviour matches the individual extractors when run alone.
+class _Person(BaseModel):
+    name: str
+    context: str = Field(description="role and importance")
+
+
+class _Place(BaseModel):
+    name: str
+    alternative_spellings: list[str] = Field(default_factory=list)
+    context: str
+
+
+class _Organization(BaseModel):
+    name: str
+    alternative_spellings: list[str] = Field(default_factory=list)
+    context: str
+
+
+class _DateItem(BaseModel):
+    date: str = Field(description="as written in the document")
+    date_normalized: str = Field(
+        description="YYYY-MM-DD (range YYYY-MM-DD/YYYY-MM-DD; month-only YYYY-MM; year-only YYYY)"
+    )
+    context: str = Field(description="complete sentence describing what the document records")
+
+
+class _Event(BaseModel):
+    event: str = Field(description="Title Case noun phrase naming the event")
+    date: str | None = Field(default=None, description="YYYY-MM-DD when stated, else null")
+    context: str = Field(description="complete past-tense sentence describing what happened")
+
+
+class _Extraction(BaseModel):
+    """Schema for the combined extract_all call. Maps 1:1 onto the six
+    section keys downstream tools (folder_cleanup, catalogue) expect."""
+
+    people: list[_Person] = Field(default_factory=list)
+    places: list[_Place] = Field(default_factory=list)
+    organizations: list[_Organization] = Field(default_factory=list)
+    dates: list[_DateItem] = Field(default_factory=list)
+    events: list[_Event] = Field(default_factory=list)
+    keywords: list[str] = Field(
+        default_factory=list,
+        description="descriptive keywords capturing themes, subjects, time periods, and concepts",
+    )
+
+
+def _build_instructions(output_language: str) -> str:
+    """System instructions for the structured-output call. The schema
+    itself is enforced at decode time (DynamicGenerationSchema on Apple,
+    response_format=json_schema on LangChain providers); these
+    instructions cover the things the schema can't express:
+    - the language for prose fields
+    - the don't-invent / cover-every-occurrence policy
+    - per-section prose conventions reused from the individual extractors.
     """
-    section_blocks: list[str] = []
+    section_lines: list[str] = []
     for section in _SECTIONS:
-        # Skip the archive-specific extractors that aren't in the
-        # default preset (rivers / mines / properties / legal_references).
         if section["name"] in {
             "rivers_extract",
             "mines_extract",
@@ -106,24 +154,17 @@ def _build_combined_prompt(output_language: str) -> str:
             "legal_references_extract",
         }:
             continue
-        item = section["item_shape"].replace("__LANG__", output_language)
-        block = (
-            f'"{section["schema_key"]}": [{item}]\n'
-            f'  // {section["instruction"]}\n'
+        section_lines.append(
+            f"- {section['schema_key']}: {section['instruction']}"
         )
-        section_blocks.append(block)
-
-    schema = "{\n  " + "  ".join(section_blocks) + "}"
+    section_block = "\n".join(section_lines)
 
     return (
         f"You are an expert archivist extracting structured entities "
-        f"from a document. Return ONE JSON object matching the schema "
-        f"below. Cover every occurrence in the source. Only include "
-        f"facts the text supports — do not speculate or invent.\n\n"
-        f"Write prose fields in {output_language}. Strip the "
-        f"// comments from your output. Return valid JSON only, no "
-        f"prose outside JSON, no code fences.\n\n"
-        f"Schema:\n{schema}"
+        f"from a document. Cover every occurrence in the source. Only "
+        f"include facts the text supports — do not speculate or invent. "
+        f"Write prose fields in {output_language}.\n\n"
+        f"Section-specific guidance:\n{section_block}"
     )
 
 
@@ -164,26 +205,23 @@ async def extract_all(
         page_doc_ids = [None] * len(chunks)
 
     is_per_page = any(pid for pid in page_doc_ids)
-    prompt = _build_combined_prompt(output_language)
+    instructions = _build_instructions(output_language)
 
     chunk_errors: list[str] = []
     # Per-page error tracking — when a chunk fails, we write an
     # `extraction_error` artifact on the page doc so the user can see
-    # WHY a page came back empty (small models on dialect-heavy text
-    # often error or return malformed JSON; previously this was
-    # swallowed silently). #800, #829.
+    # WHY a page came back empty (#800, #829).
     page_errors: list[str | None] = [None] * len(chunks)
 
     async def _extract_one(idx: int, chunk_text: str) -> dict[str, list]:
-        # Sub-chunk if the page exceeds the small-model window.
+        # Sub-chunk if the page exceeds the small-model window. Apple
+        # Intelligence's on-device window is ~4K tokens; chunks above
+        # _MAX_CHUNK_CHARS get split and merged section-by-section.
         if len(chunk_text) > _MAX_CHUNK_CHARS:
             sub_chunks = [
                 chunk_text[i:i + _MAX_CHUNK_CHARS]
                 for i in range(0, len(chunk_text), _MAX_CHUNK_CHARS)
             ]
-            # Sub-chunks share the parent's page index for error
-            # attribution; pass -1 so they don't overwrite top-level
-            # page_errors entries on partial failure.
             sub_results = await asyncio.gather(
                 *[_extract_one(-1, s) for s in sub_chunks]
             )
@@ -193,57 +231,42 @@ async def extract_all(
                     merged.setdefault(k, []).extend(v)
             return merged
 
-        # Split rules (system) from source (user) so Apple Intelligence
-        # routes them to its Instructions vs Prompt channels — the model
-        # is trained to obey instructions and treat prompts as untrusted
-        # input, which both reduces example-bleed and improves rule
-        # adherence (#815).
+        # Grammar-constrained call. On Apple Intelligence this routes
+        # through fm-bridge's structured mode; on frontier providers
+        # through LangChain's with_structured_output. Either way the
+        # decoder cannot emit invalid JSON — the entire prompt-and-parse
+        # failure class (Unterminated string, single-quoted JSON, prose
+        # before/after the object) is gone (#799/#819 / #838 follow-up).
+        # chat_structured_with_fallback escapes to $large on Apple's
+        # on-device guardrail refusal, keeping the local-first default.
         try:
-            # chat_with_fallback transparently retries with $large when
-            # Apple Intelligence's on-device guardrail refuses scholarly
-            # text containing literary profanity, court-record vocabulary,
-            # historical slurs, etc. Keeps the local-first default but
-            # escapes to the user's frontier provider when needed (#838).
-            response = await chat_with_fallback(
-                chunk_text,
+            extraction = await chat_structured_with_fallback(
+                prompt=chunk_text,
+                schema=_Extraction,
                 config=llm_config,
-                system=prompt,
+                system=instructions,
             )
         except Exception as exc:
-            msg = f"LLM call failed: {exc}"
+            msg = f"structured LLM call failed: {exc}"
             logger.error(f"extract_all {msg}")
             chunk_errors.append(str(exc))
             if idx >= 0:
-                page_errors[idx] = f"LLM call failed: {exc}"
+                page_errors[idx] = msg
             return {}
 
-        try:
-            parsed = json.loads(_strip_fences(response))
-        except json.JSONDecodeError as exc:
-            # Log a snippet of the actual response so we can see WHAT the
-            # model returned that didn't parse — frontier models hit via
-            # the guardrail fallback (#838) sometimes wrap JSON in
-            # explanatory prose or use single quotes that strict parsing
-            # rejects. Without this snippet, every parse failure looks
-            # the same: "JSON parse failed".
-            preview = response[:500].replace("\n", " ") if response else "(empty)"
-            logger.warning(
-                f"extract_all: JSON parse failed ({exc}); response[:500]={preview!r}"
-            )
-            chunk_errors.append(f"JSON parse failed: {exc}")
-            if idx >= 0:
-                page_errors[idx] = (
-                    f"JSON parse failed: {exc}\nResponse preview: {preview}"
-                )
-            return {}
-
-        if not isinstance(parsed, dict):
-            if idx >= 0:
-                page_errors[idx] = "LLM response not a JSON object"
-            return {}
-        # Filter to schema_keys we know about; ignore extras.
-        known_keys = {s["schema_key"] for s in _SECTIONS}
-        return {k: (v or []) for k, v in parsed.items() if k in known_keys}
+        # Pydantic instance → dict for the existing per-section pipeline
+        # (KG writer, markdown renderer). Use mode="json" so URL-ish
+        # primitives roundtrip as strings.
+        return {
+            "people": [p.model_dump(mode="json") for p in extraction.people],
+            "places": [p.model_dump(mode="json") for p in extraction.places],
+            "organizations": [
+                o.model_dump(mode="json") for o in extraction.organizations
+            ],
+            "dates": [d.model_dump(mode="json") for d in extraction.dates],
+            "events": [e.model_dump(mode="json") for e in extraction.events],
+            "keywords": list(extraction.keywords),
+        }
 
     chunk_results: list[dict[str, list]] = await asyncio.gather(
         *[_extract_one(i, c) for i, c in enumerate(chunks)]
@@ -406,6 +429,6 @@ register_tool(
     input_ports=_INPUT_PORTS,
     output_ports=BASE_OUTPUT_PORTS,
     config_schema=merge_config_schema(BASE_CONFIG_SCHEMA, _LANGUAGE_CONFIG),
-    default_prompt=_build_combined_prompt("English"),
+    default_prompt=_build_instructions("English"),
     sort_order=5,
 )(extract_all)

@@ -981,7 +981,17 @@ async def chat_structured(
     from langchain_core.messages import HumanMessage, SystemMessage
 
     model = get_langchain_model(config)
-    structured_model = model.with_structured_output(schema)
+
+    # Prefer tool/function-calling over strict JSON-Schema mode. The
+    # `json_schema` default in LangChain only works on providers that
+    # implement OpenAI-style strict structured output (notably native
+    # OpenAI). OpenRouter proxies to many backends — some do, some
+    # don't — and strict mode silently degrades on the rest. Tool-
+    # calling is the lowest-common-denominator that every major provider
+    # and OpenRouter-routed model supports, so it's the safest default.
+    structured_model = model.with_structured_output(
+        schema, method="function_calling"
+    )
 
     messages: list[Any] = []
     if system:
@@ -989,6 +999,38 @@ async def chat_structured(
     messages.append(HumanMessage(content=prompt))
     result = await structured_model.ainvoke(messages)
     return result
+
+
+async def chat_structured_with_fallback(
+    prompt: str,
+    schema: type[BaseModel],
+    config: LLMConfig,
+    system: str | None = None,
+) -> BaseModel:
+    """Like chat_structured(), but falls back to the user's $large model
+    when Apple Intelligence's on-device guardrail refuses the call (#838).
+
+    Mirrors chat_with_fallback() for the structured-output path. Lets
+    extract_all and cleanup keep the local-first default while still
+    completing on documents Apple Intelligence's safety filter rejects.
+    """
+    try:
+        return await chat_structured(prompt, schema, config, system=system)
+    except GuardrailViolationError as guardrail_exc:
+        from fichero.providers import resolve_default_provider
+        try:
+            large_config = resolve_default_provider(role="large")
+        except Exception:
+            raise guardrail_exc
+
+        if large_config.provider == config.provider and large_config.model == config.model:
+            raise guardrail_exc
+
+        logger.warning(
+            f"Apple Intelligence guardrail refused structured call; retrying "
+            f"with {large_config.provider}/{large_config.model}"
+        )
+        return await chat_structured(prompt, schema, large_config, system=system)
 
 
 def _pydantic_to_apple_schema(model: type[BaseModel]) -> dict[str, Any]:
