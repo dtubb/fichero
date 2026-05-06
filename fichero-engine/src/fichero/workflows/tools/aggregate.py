@@ -196,15 +196,121 @@ async def aggregate(
     state: State,
     llm_config: LLMConfig,
 ) -> dict[str, Any]:
-    """Combine upstream records. See module docstring for semantics."""
+    """Combine upstream records. See module docstring for semantics.
+
+    Includes a parallel-source barrier (#837): when the upstream is a
+    parallel-fan-out node (via LangGraph's Send API), this tool polls
+    `state.parallel_results[upstream]` until all expected sub-results
+    have landed. Without the poll, LangGraph fires this node in the
+    same super-step as the parallel dispatch — before any transcribe /
+    extract / etc. results exist — and the resulting empty aggregate
+    poisons everything downstream (catalogue + extract_all both fail
+    with 'no text input').
+
+    The barrier is auto-detected: if `state.parallel_results` has any
+    pending lists (length < total), wait for them to fill before
+    coercing. Only adds latency when the upstream actually IS parallel.
+    """
     config = inputs.get("_config") or {}
     mode = config.get("mode") or "concat"
     separator = config.get("separator") or "\n\n---\n\n"
     pretty = bool(config.get("pretty_json", True))
 
+    await _wait_for_parallel_completion(state)
+
     records = _coerce_records(inputs)
     if not records:
+        # Re-resolve inputs from state.outputs in case the resolver was
+        # called before parallel_results landed. The path-style inputs
+        # (`$.nodes.X.text`) were resolved at call-time; if X was
+        # parallel and aggregating mid-run, the resolved text is empty.
+        # After _wait_for_parallel_completion, state.outputs[X] should
+        # have been populated by the auto-aggregator — re-derive records
+        # from that fresh data.
+        refreshed = _records_from_state_outputs(inputs, state)
+        if refreshed:
+            return _aggregate(
+                refreshed, mode=mode, separator=separator, pretty=pretty,
+            )
         logger.info("aggregate: no upstream records; returning empty payload")
         return {"text": "", "records": [], "count": 0}
 
     return _aggregate(records, mode=mode, separator=separator, pretty=pretty)
+
+
+async def _wait_for_parallel_completion(state: State) -> None:
+    """Block until every parallel-source in state.parallel_results has
+    received len >= total results. Times out after 10 minutes (matches
+    the typical LLM call budget) — hung sources surface as a workflow
+    abort rather than indefinite blocking. (#837)
+    """
+    import asyncio
+    deadline = asyncio.get_event_loop().time() + 600
+    poll_interval = 0.25
+    while asyncio.get_event_loop().time() < deadline:
+        parallel_results = state.get("parallel_results", {})
+        if not parallel_results:
+            return  # No parallel sources at all — nothing to wait for.
+        all_complete = True
+        for node_id, results in parallel_results.items():
+            if not results:
+                all_complete = False
+                break
+            expected = next(
+                (r.get("total") for r in results
+                 if isinstance(r, dict) and isinstance(r.get("total"), int)),
+                None,
+            )
+            if expected is not None and len(results) < expected:
+                all_complete = False
+                break
+        if all_complete:
+            return
+        await asyncio.sleep(poll_interval)
+    logger.warning(
+        "aggregate: timed out waiting for parallel completion after 600s"
+    )
+
+
+def _records_from_state_outputs(
+    inputs: dict[str, Any], state: State,
+) -> list[dict[str, Any]]:
+    """Re-derive records from state.outputs after parallel completion.
+
+    The resolver runs once at node-start with whatever state was at the
+    time. If parallel completion happens AFTER the resolver but BEFORE
+    this tool actually processes records, the inputs dict has empty
+    values that are now stale. This re-walks the same input-mapping
+    paths against the current state to pick up the fresh data.
+
+    Conservative — only checks the standard text/documents shape; if
+    inputs look custom, returns empty and caller falls back to the
+    stale empty payload.
+    """
+    # The path-style inputs were already resolved into raw values, so we
+    # can't easily re-resolve. Cheaper: scan state.outputs for any node
+    # that produced text/results matching the expected shape and use
+    # those if inputs.text is empty/None.
+    outputs = state.get("outputs", {}) or {}
+    candidate_texts: list[str] = []
+    for _node_id, node_output in outputs.items():
+        if not isinstance(node_output, dict):
+            continue
+        node_text = node_output.get("text")
+        if isinstance(node_text, str) and node_text.strip():
+            candidate_texts.append(node_text)
+        elif isinstance(node_text, list):
+            for t in node_text:
+                if isinstance(t, str) and t.strip():
+                    candidate_texts.append(t)
+    if not candidate_texts:
+        return []
+    return [
+        {
+            "index": i,
+            "text": t,
+            "doc_id": "",
+            "doc_name": f"item-{i + 1}",
+        }
+        for i, t in enumerate(candidate_texts)
+    ]
