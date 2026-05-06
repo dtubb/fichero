@@ -2745,7 +2745,7 @@
           "claims"
         ],
         "summary": "List Claims",
-        "description": "List knowledge claims with optional filtering.",
+        "description": "List knowledge claims with optional filtering.\n\nWhen ``include_descendants=true`` is combined with\n``source_document_id=<folder_id>``, claims for the folder AND every\ndescendant doc are returned \u2014 required by the folder KG view\nbecause extract_all writes claims to PAGE docs, not the container\n(#826).",
         "operationId": "list_claims_api_claims_get",
         "parameters": [
           {
@@ -2816,6 +2816,16 @@
               "type": "string",
               "nullable": true,
               "title": "Source Document Id"
+            }
+          },
+          {
+            "name": "include_descendants",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Descendants"
             }
           },
           {

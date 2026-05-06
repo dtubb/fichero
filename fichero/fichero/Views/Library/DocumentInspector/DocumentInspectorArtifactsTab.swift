@@ -689,8 +689,14 @@ struct KnowledgeGraphInspectorSection: View {
         defer { isLoading = false }
 
         do {
+            // include_descendants=true picks up the page-doc claims that
+            // extract_all writes when this doc is a folder/group container
+            // (#826). For leaf docs the BFS just returns the doc itself,
+            // so the result is identical to the non-descendant query —
+            // no extra cost to always pass it.
             let docClaims = try await entityService.listClaims(
                 sourceDocumentId: documentId,
+                includeDescendants: true,
                 limit: 500
             )
             claims = docClaims

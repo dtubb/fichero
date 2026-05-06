@@ -427,6 +427,7 @@ final class EntityServiceGenerated: ObservableObject {
     func listClaims(
         sourceDocumentId: String? = nil,
         entityId: String? = nil,
+        includeDescendants: Bool = false,
         limit: Int = 100,
         offset: Int = 0
     ) async throws -> [Components.Schemas.KnowledgeClaim] {
@@ -434,6 +435,7 @@ final class EntityServiceGenerated: ObservableObject {
             query: .init(
                 entityId: entityId,
                 sourceDocumentId: sourceDocumentId,
+                includeDescendants: includeDescendants,
                 limit: limit,
                 offset: offset
             ),
