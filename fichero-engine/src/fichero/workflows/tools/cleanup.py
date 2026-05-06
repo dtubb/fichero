@@ -63,10 +63,17 @@ _TYPES: list[dict[str, Any]] = [
         "color": "blue",
         "duplicate_rule": (
             "Two entries refer to the same person if their names match (full "
-            "name vs. partial form, with or without title or initials), or "
-            "one is clearly a misspelling, abbreviation, or accent variant "
-            "of the other. Pick the most complete form (longest, with title "
-            "if used in the document) as canonical."
+            "name vs. partial form of the SAME person, with or without "
+            "title or initials), or one is clearly a misspelling, "
+            "abbreviation, or accent variant of the other. Pick the most "
+            "complete form (longest, with title if used in the document) "
+            "as canonical.\n\n"
+            "DO NOT merge possessive or relational references — 'Leidy's "
+            "mother', 'Pedro's brother', 'the Captain's wife' denote "
+            "DIFFERENT people related to Leidy / Pedro / the Captain. "
+            "Substring overlap is NOT a duplicate signal; only treat two "
+            "entries as the same person when they plausibly name the same "
+            "individual."
         ),
     },
     {
