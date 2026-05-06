@@ -223,12 +223,19 @@ extension ContentView {
     var previewView: some View {
         switch viewMode {
         case .library, .search:
+            // Stable .id so EditorView keeps its mount across the
+            // first detailDocument nil → some-doc transition. Without
+            // a fixed id, SwiftUI's structural-identity pass treats
+            // the EditorView differently when its document arg flips,
+            // causing the LazyVGrid sibling to re-layout / first-click
+            // flash (#788).
             EditorView(
                 document: detailDocument,
                 onPDFPageIndexChange: { index in
                     syncGridSelectionToPDFPage(index: index)
                 }
             )
+            .id("editor.library")
 
         case .chat, .comparison:
             EmptyView()
