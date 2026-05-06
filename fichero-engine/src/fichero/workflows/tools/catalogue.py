@@ -149,7 +149,9 @@ def _build_prompt(output_language: str) -> str:
     """
     return f"""You are an expert archivist. Write a catalogue entry in
 {output_language} for what these documents CONTAIN. One paragraph, plain
-prose, no headings, no lists, no JSON.
+prose. NO title, NO heading, NO label like "Catalogue Entry" or
+"Summary:" — start the entry directly with the document type. NO bold
+markers (**…**), NO Markdown headers (#), NO bullets, NO JSON.
 
 Open with the document type in the source's own vocabulary (a deed,
 lawsuit, letter, report, chapter, photograph, etc.). Length matches

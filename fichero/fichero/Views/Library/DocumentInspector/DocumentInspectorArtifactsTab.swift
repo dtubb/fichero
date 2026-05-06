@@ -894,6 +894,7 @@ private struct EntityKindRow: View {
             .font(.body)
             .foregroundStyle(.primary)
         if !item.aliases.isEmpty {
+            // swiftlint:disable:next shorthand_operator
             text = text
                 + Text("  (aka " + item.aliases.joined(separator: ", ") + ")")
                     .font(.caption)
@@ -902,6 +903,7 @@ private struct EntityKindRow: View {
         if !item.context.isEmpty,
            item.context != item.displayName,
            !item.displayName.contains(item.context) {
+            // swiftlint:disable:next shorthand_operator
             text = text
                 + Text("\n" + item.context)
                     .font(.body)
