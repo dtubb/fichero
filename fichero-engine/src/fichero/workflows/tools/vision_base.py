@@ -458,6 +458,53 @@ async def apple_vision_ocr_pages_async(pdf_path: str, language: str = "en") -> l
     return await loop.run_in_executor(None, _apple_ocr_pdf_pages, pdf_path, language)
 
 
+def _build_page_records_for_file(
+    library_path: str,
+    parent_doc_id: str | None,
+    file_text: str,
+    per_page_texts: list[str] | None,
+) -> list[dict]:
+    """Return [{doc_id, text}, ...] keyed on page-child docs when present.
+
+    Used by process_vision so downstream tools (extract_all) receive a
+    typed records port carrying per-page provenance — extract_all stores
+    KG claims and per-page artifacts on each page child's doc_id (#701,
+    #837 follow-up). Falls back to a single record on the parent doc id
+    when no page children exist (single-page files, non-PDFs).
+    """
+    if not parent_doc_id:
+        return []
+
+    if library_path:
+        try:
+            from fichero.db import db_manager
+            from fichero.models import Document
+
+            db = db_manager.get_database(library_path)
+            page_docs = sorted(
+                db.query(Document, parent_id=parent_doc_id),
+                key=lambda d: d.sequence or 0,
+            )
+            if page_docs:
+                records: list[dict] = []
+                for page_doc in page_docs:
+                    idx = (page_doc.sequence or 1) - 1
+                    if per_page_texts and 0 <= idx < len(per_page_texts):
+                        text = per_page_texts[idx]
+                    else:
+                        text = page_doc.page_content or ""
+                    if text:
+                        records.append({"doc_id": page_doc.id, "text": text})
+                if records:
+                    return records
+        except Exception as e:
+            logger.warning(
+                f"Failed to build page records for {parent_doc_id}: {e}"
+            )
+
+    return [{"doc_id": parent_doc_id, "text": file_text or ""}] if file_text else []
+
+
 async def _propagate_to_page_children(
     parent_id: str,
     page_texts: list[str],
@@ -687,6 +734,7 @@ async def process_vision(
             "results": [],
             "artifacts": [],
             "output_files": [],
+            "page_records": [],
             "error": "No input files provided",
         }
 
@@ -741,6 +789,7 @@ async def process_vision(
     values = []
     artifact_ids = []
     output_files = []
+    page_records: list[dict] = []
 
     for file_path in files:
         try:
@@ -776,6 +825,14 @@ async def process_vision(
                     texts.append(cached_text)
                     values.append(cached_text)
                     artifact_ids.append(existing.id)
+                    page_records.extend(
+                        _build_page_records_for_file(
+                            library_path,
+                            path_to_doc.get(file_path),
+                            cached_text,
+                            None,
+                        )
+                    )
                     continue
 
             # Process with Apple Vision or LLM
@@ -915,6 +972,14 @@ async def process_vision(
             results.append(result)
             texts.append(text)
             values.append(parsed)
+            page_records.extend(
+                _build_page_records_for_file(
+                    library_path,
+                    path_to_doc.get(file_path),
+                    text,
+                    per_page_texts,
+                )
+            )
 
         except Exception as e:
             logger.error(f"Vision processing failed for {file_path}: {e}")
@@ -944,5 +1009,6 @@ async def process_vision(
         "results": results,
         "artifacts": artifact_ids,
         "output_files": output_files,
+        "page_records": page_records,
         "error": error_msg,
     }

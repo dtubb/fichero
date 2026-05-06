@@ -339,6 +339,28 @@ async def catalogue(
        that fills every section.
     """
     text = inputs.get("text", "")
+    # Catalogue only declares one wired input now (`data` from
+    # merge_extracts). When `text` isn't on the input port, pull the
+    # transcript out of state.outputs so the node fires once — when
+    # `data` is ready — instead of twice (once on the `text` edge alone,
+    # once on the `data` edge). Multi-input LangGraph nodes fire whenever
+    # any input is ready (#837 follow-up).
+    if not text:
+        for node_output in (state.get("outputs") or {}).values():
+            if not isinstance(node_output, dict):
+                continue
+            candidate = node_output.get("text")
+            # Discriminate transcribe-aggregator output from extractor or
+            # cleanup output: only the parallel-aggregator wrapper carries
+            # both `text` and a list under `texts`.
+            if (
+                isinstance(candidate, str)
+                and candidate
+                and isinstance(node_output.get("texts"), list)
+            ):
+                text = candidate
+                break
+
     # Resolve language via auto-detect when the user picked "auto" (or
     # left it blank). Concrete names like "English" / "Spanish" bypass
     # detection. See fichero/lang_detect.py for the detector.

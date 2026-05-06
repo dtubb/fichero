@@ -153,6 +153,13 @@
       "target_port": "text"
     },
     {
+      "id": "e-transcribe-extract_all-records",
+      "source": "transcribe",
+      "target": "extract_all",
+      "source_port": "records",
+      "target_port": "records"
+    },
+    {
       "id": "e-extract_all-people_folder_clean",
       "source": "extract_all",
       "target": "people_folder_clean",
@@ -237,13 +244,6 @@
       "target_port": "text"
     },
     {
-      "id": "e-transcribe-catalogue-text",
-      "source": "transcribe",
-      "target": "catalogue",
-      "source_port": "text",
-      "target_port": "text"
-    },
-    {
       "id": "e-merge_extracts-catalogue-data",
       "source": "merge_extracts",
       "target": "catalogue",
@@ -252,6 +252,6 @@
     }
   ],
   "config": {
-    "preset_version": 3
+    "preset_version": 4
   }
 }

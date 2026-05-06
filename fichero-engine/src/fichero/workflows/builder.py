@@ -972,6 +972,7 @@ def _make_aggregation_function(node_id: str):
         all_texts = []
         all_results = []
         all_artifacts = []
+        all_page_records: list[dict] = []
         errors = []
         success_count = 0
 
@@ -991,6 +992,11 @@ def _make_aggregation_function(node_id: str):
                         all_results.extend(result["results"])
                     if result.get("artifacts"):
                         all_artifacts.extend(result["artifacts"])
+                    page_recs = result.get("page_records")
+                    if isinstance(page_recs, list):
+                        for rec in page_recs:
+                            if isinstance(rec, dict) and rec.get("text"):
+                                all_page_records.append(rec)
             else:
                 consecutive_errors += 1
                 max_consecutive_errors = max(max_consecutive_errors, consecutive_errors)
@@ -1043,10 +1049,14 @@ def _make_aggregation_function(node_id: str):
                 errors=errors[:10],
             )
 
-        # Build aggregated output
+        # Build aggregated output. `records` carries per-page provenance
+        # for the records port (extract_all, page_cleanup) — flat list of
+        # {doc_id, text} across all parallel files, in the same parallel-
+        # index order as `texts`. See vision_base._build_page_records_for_file.
         aggregated = {
             "text": "\n\n".join(all_texts),
             "texts": all_texts,
+            "records": all_page_records,
             "results": all_results,
             "artifacts": all_artifacts,
             "success_count": success_count,

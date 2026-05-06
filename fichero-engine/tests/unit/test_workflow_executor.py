@@ -675,6 +675,71 @@ class TestParallelExecution:
         assert output["texts"][0] == "Text 1"
         assert output["texts"][1] == "Text 2"
 
+    @pytest.mark.asyncio
+    async def test_aggregation_function_concatenates_page_records(self):
+        """Per-page records on each parallel result land flat under
+        aggregated['records'] in parallel-index order. This is what
+        carries page provenance to extract_all so the records port
+        can drive page-level KG storage (#701, #837 follow-up)."""
+        from fichero.workflows.builder import _make_aggregation_function
+
+        aggregate = _make_aggregation_function("transcribe")
+
+        state = {
+            "parallel_results": {
+                "transcribe": [
+                    {
+                        "file": "/p/a.pdf", "index": 0, "success": True,
+                        "result": {
+                            "text": "A1\n\nA2",
+                            "page_records": [
+                                {"doc_id": "a-p1", "text": "A1"},
+                                {"doc_id": "a-p2", "text": "A2"},
+                            ],
+                        },
+                    },
+                    {
+                        "file": "/p/b.pdf", "index": 1, "success": True,
+                        "result": {
+                            "text": "B1",
+                            "page_records": [{"doc_id": "b-p1", "text": "B1"}],
+                        },
+                    },
+                ]
+            },
+            "outputs": {},
+            "completed_nodes": [],
+        }
+
+        result = await aggregate(state)
+        records = result["outputs"]["transcribe"]["records"]
+
+        assert [r["doc_id"] for r in records] == ["a-p1", "a-p2", "b-p1"]
+        assert [r["text"] for r in records] == ["A1", "A2", "B1"]
+
+    @pytest.mark.asyncio
+    async def test_aggregation_function_handles_missing_page_records(self):
+        """Results without page_records (legacy / non-vision tools)
+        produce an empty records list — never crash, never inject
+        garbage entries."""
+        from fichero.workflows.builder import _make_aggregation_function
+
+        aggregate = _make_aggregation_function("transcribe")
+        state = {
+            "parallel_results": {
+                "transcribe": [
+                    {
+                        "file": "/p/a.jpg", "index": 0, "success": True,
+                        "result": {"text": "T"},  # no page_records key
+                    },
+                ]
+            },
+            "outputs": {},
+            "completed_nodes": [],
+        }
+        result = await aggregate(state)
+        assert result["outputs"]["transcribe"]["records"] == []
+
     def test_state_has_parallel_fields(self):
         """Test that State TypedDict has parallel execution fields."""
         from fichero.workflows.types import State

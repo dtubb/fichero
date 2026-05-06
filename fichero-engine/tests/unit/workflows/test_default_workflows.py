@@ -61,20 +61,25 @@ class TestLoadPresetFiles:
 
     def test_catalogue_has_final_catalogue_node_fed_by_merge(self):
         """The preset must end with a catalogue node so the workflow produces
-        a unified Catalogue artifact, not just per-entity outputs (#720)."""
+        a unified Catalogue artifact, not just per-entity outputs (#720).
+
+        Catalogue's only wired input is `data` from merge_extracts; the
+        transcript is read from state.outputs by the tool itself so the
+        node fires once on `data` arrival rather than twice (#837 follow-up).
+        """
         presets = {p["name"]: p for p in _load_preset_files()}
         catalogue = presets["Catalogue"]
 
         node_tools = {n["tool"] for n in catalogue["nodes"]}
         assert "catalogue" in node_tools
 
-        # A merge/aggregate barrier feeds the final catalogue via text/text.
         catalogue_id = _node_id(catalogue, "catalogue")
-        feeders = [
+        data_feeders = [
             e for e in catalogue["edges"]
-            if e["target"] == catalogue_id and e["target_port"] == "text"
+            if e["target"] == catalogue_id and e.get("target_port") == "data"
         ]
-        assert feeders, "no edge feeds catalogue.text"
+        assert data_feeders, "no edge feeds catalogue.data"
+        assert {e["source"] for e in data_feeders} == {"merge_extracts"}
 
     def test_default_templates_have_folder_path_groups(self):
         """Templates ship with `folder_path` values so the Run Workflow
@@ -198,16 +203,21 @@ class TestLoadPresetFiles:
                 f"{[n['id'] for n in user_aggregate_nodes]}"
             )
 
-            # catalogue.text reads directly from transcribe.
+            # catalogue has exactly one wired input (`data` from
+            # merge_extracts). The transcript text is pulled out of
+            # state.outputs by the catalogue tool itself so the node
+            # only fires once — when `data` is ready — instead of
+            # twice (#837 follow-up; multi-input nodes fire whenever
+            # any input port is ready).
             cat_text_sources = {
                 e["source"]
                 for e in preset["edges"]
                 if e["target"] == "catalogue"
                 and e.get("target_port") == "text"
             }
-            assert cat_text_sources == {"transcribe"}, (
-                f"{preset_name}: catalogue.text must come from transcribe "
-                f"(via auto-aggregator) — got {cat_text_sources}"
+            assert cat_text_sources == set(), (
+                f"{preset_name}: catalogue.text edge should be removed "
+                f"so the node fires once — got {cat_text_sources}"
             )
 
             # catalogue.data still sources from merge_extracts so the
@@ -223,8 +233,10 @@ class TestLoadPresetFiles:
                 f"(entity context) — got {cat_data_sources}"
             )
 
-            # extract_all.text reads directly from transcribe (was
-            # previously routed through the user aggregate).
+            # extract_all reads from transcribe via two ports: `text`
+            # (concatenated, kept as a fallback) and `records`
+            # ([{doc_id, text}, ...] — the per-page provenance carrier
+            # that drives page-level KG + per-page artifacts, #701).
             ext_text_sources = {
                 e["source"]
                 for e in preset["edges"]
@@ -234,6 +246,16 @@ class TestLoadPresetFiles:
             assert ext_text_sources == {"transcribe"}, (
                 f"{preset_name}: extract_all.text must come from transcribe — "
                 f"got {ext_text_sources}"
+            )
+            ext_records_sources = {
+                e["source"]
+                for e in preset["edges"]
+                if e["target"] == "extract_all"
+                and e.get("target_port") == "records"
+            }
+            assert ext_records_sources == {"transcribe"}, (
+                f"{preset_name}: extract_all.records must come from transcribe "
+                f"(per-page records for page-level KG) — got {ext_records_sources}"
             )
 
     def test_catalogue_mixed_promotes_narrative_to_dollar_large(self):
