@@ -31,9 +31,9 @@ class TestFormatClaimsAsContext:
 
     def test_people_section_renders_names(self):
         data = {
-            "personas_clave": [
-                {"nombre": "Don Matheo", "contexto": "lender"},
-                {"nombre": "Federico Leighton", "contexto": "engineer"},
+            "people": [
+                {"name": "Don Matheo", "context": "lender"},
+                {"name": "Federico Leighton", "context": "engineer"},
             ]
         }
         out = _format_claims_as_context(data)
@@ -42,7 +42,7 @@ class TestFormatClaimsAsContext:
         assert "Federico Leighton" in out
 
     def test_skips_empty_sections(self):
-        data = {"personas_clave": [], "lugares": [{"nombre": "Cali"}]}
+        data = {"people": [], "places": [{"name": "Cali"}]}
         out = _format_claims_as_context(data)
         assert "People found" not in out
         assert "Places found:" in out
@@ -50,9 +50,9 @@ class TestFormatClaimsAsContext:
 
     def test_dates_use_normalized_form(self):
         data = {
-            "fechas": [
-                {"fecha_normalizada": "1922-08-24", "fecha": "twenty-fourth of August"},
-                {"fecha_normalizada": "", "fecha": "1925"},
+            "dates": [
+                {"date_normalized": "1922-08-24", "date": "twenty-fourth of August"},
+                {"date_normalized": "", "date": "1925"},
             ]
         }
         out = _format_claims_as_context(data)
@@ -60,7 +60,7 @@ class TestFormatClaimsAsContext:
         assert "1925" in out
 
     def test_keywords_render_as_semicolon_list(self):
-        data = {"palabras_clave": ["mining", "lawsuit", "Chocó"]}
+        data = {"keywords": ["mining", "lawsuit", "Chocó"]}
         out = _format_claims_as_context(data)
         assert "Keywords:" in out
         assert "mining; lawsuit; Chocó" in out
@@ -93,48 +93,52 @@ class TestSplitTextIntoChunks:
 
 
 class TestGenerateTimeline:
-    @pytest.mark.asyncio
-    async def test_empty_input_returns_empty(self):
-        cfg = MagicMock()
-        result = await _generate_timeline("", "English", cfg, "")
-        assert result == ""
+    """Timeline is now rendered programmatically from the date claims —
+    no LLM call. Small models hallucinate or misorder dates; sorting
+    YYYY-MM-DD strings is deterministic and free."""
 
-    @pytest.mark.asyncio
-    async def test_prompt_asks_for_chronology(self):
-        cfg = MagicMock()
-        with patch(
-            "fichero.workflows.tools.catalogue.chat",
-            new=AsyncMock(return_value="* **1922-08-24** — Dredge sank."),
-        ) as mock_chat:
-            await _generate_timeline("source text", "English", cfg)
-            assert mock_chat.called
-            # Inspect the prompt content
-            call_args = mock_chat.call_args
-            messages = call_args[0][0]
-            prompt_text = messages[0]["content"]
-            assert "chronological" in prompt_text.lower() or "timeline" in prompt_text.lower()
-            assert "English" in prompt_text
+    def test_empty_data_returns_empty(self):
+        assert _generate_timeline(None) == ""
+        assert _generate_timeline({}) == ""
+        assert _generate_timeline({"dates": []}) == ""
 
-    @pytest.mark.asyncio
-    async def test_chat_failure_returns_empty(self):
-        cfg = MagicMock()
-        with patch(
-            "fichero.workflows.tools.catalogue.chat",
-            new=AsyncMock(side_effect=RuntimeError("model busy")),
-        ):
-            result = await _generate_timeline("text", "English", cfg)
-            assert result == ""
+    def test_renders_sorted_markdown_bullets(self):
+        data = {"dates": [
+            {"date_normalized": "1931-08-03", "context": "appeal filed"},
+            {"date_normalized": "1930-05-12", "context": "deed signed"},
+        ]}
+        result = _generate_timeline(data)
+        # Earliest first, bold date, em-dash, context.
+        assert result == (
+            "* **1930-05-12** — deed signed\n"
+            "* **1931-08-03** — appeal filed"
+        )
 
-    @pytest.mark.asyncio
-    async def test_uses_claim_context_when_provided(self):
-        cfg = MagicMock()
-        with patch(
-            "fichero.workflows.tools.catalogue.chat",
-            new=AsyncMock(return_value="timeline"),
-        ) as mock_chat:
-            await _generate_timeline("text", "English", cfg, claim_context="Dates found: 1922-08-24")
-            prompt_text = mock_chat.call_args[0][0][0]["content"]
-            assert "1922-08-24" in prompt_text
+    def test_uses_legacy_spanish_keys_as_fallback(self):
+        data = {"fechas": [
+            {"fecha_normalizada": "1925-02-28", "contexto": "Dispatch"},
+        ]}
+        result = _generate_timeline(data)
+        assert result == "* **1925-02-28** — Dispatch"
+
+    def test_skips_undated_entries(self):
+        data = {"dates": [
+            {"context": "no date here"},
+            {"date_normalized": "1922-08-24", "context": "dredge sank"},
+        ]}
+        result = _generate_timeline(data)
+        assert result == "* **1922-08-24** — dredge sank"
+
+    def test_dedupes_identical_pairs(self):
+        data = {"dates": [
+            {"date_normalized": "1930-05-12", "context": "X"},
+            {"date_normalized": "1930-05-12", "context": "X"},
+        ]}
+        assert _generate_timeline(data) == "* **1930-05-12** — X"
+
+    def test_no_context_renders_just_date(self):
+        data = {"dates": [{"date_normalized": "1930-05-12", "context": ""}]}
+        assert _generate_timeline(data) == "* **1930-05-12**"
 
 
 class TestGenerateKeywords:
@@ -152,9 +156,9 @@ class TestGenerateKeywords:
             new=AsyncMock(return_value="mining; lawsuit; Chocó"),
         ) as mock_chat:
             result = await _generate_keywords("source text", "Spanish", cfg)
-            prompt_text = mock_chat.call_args[0][0][0]["content"]
-            assert "keyword" in prompt_text.lower()
-            assert "Spanish" in prompt_text
+            instructions = mock_chat.call_args.kwargs["system"]
+            assert "keyword" in instructions.lower()
+            assert "Spanish" in instructions
             assert result == "mining; lawsuit; Chocó"
 
     @pytest.mark.asyncio

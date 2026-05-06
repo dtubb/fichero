@@ -18,7 +18,45 @@ from fichero.workflows.tools.catalogue import (
     _iter_section_artifacts,
     _render_markdown,
     _resolve_container_doc,
+    _strip_narrative_header,
 )
+
+
+class TestStripNarrativeHeader:
+    """Small models stick a leading title on the catalogue narrative
+    despite the prompt saying 'no headers'. Belt-and-braces strip (#828)."""
+
+    def test_strips_bold_catalogue_entry(self):
+        text = "**Catalogue Entry**\n\nThis document is a narrative…"
+        assert _strip_narrative_header(text) == "This document is a narrative…"
+
+    def test_strips_plain_catalogue_entry_colon(self):
+        text = "Catalogue Entry:\n\nThis document records…"
+        assert _strip_narrative_header(text) == "This document records…"
+
+    def test_strips_summary_label(self):
+        text = "Summary:\nThe folder contains…"
+        assert _strip_narrative_header(text) == "The folder contains…"
+
+    def test_strips_markdown_h1(self):
+        text = "# Catalogue Entry\n\nBody starts here."
+        assert _strip_narrative_header(text) == "Body starts here."
+
+    def test_passthrough_when_no_header(self):
+        text = "This document is a narrative by David Sánchez Juliao."
+        assert _strip_narrative_header(text) == text
+
+    def test_passthrough_empty(self):
+        assert _strip_narrative_header("") == ""
+
+    def test_strips_spanish_resumen_label(self):
+        text = "Resumen:\nEste documento describe…"
+        assert _strip_narrative_header(text) == "Este documento describe…"
+
+    def test_only_strips_one_leading_block(self):
+        # Inline **bold** later in the body must NOT be stripped.
+        text = "**Catalogue Entry**\n\nBody with **bold** word."
+        assert _strip_narrative_header(text) == "Body with **bold** word."
 
 
 # ---------------------------------------------------------------------------
@@ -52,31 +90,31 @@ class TestRenderMarkdown:
         assert _render_markdown({}) == ""
 
     def test_skips_sections_with_no_items(self):
-        data = {"resumen": "A summary."}
+        data = {"summary": "A summary."}
         rendered = _render_markdown(data)
-        assert "## Resumen" in rendered
-        assert "## Personas Clave" not in rendered
-        assert "## Ríos" not in rendered
+        assert "## Summary" in rendered
+        assert "## People" not in rendered
+        assert "## Rivers" not in rendered
 
     def test_table_renders_all_rows(self):
         data = {
-            "personas_clave": [
-                {"nombre": "Alice", "contexto": "Role A"},
-                {"nombre": "Bob", "contexto": "Role B"},
+            "people": [
+                {"name": "Alice", "context": "Role A"},
+                {"name": "Bob", "context": "Role B"},
             ]
         }
         rendered = _render_markdown(data)
-        assert "## Personas Clave" in rendered
+        assert "## People" in rendered
         assert "Alice" in rendered and "Bob" in rendered
-        assert "| Nombre | Contexto |" in rendered
+        assert "| Name | Context |" in rendered
 
     def test_alt_spellings_list_flattens_with_commas(self):
         data = {
-            "rios": [
+            "rivers": [
                 {
-                    "nombre": "Río Condoto",
-                    "ortografias_alternativas": ["Conduto", "Condoto"],
-                    "contexto": "flood site",
+                    "name": "Río Condoto",
+                    "alternative_spellings": ["Conduto", "Condoto"],
+                    "context": "flood site",
                 }
             ]
         }
@@ -84,12 +122,12 @@ class TestRenderMarkdown:
         assert "Conduto, Condoto" in rendered
 
     def test_pipe_in_content_is_escaped(self):
-        data = {"eventos_clave": [{"evento": "a|b", "contexto": "x"}]}
+        data = {"events": [{"event": "a|b", "context": "x"}]}
         rendered = _render_markdown(data)
         assert "a\\|b" in rendered
 
     def test_newlines_in_content_are_collapsed(self):
-        data = {"eventos_clave": [{"evento": "line1\nline2", "contexto": ""}]}
+        data = {"events": [{"event": "line1\nline2", "context": ""}]}
         rendered = _render_markdown(data)
         # Markdown tables can't contain real newlines; must be single-line rows.
         lines = [line for line in rendered.splitlines() if "line1" in line]
@@ -102,14 +140,14 @@ class TestRenderMarkdown:
 
 class TestIterSectionArtifacts:
     def test_only_populated_sections_emit(self):
-        data = {"resumen": "A summary.", "personas_clave": []}
+        data = {"summary": "A summary.", "people": []}
         artifacts = list(_iter_section_artifacts(data))
         types = [t for t, _ in artifacts]
         assert "summary" in types
         assert "people" not in types  # empty list filtered out
 
     def test_keywords_list_renders_as_semicolon_joined(self):
-        data = {"palabras_clave": ["kw1", "kw2", "kw3"]}
+        data = {"keywords": ["kw1", "kw2", "kw3"]}
         (atype, payload), = list(_iter_section_artifacts(data))
         assert atype == "keywords"
         assert payload["content"] == "kw1; kw2; kw3"
@@ -117,23 +155,23 @@ class TestIterSectionArtifacts:
 
     def test_people_row_has_primary_and_context(self):
         data = {
-            "personas_clave": [
-                {"nombre": "Alice", "contexto": "Lead investigator"},
+            "people": [
+                {"name": "Alice", "context": "Lead investigator"},
             ]
         }
         (atype, payload), = list(_iter_section_artifacts(data))
         assert atype == "people"
         assert "Alice" in payload["content"]
         assert "Lead investigator" in payload["content"]
-        assert payload["data"] == {"items": data["personas_clave"]}
+        assert payload["data"] == {"items": data["people"]}
 
     def test_dates_orders_normalized_first(self):
         data = {
-            "fechas": [
+            "dates": [
                 {
-                    "fecha": "Feb 28, 1925",
-                    "fecha_normalizada": "1925-02-28",
-                    "contexto": "Dispatch",
+                    "date": "Feb 28, 1925",
+                    "date_normalized": "1925-02-28",
+                    "context": "Dispatch",
                 }
             ]
         }
@@ -143,11 +181,11 @@ class TestIterSectionArtifacts:
 
     def test_rivers_alt_spellings_flattened_in_content(self):
         data = {
-            "rios": [
+            "rivers": [
                 {
-                    "nombre": "Río Condoto",
-                    "ortografias_alternativas": ["Conduto", "Fondo"],
-                    "contexto": "main channel",
+                    "name": "Río Condoto",
+                    "alternative_spellings": ["Conduto", "Fondo"],
+                    "context": "main channel",
                 }
             ]
         }
@@ -156,15 +194,15 @@ class TestIterSectionArtifacts:
 
     def test_all_nine_section_types_emit_expected_artifact_types(self):
         data = {
-            "resumen": "s",
-            "palabras_clave": ["k"],
-            "personas_clave": [{"nombre": "n"}],
-            "fechas": [{"fecha_normalizada": "2020-01-01"}],
-            "referencias_legales": [{"nombre": "n"}],
-            "rios": [{"nombre": "n"}],
-            "eventos_clave": [{"evento": "e"}],
-            "minas": [{"nombre": "n"}],
-            "propiedades": [{"nombre": "n"}],
+            "summary": "s",
+            "keywords": ["k"],
+            "people": [{"name": "n"}],
+            "dates": [{"date_normalized": "2020-01-01"}],
+            "legal_references": [{"name": "n"}],
+            "rivers": [{"name": "n"}],
+            "events": [{"event": "e"}],
+            "mines": [{"name": "n"}],
+            "properties": [{"name": "n"}],
         }
         types = [t for t, _ in _iter_section_artifacts(data)]
         assert types == [

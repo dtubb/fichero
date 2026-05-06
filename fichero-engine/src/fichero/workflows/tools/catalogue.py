@@ -18,6 +18,7 @@ Contract:
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime
 from typing import Any
 
@@ -54,8 +55,12 @@ TOOL_CONFIG = LLMToolConfig(
 CATALOGUE_CONFIG = {
     "output_language": {
         "type": "string",
-        "default": "Spanish",
-        "description": "Output language for catalogue narrative fields",
+        "default": "auto",
+        "description": (
+            "Output language. 'auto' detects from the source text "
+            "(English / Spanish today); explicit names like 'English' "
+            "or 'Spanish' pin the language regardless of input."
+        ),
         "x-group": "primary",
     },
 }
@@ -68,15 +73,27 @@ CATALOGUE_INPUT_PORTS = merge_ports(
             port_type="input",
             data_type=DataType.TEXT,
             required=True,
-            description="Aggregated transcription text from upstream step",
+            description=(
+                "Aggregated TRANSCRIPTION text — wire from aggregate.text "
+                "(per-file transcriptions joined), NOT from the merge of "
+                "cleanup outputs. The narrative LLM reads this as source "
+                "material; pointing it at cleaned entity lists makes it "
+                "summarise the cleanup output instead of the documents."
+            ),
         ),
-        # Reverted the per-extractor input ports here: LangGraph fires a
-        # node once per arriving edge, which made catalogue run multiple
-        # times (once per extractor edge) instead of waiting for all.
-        # The catalogue tool already reads typed entities from the DB
-        # (Path 1 — KnowledgeClaim rows the Extract* nodes wrote earlier
-        # in the same run), so the extra graph edges weren't load-bearing
-        # — only confusing the scheduler.
+        PortDef(
+            id="barrier",
+            name="Barrier (sync)",
+            port_type="input",
+            data_type=DataType.ANY,
+            required=False,
+            description=(
+                "Optional dependency-only port. Wire merge_extracts here "
+                "(or any other late node) to make catalogue wait for the "
+                "cleanup chain to finish before it queries the DB for "
+                "canonical entities. Value is ignored."
+            ),
+        ),
     ],
     BASE_INPUT_PORTS,
 )
@@ -90,28 +107,28 @@ CATALOGUE_INPUT_PORTS = merge_ports(
 # rather than the string "{output_language}" to avoid accidental collisions
 # with future schema content that happens to contain the same literal.
 _CATALOGUE_SCHEMA = """{
-  "resumen": "string — narrative summary, 150-300 words in __LANG__",
-  "palabras_clave": ["keyword1", "keyword2", "..."],
-  "personas_clave": [
-    {"nombre": "...", "contexto": "role and importance in __LANG__"}
+  "summary": "string — narrative summary, 150-300 words in __LANG__",
+  "keywords": ["keyword1", "keyword2", "..."],
+  "people": [
+    {"name": "...", "context": "role and importance in __LANG__"}
   ],
-  "fechas": [
-    {"fecha": "as written", "fecha_normalizada": "YYYY-MM-DD or YYYY-MM-DD/YYYY-MM-DD", "contexto": "..."}
+  "dates": [
+    {"date": "as written", "date_normalized": "YYYY-MM-DD or YYYY-MM-DD/YYYY-MM-DD", "context": "..."}
   ],
-  "referencias_legales": [
-    {"nombre": "...", "contexto": "..."}
+  "legal_references": [
+    {"name": "...", "context": "..."}
   ],
-  "rios": [
-    {"nombre": "...", "ortografias_alternativas": ["..."], "contexto": "..."}
+  "rivers": [
+    {"name": "...", "alternative_spellings": ["..."], "context": "..."}
   ],
-  "eventos_clave": [
-    {"evento": "...", "contexto": "..."}
+  "events": [
+    {"event": "...", "context": "..."}
   ],
-  "minas": [
-    {"nombre": "...", "contexto": "..."}
+  "mines": [
+    {"name": "...", "context": "..."}
   ],
-  "propiedades": [
-    {"nombre": "...", "contexto": "..."}
+  "properties": [
+    {"name": "...", "context": "..."}
   ]
 }"""
 
@@ -131,44 +148,31 @@ def _build_prompt(output_language: str) -> str:
     Output is markdown (no JSON intermediary) since Daniel's mental model
     is "just give me the catalogue entry, not a data structure to render".
     """
-    return f"""You are writing an archival catalogue entry for a SET of
-documents that constitute a primary source. The file may be a court
-case, but it may equally be correspondence, a ledger, a deed series,
-a report, a register, photographs, or any other archival material.
-Don't presuppose its genre.
+    return f"""You are an expert archivist. Write a catalogue entry in
+{output_language} for what these documents CONTAIN. One paragraph, plain
+prose, no headings, no lists, no JSON.
 
-Your job is to describe what the documents CONTAIN, not to retell their
-contents as historical truth. Documents make claims; people allege
-things, sign things, write things, record things. You report the
-existence of those claims, never adopt them.
+Open with the document type in the source's own vocabulary (a deed,
+lawsuit, letter, report, chapter, photograph, etc.). Length matches
+the source: 30-100 words for a short formulaic record (parties +
+object + price + terms); 200-450 words for a long file (subject and
+actors first, then concrete dates, places, sums, occupations, claims,
+outcomes).
 
-Write ONE paragraph of approximately 150 words in {output_language}. Cover,
-where the material supports it:
-- The principal people, organisations, places, and dates named in the
-  file, and the role each plays as the documents present it.
-- The subject matter the file is about — the dispute, transaction,
-  exchange, event, observation, or record being documented — framed in
-  evidentiary language ("the file contains...", "X writes that...",
-  "the document records...", "the testimony of Y states...", "the
-  ledger shows...", "the deed bears the signature of...").
+Use evidentiary verbs: contains, records, states, alleges, describes,
+names, signs. Preserve concrete details verbatim — names, dates, sums,
+places, terms, injuries, sentences. Frame any racial, caste, or status
+label as the source's: "(described as …)" / "(caracterizado como …)".
 
-Strict rules:
-- Do NOT assert any claim as fact. Use evidentiary verbs: contains,
-  records, states, alleges, claims, testifies, asserts, writes, names,
-  appears, is described as, is reported to have, bears the signature
-  of. Avoid: happened, was, did, occurred, sank, signed (without
-  attribution).
-- Do NOT add interpretation, motive, significance, theme, or background
-  context the file itself does not state.
-- Do NOT invent facts, dates, names, or events the documents do not
-  contain.
-- Preserve original spelling and capitalisation of names.
-- One paragraph, no headings, no lists, no JSON, no code fences."""
+Do not invent names, dates, places, or facts. Do not interpret. Do
+not add atmosphere, mood, theme, or significance. Plain working prose."""
 
 
 def build_catalogue_prompt(config: dict) -> str:
     """Build prompt from config (exposed to UI)."""
-    output_language = config.get("output_language", "Spanish")
+    output_language = config.get("output_language", "auto")
+    if output_language.lower() in {"", "auto"}:
+        output_language = "English"  # placeholder for prompt preview
     return _build_prompt(output_language)
 
 
@@ -185,61 +189,81 @@ def _render_markdown(data: dict[str, Any]) -> str:
     """
     lines: list[str] = []
 
-    if resumen := data.get("resumen"):
-        lines.append("## Resumen\n")
-        lines.append(str(resumen))
+    summary = data.get("summary") or data.get("resumen")
+    if summary:
+        lines.append("## Summary\n")
+        lines.append(str(summary))
         lines.append("")
 
-    if keywords := data.get("palabras_clave"):
-        lines.append("## Palabras Clave\n")
+    keywords = data.get("keywords") or data.get("palabras_clave")
+    if keywords:
+        lines.append("## Keywords\n")
         if isinstance(keywords, list):
             lines.append("; ".join(str(k) for k in keywords))
         else:
             lines.append(str(keywords))
         lines.append("")
 
-    def _table(section_key: str, title: str, columns: list[tuple[str, str]]) -> None:
-        items = data.get(section_key) or []
+    # column tuples are (english_key, legacy_spanish_key, header).
+    def _table(
+        section_keys: tuple[str, str], title: str,
+        columns: list[tuple[str, str, str]],
+    ) -> None:
+        en_key, es_key = section_keys
+        items = data.get(en_key) or data.get(es_key) or []
         if not items:
             return
         lines.append(f"## {title}\n")
-        lines.append("| " + " | ".join(c[1] for c in columns) + " |")
+        lines.append("| " + " | ".join(c[2] for c in columns) + " |")
         lines.append("|" + "|".join(["---"] * len(columns)) + "|")
         for item in items:
             if not isinstance(item, dict):
                 continue
             row = []
-            for key, _ in columns:
-                val = item.get(key, "")
+            for en, es, _ in columns:
+                val = item.get(en) if en in item else item.get(es, "")
                 if isinstance(val, list):
                     val = ", ".join(str(v) for v in val)
                 row.append(str(val).replace("|", "\\|").replace("\n", " "))
             lines.append("| " + " | ".join(row) + " |")
         lines.append("")
 
-    _table("personas_clave", "Personas Clave", [("nombre", "Nombre"), ("contexto", "Contexto")])
     _table(
-        "fechas",
-        "Fechas",
-        [("fecha", "Fecha"), ("fecha_normalizada", "Fecha Normalizada"), ("contexto", "Contexto")],
+        ("people", "personas_clave"), "People",
+        [("name", "nombre", "Name"), ("context", "contexto", "Context")],
     )
     _table(
-        "referencias_legales",
-        "Referencias Legales",
-        [("nombre", "Nombre"), ("contexto", "Contexto")],
-    )
-    _table(
-        "rios",
-        "Ríos",
+        ("dates", "fechas"), "Dates",
         [
-            ("nombre", "Nombre"),
-            ("ortografias_alternativas", "Ortografías Alternativas"),
-            ("contexto", "Contexto"),
+            ("date", "fecha", "Date"),
+            ("date_normalized", "fecha_normalizada", "Normalized"),
+            ("context", "contexto", "Context"),
         ],
     )
-    _table("eventos_clave", "Eventos Clave", [("evento", "Evento"), ("contexto", "Contexto")])
-    _table("minas", "Minas", [("nombre", "Nombre"), ("contexto", "Contexto")])
-    _table("propiedades", "Propiedades", [("nombre", "Nombre"), ("contexto", "Contexto")])
+    _table(
+        ("legal_references", "referencias_legales"), "Legal References",
+        [("name", "nombre", "Name"), ("context", "contexto", "Context")],
+    )
+    _table(
+        ("rivers", "rios"), "Rivers",
+        [
+            ("name", "nombre", "Name"),
+            ("alternative_spellings", "ortografias_alternativas", "Alternative Spellings"),
+            ("context", "contexto", "Context"),
+        ],
+    )
+    _table(
+        ("events", "eventos_clave"), "Events",
+        [("event", "evento", "Event"), ("context", "contexto", "Context")],
+    )
+    _table(
+        ("mines", "minas"), "Mines",
+        [("name", "nombre", "Name"), ("context", "contexto", "Context")],
+    )
+    _table(
+        ("properties", "propiedades"), "Properties",
+        [("name", "nombre", "Name"), ("context", "contexto", "Context")],
+    )
 
     return "\n".join(lines).strip()
 
@@ -329,10 +353,23 @@ async def catalogue(
        that fills every section.
     """
     text = inputs.get("text", "")
-    output_language = inputs.get("output_language", "Spanish")
+    # Resolve language via auto-detect when the user picked "auto" (or
+    # left it blank). Concrete names like "English" / "Spanish" bypass
+    # detection. See fichero/lang_detect.py for the detector.
+    from fichero.lang_detect import resolve_output_language
+    output_language = resolve_output_language(
+        inputs.get("output_language"), text, default="English"
+    )
     library_path = state.get("library_path", "")
     selected_doc_ids = state.get("selected_doc_ids") or []
     container = _resolve_container_doc(selected_doc_ids, library_path)
+
+    # Bubbleable LLM-error messages from any of the catalogue's nested
+    # chat() calls. Surfaced in the result["error"] when nothing got
+    # produced — quota / auth / rate-limit are user-actionable and
+    # should appear in Activity, not be swallowed (Daniel: "we need
+    # to do better error checking — alert or something").
+    catalogue_errors: list[str] = []
 
     # --- Path 1: claims already exist for this container -------------------
     # If extractors ran ahead of catalogue (composable workflow), use the
@@ -350,9 +387,10 @@ async def catalogue(
         if data is not None:
             claim_context = _format_claims_as_context(data)
             paragraph = await _generate_resumen(
-                text, output_language, llm_config, claim_context=claim_context
+                text, output_language, llm_config,
+                claim_context=claim_context, error_sink=catalogue_errors,
             )
-            data["resumen"] = paragraph
+            data["summary"] = paragraph
             logger.info(
                 f"Catalogue: built from existing claims on {container.id} "
                 f"({len(claim_context)} chars of entity context)"
@@ -399,12 +437,12 @@ async def catalogue(
         markdown = raw
     else:
         # Path 1 (claims-derived): use only the LLM-generated paragraph
-        # stored under data["resumen"] as the catalogue body. The full
+        # stored under data["summary"] as the catalogue body. The full
         # 9-section markdown render is no longer used — Daniel: "we don't
         # need anything in the text, it's already in the catalogue section".
         # Per-entity data lives in the typed entity artifacts (which
         # KnowledgeGraph tab renders) so duplicating it here is noise.
-        markdown = (data.get("resumen", "") if data else "") or ""
+        markdown = (data.get("summary", "") if data else "") or ""
 
     # Multi-output catalogue (Phase E, #805): produce THREE artifacts —
     # narrative, timeline, keywords — each from a focused LLM call.
@@ -420,12 +458,16 @@ async def catalogue(
             model = getattr(llm_config, "model", None)
             run_id = state.get("task_id")
 
-            # Generate timeline + keywords from claim context (chunked
-            # to fit small-model windows). Run in parallel.
+            # Timeline is rendered programmatically from claim-derived
+            # dates — no LLM call needed (small models hallucinate dates,
+            # large models don't add value over a deterministic sort).
+            # Keywords still goes through the LLM (subject synthesis is
+            # genuinely a writing task).
             claim_context = _format_claims_as_context(data) if data else ""
-            timeline_md, keywords_md = await asyncio.gather(
-                _generate_timeline(text, output_language, llm_config, claim_context),
-                _generate_keywords(text, output_language, llm_config, claim_context),
+            timeline_md = _generate_timeline(data)
+            keywords_md = await _generate_keywords(
+                text, output_language, llm_config, claim_context,
+                error_sink=catalogue_errors,
             )
 
             # Delete prior catalogue.* artifacts so reruns overwrite, not
@@ -482,13 +524,27 @@ async def catalogue(
             selected_doc_ids,
         )
 
-    return {
+    result: dict[str, Any] = {
         "text": markdown,
         "value": data,
         "results": [{"data": data, "markdown": markdown}],
         "artifacts": saved_artifact_ids,
         "container_id": container.id if container else None,
     }
+    # Surface upstream LLM failures (quota / auth / rate-limit / model
+    # down) so Activity / inspector can show an alert instead of a
+    # silent empty narrative. Pick the most actionable message.
+    if not markdown and catalogue_errors:
+        actionable = next(
+            (e for e in catalogue_errors
+             if any(k in e.lower() for k in ("quota", "limit", "401", "403", "402"))),
+            catalogue_errors[0],
+        )
+        result["error"] = (
+            f"Catalogue: {len(catalogue_errors)} LLM call(s) failed — "
+            f"{actionable}"
+        )
+    return result
 
 
 # =============================================================================
@@ -499,13 +555,13 @@ async def catalogue(
 # most identifying field first so the inspector's list view can render
 # "primary — detail — detail" rows.
 _TABLE_SECTIONS: list[tuple[str, str, list[str]]] = [
-    ("personas_clave", "people", ["nombre", "contexto"]),
-    ("fechas", "dates", ["fecha_normalizada", "fecha", "contexto"]),
-    ("referencias_legales", "legal_references", ["nombre", "contexto"]),
-    ("rios", "rivers", ["nombre", "ortografias_alternativas", "contexto"]),
-    ("eventos_clave", "events", ["evento", "contexto"]),
-    ("minas", "mines", ["nombre", "contexto"]),
-    ("propiedades", "properties", ["nombre", "contexto"]),
+    ("people", "people", ["name", "context"]),
+    ("dates", "dates", ["date_normalized", "date", "context"]),
+    ("legal_references", "legal_references", ["name", "context"]),
+    ("rivers", "rivers", ["name", "alternative_spellings", "context"]),
+    ("events", "events", ["event", "context"]),
+    ("mines", "mines", ["name", "context"]),
+    ("properties", "properties", ["name", "context"]),
 ]
 
 
@@ -516,12 +572,14 @@ def _iter_section_artifacts(data: dict[str, Any]):
     independently in the inspector — e.g. a "rivers" artifact with a clean
     list of rivers, not buried inside a JSON catalogue blob.
     """
-    # Narrative resumen as its own artifact.
-    if resumen := data.get("resumen"):
-        yield "summary", {"content": str(resumen), "data": None}
+    # Narrative summary as its own artifact.
+    summary = data.get("summary") or data.get("resumen")
+    if summary:
+        yield "summary", {"content": str(summary), "data": None}
 
     # Keywords as a semicolon-joined string + original list in data.
-    if keywords := data.get("palabras_clave"):
+    keywords = data.get("keywords") or data.get("palabras_clave")
+    if keywords:
         if isinstance(keywords, list):
             content = "; ".join(str(k) for k in keywords)
             payload = {"keywords": keywords}
@@ -531,8 +589,15 @@ def _iter_section_artifacts(data: dict[str, Any]):
         yield "keywords", {"content": content, "data": payload}
 
     # Table-shaped sections: each row rendered as one line, full rows in data.
+    # Legacy artifacts may still carry Spanish keys; fall back to those.
+    _LEGACY_SECTION_KEY = {
+        "people": "personas_clave", "dates": "fechas",
+        "legal_references": "referencias_legales", "rivers": "rios",
+        "events": "eventos_clave", "mines": "minas",
+        "properties": "propiedades",
+    }
     for src_key, artifact_type, preferred_order in _TABLE_SECTIONS:
-        items = data.get(src_key) or []
+        items = data.get(src_key) or data.get(_LEGACY_SECTION_KEY.get(src_key, "")) or []
         if not items:
             continue
 
@@ -542,7 +607,11 @@ def _iter_section_artifacts(data: dict[str, Any]):
             if not isinstance(item, dict):
                 lines.append(str(item))
                 continue
-            primary = item.get(preferred_order[0]) or item.get("nombre") or item.get("evento")
+            primary = (
+                item.get(preferred_order[0])
+                or item.get("name") or item.get("event")
+                or item.get("nombre") or item.get("evento")
+            )
             if not primary:
                 continue
             extras: list[str] = []
@@ -576,15 +645,15 @@ def _build_data_from_claims(
     back to the original full-extraction LLM path).
 
     The 9-section schema after the generification (#726):
-    - personas_clave  ← KnowledgeEntity(person)  + claim
-    - lugares          ← KnowledgeEntity(location) + claim    (NEW)
-    - organizaciones   ← KnowledgeEntity(organization)+ claim (NEW)
-    - eventos_clave    ← KnowledgeEntity(event)    + claim
-    - palabras_clave   ← KnowledgeEntity(concept)  + claim
-    - fechas           ← KnowledgeClaim with no entity_ids (date-style)
-    - resumen          ← filled by the caller via a small LLM call
+    - people           ← KnowledgeEntity(person)  + claim
+    - places           ← KnowledgeEntity(location) + claim    (NEW)
+    - organizations    ← KnowledgeEntity(organization)+ claim (NEW)
+    - events           ← KnowledgeEntity(event)    + claim
+    - keywords         ← KnowledgeEntity(concept)  + claim
+    - dates            ← KnowledgeClaim with no entity_ids (date-style)
+    - summary          ← filled by the caller via a small LLM call
 
-    Archive-specific sections (rios/minas/propiedades/referencias_legales)
+    Archive-specific sections (rivers/mines/properties/legal_references)
     were dropped from defaults but old archived data may still have the
     matching artifact_types — those keep their markdown previews; we
     don't try to reconstruct them from the KG.
@@ -624,19 +693,19 @@ def _build_data_from_claims(
 
     # Group claims by entity type (or "date" bucket for entity-less claims).
     type_to_section = {
-        EntityType.person: "personas_clave",
-        EntityType.location: "lugares",
-        EntityType.organization: "organizaciones",
-        EntityType.event: "eventos_clave",
-        EntityType.concept: "palabras_clave",
+        EntityType.person: "people",
+        EntityType.location: "places",
+        EntityType.organization: "organizations",
+        EntityType.event: "events",
+        EntityType.concept: "keywords",
     }
     data: dict[str, Any] = {
-        "personas_clave": [],
-        "lugares": [],
-        "organizaciones": [],
-        "eventos_clave": [],
-        "palabras_clave": [],
-        "fechas": [],
+        "people": [],
+        "places": [],
+        "organizations": [],
+        "events": [],
+        "keywords": [],
+        "dates": [],
     }
     seen_canonical_per_section: dict[str, set[str]] = {k: set() for k in data}
 
@@ -649,10 +718,10 @@ def _build_data_from_claims(
             md = claim.metadata or {}
             fecha = md.get("date_text") or claim.text or ""
             normalized = md.get("date_normalized") or ""
-            data["fechas"].append({
-                "fecha": fecha,
-                "fecha_normalizada": normalized,
-                "contexto": claim.source_excerpt or "",
+            data["dates"].append({
+                "date": fecha,
+                "date_normalized": normalized,
+                "context": claim.source_excerpt or "",
             })
             continue
 
@@ -667,19 +736,19 @@ def _build_data_from_claims(
             continue
         seen.add(entity.canonical_name)
 
-        if section_key == "palabras_clave":
+        if section_key == "keywords":
             # Keywords render as a flat list of strings, not objects.
             data[section_key].append(entity.canonical_name)
-        elif section_key == "eventos_clave":
+        elif section_key == "events":
             data[section_key].append({
-                "evento": entity.canonical_name,
-                "contexto": claim.source_excerpt or entity.description or "",
+                "event": entity.canonical_name,
+                "context": claim.source_excerpt or entity.description or "",
             })
         else:
             data[section_key].append({
-                "nombre": entity.canonical_name,
-                "ortografias_alternativas": list(entity.aliases or []),
-                "contexto": claim.source_excerpt or entity.description or "",
+                "name": entity.canonical_name,
+                "alternative_spellings": list(entity.aliases or []),
+                "context": claim.source_excerpt or entity.description or "",
             })
 
     return data
@@ -696,36 +765,45 @@ def _format_claims_as_context(data: dict[str, Any] | None) -> str:
     if not data:
         return ""
     lines: list[str] = []
-    if people := data.get("personas_clave"):
-        names = [p.get("nombre", "") if isinstance(p, dict) else str(p) for p in people]
-        names = [n for n in names if n]
+    def _name_of(item: Any) -> str:
+        if isinstance(item, dict):
+            return item.get("name") or item.get("nombre") or ""
+        return str(item)
+
+    def _event_of(item: Any) -> str:
+        if isinstance(item, dict):
+            return item.get("event") or item.get("evento") or ""
+        return str(item)
+
+    if people := (data.get("people") or data.get("personas_clave")):
+        names = [n for n in (_name_of(p) for p in people) if n]
         if names:
             lines.append(f"People found: {', '.join(names)}")
-    if places := data.get("lugares"):
-        names = [p.get("nombre", "") if isinstance(p, dict) else str(p) for p in places]
-        names = [n for n in names if n]
+    if places := (data.get("places") or data.get("lugares")):
+        names = [n for n in (_name_of(p) for p in places) if n]
         if names:
             lines.append(f"Places found: {', '.join(names)}")
-    if orgs := data.get("organizaciones"):
-        names = [o.get("nombre", "") if isinstance(o, dict) else str(o) for o in orgs]
-        names = [n for n in names if n]
+    if orgs := (data.get("organizations") or data.get("organizaciones")):
+        names = [n for n in (_name_of(o) for o in orgs) if n]
         if names:
             lines.append(f"Organizations found: {', '.join(names)}")
-    if events := data.get("eventos_clave"):
-        descs = [e.get("evento", "") if isinstance(e, dict) else str(e) for e in events]
-        descs = [d for d in descs if d]
+    if events := (data.get("events") or data.get("eventos_clave")):
+        descs = [d for d in (_event_of(e) for e in events) if d]
         if descs:
             lines.append("Events found:\n  - " + "\n  - ".join(descs))
-    if dates := data.get("fechas"):
+    if dates := (data.get("dates") or data.get("fechas")):
         bits = []
         for d in dates:
             if isinstance(d, dict):
-                f = d.get("fecha_normalizada") or d.get("fecha") or ""
+                f = (
+                    d.get("date_normalized") or d.get("date")
+                    or d.get("fecha_normalizada") or d.get("fecha") or ""
+                )
                 if f:
                     bits.append(f)
         if bits:
             lines.append(f"Dates found: {', '.join(bits)}")
-    if keywords := data.get("palabras_clave"):
+    if keywords := (data.get("keywords") or data.get("palabras_clave")):
         kws = [str(k) for k in keywords if k]
         if kws:
             lines.append(f"Keywords: {'; '.join(kws)}")
@@ -739,11 +817,33 @@ def _format_claims_as_context(data: dict[str, Any] | None) -> str:
 _RESUMEN_CHUNK_SIZE = 12000
 
 
+_LEADING_TITLE_RE = re.compile(
+    # Strip a leading title line at the start of the narrative — small models
+    # add **Catalogue Entry** / "Catalogue Entry:" / "Summary:" headers
+    # despite the prompt saying "no headers". (#828)
+    r"^\s*(?:\*\*[^*\n]+\*\*|(?:Catalogue|Catálogo)\s+Entry\s*[:\-—]?|"
+    r"(?:Summary|Resumen)\s*[:\-—]?|"
+    r"#{1,6}\s+[^\n]+)\s*\n+",
+    flags=re.IGNORECASE,
+)
+
+
+def _strip_narrative_header(text: str) -> str:
+    """Strip a leading title/header line from a narrative paragraph.
+    Catalogue narrative is supposed to be plain prose, but small models
+    insist on prefixing **Catalogue Entry** / Summary: / etc. (#828)."""
+    if not text:
+        return text
+    cleaned = _LEADING_TITLE_RE.sub("", text, count=1)
+    return cleaned.strip()
+
+
 async def _generate_resumen(
     text: str,
     output_language: str,
     llm_config: LLMConfig,
     claim_context: str = "",
+    error_sink: list[str] | None = None,
 ) -> str:
     """Generate the catalogue narrative paragraph from the merged transcript
     plus optional typed-entity context surfaced from the Extract* nodes.
@@ -768,24 +868,29 @@ async def _generate_resumen(
     )
 
     # Single-shot path — text fits comfortably in any model's context window.
+    # System+user split (#815): rules go to Apple Intelligence's Instructions
+    # channel where they're authoritative; source text is the user prompt.
     if len(text) <= _RESUMEN_CHUNK_SIZE:
-        prompt = (
-            f"Write a 150-300 word narrative catalogue entry in {output_language} "
-            f"summarizing the following document. Plain prose, no headers, "
-            f"no bullet points, no JSON. Use the extracted entities listed below "
-            f"to ground the narrative in concrete names, places, and dates."
+        instructions = (
+            f"You are an expert archivist. Write a 150-300 word "
+            f"narrative catalogue entry in {output_language} summarizing "
+            f"the document the user supplies. Plain prose, no headers, "
+            f"no bullets, no JSON. Ground the narrative in concrete "
+            f"names, places, and dates from the entities below."
             f"{context_block}"
-            f"\n\n---\nSource transcriptions:\n{text}"
         )
         try:
             response = await chat(
-                [{"role": "user", "content": prompt}],
+                text,
                 config=llm_config,
+                system=instructions,
             )
         except Exception as exc:
             logger.warning(f"Catalogue: resumen LLM call failed ({exc}); using empty")
+            if error_sink is not None:
+                error_sink.append(str(exc))
             return ""
-        return response.strip()
+        return _strip_narrative_header(response)
 
     # Map-reduce path — text exceeds context window. Split, summarise each
     # chunk briefly, then synthesise the final paragraph from the chunk
@@ -797,24 +902,27 @@ async def _generate_resumen(
         f"map-reducing across {len(chunks)} chunks"
     )
 
+    chunk_instructions = (
+        f"You are an expert archivist. Summarize the section the user "
+        f"supplies in 3-5 sentences in {output_language}. Focus on "
+        f"concrete names, dates, places, and events. Plain prose, no "
+        f"headers, no bullets."
+    )
     chunk_summaries: list[str] = []
     for index, chunk in enumerate(chunks):
-        chunk_prompt = (
-            f"Summarize this section of an archival document in 3-5 sentences "
-            f"in {output_language}. Focus on concrete names, dates, places, "
-            f"and events. Plain prose, no headers, no bullets.\n\n"
-            f"Section {index + 1} of {len(chunks)}:\n{chunk}"
-        )
         try:
             chunk_text = await chat(
-                [{"role": "user", "content": chunk_prompt}],
+                f"Section {index + 1} of {len(chunks)}:\n{chunk}",
                 config=llm_config,
+                system=chunk_instructions,
             )
             chunk_summaries.append(chunk_text.strip())
         except Exception as exc:
             logger.warning(
                 f"Catalogue: chunk {index + 1}/{len(chunks)} summary failed ({exc})"
             )
+            if error_sink is not None:
+                error_sink.append(str(exc))
 
     if not chunk_summaries:
         return ""
@@ -822,68 +930,80 @@ async def _generate_resumen(
     combined_summaries = "\n\n".join(
         f"Section {i + 1}: {s}" for i, s in enumerate(chunk_summaries)
     )
-    final_prompt = (
-        f"Write a 150-300 word narrative catalogue entry in {output_language} "
-        f"that synthesizes the section summaries below into a single coherent "
-        f"finding-aid abstract. Pack it with concrete facts: full names, exact "
-        f"dates, place names, organizations, chain of events, outcomes. Plain "
-        f"prose, no headers, no bullet points, no JSON."
+    final_instructions = (
+        f"You are an expert archivist. Synthesize the section summaries "
+        f"the user supplies into a single 150-300 word finding-aid "
+        f"abstract in {output_language}. Pack with concrete facts: full "
+        f"names, exact dates, places, organizations, events, outcomes. "
+        f"Plain prose, no headers, no bullets, no JSON."
         f"{context_block}"
-        f"\n\n---\nSection summaries:\n{combined_summaries}"
     )
     try:
         response = await chat(
-            [{"role": "user", "content": final_prompt}],
+            combined_summaries,
             config=llm_config,
+            system=final_instructions,
         )
     except Exception as exc:
         logger.warning(f"Catalogue: final synthesis failed ({exc}); using empty")
         return ""
-    return response.strip()
+    return _strip_narrative_header(response)
 
 
-async def _generate_timeline(
-    text: str,
-    output_language: str,
-    llm_config: LLMConfig,
-    claim_context: str = "",
-) -> str:
-    """Generate a chronological events timeline as markdown.
+def _generate_timeline(data: dict[str, Any] | None) -> str:
+    """Render a chronological timeline as markdown — programmatically,
+    no LLM call.
 
-    Focused single-purpose prompt — easier for small models to follow than
-    a multi-output prompt asking for narrative + timeline + keywords at
-    once. Uses the date claims from claim_context when available so the
-    timeline is grounded in extracted dates rather than re-derived.
-    Returns empty string on failure.
+    The dates extractor already produces `date_normalized` in YYYY-MM-DD
+    format (lexicographic sort == chronological sort). Asking an LLM to
+    re-sort and re-format these is both wasteful (one LLM call we can
+    skip) and unreliable (small models hallucinate or miss-order dates).
+    Read straight from the claim-derived data and render. Returns empty
+    string when no dates are available.
     """
-    if not text and not claim_context:
+    if not data:
         return ""
-    context_block = (
-        f"\n\nExtracted entities (from prior workflow steps):\n{claim_context}\n"
-        if claim_context else ""
-    )
-    # Truncate text aggressively for the timeline call — focused prompt
-    # works better with bounded input. Take first chunk only.
-    bounded = text[:_RESUMEN_CHUNK_SIZE] if text else ""
-    prompt = (
-        f"Build a chronological timeline of events from the document below "
-        f"in {output_language}. Output as markdown with one bullet per event:\n"
-        f"  * **YYYY-MM-DD** — Brief event description.\n"
-        f"Order chronologically (earliest first). If only year or year-month is "
-        f"known, use that. Skip undated events. Plain markdown, no headers, "
-        f"no preamble."
-        f"{context_block}"
-        f"\n\n---\nSource:\n{bounded}"
-    )
-    try:
-        response = await chat(
-            [{"role": "user", "content": prompt}],
-            config=llm_config,
-        )
-    except Exception as exc:
-        logger.warning(f"Catalogue: timeline LLM call failed ({exc}); using empty")
+    dates = data.get("dates") or data.get("fechas") or []
+    if not dates:
         return ""
-    return response.strip()
+
+    rows: list[tuple[str, str]] = []
+    for item in dates:
+        if not isinstance(item, dict):
+            continue
+        normalized = (
+            item.get("date_normalized")
+            or item.get("fecha_normalizada")
+            or item.get("date")
+            or item.get("fecha")
+            or ""
+        ).strip()
+        if not normalized:
+            continue
+        context = (
+            item.get("context") or item.get("contexto") or ""
+        ).strip().replace("\n", " ")
+        rows.append((normalized, context))
+
+    if not rows:
+        return ""
+
+    # Lexicographic sort on YYYY-MM-DD strings is chronological. Partial
+    # dates (YYYY, YYYY-MM, YYYY-MM-DD/YYYY-MM-DD ranges) sort sensibly
+    # under string ordering for practical archive use.
+    rows.sort(key=lambda r: r[0])
+
+    # De-dup identical (date, context) pairs that may arise from running
+    # the workflow twice on the same container.
+    seen: set[tuple[str, str]] = set()
+    bullets: list[str] = []
+    for date, ctx in rows:
+        key = (date, ctx)
+        if key in seen:
+            continue
+        seen.add(key)
+        bullets.append(f"* **{date}** — {ctx}" if ctx else f"* **{date}**")
+    return "\n".join(bullets)
 
 
 async def _generate_keywords(
@@ -891,6 +1011,7 @@ async def _generate_keywords(
     output_language: str,
     llm_config: LLMConfig,
     claim_context: str = "",
+    error_sink: list[str] | None = None,
 ) -> str:
     """Generate collection-level subject keywords as a semicolon-joined list.
 
@@ -905,21 +1026,25 @@ async def _generate_keywords(
         if claim_context else ""
     )
     bounded = text[:_RESUMEN_CHUNK_SIZE] if text else ""
-    prompt = (
-        f"Generate 10-20 subject keywords for this archival collection in "
-        f"{output_language}. Capture themes, subjects, geographic regions, "
-        f"time periods, legal/social concepts. Return ONE line: keywords "
-        f"separated by semicolons. No preamble, no markdown, no commentary."
+    instructions = (
+        f"You are an expert archivist. Generate subject keywords for "
+        f"the collection the user supplies in {output_language}. Capture "
+        f"themes, subjects, regions, time periods, and concepts the "
+        f"source actually discusses — no minimum count, no padding. "
+        f"Return ONE line: keywords separated by semicolons. No "
+        f"preamble, no markdown, no commentary."
         f"{context_block}"
-        f"\n\n---\nSource:\n{bounded}"
     )
     try:
         response = await chat(
-            [{"role": "user", "content": prompt}],
+            bounded,
             config=llm_config,
+            system=instructions,
         )
     except Exception as exc:
         logger.warning(f"Catalogue: keywords LLM call failed ({exc}); using empty")
+        if error_sink is not None:
+            error_sink.append(str(exc))
         return ""
     return response.strip()
 

@@ -49,7 +49,7 @@ class TestPromptBuilding:
         section = next(s for s in _SECTIONS if s["name"] == "people_extract")
         prompt = _build_section_prompt(section, "Portuguese")
         assert "Portuguese" in prompt
-        assert "personas_clave" in prompt
+        assert "people" in prompt
 
     def test_prompt_substitutes_lang_placeholder_in_schema(self):
         section = next(s for s in _SECTIONS if s["name"] == "people_extract")
@@ -62,7 +62,7 @@ class TestPromptBuilding:
         section = next(s for s in _SECTIONS if s["name"] == "keywords_extract")
         prompt = _build_section_prompt(section, "Spanish")
         # Keywords is a flat array of strings, not objects
-        assert '"palabras_clave": ["keyword"]' in prompt
+        assert '"keywords": ["keyword"]' in prompt
 
 
 class TestStripFences:
@@ -82,41 +82,53 @@ class TestStripFences:
         assert json.loads(_strip_fences(raw)) == {"x": 1}
 
 
-class TestMarkdownRendering:
-    def test_empty_items_shows_placeholder(self):
-        section = next(s for s in _SECTIONS if s["name"] == "people_extract")
-        md = _render_section_markdown(section, [])
-        assert "No entries found" in md
+class TestArtifactContentRendering:
+    """Artifact `content` is the JSON dump of items — the structured form
+    is the source of truth (also stored in `data["items"]`). Markdown
+    pretty-printing was lossy and lied about what we have."""
 
-    def test_keywords_join_with_middot(self):
+    def test_empty_items_yields_empty_array_json(self):
+        section = next(s for s in _SECTIONS if s["name"] == "people_extract")
+        assert _render_section_markdown(section, []) == "[]"
+
+    def test_keywords_serialise_as_json_array(self):
         section = next(s for s in _SECTIONS if s["name"] == "keywords_extract")
-        md = _render_section_markdown(section, ["café", "río", "mina"])
-        assert "café · río · mina" in md
+        content = _render_section_markdown(section, ["café", "río", "mina"])
+        parsed = json.loads(content)
+        assert parsed == ["café", "río", "mina"]
 
-    def test_people_table_format(self):
+    def test_people_serialise_as_list_of_dicts(self):
         section = next(s for s in _SECTIONS if s["name"] == "people_extract")
         items = [
-            {"nombre": "Leandro", "contexto": "alcalde local"},
-            {"nombre": "Juan", "contexto": "testigo"},
+            {"name": "Leandro", "context": "alcalde local"},
+            {"name": "Juan", "context": "testigo"},
         ]
-        md = _render_section_markdown(section, items)
-        assert "**Leandro**" in md
-        assert "alcalde local" in md
-        assert "**Juan**" in md
+        content = _render_section_markdown(section, items)
+        parsed = json.loads(content)
+        assert parsed == items
 
-    def test_dates_prefers_normalized(self):
+    def test_dates_round_trip_normalized_field(self):
         section = next(s for s in _SECTIONS if s["name"] == "dates_extract")
-        items = [
-            {"fecha": "12 de mayo", "fecha_normalizada": "1890-05-12", "contexto": "firma"},
-        ]
-        md = _render_section_markdown(section, items)
-        assert "**1890-05-12**" in md
+        items = [{
+            "date": "12 de mayo",
+            "date_normalized": "1890-05-12",
+            "context": "firma",
+        }]
+        parsed = json.loads(_render_section_markdown(section, items))
+        assert parsed[0]["date_normalized"] == "1890-05-12"
 
-    def test_events_uses_evento_key(self):
+    def test_events_round_trip_event_key(self):
         section = next(s for s in _SECTIONS if s["name"] == "events_extract")
-        items = [{"evento": "reunión", "contexto": "en plaza principal"}]
-        md = _render_section_markdown(section, items)
-        assert "**reunión**" in md
+        items = [{"event": "reunión", "context": "en plaza principal"}]
+        parsed = json.loads(_render_section_markdown(section, items))
+        assert parsed[0]["event"] == "reunión"
+
+    def test_preserves_unicode_without_escapes(self):
+        section = next(s for s in _SECTIONS if s["name"] == "people_extract")
+        items = [{"name": "María José", "context": "testigo"}]
+        content = _render_section_markdown(section, items)
+        # ensure_ascii=False keeps the original spelling readable.
+        assert "María José" in content
 
 
 class TestSectionConfig:

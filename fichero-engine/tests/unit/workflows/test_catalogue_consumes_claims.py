@@ -96,12 +96,12 @@ class TestCatalogueWithExistingClaims:
         # The result still has the right shape.
         assert result.get("value") is not None
         data = result["value"]
-        assert len(data.get("personas_clave", [])) == 2
-        assert len(data.get("lugares", [])) == 1
-        assert len(data.get("organizaciones", [])) == 1
-        assert len(data.get("eventos_clave", [])) == 1
-        assert len(data.get("palabras_clave", [])) == 1
-        assert len(data.get("fechas", [])) == 1
+        assert len(data.get("people", [])) == 2
+        assert len(data.get("places", [])) == 1
+        assert len(data.get("organizations", [])) == 1
+        assert len(data.get("events", [])) == 1
+        assert len(data.get("keywords", [])) == 1
+        assert len(data.get("dates", [])) == 1
 
     @pytest.mark.asyncio
     async def test_falls_back_to_full_extraction_when_no_claims(
@@ -113,8 +113,8 @@ class TestCatalogueWithExistingClaims:
         from fichero.workflows.tools.catalogue import catalogue
 
         full_extraction_response = (
-            '{"resumen": "narrative", "palabras_clave": [], "personas_clave": [], '
-            '"fechas": [], "eventos_clave": [], "lugares": [], "organizaciones": []}'
+            '{"summary": "narrative", "keywords": [], "people": [], '
+            '"dates": [], "events": [], "places": [], "organizations": []}'
         )
 
         with patch(
@@ -131,6 +131,7 @@ class TestCatalogueWithExistingClaims:
                 llm_config,
             )
 
-        # Phase E: three focused single-purpose calls (narrative, timeline,
-        # keywords) replace the single 9-section JSON extraction call.
-        assert mock_chat.call_count == 3
+        # Two focused LLM calls (narrative + keywords) — timeline is now
+        # generated programmatically from claim-derived dates, no LLM
+        # call needed (small models hallucinate dates; sorting is free).
+        assert mock_chat.call_count == 2

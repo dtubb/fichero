@@ -198,38 +198,39 @@ _FOLDER_INPUT_PORTS = merge_ports(
 # =============================================================================
 
 
-def _build_cleanup_prompt(type_cfg: dict[str, Any], items: list[str]) -> str:
-    """Build the dedup prompt for one entity type — given a list of items,
-    return canonical groupings as JSON.
+def _build_cleanup_prompt(
+    type_cfg: dict[str, Any], items: list[str],
+) -> tuple[str, str]:
+    """Return (instructions, user_prompt) for the dedup call.
 
-    The schema is intentionally tiny: a flat list of {canonical, aliases}
-    objects. Small models (Apple Intelligence) handle this far better
-    than nested or polymorphic schemas.
-
-    Each type carries its own `duplicate_rule` — the framing that fits
-    *that* type. People/places use spelling-variant logic; events use
-    same-incident logic; keywords use same-subject logic. A single
-    one-size-fits-all prompt would over-merge for some types and
-    under-merge for others.
+    Rules + role go in instructions (Apple Intelligence's authoritative
+    channel; mid/frontier models still treat as system message). The
+    numbered list of items is the user prompt — untrusted input the
+    model deduplicates without confusing for instructions (#815).
     """
     plural = type_cfg["display"].lower()
     noun = type_cfg["noun"]
     duplicate_rule = type_cfg["duplicate_rule"]
-    numbered = "\n".join(f"{i + 1}. {item}" for i, item in enumerate(items))
-    return (
-        f"You are deduplicating a list of {plural} extracted from an "
-        f"archival document. The list contains near-duplicates caused by "
-        f"different ways of referring to the same {noun}:\n\n"
-        f"{numbered}\n\n"
-        f"Rule for what counts as a duplicate:\n{duplicate_rule}\n\n"
-        f"Normalise the canonical to Title Case (Capitalise First Letter Of "
-        f"Each Word) — entries that arrive in ALL CAPS should be re-cased. "
-        f"Keep accents (María, José, Chocó). Do NOT invent new entries; only "
-        f"group what is in the list. If an entry has no duplicates, list it "
-        f"alone with empty aliases.\n\n"
-        f"Return ONLY valid JSON in this exact shape (no prose, no fences):\n"
-        f'{{"groups": [{{"canonical": "...", "aliases": ["...", "..."]}}, ...]}}\n'
+    n = len(items)
+
+    instructions = (
+        f"You are an expert archivist deduplicating {plural} extracted "
+        f"from a document. Different entries may refer to the same "
+        f"{noun} via spelling variants.\n\n"
+        f"Duplicate rule: {duplicate_rule}\n\n"
+        f"You are deduplicating, not curating. Every numbered input MUST "
+        f"appear in your output as a canonical or as an alias — total "
+        f"across all groups must equal {n}. Do NOT invent new entries.\n\n"
+        f"Title Case the canonical (re-case ALL-CAPS entries). Keep "
+        f"accents (María, José, Chocó). Entries with no duplicates "
+        f"become their own group with empty aliases.\n\n"
+        f"Return ONLY valid JSON, no prose, no fences:\n"
+        f'{{"groups": [{{"canonical": "...", "aliases": '
+        f'["...", "..."]}}, ...]}}'
     )
+    numbered = "\n".join(f"{i + 1}. {item}" for i, item in enumerate(items))
+    user_prompt = numbered
+    return (instructions, user_prompt)
 
 
 def _normalize_case(name: str) -> str:
@@ -274,11 +275,12 @@ async def _ask_llm_to_dedupe(
         return [{"canonical": names[0], "aliases": []}] if names else []
 
     display = type_cfg["display"]
-    prompt = _build_cleanup_prompt(type_cfg, names)
+    instructions, user_prompt = _build_cleanup_prompt(type_cfg, names)
     try:
         response = await chat(
-            [{"role": "user", "content": prompt}],
+            user_prompt,
             config=llm_config,
+            system=instructions,
         )
     except Exception as exc:
         logger.warning(f"cleanup LLM call failed for {display}: {exc}")
@@ -303,11 +305,37 @@ async def _ask_llm_to_dedupe(
         if not canonical:
             continue
         raw_aliases = g.get("aliases") or []
-        aliases = [
-            str(a).strip() for a in raw_aliases
-            if isinstance(a, (str, int, float)) and str(a).strip()
-        ]
+        # Drop aliases that are casefold-equal to the canonical — they
+        # render as redundant "(aka <self>)" suffixes in the inspector
+        # (#825). Also drop empty / whitespace-only aliases.
+        canonical_key = canonical.casefold()
+        aliases: list[str] = []
+        seen_alias_keys: set[str] = {canonical_key}
+        for a in raw_aliases:
+            if not isinstance(a, (str, int, float)):
+                continue
+            text = str(a).strip()
+            if not text:
+                continue
+            key = text.casefold()
+            if key in seen_alias_keys:
+                continue
+            seen_alias_keys.add(key)
+            aliases.append(text)
         cleaned.append({"canonical": canonical, "aliases": aliases})
+
+    # Backfill: the LLM may silently drop inputs it judges as "not a real
+    # entry." We are deduplicating, not curating — every input must end up
+    # somewhere. Add anything missing as its own single-item group.
+    seen: set[str] = set()
+    for g in cleaned:
+        seen.add(g["canonical"].casefold())
+        for a in g["aliases"]:
+            seen.add(a.casefold())
+    for name in names:
+        if name.casefold() not in seen:
+            cleaned.append({"canonical": _normalize_case(name), "aliases": []})
+            seen.add(name.casefold())
     return cleaned
 
 
@@ -430,8 +458,9 @@ async def _run_folder_cleanup(
 
     if entity_type is None:
         # Dates: aggregate normalized YYYY-MM-DD across all descendants.
-        # No LLM call — exact-string dedup is sufficient since the
-        # extractor already normalizes.
+        # No LLM call — exact-string dedup is sufficient. Sort
+        # chronologically: YYYY-MM-DD strings sort lexicographically,
+        # which is also chronological order.
         seen: dict[str, dict[str, Any]] = {}
         for did in descendant_ids:
             for grp in _date_groups_for_doc(db, did):
@@ -450,9 +479,28 @@ async def _run_folder_cleanup(
         if not entities:
             return {"text": text, "value": []}
         names = [e.canonical_name for e in entities]
-        groups = await _ask_llm_to_dedupe(type_cfg, names, llm_config)
-        merged = _apply_groups(db, entities, groups)
-        final_groups = groups or [{"canonical": n, "aliases": []} for n in names]
+        # Deterministic pre-pass: collapse exact-equal names (case +
+        # whitespace insensitive) so the LLM only runs when there's real
+        # near-duplicate work to do. Saves a 15-20s LLM call on Apple
+        # Intelligence whenever the extractor already produced clean
+        # output (the common case after the combined extract_all step).
+        distinct: dict[str, str] = {}
+        for n in names:
+            key = " ".join(n.split()).casefold()
+            if key not in distinct:
+                distinct[key] = _normalize_case(n.strip())
+        if len(distinct) <= 1:
+            groups = [{"canonical": v, "aliases": []} for v in distinct.values()]
+            merged = 0
+        else:
+            groups = await _ask_llm_to_dedupe(
+                type_cfg, list(distinct.values()), llm_config,
+            )
+            merged = _apply_groups(db, entities, groups)
+        final_groups = sorted(
+            groups or [{"canonical": v, "aliases": []} for v in distinct.values()],
+            key=lambda g: g["canonical"].casefold(),
+        )
 
     # Save cleaned list as an artifact on the folder doc so the inspector
     # has a single canonical view per type — separate from the per-page
@@ -690,7 +738,9 @@ def _make_page_cleanup(type_cfg: dict[str, Any]):
         input_ports=_PAGE_INPUT_PORTS,
         output_ports=BASE_OUTPUT_PORTS,
         config_schema=BASE_CONFIG_SCHEMA,
-        default_prompt=_build_cleanup_prompt(type_cfg, _SAMPLE_NAMES),
+        default_prompt="\n\n---\nItems to deduplicate:\n".join(
+            _build_cleanup_prompt(type_cfg, _SAMPLE_NAMES)
+        ),
         sort_order=20 + _TYPES.index(type_cfg),
     )(_tool)
     return _tool
@@ -718,7 +768,9 @@ def _make_folder_cleanup(type_cfg: dict[str, Any]):
         input_ports=_FOLDER_INPUT_PORTS,
         output_ports=BASE_OUTPUT_PORTS,
         config_schema=merge_config_schema(BASE_CONFIG_SCHEMA, {}),
-        default_prompt=_build_cleanup_prompt(type_cfg, _SAMPLE_NAMES),
+        default_prompt="\n\n---\nItems to deduplicate:\n".join(
+            _build_cleanup_prompt(type_cfg, _SAMPLE_NAMES)
+        ),
         sort_order=30 + _TYPES.index(type_cfg),
     )(_tool)
     return _tool

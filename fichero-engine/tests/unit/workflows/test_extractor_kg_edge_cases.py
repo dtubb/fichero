@@ -84,7 +84,7 @@ class TestEachGenericExtractor:
         await _run_one_extractor(
             db, test_package, container_doc, llm_config,
             "people_extract",
-            '{"personas_clave": [{"nombre": "X Y", "contexto": "c"}]}',
+            '{"people": [{"name": "X Y", "context": "c"}]}',
         )
         _assert_section_writes_kg(db, container_doc.id, EntityType.person)
 
@@ -95,7 +95,7 @@ class TestEachGenericExtractor:
         await _run_one_extractor(
             db, test_package, container_doc, llm_config,
             "places_extract",
-            '{"lugares": [{"nombre": "Lugar", "contexto": "c"}]}',
+            '{"places": [{"name": "Lugar", "context": "c"}]}',
         )
         _assert_section_writes_kg(db, container_doc.id, EntityType.location)
 
@@ -106,7 +106,7 @@ class TestEachGenericExtractor:
         await _run_one_extractor(
             db, test_package, container_doc, llm_config,
             "organizations_extract",
-            '{"organizaciones": [{"nombre": "Org", "contexto": "c"}]}',
+            '{"organizations": [{"name": "Org", "context": "c"}]}',
         )
         _assert_section_writes_kg(db, container_doc.id, EntityType.organization)
 
@@ -117,7 +117,7 @@ class TestEachGenericExtractor:
         await _run_one_extractor(
             db, test_package, container_doc, llm_config,
             "events_extract",
-            '{"eventos_clave": [{"evento": "E", "contexto": "c"}]}',
+            '{"events": [{"event": "E", "context": "c"}]}',
         )
         _assert_section_writes_kg(db, container_doc.id, EntityType.event)
 
@@ -128,7 +128,7 @@ class TestEachGenericExtractor:
         await _run_one_extractor(
             db, test_package, container_doc, llm_config,
             "keywords_extract",
-            '{"palabras_clave": ["alpha", "beta"]}',
+            '{"keywords": ["alpha", "beta"]}',
         )
         _assert_section_writes_kg(db, container_doc.id, EntityType.concept)
 
@@ -151,8 +151,8 @@ class TestCrossDocumentEntityReuse:
 
         people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
         fake_response = (
-            '{"personas_clave": [{"nombre": "María Angel", '
-            '"contexto": "appears in both"}]}'
+            '{"people": [{"name": "María Angel", '
+            '"context": "appears in both"}]}'
         )
 
         with patch(
@@ -205,9 +205,9 @@ class TestMalformedItems:
         people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
         # Two items: one valid, one missing nombre
         fake_response = (
-            '{"personas_clave": ['
-            '{"nombre": "Juan", "contexto": "valid"},'
-            '{"contexto": "no name field"}'
+            '{"people": ['
+            '{"name": "Juan", "context": "valid"},'
+            '{"context": "no name field"}'
             "]}"
         )
 
@@ -238,7 +238,7 @@ class TestMalformedItems:
         from fichero.workflows.tools.extractors import _run_extractor, _SECTIONS
 
         keywords_section = next(s for s in _SECTIONS if s["name"] == "keywords_extract")
-        fake_response = '{"palabras_clave": ["mining", "1930s", "Antioquia"]}'
+        fake_response = '{"keywords": ["mining", "1930s", "Antioquia"]}'
 
         with patch(
             "fichero.workflows.tools.extractors.chat",
@@ -266,7 +266,7 @@ class TestMalformedItems:
         from fichero.workflows.tools.extractors import _run_extractor, _SECTIONS
 
         people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
-        fake_response = '{"personas_clave": []}'
+        fake_response = '{"people": []}'
 
         with patch(
             "fichero.workflows.tools.extractors.chat",
@@ -304,9 +304,9 @@ class TestDateClaimMetadata:
 
         dates_section = next(s for s in _SECTIONS if s["name"] == "dates_extract")
         fake_response = (
-            '{"fechas": ['
-            '{"fecha": "12 de mayo de 1930", "fecha_normalizada": "1930-05-12", '
-            '"contexto": "deed signed"}'
+            '{"dates": ['
+            '{"date": "12 de mayo de 1930", "date_normalized": "1930-05-12", '
+            '"context": "deed signed"}'
             "]}"
         )
 
@@ -339,10 +339,10 @@ class TestDateClaimMetadata:
 
         dates_section = next(s for s in _SECTIONS if s["name"] == "dates_extract")
         fake_response = (
-            '{"fechas": ['
-            '{"fecha": "from May to August 1930", '
-            '"fecha_normalizada": "1930-05-12/1930-08-04", '
-            '"contexto": "litigation period"}'
+            '{"dates": ['
+            '{"date": "from May to August 1930", '
+            '"date_normalized": "1930-05-12/1930-08-04", '
+            '"context": "litigation period"}'
             "]}"
         )
 
@@ -381,10 +381,10 @@ class TestAliasPersistence:
 
         people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
         fake_response = (
-            '{"personas_clave": [{'
-            '"nombre": "María Angel", '
-            '"ortografias_alternativas": ["M. Angel", "Maria Angel"], '
-            '"contexto": "appellant"}]}'
+            '{"people": [{'
+            '"name": "María Angel", '
+            '"alternative_spellings": ["M. Angel", "Maria Angel"], '
+            '"context": "appellant"}]}'
         )
 
         with patch(
@@ -423,8 +423,8 @@ class TestEntityDescription:
 
         people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
         fake_response = (
-            '{"personas_clave": [{"nombre": "Juan", '
-            '"contexto": "deed signer in 1930 sale"}]}'
+            '{"people": [{"name": "Juan", '
+            '"context": "deed signer in 1930 sale"}]}'
         )
 
         with patch(

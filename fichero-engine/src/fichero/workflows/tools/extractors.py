@@ -87,8 +87,12 @@ _EXTRACTOR_INPUT_PORTS = merge_ports(
 _LANGUAGE_CONFIG = {
     "output_language": {
         "type": "string",
-        "default": "Spanish",
-        "description": "Output language for extracted context.",
+        "default": "auto",
+        "description": (
+            "Output language. 'auto' detects from the source text "
+            "(English / Spanish today); explicit names like 'English' "
+            "or 'Spanish' pin the language regardless of input."
+        ),
     },
 }
 
@@ -118,15 +122,20 @@ _SECTIONS: list[dict[str, Any]] = [
         "entity_type": EntityType.person,
         "icon": "person.2",
         "color": "blue",
-        "schema_key": "personas_clave",
-        "item_shape": '{"nombre": "...", "contexto": "role and importance in __LANG__"}',
+        "schema_key": "people",
+        "item_shape": '{"name": "...", "context": "role and importance in __LANG__"}',
         "instruction": (
-            "List every person named anywhere in the text. For each: canonical "
-            "name in Title Case (preserve original spelling and accents), and a "
-            "short context describing how they appear in the document — 'is named "
-            "as', 'appears as', 'signs as', 'is described as'. Group alternative "
-            "spellings under the most complete canonical form. Do not characterise "
-            "their importance or motive."
+            "List every PROPER NAME of a person — first name, surname, "
+            "full name, with honorific or title when used. An entry must "
+            "be a name a person would answer to. Skip pronouns, kinship "
+            "terms without a name, generic groups, and role descriptions. "
+            "Output: 'name' in Title Case (preserve original spelling "
+            "and accents). 'context' is a sentence-completing predicate "
+            "starting with a verb (is/was/appears as/served as), ending "
+            "with a period — the name is the implicit subject, do not "
+            "repeat it. Example shape: 'is described as the alcalde of "
+            "Popayán.' Aliases are spelling variants of the SAME named "
+            "person; never group different unnamed referents under one entry."
         ),
     },
     {
@@ -136,17 +145,19 @@ _SECTIONS: list[dict[str, Any]] = [
         "entity_type": EntityType.location,
         "icon": "mappin.and.ellipse",
         "color": "green",
-        "schema_key": "lugares",
+        "schema_key": "places",
         "item_shape": (
-            '{"nombre": "...", "ortografias_alternativas": ["..."], "contexto": "..."}'
+            '{"name": "...", "alternative_spellings": ["..."], "context": "..."}'
         ),
         "instruction": (
             "List every named place — cities, towns, regions, countries, "
-            "neighbourhoods, addresses, rivers, mines, estates, geographic "
-            "features. For each: canonical name in Title Case (preserve "
-            "original spelling and accents), alternative spellings that "
-            "appear in the text, and a short context of how the document "
-            "mentions the place."
+            "neighbourhoods, addresses, rivers, mines, estates. 'name' "
+            "in Title Case (preserve original spelling and accents). "
+            "'alternative_spellings' = spelling variants in the text. "
+            "'context' is a sentence-completing predicate starting with "
+            "a verb (is/was/contains/located in), ending with a period — "
+            "the name is the implicit subject. Example shape: 'is the "
+            "region where artisanal mining occurs.'"
         ),
     },
     {
@@ -156,17 +167,20 @@ _SECTIONS: list[dict[str, Any]] = [
         "entity_type": EntityType.organization,
         "icon": "building.2",
         "color": "indigo",
-        "schema_key": "organizaciones",
+        "schema_key": "organizations",
         "item_shape": (
-            '{"nombre": "...", "ortografias_alternativas": ["..."], "contexto": "..."}'
+            '{"name": "...", "alternative_spellings": ["..."], "context": "..."}'
         ),
         "instruction": (
-            "List every named organisation — companies, courts, ministries, "
-            "prefectures, alcaldías, banks, institutions, agencies, religious "
-            "orders, cooperatives. For each: canonical name in Title Case "
-            "(preserve original spelling and accents), alternative spellings "
-            "that appear in the text, and a short context of how the document "
-            "mentions the organisation."
+            "List every NAMED organisation — companies, courts, ministries, "
+            "banks, institutions, religious orders, schools, NGOs. Skip "
+            "places, materials, occupations, and generic groups. 'name' "
+            "in Title Case (preserve original spelling and accents). "
+            "'alternative_spellings' = spelling variants in the text. "
+            "'context' is a sentence-completing predicate starting with "
+            "a verb (is/was/published/funded), ending with a period — "
+            "the name is the implicit subject. Example shape: 'is the "
+            "press that published the book.'"
         ),
     },
     {
@@ -176,19 +190,18 @@ _SECTIONS: list[dict[str, Any]] = [
         "entity_type": None,  # date-style: claim only, no canonical entity
         "icon": "calendar",
         "color": "orange",
-        "schema_key": "fechas",
+        "schema_key": "dates",
         "item_shape": (
-            '{"fecha": "as written", '
-            '"fecha_normalizada": "YYYY-MM-DD or YYYY-MM-DD/YYYY-MM-DD", '
-            '"contexto": "..."}'
+            '{"date": "as written", '
+            '"date_normalized": "YYYY-MM-DD or YYYY-MM-DD/YYYY-MM-DD", '
+            '"context": "..."}'
         ),
         "instruction": (
-            "List every date that appears in the text, regardless of how "
-            "important it seems. For each: the date as written in the original "
-            "(with ambiguity if any), normalized to YYYY-MM-DD (or "
-            "YYYY-MM-DD/YYYY-MM-DD for ranges, YYYY-MM for month-only), and a "
-            "short context of what the document records about that date — what "
-            "the file states or alleges, not what factually happened."
+            "List every date in the text. 'date' = original wording. "
+            "'date_normalized' = YYYY-MM-DD (range YYYY-MM-DD/YYYY-MM-DD; "
+            "month-only YYYY-MM; year-only YYYY). 'context' is a complete "
+            "sentence describing what the document records for that date, "
+            "ending with a period. Example shape: 'The petition was filed.'"
         ),
     },
     {
@@ -198,9 +211,9 @@ _SECTIONS: list[dict[str, Any]] = [
         "entity_type": EntityType.location,  # archive-specific subtype of location
         "icon": "water.waves",
         "color": "cyan",
-        "schema_key": "rios",
+        "schema_key": "rivers",
         "item_shape": (
-            '{"nombre": "...", "ortografias_alternativas": ["..."], "contexto": "..."}'
+            '{"name": "...", "alternative_spellings": ["..."], "context": "..."}'
         ),
         "instruction": (
             "List every river, stream, waterway, or tributary mentioned. For each: "
@@ -214,11 +227,20 @@ _SECTIONS: list[dict[str, Any]] = [
         "entity_type": EntityType.event,
         "icon": "star",
         "color": "yellow",
-        "schema_key": "eventos_clave",
-        "item_shape": '{"evento": "...", "contexto": "..."}',
+        "schema_key": "events",
+        "item_shape": (
+            '{"event": "subject verb object", "date": "YYYY-MM-DD or null", '
+            '"context": "..."}'
+        ),
         "instruction": (
-            "List significant events (incidents, decisions, hearings, meetings, "
-            "deaths, transactions). Event description + surrounding context."
+            "List significant events (incidents, decisions, hearings, "
+            "deaths, transactions, petitions, rulings, transfers). "
+            "'event' is a Title Case noun phrase naming the event "
+            "(e.g. 'Mining Boom', 'Petition to the Court'). 'date' is "
+            "YYYY-MM-DD (or YYYY-MM / YYYY) when stated, else null. "
+            "'context' is a complete past-tense sentence describing what "
+            "happened, ending with a period. Example shape: "
+            "'Author learned artisanal mining techniques from the family.'"
         ),
     },
     {
@@ -228,8 +250,8 @@ _SECTIONS: list[dict[str, Any]] = [
         "entity_type": EntityType.location,
         "icon": "pickaxe",
         "color": "brown",
-        "schema_key": "minas",
-        "item_shape": '{"nombre": "...", "contexto": "..."}',
+        "schema_key": "mines",
+        "item_shape": '{"name": "...", "context": "..."}',
         "instruction": (
             "List every mine, mining company, or mining claim mentioned. "
             "Name + context."
@@ -242,8 +264,8 @@ _SECTIONS: list[dict[str, Any]] = [
         "entity_type": EntityType.location,
         "icon": "building.columns",
         "color": "indigo",
-        "schema_key": "propiedades",
-        "item_shape": '{"nombre": "...", "contexto": "..."}',
+        "schema_key": "properties",
+        "item_shape": '{"name": "...", "context": "..."}',
         "instruction": (
             "List every property, estate, parcel, building, or farm mentioned "
             "that is not already a river or mine. Name + context."
@@ -256,8 +278,8 @@ _SECTIONS: list[dict[str, Any]] = [
         "entity_type": EntityType.concept,  # legal references as conceptual citations
         "icon": "scale.3d",
         "color": "purple",
-        "schema_key": "referencias_legales",
-        "item_shape": '{"nombre": "...", "contexto": "..."}',
+        "schema_key": "legal_references",
+        "item_shape": '{"name": "...", "context": "..."}',
         "instruction": (
             "List every law, article, decree, statute, or legal reference "
             "cited. Name + context of how it's invoked."
@@ -270,12 +292,13 @@ _SECTIONS: list[dict[str, Any]] = [
         "entity_type": EntityType.concept,
         "icon": "tag",
         "color": "pink",
-        "schema_key": "palabras_clave",
+        "schema_key": "keywords",
         "item_shape": '"keyword"',  # flat array of strings
         "instruction": (
-            "List 10-20 descriptive keywords capturing themes, subjects, "
-            "locations, time periods, and legal concepts. Return as a flat "
-            "array of short strings (no objects)."
+            "List descriptive keywords capturing themes, subjects, time "
+            "periods, and concepts present in the text. Include only what the "
+            "text actually discusses — no minimum count, no padding. Return as "
+            "a flat array of short strings (no objects)."
         ),
     },
 ]
@@ -296,7 +319,7 @@ def _build_section_prompt(section: dict[str, Any], output_language: str) -> str:
     schema_key = section["schema_key"]
     shape = f'{{"{schema_key}": [{item}]}}'
     return (
-        f"You are extracting a single section from archival text.\n\n"
+        f"You are extracting a single section from a document.\n\n"
         f"Task: {section['instruction']}\n\n"
         f"Rules:\n"
         f"- Include ALL occurrences.\n"
@@ -343,36 +366,18 @@ def _strip_fences(raw: str) -> str:
 
 
 def _render_section_markdown(section: dict[str, Any], items: list[Any]) -> str:
-    """Render a section's items as a small markdown fragment.
+    """Render a section's items as the artifact `content` field.
 
-    Keyed off artifact type because each UI surface already knows how to
-    render tags vs tables; the markdown here is the export fallback.
+    The LLM returns these as JSON; the structured form lives in
+    `Artifact.data["items"]`. This `content` was previously a markdown
+    pretty-print but that obscured the underlying structure and made
+    the inspector look like prose when it's actually editable data.
+    Now stored as a JSON string so the inspector either renders it
+    natively (Inspector V2, #156) or falls back to readable JSON.
     """
-    artifact_type = section["artifact"]
     if not items:
-        return f"## {section['display']}\n\n_No entries found._\n"
-
-    lines = [f"## {section['display']}", ""]
-    if artifact_type == "keywords":
-        lines.append(" · ".join(str(k) for k in items))
-    elif artifact_type == "dates":
-        for item in items:
-            if isinstance(item, dict):
-                date = item.get("fecha_normalizada") or item.get("fecha") or ""
-                context = item.get("contexto") or ""
-                lines.append(f"- **{date}** — {context}")
-    else:
-        for item in items:
-            if isinstance(item, dict):
-                primary_key = (
-                    "nombre"
-                    if artifact_type in {"people", "rivers", "mines", "properties", "legal_references"}
-                    else "evento"
-                )
-                primary = item.get(primary_key) or item.get("nombre") or ""
-                context = item.get("contexto") or ""
-                lines.append(f"- **{primary}** — {context}")
-    return "\n".join(lines) + "\n"
+        return "[]"
+    return json.dumps(items, ensure_ascii=False, indent=2)
 
 
 # =============================================================================
@@ -396,7 +401,10 @@ async def _run_extractor(
     if not text:
         return {"text": "", "value": [], "error": "No text input"}
 
-    output_language = inputs.get("output_language", "Spanish")
+    from fichero.lang_detect import resolve_output_language
+    output_language = resolve_output_language(
+        inputs.get("output_language"), text, default="English"
+    )
     library_path = state.get("library_path", "")
     selected_doc_ids = state.get("selected_doc_ids") or []
     container = _resolve_container_doc(selected_doc_ids, library_path)
@@ -512,6 +520,14 @@ async def _run_extractor(
             return [item for sub in sub_results for item in sub]
         return await _extract_one(chunk_text)
 
+    # Track per-chunk LLM errors so we can distinguish "the document
+    # genuinely has no entities" from "every LLM call hit a 403 / timeout
+    # / parse failure". Without this, quota / auth / model-down errors
+    # silently render as "_No entries found._" and the user has no clue
+    # the cloud provider is rejecting calls (Daniel: "we need to do
+    # better error checking — alert or something").
+    chunk_errors: list[str] = []
+
     async def _extract_one(chunk_text: str) -> list[Any]:
         full_prompt = f"{prompt}\n\n---\nSource text:\n\n{chunk_text}"
         try:
@@ -520,13 +536,16 @@ async def _run_extractor(
                 config=llm_config,
             )
         except Exception as exc:
-            logger.error(f"{section['name']} LLM call failed: {exc}")
+            msg = f"LLM call failed: {exc}"
+            logger.error(f"{section['name']} {msg}")
+            chunk_errors.append(str(exc))
             return []
 
         try:
             parsed = json.loads(_strip_fences(response))
         except json.JSONDecodeError as exc:
             logger.warning(f"{section['name']}: JSON parse failed ({exc}); skipping chunk")
+            chunk_errors.append(f"JSON parse failed: {exc}")
             return []
 
         if isinstance(parsed, dict):
@@ -633,7 +652,26 @@ async def _run_extractor(
         except Exception as exc:
             logger.error(f"{section['name']}: artifact save failed: {exc}")
 
-    return {"text": markdown, "value": items, "cached": False}
+    # If we got NO items AND every chunk failed, surface the upstream
+    # error in the result so the workflow runner / Activity tab show
+    # "Dates: LLM call failed: 403 quota exceeded" instead of a silent
+    # "_No entries found._". Pick the most informative error string —
+    # quota / auth / rate-limit messages from cloud providers contain
+    # the URL the user needs.
+    result: dict[str, Any] = {"text": markdown, "value": items, "cached": False}
+    if not items and chunk_errors:
+        # Prefer a quota / auth / rate-limit message if we saw one; they
+        # contain actionable URLs and are the most common silent failure.
+        actionable = next(
+            (e for e in chunk_errors
+             if any(k in e.lower() for k in ("quota", "limit", "401", "403", "402"))),
+            chunk_errors[0],
+        )
+        result["error"] = (
+            f"{section['display']}: {len(chunk_errors)}/{len(chunks)} "
+            f"LLM calls failed — {actionable}"
+        )
+    return result
 
 
 def _write_kg_rows(
@@ -664,19 +702,21 @@ def _write_kg_rows(
     for item in items:
         if not isinstance(item, dict):
             # Keywords come through as bare strings — wrap minimally.
-            item = {"nombre": str(item)}
+            item = {"name": str(item)}
 
-        # Field names vary per section: nombre (most), evento (events),
-        # fecha (dates). Try them in priority order so each extractor's
-        # native shape produces a sensible canonical_name.
+        # Field names vary per section: name (most), event (events),
+        # date (dates). Try English first, then legacy Spanish keys, so
+        # both new and old artifacts produce a sensible canonical_name.
         canonical = (
-            item.get("nombre")
-            or item.get("name")
+            item.get("name")
+            or item.get("event")
+            or item.get("date")
+            or item.get("nombre")
             or item.get("evento")
             or item.get("fecha")
             or ""
         )
-        context = item.get("contexto") or item.get("context") or ""
+        context = item.get("context") or item.get("contexto") or ""
         # The chunk excerpt anchors provenance to the page the LLM saw;
         # the per-item context is its narrower description. Prefer item
         # context for the source_excerpt field, fall back to chunk.
@@ -686,8 +726,8 @@ def _write_kg_rows(
 
         if entity_type is None:
             # Date-style section: claim only. Normalized date in metadata.
-            date_text = item.get("fecha") or item.get("date") or canonical
-            normalized = item.get("fecha_normalizada") or item.get("date_normalized") or ""
+            date_text = item.get("date") or item.get("fecha") or canonical
+            normalized = item.get("date_normalized") or item.get("fecha_normalizada") or ""
             claim_text = (
                 f"{normalized or date_text}: {context}" if context
                 else (normalized or date_text)
@@ -708,8 +748,8 @@ def _write_kg_rows(
         if not canonical:
             continue
         aliases = (
-            item.get("ortografias_alternativas")
-            or item.get("alternative_spellings")
+            item.get("alternative_spellings")
+            or item.get("ortografias_alternativas")
             or []
         )
         entity_id = upsert_entity(

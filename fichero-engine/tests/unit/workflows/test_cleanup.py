@@ -58,25 +58,32 @@ _ORGS_CFG = {
 
 
 class TestBuildCleanupPrompt:
-    def test_includes_all_names_numbered(self):
-        prompt = _build_cleanup_prompt(_PEOPLE_CFG, ["Don Mateo", "D. Mateo"])
-        assert "1. Don Mateo" in prompt
-        assert "2. D. Mateo" in prompt
+    """Now returns (instructions, user_prompt) so the chat() call routes
+    rules to Apple Intelligence's Instructions channel and items to the
+    Prompt channel (#815)."""
 
-    def test_asks_for_groups_json_shape(self):
-        prompt = _build_cleanup_prompt(_PLACES_CFG, ["Cali"])
-        assert "groups" in prompt
-        assert "canonical" in prompt
-        assert "aliases" in prompt
+    def test_returns_tuple(self):
+        result = _build_cleanup_prompt(_PEOPLE_CFG, ["Don Mateo"])
+        assert isinstance(result, tuple) and len(result) == 2
 
-    def test_lower_cased_display_in_body(self):
-        prompt = _build_cleanup_prompt(_ORGS_CFG, ["X", "Y"])
-        # type_cfg["display"].lower() = "organizations"
-        assert "organizations" in prompt
+    def test_user_prompt_includes_all_names_numbered(self):
+        _, user = _build_cleanup_prompt(_PEOPLE_CFG, ["Don Mateo", "D. Mateo"])
+        assert "1. Don Mateo" in user
+        assert "2. D. Mateo" in user
 
-    def test_includes_per_type_duplicate_rule(self):
-        prompt = _build_cleanup_prompt(_PEOPLE_CFG, ["A", "B"])
-        assert _PEOPLE_CFG["duplicate_rule"] in prompt
+    def test_instructions_describe_groups_json_shape(self):
+        instructions, _ = _build_cleanup_prompt(_PLACES_CFG, ["Cali"])
+        assert "groups" in instructions
+        assert "canonical" in instructions
+        assert "aliases" in instructions
+
+    def test_instructions_use_lower_cased_display(self):
+        instructions, _ = _build_cleanup_prompt(_ORGS_CFG, ["X", "Y"])
+        assert "organizations" in instructions
+
+    def test_instructions_include_per_type_duplicate_rule(self):
+        instructions, _ = _build_cleanup_prompt(_PEOPLE_CFG, ["A", "B"])
+        assert _PEOPLE_CFG["duplicate_rule"] in instructions
 
 
 class TestAskLLMToDedupe:
@@ -126,7 +133,11 @@ class TestAskLLMToDedupe:
             new=AsyncMock(return_value=fenced),
         ):
             result = await _ask_llm_to_dedupe(_PEOPLE_CFG, ["X", "Y"], cfg)
-        assert result == [{"canonical": "X", "aliases": []}]
+        # Y is missing from LLM output → backfilled as a single-item group.
+        assert result == [
+            {"canonical": "X", "aliases": []},
+            {"canonical": "Y", "aliases": []},
+        ]
 
     @pytest.mark.asyncio
     async def test_invalid_json_returns_empty(self):
@@ -149,6 +160,42 @@ class TestAskLLMToDedupe:
         assert result == []
 
     @pytest.mark.asyncio
+    async def test_drops_aliases_equal_to_canonical(self):
+        """LLM sometimes returns the canonical name itself in the aliases
+        list — produces redundant '(aka <self>)' suffixes in the inspector
+        (#825). Cleanup must filter these out, casefold-equality."""
+        cfg = MagicMock()
+        with patch(
+            "fichero.workflows.tools.cleanup.chat",
+            new=AsyncMock(
+                return_value=(
+                    '{"groups": [{"canonical": "Alaska", '
+                    '"aliases": ["Alaska", "ALASKA", "Alaskan"]}]}'
+                )
+            ),
+        ):
+            result = await _ask_llm_to_dedupe(
+                _PLACES_CFG, ["Alaska", "ALASKA", "Alaskan"], cfg,
+            )
+        # Self-aliases dropped; "Alaskan" kept (real spelling variant).
+        assert result == [{"canonical": "Alaska", "aliases": ["Alaskan"]}]
+
+    @pytest.mark.asyncio
+    async def test_drops_aliases_with_only_whitespace(self):
+        cfg = MagicMock()
+        with patch(
+            "fichero.workflows.tools.cleanup.chat",
+            new=AsyncMock(
+                return_value=(
+                    '{"groups": [{"canonical": "Real", '
+                    '"aliases": ["", "   ", "Realer"]}]}'
+                )
+            ),
+        ):
+            result = await _ask_llm_to_dedupe(_PEOPLE_CFG, ["Real", "Realer"], cfg)
+        assert result == [{"canonical": "Real", "aliases": ["Realer"]}]
+
+    @pytest.mark.asyncio
     async def test_drops_groups_without_canonical(self):
         cfg = MagicMock()
         with patch(
@@ -163,7 +210,12 @@ class TestAskLLMToDedupe:
             ),
         ):
             result = await _ask_llm_to_dedupe(_PEOPLE_CFG, ["A", "B"], cfg)
-        assert result == [{"canonical": "Real", "aliases": []}]
+        # "Real" is the only valid LLM group; A and B are backfilled.
+        assert result == [
+            {"canonical": "Real", "aliases": []},
+            {"canonical": "A", "aliases": []},
+            {"canonical": "B", "aliases": []},
+        ]
 
 
 class TestApplyGroups:

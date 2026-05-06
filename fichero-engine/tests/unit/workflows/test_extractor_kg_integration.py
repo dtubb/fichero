@@ -47,9 +47,9 @@ class TestPeopleExtractorKG:
 
         people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
         fake_response = (
-            '{"personas_clave": ['
-            '{"nombre": "Juan Pérez", "contexto": "deed signer"},'
-            '{"nombre": "María Angel", "contexto": "objected to the sale"}'
+            '{"people": ['
+            '{"name": "Juan Pérez", "context": "deed signer"},'
+            '{"name": "María Angel", "context": "objected to the sale"}'
             "]}"
         )
 
@@ -83,7 +83,7 @@ class TestPeopleExtractorKG:
         from fichero.workflows.tools.extractors import _run_extractor, _SECTIONS
 
         people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
-        fake_response = '{"personas_clave": [{"nombre": "Juan Pérez", "contexto": "x"}]}'
+        fake_response = '{"people": [{"name": "Juan Pérez", "context": "x"}]}'
 
         with patch(
             "fichero.workflows.tools.extractors.chat",
@@ -110,7 +110,7 @@ class TestPeopleExtractorKG:
         from fichero.workflows.tools.extractors import _run_extractor, _SECTIONS
 
         people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
-        fake_response = '{"personas_clave": [{"nombre": "Juan Pérez", "contexto": "x"}]}'
+        fake_response = '{"people": [{"name": "Juan Pérez", "context": "x"}]}'
 
         with patch(
             "fichero.workflows.tools.extractors.chat",
@@ -139,7 +139,7 @@ class TestPeopleExtractorKG:
         from fichero.workflows.tools.extractors import _run_extractor, _SECTIONS
 
         people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
-        fake_response = '{"personas_clave": [{"nombre": "Juan Pérez", "contexto": "x"}]}'
+        fake_response = '{"people": [{"name": "Juan Pérez", "context": "x"}]}'
         cfg2 = LLMConfig(provider="anthropic", model="claude-sonnet-4-6")
 
         with patch(
@@ -171,11 +171,11 @@ class TestDatesExtractorKG:
 
         dates_section = next(s for s in _SECTIONS if s["name"] == "dates_extract")
         fake_response = (
-            '{"fechas": ['
-            '{"fecha": "12 de mayo de 1930", "fecha_normalizada": "1930-05-12", '
-            '"contexto": "deed signed"},'
-            '{"fecha": "3 de agosto de 1931", "fecha_normalizada": "1931-08-03", '
-            '"contexto": "appeal filed"}'
+            '{"dates": ['
+            '{"date": "12 de mayo de 1930", "date_normalized": "1930-05-12", '
+            '"context": "deed signed"},'
+            '{"date": "3 de agosto de 1931", "date_normalized": "1931-08-03", '
+            '"context": "appeal filed"}'
             "]}"
         )
 
@@ -225,8 +225,8 @@ class TestPerPageProvenance:
 
         # Mock chat to return different responses per call.
         responses = iter([
-            '{"personas_clave": [{"nombre": "María Angel", "contexto": "deed signer"}]}',
-            '{"personas_clave": [{"nombre": "Juan Pérez", "contexto": "objected"}]}',
+            '{"people": [{"name": "María Angel", "context": "deed signer"}]}',
+            '{"people": [{"name": "Juan Pérez", "context": "objected"}]}',
         ])
 
         async def fake_chat(*args, **kwargs):
@@ -262,7 +262,7 @@ class TestPerPageProvenance:
         people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
         # No '\n\n---\n\n' separator anywhere
         plain_text = "A single page of text mentioning María Angel only."
-        fake_response = '{"personas_clave": [{"nombre": "María Angel", "contexto": "x"}]}'
+        fake_response = '{"people": [{"name": "María Angel", "context": "x"}]}'
 
         with patch(
             "fichero.workflows.tools.extractors.chat",
