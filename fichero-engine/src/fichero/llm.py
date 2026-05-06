@@ -1239,11 +1239,18 @@ def get_langchain_model(config: LLMConfig) -> Any:
     # Resolve API key
     api_key = _resolve_api_key(config)
 
-    # Common parameters
+    # Common parameters. max_retries=10 (LangChain default is 6) bumps
+    # the auto-retry budget on transient transport failures (network
+    # blips, 429 rate-limit, 5xx). Exponential backoff with jitter
+    # makes ~10 attempts cheap when most retries land in <5s, and means
+    # the qwen3.5/OpenRouter hiccups Daniel hit earlier (parallel
+    # extract_all chunks failing on transient provider load) recover
+    # silently rather than aborting the whole workflow (#844).
     common_params = {
         "temperature": config.temperature,
         "max_tokens": config.max_tokens,
         "timeout": config.timeout,
+        "max_retries": 10,
     }
 
     # Create provider-specific model
