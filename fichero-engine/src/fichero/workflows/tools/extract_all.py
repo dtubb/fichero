@@ -168,16 +168,25 @@ async def extract_all(
     prompt = _build_combined_prompt(output_language)
 
     chunk_errors: list[str] = []
+    # Per-page error tracking — when a chunk fails, we write an
+    # `extraction_error` artifact on the page doc so the user can see
+    # WHY a page came back empty (small models on dialect-heavy text
+    # often error or return malformed JSON; previously this was
+    # swallowed silently). #800, #829.
+    page_errors: list[str | None] = [None] * len(chunks)
 
-    async def _extract_one(chunk_text: str) -> dict[str, list]:
+    async def _extract_one(idx: int, chunk_text: str) -> dict[str, list]:
         # Sub-chunk if the page exceeds the small-model window.
         if len(chunk_text) > _MAX_CHUNK_CHARS:
             sub_chunks = [
                 chunk_text[i:i + _MAX_CHUNK_CHARS]
                 for i in range(0, len(chunk_text), _MAX_CHUNK_CHARS)
             ]
+            # Sub-chunks share the parent's page index for error
+            # attribution; pass -1 so they don't overwrite top-level
+            # page_errors entries on partial failure.
             sub_results = await asyncio.gather(
-                *[_extract_one(s) for s in sub_chunks]
+                *[_extract_one(-1, s) for s in sub_chunks]
             )
             merged: dict[str, list] = {}
             for sr in sub_results:
@@ -200,6 +209,8 @@ async def extract_all(
             msg = f"LLM call failed: {exc}"
             logger.error(f"extract_all {msg}")
             chunk_errors.append(str(exc))
+            if idx >= 0:
+                page_errors[idx] = f"LLM call failed: {exc}"
             return {}
 
         try:
@@ -207,16 +218,20 @@ async def extract_all(
         except json.JSONDecodeError as exc:
             logger.warning(f"extract_all: JSON parse failed ({exc})")
             chunk_errors.append(f"JSON parse failed: {exc}")
+            if idx >= 0:
+                page_errors[idx] = f"JSON parse failed: {exc}"
             return {}
 
         if not isinstance(parsed, dict):
+            if idx >= 0:
+                page_errors[idx] = "LLM response not a JSON object"
             return {}
         # Filter to schema_keys we know about; ignore extras.
         known_keys = {s["schema_key"] for s in _SECTIONS}
         return {k: (v or []) for k, v in parsed.items() if k in known_keys}
 
     chunk_results: list[dict[str, list]] = await asyncio.gather(
-        *[_extract_one(c) for c in chunks]
+        *[_extract_one(i, c) for i, c in enumerate(chunks)]
     )
 
     # Build per-section per-chunk lists for downstream save / markdown.
@@ -228,7 +243,11 @@ async def extract_all(
             key = section["schema_key"]
             per_section_chunks[key].append(cr.get(key, []))
 
-    if container and library_path and any(chunk_results):
+    # Write errors and KG saves whenever we have a container/library —
+    # even if every chunk failed, the per-page extraction_error
+    # artifacts are valuable for diagnosis. The successful-data saves
+    # below are guarded by `any(chunk_results)`.
+    if container and library_path:
         try:
             db = db_manager.get_database(library_path)
             for section in _SECTIONS:
@@ -288,6 +307,34 @@ async def extract_all(
                             model=getattr(llm_config, "model", None),
                             run_id=state.get("task_id"),
                         ))
+            # Per-page extraction_error artifacts: write one for each
+            # page whose chunk failed, so the inspector can show WHY a
+            # page came back empty (instead of indistinguishable from
+            # "model genuinely found nothing"). #800, #829.
+            if is_per_page:
+                for page_idx, (err, page_doc_id) in enumerate(
+                    zip(page_errors, page_doc_ids)
+                ):
+                    if not err or not page_doc_id:
+                        continue
+                    db.save(Artifact(
+                        document_id=page_doc_id,
+                        artifact_type="extraction_error",
+                        content=(
+                            f"Page {page_idx + 1}: extraction failed.\n"
+                            f"{err}\n\n"
+                            "Try re-running with a different model, or "
+                            "split the page if it's unusually large."
+                        ),
+                        data={
+                            "page_index": page_idx,
+                            "error": err,
+                            "tool": "extract_all",
+                        },
+                        provider=getattr(llm_config, "provider", None),
+                        model=getattr(llm_config, "model", None),
+                        run_id=state.get("task_id"),
+                    ))
             container.updated_at = datetime.now()
             db.save(container)
         except Exception as exc:
