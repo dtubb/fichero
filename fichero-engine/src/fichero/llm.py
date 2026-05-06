@@ -433,24 +433,7 @@ async def _apple_intelligence_chat(
     stdout_bytes, stderr_bytes = await proc.communicate(request_payload)
 
     if proc.returncode != 0:
-        # fm-bridge emits a structured error JSON on stderr — surface its
-        # 'kind' so callers can distinguish "Apple Intelligence unavailable"
-        # from "generation failed." Detect guardrailViolation specifically
-        # so chat_with_fallback can route around it (#838).
-        stderr_text = stderr_bytes.decode()
-        try:
-            err = _json.loads(stderr_text)
-            kind = err.get("kind", "error")
-            message = err.get("error", stderr_text)
-            if "guardrailViolation" in message or "guardrail" in message.lower():
-                raise GuardrailViolationError(
-                    f"Apple Intelligence ({kind}): {message}"
-                )
-            raise RuntimeError(f"Apple Intelligence ({kind}): {message}")
-        except _json.JSONDecodeError:
-            raise RuntimeError(
-                f"fm-bridge exited {proc.returncode}: {stderr_text}"
-            )
+        _raise_from_bridge_stderr(stderr_bytes, proc.returncode)
 
     try:
         result = _json.loads(stdout_bytes.decode())
@@ -460,6 +443,44 @@ async def _apple_intelligence_chat(
         ) from exc
 
     return result.get("response", "")
+
+
+def _raise_from_bridge_stderr(stderr_bytes: bytes, returncode: int) -> None:
+    """Translate fm-bridge's structured error JSON (`kind` + `error`) into
+    a Python exception. The bridge emits a typed `kind` per #843:
+    guardrail / refusal / decoding / context_overflow / rate_limited /
+    concurrent / unsupported_guide / unsupported_language / assets / json /
+    schema / generation. We map the safety-related kinds to
+    GuardrailViolationError so chat_with_fallback / chat_structured_with_fallback
+    can route around them (#838); other kinds become RuntimeError carrying
+    the kind for upstream classification.
+
+    Falls back to RuntimeError when stderr isn't a JSON payload (e.g.
+    bridge crashed before it could emit one).
+    """
+    import json as _json
+
+    stderr_text = stderr_bytes.decode()
+    try:
+        err = _json.loads(stderr_text)
+    except _json.JSONDecodeError:
+        raise RuntimeError(
+            f"fm-bridge exited {returncode}: {stderr_text}"
+        )
+
+    kind = err.get("kind", "error")
+    message = err.get("error", stderr_text)
+
+    if kind in {"guardrail", "refusal"}:
+        # Both denote model-side refusal; treat as guardrail so the
+        # existing $large fallback kicks in. (`refusal` is structured-
+        # only and carries an explanation; `guardrail` is the safety
+        # filter outside the model.)
+        raise GuardrailViolationError(
+            f"Apple Intelligence ({kind}): {message}"
+        )
+
+    raise RuntimeError(f"Apple Intelligence ({kind}): {message}")
 
 
 async def _apple_vision_dispatch(
@@ -951,6 +972,7 @@ async def chat_structured(
     schema: type[BaseModel],
     config: LLMConfig,
     system: str | None = None,
+    include_schema_in_prompt: bool | None = None,
 ) -> BaseModel:
     """Provider-routed structured output. Returns a Pydantic instance.
 
@@ -971,12 +993,21 @@ async def chat_structured(
     `system` is forwarded as instructions on Apple Intelligence and as
     a SystemMessage on LangChain models.
 
+    `include_schema_in_prompt` is Apple-only (FoundationModels parameter):
+    when our system instructions already describe the shape, set False to
+    avoid the auto-injected schema dump and save prompt tokens in the
+    on-device 4K window. None = use FoundationModels' default (True).
+    Ignored on LangChain providers since they don't have an equivalent.
+
     Replaces the old prompt-engineer-then-json.loads() pattern in
     extract_all + cleanup, where the model emitted free-form text we
     asked nicely to be JSON, then parsed and prayed.
     """
     if config.provider == "apple":
-        return await _apple_intelligence_structured(prompt, schema, config, system)
+        return await _apple_intelligence_structured(
+            prompt, schema, config, system,
+            include_schema_in_prompt=include_schema_in_prompt,
+        )
 
     from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -1006,6 +1037,7 @@ async def chat_structured_with_fallback(
     schema: type[BaseModel],
     config: LLMConfig,
     system: str | None = None,
+    include_schema_in_prompt: bool | None = None,
 ) -> BaseModel:
     """Like chat_structured(), but falls back to the user's $large model
     when Apple Intelligence's on-device guardrail refuses the call (#838).
@@ -1015,7 +1047,10 @@ async def chat_structured_with_fallback(
     completing on documents Apple Intelligence's safety filter rejects.
     """
     try:
-        return await chat_structured(prompt, schema, config, system=system)
+        return await chat_structured(
+            prompt, schema, config, system=system,
+            include_schema_in_prompt=include_schema_in_prompt,
+        )
     except GuardrailViolationError as guardrail_exc:
         from fichero.providers import resolve_default_provider
         try:
@@ -1030,6 +1065,8 @@ async def chat_structured_with_fallback(
             f"Apple Intelligence guardrail refused structured call; retrying "
             f"with {large_config.provider}/{large_config.model}"
         )
+        # The fallback provider is LangChain-based, so the Apple-only
+        # include_schema_in_prompt parameter is ignored here.
         return await chat_structured(prompt, schema, large_config, system=system)
 
 
@@ -1107,11 +1144,19 @@ async def _apple_intelligence_structured(
     schema: type[BaseModel],
     config: LLMConfig,
     system: str | None = None,
+    include_schema_in_prompt: bool | None = None,
 ) -> BaseModel:
     """Subprocess fm-bridge in structured mode and return a Pydantic
     instance built from the grammar-constrained JSON output. Mirrors
-    `_apple_intelligence_chat`'s subprocess pattern but adds a `schema`
-    field to the request and parses `response_json` from the bridge.
+    `_apple_intelligence_chat`'s subprocess pattern but adds `schema`
+    + optional `include_schema_in_prompt` to the request and parses
+    `response_json` from the bridge.
+
+    `include_schema_in_prompt`: see Apple's docs for `respond(to:schema:)`.
+    Default is FoundationModels' default (`True`) — the schema is
+    auto-injected into the prompt to bias the model. Set `False` when
+    our system instructions already describe the shape, saving prompt
+    tokens in the on-device 4K window.
     """
     import json as _json
     from pathlib import Path
@@ -1139,6 +1184,8 @@ async def _apple_intelligence_structured(
         "instructions": system or "",
         "schema": _pydantic_to_apple_schema(schema),
     }
+    if include_schema_in_prompt is not None:
+        request["include_schema_in_prompt"] = include_schema_in_prompt
     if config.temperature is not None:
         request["temperature"] = config.temperature
     if config.max_tokens is not None and config.max_tokens > 0:
@@ -1154,20 +1201,7 @@ async def _apple_intelligence_structured(
     stdout_bytes, stderr_bytes = await proc.communicate(payload)
 
     if proc.returncode != 0:
-        stderr_text = stderr_bytes.decode()
-        try:
-            err = _json.loads(stderr_text)
-            kind = err.get("kind", "error")
-            message = err.get("error", stderr_text)
-            if "guardrailViolation" in message or "guardrail" in message.lower():
-                raise GuardrailViolationError(
-                    f"Apple Intelligence ({kind}): {message}"
-                )
-            raise RuntimeError(f"Apple Intelligence ({kind}): {message}")
-        except _json.JSONDecodeError:
-            raise RuntimeError(
-                f"fm-bridge exited {proc.returncode}: {stderr_text}"
-            )
+        _raise_from_bridge_stderr(stderr_bytes, proc.returncode)
 
     bridge_result = _json.loads(stdout_bytes.decode())
     response_json = bridge_result.get("response_json", "")

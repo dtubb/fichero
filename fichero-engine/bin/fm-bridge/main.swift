@@ -19,11 +19,30 @@
 //   {"response": "...", "model": "apple-intelligence"}
 //
 // Structured request (stdin) — adds "schema" to free-form fields:
-//   {"prompt": "...", "instructions": "...", "schema": <schema-tree>}
+//   {"prompt": "...", "instructions": "...", "schema": <schema-tree>,
+//    "include_schema_in_prompt": true (default; set false when our
+//    own instructions already describe the shape, saving prompt tokens)}
 //
 // Structured response (stdout):
 //   {"response_json": "<raw json string from grammar-constrained output>",
 //    "model": "apple-intelligence"}
+//
+// Error kinds (stderr):
+//   - "unavailable"        Apple Intelligence not available on device
+//   - "json"               Bad request payload
+//   - "schema"             Schema tree malformed or rejected by FoundationModels
+//   - "guardrail"          Safety filter refused prompt or response
+//   - "refusal"            Model declined the request (only on guided generation)
+//   - "decoding"           Generation truncated mid-output (bump max_tokens)
+//   - "context_overflow"   Prompt+schema exceed context window — chunk smaller
+//   - "rate_limited"       Session is rate-limited; back off and retry
+//   - "concurrent"         Concurrent request on same session (should not happen
+//                          via subprocess; included for completeness)
+//   - "unsupported_guide"  Schema uses a guide pattern the model doesn't support
+//   - "unsupported_language" Prompt language isn't supported by the model
+//   - "assets"             Model assets unavailable (e.g. Apple Intelligence
+//                          off or assets evicted)
+//   - "generation"         Anything else from the model
 //
 // Schema tree shape (#799/#819) — minimal subset of JSON-Schema mapped
 // onto FoundationModels.DynamicGenerationSchema. Recursive:
@@ -161,6 +180,40 @@ func buildDynamicSchema(_ json: [String: Any]) throws -> DynamicGenerationSchema
     }
 }
 
+/// Map a thrown error from session.respond(...) to (errorKind, message)
+/// using the typed `GenerationError` enum cases. Falls back to "generation"
+/// for unknown errors. Replaces fragile string-matching in Python (#843).
+func classifyGenerationError(_ error: Error) -> (kind: String, message: String) {
+    if let gen = error as? LanguageModelSession.GenerationError {
+        switch gen {
+        case .guardrailViolation:
+            return ("guardrail", "Apple Intelligence safety guardrail refused the request: \(gen.localizedDescription)")
+        case .refusal(let refusal, _):
+            // Refusal is the model itself declining (only on guided
+            // generation). Surface its explanation when available so
+            // the user knows why.
+            return ("refusal", "Model declined the request: \(refusal)")
+        case .decodingFailure:
+            return ("decoding", "Apple Intelligence terminated generation early before producing valid output: \(gen.localizedDescription)")
+        case .exceededContextWindowSize:
+            return ("context_overflow", "Prompt + schema exceeds Apple Intelligence's context window: \(gen.localizedDescription)")
+        case .rateLimited:
+            return ("rate_limited", "Apple Intelligence session is rate-limited: \(gen.localizedDescription)")
+        case .concurrentRequests:
+            return ("concurrent", "Concurrent request on same Apple Intelligence session: \(gen.localizedDescription)")
+        case .unsupportedGuide:
+            return ("unsupported_guide", "Schema uses a generation guide pattern the on-device model doesn't support: \(gen.localizedDescription)")
+        case .unsupportedLanguageOrLocale:
+            return ("unsupported_language", "Apple Intelligence does not support the prompt's language/locale: \(gen.localizedDescription)")
+        case .assetsUnavailable:
+            return ("assets", "Apple Intelligence model assets are unavailable: \(gen.localizedDescription)")
+        @unknown default:
+            return ("generation", "Apple Intelligence generation error: \(gen.localizedDescription)")
+        }
+    }
+    return ("generation", "Generation failed: \(error)")
+}
+
 enum SchemaError: Error, CustomStringConvertible {
     case missingPropertyName
     case arrayMissingItems
@@ -267,11 +320,17 @@ struct FmBridge {
                 emitError("GenerationSchema init failed: \(error)", kind: "schema")
             }
 
+            // Default true (matches FoundationModels default). Python sets
+            // false when our system instructions already describe the
+            // schema, saving prompt tokens in Apple Intelligence's
+            // ~4K context window (#843 follow-up).
+            let includeSchemaInPrompt = (raw["include_schema_in_prompt"] as? Bool) ?? true
+
             do {
                 let result = try await session.respond(
                     to: prompt,
                     schema: schema,
-                    includeSchemaInPrompt: true,
+                    includeSchemaInPrompt: includeSchemaInPrompt,
                     options: options
                 )
                 let payload = StructuredSuccessResponse(
@@ -281,7 +340,8 @@ struct FmBridge {
                 let data = try JSONEncoder().encode(payload)
                 FileHandle.standardOutput.write(data)
             } catch {
-                emitError("Structured generation failed: \(error)", kind: "generation")
+                let (kind, message) = classifyGenerationError(error)
+                emitError(message, kind: kind)
             }
             return
         }
@@ -299,7 +359,8 @@ struct FmBridge {
             let data = try JSONEncoder().encode(payload)
             FileHandle.standardOutput.write(data)
         } catch {
-            emitError("Generation failed: \(error)", kind: "generation")
+            let (kind, message) = classifyGenerationError(error)
+            emitError(message, kind: kind)
         }
     }
 }

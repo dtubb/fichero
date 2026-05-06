@@ -245,6 +245,12 @@ async def extract_all(
                 schema=_Extraction,
                 config=llm_config,
                 system=instructions,
+                # Apple Intelligence has a ~4K window; the schema is
+                # already enforced at decode time, so the auto-injected
+                # schema dump in the prompt is wasted tokens. Our system
+                # instructions cover behavior; let the grammar carry the
+                # shape (#843).
+                include_schema_in_prompt=False,
             )
         except Exception as exc:
             msg = f"structured LLM call failed: {exc}"
