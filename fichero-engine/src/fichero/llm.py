@@ -1040,6 +1040,7 @@ async def chat_structured(
     config: LLMConfig,
     system: str | None = None,
     include_schema_in_prompt: bool | None = None,
+    use_case: str | None = None,
 ) -> BaseModel:
     """Provider-routed structured output. Returns a Pydantic instance.
 
@@ -1074,6 +1075,7 @@ async def chat_structured(
         return await _apple_intelligence_structured(
             prompt, schema, config, system,
             include_schema_in_prompt=include_schema_in_prompt,
+            use_case=use_case,
         )
 
     from langchain_core.messages import HumanMessage, SystemMessage
@@ -1122,6 +1124,7 @@ async def chat_structured_with_fallback(
     config: LLMConfig,
     system: str | None = None,
     include_schema_in_prompt: bool | None = None,
+    use_case: str | None = None,
 ) -> BaseModel:
     """Like chat_structured(), but falls back to the user's $large model
     when Apple Intelligence's on-device guardrail refuses the call (#838).
@@ -1134,6 +1137,7 @@ async def chat_structured_with_fallback(
         return await chat_structured(
             prompt, schema, config, system=system,
             include_schema_in_prompt=include_schema_in_prompt,
+            use_case=use_case,
         )
     except GuardrailViolationError as guardrail_exc:
         # Resolve $large the same way chat_with_fallback does, for
@@ -1403,6 +1407,7 @@ async def _apple_intelligence_structured(
     config: LLMConfig,
     system: str | None = None,
     include_schema_in_prompt: bool | None = None,
+    use_case: str | None = None,
 ) -> BaseModel:
     """Subprocess fm-bridge in structured mode and return a Pydantic
     instance built from the grammar-constrained JSON output. Mirrors
@@ -1444,6 +1449,12 @@ async def _apple_intelligence_structured(
     }
     if include_schema_in_prompt is not None:
         request["include_schema_in_prompt"] = include_schema_in_prompt
+    # contentTagging useCase (#853). When the schema is a flat list-of-
+    # strings (keywords), the specialised tagging variant produces
+    # crisper output. fm-bridge accepts use_case on both free-form and
+    # structured paths since chatModel is shared.
+    if use_case in {"content_tagging"}:
+        request["use_case"] = use_case
     if config.temperature is not None:
         request["temperature"] = config.temperature
     if config.max_tokens is not None and config.max_tokens > 0:
