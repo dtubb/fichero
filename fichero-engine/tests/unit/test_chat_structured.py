@@ -256,7 +256,7 @@ class TestChatStructuredWithFallback:
 
         call_count = {"n": 0}
 
-        async def fake_chat_structured(prompt, schema, config, system=None, include_schema_in_prompt=None):
+        async def fake_chat_structured(prompt, schema, config, system=None, include_schema_in_prompt=None, use_case=None):
             call_count["n"] += 1
             if config.provider == "apple":
                 raise GuardrailViolationError("safety filter")
