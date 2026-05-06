@@ -1599,14 +1599,20 @@ def get_langchain_model(config: LLMConfig) -> Any:
             kwargs["region_name"] = config.extra.get("region", "us-east-1")
         return init_chat_model(f"{prefix}:{model_name}", **kwargs)
 
-    # OpenRouter via the dedicated package — preserves provider-routing
-    # fields and tool-support flags that bare ChatOpenAI strips.
+    # OpenRouter — uses ChatOpenAI with the OpenRouter base URL. We
+    # tried langchain-openrouter's ChatOpenRouter (per LangChain's late-
+    # 2025 docs recommendation) but its ainvoke hangs indefinitely on
+    # claude-sonnet-4.6 calls — direct curl to the same endpoint with
+    # the same model + key returns in <1s, isolating the bug to the SDK.
+    # Filed as a follow-up; for 0.0.2 we keep the proven ChatOpenAI
+    # path which has worked reliably for OpenRouter for months.
     if provider == "openrouter":
-        from langchain_openrouter import ChatOpenRouter
+        from langchain_openai import ChatOpenAI
 
-        return ChatOpenRouter(
+        return ChatOpenAI(
             model=model_name,
             api_key=api_key,
+            base_url=config.api_base or "https://openrouter.ai/api/v1",
             **common_params,
         )
 
