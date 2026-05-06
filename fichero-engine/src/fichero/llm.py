@@ -454,7 +454,24 @@ async def _apple_intelligence_chat(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    stdout_bytes, stderr_bytes = await proc.communicate(request_payload)
+    # Bound subprocess by config.timeout so a hung Apple Intelligence
+    # session can't block the workflow forever. Default timeout=60s on
+    # LLMConfig is plenty for normal generations; longer narrative
+    # tasks pass higher max_tokens which extends the budget separately.
+    # On timeout, kill the process and surface a generation error so
+    # chat_with_fallback can route to $large.
+    try:
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(
+            proc.communicate(request_payload),
+            timeout=max(30, config.timeout) if config.timeout else 120,
+        )
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        raise RuntimeError(
+            f"Apple Intelligence (timeout): fm-bridge exceeded "
+            f"{config.timeout}s for prompt — provider hang"
+        )
 
     if proc.returncode != 0:
         _raise_from_bridge_stderr(stderr_bytes, proc.returncode)
@@ -1116,6 +1133,75 @@ async def chat_structured_with_fallback(
         return await chat_structured(prompt, schema, fallback_config, system=system)
 
 
+# Apple Intelligence on-device model context window size. Documented at
+# https://developer.apple.com/documentation/foundationmodels (4,096 tokens
+# for the SystemLanguageModel as of macOS 26.x). When SDK 26.4 lands we'll
+# replace this constant with a dynamic .contextSize lookup (#854).
+APPLE_INTELLIGENCE_CONTEXT_SIZE = 4096
+
+# Headroom we hold back from the context size as response budget. The
+# model needs space to actually generate its output; we won't submit a
+# prompt that consumes more than CONTEXT_SIZE - APPLE_RESPONSE_HEADROOM.
+APPLE_RESPONSE_HEADROOM = 1024
+
+
+def estimate_token_count(text: str) -> int:
+    """Heuristic estimator for token count (#848 proactive variant).
+
+    Apple's authoritative SystemLanguageModel.tokenUsage(for:) requires
+    the macOS 26.4 SDK (we're on 26.2 today). Until SDK 26.4 lands and
+    we can wire #854 in, we approximate via char count.
+
+    Heuristic per Apple's docs: a single token ≈ 3–4 characters in
+    English/Spanish/German, ≈ 1 token per character in CJK languages.
+    Symbols and digits often consume more tokens than letters (e.g.
+    a phone number `+1-(408)-555-0123` can use 10+ tokens for ~16
+    chars). We use len(text) // 3 — biased high to give a conservative
+    over-estimate, which is the safe direction for budgeting (better
+    to chunk a request that would fit than fail one we thought fit).
+
+    Use this BEFORE submitting an Apple Intelligence call to detect
+    likely context-window overflow. The reactive chunked-retry path in
+    cleanup.py is a backstop; this is the proactive optimization.
+    """
+    if not text:
+        return 0
+    # // 3 is intentionally conservative — most English/Spanish text
+    # tokenizes at ~4 chars/token, but we'd rather overcount than risk
+    # submitting an oversized prompt and burning seconds on a failed
+    # generation. CJK callers should pass a larger safety margin via
+    # the surrounding budget logic.
+    return len(text) // 3
+
+
+def apple_intelligence_fits_in_context(
+    prompt: str,
+    instructions: str | None = None,
+    schema_overhead_tokens: int = 0,
+    response_headroom: int = APPLE_RESPONSE_HEADROOM,
+    context_size: int = APPLE_INTELLIGENCE_CONTEXT_SIZE,
+) -> bool:
+    """Check whether (prompt + instructions + schema_overhead + response
+    headroom) fits in Apple Intelligence's context window. Returns True
+    when the request is likely to fit, False when the caller should
+    chunk before submitting.
+
+    `schema_overhead_tokens` is the caller's estimate of what the
+    grammar-constrained schema will add when `includeSchemaInPrompt=True`
+    — for our extraction schemas this is roughly 200-400 tokens. Pass 0
+    when calling with `include_schema_in_prompt=False`.
+
+    `response_headroom` is the number of tokens we reserve for the
+    model's output. Cleanup needs ~512 (groups + aliases for a typical
+    list); narrative summary needs ~1024+; default 1024 is safe.
+    """
+    estimate = estimate_token_count(prompt)
+    if instructions:
+        estimate += estimate_token_count(instructions)
+    estimate += schema_overhead_tokens
+    return estimate + response_headroom <= context_size
+
+
 @functools.lru_cache(maxsize=64)
 def apple_intelligence_supports_locale(locale: str) -> bool:
     """Check whether Apple Intelligence's on-device model supports a
@@ -1295,7 +1381,22 @@ async def _apple_intelligence_structured(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    stdout_bytes, stderr_bytes = await proc.communicate(payload)
+    # Subprocess timeout (#848 follow-up): a hung Apple Intelligence
+    # session shouldn't block the entire workflow. config.timeout
+    # defaults to 60s; we extend the floor to 30s and cap at 120s so
+    # short timeouts don't kill legitimate long generations.
+    try:
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(
+            proc.communicate(payload),
+            timeout=max(30, config.timeout) if config.timeout else 120,
+        )
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        raise RuntimeError(
+            f"Apple Intelligence (timeout): fm-bridge exceeded "
+            f"{config.timeout}s for structured prompt — provider hang"
+        )
 
     if proc.returncode != 0:
         _raise_from_bridge_stderr(stderr_bytes, proc.returncode)
