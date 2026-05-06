@@ -1052,22 +1052,39 @@ async def chat_structured_with_fallback(
             include_schema_in_prompt=include_schema_in_prompt,
         )
     except GuardrailViolationError as guardrail_exc:
-        from fichero.providers import resolve_default_provider
+        # Resolve $large the same way chat_with_fallback does, for
+        # symmetry — same alias, same precedence rules.
         try:
-            large_config = resolve_default_provider(role="large")
-        except Exception:
+            large_provider, large_model = resolve_model_alias("$large", "")
+        except ValueError:
+            logger.warning(
+                "Structured-call GuardrailViolation but no $large fallback "
+                "configured; set Settings → AI Defaults → Default large model."
+            )
             raise guardrail_exc
 
-        if large_config.provider == config.provider and large_config.model == config.model:
+        if large_provider == config.provider and large_model == config.model:
+            # $large resolves to the same model we just tried — no point
+            # retrying. Surface the original guardrail.
             raise guardrail_exc
 
+        fallback_config = LLMConfig(
+            provider=large_provider,
+            model=large_model,
+            temperature=config.temperature,
+            max_tokens=config.max_tokens,
+            api_key=config.api_key,
+            api_base=config.api_base,
+            timeout=config.timeout,
+            extra=dict(config.extra),
+        )
         logger.warning(
             f"Apple Intelligence guardrail refused structured call; retrying "
-            f"with {large_config.provider}/{large_config.model}"
+            f"with $large = {large_provider}/{large_model}"
         )
         # The fallback provider is LangChain-based, so the Apple-only
-        # include_schema_in_prompt parameter is ignored here.
-        return await chat_structured(prompt, schema, large_config, system=system)
+        # include_schema_in_prompt parameter is ignored on that path.
+        return await chat_structured(prompt, schema, fallback_config, system=system)
 
 
 def _pydantic_to_apple_schema(model: type[BaseModel]) -> dict[str, Any]:
