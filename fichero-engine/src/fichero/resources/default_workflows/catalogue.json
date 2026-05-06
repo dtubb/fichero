@@ -1,6 +1,6 @@
 {
   "name": "Catalogue",
-  "description": "Transcribe every file, extract typed entities (people, places, organizations, dates, events, keywords) in a single combined LLM call per page, then folder-level dedup and a narrative catalogue entry. All LLM nodes use the $small model alias \u2014 set your default small model in Settings \u2192 AI Defaults (e.g. Apple Intelligence for free local use).",
+  "description": "Transcribe every file, extract typed entities (people, places, organizations, dates, events, keywords) in a single combined LLM call per page, then folder-level dedup and a narrative catalogue entry. All LLM nodes use the $small model alias — set your default small model in Settings → AI Defaults (e.g. Apple Intelligence for free local use).",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
@@ -31,18 +31,6 @@
         "vision_mode": "auto",
         "language": "en",
         "update_page_content": true
-      }
-    },
-    {
-      "id": "aggregate",
-      "tool": "aggregate",
-      "label": "Marshal page records",
-      "position_x": 620,
-      "position_y": 400,
-      "inputs": {},
-      "config": {
-        "mode": "concat",
-        "separator": "\n\n---\n\n"
       }
     },
     {
@@ -157,32 +145,11 @@
       "target_port": "files"
     },
     {
-      "id": "e-transcribe-aggregate",
+      "id": "e-transcribe-extract_all-text",
       "source": "transcribe",
-      "target": "aggregate",
-      "source_port": "texts",
-      "target_port": "text"
-    },
-    {
-      "id": "e-files-aggregate-documents",
-      "source": "files-source",
-      "target": "aggregate",
-      "source_port": "documents",
-      "target_port": "documents"
-    },
-    {
-      "id": "e-aggregate-extract_all-text",
-      "source": "aggregate",
       "target": "extract_all",
       "source_port": "text",
       "target_port": "text"
-    },
-    {
-      "id": "e-aggregate-extract_all-records",
-      "source": "aggregate",
-      "target": "extract_all",
-      "source_port": "records",
-      "target_port": "records"
     },
     {
       "id": "e-extract_all-people_folder_clean",
@@ -269,15 +236,8 @@
       "target_port": "text"
     },
     {
-      "id": "e-aggregate-merge_extracts-text",
-      "source": "aggregate",
-      "target": "merge_extracts",
-      "source_port": "text",
-      "target_port": "text"
-    },
-    {
-      "id": "e-aggregate-catalogue-text",
-      "source": "aggregate",
+      "id": "e-transcribe-catalogue-text",
+      "source": "transcribe",
       "target": "catalogue",
       "source_port": "text",
       "target_port": "text"
@@ -291,6 +251,6 @@
     }
   ],
   "config": {
-    "preset_version": 2
+    "preset_version": 3
   }
 }

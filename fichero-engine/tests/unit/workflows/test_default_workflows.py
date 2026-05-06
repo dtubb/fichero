@@ -40,7 +40,7 @@ class TestLoadPresetFiles:
         catalogue = presets["Catalogue"]
 
         node_tools = {n["tool"] for n in catalogue["nodes"]}
-        for tool in ("files", "transcribe", "aggregate", "catalogue"):
+        for tool in ("files", "transcribe", "extract_all", "catalogue"):
             assert tool in node_tools, f"preset missing {tool!r} node"
 
         # Edges use UI schema (source/target, source_port/target_port) so they
@@ -49,13 +49,15 @@ class TestLoadPresetFiles:
             for key in ("source", "target", "source_port", "target_port"):
                 assert key in edge, f"edge missing {key!r}: {edge}"
 
-        # Transcribe → aggregate (per-page records flow downstream).
+        # Transcribe → extract_all (per-page text flows downstream via the
+        # auto-aggregator; the user-aggregate Marshal node was removed
+        # in the #837 fix because it created a super-step race).
         transcribe_id = _node_id(catalogue, "transcribe")
-        aggregate_ids = [n["id"] for n in catalogue["nodes"] if n["tool"] == "aggregate"]
+        extract_id = _node_id(catalogue, "extract_all")
         assert any(
-            e["source"] == transcribe_id and e["target"] in aggregate_ids
+            e["source"] == transcribe_id and e["target"] == extract_id
             for e in catalogue["edges"]
-        ), "transcribe must flow into aggregate"
+        ), "transcribe must flow into extract_all"
 
     def test_catalogue_has_final_catalogue_node_fed_by_merge(self):
         """The preset must end with a catalogue node so the workflow produces
@@ -159,29 +161,57 @@ class TestLoadPresetFiles:
                     "default — aliasing it to $small breaks Apple Vision OCR"
                 )
 
-    def test_catalogue_inputs_from_aggregate_and_merge_extracts(self):
-        """Catalogue gets BOTH the raw transcripts (text) AND the cleaned
-        entity context (data). The text port must source from aggregate
-        (the per-page transcript concat) — feeding merge_extracts there
-        passes catalogue an empty/wrong-shape input and the narrative call
-        fails with 'No aggregated text provided' (#836). The data port
-        sources from merge_extracts so the LLM has cleaned entity lists
-        alongside the raw text. Race protection from #827 still holds
-        because merge_extracts depends on the cleanup chain — wiring data
-        to it forces catalogue to wait for cleanup."""
+    def test_catalogue_inputs_route_via_transcribe_not_user_aggregate(self):
+        """Catalogue + extract_all + merge_extracts read directly from
+        `transcribe`, NOT through a user-defined `aggregate` (Marshal
+        page records) node.
+
+        The previous wiring routed through a user `aggregate` node that
+        LangGraph scheduled in the same super-step as the parallel
+        transcribers. State is frozen within a super-step, so the user
+        aggregate read an empty parallel_results snapshot and produced
+        an empty payload — leaving catalogue and extract_all with no
+        text input and the workflow aborting with 'No aggregated text
+        provided' (#837).
+
+        The auto-aggregator (transcribe_aggregate) handles fan-in
+        correctly per LangGraph semantics: it fires AFTER all parallel
+        sub-nodes complete, so any node downstream of `transcribe`
+        sees the real aggregated text. By removing the redundant user
+        aggregate, catalogue / extract_all / merge_extracts all land
+        in the correct super-step with real data."""
         presets = {p["name"]: p for p in _load_preset_files()}
         for preset_name in ("Catalogue", "Catalogue (Mixed)"):
             preset = presets[preset_name]
+
+            # No user-defined aggregate node should exist (only the
+            # `merge_extracts` aggregate which fans-in cleanup outputs
+            # AFTER extract_all has run).
+            user_aggregate_nodes = [
+                n for n in preset["nodes"]
+                if n["tool"] == "aggregate" and n["id"] != "merge_extracts"
+            ]
+            assert not user_aggregate_nodes, (
+                f"{preset_name}: removed the user aggregate (Marshal page "
+                f"records) node to avoid the LangGraph super-step race; "
+                f"unexpected aggregate(s) still present: "
+                f"{[n['id'] for n in user_aggregate_nodes]}"
+            )
+
+            # catalogue.text reads directly from transcribe.
             cat_text_sources = {
                 e["source"]
                 for e in preset["edges"]
                 if e["target"] == "catalogue"
                 and e.get("target_port") == "text"
             }
-            assert cat_text_sources == {"aggregate"}, (
-                f"{preset_name}: catalogue.text must come from aggregate "
-                f"(raw transcripts) — got {cat_text_sources}"
+            assert cat_text_sources == {"transcribe"}, (
+                f"{preset_name}: catalogue.text must come from transcribe "
+                f"(via auto-aggregator) — got {cat_text_sources}"
             )
+
+            # catalogue.data still sources from merge_extracts so the
+            # LLM has cleaned entity lists alongside the raw text.
             cat_data_sources = {
                 e["source"]
                 for e in preset["edges"]
@@ -192,16 +222,18 @@ class TestLoadPresetFiles:
                 f"{preset_name}: catalogue.data must come from merge_extracts "
                 f"(entity context) — got {cat_data_sources}"
             )
-            # merge_extracts must still aggregate transcripts too so the
-            # cleanup nodes' upstream chain remains intact. (#827 race fix)
-            me_sources = {
+
+            # extract_all.text reads directly from transcribe (was
+            # previously routed through the user aggregate).
+            ext_text_sources = {
                 e["source"]
                 for e in preset["edges"]
-                if e["target"] == "merge_extracts"
+                if e["target"] == "extract_all"
+                and e.get("target_port") == "text"
             }
-            assert "aggregate" in me_sources, (
-                f"{preset_name}: merge_extracts must include aggregate "
-                f"(transcripts) — got {me_sources}"
+            assert ext_text_sources == {"transcribe"}, (
+                f"{preset_name}: extract_all.text must come from transcribe — "
+                f"got {ext_text_sources}"
             )
 
     def test_catalogue_mixed_promotes_narrative_to_dollar_large(self):
