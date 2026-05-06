@@ -762,6 +762,22 @@ def _build_data_from_claims(
     return data
 
 
+# Per-section caps for the claim_context dump fed to the catalogue
+# narrative LLM. Folders with hundreds of entities (e.g. acknowledgments
+# pages with 100+ contributors) produced 25K+ char prompts that hung
+# OpenRouter routing — both qwen3.5 and claude-sonnet-4.6 timed out at
+# 300s on the same prompt. The narrative is a 150-300 word paragraph;
+# the LLM doesn't need every entity, just enough representative ones to
+# ground concrete names + dates + places. Caps below were tuned to keep
+# the resulting context block under ~5K chars even on dense folders.
+_CTX_MAX_PEOPLE = 30
+_CTX_MAX_PLACES = 20
+_CTX_MAX_ORGS = 15
+_CTX_MAX_EVENTS = 15  # events have full sentences — heaviest by char
+_CTX_MAX_DATES = 30
+_CTX_MAX_KEYWORDS = 30
+
+
 def _format_claims_as_context(data: dict[str, Any] | None) -> str:
     """Render the claim-derived dict as inline context lines for the
     catalogue prompt. The Extract* nodes already wrote KnowledgeClaim
@@ -769,6 +785,11 @@ def _format_claims_as_context(data: dict[str, Any] | None) -> str:
     informed by typed entities (not just the raw transcripts).
     Daniel: 'catalogue should take the output of all the previous ones
     and add it together'.
+
+    Per-section caps (above) prevent dense folders (100+ entities) from
+    producing 25K+ char prompts. Each section is truncated to its top-N;
+    overflow is surfaced as a single '(... +N more)' line so the LLM
+    knows the list isn't exhaustive.
     """
     if not data:
         return ""
@@ -783,22 +804,33 @@ def _format_claims_as_context(data: dict[str, Any] | None) -> str:
             return item.get("event") or item.get("evento") or ""
         return str(item)
 
+    def _capped_join(items: list[str], cap: int, sep: str = ", ") -> str:
+        """Join at most `cap` items; append '(... +N more)' when truncated."""
+        if len(items) <= cap:
+            return sep.join(items)
+        return sep.join(items[:cap]) + f"{sep}(… +{len(items) - cap} more)"
+
     if people := (data.get("people") or data.get("personas_clave")):
         names = [n for n in (_name_of(p) for p in people) if n]
         if names:
-            lines.append(f"People found: {', '.join(names)}")
+            lines.append(f"People found: {_capped_join(names, _CTX_MAX_PEOPLE)}")
     if places := (data.get("places") or data.get("lugares")):
         names = [n for n in (_name_of(p) for p in places) if n]
         if names:
-            lines.append(f"Places found: {', '.join(names)}")
+            lines.append(f"Places found: {_capped_join(names, _CTX_MAX_PLACES)}")
     if orgs := (data.get("organizations") or data.get("organizaciones")):
         names = [n for n in (_name_of(o) for o in orgs) if n]
         if names:
-            lines.append(f"Organizations found: {', '.join(names)}")
+            lines.append(f"Organizations found: {_capped_join(names, _CTX_MAX_ORGS)}")
     if events := (data.get("events") or data.get("eventos_clave")):
         descs = [d for d in (_event_of(e) for e in events) if d]
         if descs:
-            lines.append("Events found:\n  - " + "\n  - ".join(descs))
+            capped = descs[:_CTX_MAX_EVENTS]
+            extra = len(descs) - len(capped)
+            block = "Events found:\n  - " + "\n  - ".join(capped)
+            if extra > 0:
+                block += f"\n  - (… +{extra} more)"
+            lines.append(block)
     if dates := (data.get("dates") or data.get("fechas")):
         bits = []
         for d in dates:
@@ -810,11 +842,11 @@ def _format_claims_as_context(data: dict[str, Any] | None) -> str:
                 if f:
                     bits.append(f)
         if bits:
-            lines.append(f"Dates found: {', '.join(bits)}")
+            lines.append(f"Dates found: {_capped_join(bits, _CTX_MAX_DATES)}")
     if keywords := (data.get("keywords") or data.get("palabras_clave")):
         kws = [str(k) for k in keywords if k]
         if kws:
-            lines.append(f"Keywords: {'; '.join(kws)}")
+            lines.append(f"Keywords: {_capped_join(kws, _CTX_MAX_KEYWORDS, sep='; ')}")
     return "\n".join(lines)
 
 
