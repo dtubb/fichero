@@ -695,6 +695,17 @@ async def _run_extractor(
             chunk_errors.append(f"no Pydantic schema for {section['schema_key']}")
             return []
 
+        # Use Apple Intelligence's specialised contentTagging variant
+        # when extracting keywords on Apple (#853). Apple's docs note
+        # the variant produces crisper, semantically-grouped lowercase
+        # tags ("hi"/"hello"/"yo" → one "greet" topic). Other sections
+        # (people, places, etc.) use the general-purpose model since
+        # they need rich entity attributes the tagging variant doesn't
+        # produce. Other providers ignore use_case entirely.
+        section_use_case = (
+            "content_tagging" if section["schema_key"] == "keywords" else None
+        )
+
         try:
             result = await chat_structured_with_fallback(
                 prompt=chunk_text,
@@ -706,6 +717,7 @@ async def _run_extractor(
                 # the auto-injected schema dump on Apple Intelligence
                 # to save the on-device 4K window (#843).
                 include_schema_in_prompt=False,
+                use_case=section_use_case,
             )
         except Exception as exc:
             msg = f"structured LLM call failed: {exc}"
