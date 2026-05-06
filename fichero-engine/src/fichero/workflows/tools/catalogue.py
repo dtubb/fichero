@@ -133,40 +133,25 @@ _CATALOGUE_SCHEMA = """{
 
 
 def _build_prompt(output_language: str) -> str:
-    """Build the catalogue prompt.
+    """Build the catalogue narrative prompt.
+
+    Loaded from the versioned prompt registry (#816) at
+    `resources/prompts/catalogue/narrative_v<N>.md`. Edit the latest
+    version's frontmatter+body to tune; bump the filename when shipping
+    a meaningful behavioural change so the prior version stays available
+    for A/B comparison via the eval harness (#817).
 
     Adapted directly from the legacy Generic_Catalogue pipeline's final
-    `library_catalogue_entry` step (fichero_archive/.../Generic_Catalogue.jsonl).
-    That pipeline used 7 sequential steps — extract people, places, dates,
-    timeline, tags, summary, then synthesize the catalogue entry. Here we
-    collapse the synthesis into one step that produces the markdown entry
-    directly. Per-section typed entities (Dates / People / Events) are
-    produced by separate Extract* nodes in the composable workflow —
-    this tool's job is the catalogue *synthesis*, not the extraction.
-
-    Output is markdown (no JSON intermediary) since Daniel's mental model
-    is "just give me the catalogue entry, not a data structure to render".
+    `library_catalogue_entry` step. Per-section typed entities (Dates /
+    People / Events) are produced by separate Extract* nodes in the
+    composable workflow — this tool's job is the catalogue *synthesis*,
+    not the extraction.
     """
-    return f"""You are an expert archivist. Write a catalogue entry in
-{output_language} for what these documents CONTAIN. One paragraph, plain
-prose. NO title, NO heading, NO label like "Catalogue Entry" or
-"Summary:" — start the entry directly with the document type. NO bold
-markers (**…**), NO Markdown headers (#), NO bullets, NO JSON.
-
-Open with the document type in the source's own vocabulary (a deed,
-lawsuit, letter, report, chapter, photograph, etc.). Length matches
-the source: 30-100 words for a short formulaic record (parties +
-object + price + terms); 200-450 words for a long file (subject and
-actors first, then concrete dates, places, sums, occupations, claims,
-outcomes).
-
-Use evidentiary verbs: contains, records, states, alleges, describes,
-names, signs. Preserve concrete details verbatim — names, dates, sums,
-places, terms, injuries, sentences. Frame any racial, caste, or status
-label as the source's: "(described as …)" / "(caracterizado como …)".
-
-Do not invent names, dates, places, or facts. Do not interpret. Do
-not add atmosphere, mood, theme, or significance. Plain working prose."""
+    from fichero.prompts import load_prompt
+    return load_prompt(
+        "catalogue", "narrative",
+        output_language=output_language,
+    )
 
 
 def build_catalogue_prompt(config: dict) -> str:
