@@ -245,16 +245,30 @@ async def _wait_for_parallel_completion(state: State) -> None:
     abort rather than indefinite blocking. (#837)
     """
     import asyncio
+    state_keys = list(state.keys()) if isinstance(state, dict) else "non-dict"
+    initial_parallel = state.get("parallel_results", {}) if isinstance(state, dict) else None
+    print(
+        f"[AGG-WAIT] entering — state.keys={state_keys}, "
+        f"parallel_results={initial_parallel!r}"
+    )
     deadline = asyncio.get_event_loop().time() + 600
     poll_interval = 0.25
+    iters = 0
     while asyncio.get_event_loop().time() < deadline:
+        iters += 1
         parallel_results = state.get("parallel_results", {})
         if not parallel_results:
+            if iters == 1:
+                print("[AGG-WAIT] exit early: no parallel_results in state")
             return  # No parallel sources at all — nothing to wait for.
         all_complete = True
         for node_id, results in parallel_results.items():
             if not results:
                 all_complete = False
+                if iters % 20 == 1:
+                    print(
+                        f"[AGG-WAIT] iter={iters}: {node_id} has empty list, waiting"
+                    )
                 break
             expected = next(
                 (r.get("total") for r in results
@@ -263,12 +277,19 @@ async def _wait_for_parallel_completion(state: State) -> None:
             )
             if expected is not None and len(results) < expected:
                 all_complete = False
+                if iters % 20 == 1:
+                    print(
+                        f"[AGG-WAIT] iter={iters}: {node_id} at "
+                        f"{len(results)}/{expected}, waiting"
+                    )
                 break
         if all_complete:
+            print(f"[AGG-WAIT] complete after {iters} iters")
             return
         await asyncio.sleep(poll_interval)
     logger.warning(
-        "aggregate: timed out waiting for parallel completion after 600s"
+        f"aggregate: TIMEOUT after 600s, iters={iters}, "
+        f"final parallel_results={state.get('parallel_results', {})!r}"
     )
 
 
