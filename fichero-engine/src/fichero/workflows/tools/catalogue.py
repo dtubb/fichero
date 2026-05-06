@@ -33,7 +33,7 @@ from fichero.workflows.tools.llm_base import (
     LLMToolConfig,
 )
 
-from fichero.llm import LLMConfig, chat
+from fichero.llm import LLMConfig, chat_with_fallback
 from fichero.db import db_manager
 from fichero.models import Document, DocType, Artifact
 
@@ -899,7 +899,7 @@ async def _generate_resumen(
             f"{context_block}"
         )
         try:
-            response = await chat(
+            response = await chat_with_fallback(
                 text,
                 config=llm_config,
                 system=instructions,
@@ -930,7 +930,7 @@ async def _generate_resumen(
     chunk_summaries: list[str] = []
     for index, chunk in enumerate(chunks):
         try:
-            chunk_text = await chat(
+            chunk_text = await chat_with_fallback(
                 f"Section {index + 1} of {len(chunks)}:\n{chunk}",
                 config=llm_config,
                 system=chunk_instructions,
@@ -958,7 +958,7 @@ async def _generate_resumen(
         f"{context_block}"
     )
     try:
-        response = await chat(
+        response = await chat_with_fallback(
             combined_summaries,
             config=llm_config,
             system=final_instructions,
@@ -1055,7 +1055,7 @@ async def _generate_keywords(
         f"{context_block}"
     )
     try:
-        response = await chat(
+        response = await chat_with_fallback(
             bounded,
             config=llm_config,
             system=instructions,

@@ -141,6 +141,21 @@ class LLMConfig:
 _MODEL_ALIASES = {"$small", "$large"}
 
 
+class GuardrailViolationError(RuntimeError):
+    """Raised when Apple Intelligence's on-device safety filter refuses a
+    generation. The Foundation Models error surface gives us a structured
+    `guardrailViolation` enum case that fm-bridge stringifies; we detect
+    that string in the stderr payload and raise this typed error so
+    callers can catch it specifically and route around (#838).
+
+    Apple's safety policies are tuned for consumer use cases (Mail
+    compose, image gen) — academic users hit the filter on Spanish
+    vernacular literature, court records, ethnographic notes, etc. The
+    answer is to fall back to the user-configured frontier model, not
+    to surface the failure to the user.
+    """
+
+
 def resolve_model_alias(provider: str, model: str) -> tuple[str, str]:
     """Resolve $small / $large aliases against app-level settings.
 
@@ -272,6 +287,61 @@ async def chat(
         return _strip_outer_code_fences(response.content)
 
 
+async def chat_with_fallback(
+    prompt: str | list[dict[str, Any]],
+    config: LLMConfig,
+    system: str | None = None,
+) -> str:
+    """Like chat(), but falls back to the user's $large model when Apple
+    Intelligence's on-device guardrail refuses the call. (#838)
+
+    Apple's safety filter is tuned for consumer use cases and refuses
+    scholarly text containing literary profanity, drug references,
+    historical slurs, court-record vocabulary, etc. Frontier cloud
+    providers handle the same content with their academic-appropriate
+    safety policies. The fallback keeps the local-first default
+    (everything still tries Apple Intelligence first when configured)
+    but escapes to the user-configured cloud provider when needed.
+
+    Streaming is intentionally unsupported — callers that need streaming
+    are using direct chat() and accept the responsibility of catching
+    GuardrailViolationError themselves.
+
+    Returns the response string. Raises the original error when fallback
+    is unavailable (no $large configured) or also fails.
+    """
+    try:
+        return await chat(prompt, config, system=system)
+    except GuardrailViolationError as guardrail_exc:
+        # Only Apple Intelligence raises this — try $large if configured.
+        try:
+            large_provider, large_model = resolve_model_alias("$large", "")
+        except ValueError:
+            # No $large configured — surface the original guardrail error so
+            # the caller knows it was Apple's refusal, not a missing key.
+            logger.warning(
+                "GuardrailViolation but no $large fallback configured; "
+                "set Settings → AI Defaults → Default large model to enable."
+            )
+            raise guardrail_exc
+
+        fallback_config = LLMConfig(
+            provider=large_provider,
+            model=large_model,
+            temperature=config.temperature,
+            max_tokens=config.max_tokens,
+            api_key=config.api_key,
+            api_base=config.api_base,
+            timeout=config.timeout,
+            extra=dict(config.extra),
+        )
+        logger.info(
+            f"Apple Intelligence guardrail refused; retrying with "
+            f"$large = {large_provider}/{large_model}"
+        )
+        return await chat(prompt, fallback_config, system=system)
+
+
 async def _apple_intelligence_chat(
     prompt: str | list[dict[str, Any]],
     config: LLMConfig,
@@ -365,16 +435,21 @@ async def _apple_intelligence_chat(
     if proc.returncode != 0:
         # fm-bridge emits a structured error JSON on stderr — surface its
         # 'kind' so callers can distinguish "Apple Intelligence unavailable"
-        # from "generation failed."
+        # from "generation failed." Detect guardrailViolation specifically
+        # so chat_with_fallback can route around it (#838).
+        stderr_text = stderr_bytes.decode()
         try:
-            err = _json.loads(stderr_bytes.decode())
-            raise RuntimeError(
-                f"Apple Intelligence ({err.get('kind', 'error')}): "
-                f"{err.get('error', stderr_bytes.decode())}"
-            )
+            err = _json.loads(stderr_text)
+            kind = err.get("kind", "error")
+            message = err.get("error", stderr_text)
+            if "guardrailViolation" in message or "guardrail" in message.lower():
+                raise GuardrailViolationError(
+                    f"Apple Intelligence ({kind}): {message}"
+                )
+            raise RuntimeError(f"Apple Intelligence ({kind}): {message}")
         except _json.JSONDecodeError:
             raise RuntimeError(
-                f"fm-bridge exited {proc.returncode}: {stderr_bytes.decode()}"
+                f"fm-bridge exited {proc.returncode}: {stderr_text}"
             )
 
     try:

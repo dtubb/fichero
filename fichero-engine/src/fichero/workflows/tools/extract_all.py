@@ -23,7 +23,7 @@ from datetime import datetime
 from typing import Any
 
 from fichero.db import db_manager
-from fichero.llm import LLMConfig, chat
+from fichero.llm import LLMConfig, chat_with_fallback
 from fichero.models import Artifact
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools.catalogue import _resolve_container_doc
@@ -199,7 +199,12 @@ async def extract_all(
         # input, which both reduces example-bleed and improves rule
         # adherence (#815).
         try:
-            response = await chat(
+            # chat_with_fallback transparently retries with $large when
+            # Apple Intelligence's on-device guardrail refuses scholarly
+            # text containing literary profanity, court-record vocabulary,
+            # historical slurs, etc. Keeps the local-first default but
+            # escapes to the user's frontier provider when needed (#838).
+            response = await chat_with_fallback(
                 chunk_text,
                 config=llm_config,
                 system=prompt,

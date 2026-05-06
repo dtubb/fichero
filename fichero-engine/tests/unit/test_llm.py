@@ -251,3 +251,85 @@ async def test_vision_inference_api_dict_response():
     NOTE: Skipped due to async mocking complexity. Covered by integration tests.
     """
     pass
+
+
+# =============================================================================
+# Apple Intelligence guardrail fallback (#838)
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_chat_with_fallback_passes_through_on_success():
+    """When the primary chat() call succeeds, chat_with_fallback returns
+    its result unchanged — no fallback path taken."""
+    from fichero.llm import chat_with_fallback, LLMConfig
+
+    config = LLMConfig(provider="apple", model="apple-intelligence")
+    with patch("fichero.llm.chat", new=AsyncMock(return_value="ok response")):
+        result = await chat_with_fallback("hi", config=config)
+
+    assert result == "ok response"
+
+
+@pytest.mark.asyncio
+async def test_chat_with_fallback_routes_around_guardrail():
+    """When Apple Intelligence raises GuardrailViolationError, the fallback
+    resolves $large via resolve_model_alias and retries with the resolved
+    config. Returns the fallback model's response."""
+    from fichero.llm import chat_with_fallback, LLMConfig, GuardrailViolationError
+
+    primary_config = LLMConfig(provider="apple", model="apple-intelligence")
+    call_log: list[LLMConfig] = []
+
+    async def fake_chat(prompt, config, system=None):
+        call_log.append(config)
+        if config.provider == "apple":
+            raise GuardrailViolationError("guardrailViolation: May contain unsafe content")
+        return "fallback response"
+
+    with patch("fichero.llm.chat", new=fake_chat), \
+         patch(
+             "fichero.llm.resolve_model_alias",
+             return_value=("anthropic", "claude-sonnet-4"),
+         ):
+        result = await chat_with_fallback("hi", config=primary_config)
+
+    assert result == "fallback response"
+    assert len(call_log) == 2, "should have tried Apple first, then $large"
+    assert call_log[0].provider == "apple"
+    assert call_log[1].provider == "anthropic"
+    assert call_log[1].model == "claude-sonnet-4"
+
+
+@pytest.mark.asyncio
+async def test_chat_with_fallback_reraises_when_no_large_configured():
+    """When $large isn't configured (resolve_model_alias raises ValueError),
+    chat_with_fallback re-raises the original GuardrailViolationError so
+    callers can show a meaningful 'configure $large to enable fallback'
+    message rather than a confusing 'no default large model' error."""
+    from fichero.llm import chat_with_fallback, LLMConfig, GuardrailViolationError
+
+    config = LLMConfig(provider="apple", model="apple-intelligence")
+    primary = AsyncMock(side_effect=GuardrailViolationError("guardrailViolation"))
+
+    with patch("fichero.llm.chat", new=primary), \
+         patch(
+             "fichero.llm.resolve_model_alias",
+             side_effect=ValueError("no default large model configured"),
+         ):
+        with pytest.raises(GuardrailViolationError):
+            await chat_with_fallback("hi", config=config)
+
+
+@pytest.mark.asyncio
+async def test_chat_with_fallback_does_not_swallow_other_errors():
+    """Non-guardrail errors (network, JSON parse, etc.) propagate without
+    triggering the fallback — only guardrail refusals route around."""
+    from fichero.llm import chat_with_fallback, LLMConfig
+
+    config = LLMConfig(provider="apple", model="apple-intelligence")
+    primary = AsyncMock(side_effect=RuntimeError("network unreachable"))
+
+    with patch("fichero.llm.chat", new=primary):
+        with pytest.raises(RuntimeError, match="network unreachable"):
+            await chat_with_fallback("hi", config=config)
