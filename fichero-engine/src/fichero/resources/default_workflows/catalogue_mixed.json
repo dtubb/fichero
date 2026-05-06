@@ -1,14 +1,14 @@
 {
-  "name": "Catalogue",
-  "description": "Transcribe every file, extract typed entities (people, places, organizations, dates, events, keywords) in a single combined LLM call per page, then folder-level dedup and a narrative catalogue entry. All LLM nodes use the $small model alias \u2014 set your default small model in Settings \u2192 AI Defaults (e.g. Apple Intelligence for free local use).",
+  "name": "Catalogue (Mixed)",
+  "description": "Mixed-tier Catalogue: $small for transcribe / extract / cleanup (fast, free, local) and $large for the narrative entry (one cloud API call per folder for best writing quality). Set both defaults in Settings \u2192 AI Defaults.",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
-  "folder_path": "/Catalogue",
+  "folder_path": "/Catalogue (Mixed)",
   "tags": [
     "preset",
     "catalogue",
-    "small"
+    "mixed"
   ],
   "nodes": [
     {
@@ -30,7 +30,8 @@
       "config": {
         "vision_mode": "auto",
         "language": "en",
-        "update_page_content": true
+        "update_page_content": true,
+        "provider_name": "$large"
       }
     },
     {
@@ -144,7 +145,7 @@
       "inputs": {},
       "config": {
         "output_language": "auto",
-        "provider_name": "$small"
+        "provider_name": "$large"
       }
     }
   ],

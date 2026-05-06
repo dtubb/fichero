@@ -86,23 +86,37 @@ class TestLoadPresetFiles:
             assert name in presets, f"missing preset: {name}"
             assert presets[name].get("folder_path") == expected_path
 
-    def test_catalogue_uses_generic_extractors(self):
-        """The Catalogue preset uses six generic per-entity extractors
-        that produce individual artifacts in parallel. Archive-specific
-        extractors stay registered as tools but are dropped from the default
-        workflow per #726."""
+    def test_catalogue_uses_combined_extractor(self):
+        """The Catalogue preset uses the single combined extract_all tool
+        (one LLM call per page returns all six entity types) instead of six
+        separate per-entity extractors. Per-type folder cleanup nodes still
+        run downstream of the combined extractor."""
         presets = {p["name"]: p for p in _load_preset_files()}
         node_tools = {n["tool"] for n in presets["Catalogue"]["nodes"]}
-        for extractor in (
-            "people_extract",
-            "places_extract",
-            "organizations_extract",
-            "dates_extract",
-            "events_extract",
-            "keywords_extract",
+        assert "extract_all" in node_tools, (
+            "Catalogue preset must use the combined extract_all tool"
+        )
+        for cleaner in (
+            "people_folder_cleanup",
+            "places_folder_cleanup",
+            "organizations_folder_cleanup",
+            "dates_folder_cleanup",
+            "events_folder_cleanup",
+            "keywords_folder_cleanup",
         ):
-            assert extractor in node_tools, (
-                f"Catalogue preset missing generic extractor {extractor!r}"
+            assert cleaner in node_tools, (
+                f"Catalogue preset missing folder cleanup {cleaner!r}"
+            )
+        # Per-type extractors and per-page cleanups dropped for speed.
+        for dropped in (
+            "people_extract", "places_extract", "organizations_extract",
+            "dates_extract", "events_extract", "keywords_extract",
+            "people_page_cleanup", "places_page_cleanup",
+            "organizations_page_cleanup", "dates_page_cleanup",
+            "events_page_cleanup", "keywords_page_cleanup",
+        ):
+            assert dropped not in node_tools, (
+                f"Catalogue preset should no longer use {dropped!r}"
             )
 
     def test_catalogue_drops_archive_specific_extractors(self):
@@ -114,6 +128,89 @@ class TestLoadPresetFiles:
             "properties_extract", "legal_references_extract",
         }
         assert not (archive_specific & node_tools)
+
+    def test_catalogue_small_uses_dollar_small_throughout(self):
+        """Every LLM-using node in the default Catalogue preset references
+        the $small alias so users with different providers don't have to
+        re-edit each node when their default model changes (#810).
+
+        Transcribe is intentionally NOT aliased — it's a vision tool, so
+        it falls back to the user's vision category default (e.g. Apple
+        Vision OCR). Aliasing it to $small would route images to a
+        text-only model.
+        """
+        presets = {p["name"]: p for p in _load_preset_files()}
+        small_tools = {
+            "extract_all", "catalogue",
+            "people_folder_cleanup", "places_folder_cleanup",
+            "organizations_folder_cleanup", "dates_folder_cleanup",
+            "events_folder_cleanup", "keywords_folder_cleanup",
+        }
+        for node in presets["Catalogue"]["nodes"]:
+            if node["tool"] in small_tools:
+                assert node["config"].get("provider_name") == "$small", (
+                    f"node {node['id']} ({node['tool']}) should use $small"
+                )
+        # Transcribe must not use the text alias.
+        for node in presets["Catalogue"]["nodes"]:
+            if node["tool"] == "transcribe":
+                assert "provider_name" not in node["config"], (
+                    "transcribe should fall back to the vision category "
+                    "default — aliasing it to $small breaks Apple Vision OCR"
+                )
+
+    def test_catalogue_text_depends_on_merge_extracts(self):
+        """Catalogue's text input must come from merge_extracts (not from
+        aggregate directly) so the data dependency forces it to wait until
+        cleanup → merge_extracts has run. Direct aggregate → catalogue.text
+        wiring lets catalogue race ahead of cleanup, producing a narrative
+        ungrounded by the cleaned KG (#827)."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        for preset_name in ("Catalogue", "Catalogue (Mixed)"):
+            preset = presets[preset_name]
+            cat_text_sources = {
+                e["source"]
+                for e in preset["edges"]
+                if e["target"] == "catalogue"
+                and e.get("target_port") == "text"
+            }
+            assert cat_text_sources == {"merge_extracts"}, (
+                f"{preset_name}: catalogue.text must come from merge_extracts "
+                f"only — got {cat_text_sources}"
+            )
+            # merge_extracts must aggregate transcripts too so catalogue
+            # still has the source material for Path 2 fallback.
+            me_sources = {
+                e["source"]
+                for e in preset["edges"]
+                if e["target"] == "merge_extracts"
+            }
+            assert "aggregate" in me_sources, (
+                f"{preset_name}: merge_extracts must include aggregate "
+                f"(transcripts) — got {me_sources}"
+            )
+
+    def test_catalogue_mixed_promotes_narrative_to_dollar_large(self):
+        """Catalogue (Mixed) keeps $small for extract/cleanup but promotes
+        the catalogue narrative node to $large so users get frontier-
+        quality writing on the one synthesis call per folder."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Catalogue (Mixed)" in presets, (
+            "Catalogue (Mixed) preset should ship alongside Catalogue"
+        )
+        nodes_by_tool: dict[str, dict] = {}
+        for node in presets["Catalogue (Mixed)"]["nodes"]:
+            nodes_by_tool.setdefault(node["tool"], node)
+        # Narrative step uses $large.
+        assert nodes_by_tool["catalogue"]["config"].get("provider_name") == "$large"
+        # Everything else stays $small (excluding transcribe — see above).
+        for tool in (
+            "extract_all",
+            "people_folder_cleanup", "keywords_folder_cleanup",
+        ):
+            assert nodes_by_tool[tool]["config"].get("provider_name") == "$small", (
+                f"{tool} should stay on $small in the Mixed preset"
+            )
 
 
 def _node_id(preset: dict, tool: str) -> str:
@@ -159,6 +256,7 @@ class TestSeedDefaultWorkflows:
             "Transcribe",
             "Transcribe (Apple Vision)",
             "Catalogue",
+            "Catalogue (Mixed)",
             "Catalogue (composable)",
             "Catalogue (Apple Intelligence)",
         ])
