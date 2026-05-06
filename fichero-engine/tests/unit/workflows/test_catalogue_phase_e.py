@@ -152,7 +152,7 @@ class TestGenerateKeywords:
     async def test_prompt_asks_for_subject_keywords(self):
         cfg = MagicMock()
         with patch(
-            "fichero.workflows.tools.catalogue.chat",
+            "fichero.workflows.tools.catalogue.chat_with_fallback",
             new=AsyncMock(return_value="mining; lawsuit; Chocó"),
         ) as mock_chat:
             result = await _generate_keywords("source text", "Spanish", cfg)
@@ -165,7 +165,7 @@ class TestGenerateKeywords:
     async def test_chat_failure_returns_empty(self):
         cfg = MagicMock()
         with patch(
-            "fichero.workflows.tools.catalogue.chat",
+            "fichero.workflows.tools.catalogue.chat_with_fallback",
             new=AsyncMock(side_effect=RuntimeError("oom")),
         ):
             result = await _generate_keywords("text", "English", cfg)

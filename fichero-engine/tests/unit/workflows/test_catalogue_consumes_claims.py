@@ -72,7 +72,7 @@ class TestCatalogueWithExistingClaims:
 
         # The resumen call still happens. Mock it; capture how many times.
         with patch(
-            "fichero.workflows.tools.catalogue.chat",
+            "fichero.workflows.tools.catalogue.chat_with_fallback",
             new=AsyncMock(return_value="Resumen narrative."),
         ) as mock_chat:
             state = {
@@ -118,7 +118,7 @@ class TestCatalogueWithExistingClaims:
         )
 
         with patch(
-            "fichero.workflows.tools.catalogue.chat",
+            "fichero.workflows.tools.catalogue.chat_with_fallback",
             new=AsyncMock(return_value=full_extraction_response),
         ) as mock_chat:
             state = {
