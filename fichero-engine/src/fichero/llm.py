@@ -337,9 +337,22 @@ async def _apple_intelligence_chat(
             "fichero-engine/bin/fm-bridge/main.swift"
         )
 
-    request_payload = _json.dumps(
-        {"prompt": user_text, "instructions": instructions}
-    ).encode()
+    # Pass temperature + max_tokens through to fm-bridge → Apple's
+    # GenerationOptions. Lets callers pin temperature=0.0 for
+    # deterministic structured tasks (extract_all) and longer
+    # max_tokens for narrative synthesis (catalogue narrative). Unset
+    # values omitted so fm-bridge keeps Foundation Models defaults
+    # rather than overriding with our LLMConfig defaults.
+    request_dict: dict[str, Any] = {
+        "prompt": user_text,
+        "instructions": instructions,
+    }
+    # LLMConfig.temperature defaults to 0.7; only forward when explicit.
+    if config.temperature is not None:
+        request_dict["temperature"] = config.temperature
+    if config.max_tokens is not None and config.max_tokens > 0:
+        request_dict["max_tokens"] = config.max_tokens
+    request_payload = _json.dumps(request_dict).encode()
 
     proc = await asyncio.create_subprocess_exec(
         str(binary),

@@ -12,7 +12,8 @@
 // Build (universal release): see scripts/build_fm_bridge.sh
 //
 // Request shape (stdin):
-//   {"prompt": "...", "instructions": "..." (optional)}
+//   {"prompt": "...", "instructions": "..." (optional),
+//    "temperature": 0.7 (optional), "max_tokens": 2048 (optional)}
 //
 // Response shape (stdout, on success):
 //   {"response": "...", "model": "apple-intelligence"}
@@ -26,6 +27,15 @@ import FoundationModels
 struct Request: Codable {
     let prompt: String
     let instructions: String?
+    let temperature: Double?
+    let maxTokens: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case prompt
+        case instructions
+        case temperature
+        case maxTokens = "max_tokens"
+    }
 }
 
 struct SuccessResponse: Codable {
@@ -117,8 +127,25 @@ struct FmBridge {
             session = LanguageModelSession()
         }
 
+        // Build GenerationOptions from the request — pass temperature
+        // and maxTokens through to FoundationModels so callers can pin
+        // deterministic output (temperature=0.0) for structured tasks
+        // and longer responses (max_tokens=4096) for narratives.
+        // FoundationModels' GenerationOptions exposes these as opt-ins;
+        // unset fields keep the model default.
+        var options = GenerationOptions()
+        if let temperature = request.temperature {
+            options.temperature = temperature
+        }
+        if let maxTokens = request.maxTokens {
+            options.maximumResponseTokens = maxTokens
+        }
+
         do {
-            let result = try await session.respond(to: request.prompt)
+            let result = try await session.respond(
+                to: request.prompt,
+                options: options
+            )
             let payload = SuccessResponse(
                 response: result.content,
                 model: "apple-intelligence"
