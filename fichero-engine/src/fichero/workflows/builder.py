@@ -120,6 +120,36 @@ DEFAULT_MAX_CONCURRENT = 10
 # Tools that support parallel file processing
 PARALLEL_TOOLS = {"transcribe", "describe", "summarize", "entities"}
 
+
+def _result_worth_caching(result: Any) -> bool:
+    """Decide whether to write a parallel-node result to the durable cache.
+
+    An empty transcribe / extract / summary cached forever poisons every
+    subsequent run on the same file with the same key — the user sees an
+    instant 5ms 'completion' that returns nothing, and there's no way to
+    recover short of manually clearing the cache. Better to skip caching
+    on empty: the node will redo the work next time.
+
+    Heuristic: cache anything that has either non-empty `text`, non-empty
+    `value`, or any artifacts/results. Skip when all of those are empty,
+    none, or missing.
+    """
+    if not isinstance(result, dict):
+        return bool(result)
+    text = result.get("text")
+    if isinstance(text, str) and text.strip():
+        return True
+    value = result.get("value")
+    if isinstance(value, dict) and any(value.values()):
+        return True
+    if isinstance(value, list) and value:
+        return True
+    if result.get("results"):
+        return True
+    if result.get("artifacts"):
+        return True
+    return False
+
 # Source tools that output files (triggers parallel processing when connected to PARALLEL_TOOLS)
 SOURCE_TOOLS = {"files", "collection", "folder", "search"}
 
@@ -659,8 +689,19 @@ def _make_parallel_node_function(
                         file_path=file_path,
                     )
 
-                    # Check cache
+                    # Check cache. Treat empty/unusable cached entries as
+                    # misses so existing poisoned entries from prior runs
+                    # don't block recovery — pairs with the cache-write
+                    # gate below that no longer stores empties (#834,
+                    # #837 follow-up). Without this, libraries that
+                    # cached an empty Apple Vision result while a
+                    # bug was active stay broken until manually cleared.
                     cached_result = cache.get(cache_key)
+                    if cached_result is not None and not _result_worth_caching(cached_result):
+                        logger.info(
+                            f"Stale empty cache entry for {file_path}; ignoring + redoing"
+                        )
+                        cached_result = None
                     if cached_result is not None:
                         print(
                             f"[PARALLEL] [{index + 1}/{total}] CACHE HIT: {file_path}"
@@ -786,7 +827,11 @@ def _make_parallel_node_function(
             print(f"[PARALLEL] [{index + 1}/{total}] Completed: {file_path}")
 
             # --- Cache Write ---
-            if cache and cache_key and is_cacheable:
+            # Skip caching when the result has no usable content. An empty
+            # transcribe returning "" gets cached forever and poisons every
+            # subsequent run on the same file (#834 / #837 follow-up). Better
+            # to re-do the work next time and hope for non-empty.
+            if cache and cache_key and is_cacheable and _result_worth_caching(result):
                 try:
                     cache.set(
                         cache_key=cache_key,
@@ -799,6 +844,10 @@ def _make_parallel_node_function(
                     logger.debug(f"Cached result for {file_path}")
                 except Exception as cache_err:
                     logger.warning(f"Cache write failed: {cache_err}")
+            elif cache and cache_key and is_cacheable:
+                logger.info(
+                    f"Skipping cache write for {file_path}: empty/unusable result"
+                )
 
             # Emit file_complete event
             if event_callback:

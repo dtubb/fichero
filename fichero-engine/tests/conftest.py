@@ -33,6 +33,102 @@ def pytest_collection_modifyitems(items):
             item.add_marker(pytest.mark.anyio)
 
 
+# ---------------------------------------------------------------------------
+# Apple Vision / Apple Intelligence skip markers (#840 follow-up)
+#
+# Tests marked @pytest.mark.requires_apple_vision exercise the real macOS
+# Vision framework. Auto-skipped when:
+#   - Not on macOS (sys.platform != "darwin")
+#   - PyObjC's Quartz/Vision modules can't import
+#
+# Tests marked @pytest.mark.requires_apple_intelligence exercise the
+# bundled fm-bridge against on-device Foundation Models. Auto-skipped when:
+#   - Not on macOS
+#   - fm-bridge binary isn't present
+#   - fm-bridge --probe returns non-available (older OS, unsupported chip,
+#     Apple Intelligence not opted-in)
+# ---------------------------------------------------------------------------
+
+
+def _apple_vision_available() -> bool:
+    import sys
+    if sys.platform != "darwin":
+        return False
+    try:
+        import Quartz  # noqa: F401
+        import Vision  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def _apple_intelligence_available() -> bool:
+    import sys
+    import json
+    import subprocess
+    from pathlib import Path
+    if sys.platform != "darwin":
+        return False
+    # Mirror the binary lookup in fichero.llm._apple_intelligence_chat.
+    repo_root = Path(__file__).resolve().parents[2]
+    candidates = [
+        repo_root / "fichero-engine" / "src" / "fichero"
+        / "resources" / "bin" / "fm-bridge",
+        repo_root / "fichero-engine" / "bin" / "fm-bridge" / "fm-bridge",
+    ]
+    binary = next(
+        (p for p in candidates if p.is_file() and p.stat().st_mode & 0o111),
+        None,
+    )
+    if binary is None:
+        return False
+    try:
+        result = subprocess.run(
+            [str(binary), "--probe"],
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    if result.returncode != 0:
+        return False
+    try:
+        payload = json.loads(result.stdout.decode())
+    except json.JSONDecodeError:
+        return False
+    return bool(payload.get("available"))
+
+
+# Compute once at collection time — both probes are deterministic for
+# the duration of a test session and cheap (Vision: import-only,
+# Intelligence: ~50ms subprocess).
+_APPLE_VISION_OK = _apple_vision_available()
+_APPLE_INTELLIGENCE_OK = _apple_intelligence_available()
+
+
+def pytest_collection_modifyitems(items):  # noqa: F811 — extends prior hook
+    """Auto-mark async + apply Apple-availability skips."""
+    skip_vision = pytest.mark.skip(
+        reason="Apple Vision unavailable (non-mac or PyObjC Vision missing)"
+    )
+    skip_intelligence = pytest.mark.skip(
+        reason="Apple Intelligence unavailable (probe failed; needs macOS 26+ "
+               "on Apple Silicon with AI opted in)"
+    )
+    for item in items:
+        test_obj = getattr(item, "obj", None)
+        if test_obj is not None and inspect.iscoroutinefunction(test_obj):
+            item.add_marker(pytest.mark.anyio)
+        if "requires_apple_vision" in item.keywords and not _APPLE_VISION_OK:
+            item.add_marker(skip_vision)
+        if (
+            "requires_apple_intelligence" in item.keywords
+            and not _APPLE_INTELLIGENCE_OK
+        ):
+            item.add_marker(skip_intelligence)
+
+
 def pytest_pyfunc_call(pyfuncitem):
     """
     Fallback async test runner for suites using `@pytest.mark.asyncio`

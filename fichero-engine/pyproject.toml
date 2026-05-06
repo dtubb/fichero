@@ -198,4 +198,6 @@ fichero-mcp = "fichero.mcp_server:main"
 markers = [
     "asyncio: mark async tests that run with the asyncio event loop",
     "anyio: mark async tests compatible with anyio backends",
+    "requires_apple_vision: mark test as needing macOS Vision framework (auto-skipped on non-mac / when fm-bridge probe fails)",
+    "requires_apple_intelligence: mark test as needing on-device Apple Intelligence (auto-skipped via fm-bridge --probe)",
 ]
