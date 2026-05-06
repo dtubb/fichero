@@ -159,12 +159,16 @@ class TestLoadPresetFiles:
                     "default — aliasing it to $small breaks Apple Vision OCR"
                 )
 
-    def test_catalogue_text_depends_on_merge_extracts(self):
-        """Catalogue's text input must come from merge_extracts (not from
-        aggregate directly) so the data dependency forces it to wait until
-        cleanup → merge_extracts has run. Direct aggregate → catalogue.text
-        wiring lets catalogue race ahead of cleanup, producing a narrative
-        ungrounded by the cleaned KG (#827)."""
+    def test_catalogue_inputs_from_aggregate_and_merge_extracts(self):
+        """Catalogue gets BOTH the raw transcripts (text) AND the cleaned
+        entity context (data). The text port must source from aggregate
+        (the per-page transcript concat) — feeding merge_extracts there
+        passes catalogue an empty/wrong-shape input and the narrative call
+        fails with 'No aggregated text provided' (#836). The data port
+        sources from merge_extracts so the LLM has cleaned entity lists
+        alongside the raw text. Race protection from #827 still holds
+        because merge_extracts depends on the cleanup chain — wiring data
+        to it forces catalogue to wait for cleanup."""
         presets = {p["name"]: p for p in _load_preset_files()}
         for preset_name in ("Catalogue", "Catalogue (Mixed)"):
             preset = presets[preset_name]
@@ -174,12 +178,22 @@ class TestLoadPresetFiles:
                 if e["target"] == "catalogue"
                 and e.get("target_port") == "text"
             }
-            assert cat_text_sources == {"merge_extracts"}, (
-                f"{preset_name}: catalogue.text must come from merge_extracts "
-                f"only — got {cat_text_sources}"
+            assert cat_text_sources == {"aggregate"}, (
+                f"{preset_name}: catalogue.text must come from aggregate "
+                f"(raw transcripts) — got {cat_text_sources}"
             )
-            # merge_extracts must aggregate transcripts too so catalogue
-            # still has the source material for Path 2 fallback.
+            cat_data_sources = {
+                e["source"]
+                for e in preset["edges"]
+                if e["target"] == "catalogue"
+                and e.get("target_port") == "data"
+            }
+            assert cat_data_sources == {"merge_extracts"}, (
+                f"{preset_name}: catalogue.data must come from merge_extracts "
+                f"(entity context) — got {cat_data_sources}"
+            )
+            # merge_extracts must still aggregate transcripts too so the
+            # cleanup nodes' upstream chain remains intact. (#827 race fix)
             me_sources = {
                 e["source"]
                 for e in preset["edges"]

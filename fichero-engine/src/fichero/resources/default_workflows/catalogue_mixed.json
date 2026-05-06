@@ -277,12 +277,21 @@
       "target_port": "text"
     },
     {
-      "id": "e-merge_extracts-catalogue-text",
-      "source": "merge_extracts",
+      "id": "e-aggregate-catalogue-text",
+      "source": "aggregate",
       "target": "catalogue",
       "source_port": "text",
       "target_port": "text"
+    },
+    {
+      "id": "e-merge_extracts-catalogue-data",
+      "source": "merge_extracts",
+      "target": "catalogue",
+      "source_port": "text",
+      "target_port": "data"
     }
   ],
-  "config": {}
+  "config": {
+    "preset_version": 2
+  }
 }

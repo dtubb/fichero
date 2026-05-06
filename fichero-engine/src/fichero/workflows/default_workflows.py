@@ -76,19 +76,42 @@ def seed_default_workflows(db: "Database", force: bool = False) -> int:
     preset_names = {preset.get("name") for preset in presets if preset.get("name")}
     existing_by_name = {w.name: w for w in existing}
 
-    if force:
-        for name in preset_names:
-            current = existing_by_name.get(name)
-            if current is not None and (
-                getattr(current, "is_template", False) or getattr(current, "is_system", False)
-            ):
-                try:
-                    db.delete(current)
-                    logger.info(f"Removed stale default workflow '{name}' for reinstall")
-                except Exception as exc:
-                    logger.warning(f"Could not delete preset '{name}' during reinstall: {exc}")
-                existing_by_name.pop(name, None)
+    # Auto-upgrade: any preset whose JSON declares a higher
+    # config.preset_version than the stored copy gets force-replaced even
+    # when force=False. Lets bug-fix releases (e.g. broken edge wiring,
+    # #836) reach existing libraries without the user having to click
+    # "Reinstall defaults". User-renamed copies are still skipped because
+    # only is_template/is_system rows are touched.
+    upgrade_names: set[str] = set()
+    presets_by_name = {p.get("name"): p for p in presets if p.get("name")}
+    for name, current in list(existing_by_name.items()):
+        preset = presets_by_name.get(name)
+        if preset is None:
+            continue
+        if not (getattr(current, "is_template", False) or getattr(current, "is_system", False)):
+            continue
+        preset_v = (preset.get("config") or {}).get("preset_version", 1)
+        stored_v = (getattr(current, "config", None) or {}).get("preset_version", 1)
+        if preset_v > stored_v:
+            upgrade_names.add(name)
 
+    targets_to_replace: set[str] = preset_names if force else upgrade_names
+    for name in targets_to_replace:
+        current = existing_by_name.get(name)
+        if current is not None and (
+            getattr(current, "is_template", False) or getattr(current, "is_system", False)
+        ):
+            try:
+                db.delete(current)
+                if name in upgrade_names and not force:
+                    logger.info(f"Upgrading preset '{name}' (preset_version bumped)")
+                else:
+                    logger.info(f"Removed stale default workflow '{name}' for reinstall")
+            except Exception as exc:
+                logger.warning(f"Could not delete preset '{name}' during reinstall: {exc}")
+            existing_by_name.pop(name, None)
+
+    if force:
         # Also prune is_template workflows whose names are NO LONGER in the
         # preset set (i.e. variants that used to ship but were deleted —
         # e.g. 'Catalogue (Apple Vision)' / 'Transcribe (Apple Vision)' /

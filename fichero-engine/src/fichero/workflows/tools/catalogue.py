@@ -802,6 +802,36 @@ def _format_claims_as_context(data: dict[str, Any] | None) -> str:
 # Triggers map-reduce when transcripts exceed this size.
 _RESUMEN_CHUNK_SIZE = 12000
 
+# Providers whose flagship models comfortably hold an entire folder's
+# transcripts in a single context window (~100K+ chars). For these we
+# skip map-reduce entirely — feeding pre-summarised chunks to a frontier
+# model produces visibly worse output than feeding the raw transcripts
+# (#835 — per-chunk hallucinations get faithfully echoed by the
+# synthesis pass). The chunked path stays correct as a fallback for
+# Apple Intelligence + small local models.
+_FRONTIER_PROVIDERS: frozenset[str] = frozenset({
+    "openai",
+    "anthropic",
+    "google",
+    "openrouter",
+    "azure",
+    "vertex_ai",
+    "bedrock",
+})
+_FRONTIER_CHUNK_SIZE = 100_000
+
+
+def _effective_chunk_size(llm_config: LLMConfig) -> int:
+    """Pick the chunk-threshold based on provider capability.
+    Frontier cloud providers handle ~100K+ chars in one call; smaller
+    on-device providers (Apple Intelligence, small Ollama models) need
+    the conservative 12K cap. (#835)
+    """
+    provider = (getattr(llm_config, "provider", "") or "").lower()
+    if provider in _FRONTIER_PROVIDERS:
+        return _FRONTIER_CHUNK_SIZE
+    return _RESUMEN_CHUNK_SIZE
+
 
 _LEADING_TITLE_RE = re.compile(
     # Strip a leading title line at the start of the narrative — small models
@@ -853,10 +883,13 @@ async def _generate_resumen(
         if claim_context else ""
     )
 
-    # Single-shot path — text fits comfortably in any model's context window.
-    # System+user split (#815): rules go to Apple Intelligence's Instructions
-    # channel where they're authoritative; source text is the user prompt.
-    if len(text) <= _RESUMEN_CHUNK_SIZE:
+    # Single-shot path — text fits comfortably in this model's context
+    # window. System+user split (#815): rules go to Apple Intelligence's
+    # Instructions channel where they're authoritative; source text is
+    # the user prompt. Frontier providers get a 100K cap so a typical
+    # folder-scale transcript runs in one call instead of fan-out (#835).
+    chunk_threshold = _effective_chunk_size(llm_config)
+    if len(text) <= chunk_threshold:
         instructions = (
             f"You are an expert archivist. Write a 150-300 word "
             f"narrative catalogue entry in {output_language} summarizing "
@@ -882,9 +915,9 @@ async def _generate_resumen(
     # chunk briefly, then synthesise the final paragraph from the chunk
     # summaries + entity context. Same shape as the legacy 7-step pipeline's
     # 'summary' step.
-    chunks = _split_text_into_chunks(text, _RESUMEN_CHUNK_SIZE)
+    chunks = _split_text_into_chunks(text, chunk_threshold)
     logger.info(
-        f"Catalogue: text {len(text)} chars > {_RESUMEN_CHUNK_SIZE} budget — "
+        f"Catalogue: text {len(text)} chars > {chunk_threshold} budget — "
         f"map-reducing across {len(chunks)} chunks"
     )
 
