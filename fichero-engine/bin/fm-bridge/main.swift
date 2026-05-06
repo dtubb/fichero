@@ -231,12 +231,20 @@ enum SchemaError: Error, CustomStringConvertible {
     }
 }
 
+/// Locale-support response shape for `--supports-locale <code>` (#849).
+struct LocaleSupportResponse: Codable {
+    let locale: String
+    let supported: Bool
+}
+
 @main
 struct FmBridge {
     static func main() async {
+        let args = CommandLine.arguments
+
         // Probe mode — availability check only, no generation. Runs in tens
         // of milliseconds; safe to call from the wizard's onAppear.
-        if CommandLine.arguments.contains("--probe") {
+        if args.contains("--probe") {
             let model = SystemLanguageModel.default
             switch model.availability {
             case .available:
@@ -249,6 +257,38 @@ struct FmBridge {
                 )
             }
         }
+
+        // --supports-locale <code>: precheck whether the on-device model
+        // accepts a given locale (#849). Returns {locale, supported}.
+        // Cheaper than a full generation attempt that fails with
+        // unsupportedLanguageOrLocale mid-flight. Daniel's case: route
+        // to $large directly when document language is e.g. Korean
+        // and Apple doesn't support it on this device.
+        if let idx = args.firstIndex(of: "--supports-locale"), args.indices.contains(idx + 1) {
+            let code = args[idx + 1]
+            let model = SystemLanguageModel.default
+            guard case .available = model.availability else {
+                emitError(
+                    "Apple Intelligence is not available on this device.",
+                    kind: "unavailable"
+                )
+            }
+            let supported = model.supportsLocale(Locale(identifier: code))
+            let payload = LocaleSupportResponse(locale: code, supported: supported)
+            if let data = try? JSONEncoder().encode(payload) {
+                FileHandle.standardOutput.write(data)
+            }
+            exit(supported ? 0 : 0)  // Exit 0 either way; supported=false is a real answer, not an error
+        }
+
+        // NOTE: #848 (proactive --token-budget mode using
+        // SystemLanguageModel.tokenUsage(for:) and .contextSize) requires
+        // the macOS 26.4 SDK, which isn't on this machine's toolchain
+        // yet (we're building against 26.2 SDK). Once Xcode/CLT update,
+        // re-add the --token-budget mode. Until then we use a reactive
+        // strategy on the Python side: catch the typed (decoding) error
+        // from the bridge (which IS available — it's the existing
+        // typed-error path from #843) and retry with smaller batches.
 
         // Availability check first — fail fast on machines without
         // Apple Intelligence (older OS, unsupported chip, not opted-in).
@@ -293,11 +333,27 @@ struct FmBridge {
             options.maximumResponseTokens = maxTokens
         }
 
+        // Optional guardrail mode (#850). "permissive" relaxes the on-
+        // device safety filter for STRING-OUTPUT generations only —
+        // useful for catalogue narratives over scholarly text with
+        // literary profanity / court-record vocabulary that the
+        // default guardrail false-positives. Apple's docs note this
+        // has no effect on Generable / structured generation, where
+        // the default guardrails always run. Caller should only pass
+        // permissive on the free-form path.
+        let guardrails: SystemLanguageModel.Guardrails
+        if (raw["guardrails"] as? String) == "permissive" {
+            guardrails = .permissiveContentTransformations
+        } else {
+            guardrails = .default
+        }
+        let chatModel = SystemLanguageModel(guardrails: guardrails)
+
         let session: LanguageModelSession
         if let instructions, !instructions.isEmpty {
-            session = LanguageModelSession(instructions: instructions)
+            session = LanguageModelSession(model: chatModel, instructions: instructions)
         } else {
-            session = LanguageModelSession()
+            session = LanguageModelSession(model: chatModel)
         }
 
         // Structured-output dispatch — when "schema" is present, build a

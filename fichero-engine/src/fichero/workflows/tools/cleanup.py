@@ -281,10 +281,14 @@ class _DedupResult(BaseModel):
     groups: list[_DedupGroup] = Field(default_factory=list)
 
 
+_MAX_DEDUP_DEPTH = 4  # 4 splits → 16 batches → ~250 names per batch (more than fits the 4K window)
+
+
 async def _ask_llm_to_dedupe(
     type_cfg: dict[str, Any],
     names: list[str],
     llm_config: LLMConfig,
+    _depth: int = 0,
 ) -> list[dict[str, Any]]:
     """Call the LLM and return [{canonical, aliases}, ...].
 
@@ -299,6 +303,16 @@ async def _ask_llm_to_dedupe(
     failure (network/auth/timeout), logs the error and returns the
     identity grouping (each name as its own canonical with no aliases),
     so the workflow continues with no merges rather than aborting.
+
+    Reactive chunking (#848): when Apple Intelligence's typed (decoding)
+    or (context_overflow) error fires — the prompt + schema + names list
+    exceeded what the on-device 4K window could hold in one shot — split
+    the names list in half and recurse. Bounded by `_MAX_DEDUP_DEPTH`
+    so a fundamentally hostile input can't recurse forever; on cap-out
+    we fall through to identity grouping. Cross-batch deduplication
+    isn't done (the LLM only sees one half at a time); for very long
+    lists this means no-op merges across batch boundaries — strictly
+    better than dropping the whole section as before.
     """
     if len(names) < 2:
         return [{"canonical": names[0], "aliases": []}] if names else []
@@ -316,6 +330,31 @@ async def _ask_llm_to_dedupe(
             # Intelligence to save prompt tokens (#843).
             include_schema_in_prompt=False,
         )
+    except RuntimeError as runtime_exc:
+        # Detect Apple Intelligence's typed (decoding) and
+        # (context_overflow) error kinds. Both indicate the prompt +
+        # schema + names list exceeded what the model could handle in
+        # one shot. Split + recurse rather than fall through to identity.
+        msg = str(runtime_exc)
+        is_overflow = "(decoding)" in msg or "(context_overflow)" in msg
+        if is_overflow and len(names) >= 4 and _depth < _MAX_DEDUP_DEPTH:
+            mid = len(names) // 2
+            logger.warning(
+                f"cleanup hit overflow on {display} "
+                f"({len(names)} names, depth={_depth}); splitting and retrying"
+            )
+            left = await _ask_llm_to_dedupe(
+                type_cfg, names[:mid], llm_config, _depth=_depth + 1,
+            )
+            right = await _ask_llm_to_dedupe(
+                type_cfg, names[mid:], llm_config, _depth=_depth + 1,
+            )
+            return left + right
+        logger.warning(
+            f"cleanup LLM call failed for {display}: {runtime_exc}; "
+            f"returning identity grouping (no merges)"
+        )
+        return [{"canonical": _normalize_case(n), "aliases": []} for n in names]
     except Exception as exc:
         logger.warning(
             f"cleanup LLM call failed for {display}: {exc}; "

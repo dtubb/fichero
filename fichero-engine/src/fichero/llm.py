@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import functools
 import logging
 import os
 import re
@@ -242,6 +243,7 @@ async def chat(
     config: LLMConfig,
     stream: bool = False,
     system: str | None = None,
+    permissive_guardrails: bool = False,
 ) -> str | AsyncIterator[str]:
     """Send a chat message using LangChain.
 
@@ -250,6 +252,10 @@ async def chat(
         config: LLM configuration
         stream: If True, return async generator of chunks
         system: Optional system message
+        permissive_guardrails: Apple-only. Pass True for narrative /
+            summary calls over content the default safety filter
+            false-positives (literary profanity, court-record
+            vocabulary). Has no effect on non-Apple providers (#850).
 
     Returns:
         Response string, or async generator if streaming
@@ -265,7 +271,10 @@ async def chat(
                 "Apple Intelligence does not support streaming yet — "
                 "the fm-bridge wrapper returns a single response."
             )
-        return await _apple_intelligence_chat(prompt, config, system)
+        return await _apple_intelligence_chat(
+            prompt, config, system,
+            permissive_guardrails=permissive_guardrails,
+        )
 
     # Get LangChain model
     model = get_langchain_model(config)
@@ -291,6 +300,7 @@ async def chat_with_fallback(
     prompt: str | list[dict[str, Any]],
     config: LLMConfig,
     system: str | None = None,
+    permissive_guardrails: bool = False,
 ) -> str:
     """Like chat(), but falls back to the user's $large model when Apple
     Intelligence's on-device guardrail refuses the call. (#838)
@@ -311,7 +321,10 @@ async def chat_with_fallback(
     is unavailable (no $large configured) or also fails.
     """
     try:
-        return await chat(prompt, config, system=system)
+        return await chat(
+            prompt, config, system=system,
+            permissive_guardrails=permissive_guardrails,
+        )
     except GuardrailViolationError as guardrail_exc:
         # Only Apple Intelligence raises this — try $large if configured.
         try:
@@ -339,6 +352,7 @@ async def chat_with_fallback(
             f"Apple Intelligence guardrail refused; retrying with "
             f"$large = {large_provider}/{large_model}"
         )
+        # Permissive guardrails is Apple-only and has no effect here.
         return await chat(prompt, fallback_config, system=system)
 
 
@@ -346,6 +360,7 @@ async def _apple_intelligence_chat(
     prompt: str | list[dict[str, Any]],
     config: LLMConfig,
     system: str | None = None,
+    permissive_guardrails: bool = False,
 ) -> str:
     """Bridge to FoundationModels via the bundled Swift fm-bridge binary.
 
@@ -422,6 +437,15 @@ async def _apple_intelligence_chat(
         request_dict["temperature"] = config.temperature
     if config.max_tokens is not None and config.max_tokens > 0:
         request_dict["max_tokens"] = config.max_tokens
+    # Permissive guardrails (#850): relax the on-device safety filter for
+    # string-output generations. Useful for narrative/summary calls over
+    # scholarly text with literary profanity / court-record vocabulary
+    # the default guardrails false-positive (e.g. the Sánchez Juliao
+    # epigraph case). Apple's docs note this only affects string output;
+    # structured/Generable calls run with default guardrails regardless,
+    # which is why chat_structured doesn't expose this parameter.
+    if permissive_guardrails:
+        request_dict["guardrails"] = "permissive"
     request_payload = _json.dumps(request_dict).encode()
 
     proc = await asyncio.create_subprocess_exec(
@@ -1085,6 +1109,57 @@ async def chat_structured_with_fallback(
         # The fallback provider is LangChain-based, so the Apple-only
         # include_schema_in_prompt parameter is ignored on that path.
         return await chat_structured(prompt, schema, fallback_config, system=system)
+
+
+@functools.lru_cache(maxsize=64)
+def apple_intelligence_supports_locale(locale: str) -> bool:
+    """Check whether Apple Intelligence's on-device model supports a
+    given locale (#849). Returns True when the model accepts the locale
+    for prompts/responses, False when it doesn't.
+
+    Cached at the process level — locale support depends only on the
+    on-device model and doesn't change at runtime.
+
+    Implementation: shells out to fm-bridge --supports-locale <code>
+    which calls SystemLanguageModel.default.supportsLocale(_:). Falls
+    back to False on any failure (binary missing, model unavailable,
+    etc.) so callers don't accidentally route to a non-functional path.
+
+    Use this before submitting an Apple Intelligence call when the
+    document language is known and might be unsupported. Cheaper than
+    discovering it via mid-generation `unsupportedLanguageOrLocale` error.
+    """
+    import json as _json
+    import subprocess
+    from pathlib import Path
+
+    here = Path(__file__).resolve()
+    candidates = [
+        here.parent / "resources" / "bin" / "fm-bridge",
+        here.parent / "bin" / "fm-bridge" / "fm-bridge",
+        here.parents[3] / "bin" / "fm-bridge" / "fm-bridge",
+        Path("fichero-engine/bin/fm-bridge/fm-bridge").resolve(),
+    ]
+    binary = next(
+        (p for p in candidates if p.is_file() and p.stat().st_mode & 0o111),
+        None,
+    )
+    if binary is None:
+        logger.debug("fm-bridge not found; assuming locale unsupported")
+        return False
+
+    try:
+        result = subprocess.run(
+            [str(binary), "--supports-locale", locale],
+            capture_output=True, timeout=5,
+        )
+        if result.returncode != 0:
+            return False
+        payload = _json.loads(result.stdout.decode())
+        return bool(payload.get("supported", False))
+    except (subprocess.TimeoutExpired, _json.JSONDecodeError, OSError) as exc:
+        logger.debug(f"fm-bridge --supports-locale {locale!r} failed: {exc}")
+        return False
 
 
 def _pydantic_to_apple_schema(model: type[BaseModel]) -> dict[str, Any]:

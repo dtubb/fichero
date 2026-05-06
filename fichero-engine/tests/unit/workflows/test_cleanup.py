@@ -214,6 +214,72 @@ class TestAskLLMToDedupe:
         assert result == [{"canonical": "Real", "aliases": ["Realer"]}]
 
     @pytest.mark.asyncio
+    async def test_overflow_triggers_split_and_recurse(self):
+        """When Apple Intelligence emits the typed (decoding) error
+        because the prompt + schema + names list overflows the 4K
+        window, _ask_llm_to_dedupe splits the names in half and
+        recurses (#848). Each half succeeds; results are concatenated.
+        """
+        cfg = MagicMock()
+        from fichero.workflows.tools.cleanup import _DedupGroup, _DedupResult
+
+        call_count = {"n": 0}
+
+        async def flaky_chat(prompt, schema, config, system=None, include_schema_in_prompt=None):
+            call_count["n"] += 1
+            # First call: simulate Apple's (decoding) overflow.
+            if call_count["n"] == 1:
+                raise RuntimeError(
+                    "Apple Intelligence (decoding): truncated mid-output"
+                )
+            # Subsequent calls (each half): return one group per name.
+            # Match the user_prompt's numbered list to extract names.
+            import re
+            entries = re.findall(r"\d+\. (.+)", prompt)
+            return _DedupResult(
+                groups=[
+                    _DedupGroup(canonical=n, aliases=[]) for n in entries
+                ]
+            )
+
+        with patch(
+            "fichero.workflows.tools.cleanup.chat_structured_with_fallback",
+            new=flaky_chat,
+        ):
+            result = await _ask_llm_to_dedupe(
+                _PEOPLE_CFG, ["A", "B", "C", "D", "E", "F"], cfg,
+            )
+
+        # 1 failed + 2 successful = 3 calls
+        assert call_count["n"] == 3
+        # All 6 inputs returned via the two halves
+        canonicals = [g["canonical"] for g in result]
+        assert sorted(canonicals) == ["A", "B", "C", "D", "E", "F"]
+
+    @pytest.mark.asyncio
+    async def test_overflow_at_max_depth_falls_through_to_identity(self):
+        """Recursive split is bounded — beyond _MAX_DEDUP_DEPTH we
+        fall through to identity grouping rather than recursing forever
+        on a fundamentally too-big input."""
+        cfg = MagicMock()
+        from fichero.workflows.tools import cleanup as cleanup_mod
+
+        async def always_overflow(*a, **kw):
+            raise RuntimeError("Apple Intelligence (decoding): truncated")
+
+        with patch(
+            "fichero.workflows.tools.cleanup.chat_structured_with_fallback",
+            new=always_overflow,
+        ), patch.object(cleanup_mod, "_MAX_DEDUP_DEPTH", 1):
+            result = await _ask_llm_to_dedupe(
+                _PEOPLE_CFG, ["A", "B", "C", "D"], cfg,
+            )
+        # All 4 names ended up as identity-grouping (no merges); none
+        # were lost.
+        canonicals = sorted(g["canonical"] for g in result)
+        assert canonicals == ["A", "B", "C", "D"]
+
+    @pytest.mark.asyncio
     async def test_drops_groups_without_canonical(self):
         """The schema constraint forces `canonical: str` (non-Optional),
         but the LLM can still emit empty strings. These get dropped and

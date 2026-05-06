@@ -925,6 +925,7 @@ async def _generate_resumen(
                 text,
                 config=llm_config,
                 system=instructions,
+                permissive_guardrails=True,
             )
         except Exception as exc:
             logger.warning(f"Catalogue: resumen LLM call failed ({exc}); using empty")
@@ -956,6 +957,7 @@ async def _generate_resumen(
                 f"Section {index + 1} of {len(chunks)}:\n{chunk}",
                 config=llm_config,
                 system=chunk_instructions,
+                permissive_guardrails=True,
             )
             chunk_summaries.append(chunk_text.strip())
         except Exception as exc:
@@ -984,6 +986,7 @@ async def _generate_resumen(
             combined_summaries,
             config=llm_config,
             system=final_instructions,
+            permissive_guardrails=True,
         )
     except Exception as exc:
         logger.warning(f"Catalogue: final synthesis failed ({exc}); using empty")
@@ -1081,6 +1084,7 @@ async def _generate_keywords(
             bounded,
             config=llm_config,
             system=instructions,
+            permissive_guardrails=True,
         )
     except Exception as exc:
         logger.warning(f"Catalogue: keywords LLM call failed ({exc}); using empty")
