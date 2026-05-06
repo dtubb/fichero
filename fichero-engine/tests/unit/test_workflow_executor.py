@@ -827,6 +827,71 @@ class TestErrorDetection:
 
 
 # =============================================================================
+# Node-error abort behaviour (#839)
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_node_returning_error_dict_aborts_workflow():
+    """When a tool returns {'error': '...'}, the wrapping node function
+    must raise SystemicErrorDetected so the workflow aborts. Historical
+    behaviour was to silently set state.error and let downstream nodes
+    proceed on missing input — produced indistinguishable-from-success
+    runs that hung waiting on empty inputs (#839)."""
+    from fichero.workflows.builder import _make_node_function, SystemicErrorDetected
+    from fichero.workflows.types import NodeDef
+    from fichero.llm import LLMConfig
+
+    node_def = NodeDef(id="failing", tool="test_failing_tool", config={})
+
+    async def failing_tool(inputs, state, llm_config):
+        return {"error": "Extract All: 1/1 LLM calls failed — guardrailViolation"}
+
+    node_fn = _make_node_function(
+        node_def,
+        failing_tool,
+        LLMConfig(provider="apple", model="apple-intelligence"),
+        workflow_config={},
+        incoming_edges=[],
+    )
+
+    state = {"outputs": {}, "completed_nodes": []}
+    with pytest.raises(SystemicErrorDetected) as exc_info:
+        await node_fn(state)
+
+    assert "failing" in str(exc_info.value) or "Step" in str(exc_info.value)
+    assert "1/1 LLM calls failed" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_node_returning_no_error_does_not_abort():
+    """Sanity: a tool returning a normal dict (no 'error' key) should NOT
+    raise. Confirms the abort path is gated on the error key, not on
+    every tool return."""
+    from fichero.workflows.builder import _make_node_function
+    from fichero.workflows.types import NodeDef
+    from fichero.llm import LLMConfig
+
+    node_def = NodeDef(id="ok", tool="test_ok_tool", config={})
+
+    async def ok_tool(inputs, state, llm_config):
+        return {"text": "all good", "value": {"some": "data"}}
+
+    node_fn = _make_node_function(
+        node_def,
+        ok_tool,
+        LLMConfig(provider="apple", model="apple-intelligence"),
+        workflow_config={},
+        incoming_edges=[],
+    )
+
+    state = {"outputs": {}, "completed_nodes": []}
+    result = await node_fn(state)
+    assert result["outputs"]["ok"]["text"] == "all good"
+    assert "ok" in result["completed_nodes"]
+
+
+# =============================================================================
 # Test Configuration
 # =============================================================================
 

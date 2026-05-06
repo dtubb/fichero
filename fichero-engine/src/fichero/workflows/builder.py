@@ -472,16 +472,30 @@ def _make_node_function(
                 llm_config=node_llm_config,
             )
 
-            # Check if tool returned an error (tools return {"error": "..."} on failure)
+            # Check if tool returned an error (tools return {"error": "..."} on failure).
+            # Raise SystemicErrorDetected to ABORT the workflow rather than
+            # silently set state.error and let downstream nodes proceed on
+            # empty data (#839). The historical behaviour was to return-with-
+            # error and continue, which produced indistinguishable-from-
+            # success runs that hung waiting on missing inputs (e.g. extract_all
+            # 100% guardrail-refused → empty entity context → catalogue
+            # narrative call hung indefinitely).
+            #
+            # Tools that legitimately surface partial-success without aborting
+            # should NOT return an "error" key — they should return their
+            # partial result and rely on downstream consumers to handle missing
+            # data. Setting "error" is now a hard abort signal.
             if isinstance(result, dict) and result.get("error"):
                 error_msg = result["error"]
                 print(f"[STEP] ✗ FAILED: {node_label}")
                 print(f"[STEP]   Error: {error_msg}")
                 logger.error(f"Node {node_id} tool returned error: {error_msg}")
-                return {
-                    "error": f"Step '{node_label}' failed: {error_msg}",
-                    "current_node": node_id,
-                }
+                raise SystemicErrorDetected(
+                    message=f"Step '{node_label}' failed: {error_msg}",
+                    error_count=1,
+                    total_count=1,
+                    errors=[{"node": node_id, "error": error_msg}],
+                )
 
             # Update outputs
             outputs = dict(state.get("outputs", {}))
@@ -505,6 +519,13 @@ def _make_node_function(
                 "current_node": node_id,
             }
 
+        except SystemicErrorDetected:
+            # Hard-abort signal — must propagate, not be reduced to a dict.
+            # The aggregator + node-error paths raise this when the workflow
+            # genuinely cannot continue; LangGraph propagates it to the
+            # executor which marks the run as failed and stops the spinners
+            # (#839).
+            raise
         except Exception as e:
             error_msg = str(e)
             print(f"[STEP] ✗ FAILED: {node_label}")
