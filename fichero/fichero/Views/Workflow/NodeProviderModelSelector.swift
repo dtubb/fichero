@@ -6,6 +6,13 @@ private let logger = Logger(subsystem: "com.fichero.fichero", category: "NodePro
 /// Sentinel provider ID for Apple Vision (on-device OCR)
 let appleVisionProviderId = "apple_vision"
 
+/// Capability-tier model aliases (#810/#814). When selected, the node's
+/// providerName is persisted as the literal string "$small" or "$large";
+/// the workflow runtime's resolve_model_alias() looks up the concrete
+/// provider+model from the user's AIDefaults at execution time.
+let smallAliasProviderId = "$small"
+let largeAliasProviderId = "$large"
+
 /// Provider and model selection component for workflow nodes
 struct NodeProviderModelSelector: View {
     @Binding var node: WorkflowNode
@@ -22,6 +29,13 @@ struct NodeProviderModelSelector: View {
     /// Whether Apple Vision is currently selected
     private var isAppleVisionSelected: Bool {
         selectedProviderId == appleVisionProviderId
+    }
+
+    /// Whether a $small / $large alias is currently selected — model
+    /// picker hides when so, the runtime resolver fills both fields.
+    private var isAliasSelected: Bool {
+        selectedProviderId == smallAliasProviderId
+            || selectedProviderId == largeAliasProviderId
     }
 
     var body: some View {
@@ -44,8 +58,9 @@ struct NodeProviderModelSelector: View {
                 }
             }
 
-            // Model picker (hidden when Apple Vision is selected)
-            if !isAppleVisionSelected {
+            // Model picker (hidden when Apple Vision OR a tier alias is
+            // selected — alias resolution at runtime fills the model).
+            if !isAppleVisionSelected && !isAliasSelected {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Model")
                         .font(.caption)
@@ -104,6 +119,15 @@ struct NodeProviderModelSelector: View {
                             .tag(appleVisionProviderId)
                     }
 
+                    // $small / $large aliases (#810/#814). Selecting an
+                    // alias persists provider="$small"/"$large" and the
+                    // workflow runtime resolves to the user's configured
+                    // Default Small / Default Large model from Settings.
+                    Label("$small (default small model)", systemImage: "leaf")
+                        .tag(smallAliasProviderId)
+                    Label("$large (default large model)", systemImage: "sparkles")
+                        .tag(largeAliasProviderId)
+
                     ForEach(availableProviders) { provider in
                         Text(provider.name).tag(provider.id)
                     }
@@ -121,6 +145,17 @@ struct NodeProviderModelSelector: View {
                         node.usesLLM = false
                         selectedModelId = ""
                         logger.info("Apple Vision selected for node \(node.id)")
+                    } else if newValue == smallAliasProviderId
+                                || newValue == largeAliasProviderId {
+                        // Tier alias — runtime fills provider+model. Model
+                        // picker is hidden via isAliasSelected.
+                        node.providerName = newValue
+                        node.modelName = nil
+                        node.usesLLM = true
+                        selectedModelId = ""
+                        logger.info(
+                            "Alias \(newValue) selected for node \(node.id)"
+                        )
                     } else {
                         // LLM provider selected
                         if node.config == nil { node.config = [:] }
