@@ -44,6 +44,26 @@ struct BackendConnectionView: View {
         return NSImage(systemSymbolName: "server.rack", accessibilityDescription: nil) ?? NSImage()
     }
 
+    /// Fichero app icon loaded as a flat .icns from the app bundle, NOT
+    /// via NSApp.applicationIconImage which on macOS Tahoe (26+) gets
+    /// auto-wrapped in the system rounded-squircle treatment. The engine
+    /// icon next to it renders flat (loaded the same way), so loading
+    /// the Fichero side flat keeps the splash visually consistent (#793).
+    private var ficheroIconImage: NSImage {
+        if let resourcePath = Bundle.main.resourcePath {
+            // The app's compiled icon catalog produces AppIcon.icns at
+            // the bundle root. Loading it directly via NSImage avoids
+            // the system squircle that NSApp.applicationIconImage applies.
+            let iconPath = "\(resourcePath)/AppIcon.icns"
+            if let image = NSImage(contentsOfFile: iconPath) {
+                return image
+            }
+        }
+        // Fallback to the Tahoe-treated app icon if the .icns isn't
+        // findable (custom builds, dev sandbox).
+        return NSApp.applicationIconImage ?? NSImage()
+    }
+
     var body: some View {
         VStack(spacing: 24) {
             // Two icons side-by-side — Fichero (app) on the left, Engine
@@ -52,7 +72,7 @@ struct BackendConnectionView: View {
             // The dots cycle through three phases on a 0.4s timer; the
             // single "active" dot lights up while the others dim.
             HStack(spacing: 16) {
-                Image(nsImage: NSApp.applicationIconImage ?? NSImage())
+                Image(nsImage: ficheroIconImage)
                     .resizable()
                     .interpolation(.high)
                     .frame(width: 72, height: 72)
