@@ -292,7 +292,23 @@ async def chat(
     if stream:
         return _stream_chat_langchain(model, messages)
     else:
-        response = await model.ainvoke(messages)
+        # Hard wall-clock timeout (#844 robustness). LangChain accepts a
+        # `timeout` kwarg per provider but enforcement varies — some
+        # backends ignore it under HTTP keepalive, leading to indefinite
+        # hangs (observed live on ChatOpenRouter mid-narrative). Wrap
+        # every ainvoke in asyncio.wait_for so a stuck call eventually
+        # surfaces a TimeoutError that chat_with_fallback / structured
+        # callers can route around.
+        budget = _langchain_timeout_budget(config)
+        try:
+            response = await asyncio.wait_for(
+                model.ainvoke(messages), timeout=budget,
+            )
+        except asyncio.TimeoutError as exc:
+            raise RuntimeError(
+                f"LangChain {config.provider}/{config.model} chat exceeded "
+                f"{budget}s — provider hang"
+            ) from exc
         return _strip_outer_code_fences(response.content)
 
 
@@ -1074,7 +1090,19 @@ async def chat_structured(
     if system:
         messages.append(SystemMessage(content=system))
     messages.append(HumanMessage(content=prompt))
-    result = await structured_model.ainvoke(messages)
+    # Wall-clock timeout (#844 robustness, mirrors chat()). Some
+    # backends ignore the per-model timeout kwarg under HTTP keepalive;
+    # asyncio.wait_for is the backstop.
+    budget = _langchain_timeout_budget(config)
+    try:
+        result = await asyncio.wait_for(
+            structured_model.ainvoke(messages), timeout=budget,
+        )
+    except asyncio.TimeoutError as exc:
+        raise RuntimeError(
+            f"LangChain {config.provider}/{config.model} structured call "
+            f"exceeded {budget}s — provider hang"
+        ) from exc
     return result
 
 
@@ -1200,6 +1228,22 @@ def apple_intelligence_fits_in_context(
         estimate += estimate_token_count(instructions)
     estimate += schema_overhead_tokens
     return estimate + response_headroom <= context_size
+
+
+def _langchain_timeout_budget(config: LLMConfig) -> float:
+    """Wall-clock timeout we wrap LangChain ainvoke calls in.
+
+    LangChain accepts a `timeout` kwarg per provider but enforcement is
+    inconsistent — some HTTP clients honor it, some don't, and some hang
+    under keepalive. This is the outer asyncio.wait_for budget that
+    eventually fires regardless. Defaults to 5× config.timeout so
+    legitimate long generations (catalogue narrative, large summaries)
+    aren't cut short, with a floor of 60s and a ceiling of 600s. Set
+    config.timeout=0 or None to disable and rely on provider-side only.
+    """
+    if not config.timeout:
+        return 600.0
+    return float(min(600, max(60, config.timeout * 5)))
 
 
 @functools.lru_cache(maxsize=64)
