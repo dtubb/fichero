@@ -200,6 +200,27 @@ def _normalize_text(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
+def _descendant_doc_ids(db: Database, root_id: str) -> set[str]:
+    """Collect the doc id and every descendant doc id (BFS), so callers
+    can scope KG queries to "everything under this folder" — claims are
+    written to PAGE doc ids by extract_all, not the folder, so a folder
+    KG view that only filters by source_document_id=<folder> returns
+    empty even when descendants have rich entities (#826)."""
+    from fichero.models import Document
+    seen: set[str] = {root_id}
+    frontier: list[str] = [root_id]
+    while frontier:
+        next_frontier: list[str] = []
+        for parent_id in frontier:
+            children = db.query(Document, parent_id=parent_id) or []
+            for child in children:
+                if child.id and child.id not in seen:
+                    seen.add(child.id)
+                    next_frontier.append(child.id)
+        frontier = next_frontier
+    return seen
+
+
 @router.get("", response_model=list[KnowledgeClaim])
 async def list_claims(
     q: Annotated[str | None, Query()] = None,
@@ -209,13 +230,21 @@ async def list_claims(
     claim_type: Annotated[ClaimType | None, Query()] = None,
     epistemic_status: Annotated[EpistemicStatus | None, Query()] = None,
     source_document_id: Annotated[str | None, Query()] = None,
+    include_descendants: Annotated[bool, Query()] = False,
     source_language: Annotated[str | None, Query()] = None,
     source_type: Annotated[SourceType | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=1000)] = 200,
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Database = Depends(get_library_database),
 ) -> list[KnowledgeClaim]:
-    """List knowledge claims with optional filtering."""
+    """List knowledge claims with optional filtering.
+
+    When ``include_descendants=true`` is combined with
+    ``source_document_id=<folder_id>``, claims for the folder AND every
+    descendant doc are returned — required by the folder KG view
+    because extract_all writes claims to PAGE docs, not the container
+    (#826).
+    """
     claims = db.all(KnowledgeClaim)
 
     # Apply filters
@@ -233,7 +262,11 @@ async def list_claims(
     if epistemic_status:
         claims = [c for c in claims if c.epistemic_status == epistemic_status]
     if source_document_id:
-        claims = [c for c in claims if c.source_document_id == source_document_id]
+        if include_descendants:
+            doc_ids = _descendant_doc_ids(db, source_document_id)
+            claims = [c for c in claims if c.source_document_id in doc_ids]
+        else:
+            claims = [c for c in claims if c.source_document_id == source_document_id]
     if source_language:
         claims = [c for c in claims if source_language in c.source_languages]
     if source_type:
