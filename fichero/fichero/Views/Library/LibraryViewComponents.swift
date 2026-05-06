@@ -307,9 +307,16 @@ struct DocumentThumbnailView: View {
                     )
                     .clipped()
                 } else {
-                    // Load thumbnail from backend API with library path header
+                    // Load thumbnail from backend API with library path header.
+                    // Pin to the cell's 3:4 aspect via the inner GeometryReader-
+                    // style frame so wide-aspect images (panoramas, landscape
+                    // photos) don't blow past the cell width and overlap the
+                    // neighbour to the right (#789). `.fill` + `.clipped()`
+                    // alone wasn't enough — without an explicit frame, the
+                    // intrinsic image size won the layout pass.
                     LibraryImageView(documentId: document.id, imageType: .thumbnail)
                         .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
                 }
 
