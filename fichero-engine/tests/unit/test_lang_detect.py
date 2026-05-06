@@ -35,6 +35,28 @@ class TestDetectLanguage:
         # 2 stop-word hits below the >=3 threshold → default.
         assert detect_language("the a") == "English"
 
+    def test_english_with_spanish_loanwords_stays_english(self):
+        # Real source pattern from Tubb's English chapter on the Chocó
+        # — the kind of doc that previously biased to Spanish (#823).
+        text = (
+            "The author traveled to the Chocó region of Colombia, "
+            "documenting artisanal gold mining alongside Leidy and her "
+            "family. The work follows the rhythms of rebusque — the "
+            "shifting forms of informal labor that miners use to get by. "
+            "These are the practices of a remote Pacific community."
+        )
+        assert detect_language(text) == "English"
+
+    def test_close_to_tied_breaks_only_with_heavy_diacritics(self):
+        # Roughly equal stop-words but no diacritics → English (default).
+        text = "the cat el gato in the la the and y of de"
+        assert detect_language(text) == "English"
+
+    def test_spanish_must_outweigh_english_by_margin(self):
+        # English wins because Spanish doesn't beat it by 1.5×.
+        text = "the the the the the el el el de"
+        assert detect_language(text) == "English"
+
     def test_caller_can_override_default(self):
         assert detect_language("", default="Spanish") == "Spanish"
 

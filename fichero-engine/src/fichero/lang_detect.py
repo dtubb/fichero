@@ -54,12 +54,21 @@ def detect_language(text: str, default: str = "English") -> str:
     """Return the canonical English name of the dominant language in
     `text` ('English' or 'Spanish' today). Falls back to `default`
     when the text has no usable signal.
+
+    Counts FUNCTION WORDS (the/and/of/to vs el/y/de/a) as the primary
+    signal. Spanish loanwords and proper nouns (Chocó, María, Sánchez)
+    don't tip the balance — those appear in English text frequently and
+    would otherwise force English archive-source documents into Spanish
+    output (#823).
+
+    Spanish diacritics are used ONLY as a tie-breaker when stop-word
+    counts are close (within 1.5×), not as additional weight. Spanish
+    must outweigh English by ≥ 1.5× in stop-word counts to win.
     """
     if not text:
         return default
 
     sample = text[:2000]
-    spanish_marker_hits = len(_SPANISH_MARKERS.findall(sample))
 
     words = [w.lower() for w in _WORD_RE.findall(sample)]
     if not words:
@@ -71,19 +80,39 @@ def detect_language(text: str, default: str = "English") -> str:
             if word in hints:
                 counts[lang] += 1
 
-    # Heavy diacritic hit (>= 3 in 2000 chars) is a strong Spanish
-    # vote — bias the count to break ties.
-    if spanish_marker_hits >= 3:
-        counts["Spanish"] += spanish_marker_hits
+    en_hits = counts.get("English", 0)
+    es_hits = counts.get("Spanish", 0)
 
-    if not counts:
+    spanish_marker_hits = len(_SPANISH_MARKERS.findall(sample))
+
+    # No stop-word signal at all — diacritic count is the only hint.
+    # Pure-noun Spanish text (place names, lists) lands here.
+    if max(en_hits, es_hits) == 0:
+        if spanish_marker_hits >= 3:
+            return "Spanish"
         return default
 
-    top, _ = counts.most_common(1)[0]
-    # Require at least 3 hits; below that, sample is too noisy to trust.
-    if counts[top] < 3:
+    # Below the noise floor — sample too small to trust either way.
+    if max(en_hits, es_hits) < 3:
         return default
-    return top
+
+    # Require Spanish to outweigh English by ≥ 1.5× before flipping
+    # away from English. Small sample noise + a few Spanish loanwords
+    # shouldn't push an English-dominant document into Spanish output.
+    if es_hits >= en_hits * 1.5:
+        return "Spanish"
+    if en_hits >= es_hits * 1.5:
+        return "English"
+
+    # Within 1.5× of each other — diacritics break the tie, but only
+    # when they're substantial (>= 8 in a 2000-char sample).
+    if spanish_marker_hits >= 8:
+        return "Spanish"
+
+    # Default to English for ambiguous mixed-language text — fichero
+    # archive sources are predominantly English with embedded Spanish
+    # loanwords, not the other way around.
+    return "English"
 
 
 def resolve_output_language(
