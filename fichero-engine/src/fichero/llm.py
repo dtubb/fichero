@@ -420,12 +420,12 @@ async def _apple_intelligence_chat(
     Apple Intelligence's public API is Swift-native (LanguageModelSession.
     respond(to:)) and not @objc-exposed, so pyobjc loads the classes but
     can't call their methods. The fm-bridge binary (compiled from
-    fichero-engine/bin/fm-bridge/main.swift) is a tiny CLI that takes a JSON
+    fichero-engine/bin/fm-bridge/FmBridge.swift) is a tiny CLI that takes a JSON
     request on stdin and emits a JSON response on stdout.
 
     Build with:
         swiftc -O -parse-as-library -o fichero-engine/bin/fm-bridge/fm-bridge \\
-            fichero-engine/bin/fm-bridge/main.swift
+            fichero-engine/bin/fm-bridge/FmBridge.swift
     """
     import json as _json
     from pathlib import Path
@@ -472,7 +472,7 @@ async def _apple_intelligence_chat(
         raise RuntimeError(
             "fm-bridge binary not found. Build with: "
             "swiftc -O -parse-as-library -o fichero-engine/bin/fm-bridge/fm-bridge "
-            "fichero-engine/bin/fm-bridge/main.swift"
+            "fichero-engine/bin/fm-bridge/FmBridge.swift"
         )
 
     # Pass temperature + max_tokens through to fm-bridge → Apple's
