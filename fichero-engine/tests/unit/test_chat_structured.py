@@ -318,7 +318,7 @@ class TestChatStructuredDispatch:
 
         assert result is invoke_result
         base_model.with_structured_output.assert_called_once_with(
-            _Result, method="json_schema"
+            _Result, method="json_schema", include_raw=True
         )
 
     @pytest.mark.asyncio
@@ -341,8 +341,80 @@ class TestChatStructuredDispatch:
             )
 
         base_model.with_structured_output.assert_called_once_with(
-            _Result, method="function_calling"
+            _Result, method="function_calling", include_raw=True
         )
+
+    @pytest.mark.asyncio
+    async def test_include_raw_dict_unwraps_to_parsed(self, caplog):
+        """include_raw=True returns {raw, parsed, parsing_error}.
+        chat_structured must unwrap the parsed instance and log
+        usage_metadata from the raw AIMessage. (#844 item 8)"""
+        import logging
+        cfg = LLMConfig(provider="openai", model="gpt-5")
+
+        raw_message = MagicMock()
+        raw_message.usage_metadata = {
+            "input_tokens": 120,
+            "output_tokens": 45,
+            "total_tokens": 165,
+        }
+        invoke_result = {
+            "raw": raw_message,
+            "parsed": _Result(answer="from-dict"),
+            "parsing_error": None,
+        }
+        structured_model = MagicMock()
+        structured_model.ainvoke = AsyncMock(return_value=invoke_result)
+        base_model = MagicMock()
+        base_model.profile = {"structured_output": True}
+        base_model.with_structured_output = MagicMock(return_value=structured_model)
+
+        with patch("fichero.llm.get_langchain_model", return_value=base_model), \
+             caplog.at_level(logging.INFO, logger="fichero.llm"):
+            result = await chat_structured(prompt="x", schema=_Result, config=cfg)
+
+        assert result == _Result(answer="from-dict")
+        assert any("LLM usage" in r.message and "input=120" in r.message
+                   for r in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_include_raw_parsing_error_raises(self):
+        """When the model returns parsing_error and no parsed value,
+        chat_structured must raise — not silently return None."""
+        cfg = LLMConfig(provider="openai", model="gpt-5")
+        invoke_result = {
+            "raw": MagicMock(usage_metadata=None),
+            "parsed": None,
+            "parsing_error": ValueError("schema mismatch on field 'x'"),
+        }
+        structured_model = MagicMock()
+        structured_model.ainvoke = AsyncMock(return_value=invoke_result)
+        base_model = MagicMock()
+        base_model.profile = {"structured_output": True}
+        base_model.with_structured_output = MagicMock(return_value=structured_model)
+
+        with patch("fichero.llm.get_langchain_model", return_value=base_model):
+            with pytest.raises(RuntimeError, match="structured parse failed"):
+                await chat_structured(prompt="x", schema=_Result, config=cfg)
+
+    @pytest.mark.asyncio
+    async def test_include_raw_legacy_pydantic_return_still_works(self):
+        """Backward-compat: tests / providers that return a bare Pydantic
+        instance from ainvoke (rather than the dict shape) keep working —
+        the unwrap branch checks for the dict shape first."""
+        cfg = LLMConfig(provider="openai", model="gpt-5")
+
+        invoke_result = _Result(answer="legacy")
+        structured_model = MagicMock()
+        structured_model.ainvoke = AsyncMock(return_value=invoke_result)
+        base_model = MagicMock()
+        base_model.profile = {"structured_output": True}
+        base_model.with_structured_output = MagicMock(return_value=structured_model)
+
+        with patch("fichero.llm.get_langchain_model", return_value=base_model):
+            result = await chat_structured(prompt="x", schema=_Result, config=cfg)
+
+        assert result == _Result(answer="legacy")
 
     @pytest.mark.asyncio
     async def test_non_apple_provider_includes_system_message(self):

@@ -340,7 +340,7 @@ async def chat(
         # every ainvoke in asyncio.wait_for so a stuck call eventually
         # surfaces a TimeoutError that chat_with_fallback / structured
         # callers can route around.
-        budget = _langchain_timeout_budget(config)
+        budget = _compute_timeout(config, "langchain")
         try:
             response = await asyncio.wait_for(
                 model.ainvoke(messages), timeout=budget,
@@ -350,6 +350,19 @@ async def chat(
                 f"LangChain {config.provider}/{config.model} chat exceeded "
                 f"{budget}s — provider hang"
             ) from exc
+        # Surface usage_metadata to the cost-tracking log alongside the
+        # structured path (#844 item 8). AIMessage.usage_metadata is the
+        # LangChain ≥0.3 standard shape: input_tokens / output_tokens /
+        # total_tokens dict.
+        usage = getattr(response, "usage_metadata", None)
+        if isinstance(usage, dict) and usage:
+            logger.info(
+                "LLM usage [%s/%s chat]: input=%s output=%s total=%s",
+                config.provider, config.model,
+                usage.get("input_tokens"),
+                usage.get("output_tokens"),
+                usage.get("total_tokens"),
+            )
         return _strip_outer_code_fences(response.content)
 
 
@@ -1149,7 +1162,14 @@ async def chat_structured(
         method = "json_schema"
     else:
         method = "function_calling"
-    structured_model = model.with_structured_output(schema, method=method)
+    # include_raw=True returns a dict with both the parsed Pydantic
+    # instance and the raw AIMessage so we can surface usage_metadata
+    # (token counts, finish reason) alongside the parsed result. Without
+    # this the structured path was invisible to cost tracking — token
+    # counts only flowed through plain chat() (#844 item 8).
+    structured_model = model.with_structured_output(
+        schema, method=method, include_raw=True,
+    )
 
     messages: list[Any] = []
     if system:
@@ -1158,7 +1178,7 @@ async def chat_structured(
     # Wall-clock timeout (#844 robustness, mirrors chat()). Some
     # backends ignore the per-model timeout kwarg under HTTP keepalive;
     # asyncio.wait_for is the backstop.
-    budget = _langchain_timeout_budget(config)
+    budget = _compute_timeout(config, "langchain")
     try:
         result = await asyncio.wait_for(
             structured_model.ainvoke(messages), timeout=budget,
@@ -1168,7 +1188,45 @@ async def chat_structured(
             f"LangChain {config.provider}/{config.model} structured call "
             f"exceeded {budget}s — provider hang"
         ) from exc
-    return result
+
+    # `result` is a dict {'raw': AIMessage, 'parsed': Schema, 'parsing_error': ...}
+    # when include_raw=True. Older code paths and tests that mocked
+    # with_structured_output return the parsed instance directly — handle
+    # both shapes so the rollout doesn't break consumers.
+    parsed: BaseModel | None = None
+    raw_message: Any = None
+    if isinstance(result, dict) and "parsed" in result:
+        parsed = result.get("parsed")
+        raw_message = result.get("raw")
+        parsing_error = result.get("parsing_error")
+        if parsing_error and parsed is None:
+            raise RuntimeError(
+                f"LangChain {config.provider}/{config.model} structured "
+                f"parse failed: {parsing_error}"
+            )
+    else:
+        parsed = result
+
+    # Log usage_metadata when present so it flows into the existing cost-
+    # tracking layer. AIMessage.usage_metadata is a dict with input_tokens,
+    # output_tokens, total_tokens (LangChain ≥0.3 standard shape).
+    usage = getattr(raw_message, "usage_metadata", None) if raw_message else None
+    if isinstance(usage, dict) and usage:
+        logger.info(
+            "LLM usage [%s/%s structured]: input=%s output=%s total=%s method=%s",
+            config.provider, config.model,
+            usage.get("input_tokens"),
+            usage.get("output_tokens"),
+            usage.get("total_tokens"),
+            method,
+        )
+
+    if parsed is None:
+        raise RuntimeError(
+            f"LangChain {config.provider}/{config.model} structured call "
+            f"returned no parsed result (raw={raw_message!r})"
+        )
+    return parsed
 
 
 async def chat_structured_with_fallback(
