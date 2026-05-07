@@ -566,7 +566,48 @@ async def _apple_intelligence_chat(
             f"fm-bridge stdout was not valid JSON: {stdout_bytes!r}"
         ) from exc
 
-    return result.get("response", "")
+    # Estimated token usage for cost-tracking parity with LangChain (#843
+    # item 3). Apple Intelligence's Foundation Models API surfaces token
+    # counts via Response.transcriptEntries, but plumbing that through
+    # fm-bridge's Codable response shape is a Swift-side change pending
+    # verified API. Estimate from chars in the meantime — accurate to
+    # ~10% for English / Spanish text. Marked (estimated) in the log so
+    # cost dashboards can flag it distinctly from cloud-reported counts.
+    response_text = result.get("response", "")
+    _log_apple_usage_estimate(config, prompt, response_text, kind="chat")
+    return response_text
+
+
+def _log_apple_usage_estimate(
+    config: LLMConfig,
+    prompt: Any,
+    response_text: str,
+    *,
+    kind: str,
+) -> None:
+    """Emit an INFO log with estimated input/output/total tokens for an
+    Apple Intelligence call. Best-effort — Foundation Models doesn't
+    expose token counts through fm-bridge's stdout payload yet, so we
+    estimate from char counts via estimate_token_count. Marked
+    (estimated) so dashboards can distinguish from cloud-reported
+    usage. (#843 item 3)
+    """
+    if isinstance(prompt, str):
+        prompt_text = prompt
+    elif isinstance(prompt, list):
+        # OpenAI-style messages list: concat content fields for the estimate.
+        prompt_text = " ".join(
+            str(m.get("content", "")) for m in prompt if isinstance(m, dict)
+        )
+    else:
+        prompt_text = str(prompt)
+    input_tokens = estimate_token_count(prompt_text)
+    output_tokens = estimate_token_count(response_text or "")
+    logger.info(
+        "LLM usage [%s/%s %s]: input=~%d output=~%d total=~%d (estimated)",
+        config.provider, config.model, kind,
+        input_tokens, output_tokens, input_tokens + output_tokens,
+    )
 
 
 def _raise_from_bridge_stderr(stderr_bytes: bytes, returncode: int) -> None:
@@ -1758,6 +1799,11 @@ async def _apple_intelligence_structured(
 
     bridge_result = _json.loads(stdout_bytes.decode())
     response_json = bridge_result.get("response_json", "")
+    # Estimated token usage for cost-tracking parity (#843 item 3). The
+    # response payload here is grammar-constrained JSON; estimate from
+    # chars like the chat path. Schema-prompt overhead is accounted for
+    # in the input estimate by including the rendered prompt.
+    _log_apple_usage_estimate(config, prompt, response_json, kind="structured")
     # Parse the grammar-constrained JSON (always valid by construction)
     # into the Pydantic class. Validation here is belt-and-suspenders —
     # the schema constraint should already guarantee shape, but a typed

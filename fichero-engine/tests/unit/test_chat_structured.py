@@ -398,6 +398,46 @@ class TestChatStructuredDispatch:
                 await chat_structured(prompt="x", schema=_Result, config=cfg)
 
     @pytest.mark.asyncio
+    async def test_apple_logs_estimated_usage(self, caplog):
+        """Apple Intelligence path logs an estimated input/output/total
+        token count via _log_apple_usage_estimate (#843 item 3).
+        Foundation Models doesn't expose token counts through fm-bridge's
+        stdout payload yet, so we estimate from char counts and mark the
+        log line (estimated)."""
+        import logging
+        from fichero.llm import _log_apple_usage_estimate
+
+        cfg = LLMConfig(provider="apple", model="apple-intelligence")
+        with caplog.at_level(logging.INFO, logger="fichero.llm"):
+            _log_apple_usage_estimate(
+                cfg,
+                prompt="hola, esto es un prompt corto",
+                response_text="ok",
+                kind="chat",
+            )
+        msgs = [r.message for r in caplog.records]
+        assert any("apple/apple-intelligence chat" in m for m in msgs)
+        assert any("(estimated)" in m for m in msgs)
+        assert any("input=~" in m and "output=~" in m for m in msgs)
+
+    @pytest.mark.asyncio
+    async def test_apple_usage_handles_messages_list(self, caplog):
+        """When prompt is a messages list (OpenAI shape), the estimator
+        concats content fields rather than crashing on str()."""
+        import logging
+        from fichero.llm import _log_apple_usage_estimate
+
+        cfg = LLMConfig(provider="apple", model="apple-intelligence")
+        prompt = [
+            {"role": "system", "content": "be brief"},
+            {"role": "user", "content": "what is 2+2"},
+        ]
+        with caplog.at_level(logging.INFO, logger="fichero.llm"):
+            _log_apple_usage_estimate(cfg, prompt=prompt, response_text="4", kind="chat")
+        # Estimator ran and logged — no exception on list input.
+        assert any("estimated" in r.message for r in caplog.records)
+
+    @pytest.mark.asyncio
     async def test_include_raw_legacy_pydantic_return_still_works(self):
         """Backward-compat: tests / providers that return a bare Pydantic
         instance from ainvoke (rather than the dict shape) keep working —
