@@ -46,21 +46,44 @@ move to release packaging (#658–#660).
 Nothing right now. Daniel needs to test the new pipeline end to end on
 a real folder before the release packaging path opens up.
 
-## Overnight Work (2026-05-06 → morning)
+## Overnight Work — completed (2026-05-06 night → morning)
 
-**Master plan:** #872. Tonight's execution sequence covers the LLM-stack
-overhaul rolled up under Themes #868 (Provider abstraction), #869
-(Contract robustness), #870 (Apple path consolidation), #871 (Test +
-observability).
+**Master plan:** #872. 12 issues closed tonight, ~430 tests passing.
 
-**Live bug fix shipped tonight:** `d04dae26` — #868 routes Apple
-Intelligence's `unsupportedLanguageOrLocale` to the $large fallback
-the same way guardrail refusals already are. New typed exception
-hierarchy: `AppleUnavailableError` base + `GuardrailViolationError`
-and `UnsupportedLocaleError` subclasses. fm-bridge stderr mapping
-updated. Live symptom on the 68-page 'Legal Case' (Spanish):
-extract_all hard-failing every chunk → no claims → empty catalogue
-narrative. Restart the backend to pick this up.
+**Shipped tonight (in commit order):**
+1. `d04dae26` #868 — AppleUnavailableError hierarchy + Spanish locale fallback
+2. `e5dbe0b5` #863 — fm-bridge SourceKit @main warning (rename main.swift)
+3. `61ba3978` #857 — apple_intelligence_supports_locale → async
+4. `4c4b01b3` #856 — _pydantic_to_apple_schema fail-loud assertions
+5. `810997cf` #865 — _format_claims_as_context configurable per-section caps
+6. `b1e87b9e` #855/#862/#867 — _compute_timeout helper (3 formulas → 1)
+7. `da0a6a67` #859 — reasoning on catalogue narrative (medium effort)
+8. Closed #851, #858, #860, #861, #864, #866 with status notes
+
+**Live bug fix the rest cascaded from:** #868 routes Apple Intelligence's
+`unsupportedLanguageOrLocale` to $large fallback. Typed hierarchy:
+`AppleUnavailableError` base + `GuardrailViolationError` and
+`UnsupportedLocaleError` subclasses. fm-bridge stderr mapping updated.
+Live symptom on the 68-page Spanish 'Legal Case': extract_all
+hard-failing every chunk → no claims → empty catalogue narrative.
+Restart the backend to pick this up.
+
+**Architectural improvements:**
+- Single `_compute_timeout(config, kind, *, schema_chars=None)` is the
+  source of truth for wall-clock timeouts; scales with config.timeout,
+  max_tokens, and (for apple_structured) schema size.
+- `_pydantic_to_apple_schema` raises ValueError with field-pointing
+  message on unsupported shapes (discriminated unions, enums, format
+  keywords, recursive types) instead of silently emitting a partial tree.
+- Reasoning `medium` effort wired into Claude Sonnet 4.6 narrative
+  synthesis (single-shot + final reduce in `_generate_resumen`);
+  per-provider routing handles anthropic/openai-o-series/openrouter.
+
+**Deferred to next session:**
+- Theme A (#868): LLMProvider Protocol refactor — too big to do safely
+  tonight. Foundation laid by _compute_timeout consolidation.
+- #843, #844 (token telemetry, cost dashboard) — Theme D scope.
+- #873 pytest integration test — needs fixture infra design.
 
 **Decisions logged (Daniel approved):**
 - Theme C: stay on fm-bridge as canonical Apple integration.
