@@ -24,6 +24,7 @@ from fichero.llm import (
     GuardrailViolationError,
     LLMConfig,
     UnsupportedLocaleError,
+    _compute_timeout,
     _pydantic_to_apple_schema,
     _raise_from_bridge_stderr,
     apple_intelligence_supports_locale,
@@ -53,6 +54,75 @@ class _Extraction(BaseModel):
     people: list[_Person]
     places: list[_Place] = Field(default_factory=list)
     summary: Optional[str] = Field(default=None, description="one-liner")
+
+
+class TestComputeTimeout:
+    """Single source of truth for wall-clock timeouts on every LLM
+    call path (#855, #862, #867). Three formulas, scaled by config
+    timeout, max_tokens, and schema size (Apple structured only)."""
+
+    def test_langchain_default_floors_at_60s(self):
+        cfg = LLMConfig(provider="openai", model="gpt-4", timeout=10, max_tokens=512)
+        # 10 * 5 * (512/1024) = 25 → clamped to floor 60
+        assert _compute_timeout(cfg, "langchain") == 60
+
+    def test_langchain_scales_with_max_tokens(self):
+        small = LLMConfig(provider="x", model="y", timeout=60, max_tokens=128)
+        big = LLMConfig(provider="x", model="y", timeout=60, max_tokens=4096)
+        # Bigger max_tokens → bigger budget, both clamped though.
+        assert _compute_timeout(big, "langchain") > _compute_timeout(small, "langchain")
+
+    def test_langchain_caps_at_600s(self):
+        cfg = LLMConfig(provider="x", model="y", timeout=600, max_tokens=4096)
+        # 600 * 5 * 4 = 12000 → clamped to 600
+        assert _compute_timeout(cfg, "langchain") == 600
+
+    def test_apple_chat_tighter_than_langchain(self):
+        cfg = LLMConfig(provider="apple", model="apple-intelligence", timeout=60)
+        chat = _compute_timeout(cfg, "apple_chat")
+        lc = _compute_timeout(cfg, "langchain")
+        # Free-form Apple should be tighter — guided decoding overhead
+        # is on structured, not chat.
+        assert chat < lc
+
+    def test_apple_chat_floors_at_30s(self):
+        cfg = LLMConfig(provider="apple", model="x", timeout=10, max_tokens=128)
+        # 10 * (128/1024) = 1.25 → clamped to floor 30
+        assert _compute_timeout(cfg, "apple_chat") == 30
+
+    def test_apple_chat_caps_at_180s(self):
+        cfg = LLMConfig(provider="apple", model="x", timeout=600, max_tokens=4096)
+        assert _compute_timeout(cfg, "apple_chat") == 180
+
+    def test_apple_structured_scales_with_schema_size(self):
+        cfg = LLMConfig(provider="apple", model="x", timeout=60)
+        small_schema = _compute_timeout(cfg, "apple_structured", schema_chars=500)
+        big_schema = _compute_timeout(cfg, "apple_structured", schema_chars=10000)
+        # Bigger schema → more guided-decoding overhead → bigger budget.
+        assert big_schema > small_schema
+
+    def test_apple_structured_baseline(self):
+        cfg = LLMConfig(provider="apple", model="x", timeout=60, max_tokens=1024)
+        # 60 * 2 * 1.0 (1024 baseline) * 1.0 (2K schema baseline) = 120
+        assert _compute_timeout(cfg, "apple_structured", schema_chars=2000) == 120
+
+    def test_apple_structured_caps_at_600s(self):
+        cfg = LLMConfig(provider="apple", model="x", timeout=600, max_tokens=4096)
+        assert _compute_timeout(
+            cfg, "apple_structured", schema_chars=10000,
+        ) == 600
+
+    def test_unknown_kind_raises(self):
+        cfg = LLMConfig(provider="x", model="y", timeout=60)
+        with pytest.raises(ValueError, match="Unknown timeout kind"):
+            _compute_timeout(cfg, "garbage")  # type: ignore[arg-type]
+
+    def test_zero_timeout_uses_default_base(self):
+        """config.timeout=0 means 'no client-side timeout' — the helper
+        defaults to a sensible base (60s) and clamps from there."""
+        cfg = LLMConfig(provider="x", model="y", timeout=0, max_tokens=1024)
+        # 60 * 5 * 1 = 300 (in [60, 600])
+        assert _compute_timeout(cfg, "langchain") == 300
 
 
 class TestPydanticToAppleSchema:

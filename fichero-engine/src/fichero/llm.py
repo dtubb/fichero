@@ -41,7 +41,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from typing import AsyncIterator, Any
+from typing import AsyncIterator, Any, Literal as _Literal
 
 from pydantic import BaseModel
 
@@ -513,23 +513,22 @@ async def _apple_intelligence_chat(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    # Bound subprocess by config.timeout so a hung Apple Intelligence
-    # session can't block the workflow forever. Default timeout=60s on
-    # LLMConfig is plenty for normal generations; longer narrative
-    # tasks pass higher max_tokens which extends the budget separately.
-    # On timeout, kill the process and surface a generation error so
-    # chat_with_fallback can route to $large.
+    # Bound subprocess by _compute_timeout(apple_chat) so a hung Apple
+    # Intelligence session can't block the workflow forever. On timeout,
+    # kill the process and surface a generation error so chat_with_fallback
+    # can route to $large. (#855)
+    chat_budget = _compute_timeout(config, "apple_chat")
     try:
         stdout_bytes, stderr_bytes = await asyncio.wait_for(
             proc.communicate(request_payload),
-            timeout=max(30, config.timeout) if config.timeout else 120,
+            timeout=chat_budget,
         )
     except asyncio.TimeoutError:
         proc.kill()
         await proc.wait()
         raise RuntimeError(
             f"Apple Intelligence (timeout): fm-bridge exceeded "
-            f"{config.timeout}s for prompt — provider hang"
+            f"{chat_budget}s for prompt — provider hang"
         )
 
     if proc.returncode != 0:
@@ -1291,20 +1290,70 @@ def apple_intelligence_fits_in_context(
     return estimate + response_headroom <= context_size
 
 
-def _langchain_timeout_budget(config: LLMConfig) -> float:
-    """Wall-clock timeout we wrap LangChain ainvoke calls in.
+_TimeoutKind = _Literal["langchain", "apple_chat", "apple_structured"]
 
-    LangChain accepts a `timeout` kwarg per provider but enforcement is
-    inconsistent — some HTTP clients honor it, some don't, and some hang
-    under keepalive. This is the outer asyncio.wait_for budget that
-    eventually fires regardless. Defaults to 5× config.timeout so
-    legitimate long generations (catalogue narrative, large summaries)
-    aren't cut short, with a floor of 60s and a ceiling of 600s. Set
-    config.timeout=0 or None to disable and rely on provider-side only.
+
+def _compute_timeout(
+    config: LLMConfig,
+    kind: _TimeoutKind,
+    *,
+    schema_chars: int | None = None,
+) -> float:
+    """Single source of truth for wall-clock timeouts on every LLM call
+    path (#855, #862, #867).
+
+    Three formulas, scaled by config.timeout, config.max_tokens, and
+    (for Apple structured) the schema size. Outputs are clamped to
+    sensible floors and ceilings so a misconfigured config can't
+    starve legitimate work or leave a stuck call hanging forever.
+
+    Knobs:
+    - config.timeout: base seconds, scaled by `kind` factor
+    - config.max_tokens: longer outputs get more wall-clock budget;
+      a 4K-token narrative legitimately takes longer than a 200-token
+      tag list. Reference baseline = 1024 tokens (1.0x scale).
+    - schema_chars: only used for `apple_structured`. A 6-section
+      _Extraction (~5K chars) needs more budget than a 5-name dedup
+      (~500 chars). Reference baseline = 2K chars.
+
+    Replaces the three scattered formulas (#855):
+    - _langchain_timeout_budget (config.timeout × 5, [60, 600])
+    - apple chat (max(30, config.timeout) or 120)
+    - apple structured (max(180, config.timeout × 3) or 300)
     """
-    if not config.timeout:
-        return 600.0
-    return float(min(600, max(60, config.timeout * 5)))
+    base = config.timeout if config.timeout else 60
+
+    output_factor = max(0.25, (config.max_tokens or 1024) / 1024)
+
+    if kind == "langchain":
+        # LangChain ainvoke is wrapped in asyncio.wait_for as a backstop
+        # for backends that ignore their own timeout under HTTP keepalive.
+        # Generous: 5× base × output factor.
+        budget = base * 5 * output_factor
+        return float(min(600, max(60, budget)))
+
+    if kind == "apple_chat":
+        # Free-form generation finishes faster than guided decoding.
+        # Tighter budget so a hung session doesn't block too long.
+        budget = base * output_factor
+        return float(min(180, max(30, budget)))
+
+    if kind == "apple_structured":
+        # Guided decoding has per-token overhead proportional to the
+        # schema's branching factor. Scale by the schema's serialized
+        # size as a cheap proxy.
+        schema_factor = max(1.0, (schema_chars or 2000) / 2000)
+        budget = base * 2 * output_factor * schema_factor
+        return float(min(600, max(60, budget)))
+
+    raise ValueError(f"Unknown timeout kind: {kind!r}")
+
+
+def _langchain_timeout_budget(config: LLMConfig) -> float:
+    """Backwards-compat shim — delegates to _compute_timeout. Kept so
+    existing imports don't break; new code should call _compute_timeout
+    directly."""
+    return _compute_timeout(config, "langchain")
 
 
 # Cache + lock for the async locale probe. We can't use lru_cache on a
@@ -1588,10 +1637,11 @@ async def _apple_intelligence_structured(
             "src/fichero/resources/bin/"
         )
 
+    apple_schema_dict = _pydantic_to_apple_schema(schema)
     request: dict[str, Any] = {
         "prompt": prompt,
         "instructions": system or "",
-        "schema": _pydantic_to_apple_schema(schema),
+        "schema": apple_schema_dict,
     }
     if include_schema_in_prompt is not None:
         request["include_schema_in_prompt"] = include_schema_in_prompt
@@ -1613,14 +1663,13 @@ async def _apple_intelligence_structured(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    # Subprocess timeout for structured calls. Apple Intelligence's
-    # small on-device model can genuinely take 30-90s on a complex
-    # multi-section schema (extract_all's 6-section _Extraction is the
-    # worst case). We extend config.timeout × 3 with a floor of 180s
-    # for structured calls — short timeouts shouldn't kill legitimate
-    # long generations. Free-form chat path uses a tighter budget
-    # because string generation finishes faster than guided decoding.
-    structured_budget = max(180.0, config.timeout * 3) if config.timeout else 300.0
+    # Subprocess timeout for structured calls scales with schema size
+    # (#862) and config.max_tokens (#867) so a 5-name dedup doesn't pay
+    # the same wall-clock as a 6-section _Extraction. (#855)
+    schema_chars = len(_json.dumps(apple_schema_dict)) if apple_schema_dict else 2000
+    structured_budget = _compute_timeout(
+        config, "apple_structured", schema_chars=schema_chars,
+    )
     try:
         stdout_bytes, stderr_bytes = await asyncio.wait_for(
             proc.communicate(payload),
