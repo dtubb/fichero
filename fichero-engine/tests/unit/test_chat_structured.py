@@ -436,67 +436,81 @@ class TestAppleUnavailableHierarchy:
 
 
 class TestSupportsLocale:
-    """apple_intelligence_supports_locale subprocesses fm-bridge with
-    --supports-locale <code>. We mock subprocess.run since the unit
-    test environment may not have fm-bridge available."""
+    """apple_intelligence_supports_locale spawns fm-bridge via
+    asyncio.create_subprocess_exec — non-blocking probe on a typed
+    coroutine boundary (#857). Tests mock the asyncio process to avoid
+    needing fm-bridge in the test environment."""
 
     def setup_method(self):
-        # Cache is process-level; clear between tests so each test
+        # Cache is module-level; clear between tests so each test
         # exercises the subprocess path freshly.
-        apple_intelligence_supports_locale.cache_clear()
+        from fichero.llm import _LOCALE_SUPPORT_CACHE
+        _LOCALE_SUPPORT_CACHE.clear()
 
-    def test_supported_locale_returns_true(self):
+    def _fake_proc(self, returncode: int, stdout: bytes, stderr: bytes = b""):
+        """Build a mock async subprocess that mimics the bits we use:
+        .returncode + .communicate() returning (stdout, stderr)."""
+        proc = MagicMock()
+        proc.returncode = returncode
+        proc.communicate = AsyncMock(return_value=(stdout, stderr))
+        return proc
+
+    @pytest.mark.asyncio
+    async def test_supported_locale_returns_true(self):
         """Bridge stdout `{supported: true}` → helper returns True."""
-        import subprocess
+        proc = self._fake_proc(0, b'{"locale":"en","supported":true}')
         with patch(
-            "subprocess.run",
-            return_value=subprocess.CompletedProcess(
-                args=[], returncode=0,
-                stdout=b'{"locale":"en","supported":true}',
-                stderr=b"",
-            ),
-        ):
-            assert apple_intelligence_supports_locale("en") is True
+            "asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=proc),
+        ), patch("pathlib.Path.is_file", return_value=True), \
+           patch("pathlib.Path.stat") as mock_stat:
+            mock_stat.return_value.st_mode = 0o755
+            assert await apple_intelligence_supports_locale("en") is True
 
-    def test_unsupported_locale_returns_false(self):
+    @pytest.mark.asyncio
+    async def test_unsupported_locale_returns_false(self):
         """Bridge stdout `{supported: false}` → helper returns False."""
-        import subprocess
+        proc = self._fake_proc(0, b'{"locale":"yi","supported":false}')
         with patch(
-            "subprocess.run",
-            return_value=subprocess.CompletedProcess(
-                args=[], returncode=0,
-                stdout=b'{"locale":"yi","supported":false}',
-                stderr=b"",
-            ),
-        ):
-            assert apple_intelligence_supports_locale("yi") is False
+            "asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=proc),
+        ), patch("pathlib.Path.is_file", return_value=True), \
+           patch("pathlib.Path.stat") as mock_stat:
+            mock_stat.return_value.st_mode = 0o755
+            assert await apple_intelligence_supports_locale("yi") is False
 
-    def test_bridge_failure_returns_false(self):
+    @pytest.mark.asyncio
+    async def test_bridge_failure_returns_false(self):
         """Any failure (binary missing, timeout, JSON parse error)
         returns False so callers don't accidentally route to a
         non-functional Apple Intelligence path."""
-        import subprocess
+        proc = self._fake_proc(1, b"", b"fm-bridge crash")
         with patch(
-            "subprocess.run",
-            return_value=subprocess.CompletedProcess(
-                args=[], returncode=1,
-                stdout=b"",
-                stderr=b"fm-bridge crash",
-            ),
-        ):
-            assert apple_intelligence_supports_locale("en") is False
+            "asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=proc),
+        ), patch("pathlib.Path.is_file", return_value=True), \
+           patch("pathlib.Path.stat") as mock_stat:
+            mock_stat.return_value.st_mode = 0o755
+            assert await apple_intelligence_supports_locale("en") is False
 
-    def test_result_is_cached(self):
-        """Cache hits avoid the subprocess overhead. Two calls to the
-        same locale should subprocess only once."""
-        import subprocess
-        mock = MagicMock(return_value=subprocess.CompletedProcess(
-            args=[], returncode=0,
-            stdout=b'{"locale":"en","supported":true}',
-            stderr=b"",
-        ))
-        with patch("subprocess.run", new=mock):
-            apple_intelligence_supports_locale("en")
-            apple_intelligence_supports_locale("en")
-            apple_intelligence_supports_locale("en")
-        assert mock.call_count == 1
+    @pytest.mark.asyncio
+    async def test_result_is_cached(self):
+        """Cache hits avoid the subprocess overhead. Three calls to the
+        same locale should subprocess only once — the lock + cache
+        pattern is async-safe."""
+        proc = self._fake_proc(0, b'{"locale":"en","supported":true}')
+        spawn = AsyncMock(return_value=proc)
+        with patch("asyncio.create_subprocess_exec", new=spawn), \
+             patch("pathlib.Path.is_file", return_value=True), \
+             patch("pathlib.Path.stat") as mock_stat:
+            mock_stat.return_value.st_mode = 0o755
+            await apple_intelligence_supports_locale("en")
+            await apple_intelligence_supports_locale("en")
+            await apple_intelligence_supports_locale("en")
+        assert spawn.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_no_binary_returns_false(self):
+        """When fm-bridge isn't installed, returns False without raising."""
+        with patch("pathlib.Path.is_file", return_value=False):
+            assert await apple_intelligence_supports_locale("en") is False

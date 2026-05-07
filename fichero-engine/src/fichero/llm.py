@@ -1308,55 +1308,84 @@ def _langchain_timeout_budget(config: LLMConfig) -> float:
     return float(min(600, max(60, config.timeout * 5)))
 
 
-@functools.lru_cache(maxsize=64)
-def apple_intelligence_supports_locale(locale: str) -> bool:
+# Cache + lock for the async locale probe. We can't use lru_cache on a
+# coroutine (it caches the coroutine object, not the resolved value), so
+# we do explicit dict + asyncio.Lock — same effect, async-safe.
+_LOCALE_SUPPORT_CACHE: dict[str, bool] = {}
+_LOCALE_SUPPORT_LOCK: asyncio.Lock | None = None
+
+
+async def apple_intelligence_supports_locale(locale: str) -> bool:
     """Check whether Apple Intelligence's on-device model supports a
     given locale (#849). Returns True when the model accepts the locale
     for prompts/responses, False when it doesn't.
 
     Cached at the process level — locale support depends only on the
-    on-device model and doesn't change at runtime.
+    on-device model and doesn't change at runtime. The cache + lock
+    pattern is async-safe (lru_cache can't wrap coroutines correctly).
 
-    Implementation: shells out to fm-bridge --supports-locale <code>
-    which calls SystemLanguageModel.default.supportsLocale(_:). Falls
-    back to False on any failure (binary missing, model unavailable,
-    etc.) so callers don't accidentally route to a non-functional path.
+    Implementation: spawns fm-bridge --supports-locale <code> via
+    asyncio.create_subprocess_exec — non-blocking, fits the rest of
+    the LLM stack's async shape. Falls back to False on any failure
+    (binary missing, model unavailable, etc.) so callers don't
+    accidentally route to a non-functional path.
 
     Use this before submitting an Apple Intelligence call when the
     document language is known and might be unsupported. Cheaper than
     discovering it via mid-generation `unsupportedLanguageOrLocale` error.
     """
     import json as _json
-    import subprocess
     from pathlib import Path
 
-    here = Path(__file__).resolve()
-    candidates = [
-        here.parent / "resources" / "bin" / "fm-bridge",
-        here.parent / "bin" / "fm-bridge" / "fm-bridge",
-        here.parents[3] / "bin" / "fm-bridge" / "fm-bridge",
-        Path("fichero-engine/bin/fm-bridge/fm-bridge").resolve(),
-    ]
-    binary = next(
-        (p for p in candidates if p.is_file() and p.stat().st_mode & 0o111),
-        None,
-    )
-    if binary is None:
-        logger.debug("fm-bridge not found; assuming locale unsupported")
-        return False
+    if locale in _LOCALE_SUPPORT_CACHE:
+        return _LOCALE_SUPPORT_CACHE[locale]
 
-    try:
-        result = subprocess.run(
-            [str(binary), "--supports-locale", locale],
-            capture_output=True, timeout=5,
+    global _LOCALE_SUPPORT_LOCK
+    if _LOCALE_SUPPORT_LOCK is None:
+        _LOCALE_SUPPORT_LOCK = asyncio.Lock()
+
+    async with _LOCALE_SUPPORT_LOCK:
+        # Re-check after acquiring lock — concurrent first-callers race
+        # to compute, but only one actually shells out.
+        if locale in _LOCALE_SUPPORT_CACHE:
+            return _LOCALE_SUPPORT_CACHE[locale]
+
+        here = Path(__file__).resolve()
+        candidates = [
+            here.parent / "resources" / "bin" / "fm-bridge",
+            here.parent / "bin" / "fm-bridge" / "fm-bridge",
+            here.parents[3] / "bin" / "fm-bridge" / "fm-bridge",
+            Path("fichero-engine/bin/fm-bridge/fm-bridge").resolve(),
+        ]
+        binary = next(
+            (p for p in candidates if p.is_file() and p.stat().st_mode & 0o111),
+            None,
         )
-        if result.returncode != 0:
+        if binary is None:
+            logger.debug("fm-bridge not found; assuming locale unsupported")
+            _LOCALE_SUPPORT_CACHE[locale] = False
             return False
-        payload = _json.loads(result.stdout.decode())
-        return bool(payload.get("supported", False))
-    except (subprocess.TimeoutExpired, _json.JSONDecodeError, OSError) as exc:
-        logger.debug(f"fm-bridge --supports-locale {locale!r} failed: {exc}")
-        return False
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                str(binary), "--supports-locale", locale,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _stderr = await asyncio.wait_for(
+                proc.communicate(), timeout=5,
+            )
+            if proc.returncode != 0:
+                _LOCALE_SUPPORT_CACHE[locale] = False
+                return False
+            payload = _json.loads(stdout.decode())
+            supported = bool(payload.get("supported", False))
+            _LOCALE_SUPPORT_CACHE[locale] = supported
+            return supported
+        except (asyncio.TimeoutError, _json.JSONDecodeError, OSError) as exc:
+            logger.debug(f"fm-bridge --supports-locale {locale!r} failed: {exc}")
+            _LOCALE_SUPPORT_CACHE[locale] = False
+            return False
 
 
 def _pydantic_to_apple_schema(model: type[BaseModel]) -> dict[str, Any]:
