@@ -46,9 +46,34 @@ move to release packaging (#658–#660).
 Nothing right now. Daniel needs to test the new pipeline end to end on
 a real folder before the release packaging path opens up.
 
+## Overnight Work (2026-05-06 → morning)
+
+**Master plan:** #872. Tonight's execution sequence covers the LLM-stack
+overhaul rolled up under Themes #868 (Provider abstraction), #869
+(Contract robustness), #870 (Apple path consolidation), #871 (Test +
+observability).
+
+**Live bug fix shipped tonight:** `d04dae26` — #868 routes Apple
+Intelligence's `unsupportedLanguageOrLocale` to the $large fallback
+the same way guardrail refusals already are. New typed exception
+hierarchy: `AppleUnavailableError` base + `GuardrailViolationError`
+and `UnsupportedLocaleError` subclasses. fm-bridge stderr mapping
+updated. Live symptom on the 68-page 'Legal Case' (Spanish):
+extract_all hard-failing every chunk → no claims → empty catalogue
+narrative. Restart the backend to pick this up.
+
+**Decisions logged (Daniel approved):**
+- Theme C: stay on fm-bridge as canonical Apple integration.
+- Theme A: do the LLMProvider Protocol refactor — long-hall worth it.
+
 ## Next Session — Start Here
 
-1. **Test the new Catalogue pipeline** on Test 2 / 1931 Antonio
+1. **Restart the backend** on the new commit so the unsupported_language
+   fix is live. Re-run Catalogue (Mixed) on Legal Case. Expect: extract_all
+   calls Apple → unsupported_language → silently routes to $large →
+   Spanish entities extracted; catalogue.narrative populates;
+   container.page_content shows narrative in inspector RTF panel.
+2. **Test the new Catalogue pipeline** on Test 2 / 1931 Antonio
    Asprilla folder via Apple Intelligence. Verify per-file `_clean`
    artifacts land on each file doc (not just folder). Use the
    Knowledge Graph tab on a single file to check.
