@@ -113,6 +113,84 @@ class TestPydanticToAppleSchema:
         assert summary["description"] == "one-liner"
 
 
+class TestPydanticToAppleSchemaFailLoud:
+    """The converter must fail loud with a field-pointing error on
+    unsupported shapes (#856) — silently emitting a partial tree lets
+    the bridge raise an opaque 'GenerationSchema init failed' downstream
+    that's painful to diagnose."""
+
+    def test_discriminated_union_raises(self):
+        """anyOf with >1 non-null branches isn't expressible in
+        DynamicGenerationSchema; converter must point at the offending
+        field."""
+        from typing import Union
+
+        class _Cat(BaseModel):
+            kind: str = "cat"
+            meow: str
+
+        class _Dog(BaseModel):
+            kind: str = "dog"
+            bark: str
+
+        class _Pet(BaseModel):
+            animal: Union[_Cat, _Dog]
+
+        with pytest.raises(ValueError, match="2 non-null branches"):
+            _pydantic_to_apple_schema(_Pet)
+
+    def test_enum_field_raises(self):
+        """Enum / Literal fields aren't modeled today."""
+        from typing import Literal
+
+        class _Status(BaseModel):
+            state: Literal["pending", "done", "failed"]
+
+        with pytest.raises(ValueError, match="enum types not yet supported"):
+            _pydantic_to_apple_schema(_Status)
+
+    def test_format_keyword_raises(self):
+        """`format=date`/`format=uri`/etc. imply runtime validation
+        DynamicGenerationSchema doesn't enforce; silently dropping the
+        constraint would mislead the caller."""
+        from datetime import date
+
+        class _DatedItem(BaseModel):
+            when: date
+
+        with pytest.raises(ValueError, match="format="):
+            _pydantic_to_apple_schema(_DatedItem)
+
+    def test_recursive_type_raises(self):
+        """Self-referential models would loop indefinitely. Detect via
+        seen-set on $defs name and fail loud."""
+
+        class _Node(BaseModel):
+            value: str
+            children: list["_Node"] = []
+
+        _Node.model_rebuild()
+        with pytest.raises(ValueError, match="recursive type"):
+            _pydantic_to_apple_schema(_Node)
+
+    def test_error_message_includes_field_path(self):
+        """Errors must point at the offending nested field, not just
+        the top-level model — otherwise caller can't tell what to fix."""
+        from typing import Literal
+
+        class _Inner(BaseModel):
+            mode: Literal["a", "b", "c"]  # enum → fails
+
+        class _Outer(BaseModel):
+            inner: _Inner
+
+        with pytest.raises(ValueError) as exc:
+            _pydantic_to_apple_schema(_Outer)
+        # Path should mention the nested field 'mode', not just '$' /
+        # 'inner' alone — caller needs to know exactly what field tripped.
+        assert "mode" in str(exc.value) or "inner.mode" in str(exc.value)
+
+
 # =============================================================================
 # chat_structured dispatch
 # =============================================================================

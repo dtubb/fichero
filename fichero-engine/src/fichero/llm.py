@@ -1422,54 +1422,124 @@ def _pydantic_to_apple_schema(model: type[BaseModel]) -> dict[str, Any]:
     full = model.model_json_schema()
     defs = full.get("$defs", {})
 
-    def resolve(node: dict[str, Any]) -> dict[str, Any]:
-        # Resolve a single $ref against $defs; deep-copy so callers can
-        # mutate without polluting the shared definition.
-        if "$ref" in node:
-            ref = node["$ref"]
-            assert ref.startswith("#/$defs/"), f"unexpected $ref: {ref}"
-            name = ref.split("/")[-1]
-            return resolve({**defs[name]})
-        return node
+    _SUPPORTED_PRIMITIVES = {"string", "integer", "number", "boolean"}
+    # JSON Schema `format` keywords (date, uri, email, …) imply runtime
+    # validation that Apple's DynamicGenerationSchema doesn't enforce —
+    # silently dropping them would let through prompts the caller thinks
+    # are validated. Fail loud so the caller decomposes into supported
+    # primitives or extends this converter (#856).
+    _UNSUPPORTED_FORMAT_HINT = (
+        "JSON Schema 'format' keywords are not modeled by Apple "
+        "DynamicGenerationSchema; remove the format constraint and "
+        "validate post-hoc, or decompose the field."
+    )
 
-    def convert(node: dict[str, Any]) -> dict[str, Any]:
-        node = resolve(node)
-        # anyOf with `null` is Pydantic's Optional[T] form — strip the
-        # null branch and recurse on the remaining type.
-        if "anyOf" in node and not node.get("type"):
-            non_null = [b for b in node["anyOf"] if b.get("type") != "null"]
-            if len(non_null) == 1:
-                return convert(non_null[0])
+    def _fail(field_path: str, msg: str) -> None:
+        raise ValueError(
+            f"_pydantic_to_apple_schema: unsupported shape on "
+            f"'{field_path}' — {msg} (see #856)"
+        )
 
-        type_ = node.get("type", "object")
-        out: dict[str, Any] = {"type": type_}
-        if title := node.get("title"):
-            out["name"] = title
-        if desc := node.get("description"):
-            out["description"] = desc
+    # Shared across one conversion: the set of $defs names currently
+    # being expanded. Detects recursive types (a model whose definition
+    # eventually $refs itself) — DynamicGenerationSchema can't express
+    # them, so fail loud instead of recursing until the stack blows.
+    expanding: set[str] = set()
 
-        if type_ == "object":
-            required = set(node.get("required", []))
-            properties = node.get("properties", {})
-            props_out: list[dict[str, Any]] = []
-            for pname, psub in properties.items():
-                psub_resolved = resolve(psub)
-                pschema = convert(psub_resolved)
-                pdesc = psub.get("description") or psub_resolved.get("description")
-                entry: dict[str, Any] = {"name": pname, "schema": pschema}
-                if pdesc:
-                    entry["description"] = pdesc
-                if pname not in required:
-                    entry["optional"] = True
-                props_out.append(entry)
-            out["properties"] = props_out
-        elif type_ == "array":
-            items = resolve(node.get("items", {"type": "string"}))
-            out["items"] = convert(items)
-            if (mn := node.get("minItems")) is not None:
-                out["minimum_elements"] = mn
-            if (mx := node.get("maxItems")) is not None:
-                out["maximum_elements"] = mx
+    def convert(node: dict[str, Any], field_path: str = "$") -> dict[str, Any]:
+        # Walk $refs while tracking which definitions are currently in
+        # the expansion stack. Self-referential models hit `expanding`
+        # second time around and fail loud here.
+        ref_stack: list[str] = []
+        try:
+            while "$ref" in node:
+                ref = node["$ref"]
+                if not ref.startswith("#/$defs/"):
+                    _fail(field_path, f"unexpected $ref shape: {ref!r}")
+                name = ref.split("/")[-1]
+                if name in expanding:
+                    _fail(
+                        field_path,
+                        f"recursive type detected (cycle through $defs/{name}); "
+                        "Apple DynamicGenerationSchema can't express recursive "
+                        "shapes — flatten or bound the recursion at definition time",
+                    )
+                if name not in defs:
+                    _fail(field_path, f"$ref target $defs/{name} not found")
+                expanding.add(name)
+                ref_stack.append(name)
+                node = {**defs[name]}
+
+            # anyOf is supported only when it's Optional[T] — exactly one
+            # non-null branch. Discriminated unions (multiple non-null
+            # branches) aren't expressible in DynamicGenerationSchema today.
+            if "anyOf" in node and not node.get("type"):
+                non_null = [b for b in node["anyOf"] if b.get("type") != "null"]
+                if len(non_null) == 1:
+                    return convert(non_null[0], field_path)
+                _fail(
+                    field_path,
+                    f"anyOf with {len(non_null)} non-null branches "
+                    "(only Optional[T] = single non-null branch is supported); "
+                    "discriminated unions need a custom converter or flat decomposition",
+                )
+
+            # `enum` keyword (str enums, literal types) — not modeled today.
+            # Failing loud lets a future converter add support without
+            # breaking surprised callers.
+            if "enum" in node:
+                _fail(
+                    field_path,
+                    f"enum types not yet supported (values: {node['enum']!r}); "
+                    "use a plain string field and validate post-hoc, or extend the converter",
+                )
+
+            type_ = node.get("type", "object")
+            if type_ not in {"object", "array"} | _SUPPORTED_PRIMITIVES:
+                _fail(field_path, f"unsupported type: {type_!r}")
+
+            if type_ in _SUPPORTED_PRIMITIVES and "format" in node:
+                _fail(
+                    field_path,
+                    f"format={node['format']!r}: {_UNSUPPORTED_FORMAT_HINT}",
+                )
+
+            out: dict[str, Any] = {"type": type_}
+            if title := node.get("title"):
+                out["name"] = title
+            if desc := node.get("description"):
+                out["description"] = desc
+
+            if type_ == "object":
+                required = set(node.get("required", []))
+                properties = node.get("properties", {})
+                props_out: list[dict[str, Any]] = []
+                for pname, psub in properties.items():
+                    child_path = (
+                        f"{field_path}.{pname}" if field_path != "$" else pname
+                    )
+                    pschema = convert(psub, child_path)
+                    pdesc = psub.get("description")
+                    entry: dict[str, Any] = {"name": pname, "schema": pschema}
+                    if pdesc:
+                        entry["description"] = pdesc
+                    if pname not in required:
+                        entry["optional"] = True
+                    props_out.append(entry)
+                out["properties"] = props_out
+            elif type_ == "array":
+                child_path = f"{field_path}[]"
+                items = node.get("items", {"type": "string"})
+                out["items"] = convert(items, child_path)
+                if (mn := node.get("minItems")) is not None:
+                    out["minimum_elements"] = mn
+                if (mx := node.get("maxItems")) is not None:
+                    out["maximum_elements"] = mx
+            # Primitives: nothing extra.
+            return out
+        finally:
+            for name in ref_stack:
+                expanding.discard(name)
         # Primitives (string/integer/number/boolean): nothing extra.
 
         return out
