@@ -1,5 +1,50 @@
 # Durable Lessons Learned / Decisions
 
+## AppleUnavailableError hierarchy — 2026-05-06/07
+
+When Apple Intelligence raises a typed error from `_raise_from_bridge_stderr`, classify it as either:
+- **AppleUnavailableError subclass** → triggers $large fallback in `chat_with_fallback` / `chat_structured_with_fallback`
+- **bare RuntimeError** → caller retries / chunks in place (transient, not Apple-can't)
+
+Subclasses today: `GuardrailViolationError` (safety), `UnsupportedLocaleError` (es-LatAm on es-ES-only model). Adding a new "Apple can't proceed" reason = new subclass + new bridge `kind` mapping. Don't catch GuardrailViolationError specifically anywhere — catch the base so future siblings auto-route.
+
+## Apple Intelligence locale matrix evolves per macOS release — 2026-05-06
+
+- macOS 15.1: en-US only
+- macOS 15.2: + en-GB/AU/CA/IE/NZ/ZA/IN
+- macOS 15.4: + Spanish-Spain, French, German, Italian, Japanese, Korean, simplified Chinese
+- macOS 26+: broader
+
+Even on a supported language, regional variant matters: es-ES ≠ es-LatAm. The model rejects out-of-set prompts with `unsupportedLanguageOrLocale`. Don't precheck locale to avoid the call — let it fire and route via the AppleUnavailableError fallback. The precheck function `apple_intelligence_supports_locale` exists but isn't used in production code today.
+
+## ChatOpenRouter (langchain-openrouter 0.2.3) async hang — 2026-05-06
+
+LangChain's late-2025 docs recommend `ChatOpenRouter` for OpenRouter routing, but its `ainvoke` hangs indefinitely on Claude Sonnet 4.6 calls. Direct `curl` to the same endpoint with the same model + key returns in <1s, isolating the bug to the SDK. Use `ChatOpenAI` + `base_url="https://openrouter.ai/api/v1"` instead. Documented in `get_langchain_model` as a known workaround.
+
+## _compute_timeout is the single source of truth — 2026-05-07
+
+Wall-clock timeouts on every LLM call path go through `_compute_timeout(config, kind, *, schema_chars=None)` with three kinds: `langchain`, `apple_chat`, `apple_structured`. Each scales by `config.timeout`, `max_tokens` (output_factor), and (apple_structured only) schema size (schema_factor). Don't add a fourth formula somewhere else.
+
+## Reasoning routing is per-provider — 2026-05-07
+
+`LLMConfig.reasoning_effort` ∈ {`off`, `low`, `medium`, `high`}. Each provider exposes the knob differently:
+- anthropic native: `thinking={'type':'enabled', 'budget_tokens':N}` AND must force `temperature=1`
+- openai (o-series): `reasoning_effort` kwarg directly
+- openrouter: `extra_body={'reasoning':{'effort':...}}` (works for Claude AND gpt-5)
+- apple intelligence: silently ignored (no reasoning surface)
+
+Wired ON only for synthesis-style calls (catalogue narrative). Keep mechanical extraction OFF — pattern matching doesn't benefit and adds latency. Default OFF on LLMConfig.
+
+## fm-bridge is canonical, apple-fm-sdk deferred — 2026-05-07
+
+Decision: stay on the fm-bridge subprocess (`bin/fm-bridge/FmBridge.swift`) as the production Apple Intelligence path. apple-fm-sdk 0.1.1 requires Apple-flavored JSON Schema (additionalProperties + x-order keys) that Pydantic doesn't emit; migration would need a custom schema-format converter — not worth it until SDK 1.0. Don't add a second Apple path without explicit approval.
+
+File rename: `main.swift` → `FmBridge.swift` to silence SourceKit's "@main attribute cannot be used in a module that contains top-level code" warning. Files named `main.swift` are interpreted as Swift scripts, which conflicts with @main.
+
+## _pydantic_to_apple_schema fail-loud guarantee — 2026-05-07
+
+The converter (`fichero/llm.py`) raises `ValueError` with a field-pointing message on unsupported shapes (discriminated unions, Literal/enum, JSON Schema format keywords, recursive types, malformed $ref). Don't silently emit partial schema trees — fm-bridge then raises an opaque "GenerationSchema init failed" downstream that's painful to diagnose. If a tool needs an unsupported shape, decompose into supported primitives or extend the converter.
+
 ## Calling Swift-only macOS frameworks from Python — 2026-04-28
 
 Apple's newer macOS frameworks (Foundation Models / Apple Intelligence, Speech's SpeechAnalyzer, ImagePlayground, Translation, etc.) are **Swift-native**, not `@objc`-bridged. pyobjc can `loadBundle` and `lookUpClass` on them — instances exist — but calling their public methods raises `does not implement methodSignatureForSelector:`. The Objective-C runtime can't reach Swift-only entry points.

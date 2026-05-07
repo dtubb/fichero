@@ -46,44 +46,14 @@ move to release packaging (#658–#660).
 Nothing right now. Daniel needs to test the new pipeline end to end on
 a real folder before the release packaging path opens up.
 
-## Overnight Work — completed (2026-05-06 night → morning)
+## In Progress
 
-**Master plan:** #872. 12 issues closed tonight, ~430 tests passing.
+- **LLM-stack overhaul (#872 master plan)** — 15 issues closed overnight; archive in HISTORY.md.
+- Inspector V2 Phase 2 (#156) — RTF panels shipped; AI display attributes + payload types still pending.
 
-**Shipped tonight (in commit order):**
-1. `d04dae26` #868 — AppleUnavailableError hierarchy + Spanish locale fallback
-2. `e5dbe0b5` #863 — fm-bridge SourceKit @main warning (rename main.swift)
-3. `61ba3978` #857 — apple_intelligence_supports_locale → async
-4. `4c4b01b3` #856 — _pydantic_to_apple_schema fail-loud assertions
-5. `810997cf` #865 — _format_claims_as_context configurable per-section caps
-6. `b1e87b9e` #855/#862/#867 — _compute_timeout helper (3 formulas → 1)
-7. `da0a6a67` #859 — reasoning on catalogue narrative (medium effort)
-8. Closed #851, #858, #860, #861, #864, #866 with status notes
+## Blocked
 
-**Live bug fix the rest cascaded from:** #868 routes Apple Intelligence's
-`unsupportedLanguageOrLocale` to $large fallback. Typed hierarchy:
-`AppleUnavailableError` base + `GuardrailViolationError` and
-`UnsupportedLocaleError` subclasses. fm-bridge stderr mapping updated.
-Live symptom on the 68-page Spanish 'Legal Case': extract_all
-hard-failing every chunk → no claims → empty catalogue narrative.
-Restart the backend to pick this up.
-
-**Architectural improvements:**
-- Single `_compute_timeout(config, kind, *, schema_chars=None)` is the
-  source of truth for wall-clock timeouts; scales with config.timeout,
-  max_tokens, and (for apple_structured) schema size.
-- `_pydantic_to_apple_schema` raises ValueError with field-pointing
-  message on unsupported shapes (discriminated unions, enums, format
-  keywords, recursive types) instead of silently emitting a partial tree.
-- Reasoning `medium` effort wired into Claude Sonnet 4.6 narrative
-  synthesis (single-shot + final reduce in `_generate_resumen`);
-  per-provider routing handles anthropic/openai-o-series/openrouter.
-
-**Deferred to next session:**
-- Theme A (#868): LLMProvider Protocol refactor — too big to do safely
-  tonight. Foundation laid by _compute_timeout consolidation.
-- #843, #844 (token telemetry, cost dashboard) — Theme D scope.
-- #873 pytest integration test — needs fixture infra design.
+- #854 Apple Intelligence proactive token budgeting — waiting on macOS SDK 26.4 release.
 
 **Decisions logged (Daniel approved):**
 - Theme C: stay on fm-bridge as canonical Apple integration.
@@ -91,15 +61,11 @@ Restart the backend to pick this up.
 
 ## Next Session — Start Here
 
-1. **Restart the backend** on the new commit so the unsupported_language
-   fix is live. Re-run Catalogue (Mixed) on Legal Case. Expect: extract_all
-   calls Apple → unsupported_language → silently routes to $large →
-   Spanish entities extracted; catalogue.narrative populates;
-   container.page_content shows narrative in inspector RTF panel.
-2. **Test the new Catalogue pipeline** on Test 2 / 1931 Antonio
-   Asprilla folder via Apple Intelligence. Verify per-file `_clean`
-   artifacts land on each file doc (not just folder). Use the
-   Knowledge Graph tab on a single file to check.
+1. **Restart backend on `c432dd90`** to pick up the Spanish locale fallback fix. Re-run Catalogue (Mixed) on Legal Case. Expect extract_all to silently route Apple's `unsupported_language` errors to $large; narrative populates; folder page_content shows it.
+2. **#868 Theme A — LLMProvider Protocol refactor.** Foundation laid (timeouts centralized, error hierarchy typed, reasoning routed). Refactor itself is ~6h focused work — best run in autonomous-loop mode with fresh context per increment.
+3. **#873 pytest integration test** — needs a 3-page Spanish fixture PDF + skip-by-default `FICHERO_INTEGRATION=1` flag wired into pytest. Half-design / half-code.
+4. **Read first:** `docs/architecture/api/development_standards.md` (now has 5 new contracts under "LLM Stack Architecture (post-#872)") and MEMORY.md entries dated 2026-05-07.
+5. **Don't break:** the AppleUnavailableError fallback works because `chat_with_fallback`/`chat_structured_with_fallback` catch the base class. Don't catch `GuardrailViolationError` specifically anywhere.
 2. **If per-file works**: move on to release pipeline #658–#660 (DMG
    build / notarize / dry-run install).
 3. **If per-file doesn't land**: check engine.log for

@@ -1333,3 +1333,20 @@ the Finder Get Info shape Daniel asked for. 37 commits to origin/0.0.2.
 - EmbeddedBackendService: switch self-references to `Self.`.
 
 Tests: 332/332 workflow + 18/18 cleanup green.
+
+## 2026-05-07 — LLM-stack overhaul (overnight session)
+
+Master plan #872. 9 commits, 15 issues closed.
+
+- d04dae26 #868 — AppleUnavailableError hierarchy + Spanish locale fallback (live bug fix on Daniel's 68-page Legal Case folder)
+- e5dbe0b5 #863 — fm-bridge SourceKit @main warning fix (rename main.swift → FmBridge.swift)
+- 61ba3978 #857 — apple_intelligence_supports_locale → async (asyncio.create_subprocess_exec + dict cache + Lock)
+- 4c4b01b3 #856 — _pydantic_to_apple_schema fail-loud assertions (discriminated unions, enums, format keywords, recursion)
+- 810997cf #865 — _format_claims_as_context configurable per-section caps via workflow node config
+- b1e87b9e #855/#862/#867 — _compute_timeout helper unifying 3 scattered timeout formulas (scales w/ max_tokens + schema)
+- da0a6a67 #859 — reasoning on catalogue narrative (medium effort, per-provider routing for anthropic/openai/openrouter)
+- 94e0bf17 — STATE.md log
+- c432dd90 — docs/architecture/api/development_standards.md updated with 5 new contracts
+- Closed as deferred/dup: #851, #858, #860, #861, #864, #866, plus rollups #869 + #870
+
+Remaining for next session: Theme A LLMProvider Protocol refactor (#868 architectural), pytest integration test (#873), token telemetry + cost dashboard (#843, #844, #852, #871).
