@@ -62,6 +62,21 @@ CATALOGUE_CONFIG = {
         ),
         "x-group": "primary",
     },
+    "claim_context_caps": {
+        "type": "object",
+        "default": {},
+        "description": (
+            "Per-section caps for the entity-context block fed to the "
+            "narrative LLM. Keys: people, places, organizations, events, "
+            "dates, keywords. Each value is the max items to include "
+            "before the list is truncated with '(… +N more)'. Defaults: "
+            "people=30, places=20, organizations=15, events=15, dates=30, "
+            "keywords=30. Override only the sections you want to change. "
+            "Useful on dense folders (100+ contributors) or sparse "
+            "letters where you want to dial cap up/down. (#865)"
+        ),
+        "x-group": "advanced",
+    },
 }
 
 CATALOGUE_INPUT_PORTS = merge_ports(
@@ -393,7 +408,9 @@ async def catalogue(
             logger.warning(f"Catalogue: claim read failed ({exc}); falling through")
             data = None
         if data is not None:
-            claim_context = _format_claims_as_context(data)
+            claim_context = _format_claims_as_context(
+                data, cap_overrides=inputs.get("claim_context_caps"),
+            )
             paragraph = await _generate_resumen(
                 text, output_language, llm_config,
                 claim_context=claim_context, error_sink=catalogue_errors,
@@ -471,7 +488,9 @@ async def catalogue(
             # large models don't add value over a deterministic sort).
             # Keywords still goes through the LLM (subject synthesis is
             # genuinely a writing task).
-            claim_context = _format_claims_as_context(data) if data else ""
+            claim_context = _format_claims_as_context(
+                data, cap_overrides=inputs.get("claim_context_caps"),
+            ) if data else ""
             timeline_md = _generate_timeline(data)
             keywords_md = await _generate_keywords(
                 text, output_language, llm_config, claim_context,
@@ -762,23 +781,47 @@ def _build_data_from_claims(
     return data
 
 
-# Per-section caps for the claim_context dump fed to the catalogue
-# narrative LLM. Folders with hundreds of entities (e.g. acknowledgments
-# pages with 100+ contributors) produced 25K+ char prompts that hung
-# OpenRouter routing — both qwen3.5 and claude-sonnet-4.6 timed out at
-# 300s on the same prompt. The narrative is a 150-300 word paragraph;
-# the LLM doesn't need every entity, just enough representative ones to
-# ground concrete names + dates + places. Caps below were tuned to keep
-# the resulting context block under ~5K chars even on dense folders.
-_CTX_MAX_PEOPLE = 30
-_CTX_MAX_PLACES = 20
-_CTX_MAX_ORGS = 15
-_CTX_MAX_EVENTS = 15  # events have full sentences — heaviest by char
-_CTX_MAX_DATES = 30
-_CTX_MAX_KEYWORDS = 30
+# Default per-section caps for the claim_context dump fed to the
+# catalogue narrative LLM. Folders with hundreds of entities (e.g.
+# acknowledgments pages with 100+ contributors) produced 25K+ char
+# prompts that hung OpenRouter routing — both qwen3.5 and
+# claude-sonnet-4.6 timed out at 300s on the same prompt. Defaults
+# below were tuned to keep the context block under ~5K chars even on
+# dense folders. Per-workflow override via node config:
+#
+#   "claim_context_caps": {
+#     "people": 50, "events": 5, ...
+#   }
+#
+# Defaults preserved when caps dict is missing or partial — only the
+# keys present in the override change. (#865)
+_DEFAULT_CTX_CAPS: dict[str, int] = {
+    "people": 30,
+    "places": 20,
+    "organizations": 15,
+    "events": 15,  # events have full sentences — heaviest by char
+    "dates": 30,
+    "keywords": 30,
+}
 
 
-def _format_claims_as_context(data: dict[str, Any] | None) -> str:
+def _resolve_ctx_caps(overrides: dict[str, Any] | None) -> dict[str, int]:
+    """Merge per-workflow cap overrides with the defaults. Non-int
+    values (typo'd config) are dropped silently — the cap stays at
+    default rather than crashing the catalogue narrative call."""
+    caps = dict(_DEFAULT_CTX_CAPS)
+    if not overrides:
+        return caps
+    for key, val in overrides.items():
+        if key in caps and isinstance(val, int) and val > 0:
+            caps[key] = val
+    return caps
+
+
+def _format_claims_as_context(
+    data: dict[str, Any] | None,
+    cap_overrides: dict[str, Any] | None = None,
+) -> str:
     """Render the claim-derived dict as inline context lines for the
     catalogue prompt. The Extract* nodes already wrote KnowledgeClaim
     rows; this surfaces them to the LLM so its narrative paragraph is
@@ -786,14 +829,17 @@ def _format_claims_as_context(data: dict[str, Any] | None) -> str:
     Daniel: 'catalogue should take the output of all the previous ones
     and add it together'.
 
-    Per-section caps (above) prevent dense folders (100+ entities) from
-    producing 25K+ char prompts. Each section is truncated to its top-N;
-    overflow is surfaced as a single '(... +N more)' line so the LLM
-    knows the list isn't exhaustive.
+    Per-section caps (resolved from defaults + workflow-config
+    overrides) prevent dense folders from producing oversized prompts.
+    Each section is truncated to its cap; overflow is surfaced as a
+    single '(... +N more)' line so the LLM knows the list isn't
+    exhaustive. (#865)
     """
     if not data:
         return ""
+    caps = _resolve_ctx_caps(cap_overrides)
     lines: list[str] = []
+
     def _name_of(item: Any) -> str:
         if isinstance(item, dict):
             return item.get("name") or item.get("nombre") or ""
@@ -813,19 +859,21 @@ def _format_claims_as_context(data: dict[str, Any] | None) -> str:
     if people := (data.get("people") or data.get("personas_clave")):
         names = [n for n in (_name_of(p) for p in people) if n]
         if names:
-            lines.append(f"People found: {_capped_join(names, _CTX_MAX_PEOPLE)}")
+            lines.append(f"People found: {_capped_join(names, caps['people'])}")
     if places := (data.get("places") or data.get("lugares")):
         names = [n for n in (_name_of(p) for p in places) if n]
         if names:
-            lines.append(f"Places found: {_capped_join(names, _CTX_MAX_PLACES)}")
+            lines.append(f"Places found: {_capped_join(names, caps['places'])}")
     if orgs := (data.get("organizations") or data.get("organizaciones")):
         names = [n for n in (_name_of(o) for o in orgs) if n]
         if names:
-            lines.append(f"Organizations found: {_capped_join(names, _CTX_MAX_ORGS)}")
+            lines.append(
+                f"Organizations found: {_capped_join(names, caps['organizations'])}"
+            )
     if events := (data.get("events") or data.get("eventos_clave")):
         descs = [d for d in (_event_of(e) for e in events) if d]
         if descs:
-            capped = descs[:_CTX_MAX_EVENTS]
+            capped = descs[:caps['events']]
             extra = len(descs) - len(capped)
             block = "Events found:\n  - " + "\n  - ".join(capped)
             if extra > 0:
@@ -842,11 +890,13 @@ def _format_claims_as_context(data: dict[str, Any] | None) -> str:
                 if f:
                     bits.append(f)
         if bits:
-            lines.append(f"Dates found: {_capped_join(bits, _CTX_MAX_DATES)}")
+            lines.append(f"Dates found: {_capped_join(bits, caps['dates'])}")
     if keywords := (data.get("keywords") or data.get("palabras_clave")):
         kws = [str(k) for k in keywords if k]
         if kws:
-            lines.append(f"Keywords: {_capped_join(kws, _CTX_MAX_KEYWORDS, sep='; ')}")
+            lines.append(
+                f"Keywords: {_capped_join(kws, caps['keywords'], sep='; ')}"
+            )
     return "\n".join(lines)
 
 

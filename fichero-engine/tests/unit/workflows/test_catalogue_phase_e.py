@@ -65,6 +65,54 @@ class TestFormatClaimsAsContext:
         assert "Keywords:" in out
         assert "mining; lawsuit; Chocó" in out
 
+    def test_default_caps_truncate_dense_sections(self):
+        """Defaults: people=30. A 35-person folder gets truncated with
+        '+5 more' marker so the LLM knows the list isn't exhaustive."""
+        data = {"people": [{"name": f"Person {i}"} for i in range(35)]}
+        out = _format_claims_as_context(data)
+        assert "Person 29" in out  # first 30 included (0..29)
+        assert "+5 more" in out
+        assert "Person 30" not in out  # capped
+
+    def test_workflow_override_raises_cap(self):
+        """Per-workflow caps lift the truncation point. cap=50 includes
+        all 35 entities; no truncation marker."""
+        data = {"people": [{"name": f"Person {i}"} for i in range(35)]}
+        out = _format_claims_as_context(data, cap_overrides={"people": 50})
+        assert "Person 34" in out
+        assert "+" not in out  # no truncation
+
+    def test_workflow_override_lowers_cap(self):
+        """cap=5 is far below the 35 entities; truncation kicks in earlier."""
+        data = {"people": [{"name": f"Person {i}"} for i in range(35)]}
+        out = _format_claims_as_context(data, cap_overrides={"people": 5})
+        assert "Person 4" in out
+        assert "Person 5" not in out
+        assert "+30 more" in out
+
+    def test_partial_override_preserves_other_defaults(self):
+        """Setting only `events` keeps people at default=30. Mixing both
+        sections in a dense folder confirms each has its own cap."""
+        data = {
+            "people": [{"name": f"P{i}"} for i in range(35)],
+            "events": [{"event": f"E{i}"} for i in range(20)],
+        }
+        out = _format_claims_as_context(data, cap_overrides={"events": 5})
+        # people stays at default 30 → +5 more
+        assert "+5 more" in out
+        # events at custom 5 → +15 more
+        assert "+15 more" in out
+
+    def test_invalid_override_drops_silently_keeps_default(self):
+        """Typos / non-int values fall through to defaults — better than
+        crashing the catalogue narrative call."""
+        data = {"people": [{"name": f"Person {i}"} for i in range(35)]}
+        out = _format_claims_as_context(
+            data, cap_overrides={"people": "fifty", "unknown_section": 9999},
+        )
+        # 'fifty' is not int → default 30 → +5 more
+        assert "+5 more" in out
+
 
 class TestSplitTextIntoChunks:
     def test_short_text_one_chunk(self):
