@@ -398,6 +398,62 @@ class TestChatStructuredDispatch:
                 await chat_structured(prompt="x", schema=_Result, config=cfg)
 
     @pytest.mark.asyncio
+    async def test_collect_usage_captures_apple_estimate(self):
+        """`with collect_usage() as bucket: ...` should accumulate every
+        LLM call's usage entry while the block is active. Outside the
+        block, recording is a no-op log-only path. (#852)"""
+        from fichero.llm import collect_usage, _log_apple_usage_estimate
+
+        cfg = LLMConfig(provider="apple", model="apple-intelligence")
+
+        # No collector active → no exception, no bucket to leak.
+        _log_apple_usage_estimate(cfg, prompt="alpha", response_text="beta", kind="chat")
+
+        # Active collector → entries accumulate.
+        with collect_usage() as bucket:
+            _log_apple_usage_estimate(cfg, prompt="alpha bravo", response_text="charlie", kind="chat")
+            _log_apple_usage_estimate(cfg, prompt="delta", response_text="echo foxtrot", kind="structured")
+
+        assert len(bucket) == 2
+        assert bucket[0]["provider"] == "apple"
+        assert bucket[0]["kind"] == "chat"
+        assert bucket[0]["estimated"] is True
+        assert bucket[0]["input_tokens"] is not None
+        assert bucket[0]["output_tokens"] is not None
+        assert bucket[1]["kind"] == "structured"
+
+        # Outside again → bucket is no longer the active target.
+        _log_apple_usage_estimate(cfg, prompt="ignored", response_text="ignored", kind="chat")
+        assert len(bucket) == 2
+
+    @pytest.mark.asyncio
+    async def test_collect_usage_captures_langchain_chat(self):
+        """LangChain plain chat() also flows into the active collector
+        when AIMessage.usage_metadata is present."""
+        from fichero.llm import collect_usage, chat
+
+        cfg = LLMConfig(provider="openai", model="gpt-5")
+        response_msg = MagicMock()
+        response_msg.content = "ok"
+        response_msg.usage_metadata = {
+            "input_tokens": 50, "output_tokens": 20, "total_tokens": 70,
+        }
+        model = MagicMock()
+        model.ainvoke = AsyncMock(return_value=response_msg)
+
+        with patch("fichero.llm.get_langchain_model", return_value=model):
+            with collect_usage() as bucket:
+                await chat("hi", config=cfg)
+
+        assert len(bucket) == 1
+        assert bucket[0]["provider"] == "openai"
+        assert bucket[0]["kind"] == "chat"
+        assert bucket[0]["estimated"] is False
+        assert bucket[0]["input_tokens"] == 50
+        assert bucket[0]["output_tokens"] == 20
+        assert bucket[0]["total_tokens"] == 70
+
+    @pytest.mark.asyncio
     async def test_apple_logs_estimated_usage(self, caplog):
         """Apple Intelligence path logs an estimated input/output/total
         token count via _log_apple_usage_estimate (#843 item 3).

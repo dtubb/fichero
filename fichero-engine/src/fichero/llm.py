@@ -37,9 +37,12 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
+import contextvars
 import logging
 import os
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import AsyncIterator, Any, Literal as _Literal
 
@@ -58,6 +61,88 @@ from fichero.llm_embeddings import (  # noqa: F401 (re-exported)
 )
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Usage telemetry — async-context-scoped collector (#852)
+# =============================================================================
+# Workflow runners wrap each node's execution in `with collect_usage() as
+# bucket: …` to capture every LLM call's token count. Without an active
+# collector, calls just log to INFO as today. The contextvars-based
+# bucket survives task switches inside the with-block (asyncio Tasks
+# inherit the current context) so a fan-out node still sees its
+# children's usage.
+
+_usage_collector: contextvars.ContextVar[list[dict[str, Any]] | None] = (
+    contextvars.ContextVar("fichero_llm_usage", default=None)
+)
+
+
+@contextlib.contextmanager
+def collect_usage() -> Iterator[list[dict[str, Any]]]:
+    """Context manager that captures every LLM-call's usage telemetry
+    while the block is active. Returns the bucket list; consumers
+    (workflow node runner, batch runner, etc.) read it after the block
+    exits and stuff it into the Activity record's metadata. (#852)
+
+    Each entry is a dict with at least:
+      provider, model, kind ("chat"|"structured"|"vision"),
+      input_tokens, output_tokens, total_tokens, estimated (bool).
+
+    Nested collectors stack — the inner block's bucket captures only its
+    own calls; the outer block's bucket sees everything (including the
+    inner's). asyncio.Task inherits the active ContextVar.
+    """
+    bucket: list[dict[str, Any]] = []
+    token = _usage_collector.set(bucket)
+    try:
+        yield bucket
+    finally:
+        _usage_collector.reset(token)
+
+
+def _record_usage(
+    provider: str,
+    model: str,
+    kind: str,
+    *,
+    input_tokens: int | None,
+    output_tokens: int | None,
+    total_tokens: int | None,
+    estimated: bool = False,
+    method: str | None = None,
+) -> None:
+    """Push a usage entry to the active collector (if any) and log at
+    INFO. Centralizes the logging shape so chat / chat_structured /
+    apple_chat / apple_structured all emit identically formatted lines
+    that downstream consumers can parse uniformly."""
+    bucket = _usage_collector.get()
+    if bucket is not None:
+        entry: dict[str, Any] = {
+            "provider": provider,
+            "model": model,
+            "kind": kind,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": total_tokens,
+            "estimated": estimated,
+        }
+        if method is not None:
+            entry["method"] = method
+        bucket.append(entry)
+
+    marker = "~" if estimated else ""
+    estimated_suffix = " (estimated)" if estimated else ""
+    method_suffix = f" method={method}" if method else ""
+    logger.info(
+        "LLM usage [%s/%s %s]: input=%s%s output=%s%s total=%s%s%s%s",
+        provider, model, kind,
+        marker, input_tokens,
+        marker, output_tokens,
+        marker, total_tokens,
+        method_suffix, estimated_suffix,
+    )
+
 
 # Lazy import litellm to avoid import overhead
 _litellm = None
@@ -350,18 +435,16 @@ async def chat(
                 f"LangChain {config.provider}/{config.model} chat exceeded "
                 f"{budget}s — provider hang"
             ) from exc
-        # Surface usage_metadata to the cost-tracking log alongside the
-        # structured path (#844 item 8). AIMessage.usage_metadata is the
-        # LangChain ≥0.3 standard shape: input_tokens / output_tokens /
-        # total_tokens dict.
+        # Surface usage_metadata to the cost-tracking layer (#844 item 8 +
+        # #852). AIMessage.usage_metadata is the LangChain ≥0.3 standard
+        # shape: input_tokens / output_tokens / total_tokens dict.
         usage = getattr(response, "usage_metadata", None)
         if isinstance(usage, dict) and usage:
-            logger.info(
-                "LLM usage [%s/%s chat]: input=%s output=%s total=%s",
-                config.provider, config.model,
-                usage.get("input_tokens"),
-                usage.get("output_tokens"),
-                usage.get("total_tokens"),
+            _record_usage(
+                config.provider, config.model, "chat",
+                input_tokens=usage.get("input_tokens"),
+                output_tokens=usage.get("output_tokens"),
+                total_tokens=usage.get("total_tokens"),
             )
         return _strip_outer_code_fences(response.content)
 
@@ -603,10 +686,12 @@ def _log_apple_usage_estimate(
         prompt_text = str(prompt)
     input_tokens = estimate_token_count(prompt_text)
     output_tokens = estimate_token_count(response_text or "")
-    logger.info(
-        "LLM usage [%s/%s %s]: input=~%d output=~%d total=~%d (estimated)",
+    _record_usage(
         config.provider, config.model, kind,
-        input_tokens, output_tokens, input_tokens + output_tokens,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        total_tokens=input_tokens + output_tokens,
+        estimated=True,
     )
 
 
@@ -1248,18 +1333,17 @@ async def chat_structured(
     else:
         parsed = result
 
-    # Log usage_metadata when present so it flows into the existing cost-
-    # tracking layer. AIMessage.usage_metadata is a dict with input_tokens,
-    # output_tokens, total_tokens (LangChain ≥0.3 standard shape).
+    # Log usage_metadata when present so it flows into the cost-tracking
+    # collector (#852). AIMessage.usage_metadata is a dict with
+    # input_tokens / output_tokens / total_tokens (LangChain ≥0.3 standard).
     usage = getattr(raw_message, "usage_metadata", None) if raw_message else None
     if isinstance(usage, dict) and usage:
-        logger.info(
-            "LLM usage [%s/%s structured]: input=%s output=%s total=%s method=%s",
-            config.provider, config.model,
-            usage.get("input_tokens"),
-            usage.get("output_tokens"),
-            usage.get("total_tokens"),
-            method,
+        _record_usage(
+            config.provider, config.model, "structured",
+            input_tokens=usage.get("input_tokens"),
+            output_tokens=usage.get("output_tokens"),
+            total_tokens=usage.get("total_tokens"),
+            method=method,
         )
 
     if parsed is None:
