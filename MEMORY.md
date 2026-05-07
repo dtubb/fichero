@@ -41,6 +41,22 @@ Decision: stay on the fm-bridge subprocess (`bin/fm-bridge/FmBridge.swift`) as t
 
 File rename: `main.swift` → `FmBridge.swift` to silence SourceKit's "@main attribute cannot be used in a module that contains top-level code" warning. Files named `main.swift` are interpreted as Swift scripts, which conflicts with @main.
 
+## collect_usage() context-managed cost tracking — 2026-05-07
+
+`fichero.llm.collect_usage()` is the contextvars-based primitive for capturing per-call LLM token usage:
+
+```python
+with collect_usage() as bucket:
+    result = await tool_fn(inputs)
+# bucket = list[dict[provider, model, kind, input_tokens, output_tokens, total_tokens, estimated]]
+```
+
+All four call paths (chat, chat_structured, apple chat, apple structured) push entries via `_record_usage` which logs at INFO and appends to the active collector. asyncio.Task inherits the active context so fan-out nodes' children's calls land in the parent's bucket.
+
+Apple Intelligence entries are `estimated: True` (chars-based — Foundation Models' transcriptEntries surface needs verified API + Swift plumbing). LangChain entries with provider-reported `usage_metadata` are `estimated: False`.
+
+Don't `logger.info("LLM usage ...")` directly anywhere — go through `_record_usage` so the contextvar collector picks it up.
+
 ## _pydantic_to_apple_schema fail-loud guarantee — 2026-05-07
 
 The converter (`fichero/llm.py`) raises `ValueError` with a field-pointing message on unsupported shapes (discriminated unions, Literal/enum, JSON Schema format keywords, recursive types, malformed $ref). Don't silently emit partial schema trees — fm-bridge then raises an opaque "GenerationSchema init failed" downstream that's painful to diagnose. If a tool needs an unsupported shape, decompose into supported primitives or extend the converter.

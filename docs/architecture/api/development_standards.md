@@ -251,3 +251,31 @@ add a second Apple path without explicit approval.
 `apple_intelligence_supports_locale(locale)` is async (#857). Call it
 from async contexts; do not wrap with `asyncio.run()` from sync code.
 
+### 6. `collect_usage()` for cost tracking (#852)
+
+Workflow runners and any code path that wants per-call token attribution
+wraps execution in:
+
+```python
+from fichero.llm import collect_usage
+
+with collect_usage() as bucket:
+    result = await tool_fn(inputs)
+# bucket is now a list of {provider, model, kind, input_tokens,
+#                          output_tokens, total_tokens, estimated, [method]}
+```
+
+The contextvars-based collector accumulates every `chat` /
+`chat_structured` / `_apple_intelligence_*` call's usage. Without an
+active collector, recording is a no-op log-only path. asyncio Tasks
+inherit the active context so fan-out nodes capture children's usage.
+
+Apple Intelligence entries are marked `estimated: True` (chars-based
+estimate; Foundation Models doesn't surface real token counts through
+fm-bridge yet — #843 follow-up). LangChain entries are `estimated: False`
+when the provider returned `usage_metadata`.
+
+The runner integration (writing the bucket into Activity.metadata at
+node-end) is the final wiring step — landing it requires the runner
+to set up a per-node collector around each LangGraph tool call.
+
