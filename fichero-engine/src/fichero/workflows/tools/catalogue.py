@@ -978,7 +978,17 @@ async def _generate_resumen(
     has both the raw transcripts and a structured summary of the entities
     already extracted — produces a richer, more grounded paragraph than
     transcripts alone. Returns empty string on failure.
+
+    Reasoning is enabled at "medium" effort on the synthesis call sites
+    (single-shot + final reduce) — Claude Sonnet 4.6's extended thinking
+    measurably improves narrative quality on grounded synthesis tasks
+    (#859). The chunk-summary calls in the map step skip reasoning —
+    those are mechanical and the latency/cost isn't worth it. Apple
+    Intelligence and other providers without a reasoning surface
+    silently ignore the field.
     """
+    import dataclasses
+
     if not text and not claim_context:
         return ""
 
@@ -986,6 +996,10 @@ async def _generate_resumen(
         f"\n\nExtracted entities (from prior workflow steps):\n{claim_context}\n"
         if claim_context else ""
     )
+
+    # Reasoning ON only for synthesis (single-shot + final reduce).
+    # Chunk summaries stay fast — mechanical 3-5 sentence digest.
+    synthesis_config = dataclasses.replace(llm_config, reasoning_effort="medium")
 
     # Single-shot path — text fits comfortably in this model's context
     # window. System+user split (#815): rules go to Apple Intelligence's
@@ -1005,7 +1019,7 @@ async def _generate_resumen(
         try:
             response = await chat_with_fallback(
                 text,
-                config=llm_config,
+                config=synthesis_config,
                 system=instructions,
                 permissive_guardrails=True,
             )
@@ -1064,9 +1078,10 @@ async def _generate_resumen(
         f"{context_block}"
     )
     try:
+        # Final synthesis: reasoning ON (#859 — same as single-shot above).
         response = await chat_with_fallback(
             combined_summaries,
-            config=llm_config,
+            config=synthesis_config,
             system=final_instructions,
             permissive_guardrails=True,
         )

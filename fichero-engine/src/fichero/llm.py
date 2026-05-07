@@ -122,6 +122,18 @@ class LLMConfig:
     api_base: str | None = None
     timeout: int = 60
     extra: dict[str, Any] = field(default_factory=dict)
+    # Reasoning effort for models that support extended thinking (#859).
+    # None or "off" → no reasoning (default). "low"/"medium"/"high" →
+    # enabled, with provider-specific routing in get_langchain_model:
+    #   - anthropic native: thinking={'type':'enabled', 'budget_tokens':N}
+    #     plus forces temperature=1 (Anthropic's API constraint)
+    #   - openai (o-series): reasoning_effort kwarg directly
+    #   - openrouter: extra_body={'reasoning':{'effort':...}}
+    #   - apple intelligence + everything else: silently ignored
+    # Wired ON only at the catalogue narrative call site for now —
+    # mechanical extractors don't benefit from reasoning + would slow
+    # measurably. (#872 Phase 3 step 15)
+    reasoning_effort: str | None = None
 
     def get_model_name(self) -> str:
         """Get LiteLLM-format model name (provider/model)."""
@@ -1764,6 +1776,20 @@ def get_langchain_model(config: LLMConfig) -> Any:
         "max_retries": 10,
     }
 
+    # Reasoning effort routing (#859). Each provider exposes the knob
+    # differently:
+    #   - Anthropic native: thinking={'type':'enabled', 'budget_tokens':N}
+    #     and the API requires temperature=1 when thinking is on.
+    #   - OpenAI o-series: reasoning_effort=<level> kwarg.
+    #   - OpenRouter: extra_body={'reasoning':{'effort':<level>}} per its
+    #     normalized request shape; works for both Claude and gpt-5 routes.
+    # Apple Intelligence has no reasoning surface today (handled outside
+    # this function, in _apple_intelligence_chat) so the field is silently
+    # ignored on that path.
+    _REASONING_BUDGETS = {"low": 1024, "medium": 4096, "high": 16000}
+    effort = (config.reasoning_effort or "off").lower()
+    reasoning_on = effort in _REASONING_BUDGETS
+
     # Native LangChain providers via init_chat_model. The "provider:model"
     # string form is the canonical entrypoint per docs.langchain.com.
     # init_chat_model imports the right package automatically; we don't
@@ -1792,6 +1818,19 @@ def get_langchain_model(config: LLMConfig) -> Any:
             # ChatBedrock takes region_name, not api_key.
             kwargs.pop("api_key", None)
             kwargs["region_name"] = config.extra.get("region", "us-east-1")
+        if reasoning_on:
+            if provider == "anthropic":
+                kwargs["thinking"] = {
+                    "type": "enabled",
+                    "budget_tokens": _REASONING_BUDGETS[effort],
+                }
+                # Anthropic requires temperature=1 when thinking is on.
+                kwargs["temperature"] = 1.0
+            elif provider == "openai":
+                # o-series accepts the canonical reasoning_effort kwarg.
+                kwargs["reasoning_effort"] = effort
+            # Other natives (google, mistral, cohere, bedrock) don't expose
+            # a reasoning surface today — silently no-op.
         return init_chat_model(f"{prefix}:{model_name}", **kwargs)
 
     # OpenRouter — uses ChatOpenAI with the OpenRouter base URL. We
@@ -1804,11 +1843,17 @@ def get_langchain_model(config: LLMConfig) -> Any:
     if provider == "openrouter":
         from langchain_openai import ChatOpenAI
 
+        kwargs = dict(common_params)
+        if reasoning_on:
+            # OpenRouter normalizes reasoning across underlying providers
+            # via the `reasoning` extra_body field — works for Claude
+            # (thinking) and gpt-5/o-series (reasoning_effort) alike.
+            kwargs["extra_body"] = {"reasoning": {"effort": effort}}
         return ChatOpenAI(
             model=model_name,
             api_key=api_key,
             base_url=config.api_base or "https://openrouter.ai/api/v1",
-            **common_params,
+            **kwargs,
         )
 
     # OpenAI-compatible third parties: ChatOpenAI with per-provider
