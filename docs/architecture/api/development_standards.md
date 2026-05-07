@@ -171,3 +171,83 @@ async def my_tool(inputs, state, llm_config):
 - Don't share Pydantic schemas across tools "to avoid duplication."
   Each tool's contract evolves independently.
 
+## LLM Stack Architecture (post-#872)
+
+The LLM call surface in `fichero-engine/src/fichero/llm.py` was overhauled
+in commits `d04dae26..da0a6a67` (master plan #872). Five contracts you
+should know before touching it:
+
+### 1. Apple-unavailable error hierarchy (#868)
+
+```python
+class AppleUnavailableError(RuntimeError):
+    """Apple Intelligence cannot service this request → use cloud."""
+
+class GuardrailViolationError(AppleUnavailableError): ...   # safety filter
+class UnsupportedLocaleError(AppleUnavailableError): ...    # es-LatAm rejection
+```
+
+`chat_with_fallback` and `chat_structured_with_fallback` catch the base.
+Adding a new "Apple can't proceed" reason = subclass + map the bridge
+`kind` in `_raise_from_bridge_stderr` — no fallback wiring changes.
+
+Other RuntimeErrors (decoding, context_overflow, rate_limited) stay bare
+and do NOT trigger the cloud fallback — they're transient/retryable in
+place.
+
+### 2. `_compute_timeout(config, kind, *, schema_chars=None)` (#855, #862, #867)
+
+Single source of truth for wall-clock budgets:
+
+| Kind | Formula | Clamp |
+|---|---|---|
+| `langchain` | `base × 5 × output_factor` | `[60, 600]` |
+| `apple_chat` | `base × output_factor` | `[30, 180]` |
+| `apple_structured` | `base × 2 × output_factor × schema_factor` | `[60, 600]` |
+
+Where `output_factor = max(0.25, max_tokens/1024)` and
+`schema_factor = max(1.0, schema_chars/2000)`.
+
+Use this for any new asyncio.wait_for wrapper. Don't add a fourth
+formula somewhere else.
+
+### 3. Reasoning routing (#859)
+
+`LLMConfig.reasoning_effort: "off"|"low"|"medium"|"high"|None`.
+`get_langchain_model` routes per provider:
+
+- **anthropic native**: `thinking={'type':'enabled','budget_tokens':N}` +
+  forces `temperature=1` (Anthropic API constraint)
+- **openai (o-series)**: `reasoning_effort=<level>` kwarg
+- **openrouter**: `extra_body={'reasoning':{'effort':...}}` (works for
+  Claude AND gpt-5 via OpenRouter's normalized shape)
+- **apple intelligence + others**: silently ignored
+
+Wired ON only for synthesis-style calls (catalogue narrative). Mechanical
+extraction (extract_all, cleanup) keeps reasoning OFF — pattern matching
+doesn't benefit and adds latency.
+
+### 4. `_pydantic_to_apple_schema` fail-loud contract (#856)
+
+The converter now raises `ValueError` with field-pointing messages on:
+
+- Discriminated unions (anyOf with >1 non-null branches)
+- Enum / Literal types
+- JSON Schema format keywords (date, uri, email, ...)
+- Recursive types
+- Malformed `$ref` / unknown `type`
+
+Optional[T] (anyOf with 1 non-null + null) and `$ref/$defs` inlining
+still work. If you're authoring a tool schema and hit a converter
+error, decompose into supported primitives or extend the converter.
+
+### 5. fm-bridge is the canonical Apple path (#870)
+
+Closed: `apple-fm-sdk` migration deferred to its 1.0 release. The
+fm-bridge subprocess is the production path — `bin/fm-bridge/FmBridge.swift`
++ `_apple_intelligence_chat` / `_apple_intelligence_structured`. Don't
+add a second Apple path without explicit approval.
+
+`apple_intelligence_supports_locale(locale)` is async (#857). Call it
+from async contexts; do not wrap with `asyncio.run()` from sync code.
+
