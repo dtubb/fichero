@@ -281,7 +281,7 @@ async def test_chat_with_fallback_routes_around_guardrail():
     primary_config = LLMConfig(provider="apple", model="apple-intelligence")
     call_log: list[LLMConfig] = []
 
-    async def fake_chat(prompt, config, system=None):
+    async def fake_chat(prompt, config, system=None, **_kwargs):
         call_log.append(config)
         if config.provider == "apple":
             raise GuardrailViolationError("guardrailViolation: May contain unsafe content")
@@ -332,4 +332,56 @@ async def test_chat_with_fallback_does_not_swallow_other_errors():
 
     with patch("fichero.llm.chat", new=primary):
         with pytest.raises(RuntimeError, match="network unreachable"):
+            await chat_with_fallback("hi", config=config)
+
+
+@pytest.mark.asyncio
+async def test_chat_with_fallback_routes_around_unsupported_locale():
+    """When Apple Intelligence rejects the prompt's language (Spanish-LatAm
+    on a model that only ships Spanish-Spain, e.g.), chat_with_fallback
+    must route to $large the same way it does for guardrail refusals.
+    Both errors share the AppleUnavailableError base — the single except
+    clause catches both (#868)."""
+    from fichero.llm import chat_with_fallback, LLMConfig, UnsupportedLocaleError
+
+    primary_config = LLMConfig(provider="apple", model="apple-intelligence")
+    call_log: list[LLMConfig] = []
+
+    async def fake_chat(prompt, config, system=None, **_kwargs):
+        call_log.append(config)
+        if config.provider == "apple":
+            raise UnsupportedLocaleError(
+                "Apple Intelligence (unsupported_language): "
+                "An unsupported language or locale was used"
+            )
+        return "fallback response"
+
+    with patch("fichero.llm.chat", new=fake_chat), \
+         patch(
+             "fichero.llm.resolve_model_alias",
+             return_value=("anthropic", "claude-sonnet-4-6"),
+         ):
+        result = await chat_with_fallback("hola, esto es Español", config=primary_config)
+
+    assert result == "fallback response"
+    assert len(call_log) == 2
+    assert call_log[0].provider == "apple"
+    assert call_log[1].provider == "anthropic"
+
+
+@pytest.mark.asyncio
+async def test_chat_with_fallback_reraises_unsupported_locale_when_no_large():
+    """No $large configured → original UnsupportedLocaleError surfaces so
+    UI can show 'configure $large to enable Spanish' rather than swallowing."""
+    from fichero.llm import chat_with_fallback, LLMConfig, UnsupportedLocaleError
+
+    config = LLMConfig(provider="apple", model="apple-intelligence")
+    primary = AsyncMock(side_effect=UnsupportedLocaleError("locale rejected"))
+
+    with patch("fichero.llm.chat", new=primary), \
+         patch(
+             "fichero.llm.resolve_model_alias",
+             side_effect=ValueError("no default large model configured"),
+         ):
+        with pytest.raises(UnsupportedLocaleError, match="locale rejected"):
             await chat_with_fallback("hi", config=config)

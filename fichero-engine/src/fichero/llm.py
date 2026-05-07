@@ -142,7 +142,22 @@ class LLMConfig:
 _MODEL_ALIASES = {"$small", "$large"}
 
 
-class GuardrailViolationError(RuntimeError):
+class AppleUnavailableError(RuntimeError):
+    """Base class for Apple Intelligence failures that should fall back
+    to the cloud $large model. Subclasses distinguish *why* Apple can't
+    serve the call — useful for telemetry, tests, and per-cause UX —
+    but callers that just want fallback semantics catch this base.
+
+    The chat_with_fallback / chat_structured_with_fallback wrappers
+    catch this base and resolve $large; existing call sites that catch
+    GuardrailViolationError specifically still work because that class
+    inherits from this one. Adding a new "Apple can't proceed" reason
+    means subclassing this and mapping the bridge `kind` in
+    _raise_from_bridge_stderr — no fallback wiring changes needed (#868).
+    """
+
+
+class GuardrailViolationError(AppleUnavailableError):
     """Raised when Apple Intelligence's on-device safety filter refuses a
     generation. The Foundation Models error surface gives us a structured
     `guardrailViolation` enum case that fm-bridge stringifies; we detect
@@ -154,6 +169,19 @@ class GuardrailViolationError(RuntimeError):
     vernacular literature, court records, ethnographic notes, etc. The
     answer is to fall back to the user-configured frontier model, not
     to surface the failure to the user.
+    """
+
+
+class UnsupportedLocaleError(AppleUnavailableError):
+    """Raised when Apple Intelligence rejects a prompt because its
+    language/locale isn't in the model's supported set. Apple's locale
+    support has expanded over OS releases (15.1 = en-US only; 15.4 added
+    Spanish-Spain + others; macOS 26 broader still) and within Spanish
+    distinguishes es-ES from es-MX/es-CO etc. — a Spanish-LatAm prompt
+    on a model that only ships es-ES still raises `unsupportedLanguageOrLocale`.
+
+    Falls back to $large (cloud frontier model) which has no locale
+    restriction. (#868)
     """
 
 
@@ -321,19 +349,22 @@ async def chat_with_fallback(
     permissive_guardrails: bool = False,
 ) -> str:
     """Like chat(), but falls back to the user's $large model when Apple
-    Intelligence's on-device guardrail refuses the call. (#838)
+    Intelligence can't service the request — currently for guardrail
+    refusals (#838) and unsupported-locale rejections (#868).
 
     Apple's safety filter is tuned for consumer use cases and refuses
     scholarly text containing literary profanity, drug references,
-    historical slurs, court-record vocabulary, etc. Frontier cloud
-    providers handle the same content with their academic-appropriate
-    safety policies. The fallback keeps the local-first default
-    (everything still tries Apple Intelligence first when configured)
-    but escapes to the user-configured cloud provider when needed.
+    historical slurs, court-record vocabulary, etc. Apple's locale
+    matrix also evolves per OS release (en-US only on 15.1; Spanish-
+    Spain added 15.4; broader on 26+) and rejects out-of-set prompts
+    with `unsupportedLanguageOrLocale`. Frontier cloud providers
+    handle both — academic content + any locale — so the fallback
+    keeps the local-first default but escapes to the user-configured
+    cloud provider when needed.
 
     Streaming is intentionally unsupported — callers that need streaming
     are using direct chat() and accept the responsibility of catching
-    GuardrailViolationError themselves.
+    AppleUnavailableError subclasses themselves.
 
     Returns the response string. Raises the original error when fallback
     is unavailable (no $large configured) or also fails.
@@ -343,18 +374,21 @@ async def chat_with_fallback(
             prompt, config, system=system,
             permissive_guardrails=permissive_guardrails,
         )
-    except GuardrailViolationError as guardrail_exc:
+    except AppleUnavailableError as apple_exc:
         # Only Apple Intelligence raises this — try $large if configured.
+        # Catches GuardrailViolationError, UnsupportedLocaleError, and any
+        # future "Apple can't proceed" subclass uniformly.
         try:
             large_provider, large_model = resolve_model_alias("$large", "")
         except ValueError:
-            # No $large configured — surface the original guardrail error so
-            # the caller knows it was Apple's refusal, not a missing key.
+            # No $large configured — surface the original error so the
+            # caller knows it was Apple's refusal, not a missing key.
             logger.warning(
-                "GuardrailViolation but no $large fallback configured; "
-                "set Settings → AI Defaults → Default large model to enable."
+                "%s but no $large fallback configured; set Settings → "
+                "AI Defaults → Default large model to enable.",
+                type(apple_exc).__name__,
             )
-            raise guardrail_exc
+            raise apple_exc
 
         fallback_config = LLMConfig(
             provider=large_provider,
@@ -367,8 +401,8 @@ async def chat_with_fallback(
             extra=dict(config.extra),
         )
         logger.info(
-            f"Apple Intelligence guardrail refused; retrying with "
-            f"$large = {large_provider}/{large_model}"
+            "Apple Intelligence unavailable (%s); retrying with $large = %s/%s",
+            type(apple_exc).__name__, large_provider, large_model,
         )
         # Permissive guardrails is Apple-only and has no effect here.
         return await chat(prompt, fallback_config, system=system)
@@ -544,6 +578,15 @@ def _raise_from_bridge_stderr(stderr_bytes: bytes, returncode: int) -> None:
         # only and carries an explanation; `guardrail` is the safety
         # filter outside the model.)
         raise GuardrailViolationError(
+            f"Apple Intelligence ({kind}): {message}"
+        )
+
+    if kind == "unsupported_language":
+        # Apple's per-OS locale matrix doesn't cover all Spanish variants
+        # (es-ES vs es-LatAm) even on macOS 26. Treat as Apple-unavailable
+        # so chat_with_fallback / chat_structured_with_fallback escape to
+        # cloud $large the same way they handle guardrail refusals (#868).
+        raise UnsupportedLocaleError(
             f"Apple Intelligence ({kind}): {message}"
         )
 
@@ -1127,11 +1170,14 @@ async def chat_structured_with_fallback(
     use_case: str | None = None,
 ) -> BaseModel:
     """Like chat_structured(), but falls back to the user's $large model
-    when Apple Intelligence's on-device guardrail refuses the call (#838).
+    when Apple Intelligence can't service the request (guardrail refusal
+    #838 or unsupported locale #868).
 
     Mirrors chat_with_fallback() for the structured-output path. Lets
-    extract_all and cleanup keep the local-first default while still
-    completing on documents Apple Intelligence's safety filter rejects.
+    extract_all, cleanup, and per-section extractors keep the local-first
+    default while still completing on documents Apple Intelligence
+    rejects (Spanish-LatAm court records, scholarly text with literary
+    profanity, etc.).
     """
     try:
         return await chat_structured(
@@ -1139,22 +1185,23 @@ async def chat_structured_with_fallback(
             include_schema_in_prompt=include_schema_in_prompt,
             use_case=use_case,
         )
-    except GuardrailViolationError as guardrail_exc:
-        # Resolve $large the same way chat_with_fallback does, for
-        # symmetry — same alias, same precedence rules.
+    except AppleUnavailableError as apple_exc:
+        # Catches GuardrailViolationError, UnsupportedLocaleError, and
+        # any future "Apple can't proceed" subclass uniformly.
         try:
             large_provider, large_model = resolve_model_alias("$large", "")
         except ValueError:
             logger.warning(
-                "Structured-call GuardrailViolation but no $large fallback "
-                "configured; set Settings → AI Defaults → Default large model."
+                "Structured-call %s but no $large fallback configured; "
+                "set Settings → AI Defaults → Default large model.",
+                type(apple_exc).__name__,
             )
-            raise guardrail_exc
+            raise apple_exc
 
         if large_provider == config.provider and large_model == config.model:
             # $large resolves to the same model we just tried — no point
-            # retrying. Surface the original guardrail.
-            raise guardrail_exc
+            # retrying. Surface the original error.
+            raise apple_exc
 
         fallback_config = LLMConfig(
             provider=large_provider,
@@ -1167,8 +1214,9 @@ async def chat_structured_with_fallback(
             extra=dict(config.extra),
         )
         logger.warning(
-            f"Apple Intelligence guardrail refused structured call; retrying "
-            f"with $large = {large_provider}/{large_model}"
+            "Apple Intelligence unavailable for structured call (%s); "
+            "retrying with $large = %s/%s",
+            type(apple_exc).__name__, large_provider, large_model,
         )
         # The fallback provider is LangChain-based, so the Apple-only
         # include_schema_in_prompt parameter is ignored on that path.

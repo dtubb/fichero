@@ -20,9 +20,12 @@ import pytest
 from pydantic import BaseModel, Field
 
 from fichero.llm import (
+    AppleUnavailableError,
     GuardrailViolationError,
     LLMConfig,
+    UnsupportedLocaleError,
     _pydantic_to_apple_schema,
+    _raise_from_bridge_stderr,
     apple_intelligence_supports_locale,
     chat_structured,
     chat_structured_with_fallback,
@@ -312,9 +315,9 @@ class TestChatStructuredWithFallback:
     @pytest.mark.asyncio
     async def test_non_guardrail_errors_propagate(self):
         """Generic transport / decoding errors are NOT routed through
-        the fallback — only GuardrailViolationError is. RuntimeError
-        from the bridge (e.g. context_overflow, decoding) bubbles up
-        for the caller to log and recover."""
+        the fallback — only AppleUnavailableError subclasses are. Bare
+        RuntimeError from the bridge (e.g. context_overflow, decoding)
+        bubbles up for the caller to log and recover."""
         apple_cfg = LLMConfig(provider="apple", model="apple-intelligence")
         with patch(
             "fichero.llm.chat_structured",
@@ -324,6 +327,107 @@ class TestChatStructuredWithFallback:
                 await chat_structured_with_fallback(
                     prompt="x", schema=_Result, config=apple_cfg
                 )
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_large_on_unsupported_locale(self):
+        """Apple raises UnsupportedLocaleError → resolve $large → retry.
+        Same fallback path as guardrail — both inherit AppleUnavailableError
+        so chat_structured_with_fallback's single `except` catches both (#868)."""
+        apple_cfg = LLMConfig(provider="apple", model="apple-intelligence")
+
+        async def fake_chat_structured(prompt, schema, config, system=None, include_schema_in_prompt=None, use_case=None):
+            if config.provider == "apple":
+                raise UnsupportedLocaleError(
+                    "Apple Intelligence (unsupported_language): es-CO not supported"
+                )
+            assert config.provider == "openai"
+            assert config.model == "gpt-5"
+            return _Result(answer="from-large")
+
+        with patch("fichero.llm.chat_structured", new=fake_chat_structured), \
+             patch("fichero.llm.resolve_model_alias", return_value=("openai", "gpt-5")):
+            result = await chat_structured_with_fallback(
+                prompt="x", schema=_Result, config=apple_cfg
+            )
+
+        assert result == _Result(answer="from-large")
+
+    @pytest.mark.asyncio
+    async def test_unsupported_locale_reraises_when_no_large(self):
+        """No $large configured → original UnsupportedLocaleError surfaces
+        unchanged so the caller knows it was an Apple locale rejection,
+        not a missing API key."""
+        apple_cfg = LLMConfig(provider="apple", model="apple-intelligence")
+        with patch(
+            "fichero.llm.chat_structured",
+            new=AsyncMock(side_effect=UnsupportedLocaleError("locale rejected")),
+        ), patch(
+            "fichero.llm.resolve_model_alias",
+            side_effect=ValueError("no $large"),
+        ):
+            with pytest.raises(UnsupportedLocaleError, match="locale rejected"):
+                await chat_structured_with_fallback(
+                    prompt="x", schema=_Result, config=apple_cfg
+                )
+
+
+class TestAppleUnavailableHierarchy:
+    """The AppleUnavailableError base class lets callers catch any
+    'Apple can't proceed → use cloud' reason uniformly. Subclasses
+    distinguish reasons for telemetry / per-cause UX (#868)."""
+
+    def test_guardrail_is_apple_unavailable(self):
+        assert issubclass(GuardrailViolationError, AppleUnavailableError)
+
+    def test_unsupported_locale_is_apple_unavailable(self):
+        assert issubclass(UnsupportedLocaleError, AppleUnavailableError)
+
+    def test_apple_unavailable_is_runtime_error(self):
+        # Preserves backwards-compat: callers that catch RuntimeError
+        # generically (e.g. cleanup's chunked-retry) keep working.
+        assert issubclass(AppleUnavailableError, RuntimeError)
+
+    def test_bridge_stderr_unsupported_language_raises_typed(self):
+        """The bridge emits {'kind': 'unsupported_language', ...} on Apple
+        locale rejection. _raise_from_bridge_stderr must map that to
+        UnsupportedLocaleError so the fallback path catches it."""
+        import json
+        payload = json.dumps({
+            "kind": "unsupported_language",
+            "error": "An unsupported language or locale was used",
+        }).encode("utf-8")
+        with pytest.raises(UnsupportedLocaleError) as excinfo:
+            _raise_from_bridge_stderr(payload, returncode=1)
+        # Subclass relationship lets callers catch the base.
+        assert isinstance(excinfo.value, AppleUnavailableError)
+        assert "unsupported_language" in str(excinfo.value)
+
+    def test_bridge_stderr_guardrail_raises_typed(self):
+        """Guardrail still maps to GuardrailViolationError after the
+        AppleUnavailableError refactor (regression guard)."""
+        import json
+        payload = json.dumps({
+            "kind": "guardrail",
+            "error": "Safety filter rejected prompt",
+        }).encode("utf-8")
+        with pytest.raises(GuardrailViolationError) as excinfo:
+            _raise_from_bridge_stderr(payload, returncode=1)
+        assert isinstance(excinfo.value, AppleUnavailableError)
+
+    def test_bridge_stderr_decoding_stays_runtime_error(self):
+        """Non-Apple-unavailable kinds (decoding, context_overflow,
+        rate_limited, etc.) remain bare RuntimeError so chat_with_fallback
+        does NOT route them through $large — they're transient and the
+        caller should retry/chunk in place."""
+        import json
+        payload = json.dumps({
+            "kind": "decoding",
+            "error": "Failed to decode generated content",
+        }).encode("utf-8")
+        with pytest.raises(RuntimeError) as excinfo:
+            _raise_from_bridge_stderr(payload, returncode=1)
+        # Specifically NOT AppleUnavailableError → fallback skips it.
+        assert not isinstance(excinfo.value, AppleUnavailableError)
 
 
 # =============================================================================
