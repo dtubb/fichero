@@ -61,11 +61,63 @@ a real folder before the release packaging path opens up.
 
 ## Next Session — Start Here
 
-1. **Restart backend on `c432dd90`** to pick up the Spanish locale fallback fix. Re-run Catalogue (Mixed) on Legal Case. Expect extract_all to silently route Apple's `unsupported_language` errors to $large; narrative populates; folder page_content shows it.
-2. **#868 Theme A — LLMProvider Protocol refactor.** Foundation laid (timeouts centralized, error hierarchy typed, reasoning routed). Refactor itself is ~6h focused work — best run in autonomous-loop mode with fresh context per increment.
-3. **#873 pytest integration test** — needs a 3-page Spanish fixture PDF + skip-by-default `FICHERO_INTEGRATION=1` flag wired into pytest. Half-design / half-code.
-4. **Read first:** `docs/architecture/api/development_standards.md` (now has 5 new contracts under "LLM Stack Architecture (post-#872)") and MEMORY.md entries dated 2026-05-07.
-5. **Don't break:** the AppleUnavailableError fallback works because `chat_with_fallback`/`chat_structured_with_fallback` catch the base class. Don't catch `GuardrailViolationError` specifically anywhere.
+**Latest commit on 0.0.2: `3d50df04`** (10 integration tests for the LLM
+fallback chain, mocked at the network boundary, no internet calls).
+
+### 0.0.2 milestone state
+
+Open: 9 (was 16). Closed: 265+. Ratio 96%.
+
+The remaining 9 are: #659–#665 (release packaging, all Daniel-blocked),
+#821 (Apple Intelligence Tool calls — bigger feature, deferrable), #868
++ #872 + #873 (LLM-stack follow-ups — all doable now), #854 moved to
+0.0.3 (genuinely blocked on macOS SDK 26.4).
+
+### Highest-value next thing: #868 LLMProvider Protocol refactor
+
+**Read first:** the implementation brief I wrote inside the issue
+(GitHub comment dated 2026-05-07). It has the exact 5-commit sequence
++ file paths + risk analysis. Don't re-derive — execute.
+
+**Quick orientation:** the foundation is already in `llm.py`:
+- `AppleUnavailableError` hierarchy (~line 145)
+- `_compute_timeout(config, kind, *, schema_chars=None)` (~line 1308)
+- `collect_usage()` + `_record_usage()` (~line 70)
+- Reasoning routing in `get_langchain_model` (~line 1850)
+
+The refactor wraps these into provider classes; dispatchers replace the
+in-line `if config.provider == "apple": ... else: ...` branches.
+
+### Other paths
+
+- **#873 next slice:** the 10 fallback-chain tests are scoped piece 1.
+  Pieces 2/3 would be (a) a workflow-execution-runner test with mocked
+  tools, (b) an end-to-end test driving the FastAPI route. Both need
+  fixture-infra design choices first.
+- **Live verification still pending:** restart backend on a recent commit
+  and re-run Catalogue (Mixed) on Legal Case to confirm the Spanish
+  locale fix works in production.
+- **Cellphone-aware rule for autonomous loop:** mock all LLM calls in
+  tests; never write a test that hits real provider APIs without an env
+  flag (`FICHERO_INTEGRATION=1`) and `pytest.skipif` guard.
+
+### Don't break
+
+- AppleUnavailableError fallback works because `chat_with_fallback` /
+  `chat_structured_with_fallback` catch the base class. Don't catch
+  `GuardrailViolationError` specifically anywhere.
+- Don't add a fourth timeout formula somewhere. Use `_compute_timeout`.
+- Don't `logger.info("LLM usage ...")` directly. Use `_record_usage` so
+  the contextvar collector picks it up.
+- Don't add a second Apple path. fm-bridge is canonical.
+
+### Read for context
+
+- `docs/architecture/api/development_standards.md` — 6 contracts under
+  "LLM Stack Architecture (post-#872)"
+- `MEMORY.md` 2026-05-07 entries (7 durable lessons)
+- HISTORY.md 2026-05-07 session summary
+- GitHub issue #868 comment "Implementation brief — for fresh-context resumption"
 2. **If per-file works**: move on to release pipeline #658–#660 (DMG
    build / notarize / dry-run install).
 3. **If per-file doesn't land**: check engine.log for
