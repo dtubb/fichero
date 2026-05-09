@@ -93,20 +93,34 @@ these — they're all Swift UI).
 | #675 | `9af7994c` | `convertToSendable` preserves Date/URL/NSNumber types |
 | #354 | `eaf1f99d` | Bound inspector close button hit area to its icon |
 
-### Suggested order
+### Audit (2026-05-08): most are already on 0.0.2
 
-1. `4c51202e` — schema migration build error fix (foundation, unblocks builds if that hits us)
-2. `9af7994c` #675 — Sendable type fix (low-risk plumbing)
-3. `eaf1f99d` #354 — close button hit area (small UI fix)
-4. `8c4cce4c` #618 — sidebar indentation flatten (visual polish)
-5. `a6b27e4e` #602 — sidebar reorder (`.onMove` + shadow @State pattern is in MEMORY.md)
-6. `15786e4a` #326 — pane navigation
-7. `57981ec6` #518/#519 — processing poll + Artifacts column
-8. `e6c30600` #593 — swipe navigation
-9. `3487786b` #617 — NNW per-column toolbars
-10. `e80f00c6` #517 — list/table/map + Finder search criteria strip (biggest)
+After 0.0.3 shipped (Apr 23), 0.0.2 had ~2 weeks of work that
+independently re-implemented most of these features under the new path
+structure. Verified by grep on 0.0.2's tree:
 
-Then add Search v1 input wiring (which neither branch had).
+| Issue | 0.0.3 commit | Status on 0.0.2 |
+|---|---|---|
+| #354 | `eaf1f99d` | **N/A** — bug doesn't apply; 0.0.2 uses standard SwiftUI ToolbarItem, not the InspectorColumnHeader HStack the fix targeted |
+| #675 | `9af7994c` | **N/A** — `convertToSendable` lives in different file structure on 0.0.2; not the same code path |
+| #602 | `a6b27e4e` | **✅ Done** — `.onMove` wired in `SidebarItemRow.swift:545` and `SidebarView+ViewComponents.swift:271`; MEMORY.md `feedback_onmove_shadow_state.md` documents the pattern |
+| #326 | `15786e4a` | **✅ Done** — `cyclePaneFocus` in `ContentView+Actions.swift:15`; navigation wires through `onRequestPreviousPaneFocus` / `onRequestNextPaneFocus` |
+| #617 | `3487786b` | **✅ Done** — `MiniToolbar.swift` exists in `Views/Toolbars/`; per-column toolbar pattern in place |
+| #618 | `8c4cce4c` | **TBD** — verify sidebar indentation matches NNW-style |
+| — | `4c51202e` | **TBD** — backend schema build errors; check if they apply to current llm.py / OpenAPI shape |
+
+### Truly missing — port these (in suggested order)
+
+| Issue | 0.0.3 commit | What | Notes |
+|---|---|---|---|
+| #519 | `57981ec6` | Artifacts column on document list | Half of the processing-poll / Artifacts commit; the column is the visible piece |
+| #518 | `57981ec6` | Processing-status poll | Background poller updates document status; pairs with #519 |
+| #593 | `e6c30600` | Swipe-to-navigate sibling docs in preview | Trackpad swipe → next/prev sibling; MEMORY.md `feedback_nsswipe_gesture_missing.md` notes NSSwipeGestureRecognizer doesn't exist on Swift macOS — must use `NSEvent.addLocalMonitorForEvents(matching: .swipe)` |
+| #517 | `e80f00c6` | Library list/table/map view modes wired + Finder-style search criteria strip | **Highest-value piece for Search v1.** SearchCriteriaStrip.swift is the one new file. List/table view modes have skeleton on 0.0.2 (`ViewDisplayMode.table` enum case exists) but may need to be actually wired to render. |
+
+### Then for Search v1 (#481)
+
+After the criteria strip lands, add the actual `.searchable(text: $queryText, prompt: ...)` to SearchView so users can type queries (this is the original "input not wired" gap). 30-60min, all in `fichero/fichero/Views/Search/SearchView.swift`.
 
 ## Next Session — Start Here
 
