@@ -72,46 +72,49 @@ extension ContentView {
 
     // MARK: - Center Content (with Layout Modes)
 
-    var showVerticalModeRail: Bool {
+    var showModeRail: Bool {
         (sidebarMode == .library || sidebarMode == .search)
             && showViewModePicker
             && availableViewDisplayModes.count > 1
     }
 
+    /// Horizontal mode strip — sits above the content view in a thin
+    /// 32-pt-tall band so it eats less screen real-estate than the
+    /// previous 44-pt-wide vertical rail. Same Mac-toolbar idiom as
+    /// Finder's view-mode segment.
     @ViewBuilder
-    var verticalModeRail: some View {
-        if showVerticalModeRail {
-            VStack(spacing: 8) {
+    var horizontalModeStrip: some View {
+        if showModeRail {
+            HStack(spacing: 4) {
                 ForEach(availableViewDisplayModes) { mode in
                     Button {
                         updateViewDisplayMode(mode)
                     } label: {
                         Image(systemName: mode.icon)
-                            .frame(width: 24, height: 24)
+                            .frame(width: 22, height: 22)
                     }
                     .buttonStyle(.plain)
-                    .padding(6)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
                     .background(
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: 6)
                             .fill(viewDisplayMode == mode ? Color.accentColor.opacity(0.2) : Color.clear)
                     )
                     .help("View as: \(mode.rawValue)")
                 }
-
                 Spacer(minLength: 0)
             }
-            .padding(.top, 8)
             .padding(.horizontal, 8)
-            .frame(width: 44)
+            .padding(.vertical, 4)
             .background(Color(nsColor: .windowBackgroundColor).opacity(0.35))
         }
     }
 
     @ViewBuilder
     var contentWithOptionalModeRail: some View {
-        if showVerticalModeRail {
-            HStack(spacing: 0) {
-                verticalModeRail
+        if showModeRail {
+            VStack(spacing: 0) {
+                horizontalModeStrip
                 Divider()
                 contentView
             }

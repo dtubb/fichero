@@ -118,7 +118,7 @@ extension LibraryView {
                 Text("-").font(.caption).foregroundColor(.secondary)
             }
         case "artifacts":
-            ArtifactCountBadge(documentId: doc.id)
+            ArtifactEntitiesView(documentId: doc.id, style: .singleLine)
         default:
             Text("-").foregroundColor(.secondary)
         }
@@ -160,75 +160,169 @@ extension LibraryView {
     }
 }
 
-// MARK: - Artifact Count Badge (#519)
+// MARK: - Artifact Entities View (#519)
 
-/// Shows artifact count + primary type for a document row in the table view.
-/// Reads from `ArtifactServiceGenerated.artifactsByDocument` cache; lazy-loads
-/// on first appear if not cached. Display priority: transcription > entities
-/// > summary > … so the badge surfaces the most "completed-work-y" type when
-/// multiple are present.
-struct ArtifactCountBadge: View {
+/// Surfaces the entity-flavored artifacts (people/places/organizations/
+/// events/dates/keywords) for a document row. Two styles share one data
+/// path so the singleLine table-cell and multiLine list-row presentations
+/// fetch + parse identically.
+///
+/// Cache: reads ArtifactServiceGenerated.artifactsByDocument["{id}|own"]
+/// (matches the V2 strict-scope convention from DocumentInspectorArtifactsTab —
+/// per-row counts shouldn't include descendants, otherwise a parent PDF
+/// shows the union of every page-child's artifacts).
+struct ArtifactEntitiesView: View {
+    enum Style { case singleLine, multiLine }
+
     let documentId: String
+    let style: Style
 
     @EnvironmentObject var artifactService: ArtifactServiceGenerated
 
-    @State private var count: Int = 0
-    @State private var primaryType: String?
-
-    private static let typeDisplayOrder = [
-        "transcription", "entities", "summary",
-        "translation", "classification", "embedding"
-    ]
+    @State private var people: [String] = []
+    @State private var places: [String] = []
+    @State private var organizations: [String] = []
+    @State private var events: [String] = []
+    @State private var dates: [String] = []
+    @State private var keywords: [String] = []
+    @State private var loaded = false
 
     var body: some View {
         Group {
-            if count < 1 {
-                Text("—")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                HStack(spacing: 4) {
-                    Text("\(count)")
-                        .font(.caption)
-                        .foregroundStyle(.primary)
-                    if let typeName = primaryType {
-                        Text("·")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(typeName)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+            if !loaded {
+                // Reserve space silently while the first fetch is in flight.
+                Color.clear.frame(height: style == .singleLine ? 14 : 1)
+            } else if isEmpty {
+                if style == .singleLine {
+                    Text("—").font(.caption).foregroundStyle(.secondary)
+                } else {
+                    EmptyView()
                 }
+            } else {
+                content
             }
         }
-        .onAppear { loadArtifacts() }
+        .onAppear { Task { await loadEntities() } }
     }
 
-    private func loadArtifacts() {
-        // V2 strict scope (#701): per-row badge counts only this document's
-        // OWN artifacts, not its descendants — otherwise a parent PDF
-        // displays the union of every page-child's artifacts and the
-        // count is misleading. Matches DocumentInspectorArtifactsTab's
-        // includeDescendants: false convention. Cache key reflects the
-        // scope flag so we hit the right bucket in artifactsByDocument.
+    @ViewBuilder
+    private var content: some View {
+        switch style {
+        case .singleLine:
+            HStack(spacing: 8) {
+                chip("👤", names: people, max: 2)
+                chip("📍", names: places, max: 2)
+                chip("🏢", names: organizations, max: 1)
+                chip("📅", names: dates, max: 1)
+                chip("⚡", names: events, max: 1)
+            }
+            .font(.caption)
+            .lineLimit(1)
+            .truncationMode(.tail)
+        case .multiLine:
+            VStack(alignment: .leading, spacing: 2) {
+                row("People", names: people, max: 6)
+                row("Places", names: places, max: 5)
+                row("Organizations", names: organizations, max: 4)
+                row("Dates", names: dates, max: 5)
+                row("Events", names: events, max: 3)
+                row("Keywords", names: keywords, max: 8)
+            }
+            .font(.caption2)
+        }
+    }
+
+    @ViewBuilder
+    private func chip(_ icon: String, names: [String], max: Int) -> some View {
+        if !names.isEmpty {
+            let shown = Array(names.prefix(max))
+            let extra = names.count - shown.count
+            let suffix = extra > 0 ? " +\(extra)" : ""
+            Text("\(icon) \(shown.joined(separator: ", "))\(suffix)")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func row(_ label: String, names: [String], max: Int) -> some View {
+        if !names.isEmpty {
+            let shown = Array(names.prefix(max))
+            let extra = names.count - shown.count
+            let suffix = extra > 0 ? " +\(extra)" : ""
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text("\(label):")
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 90, alignment: .leading)
+                Text("\(shown.joined(separator: ", "))\(suffix)")
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+        }
+    }
+
+    private var isEmpty: Bool {
+        people.isEmpty && places.isEmpty && organizations.isEmpty
+            && events.isEmpty && dates.isEmpty && keywords.isEmpty
+    }
+
+    @MainActor
+    private func loadEntities() async {
         let cacheKey = "\(documentId)|own"
+        let artifacts: [Artifact]
         if let cached = artifactService.artifactsByDocument[cacheKey] {
-            updateFromArtifacts(cached)
-            return
-        }
-        Task {
-            if let artifacts = try? await artifactService.getArtifacts(
-                forDocumentId: documentId, includeDescendants: false
-            ) {
-                await MainActor.run { updateFromArtifacts(artifacts) }
+            artifacts = cached
+        } else {
+            do {
+                artifacts = try await artifactService.getArtifacts(
+                    forDocumentId: documentId, includeDescendants: false
+                )
+            } catch {
+                loaded = true
+                return
             }
         }
+        for artifact in artifacts {
+            switch artifact.artifactType {
+            case "people":
+                people = extractNames(artifact, key: "name")
+            case "places":
+                places = extractNames(artifact, key: "name")
+            case "organizations":
+                organizations = extractNames(artifact, key: "name")
+            case "events":
+                events = extractNames(artifact, key: "event")
+            case "keywords":
+                keywords = extractKeywords(artifact)
+            case "dates":
+                dates = extractDates(artifact)
+            default:
+                break
+            }
+        }
+        loaded = true
     }
 
-    private func updateFromArtifacts(_ artifacts: [Artifact]) {
-        count = artifacts.count
-        let types = artifacts.map(\.artifactType)
-        primaryType = Self.typeDisplayOrder.first { types.contains($0) } ?? types.first
+    private func extractNames(_ artifact: Artifact, key: String) -> [String] {
+        guard let data = artifact.data,
+              let value = data["items"]?.value,
+              let items = value as? [[String: Any]] else { return [] }
+        return items.compactMap { $0[key] as? String }
+    }
+
+    private func extractKeywords(_ artifact: Artifact) -> [String] {
+        guard let data = artifact.data,
+              let value = data["keywords"]?.value,
+              let array = value as? [String] else { return [] }
+        return array
+    }
+
+    private func extractDates(_ artifact: Artifact) -> [String] {
+        guard let data = artifact.data,
+              let value = data["items"]?.value,
+              let items = value as? [[String: Any]] else { return [] }
+        return items.compactMap { item in
+            (item["date_normalized"] as? String) ?? (item["date"] as? String)
+        }
     }
 }

@@ -74,14 +74,25 @@ struct MailStyleRow: View {
                     }
                 }
 
-                // Summary/Output preview (2-3 lines)
+                // Summary/Output preview — bumped to 4 lines so list view
+                // surfaces meaningful body, not just a glimpse.
                 if let content = document.pageContent, !content.isEmpty {
                     Text(content)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                        .lineLimit(2)
+                        .lineLimit(4)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                // Entity preview rows — surfaces the NER results from
+                // extract_all (people, places, organizations, dates,
+                // events, keywords) so list view shows what the workflow
+                // actually found, not just count + status. Hidden when
+                // no entity-typed artifacts exist for this doc. (#519)
+                ArtifactEntitiesView(
+                    documentId: document.id,
+                    style: .multiLine
+                )
             }
         }
         .padding(.vertical, 4)
