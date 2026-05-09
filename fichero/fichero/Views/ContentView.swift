@@ -684,6 +684,17 @@ struct ContentView: View {
                 }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .ficheroEntitySearchRequested)) { note in
+            // Click on a blue entity lozenge anywhere in the UI fires the
+            // toolbar search for that name. Same code path as typing in
+            // the toolbar — creates a saved search, switches to search
+            // mode, runs the query. The user sees results in the search
+            // pane without having to retype the name.
+            guard let name = note.userInfo?["name"] as? String,
+                  !name.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+            toolbarSearchText = name
+            runToolbarSearch(name)
+        }
         .modifier(
             MainContentModifiers(
                 documentStore: documentStore,

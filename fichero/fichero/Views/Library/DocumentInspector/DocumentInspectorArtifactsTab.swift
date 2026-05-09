@@ -535,26 +535,50 @@ struct EntityLozenge: View {
     var maxWidth: CGFloat = 180
 
     var body: some View {
-        Text(name)
-            .font(.caption2)
-            .foregroundStyle(Color.accentColor)
-            .lineLimit(1)
-            .truncationMode(.middle)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 2)
-            .background(
-                Capsule()
-                    .fill(Color.accentColor.opacity(0.12))
+        Button {
+            // Lozenge tap → fire a global entity-search request. ContentView
+            // listens and routes the name into runToolbarSearch so we get
+            // the same path as typing into the toolbar (creates a saved
+            // search, switches sidebar to search mode, runs the query).
+            // NotificationCenter avoids prop-drilling a closure through
+            // ArtifactEntitiesView → MailStyleRow → LibraryView →
+            // ContentView (5 levels deep).
+            NotificationCenter.default.post(
+                name: .ficheroEntitySearchRequested,
+                object: nil,
+                userInfo: ["name": name]
             )
-            .overlay(
-                Capsule()
-                    .stroke(Color.accentColor.opacity(0.25), lineWidth: 0.5)
-            )
-            .frame(maxWidth: maxWidth, alignment: .leading)
-            .fixedSize(horizontal: false, vertical: true)
-            .textSelection(.enabled)
-            .help(tooltip ?? name)
+        } label: {
+            Text(name)
+                .font(.caption2)
+                .foregroundStyle(Color.accentColor)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(
+                    Capsule()
+                        .fill(Color.accentColor.opacity(0.12))
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(Color.accentColor.opacity(0.25), lineWidth: 0.5)
+                )
+                .frame(maxWidth: maxWidth, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .buttonStyle(.plain)
+        .help(tooltip ?? "Search for \"\(name)\"")
     }
+}
+
+extension Notification.Name {
+    /// Posted when the user taps an entity lozenge anywhere in the UI.
+    /// `userInfo["name"]: String` carries the entity name to search for.
+    /// ContentView listens and routes via `runToolbarSearch`.
+    static let ficheroEntitySearchRequested = Notification.Name(
+        "ficheroEntitySearchRequested"
+    )
 }
 // swiftlint:enable file_length
 import FicheroAPIClient
