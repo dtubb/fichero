@@ -1398,3 +1398,39 @@ paths instead. Reasons:
 
 The 10 features + reference commits are in STATE.md. Suggested order is
 foundation/low-risk → polish → bigger features.
+
+## 2026-05-09 — Library polish + Search v1 wiring + entity columns
+
+Multi-session day. ~17 commits, builds verified clean throughout.
+
+**Search v1 (#481) end-to-end:**
+- 372146f5 — `.searchable(text:)` toolbar input + Return-to-submit
+- bb695f8b — three-state empty (searching / no-query / no-matches), Save Search button → sidebar
+- e57aeeb4 (search half) — index-health: `loadIndexStats()` + `reindexLibrary()` polling, "Index Library" CTA when indexedCount==0, "X documents indexed" caption
+- b9141209 — fix: WindowState.libraryId is non-optional UUID (xcodebuild caught what swiftlint missed)
+
+**Library polish — table + list views:**
+- 0fa6b0d9 — Artifacts column + processing-status poll (#518/#519, ports 0.0.3 work)
+- 6eb19c96 — swipe-to-navigate sibling docs (#593 port)
+- bbca19ac — feature flags: list/table/map/zoom re-enabled (#517 part 1)
+- dcc53681 — list-row 64×80 thumbnail; mode-strip uses MiniToolbar so heights match
+- 5318f1c3 — list-view scrolling blue lozenges, preview close-X
+- 8e2b4890 — entity-rich Artifacts cell + horizontal mode strip
+- 61834ef3 — surgical row updates from poll (no whole-list flash)
+- d9d2f092 — list-view top-right entity-type filter Menu (Show All / Hide All)
+- 6b8be9ec — document inspector entity preview as blue lozenges
+- 48b3bc08 — V2 strict-scope on per-row badge fetch
+- a779a3a3 — TableColumnCustomization (right-click on header for show/hide), Mac native
+- e57aeeb4 (table half) — 6 per-type entity columns (People/Places/Organizations/Dates/Events/Keywords) with FlowLayout lozenges; Xcode-style segmented mode strip; dropped Progress/Type/etc. to fit 10-col cap
+- af1f30ff — Clear Filter escape button; remove tag-tap onTapGesture from MailStyleRow (stuck-filter bug); EntityLozenge with middle-truncation + 180pt cap; top-aligned table cells
+
+**Filed for follow-up:**
+- #874 — User-extensible entity types (registry-driven backend + frontend), 0.0.4 scope. The 6 types are baked into Pydantic `_Extraction` AND 6+ frontend call sites; user-defined types ('fruit', 'plants') need a real refactor.
+
+**Outstanding visual bugs flagged late in the day:**
+- Sidebar background too dark vs rest of window
+- No margin between sidebar and toolbar
+- Window toolbar background "is off" (full audit needed)
+- Filter button needs to move to top-right toolbar across all views (overlay was removed; ToolbarItem not yet added)
+- Per-folder view-mode persistence verification (plumbing exists; needs read of save trigger)
+- Sidebar layout for macOS Tahoe (needs screenshot)

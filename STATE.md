@@ -122,7 +122,69 @@ structure. Verified by grep on 0.0.2's tree:
 
 After the criteria strip lands, add the actual `.searchable(text: $queryText, prompt: ...)` to SearchView so users can type queries (this is the original "input not wired" gap). 30-60min, all in `fichero/fichero/Views/Search/SearchView.swift`.
 
-## Next Session — Start Here
+## Next Session — Start Here (2026-05-09 evening hand-off)
+
+**Latest commit on 0.0.2: `af1f30ff`** (clear-filter escape, lozenge
+middle-truncation, single-click no longer hijacks filter). xcodebuild
+verified clean on every commit pushed today.
+
+### Visual bugs flagged from morning test (priority for next pass)
+
+1. **Sidebar window background too dark** — visibly different shade
+   from the rest of the window. Needs lighter material to match the
+   content area. (Screenshot 2026-05-09 8:40 AM.)
+2. **Margin between sidebar and toolbar** — no visible separation
+   between sidebar's top edge and the window toolbar; needs a touch of
+   padding or a divider.
+3. **Toolbar background is off** (Daniel's last 2026-05-09 message)
+   — full visual treatment audit across sidebar / window toolbar /
+   pane mini-toolbars so they feel coherent.
+
+### Functional queue (started, not finished)
+
+4. **Filter button → top-right TOOLBAR for all library views** (icon /
+   list / table / map), not just an overlay on list. Already removed
+   the list-only overlay in `LibraryView+DisplayModes.swift`; needs a
+   `ToolbarItem(placement: .primaryAction)` wired in the parent that
+   calls `entityFilterMenu`. (Half-shipped.)
+5. **Per-folder view-mode persistence verification.** Plumbing exists
+   (`folderViewDisplayModesJSON` @SceneStorage on ContentView,
+   `displayMode(for:)`/`saveDisplayMode(_:for:)` in
+   `ContentView+Persistence.swift`). Daniel reports view mode isn't
+   sticking per folder — either save isn't called on folder change or
+   load isn't being applied.
+6. **Sidebar layout for macOS Tahoe** — needs a screenshot to fix.
+
+### Don't break
+
+- Single click on a MailStyleRow selects only — do NOT re-add tag-tap
+  `onTapGesture` to badges. Daniel hit a stuck-filter bug.
+- "Clear Filter" button must be visible whenever `!searchText.isEmpty` —
+  it's the user's only escape from a bad filter state.
+- `Table` builder caps at 10 columns — don't add an 11th without
+  computed-property column-groups refactor.
+- `WindowState.libraryId` is non-optional UUID — don't `if let` it.
+- Run `xcodebuild` before every Swift push, not just `swiftlint`.
+
+### Architectural follow-ups (for 0.0.3+)
+
+- **#874** User-extensible entity types — registry-driven backend +
+  frontend re-architecture. The 6 types are baked into the Pydantic
+  `_Extraction` class AND into 6+ frontend call sites. 0.0.4 scope.
+- **#868** LLMProvider Protocol refactor — foundation laid. 0.0.3.
+- **#481/#482/#483** — Search v1 / v2 / v3 release gates. v1 is in this
+  0.0.2; v2 + v3 are 0.0.4 / 0.0.5.
+
+### Read for context
+
+- `docs/architecture/api/development_standards.md` — 6 LLM-stack contracts
+- `MEMORY.md` 2026-05-07/08/09 — durable patterns
+- `HISTORY.md` — session-by-session log
+- GitHub `#874` — user-extensible entity types brief
+
+---
+
+## Earlier next-session entry (kept for continuity)
 
 **Latest commit on 0.0.2: `3d50df04`** (10 integration tests for the LLM
 fallback chain, mocked at the network boundary, no internet calls).
