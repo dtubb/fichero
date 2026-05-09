@@ -11,6 +11,12 @@ struct SearchResultsDisplay: View {
     /// Non-empty + no results → "No matches for X" guidance. (#481)
     var currentQuery: String = ""
     var isSearching: Bool = false
+    /// Indexed-document count (from /api/search/stats). When 0 + the
+    /// user hasn't typed anything yet, the empty state surfaces a
+    /// "Re-index this library" CTA rather than the generic placeholder.
+    var indexedCount: Int?
+    var isReindexing: Bool = false
+    var onReindex: (() -> Void)?
 
     var body: some View {
         if searchResults.isEmpty {
@@ -42,16 +48,43 @@ struct SearchResultsDisplay: View {
                 Text("Searching…")
                     .font(.headline)
                     .foregroundStyle(.secondary)
+            } else if isReindexing {
+                ProgressView()
+                Text("Indexing library…")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                Text("This runs in the background; you can keep using\nthe rest of the app. Search will return results\nonce indexing completes.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
             } else if trimmedQuery.isEmpty {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 48))
                     .foregroundColor(.secondary)
                 Text("Search Documents")
                     .font(.headline)
-                Text("Type a query in the toolbar (⌘F) to search across\nall transcribed documents in this library.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
+                if let indexedCount, indexedCount == 0, let onReindex {
+                    // Library has docs but no embeddings — most likely
+                    // failure mode for first-time use of search. (#481)
+                    Text("This library has no search index yet.\nIndex it once to enable search.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button(action: onReindex) {
+                        Label("Index Library", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .buttonStyle(.borderedProminent)
+                } else {
+                    Text("Type a query in the toolbar (⌘F) to search across\nall transcribed documents in this library.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    if let indexedCount, indexedCount > 0 {
+                        Text("\(indexedCount) document\(indexedCount == 1 ? "" : "s") indexed")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
             } else {
                 Image(systemName: "doc.text.magnifyingglass")
                     .font(.system(size: 48))
@@ -62,6 +95,14 @@ struct SearchResultsDisplay: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
+                if let onReindex {
+                    Button(action: onReindex) {
+                        Label("Re-index Library", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .padding(.top, 4)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

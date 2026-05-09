@@ -119,6 +119,8 @@ extension LibraryView {
             }
         case "artifacts":
             ArtifactEntitiesView(documentId: doc.id, style: .singleLine)
+        case "people", "places", "organizations", "events", "dates", "keywords":
+            ArtifactEntityCell(documentId: doc.id, entityType: columnId)
         default:
             Text("-").foregroundColor(.secondary)
         }
@@ -260,10 +262,11 @@ struct ArtifactEntitiesView: View {
         }
     }
 
-    /// One horizontal scrolling row per entity-type — lozenges (capsules)
-    /// for each name. Daniel: 'in the list view artefacts should scroll,
-    /// so we can see if there are multiple, they should all be blue
-    /// lozenges.' Hidden when names is empty.
+    /// One row per entity-type with a leading label and a FlowLayout of
+    /// blue lozenges that wraps to multiple lines vertically when there
+    /// are more names than fit on one row. Daniel: 'the artefacts should
+    /// in the list view stack vertically not just scroll horizontally
+    /// when I do two fingers.'
     @ViewBuilder
     private func lozengeRow(_ label: String, names: [String]) -> some View {
         if !names.isEmpty {
@@ -271,24 +274,22 @@ struct ArtifactEntitiesView: View {
                 Text("\(label):")
                     .foregroundStyle(.secondary)
                     .frame(minWidth: 90, alignment: .leading)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 4) {
-                        ForEach(names, id: \.self) { name in
-                            Text(name)
-                                .font(.caption2)
-                                .foregroundStyle(Color.accentColor)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(
-                                    Capsule()
-                                        .fill(Color.accentColor.opacity(0.12))
-                                )
-                                .overlay(
-                                    Capsule()
-                                        .stroke(Color.accentColor.opacity(0.25), lineWidth: 0.5)
-                                )
-                                .lineLimit(1)
-                        }
+                FlowLayout(spacing: 4) {
+                    ForEach(names, id: \.self) { name in
+                        Text(name)
+                            .font(.caption2)
+                            .foregroundStyle(Color.accentColor)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(
+                                Capsule()
+                                    .fill(Color.accentColor.opacity(0.12))
+                            )
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.accentColor.opacity(0.25), lineWidth: 0.5)
+                            )
+                            .lineLimit(1)
                     }
                 }
             }
@@ -330,6 +331,107 @@ struct ArtifactEntitiesView: View {
                 keywords = extractKeywords(artifact)
             case "dates":
                 dates = extractDates(artifact)
+            default:
+                break
+            }
+        }
+        loaded = true
+    }
+
+    private func extractNames(_ artifact: Artifact, key: String) -> [String] {
+        guard let data = artifact.data,
+              let value = data["items"]?.value,
+              let items = value as? [[String: Any]] else { return [] }
+        return items.compactMap { $0[key] as? String }
+    }
+
+    private func extractKeywords(_ artifact: Artifact) -> [String] {
+        guard let data = artifact.data,
+              let value = data["keywords"]?.value,
+              let array = value as? [String] else { return [] }
+        return array
+    }
+
+    private func extractDates(_ artifact: Artifact) -> [String] {
+        guard let data = artifact.data,
+              let value = data["items"]?.value,
+              let items = value as? [[String: Any]] else { return [] }
+        return items.compactMap { item in
+            (item["date_normalized"] as? String) ?? (item["date"] as? String)
+        }
+    }
+}
+
+// MARK: - Artifact Entity Cell — per-type column (#519 table view)
+
+/// Renders just one entity-type's lozenges in a table cell — Daniel:
+/// 'artefacts in the table view should each have their own column, and
+/// be rendered as lozenges as well.' Hidden by default; user toggles
+/// via the column-header context menu (TableColumnCustomization).
+struct ArtifactEntityCell: View {
+    let documentId: String
+    /// One of: 'people', 'places', 'organizations', 'events', 'dates',
+    /// 'keywords'. Rendered as a wrapping FlowLayout of accent-tinted
+    /// capsules; "—" when this doc has no artifact of that type.
+    let entityType: String
+
+    @EnvironmentObject var artifactService: ArtifactServiceGenerated
+
+    @State private var names: [String] = []
+    @State private var loaded = false
+
+    var body: some View {
+        Group {
+            if !loaded {
+                Color.clear.frame(height: 14)
+            } else if names.isEmpty {
+                Text("—").font(.caption2).foregroundStyle(.secondary)
+            } else {
+                FlowLayout(spacing: 4) {
+                    ForEach(names, id: \.self) { name in
+                        Text(name)
+                            .font(.caption2)
+                            .foregroundStyle(Color.accentColor)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(
+                                Capsule().fill(Color.accentColor.opacity(0.12))
+                            )
+                            .overlay(
+                                Capsule().stroke(Color.accentColor.opacity(0.25), lineWidth: 0.5)
+                            )
+                            .lineLimit(1)
+                    }
+                }
+            }
+        }
+        .onAppear { Task { await load() } }
+    }
+
+    @MainActor
+    private func load() async {
+        let cacheKey = "\(documentId)|own"
+        let artifacts: [Artifact]
+        if let cached = artifactService.artifactsByDocument[cacheKey] {
+            artifacts = cached
+        } else if let fetched = try? await artifactService.getArtifacts(
+            forDocumentId: documentId, includeDescendants: false
+        ) {
+            artifacts = fetched
+        } else {
+            loaded = true
+            return
+        }
+        for artifact in artifacts where artifact.artifactType == entityType {
+            switch entityType {
+            case "people", "places", "organizations":
+                names = extractNames(artifact, key: "name")
+            case "events":
+                names = extractNames(artifact, key: "event")
+            case "keywords":
+                names = extractKeywords(artifact)
+            case "dates":
+                names = extractDates(artifact)
             default:
                 break
             }

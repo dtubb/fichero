@@ -52,6 +52,61 @@ extension SearchView {
         }
     }
 
+    /// Refresh the indexed-doc count from /api/search/stats so the empty
+    /// state can surface "Index Library" / "X indexed" messaging. Cheap;
+    /// runs on appear and after reindex completion. (#481)
+    @MainActor
+    func loadIndexStats() async {
+        do {
+            let stats = try await searchService.stats()
+            indexedCount = stats.indexedCount
+        } catch {
+            logger.debug("Search stats fetch failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Trigger a background reindex of the active library. The backend
+    /// endpoint returns immediately; we poll /stats every 3 s while
+    /// indexedCount climbs, until two consecutive polls return the same
+    /// value (settled). (#481)
+    @MainActor
+    func reindexLibrary() async {
+        guard !isReindexing else { return }
+        isReindexing = true
+        defer { isReindexing = false }
+        do {
+            _ = try await searchService.reindexAll()
+        } catch {
+            logger.error("Reindex kickoff failed: \(error.localizedDescription)")
+            return
+        }
+        // Poll stats. Stop when count stops climbing for two consecutive
+        // polls (i.e. it's settled), or after a generous 5-min cap.
+        var previous: Int = -1
+        var stableTicks = 0
+        let maxTicks = 100  // 5 minutes at 3 s
+        for _ in 0..<maxTicks {
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            do {
+                let stats = try await searchService.stats()
+                indexedCount = stats.indexedCount
+                if stats.indexedCount == previous {
+                    stableTicks += 1
+                    if stableTicks >= 2 { break }
+                } else {
+                    stableTicks = 0
+                    previous = stats.indexedCount
+                }
+            } catch {
+                logger.debug("Index poll failed: \(error.localizedDescription)")
+            }
+        }
+        // Re-run the user's query if they have one — search now has data.
+        if !queryText.trimmingCharacters(in: .whitespaces).isEmpty {
+            performSearch()
+        }
+    }
+
     func performSearch() {
         guard !queryText.trimmingCharacters(in: .whitespaces).isEmpty else {
             searchResults = []

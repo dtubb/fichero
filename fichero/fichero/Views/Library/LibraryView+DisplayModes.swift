@@ -303,30 +303,11 @@ extension LibraryView {
             .width(min: 80, ideal: 100)
             .customizationID("status")
 
-            TableColumn("Progress") { doc in
-                tableCellView(for: "progress", document: doc)
-            }
-            .width(min: 80, ideal: 100)
-            .customizationID("progress")
-
             TableColumn("Output") { doc in
                 tableCellView(for: "output", document: doc)
             }
             .width(min: 150, ideal: 250)
             .customizationID("output")
-
-            TableColumn("Type", value: \Document.sortableFileType) { doc in
-                tableCellView(for: "fileType", document: doc)
-            }
-            .width(min: 60, ideal: 80)
-            .customizationID("fileType")
-
-            TableColumn("Path") { doc in
-                tableCellView(for: "path", document: doc)
-            }
-            .width(min: 100, ideal: 150)
-            .customizationID("path")
-            .defaultVisibility(.hidden)
 
             TableColumn("Created", value: \Document.createdAt) { doc in
                 tableCellView(for: "createdDate", document: doc)
@@ -334,25 +315,55 @@ extension LibraryView {
             .width(min: 80, ideal: 100)
             .customizationID("createdDate")
 
-            TableColumn("Modified", value: \Document.updatedAt) { doc in
-                tableCellView(for: "modifiedDate", document: doc)
+            // Per-entity-type columns (#519). Each renders FlowLayout
+            // lozenges via ArtifactEntityCell for that doc's artifacts
+            // of one type. All hidden by default; users opt in via the
+            // column-header right-click menu (Mac native).
+            //
+            // SwiftUI's TableColumnBuilder caps at 10 children — we
+            // dropped path/modifiedDate/size/artifacts(combined) to fit.
+            // Those rarely-used metadata columns can come back via
+            // computed-property column groups in a follow-up if needed.
+            TableColumn("People") { doc in
+                tableCellView(for: "people", document: doc)
             }
-            .width(min: 80, ideal: 100)
-            .customizationID("modifiedDate")
+            .width(min: 120, ideal: 200)
+            .customizationID("people")
             .defaultVisibility(.hidden)
 
-            TableColumn("Size") { doc in
-                tableCellView(for: "size", document: doc)
+            TableColumn("Places") { doc in
+                tableCellView(for: "places", document: doc)
             }
-            .width(min: 60, ideal: 80)
-            .customizationID("size")
+            .width(min: 120, ideal: 180)
+            .customizationID("places")
             .defaultVisibility(.hidden)
 
-            TableColumn("Artifacts") { doc in
-                tableCellView(for: "artifacts", document: doc)
+            TableColumn("Organizations") { doc in
+                tableCellView(for: "organizations", document: doc)
             }
-            .width(min: 100, ideal: 120)
-            .customizationID("artifacts")
+            .width(min: 120, ideal: 180)
+            .customizationID("organizations")
+            .defaultVisibility(.hidden)
+
+            TableColumn("Dates") { doc in
+                tableCellView(for: "dates", document: doc)
+            }
+            .width(min: 100, ideal: 140)
+            .customizationID("dates")
+            .defaultVisibility(.hidden)
+
+            TableColumn("Events") { doc in
+                tableCellView(for: "events", document: doc)
+            }
+            .width(min: 120, ideal: 200)
+            .customizationID("events")
+            .defaultVisibility(.hidden)
+
+            TableColumn("Keywords") { doc in
+                tableCellView(for: "keywords", document: doc)
+            }
+            .width(min: 120, ideal: 200)
+            .customizationID("keywords")
             .defaultVisibility(.hidden)
         }
         .tableStyle(.inset)

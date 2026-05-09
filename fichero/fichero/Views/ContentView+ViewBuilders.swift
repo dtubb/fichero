@@ -78,31 +78,38 @@ extension ContentView {
             && availableViewDisplayModes.count > 1
     }
 
-    /// Horizontal mode strip — uses MiniToolbar wrapper so its height
-    /// (.padding(.vertical, 6) + content) matches the inspector and
-    /// preview-pane toolbars across the window. Daniel: 'in the toolbar
-    /// at the top, make it the same height as the toolbar at the top of
-    /// preview, which should be same height as toolbar at top of
-    /// document inspector.'
+    /// Horizontal mode strip — Xcode-style pill-segmented picker inside a
+    /// MiniToolbar wrapper so the bar's height matches the preview and
+    /// inspector toolbars across the window. Single rounded-capsule
+    /// background hosts all icons; the selected one is filled with the
+    /// accent. Daniel asked for this 'tab-like' look explicitly.
     @ViewBuilder
     var horizontalModeStrip: some View {
         if showModeRail {
             MiniToolbar {
-                ForEach(availableViewDisplayModes) { mode in
-                    Button {
-                        updateViewDisplayMode(mode)
-                    } label: {
-                        Image(systemName: mode.icon)
+                HStack(spacing: 2) {
+                    ForEach(availableViewDisplayModes) { mode in
+                        Button {
+                            updateViewDisplayMode(mode)
+                        } label: {
+                            Image(systemName: mode.icon)
+                                .frame(width: 22, height: 18)
+                                .foregroundStyle(viewDisplayMode == mode ? Color.white : Color.primary)
+                                .background(
+                                    Capsule()
+                                        .fill(viewDisplayMode == mode ? Color.accentColor : Color.clear)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .help("View as: \(mode.rawValue)")
                     }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(viewDisplayMode == mode ? Color.accentColor.opacity(0.2) : Color.clear)
-                    )
-                    .help("View as: \(mode.rawValue)")
                 }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(
+                    Capsule()
+                        .fill(Color.primary.opacity(0.06))
+                )
                 Spacer(minLength: 0)
             }
         }

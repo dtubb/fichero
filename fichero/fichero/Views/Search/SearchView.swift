@@ -12,6 +12,8 @@ struct SearchView: View {
     @State var searchStats: SearchResponse?
     @State var isSearching: Bool = false
     @State var searchError: String?
+    @State var indexedCount: Int?
+    @State var isReindexing: Bool = false
 
     @EnvironmentObject var searchService: SearchServiceGenerated
     @EnvironmentObject var apiClient: APIClient
@@ -51,6 +53,9 @@ struct SearchView: View {
                     queryText = search.query
                     performSearch()
                 }
+                // Pull index health so the empty state can surface
+                // "Index Library" when there are no embeddings yet (#481).
+                Task { await loadIndexStats() }
             }
             .onChange(of: savedSearch?.id) { _, _ in
                 guard let search = savedSearch else {
@@ -90,7 +95,10 @@ extension SearchView {
             selection: $selection,
             onLoadDocument: loadDocument,
             currentQuery: queryText,
-            isSearching: isSearching
+            isSearching: isSearching,
+            indexedCount: indexedCount,
+            isReindexing: isReindexing,
+            onReindex: { Task { await reindexLibrary() } }
         )
     }
 }
