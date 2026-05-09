@@ -6,7 +6,7 @@ import SwiftUI
 @MainActor
 class FeatureManager: ObservableObject {
     static let shared = FeatureManager()
-    private static let releaseProfileVersion = 23
+    private static let releaseProfileVersion = 24
     private static let workflowV001EnabledTools =
         "files,collection,folder,aggregate,transcribe,catalogue,"
         + "extract_entities,key_people,timeline,keywords,summarize_file,"
@@ -167,12 +167,12 @@ class FeatureManager: ObservableObject {
     /// Reset to v0.0.1 defaults
     func resetToV001() {
         allFeaturesEnabled = false
-        libraryAdvancedViewsEnabledInternal = false
+        libraryAdvancedViewsEnabledInternal = true   // 0.0.3 #517: list/table/map re-enabled
         searchEnabledInternal = true
-        searchAdvancedViewsEnabledInternal = false
+        searchAdvancedViewsEnabledInternal = true    // 0.0.3 #517: search results in all views
         librarySearchSplitLayoutsEnabledInternal = false
         libraryFilterToolbarEnabledInternal = false
-        libraryIconZoomControlsEnabledInternal = false
+        libraryIconZoomControlsEnabledInternal = true // 0.0.3 #517: zoom controls re-enabled
         workflowsEnabledInternal = true
         workflowEditorAdvancedViewsEnabled = false
         workflowChainsEnabledInternal = false
