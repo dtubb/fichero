@@ -266,7 +266,9 @@ struct ArtifactEntitiesView: View {
     /// blue lozenges that wraps to multiple lines vertically when there
     /// are more names than fit on one row. Daniel: 'the artefacts should
     /// in the list view stack vertically not just scroll horizontally
-    /// when I do two fingers.'
+    /// when I do two fingers.' Long names truncate with middle ellipsis
+    /// (Finder convention) so a single huge entity doesn't spill into
+    /// the next column. Each lozenge caps at 180 pt wide.
     @ViewBuilder
     private func lozengeRow(_ label: String, names: [String]) -> some View {
         if !names.isEmpty {
@@ -276,22 +278,10 @@ struct ArtifactEntitiesView: View {
                     .frame(minWidth: 90, alignment: .leading)
                 FlowLayout(spacing: 4) {
                     ForEach(names, id: \.self) { name in
-                        Text(name)
-                            .font(.caption2)
-                            .foregroundStyle(Color.accentColor)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(
-                                Capsule()
-                                    .fill(Color.accentColor.opacity(0.12))
-                            )
-                            .overlay(
-                                Capsule()
-                                    .stroke(Color.accentColor.opacity(0.25), lineWidth: 0.5)
-                            )
-                            .lineLimit(1)
+                        EntityLozenge(name: name)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -389,22 +379,18 @@ struct ArtifactEntityCell: View {
             } else {
                 FlowLayout(spacing: 4) {
                     ForEach(names, id: \.self) { name in
-                        Text(name)
-                            .font(.caption2)
-                            .foregroundStyle(Color.accentColor)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(
-                                Capsule().fill(Color.accentColor.opacity(0.12))
-                            )
-                            .overlay(
-                                Capsule().stroke(Color.accentColor.opacity(0.25), lineWidth: 0.5)
-                            )
-                            .lineLimit(1)
+                        EntityLozenge(name: name)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         }
+        // Top-align so cells in the same row don't vertically center —
+        // a People column with 30 names sits at top and Places (with 2)
+        // shows its lozenges at the top of its cell as well, matching
+        // Finder's table-cell behaviour.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.vertical, 2)
         .onAppear { Task { await load() } }
     }
 

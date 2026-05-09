@@ -216,7 +216,6 @@ extension LibraryView {
                 }
             }
         }
-        .overlay(alignment: .topTrailing) { entityFilterMenu }
     }
 
     /// Set of entity-type ids the user wants visible in list rows.

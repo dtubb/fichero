@@ -528,11 +528,18 @@ enum CatalogueArtifactPreviews {
 struct EntityLozenge: View {
     let name: String
     var tooltip: String?
+    /// Cap so a single super-long name (e.g. 'Canadian Association of
+    /// Latin American and Caribbean Studies') doesn't push the lozenge
+    /// past its column boundary. Truncated with middle-ellipsis like
+    /// Finder filename truncation. (Daniel: 'elipses in the middle')
+    var maxWidth: CGFloat = 180
 
     var body: some View {
         Text(name)
             .font(.caption2)
             .foregroundStyle(Color.accentColor)
+            .lineLimit(1)
+            .truncationMode(.middle)
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
             .background(
@@ -543,7 +550,8 @@ struct EntityLozenge: View {
                 Capsule()
                     .stroke(Color.accentColor.opacity(0.25), lineWidth: 0.5)
             )
-            .lineLimit(1)
+            .frame(maxWidth: maxWidth, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
             .textSelection(.enabled)
             .help(tooltip ?? name)
     }

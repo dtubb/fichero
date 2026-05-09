@@ -71,23 +71,23 @@ struct MailStyleRow: View {
                         .foregroundColor(.secondary)
                 }
 
-                // Status + Type row — tappable tags filter the list
+                // Status + Type row. Display only — earlier these were
+                // tappable to filter, but a single click on the badge
+                // hijacked row selection and the user could end up with
+                // a stuck filter ('No results for "Image"') with no
+                // visible escape. ⌘F opens the filter bar for explicit
+                // filtering. (#519 follow-up — Daniel: 'right now its
+                // single clicking and changing'.)
                 HStack(spacing: 8) {
                     StatusBadge(status: document.status)
-                        .onTapGesture {
-                            onTagTap(document.status.rawValue)
-                        }
-
                     if document.docType == .folder {
                         Text("Folder")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                            .onTapGesture { onTagTap("Folder") }
                     } else if let fileType = document.fileType {
                         Text(fileType.rawValue.capitalized)
                             .font(.caption)
                             .foregroundColor(.secondary)
-                            .onTapGesture { onTagTap(fileType.rawValue.capitalized) }
                     }
                 }
 

@@ -121,6 +121,18 @@ extension LibraryView {
                 Text("No results for \"\(searchText)\"")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
+                // Escape route — clicking a tag in a row could trap the
+                // user with a stuck filter and no visible filter bar
+                // (Daniel hit this with "Image"). Always offer Clear.
+                Button {
+                    searchText = ""
+                    showFilterBar = false
+                } label: {
+                    Label("Clear Filter", systemImage: "xmark.circle.fill")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .padding(.top, 4)
             } else {
                 Text("Select a collection to view documents")
                     .font(.subheadline)
