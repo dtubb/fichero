@@ -41,8 +41,14 @@ class IngestFolderRequest(BaseModel):
     parent_id: Optional[str] = None
     copy_mode: bool = False
     recursive: bool = True
-    extract_text: bool = False
-    auto_embed: bool = False
+    # Default to True so a freshly-ingested folder is searchable as soon
+    # as the documents land — matches the single-file ingest default and
+    # avoids the "search returns nothing because nothing is indexed" trap
+    # users hit on first run. Image files without extractable text
+    # silently skip the embed call (db.embed guards on page_content) and
+    # get embedded later when transcribe runs and updates page_content.
+    extract_text: bool = True
+    auto_embed: bool = True
 
 
 class IngestTaskResponse(BaseModel):
