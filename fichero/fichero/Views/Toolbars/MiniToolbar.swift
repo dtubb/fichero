@@ -15,6 +15,12 @@ import SwiftUI
 /// }
 /// ```
 struct MiniToolbar<Content: View>: View {
+    /// Fixed height for all pane mini-toolbars so the list-view mode strip,
+    /// preview pane toolbar, and inspector tab strip line up across the
+    /// window. Daniel: 'the height of the toolbar for the list view, the
+    /// preview pane, and the inspector' should match.
+    static var standardHeight: CGFloat { 36 }
+
     let content: Content
 
     init(@ViewBuilder content: () -> Content) {
@@ -26,8 +32,7 @@ struct MiniToolbar<Content: View>: View {
             content
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(.ultraThinMaterial)
+        .frame(height: Self.standardHeight)
     }
 }
 

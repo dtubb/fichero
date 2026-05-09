@@ -388,14 +388,6 @@ class NodeDef(BaseModel):
         """
         return v if v is not None else ""
 
-    @field_validator(
-        "label", "description", "provider_name", "model_name", mode="before"
-    )
-    @classmethod
-    def convert_none_to_empty_string(cls, v):
-        """Convert null to empty string for optional string fields."""
-        return v if v is not None else ""
-
     def model_dump_for_storage(self) -> dict:
         """Get a minimal dict for database storage (excludes ports).
 

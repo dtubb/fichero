@@ -422,10 +422,12 @@ struct ContentView: View {
                 }
             }
 
-            // Far right: Inspector toggle (after search widget, explicit trailing position)
-            // Only show for content modes that use inspector
-            // Search field only shown in search mode — avoids confusion in other modes
-            if featureManager.isSearchEnabled && sidebarMode == .search {
+            // Toolbar search field: always visible when search is enabled,
+            // not gated to search mode. Submitting from any mode creates a
+            // saved search and switches the sidebar into search mode (see
+            // runToolbarSearch). This is the entry point — without it the
+            // search feature has no door.
+            if featureManager.isSearchEnabled {
                 ToolbarItem(placement: .principal) {
                     HStack {
                         Image(systemName: "magnifyingglass")

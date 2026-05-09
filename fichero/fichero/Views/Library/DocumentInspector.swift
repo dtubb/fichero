@@ -57,7 +57,9 @@ struct DocumentInspector: View {
 
     private func documentDetail(_ doc: Document) -> some View {
         VStack(spacing: 0) {
-            // Xcode-style icon-only tab bar
+            // Xcode-style icon-only tab bar — wrapped in a fixed-height
+            // frame so it matches the list-view mode strip and the preview
+            // pane toolbar across the window (MiniToolbar.standardHeight).
             HStack(spacing: 2) {
                 ForEach(InspectorTab.allCases) { tab in
                     Button {
@@ -65,8 +67,7 @@ struct DocumentInspector: View {
                     } label: {
                         Image(systemName: tab.icon)
                             .font(.system(size: 16, weight: .regular))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 7)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -81,7 +82,7 @@ struct DocumentInspector: View {
                 }
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            .frame(height: MiniToolbar<EmptyView>.standardHeight)
 
             Divider()
 

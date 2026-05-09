@@ -21,6 +21,12 @@ extension SidebarView {
     @ViewBuilder
     var sidebarContent: some View {
         VStack(spacing: 0) {
+            // Breathing room between the window's title bar and the sidebar's
+            // first row. Without this the 'Library' header sits flush against
+            // the toolbar — feels cramped on macOS Tahoe / Sequoia.
+            Spacer()
+                .frame(height: 8)
+
             unifiedContent
 
             // Bottom toolbar
