@@ -425,20 +425,17 @@ enum CatalogueArtifactPreviews {
     ) -> some View {
         let items = items(from: data)
         if !items.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
+            // Render each entity name as a blue lozenge — matches the
+            // list-view convention so the visual language is consistent
+            // across views. Daniel: 'for the document inspector, you
+            // should also render as blue lozenges all of the artefacts.'
+            // Tooltip carries the per-item context so the original
+            // detail isn't lost.
+            FlowLayout(spacing: 4) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                     if let name = item[primaryKey] as? String {
-                        HStack(alignment: .top, spacing: 6) {
-                            Text(name)
-                                .font(.caption.weight(.medium))
-                                .foregroundColor(.primary)
-                                .frame(minWidth: 100, alignment: .leading)
-                            if let context = item["contexto"] as? String, !context.isEmpty {
-                                Text(context)
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
+                        let context = item["contexto"] as? String ?? item["context"] as? String
+                        EntityLozenge(name: name, tooltip: context)
                     }
                 }
             }
@@ -452,21 +449,17 @@ enum CatalogueArtifactPreviews {
     static func dates(_ data: [String: AnyCodable]) -> some View {
         let items = items(from: data)
         if !items.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
+            FlowLayout(spacing: 4) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    let normalized = (item["fecha_normalizada"] as? String) ?? ""
-                    let raw = (item["fecha"] as? String) ?? ""
-                    let context = (item["contexto"] as? String) ?? ""
-                    HStack(alignment: .top, spacing: 6) {
-                        Text(normalized.isEmpty ? raw : normalized)
-                            .font(.caption.monospacedDigit())
-                            .foregroundColor(.primary)
-                            .frame(minWidth: 100, alignment: .leading)
-                        if !context.isEmpty {
-                            Text(context)
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
+                    let normalized = (item["fecha_normalizada"] as? String)
+                        ?? (item["date_normalized"] as? String) ?? ""
+                    let raw = (item["fecha"] as? String)
+                        ?? (item["date"] as? String) ?? ""
+                    let context = (item["contexto"] as? String)
+                        ?? (item["context"] as? String) ?? ""
+                    let label = normalized.isEmpty ? raw : normalized
+                    if !label.isEmpty {
+                        EntityLozenge(name: label, tooltip: context.isEmpty ? nil : context)
                     }
                 }
             }
@@ -513,15 +506,46 @@ enum CatalogueArtifactPreviews {
         if let value = data["keywords"]?.value,
            let keywords = value as? [String],
            !keywords.isEmpty {
-            Text(keywords.joined(separator: " • "))
-                .font(.caption2)
-                .foregroundColor(.primary)
-                .padding(6)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.accentColor.opacity(0.1))
-                .cornerRadius(4)
-                .textSelection(.enabled)
+            FlowLayout(spacing: 4) {
+                ForEach(Array(keywords.enumerated()), id: \.offset) { _, keyword in
+                    EntityLozenge(name: keyword)
+                }
+            }
+            .padding(6)
+            .background(Color(.textBackgroundColor))
+            .cornerRadius(4)
         }
+    }
+}
+
+// MARK: - Entity Lozenge (#519 follow-up)
+
+/// Shared blue capsule for entity names. Same style as the list-view
+/// lozenges so the visual language is consistent across the library
+/// and the document inspector. Tooltip carries the per-item context
+/// (e.g. role, date raw form) so the detail isn't lost when the
+/// long-form context cell is replaced by a compact pill.
+struct EntityLozenge: View {
+    let name: String
+    var tooltip: String?
+
+    var body: some View {
+        Text(name)
+            .font(.caption2)
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .background(
+                Capsule()
+                    .fill(Color.accentColor.opacity(0.12))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.accentColor.opacity(0.25), lineWidth: 0.5)
+            )
+            .lineLimit(1)
+            .textSelection(.enabled)
+            .help(tooltip ?? name)
     }
 }
 // swiftlint:enable file_length
