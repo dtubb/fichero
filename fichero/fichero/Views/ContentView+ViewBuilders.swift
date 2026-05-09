@@ -230,22 +230,40 @@ extension ContentView {
             // the EditorView differently when its document arg flips,
             // causing the LazyVGrid sibling to re-layout / first-click
             // flash (#788).
-            EditorView(
-                document: detailDocument,
-                onPDFPageIndexChange: { index in
-                    syncGridSelectionToPDFPage(index: index)
+            VStack(spacing: 0) {
+                // Top-left × button to hide the preview pane — matches
+                // the inspector's close-on-the-corner convention. Daniel:
+                // 'we also want a close x in the preview toolbar so that
+                // we can hide the preview … in the top left.'
+                MiniToolbar {
+                    Button {
+                        viewSettings.previewMode = .none
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Hide preview")
+                    Spacer(minLength: 0)
                 }
-            )
-            .id("editor.library")
-            .background(
-                // Two/three-finger trackpad swipe → previous/next sibling
-                // (#593). Lives behind the editor so it sees the swipe
-                // without intercepting clicks/scrolls.
-                SwipeSiblingNavigator(
-                    onNavigatePrevious: navigateSiblingPrevious,
-                    onNavigateNext: navigateSiblingNext
+
+                EditorView(
+                    document: detailDocument,
+                    onPDFPageIndexChange: { index in
+                        syncGridSelectionToPDFPage(index: index)
+                    }
                 )
-            )
+                .id("editor.library")
+                .background(
+                    // Two/three-finger trackpad swipe → previous/next sibling
+                    // (#593). Lives behind the editor so it sees the swipe
+                    // without intercepting clicks/scrolls.
+                    SwipeSiblingNavigator(
+                        onNavigatePrevious: navigateSiblingPrevious,
+                        onNavigateNext: navigateSiblingNext
+                    )
+                )
+            }
 
         case .chat, .comparison:
             EmptyView()

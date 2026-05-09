@@ -220,13 +220,13 @@ struct ArtifactEntitiesView: View {
             .lineLimit(1)
             .truncationMode(.tail)
         case .multiLine:
-            VStack(alignment: .leading, spacing: 2) {
-                row("People", names: people, max: 6)
-                row("Places", names: places, max: 5)
-                row("Organizations", names: organizations, max: 4)
-                row("Dates", names: dates, max: 5)
-                row("Events", names: events, max: 3)
-                row("Keywords", names: keywords, max: 8)
+            VStack(alignment: .leading, spacing: 4) {
+                lozengeRow("People", names: people)
+                lozengeRow("Places", names: places)
+                lozengeRow("Organizations", names: organizations)
+                lozengeRow("Dates", names: dates)
+                lozengeRow("Events", names: events)
+                lozengeRow("Keywords", names: keywords)
             }
             .font(.caption2)
         }
@@ -243,20 +243,37 @@ struct ArtifactEntitiesView: View {
         }
     }
 
+    /// One horizontal scrolling row per entity-type — lozenges (capsules)
+    /// for each name. Daniel: 'in the list view artefacts should scroll,
+    /// so we can see if there are multiple, they should all be blue
+    /// lozenges.' Hidden when names is empty.
     @ViewBuilder
-    private func row(_ label: String, names: [String], max: Int) -> some View {
+    private func lozengeRow(_ label: String, names: [String]) -> some View {
         if !names.isEmpty {
-            let shown = Array(names.prefix(max))
-            let extra = names.count - shown.count
-            let suffix = extra > 0 ? " +\(extra)" : ""
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("\(label):")
                     .foregroundStyle(.secondary)
                     .frame(minWidth: 90, alignment: .leading)
-                Text("\(shown.joined(separator: ", "))\(suffix)")
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 4) {
+                        ForEach(names, id: \.self) { name in
+                            Text(name)
+                                .font(.caption2)
+                                .foregroundStyle(Color.accentColor)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.accentColor.opacity(0.12))
+                                )
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Color.accentColor.opacity(0.25), lineWidth: 0.5)
+                                )
+                                .lineLimit(1)
+                        }
+                    }
+                }
             }
         }
     }
