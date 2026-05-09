@@ -26,6 +26,66 @@ def _safe_isoformat(value) -> str:
     )
 
 
+def _entity_match_results(
+    db: Database, query: str, limit: int, exclude_doc_ids: set[str]
+) -> list[SearchResult]:
+    """Find documents whose extracted entity artifacts contain `query`.
+
+    Catches the case where a name (e.g. 'Asprilla') was extracted by the
+    catalogue/extract_all workflow into an artifact's typed JSON but
+    never appeared in the document's page_content (image-only PDFs,
+    handwritten notes). Without this bridge a user clicking the
+    'Asprilla' lozenge in the inspector and getting routed to search
+    would see zero hits — the very document where the lozenge came from
+    wouldn't be in the result set. (#481 / B4)
+
+    DuckDB's `LIKE` over the JSON-serialised `data` column is enough for
+    sub-string match across the typed shapes ({"items": [{"name": ...}]}
+    for people/places/orgs, {"keywords": [...]} for keywords, dates,
+    events). Case-insensitive via ICU (DuckDB native).
+    """
+    if not query.strip():
+        return []
+    needle = f"%{query.strip().lower()}%"
+    try:
+        rows = db.conn.execute(
+            """
+            SELECT DISTINCT a.document_id, d.name, d.doc_type, d.file_type
+            FROM artifacts a
+            JOIN documents d ON d.id = a.document_id
+            WHERE a.artifact_type IN (
+                'people', 'places', 'organizations', 'dates', 'events', 'keywords'
+            )
+              AND lower(CAST(a.data AS VARCHAR)) LIKE $needle
+            LIMIT $limit
+            """,
+            {"needle": needle, "limit": limit},
+        ).fetchall()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("entity-match search failed: %s", exc)
+        return []
+
+    out: list[SearchResult] = []
+    for doc_id, name, doc_type, file_type in rows:
+        if doc_id in exclude_doc_ids:
+            continue
+        out.append(
+            SearchResult(
+                document_id=doc_id,
+                score=0.5,  # Below semantic top-1 (1.0), above no-content (0.0025)
+                content_preview=f"Entity match for '{query}'",
+                metadata={
+                    "name": name,
+                    "doc_type": doc_type,
+                    "file_type": file_type,
+                    "match_source": "entity",
+                },
+                highlights=[],
+            )
+        )
+    return out
+
+
 # Request/Response models
 class SearchRequest(BaseModel):
     """Request model for enhanced search."""
@@ -139,6 +199,26 @@ async def enhanced_search(
         use_fuzzy_match=request.use_fuzzy_match,
         highlight_results=request.highlight_results,
     )
+
+    # Entity-name bridge: also match the query against extracted entity
+    # artifacts (people / places / organizations / dates / events /
+    # keywords) and union those documents into the result set. This is
+    # what makes clicking a blue lozenge always return the doc the
+    # lozenge came from, even when the entity name never appeared in
+    # the page_content. (#481 / B4)
+    if request.search_type in ("hybrid", "fulltext"):
+        seen_ids = {r.document_id for r in results}
+        slots_remaining = max(0, request.limit - len(results))
+        if slots_remaining > 0:
+            entity_hits = _entity_match_results(
+                db,
+                query=request.query,
+                limit=slots_remaining,
+                exclude_doc_ids=seen_ids,
+            )
+            if entity_hits:
+                results = list(results) + entity_hits
+                total_count = total_count + len(entity_hits)
 
     return SearchResponse(
         query=request.query,
