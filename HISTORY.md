@@ -1350,3 +1350,33 @@ Master plan #872. 9 commits, 15 issues closed.
 - Closed as deferred/dup: #851, #858, #860, #861, #864, #866, plus rollups #869 + #870
 
 Remaining for next session: Theme A LLMProvider Protocol refactor (#868 architectural), pytest integration test (#873), token telemetry + cost dashboard (#843, #844, #852, #871).
+
+## 2026-05-08 — LLM-stack: cost telemetry + integration tests + housekeeping
+
+Continuation of the #872 LLM-stack overhaul. 5 commits, 7 issues closed.
+
+- cecf5fc1 #844 — include_raw=True + usage_metadata on LangChain calls (cost tracking)
+- a2c3abd9 #843 — Apple Intelligence char-based token usage estimate (~10% accurate, marked '(estimated)')
+- 49990985 #852 — `collect_usage()` context manager + `_record_usage()` helper, contextvars-based bucket; centralized all 4 call paths through one logging shape
+- 736a464f — collect_usage() documented in dev_standards.md + MEMORY.md
+- 3d50df04 #873 piece 1 — 10 integration tests for the LLM fallback chain (chat_with_fallback + chat_structured_with_fallback) end-to-end with mocks at the network boundary; no internet calls
+- 1a9704be — STATE.md handoff for #868 LLMProvider refactor
+- Audit-batch closures: #819 #820 #837 #842 #847 #848 (already shipped; tickets stale)
+- Theme rollup closures: #869 #870 #871 (sub-issues all done)
+- Master plan #872 closed
+- Moved to 0.0.3 milestone (created): #821 (Tool protocol — feature, not blocker), #854 (SDK 26.4 — external blocker), #868 (LLMProvider Protocol refactor — architectural shape, not behavior), #873 (pieces 2/3 — fixture-infra)
+
+Net: 0.0.2 milestone went from 16 open → 5 open (release packaging chain only). Ratio 96% complete.
+
+## 2026-05-08 — Branch reconciliation plan: 0.0.2 → 0.0.3 merge
+
+The 0.0.3 branch (Apr 15-23) shipped Finder-style search criteria strip (#517), library list/table/map re-enable, NNW-style per-column toolbars (#617), sidebar reorder (#602), Artifacts column (#519). On the *original* file structure (`fichero-api/`, `fichero-swiftui/`).
+
+The 0.0.2 branch (Apr 29 – May 8) shipped the LLM-stack work AND a directory rename `cef63616` flipping `fichero-api/` → `fichero-engine/` and `fichero-swiftui/` → `fichero/`.
+
+Plan to reconcile (this session):
+1. ✅ Finalize 0.0.2 (this entry)
+2. Switch to 0.0.3 worktree
+3. `git merge 0.0.2` from 0.0.3 — git's rename detection auto-maps the directory move; conflicts expected only on STATE.md / MEMORY.md / HISTORY.md / docs that both branches edited
+4. Resolve conflicts, run tests, push
+5. 0.0.3 becomes canonical going forward; 0.0.2 worktree archived

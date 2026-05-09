@@ -59,6 +59,27 @@ a real folder before the release packaging path opens up.
 - Theme C: stay on fm-bridge as canonical Apple integration.
 - Theme A: do the LLMProvider Protocol refactor — long-hall worth it.
 
+## Branch reconciliation in progress (2026-05-08)
+
+**0.0.2 is being merged into 0.0.3 — 0.0.3 becomes canonical.**
+
+The 0.0.3 branch (3 weeks old) shipped real UI work — Finder-style
+search criteria strip (#517), library list/table/map re-enable, NNW
+toolbars (#617), sidebar reorder (#602), Artifacts column (#519). All
+on the *original* directory layout: `fichero-api/` + `fichero-swiftui/`.
+
+The 0.0.2 branch did the directory rename (`cef63616` on Apr 29:
+`fichero-api/` → `fichero-engine/`, `fichero-swiftui/` → `fichero/`)
+*after* 0.0.3's UI work, then shipped the full LLM-stack overhaul on
+the renamed paths.
+
+Merge plan: from `~/code/fichero-0.0.3` worktree, `git merge 0.0.2`.
+Git's automatic rename detection maps the directory move; expected
+conflicts only on STATE.md / MEMORY.md / HISTORY.md / docs that both
+branches edited.
+
+After the merge, 0.0.3 is canonical. This 0.0.2 worktree is archived.
+
 ## Next Session — Start Here
 
 **Latest commit on 0.0.2: `3d50df04`** (10 integration tests for the LLM
