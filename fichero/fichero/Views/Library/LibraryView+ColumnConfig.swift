@@ -19,7 +19,8 @@ struct ColumnDefinition: Identifiable, Hashable {
         ColumnDefinition(id: "path", title: "Path", defaultVisible: false, minWidth: 100, idealWidth: 150),
         ColumnDefinition(id: "createdDate", title: "Created", defaultVisible: true, minWidth: 80, idealWidth: 100),
         ColumnDefinition(id: "modifiedDate", title: "Modified", defaultVisible: false, minWidth: 80, idealWidth: 100),
-        ColumnDefinition(id: "size", title: "Size", defaultVisible: false, minWidth: 60, idealWidth: 80)
+        ColumnDefinition(id: "size", title: "Size", defaultVisible: false, minWidth: 60, idealWidth: 80),
+        ColumnDefinition(id: "artifacts", title: "Artifacts", defaultVisible: false, minWidth: 100, idealWidth: 120)
     ]
 }
 
@@ -41,6 +42,7 @@ extension LibraryView {
             case "createdDate":  return showCreatedDate
             case "modifiedDate": return showModifiedDate
             case "size":         return showSize
+            case "artifacts":    return showArtifacts
             default:             return false
             }
         }
@@ -51,7 +53,8 @@ extension LibraryView {
     func resetColumns() {
         showName = true; showStatus = true; showProgress = true
         showOutput = true; showFileType = true; showPath = false
-        showCreatedDate = true; showModifiedDate = false; showSize = false
+        showCreatedDate = true; showModifiedDate = false
+        showSize = false; showArtifacts = false
     }
 
     // MARK: - Table Cell View
@@ -114,8 +117,25 @@ extension LibraryView {
             } else {
                 Text("-").font(.caption).foregroundColor(.secondary)
             }
+        case "artifacts":
+            ArtifactCountBadge(documentId: doc.id)
         default:
             Text("-").foregroundColor(.secondary)
+        }
+    }
+
+    // MARK: - Table Column: Artifacts (#519)
+
+    /// Builder for the Artifacts column. Hidden by default; toggled via
+    /// the column-visibility menu. ArtifactCountBadge handles per-row
+    /// fetch + display.
+    @ViewBuilder
+    var artifactsColumn: some View {
+        if showArtifacts {
+            TableColumn("Artifacts") { (doc: Document) in
+                ArtifactCountBadge(documentId: doc.id)
+            }
+            .width(min: 100, ideal: 120)
         }
     }
 
@@ -144,5 +164,71 @@ extension LibraryView {
         }
 
         return nil
+    }
+}
+
+// MARK: - Artifact Count Badge (#519)
+
+/// Shows artifact count + primary type for a document row in the table view.
+/// Reads from `ArtifactServiceGenerated.artifactsByDocument` cache; lazy-loads
+/// on first appear if not cached. Display priority: transcription > entities
+/// > summary > … so the badge surfaces the most "completed-work-y" type when
+/// multiple are present.
+struct ArtifactCountBadge: View {
+    let documentId: String
+
+    @EnvironmentObject var artifactService: ArtifactServiceGenerated
+
+    @State private var count: Int = 0
+    @State private var primaryType: String?
+
+    private static let typeDisplayOrder = [
+        "transcription", "entities", "summary",
+        "translation", "classification", "embedding"
+    ]
+
+    var body: some View {
+        Group {
+            if count < 1 {
+                Text("—")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                HStack(spacing: 4) {
+                    Text("\(count)")
+                        .font(.caption)
+                        .foregroundStyle(.primary)
+                    if let typeName = primaryType {
+                        Text("·")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(typeName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .onAppear { loadArtifacts() }
+    }
+
+    private func loadArtifacts() {
+        // Cache key matches ArtifactServiceGenerated's default
+        // includeDescendants=true path: just the document id.
+        if let cached = artifactService.artifactsByDocument[documentId] {
+            updateFromArtifacts(cached)
+            return
+        }
+        Task {
+            if let artifacts = try? await artifactService.getArtifacts(forDocumentId: documentId) {
+                await MainActor.run { updateFromArtifacts(artifacts) }
+            }
+        }
+    }
+
+    private func updateFromArtifacts(_ artifacts: [Artifact]) {
+        count = artifacts.count
+        let types = artifacts.map(\.artifactType)
+        primaryType = Self.typeDisplayOrder.first { types.contains($0) } ?? types.first
     }
 }

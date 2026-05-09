@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -58,6 +59,7 @@ struct LibraryView: View {
     @SceneStorage("column_createdDate") var showCreatedDate = true
     @SceneStorage("column_modifiedDate") var showModifiedDate = false
     @SceneStorage("column_size") var showSize = false
+    @SceneStorage("column_artifacts") var showArtifacts = false  // #519: hidden by default
 
     // Map view positions
     @State var mapPositions: [String: CGPoint] = [:]
@@ -95,6 +97,15 @@ struct LibraryView: View {
     // multiplier multiplies against the gesture-start size, not the
     // continuously-updating scale (which would compound exponentially).
     @State var pinchBaseScale: Double = 1.0
+
+    // Processing poller (#518): fires every 3s while any document is
+    // pending/processing so the row indicator updates without manual refresh.
+    // Auto-stops when all documents settle; the onRetry()-triggered fetch
+    // updates `documents` which gates `hasProcessingDocuments` to false.
+    private let processingPollTimer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
+    private var hasProcessingDocuments: Bool {
+        documents.contains { $0.status == .processing || $0.status == .pending }
+    }
 
     var body: some View {
         withKeyboardShortcuts(
@@ -174,6 +185,13 @@ struct LibraryView: View {
             }
             .onChange(of: sortOrder) { _, newOrder in
                 handleSortOrderChange(newOrder)
+            }
+            .onReceive(processingPollTimer) { _ in
+                // Refresh document list while any document is still being
+                // ingested (#518). onRetry triggers documentStore.refresh()
+                // which propagates through DocumentStore @Published state.
+                guard hasProcessingDocuments else { return }
+                onRetry()
             }
             // Suppress implicit animations on folder change — icons should appear
             // instantly, not slide in cascading from the top.

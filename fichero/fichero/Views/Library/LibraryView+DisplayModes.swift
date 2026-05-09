@@ -272,6 +272,12 @@ extension LibraryView {
                 }
                 .width(min: 60, ideal: 80)
             }
+            if showArtifacts {
+                TableColumn("Artifacts") { doc in
+                    tableCellView(for: "artifacts", document: doc)
+                }
+                .width(min: 100, ideal: 120)
+            }
         }
         .tableStyle(.inset)
         .contextMenu(forSelectionType: String.self) { items in

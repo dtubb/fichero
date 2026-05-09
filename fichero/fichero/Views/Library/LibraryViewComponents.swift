@@ -9,11 +9,21 @@ struct MailStyleRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            // Status indicator dot
-            Circle()
-                .fill(statusColor)
-                .frame(width: 10, height: 10)
-                .padding(.top, 5)
+            // Status indicator: spinner while processing, dot otherwise (#518).
+            // Live indicator pairs with LibraryView's processing-poll timer so
+            // the user sees motion + status flips without manual refresh.
+            Group {
+                if document.status == .processing {
+                    ProgressView()
+                        .scaleEffect(0.55)
+                        .frame(width: 10, height: 10)
+                } else {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 10, height: 10)
+                }
+            }
+            .padding(.top, 5)
 
             // Content
             VStack(alignment: .leading, spacing: 4) {
