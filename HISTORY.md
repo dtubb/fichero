@@ -1380,3 +1380,21 @@ Plan to reconcile (this session):
 3. `git merge 0.0.2` from 0.0.3 — git's rename detection auto-maps the directory move; conflicts expected only on STATE.md / MEMORY.md / HISTORY.md / docs that both branches edited
 4. Resolve conflicts, run tests, push
 5. 0.0.3 becomes canonical going forward; 0.0.2 worktree archived
+
+## 2026-05-08 — Branch reconciliation: chose re-implementation over merge
+
+Attempted `git merge 0.0.2` from 0.0.3 worktree with rename detection
+(`-X find-renames=15`). Result: 16 real conflicts including modify/delete
+on files that 0.0.2 split during refactoring (SidebarItemRow.swift split
+into 5 files; DocumentInspectorContentTab moved into a sub-folder).
+
+Daniel's call: don't merge. Re-implement the 10 0.0.3 features on 0.0.2
+paths instead. Reasons:
+- Each feature becomes a clean atomic commit.
+- No conflict-resolution risk of subtle bugs.
+- Path mapping (fichero-swiftui → fichero, fichero-api → fichero-engine)
+  is applied consistently on the new code.
+- The 0.0.3 worktree stays as frozen reference for diffs.
+
+The 10 features + reference commits are in STATE.md. Suggested order is
+foundation/low-risk → polish → bigger features.

@@ -59,26 +59,54 @@ a real folder before the release packaging path opens up.
 - Theme C: stay on fm-bridge as canonical Apple integration.
 - Theme A: do the LLMProvider Protocol refactor — long-hall worth it.
 
-## Branch reconciliation in progress (2026-05-08)
+## Branch reconciliation — DECISION (2026-05-08)
 
-**0.0.2 is being merged into 0.0.3 — 0.0.3 becomes canonical.**
+**Stay on 0.0.2. Re-implement the 0.0.3 features here.** Merging the
+two branches surfaced 16 real conflicts (mostly across the directory
+rename + file-splitting refactors that happened independently).
+Re-implementing the 10 features from 0.0.3 directly on 0.0.2's path
+structure is cleaner: each feature is a clean commit, every test
+passes deterministically, no merge metadata noise.
 
-The 0.0.3 branch (3 weeks old) shipped real UI work — Finder-style
-search criteria strip (#517), library list/table/map re-enable, NNW
-toolbars (#617), sidebar reorder (#602), Artifacts column (#519). All
-on the *original* directory layout: `fichero-api/` + `fichero-swiftui/`.
+The 0.0.3 worktree (`~/code/fichero-0.0.3`) stays as a frozen reference —
+read its commits to see the implementation that needs porting. The
+0.0.3 *branch* is effectively orphaned; its commits get re-derived on
+0.0.2.
 
-The 0.0.2 branch did the directory rename (`cef63616` on Apr 29:
-`fichero-api/` → `fichero-engine/`, `fichero-swiftui/` → `fichero/`)
-*after* 0.0.3's UI work, then shipped the full LLM-stack overhaul on
-the renamed paths.
+### Features to port from 0.0.3 (reference commits)
 
-Merge plan: from `~/code/fichero-0.0.3` worktree, `git merge 0.0.2`.
-Git's automatic rename detection maps the directory move; expected
-conflicts only on STATE.md / MEMORY.md / HISTORY.md / docs that both
-branches edited.
+Read the diff at each commit in `~/code/fichero-0.0.3` then re-implement
+on 0.0.2 paths. Path mapping: `fichero-swiftui/` → `fichero/`,
+`fichero-api/` → `fichero-engine/` (Python isn't touched in any of
+these — they're all Swift UI).
 
-After the merge, 0.0.3 is canonical. This 0.0.2 worktree is archived.
+| Issue | 0.0.3 commit | What |
+|---|---|---|
+| #517 | `e80f00c6` | Library list/table/map re-enable + Finder-style search criteria strip |
+| #518/#519 | `57981ec6` | Processing poll + Artifacts column |
+| — | `4c51202e` | Resolve pre-existing OpenAPI schema migration build errors |
+| #326 | `15786e4a` | Wire left/right pane navigation for list/table/map modes |
+| #618 | `8c4cce4c` | Flatten sidebar row indentation to NNW-style near-flush |
+| #602 | `a6b27e4e` | Sidebar sibling reorder via `.onMove` + shadow @State |
+| #617 | `3487786b` | Per-column NNW-style toolbars (sidebar/content/inspector strips) |
+| #593 | `e6c30600` | Swipe-to-navigate sibling documents in preview pane |
+| #675 | `9af7994c` | `convertToSendable` preserves Date/URL/NSNumber types |
+| #354 | `eaf1f99d` | Bound inspector close button hit area to its icon |
+
+### Suggested order
+
+1. `4c51202e` — schema migration build error fix (foundation, unblocks builds if that hits us)
+2. `9af7994c` #675 — Sendable type fix (low-risk plumbing)
+3. `eaf1f99d` #354 — close button hit area (small UI fix)
+4. `8c4cce4c` #618 — sidebar indentation flatten (visual polish)
+5. `a6b27e4e` #602 — sidebar reorder (`.onMove` + shadow @State pattern is in MEMORY.md)
+6. `15786e4a` #326 — pane navigation
+7. `57981ec6` #518/#519 — processing poll + Artifacts column
+8. `e6c30600` #593 — swipe navigation
+9. `3487786b` #617 — NNW per-column toolbars
+10. `e80f00c6` #517 — list/table/map + Finder search criteria strip (biggest)
+
+Then add Search v1 input wiring (which neither branch had).
 
 ## Next Session — Start Here
 
