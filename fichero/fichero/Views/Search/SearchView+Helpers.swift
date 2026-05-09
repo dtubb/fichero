@@ -24,6 +24,32 @@ extension SearchView {
         }
     }
 
+    /// Persist the current query as a SavedSearch in the active library so
+    /// it appears under "Saved Searches" in the sidebar (#481). After
+    /// save, sidebar reload brings the new entry into view; user can
+    /// click it to re-run.
+    @MainActor
+    func saveCurrentQuery() async {
+        let query = queryText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty,
+              let libraryId = windowState.libraryId,
+              let library = libraryManager.getLibrary(id: libraryId) else {
+            return
+        }
+        do {
+            _ = try await library.savedSearchServiceGenerated.saveSearch(
+                query: query,
+                isSmartSearch: true,
+                searchType: "hybrid",
+                sortBy: "relevance",
+                sortDirection: "desc"
+            )
+            try await library.savedSearchServiceGenerated.loadSavedSearches()
+        } catch {
+            logger.error("Save search failed: \(error.localizedDescription)")
+        }
+    }
+
     func performSearch() {
         guard !queryText.trimmingCharacters(in: .whitespaces).isEmpty else {
             searchResults = []

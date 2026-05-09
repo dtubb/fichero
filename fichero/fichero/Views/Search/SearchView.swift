@@ -15,6 +15,8 @@ struct SearchView: View {
 
     @EnvironmentObject var searchService: SearchServiceGenerated
     @EnvironmentObject var apiClient: APIClient
+    @EnvironmentObject var libraryManager: LibraryManager
+    @EnvironmentObject var windowState: WindowState
 
     var body: some View {
         resultsPanel
@@ -26,6 +28,24 @@ struct SearchView: View {
             // path so we don't hammer the backend on each keystroke.
             .searchable(text: $queryText, placement: .toolbar, prompt: "Search documents…")
             .onSubmit(of: .search) { performSearch() }
+            // Save-Search action only when results exist and we're not
+            // already viewing a saved search (#481). The button persists
+            // the current query as a SavedSearch and routes the sidebar
+            // to it so the user can return to the same query later.
+            .toolbar {
+                if savedSearch == nil
+                    && !searchResults.isEmpty
+                    && !queryText.trimmingCharacters(in: .whitespaces).isEmpty {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            Task { await saveCurrentQuery() }
+                        } label: {
+                            Label("Save Search", systemImage: "square.and.arrow.down")
+                        }
+                        .help("Save this search to the sidebar")
+                    }
+                }
+            }
             .onAppear {
                 if let search = savedSearch {
                     queryText = search.query
@@ -68,7 +88,9 @@ extension SearchView {
             searchResults: searchResults,
             displayMode: displayMode,
             selection: $selection,
-            onLoadDocument: loadDocument
+            onLoadDocument: loadDocument,
+            currentQuery: queryText,
+            isSearching: isSearching
         )
     }
 }

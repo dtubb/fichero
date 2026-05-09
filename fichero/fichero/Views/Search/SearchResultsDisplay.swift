@@ -6,6 +6,11 @@ struct SearchResultsDisplay: View {
     let displayMode: ViewDisplayMode
     @Binding var selection: Set<String>
     let onLoadDocument: (String) -> Void
+    /// Current query text — drives the empty-state copy.
+    /// Empty (whitespace-only) → "Type to search" placeholder.
+    /// Non-empty + no results → "No matches for X" guidance. (#481)
+    var currentQuery: String = ""
+    var isSearching: Bool = false
 
     var body: some View {
         if searchResults.isEmpty {
@@ -24,21 +29,40 @@ struct SearchResultsDisplay: View {
         }
     }
 
-    // MARK: - Empty State
+    // MARK: - Empty State (#481)
+
+    private var trimmedQuery: String {
+        currentQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 48))
-                .foregroundColor(.secondary)
-
-            Text("No Results")
-                .font(.headline)
-
-            Text("Enter a query in the toolbar search field")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
+            if isSearching {
+                ProgressView()
+                Text("Searching…")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+            } else if trimmedQuery.isEmpty {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 48))
+                    .foregroundColor(.secondary)
+                Text("Search Documents")
+                    .font(.headline)
+                Text("Type a query in the toolbar (⌘F) to search across\nall transcribed documents in this library.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            } else {
+                Image(systemName: "doc.text.magnifyingglass")
+                    .font(.system(size: 48))
+                    .foregroundColor(.secondary)
+                Text("No Matches")
+                    .font(.headline)
+                Text("Nothing matched “\(trimmedQuery)”.\nTry a shorter query or different terms.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
