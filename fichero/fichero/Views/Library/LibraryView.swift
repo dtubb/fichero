@@ -62,6 +62,17 @@ struct LibraryView: View {
     @SceneStorage("column_size") var showSize = false
     @SceneStorage("column_artifacts") var showArtifacts = false  // #519: hidden by default
 
+    // Per-entity-type visibility flags for the list-view lozenge rows.
+    // Daniel asked for a top-right filter menu so users can hide
+    // categories they don't care about. Persisted per-window so the
+    // setting follows the user's library workflow. (#519 follow-up)
+    @SceneStorage("list_show_people") var showPeopleEntities = true
+    @SceneStorage("list_show_places") var showPlacesEntities = true
+    @SceneStorage("list_show_organizations") var showOrganizationsEntities = true
+    @SceneStorage("list_show_dates") var showDatesEntities = true
+    @SceneStorage("list_show_events") var showEventsEntities = true
+    @SceneStorage("list_show_keywords") var showKeywordsEntities = true
+
     // Map view positions
     @State var mapPositions: [String: CGPoint] = [:]
 

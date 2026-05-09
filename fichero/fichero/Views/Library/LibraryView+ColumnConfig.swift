@@ -176,6 +176,11 @@ struct ArtifactEntitiesView: View {
 
     let documentId: String
     let style: Style
+    /// Entity-type ids ('people' / 'places' / 'organizations' / 'dates'
+    /// / 'events' / 'keywords') the caller wants rendered. Defaults to
+    /// all six so direct callers don't have to know about filtering;
+    /// LibraryView's listVisibleEntityTypes drives this for list rows.
+    var visibleTypes: Set<String> = ["people", "places", "organizations", "dates", "events", "keywords"]
 
     @EnvironmentObject var artifactService: ArtifactServiceGenerated
 
@@ -221,12 +226,24 @@ struct ArtifactEntitiesView: View {
             .truncationMode(.tail)
         case .multiLine:
             VStack(alignment: .leading, spacing: 4) {
-                lozengeRow("People", names: people)
-                lozengeRow("Places", names: places)
-                lozengeRow("Organizations", names: organizations)
-                lozengeRow("Dates", names: dates)
-                lozengeRow("Events", names: events)
-                lozengeRow("Keywords", names: keywords)
+                if visibleTypes.contains("people") {
+                    lozengeRow("People", names: people)
+                }
+                if visibleTypes.contains("places") {
+                    lozengeRow("Places", names: places)
+                }
+                if visibleTypes.contains("organizations") {
+                    lozengeRow("Organizations", names: organizations)
+                }
+                if visibleTypes.contains("dates") {
+                    lozengeRow("Dates", names: dates)
+                }
+                if visibleTypes.contains("events") {
+                    lozengeRow("Events", names: events)
+                }
+                if visibleTypes.contains("keywords") {
+                    lozengeRow("Keywords", names: keywords)
+                }
             }
             .font(.caption2)
         }

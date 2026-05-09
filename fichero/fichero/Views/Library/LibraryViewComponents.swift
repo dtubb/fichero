@@ -5,6 +5,12 @@ import SwiftUI
 struct MailStyleRow: View {
     let document: Document
     let isSelected: Bool
+    /// Entity types the parent wants rendered in the lozenge rows.
+    /// Defaults to all six so callers that don't filter still see
+    /// everything; LibraryView passes its `listVisibleEntityTypes`
+    /// computed set so the top-right filter menu drives this. (#519
+    /// follow-up — list view filter.)
+    var visibleEntityTypes: Set<String> = ["people", "places", "organizations", "dates", "events", "keywords"]
     var onTagTap: (String) -> Void = { _ in }
 
     @EnvironmentObject private var documentStore: DocumentStore
@@ -102,7 +108,8 @@ struct MailStyleRow: View {
                 // no entity-typed artifacts exist for this doc. (#519)
                 ArtifactEntitiesView(
                     documentId: document.id,
-                    style: .multiLine
+                    style: .multiLine,
+                    visibleTypes: visibleEntityTypes
                 )
             }
         }

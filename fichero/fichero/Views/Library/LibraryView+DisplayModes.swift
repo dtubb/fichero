@@ -166,7 +166,11 @@ extension LibraryView {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(filteredDocuments) { doc in
-                        MailStyleRow(document: doc, isSelected: selection.contains(doc.id)) { tag in
+                        MailStyleRow(
+                            document: doc,
+                            isSelected: selection.contains(doc.id),
+                            visibleEntityTypes: listVisibleEntityTypes
+                        ) { tag in
                             searchText = tag
                             showFilterBar = true
                         }
@@ -212,6 +216,63 @@ extension LibraryView {
                 }
             }
         }
+        .overlay(alignment: .topTrailing) { entityFilterMenu }
+    }
+
+    /// Set of entity-type ids the user wants visible in list rows.
+    /// Drives `MailStyleRow` → `ArtifactEntitiesView` filtering. (#519
+    /// follow-up)
+    var listVisibleEntityTypes: Set<String> {
+        var set = Set<String>()
+        if showPeopleEntities { set.insert("people") }
+        if showPlacesEntities { set.insert("places") }
+        if showOrganizationsEntities { set.insert("organizations") }
+        if showDatesEntities { set.insert("dates") }
+        if showEventsEntities { set.insert("events") }
+        if showKeywordsEntities { set.insert("keywords") }
+        return set
+    }
+
+    /// Top-right filter menu — toggles per-entity-type visibility for
+    /// the list-row lozenge rows. Daniel: 'in the top right of the list
+    /// view a way to filter what artefacts and entitites to show.'
+    @ViewBuilder
+    var entityFilterMenu: some View {
+        Menu {
+            Toggle("People", isOn: $showPeopleEntities)
+            Toggle("Places", isOn: $showPlacesEntities)
+            Toggle("Organizations", isOn: $showOrganizationsEntities)
+            Toggle("Dates", isOn: $showDatesEntities)
+            Toggle("Events", isOn: $showEventsEntities)
+            Toggle("Keywords", isOn: $showKeywordsEntities)
+            Divider()
+            Button("Show All") {
+                showPeopleEntities = true
+                showPlacesEntities = true
+                showOrganizationsEntities = true
+                showDatesEntities = true
+                showEventsEntities = true
+                showKeywordsEntities = true
+            }
+            Button("Hide All") {
+                showPeopleEntities = false
+                showPlacesEntities = false
+                showOrganizationsEntities = false
+                showDatesEntities = false
+                showEventsEntities = false
+                showKeywordsEntities = false
+            }
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease.circle")
+                .imageScale(.medium)
+                .padding(8)
+                .background(.ultraThinMaterial, in: Circle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .padding(8)
+        .help("Filter entity types shown")
     }
 
     // MARK: - Table View (Sortable columns)
