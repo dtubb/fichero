@@ -18,6 +18,14 @@ struct SearchView: View {
 
     var body: some View {
         resultsPanel
+            // Search input wired via the standard macOS .searchable
+            // modifier so users get ⌘F focus, the system clear button,
+            // and the toolbar-integrated search field for free (#481).
+            // Submitting (Return) fires the query; live re-querying as
+            // the user types is left to the saved-search auto-trigger
+            // path so we don't hammer the backend on each keystroke.
+            .searchable(text: $queryText, placement: .toolbar, prompt: "Search documents…")
+            .onSubmit(of: .search) { performSearch() }
             .onAppear {
                 if let search = savedSearch {
                     queryText = search.query
@@ -30,6 +38,15 @@ struct SearchView: View {
                 }
                 queryText = search.query
                 performSearch()
+            }
+            .onChange(of: queryText) { _, newValue in
+                // Empty query resets results so the previous-run state
+                // doesn't linger when the user clears the field.
+                if newValue.trimmingCharacters(in: .whitespaces).isEmpty {
+                    searchResults = []
+                    searchStats = nil
+                    searchError = nil
+                }
             }
             .onChange(of: selection) { _, newSelection in
                 // Load document when selection changes (single click)
