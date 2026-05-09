@@ -31,9 +31,11 @@ extension SearchView {
     @MainActor
     func saveCurrentQuery() async {
         let query = queryText.trimmingCharacters(in: .whitespacesAndNewlines)
+        // windowState.libraryId is a non-optional UUID; only the library
+        // lookup can return nil (per-library state may not yet be wired
+        // when this fires very early in window setup).
         guard !query.isEmpty,
-              let libraryId = windowState.libraryId,
-              let library = libraryManager.getLibrary(id: libraryId) else {
+              let library = libraryManager.getLibrary(id: windowState.libraryId) else {
             return
         }
         do {
