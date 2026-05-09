@@ -46,6 +46,7 @@ struct LibraryView: View {
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var windowState: WindowState
     @EnvironmentObject var workflowStreamService: WorkflowStreamService
+    @EnvironmentObject var documentStore: DocumentStore
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @ObservedObject var featureManager = FeatureManager.shared
 
@@ -98,11 +99,17 @@ struct LibraryView: View {
     // continuously-updating scale (which would compound exponentially).
     @State var pinchBaseScale: Double = 1.0
 
-    // Processing poller (#518): fires every 3s while any document is
+    // Processing poller (#518): fires while any document is
     // pending/processing so the row indicator updates without manual refresh.
     // Auto-stops when all documents settle; the onRetry()-triggered fetch
     // updates `documents` which gates `hasProcessingDocuments` to false.
-    private let processingPollTimer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
+    //
+    // 15s interval (was 3s) — 3s caused visible whole-list flash on libraries
+    // with one stuck pending row, because onRetry() replaces the documents
+    // array wholesale and SwiftUI re-renders every visible row. 15s gives
+    // reasonable ingest feedback without the flicker. Once we wire SSE-based
+    // status push (0.0.4 hybrid retrieval scope) the poll can go away entirely.
+    private let processingPollTimer = Timer.publish(every: 15, on: .main, in: .common).autoconnect()
     private var hasProcessingDocuments: Bool {
         documents.contains { $0.status == .processing || $0.status == .pending }
     }
@@ -187,11 +194,15 @@ struct LibraryView: View {
                 handleSortOrderChange(newOrder)
             }
             .onReceive(processingPollTimer) { _ in
-                // Refresh document list while any document is still being
-                // ingested (#518). onRetry triggers documentStore.refresh()
-                // which propagates through DocumentStore @Published state.
-                guard hasProcessingDocuments else { return }
-                onRetry()
+                // Surgical refresh: only mutate rows whose status changed
+                // (#518 follow-up). The previous onRetry() path replaced
+                // the whole documents array → SwiftUI re-rendered every
+                // visible row → flash. refreshPendingStatusesOnly walks
+                // currentDocuments in place and only swaps rows whose
+                // status flipped, so untouched rows keep referential
+                // identity and don't redraw.
+                guard hasProcessingDocuments, let parentId = folderId else { return }
+                Task { await documentStore.refreshPendingStatusesOnly(in: parentId) }
             }
             // Suppress implicit animations on folder change — icons should appear
             // instantly, not slide in cascading from the top.

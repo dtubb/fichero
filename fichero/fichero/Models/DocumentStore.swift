@@ -178,6 +178,57 @@ class DocumentStore: ObservableObject {
         self.isLoadingChildren = false
     }
 
+    /// Refresh status fields ONLY for documents that are currently pending
+    /// or processing — surgical update so the table doesn't flash every
+    /// poll. Fetches the parent's children, then mutates `currentDocuments`
+    /// in place: each row whose status flipped is replaced with the fresh
+    /// version; everything else stays referentially identical.
+    ///
+    /// SwiftUI's Table diffs `currentDocuments` via Document.Equatable
+    /// (Document is Codable+Hashable so == is auto-synthesized). Replacing
+    /// only the changed rows means only those rows re-render — no
+    /// whole-list flash. (#518 follow-up: 0.0.3's blanket poll was too
+    /// aggressive on libraries with stuck-pending rows.)
+    @MainActor
+    func refreshPendingStatusesOnly(in parentId: String) async {
+        // Snapshot pending row ids before the fetch — we only care about
+        // these. If none, nothing to do.
+        let pendingIds = Set(
+            currentDocuments
+                .filter { $0.status == .pending || $0.status == .processing }
+                .map(\.id)
+        )
+        guard !pendingIds.isEmpty else { return }
+
+        do {
+            let fresh: [Document] = try await api.get("/documents/\(parentId)/children")
+            let freshById = Dictionary(uniqueKeysWithValues: fresh.map { ($0.id, $0) })
+
+            // Walk currentDocuments. For each pending row whose status
+            // changed in the fresh fetch, swap in the new value. Untouched
+            // rows keep referential identity → no re-render.
+            var didChange = false
+            var updated = currentDocuments
+            for index in updated.indices where pendingIds.contains(updated[index].id) {
+                guard let freshDoc = freshById[updated[index].id] else { continue }
+                if freshDoc.status != updated[index].status {
+                    updated[index] = freshDoc
+                    didChange = true
+                }
+            }
+            if didChange {
+                currentDocuments = updated
+                // Also refresh the cached children copy so subsequent
+                // navigations see the same statuses.
+                childrenCache[parentId] = updated
+            }
+        } catch {
+            // Swallow — poll-driven refresh; a transient failure shouldn't
+            // surface as a user-facing error.
+            logger.debug("refreshPendingStatusesOnly failed: \(error.localizedDescription)")
+        }
+    }
+
     /// Get cached children or load from backend.
     func children(of documentId: String) async -> [Document] {
         if let cached = childrenCache[documentId] {
