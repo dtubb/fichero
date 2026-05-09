@@ -73,6 +73,13 @@ struct LibraryView: View {
     @SceneStorage("list_show_events") var showEventsEntities = true
     @SceneStorage("list_show_keywords") var showKeywordsEntities = true
 
+    /// Mac-native column customization for the table view (right-click on
+    /// any column header → show/hide menu, drag to reorder). Backed by
+    /// SwiftUI's TableColumnCustomization API on macOS 14+. State lives
+    /// for the window lifetime; deeper persistence to @SceneStorage is a
+    /// follow-up. (#519)
+    @State var tableColumnCustomization = TableColumnCustomization<Document>()
+
     // Map view positions
     @State var mapPositions: [String: CGPoint] = [:]
 

@@ -275,70 +275,85 @@ extension LibraryView {
         .help("Filter entity types shown")
     }
 
-    // MARK: - Table View (Sortable columns)
+    // MARK: - Table View (Sortable columns + Mac-native column customization)
 
     var tableView: some View {
-        Table(filteredDocuments, selection: $selection, sortOrder: $sortOrder) {
-            if showName {
-                TableColumn("Name", value: \Document.name) { doc in
-                    tableCellView(for: "name", document: doc)
-                }
-                .width(min: 150, ideal: 200)
+        // Native column customization: right-click on any column header
+        // surfaces SwiftUI's built-in show/hide + reorder menu. Each
+        // column needs a stable .customizationID; default visibility
+        // matches the prior @SceneStorage defaults so users see the
+        // same starting layout. Daniel: 'we want this in the mac way
+        // which is a contextual menu in the table view header.' (#519)
+        Table(
+            filteredDocuments,
+            selection: $selection,
+            sortOrder: $sortOrder,
+            columnCustomization: $tableColumnCustomization
+        ) {
+            TableColumn("Name", value: \Document.name) { doc in
+                tableCellView(for: "name", document: doc)
             }
-            if showStatus {
-                TableColumn("Status", value: \Document.status.rawValue) { doc in
-                    tableCellView(for: "status", document: doc)
-                }
-                .width(min: 80, ideal: 100)
+            .width(min: 150, ideal: 200)
+            .customizationID("name")
+            .disabledCustomizationBehavior(.visibility)  // Always visible
+
+            TableColumn("Status", value: \Document.status.rawValue) { doc in
+                tableCellView(for: "status", document: doc)
             }
-            if showProgress {
-                TableColumn("Progress") { doc in
-                    tableCellView(for: "progress", document: doc)
-                }
-                .width(min: 80, ideal: 100)
+            .width(min: 80, ideal: 100)
+            .customizationID("status")
+
+            TableColumn("Progress") { doc in
+                tableCellView(for: "progress", document: doc)
             }
-            if showOutput {
-                TableColumn("Output") { doc in
-                    tableCellView(for: "output", document: doc)
-                }
-                .width(min: 150, ideal: 250)
+            .width(min: 80, ideal: 100)
+            .customizationID("progress")
+
+            TableColumn("Output") { doc in
+                tableCellView(for: "output", document: doc)
             }
-            if showFileType {
-                TableColumn("Type", value: \Document.sortableFileType) { doc in
-                    tableCellView(for: "fileType", document: doc)
-                }
-                .width(min: 60, ideal: 80)
+            .width(min: 150, ideal: 250)
+            .customizationID("output")
+
+            TableColumn("Type", value: \Document.sortableFileType) { doc in
+                tableCellView(for: "fileType", document: doc)
             }
-            if showPath {
-                TableColumn("Path") { doc in
-                    tableCellView(for: "path", document: doc)
-                }
-                .width(min: 100, ideal: 150)
+            .width(min: 60, ideal: 80)
+            .customizationID("fileType")
+
+            TableColumn("Path") { doc in
+                tableCellView(for: "path", document: doc)
             }
-            if showCreatedDate {
-                TableColumn("Created", value: \Document.createdAt) { doc in
-                    tableCellView(for: "createdDate", document: doc)
-                }
-                .width(min: 80, ideal: 100)
+            .width(min: 100, ideal: 150)
+            .customizationID("path")
+            .defaultVisibility(.hidden)
+
+            TableColumn("Created", value: \Document.createdAt) { doc in
+                tableCellView(for: "createdDate", document: doc)
             }
-            if showModifiedDate {
-                TableColumn("Modified", value: \Document.updatedAt) { doc in
-                    tableCellView(for: "modifiedDate", document: doc)
-                }
-                .width(min: 80, ideal: 100)
+            .width(min: 80, ideal: 100)
+            .customizationID("createdDate")
+
+            TableColumn("Modified", value: \Document.updatedAt) { doc in
+                tableCellView(for: "modifiedDate", document: doc)
             }
-            if showSize {
-                TableColumn("Size") { doc in
-                    tableCellView(for: "size", document: doc)
-                }
-                .width(min: 60, ideal: 80)
+            .width(min: 80, ideal: 100)
+            .customizationID("modifiedDate")
+            .defaultVisibility(.hidden)
+
+            TableColumn("Size") { doc in
+                tableCellView(for: "size", document: doc)
             }
-            if showArtifacts {
-                TableColumn("Artifacts") { doc in
-                    tableCellView(for: "artifacts", document: doc)
-                }
-                .width(min: 100, ideal: 120)
+            .width(min: 60, ideal: 80)
+            .customizationID("size")
+            .defaultVisibility(.hidden)
+
+            TableColumn("Artifacts") { doc in
+                tableCellView(for: "artifacts", document: doc)
             }
+            .width(min: 100, ideal: 120)
+            .customizationID("artifacts")
+            .defaultVisibility(.hidden)
         }
         .tableStyle(.inset)
         .contextMenu(forSelectionType: String.self) { items in
