@@ -124,20 +124,13 @@ extension LibraryView {
         }
     }
 
-    // MARK: - Table Column: Artifacts (#519)
-
-    /// Builder for the Artifacts column. Hidden by default; toggled via
-    /// the column-visibility menu. ArtifactCountBadge handles per-row
-    /// fetch + display.
-    @ViewBuilder
-    var artifactsColumn: some View {
-        if showArtifacts {
-            TableColumn("Artifacts") { (doc: Document) in
-                ArtifactCountBadge(documentId: doc.id)
-            }
-            .width(min: 100, ideal: 120)
-        }
-    }
+    // (The actual Artifacts TableColumn is wired inline in
+    // LibraryView+DisplayModes.swift's tableView; trying to factor it
+    // into an `@ViewBuilder var artifactsColumn: some View` doesn't
+    // type-check because TableColumn conforms to TableColumnContent,
+    // not View. SwiftUI's TableColumnBuilder is the right macro for
+    // composing TableColumns, but inlining keeps the column list in
+    // one place — preferred.) #519
 
     private func fileSizeInBytes(for doc: Document) -> Int64? {
         let metadataKeys = ["File_Size", "file_size", "size"]
@@ -213,14 +206,21 @@ struct ArtifactCountBadge: View {
     }
 
     private func loadArtifacts() {
-        // Cache key matches ArtifactServiceGenerated's default
-        // includeDescendants=true path: just the document id.
-        if let cached = artifactService.artifactsByDocument[documentId] {
+        // V2 strict scope (#701): per-row badge counts only this document's
+        // OWN artifacts, not its descendants — otherwise a parent PDF
+        // displays the union of every page-child's artifacts and the
+        // count is misleading. Matches DocumentInspectorArtifactsTab's
+        // includeDescendants: false convention. Cache key reflects the
+        // scope flag so we hit the right bucket in artifactsByDocument.
+        let cacheKey = "\(documentId)|own"
+        if let cached = artifactService.artifactsByDocument[cacheKey] {
             updateFromArtifacts(cached)
             return
         }
         Task {
-            if let artifacts = try? await artifactService.getArtifacts(forDocumentId: documentId) {
+            if let artifacts = try? await artifactService.getArtifacts(
+                forDocumentId: documentId, includeDescendants: false
+            ) {
                 await MainActor.run { updateFromArtifacts(artifacts) }
             }
         }
