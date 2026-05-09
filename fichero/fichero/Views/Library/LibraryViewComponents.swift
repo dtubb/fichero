@@ -7,8 +7,19 @@ struct MailStyleRow: View {
     let isSelected: Bool
     var onTagTap: (String) -> Void = { _ in }
 
+    @EnvironmentObject private var documentStore: DocumentStore
+
+    private static let thumbWidth: CGFloat = 64
+    private static let thumbHeight: CGFloat = 80
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
+            // Thumbnail to the left — same source as the icon view's
+            // DocumentThumbnailView, sized down to fit a list row.
+            // Apple Mail / Photos / NetNewsWire convention. (#519 follow-up)
+            rowThumbnail
+                .padding(.top, 2)
+
             // Status indicator: spinner while processing, dot otherwise (#518).
             // Live indicator pairs with LibraryView's processing-poll timer so
             // the user sees motion + status flips without manual refresh.
@@ -106,6 +117,61 @@ struct MailStyleRow: View {
         case .completed: return .green
         case .failed: return .red
         }
+    }
+
+    /// Page-child docs store the parent PDF path in `metadata.pdf_path`.
+    /// For dropped imports that path may be a temp dir macOS already
+    /// GC'd, so fall back to the parent doc's current `path` resolved
+    /// via `pdf_parent_id` — mirrors DocumentThumbnailView.resolvedParentPDFPath.
+    private func resolvedParentPDFPath(for doc: Document) -> String? {
+        let metadataPath = doc.metadata["pdf_path"]?.value as? String
+        if let metadataPath, !metadataPath.isEmpty,
+           !metadataPath.contains("/fichero-drop-"),
+           FileManager.default.fileExists(atPath: metadataPath) {
+            return metadataPath
+        }
+        guard let parentId = doc.metadata["pdf_parent_id"]?.value as? String,
+              let parent = documentStore.currentDocuments.first(where: { $0.id == parentId }),
+              let parentPath = parent.path,
+              !parentPath.isEmpty else {
+            return metadataPath
+        }
+        return parentPath
+    }
+
+    @ViewBuilder
+    private var rowThumbnail: some View {
+        let size = CGSize(width: Self.thumbWidth, height: Self.thumbHeight)
+        ZStack {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color(.windowBackgroundColor))
+
+            if document.docType == .folder {
+                Image(systemName: "folder.fill")
+                    .font(.system(size: 28))
+                    .foregroundColor(.accentColor)
+            } else if document.fileType == .pdf,
+                      let path = document.path,
+                      !path.isEmpty {
+                PDFThumbnailView(path: path, size: size)
+                    .clipped()
+            } else if document.docType == .page,
+                      let pdfPath = resolvedParentPDFPath(for: document),
+                      !pdfPath.isEmpty {
+                let pageIndex = max(0, (document.sequence ?? 1) - 1)
+                PDFThumbnailView(
+                    path: pdfPath, size: size, pageIndex: pageIndex
+                )
+                .clipped()
+            } else {
+                LibraryImageView(documentId: document.id, imageType: .thumbnail)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+            }
+        }
+        .frame(width: Self.thumbWidth, height: Self.thumbHeight)
+        .clipShape(RoundedRectangle(cornerRadius: 4))
     }
 }
 

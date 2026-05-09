@@ -78,24 +78,25 @@ extension ContentView {
             && availableViewDisplayModes.count > 1
     }
 
-    /// Horizontal mode strip — sits above the content view in a thin
-    /// 32-pt-tall band so it eats less screen real-estate than the
-    /// previous 44-pt-wide vertical rail. Same Mac-toolbar idiom as
-    /// Finder's view-mode segment.
+    /// Horizontal mode strip — uses MiniToolbar wrapper so its height
+    /// (.padding(.vertical, 6) + content) matches the inspector and
+    /// preview-pane toolbars across the window. Daniel: 'in the toolbar
+    /// at the top, make it the same height as the toolbar at the top of
+    /// preview, which should be same height as toolbar at top of
+    /// document inspector.'
     @ViewBuilder
     var horizontalModeStrip: some View {
         if showModeRail {
-            HStack(spacing: 4) {
+            MiniToolbar {
                 ForEach(availableViewDisplayModes) { mode in
                     Button {
                         updateViewDisplayMode(mode)
                     } label: {
                         Image(systemName: mode.icon)
-                            .frame(width: 22, height: 22)
                     }
                     .buttonStyle(.plain)
                     .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
+                    .padding(.vertical, 2)
                     .background(
                         RoundedRectangle(cornerRadius: 6)
                             .fill(viewDisplayMode == mode ? Color.accentColor.opacity(0.2) : Color.clear)
@@ -104,9 +105,6 @@ extension ContentView {
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color(nsColor: .windowBackgroundColor).opacity(0.35))
         }
     }
 
