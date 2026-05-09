@@ -165,15 +165,28 @@ struct ContentView: View {
         }
         // Option+Left/Right cycles between panes (sidebar → content → preview → inspector).
         // Plain left/right are reserved for inner-pane navigation (grid columns, DisclosureGroup expand).
+        // Command+Left/Right navigates to previous/next sibling document (#593).
         .onKeyPress(.leftArrow, phases: .down) { keyPress in
-            guard keyPress.modifiers.contains(.option) else { return .ignored }
-            cyclePaneFocus(reverse: true)
-            return .handled
+            if keyPress.modifiers.contains(.command) {
+                navigateSiblingPrevious()
+                return .handled
+            }
+            if keyPress.modifiers.contains(.option) {
+                cyclePaneFocus(reverse: true)
+                return .handled
+            }
+            return .ignored
         }
         .onKeyPress(.rightArrow, phases: .down) { keyPress in
-            guard keyPress.modifiers.contains(.option) else { return .ignored }
-            cyclePaneFocus(reverse: false)
-            return .handled
+            if keyPress.modifiers.contains(.command) {
+                navigateSiblingNext()
+                return .handled
+            }
+            if keyPress.modifiers.contains(.option) {
+                cyclePaneFocus(reverse: false)
+                return .handled
+            }
+            return .ignored
         }
         .sheet(isPresented: Binding(
             get: { appState.isBackendRunning && !hasCompletedOnboarding },

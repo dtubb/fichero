@@ -236,6 +236,15 @@ extension ContentView {
                 }
             )
             .id("editor.library")
+            .background(
+                // Two/three-finger trackpad swipe → previous/next sibling
+                // (#593). Lives behind the editor so it sees the swipe
+                // without intercepting clicks/scrolls.
+                SwipeSiblingNavigator(
+                    onNavigatePrevious: navigateSiblingPrevious,
+                    onNavigateNext: navigateSiblingNext
+                )
+            )
 
         case .chat, .comparison:
             EmptyView()

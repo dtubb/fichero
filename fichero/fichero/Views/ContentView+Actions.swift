@@ -475,4 +475,33 @@ extension ContentView {
             }
         }
     }
+
+    // MARK: - Sibling Document Navigation (#593)
+
+    /// Move detailDocument + browserSelection to the previous sibling in the
+    /// current folder's sort order. Wraps with a small easeInOut animation so
+    /// the EditorView's `.transition(.opacity)` produces a crossfade instead
+    /// of a hard cut.
+    func navigateSiblingPrevious() {
+        guard let current = detailDocument else { return }
+        let docs = documentStore.currentDocuments
+        guard let idx = docs.firstIndex(where: { $0.id == current.id }), idx > 0 else { return }
+        let target = docs[idx - 1]
+        withAnimation(.easeInOut(duration: 0.2)) {
+            detailDocument = target
+            browserSelection = [target.id]
+        }
+    }
+
+    /// Move to the next sibling. Symmetric to navigateSiblingPrevious.
+    func navigateSiblingNext() {
+        guard let current = detailDocument else { return }
+        let docs = documentStore.currentDocuments
+        guard let idx = docs.firstIndex(where: { $0.id == current.id }), idx < docs.count - 1 else { return }
+        let target = docs[idx + 1]
+        withAnimation(.easeInOut(duration: 0.2)) {
+            detailDocument = target
+            browserSelection = [target.id]
+        }
+    }
 }
