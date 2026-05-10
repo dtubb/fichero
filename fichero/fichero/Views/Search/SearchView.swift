@@ -22,14 +22,12 @@ struct SearchView: View {
 
     var body: some View {
         resultsPanel
-            // The single root-level .searchable on ContentView is now the
-            // toolbar entry point — SearchView no longer owns one of its
-            // own (avoids a stacked / duplicated search field on macOS).
-            // queryText still drives this view's results display + the
-            // empty-state copy; it gets seeded from savedSearch on appear
-            // and on saved-search changes (see .onAppear / .onChange below)
-            // and from the toolbar's runToolbarSearch flow when a new
-            // search is submitted.
+            // SearchView owns its own toolbar search field via .searchable
+            // (#481). Each mode-specific view in this app owns the toolbar
+            // search slot for that mode; SwiftUI/AppKit only allows one
+            // search item per toolbar at a time, so we never stack them.
+            .searchable(text: $queryText, placement: .toolbar, prompt: "Search documents…")
+            .onSubmit(of: .search) { performSearch() }
             // Save-Search action only when results exist and we're not
             // already viewing a saved search (#481). The button persists
             // the current query as a SavedSearch and routes the sidebar

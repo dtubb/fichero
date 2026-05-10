@@ -229,6 +229,14 @@ struct ContentView: View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebarContent
         } detail: {
+            // Single Finder-style search field in the toolbar
+            // (magnifying-glass collapses by default, expands when
+            // clicked). .searchable MUST be attached to a view inside
+            // the NavigationSplitView's column on macOS — placing it on
+            // the outer view raises an NSException at runtime
+            // ("_crashOnException" via AppKit's exception filter).
+            // Submitting routes through runToolbarSearch which creates a
+            // saved search and switches the sidebar into search mode.
             HStack(spacing: 0) {
                 centerContent
                     .frame(minWidth: CGFloat(ContentView.contentMinWidth), maxWidth: .infinity)
@@ -242,25 +250,17 @@ struct ContentView: View {
                         .frame(width: CGFloat(inspectorWidth))
                 }
             }
+            // Each mode-specific view owns its own .searchable when it needs
+            // one (SearchView, WorkflowLibraryView, ActionLibraryView,
+            // WorkflowChainListView). The single SwiftUI/AppKit toolbar can
+            // only host one search item at a time — letting the active mode
+            // own that slot is the idiomatic SwiftUI pattern and avoids the
+            // NSToolbar duplicate-identifier exception we hit when stacking
+            // a root-level .searchable on top of a mode-specific one.
         }
         // Avoid duplicate generic per-column title pills in macOS split view.
         .navigationTitle(toolbarTitle)
         .toolbar(removing: .sidebarToggle)
-        // Single Finder-style search field in the toolbar (magnifying-glass
-        // collapses by default, expands when clicked). Always visible when
-        // the search feature is enabled — this is the one entry point for
-        // search across the whole app. Submitting routes through
-        // runToolbarSearch which creates a saved search and switches the
-        // sidebar into search mode. SearchView's own .searchable was
-        // removed to avoid two competing search fields.
-        .searchable(
-            text: $toolbarSearchText,
-            placement: .toolbar,
-            prompt: "Search documents…"
-        )
-        .onSubmit(of: .search) {
-            runToolbarSearch(toolbarSearchText)
-        }
         .onAppear {
             // Restore all persisted state from @SceneStorage
             restorePersistedState()
