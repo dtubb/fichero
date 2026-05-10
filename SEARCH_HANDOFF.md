@@ -1,6 +1,6 @@
 # Search rewrite — overnight handoff
 
-**Branch:** `0.0.2` · **As of commit:** `36b161fd`
+**Branch:** `0.0.2` · **As of commit:** `6d7495bb`
 
 This is a status snapshot you can read first thing in the morning so you
 know what to test, what's working, and what's still TODO.
@@ -52,6 +52,10 @@ deeper plumbing (#17 search-then-batch-action), or fall into the
 | `51e92091` | **Phase 5**: did-you-mean + re-embed on edit | Mistype a name → suggestions. Edit a doc's content → search reflects edit. |
 | `7076afe3` | **Phase 6**: per-folder scope + empty-query recents + suggestion display | Empty query shows recents. Filters['folder_id'] scopes results. |
 | `36b161fd` | **Phase 7**: recent-searches history pills | Successful queries persist; click any pill to re-run. |
+| `2a395503` | **Phase 8**: reindex shows live document count | Watch the count climb during reindex. |
+| `af8ee6e4` | **Phase 9 tests**: +7 integration tests + smarter did-you-mean | Multi-word entity-name typos surface suggestions correctly. |
+| `f2e6afb0` | **Phase 9**: keyword cloud — browse-by-tag empty state | Pills sized by frequency; click to search. |
+| `6d7495bb` | **Phase 10**: Run Workflow on multi-selected search results | Select N results → Run Workflow → batch runs on those N. |
 
 ## How the new query syntax works
 
@@ -72,11 +76,8 @@ You can type any of these in the search field:
 
 | # | Feature | Status | Notes |
 |---|---|---|---|
-| 11 | Per-folder scope toggle UI | Backend done, UI not wired | Trivial follow-up — bind a Bool in SearchView, pass `folder_id` filter |
-| 17 | Search-then-batch-action | Not done | Needs multi-select in SearchView + workflow picker integration; ~half day |
-| 19 | Saved-search rename UI | Backend done, UI not wired | Service has `renameSavedSearch`; need a context menu hookup |
-| 21 | Keyword cloud | Not done | Could be added to empty-state with the `extract_all` keyword aggregates |
-| 22 | Reindex progress UI | Not done | Poll `/stats` during reindex, render a bar in the existing reindex placeholder |
+| 11 | Per-folder scope toggle UI | Backend done, UI not wired | Needs SearchView state + Picker; backend `filters['folder_id']` already works (verified by integration test). |
+| 19 | Saved-search rename UI | Confirmed already in app | `SidebarItemRow+Rename.swift` calls `renameSavedSearch` — flagged earlier as todo, was actually already there. |
 
 ## Tests I added (run anytime)
 
@@ -85,7 +86,7 @@ PYTHONPATH=fichero-engine/src .venv/bin/pytest \
   fichero-engine/tests/unit/test_search_scoring.py \
   fichero-engine/tests/unit/test_search_query_parser.py \
   fichero-engine/tests/integration/test_search_end_to_end.py
-# 49 passed
+# 57 passed
 ```
 
 The integration test is the real proof — it builds a tmp library,
