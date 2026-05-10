@@ -33,6 +33,17 @@ class OrphanCleanupResponse(BaseModel):
     artifacts_deleted: int
 
 
+class PdfBackfillResponse(BaseModel):
+    """Result of /pdfs/backfill-pages — how many PDFs needed pages
+    created and how many pages were created in total.
+    """
+
+    pdfs_scanned: int
+    pdfs_backfilled: int
+    pages_created: int
+    skipped: int
+
+
 class DocumentCreate(BaseModel):
     """Request model for creating a document."""
 
@@ -299,6 +310,60 @@ async def delete_document(doc_id: str, db: Database = Depends(get_library_databa
             db.delete(current_doc)
 
     logger.info(f"Deleted document subtree: root={doc_id}, total={len(to_delete_ids)}")
+
+
+@router.post("/pdfs/backfill-pages")
+async def backfill_pdf_pages(
+    db: Database = Depends(get_library_database),
+) -> PdfBackfillResponse:
+    """Find PDFs without page children and create the page Documents.
+
+    Daniel hit this on PDFs ingested before _create_pdf_page_children
+    landed (or where Kreuzberg silently failed at ingest time): the
+    sidebar shows the PDF as a leaf with no expandable child pages.
+
+    For each PDF in the library, check whether it already has child
+    documents with doc_type=page. If not, run the same _create_pdf_page_children
+    helper that ingest uses now. Idempotent — re-running on a fully
+    backfilled library is a no-op.
+    """
+    from fichero.ingest import _create_pdf_page_children
+
+    pdfs = db.query(Document, file_type=FileType.pdf)
+    pdfs_scanned = len(pdfs)
+    pdfs_backfilled = 0
+    pages_created = 0
+    skipped = 0
+
+    for pdf in pdfs:
+        if not pdf.path:
+            skipped += 1
+            continue
+        try:
+            existing_pages = db.query(Document, parent_id=pdf.id, doc_type=DocType.page)
+        except Exception:
+            existing_pages = []
+        if existing_pages:
+            continue
+        path = Path(pdf.path)
+        if not path.exists():
+            skipped += 1
+            continue
+        try:
+            new_pages = _create_pdf_page_children(pdf, path, db, auto_embed=True)
+            if new_pages:
+                pdfs_backfilled += 1
+                pages_created += len(new_pages)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("PDF backfill failed for %s: %s", pdf.id, exc)
+            skipped += 1
+
+    return PdfBackfillResponse(
+        pdfs_scanned=pdfs_scanned,
+        pdfs_backfilled=pdfs_backfilled,
+        pages_created=pages_created,
+        skipped=skipped,
+    )
 
 
 @router.post("/reorder")
