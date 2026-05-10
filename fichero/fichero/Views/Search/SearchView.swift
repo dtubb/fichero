@@ -30,6 +30,12 @@ struct SearchView: View {
     @SceneStorage("searchSortBy") var sortBy: String = "relevance"
     @SceneStorage("searchSortDirection") var sortDirection: String = "desc"
 
+    /// Top-N keywords across the library — fetched on first appear,
+    /// rendered in the empty state as clickable pills. Each tap runs a
+    /// search for that keyword. Empty array when the keyword extractor
+    /// hasn't run on this library yet.
+    @State var keywordCloud: [KeywordCloudEntryDTO] = []
+
     /// JSON-encoded `[String]` of recent queries — most recent first,
     /// dedup'd, capped at 10. @SceneStorage persists across launches.
     /// Used by the empty-state to surface "Recent" pills.
@@ -116,6 +122,12 @@ struct SearchView: View {
                 // Pull index health so the empty state can surface
                 // "Index Library" when there are no embeddings yet (#481).
                 Task { await loadIndexStats() }
+                // Keyword cloud — top-N tags across the library, rendered
+                // in the empty-state as clickable pills.
+                Task {
+                    let cloud = (try? await searchService.keywordCloud(limit: 30)) ?? []
+                    await MainActor.run { keywordCloud = cloud }
+                }
             }
             .onChange(of: savedSearch?.id) { _, _ in
                 guard let search = savedSearch else {
@@ -189,6 +201,11 @@ extension SearchView {
             recentSearches: recentSearches,
             onRecentSearchTap: { recent in
                 queryText = recent
+                performSearch()
+            },
+            keywordCloud: keywordCloud,
+            onKeywordTap: { keyword in
+                queryText = keyword
                 performSearch()
             }
         )

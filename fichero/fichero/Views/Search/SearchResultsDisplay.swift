@@ -31,6 +31,24 @@ struct SearchResultsDisplay: View {
     var recentSearches: [String] = []
     var onRecentSearchTap: ((String) -> Void)?
 
+    /// Top-N keywords for browse-by-tag. Each pill click runs a search
+    /// for that keyword. Sized by frequency for visual hierarchy.
+    var keywordCloud: [KeywordCloudEntryDTO] = []
+    var onKeywordTap: ((String) -> Void)?
+
+    /// Size keyword-cloud pill text by its document-frequency rank. The
+    /// most-used tag in the cloud renders biggest; rare tags stay small.
+    /// Linear interpolation between 11pt and 17pt over the count range
+    /// for any given cloud snapshot.
+    static func fontSize(
+        for entry: KeywordCloudEntryDTO, cloud: [KeywordCloudEntryDTO]
+    ) -> CGFloat {
+        let counts = cloud.map(\.count)
+        guard let lo = counts.min(), let hi = counts.max(), hi > lo else { return 12 }
+        let t = CGFloat(entry.count - lo) / CGFloat(hi - lo)
+        return 11 + t * 6
+    }
+
     var body: some View {
         if searchResults.isEmpty {
             emptyState
@@ -131,6 +149,36 @@ struct SearchResultsDisplay: View {
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                     }
+                    // Keyword cloud — clickable browse-by-tag pills.
+                    // Pill text size scales with document-frequency so
+                    // the most-used tags pop visually.
+                    if !keywordCloud.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Browse by keyword")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                            FlowLayout(spacing: 4) {
+                                ForEach(keywordCloud) { entry in
+                                    Button {
+                                        onKeywordTap?(entry.name)
+                                    } label: {
+                                        Text(entry.name)
+                                            .font(.system(size: SearchResultsDisplay.fontSize(for: entry, cloud: keywordCloud)))
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 4)
+                                            .background(Capsule().fill(Color.accentColor.opacity(0.10)))
+                                            .overlay(Capsule().stroke(Color.accentColor.opacity(0.20), lineWidth: 0.5))
+                                            .foregroundStyle(.primary)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("\(entry.count) document\(entry.count == 1 ? "" : "s")")
+                                }
+                            }
+                        }
+                        .frame(maxWidth: 480)
+                        .padding(.top, 12)
+                    }
+
                     // Recent searches — clickable history pills, only
                     // when the user has prior successful queries to
                     // recall. Most-recent first, capped to 10.

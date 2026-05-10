@@ -6,6 +6,15 @@ import OpenAPIRuntime
 private let logger = Logger(subsystem: "com.fichero.fichero", category: "SearchServiceGenerated")
 
 /// Service for search operations using generated OpenAPI client
+/// Lightweight DTO matching `KeywordCloudEntry` on the backend.
+/// Manual decoding because the OpenAPI client doesn't include this
+/// endpoint yet (added without regenerating; #519/#481 follow-up).
+struct KeywordCloudEntryDTO: Decodable, Identifiable {
+    let name: String
+    let count: Int
+    var id: String { name }
+}
+
 @MainActor
 class SearchServiceGenerated: ObservableObject {
     private let client: FicheroClient
@@ -302,6 +311,25 @@ class SearchServiceGenerated: ObservableObject {
     }
 
     // MARK: - Backward Compatibility Methods
+
+    /// Top-N keyword cloud — name + per-doc count, sorted by frequency.
+    /// Hand-written URL fetch (the OpenAPI client doesn't yet expose
+    /// /api/search/keywords because we added it without regenerating).
+    /// Empty array when the workflow hasn't extracted any keywords yet.
+    func keywordCloud(limit: Int = 50) async throws -> [KeywordCloudEntryDTO] {
+        var components = URLComponents(string: "http://127.0.0.1:8765/api/search/keywords")!
+        components.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
+        guard let url = components.url else { return [] }
+        var request = URLRequest(url: url)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.addEngineAuth(libraryPath: libraryPath)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse,
+              (200...299).contains(http.statusCode) else {
+            return []
+        }
+        return (try? JSONDecoder().decode([KeywordCloudEntryDTO].self, from: data)) ?? []
+    }
 
     /// Search with backward-compatible interface returning manual types
     /// This matches the old SearchService.search() signature

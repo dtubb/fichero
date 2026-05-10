@@ -498,6 +498,72 @@ async def search_stats(db: Database = Depends(get_library_database)):
     return db.embedding_stats()
 
 
+class KeywordCloudEntry(BaseModel):
+    """Single entry in the keyword cloud — name + how many docs use it."""
+
+    name: str
+    count: int
+
+
+@router.get("/keywords")
+async def keyword_cloud(
+    db: Database = Depends(get_library_database),
+    limit: int = Query(50, ge=1, le=500),
+) -> list[KeywordCloudEntry]:
+    """Top-N keywords across the library, sorted by document frequency.
+
+    Reads the 'keywords' artifacts emitted by extract_all and counts the
+    distinct documents each keyword appears in. Empty list when no
+    keywords have been extracted yet (workflow hasn't run).
+
+    Used by the search empty-state to surface clickable terms — a
+    "browse by tag" affordance for users who don't know what to type.
+    """
+    try:
+        rows = db.conn.execute(
+            "SELECT data, document_id FROM artifacts WHERE artifact_type = 'keywords'"
+        ).fetchall()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("keyword cloud query failed: %s", exc)
+        return []
+
+    import json
+    from collections import Counter
+
+    counter: Counter[str] = Counter()
+    for data_blob, doc_id in rows:
+        if not data_blob:
+            continue
+        try:
+            parsed = json.loads(data_blob) if isinstance(data_blob, str) else data_blob
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(parsed, dict):
+            continue
+        keywords = parsed.get("keywords")
+        if not isinstance(keywords, list):
+            continue
+        seen_in_doc: set[str] = set()
+        for kw in keywords:
+            if not isinstance(kw, str):
+                continue
+            term = kw.strip()
+            if not term:
+                continue
+            # Document-frequency count: a keyword appearing twice in the
+            # same doc still counts once.
+            key = (term, doc_id)
+            if key in seen_in_doc:
+                continue
+            seen_in_doc.add(key)
+            counter[term] += 1
+
+    return [
+        KeywordCloudEntry(name=name, count=count)
+        for name, count in counter.most_common(limit)
+    ]
+
+
 @router.post("/reindex")
 async def reindex_all(
     background_tasks: BackgroundTasks, db: Database = Depends(get_library_database)
