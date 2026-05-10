@@ -388,10 +388,20 @@ struct ContentView: View {
                         // these captured IDs even if focus shifts after the menu opens.
                         // Exclude folder docs — passing a folder ID to the backend expands
                         // it to all children, which is the "On Collection" path, not "On Selection".
+                        // In search mode, currentDocuments may be empty (search uses a
+                        // separate result set), so a raw browserSelection passes through
+                        // unchanged — search results are file docs by construction, not
+                        // folders, so the folder-exclusion guard is unnecessary there.
+                        let isSearchMode: Bool = {
+                            if case .search = viewMode { return true }
+                            return false
+                        }()
                         let capturedSelectionIds: [String] = !browserSelection.isEmpty
-                            ? browserSelection.filter { id in
-                                documentStore.currentDocuments.first { $0.id == id }?.docType != .folder
-                            }
+                            ? (isSearchMode
+                                ? Array(browserSelection)
+                                : browserSelection.filter { id in
+                                    documentStore.currentDocuments.first { $0.id == id }?.docType != .folder
+                                })
                             : (detailDocument.flatMap { $0.docType == .folder ? nil : [$0.id] } ?? [])
                         let collectionFiles = documentStore.currentDocuments.filter { $0.docType == .file }
                         let hasCollection = !collectionFiles.isEmpty
