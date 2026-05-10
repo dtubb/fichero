@@ -246,6 +246,18 @@ async def update_document(
     doc.updated_at = datetime.now()
 
     db.save(doc)
+
+    # Re-embed when page_content changed so search reflects the user's
+    # edit immediately. Without this, the stale embedding from before the
+    # edit stays in LanceDB until a manual reindex — and search returns
+    # the *old* content as if the edit never happened. (#481 follow-up)
+    if "page_content" in update_data and doc.page_content:
+        try:
+            db.embed(doc)
+            logger.info(f"Re-embedded {doc_id} after page_content edit")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Re-embed after edit failed for {doc_id}: {exc}")
+
     logger.info(f"Updated document: {doc_id}")
     return doc
 

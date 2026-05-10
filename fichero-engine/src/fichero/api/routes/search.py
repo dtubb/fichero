@@ -27,6 +27,84 @@ def _safe_isoformat(value) -> str:
     )
 
 
+def _suggest_for_no_results(
+    db: Database, query: str, limit: int = 5
+) -> list[str]:
+    """Build 'did you mean…?' suggestions when search returns nothing.
+
+    Strategy: scan distinct entity names (people / places / orgs /
+    keywords) from the artifacts table, fold each for accent-blind
+    comparison, score by Levenshtein-ish closeness against the folded
+    query, return the top-K closest.
+
+    Cheap: only runs on the zero-results path so latency hit is bounded
+    to the rare 'user typed a typo' case. Caller is responsible for
+    surfacing the suggestions in SearchResponse.suggestions.
+    """
+    from fichero.db import _fold_for_search
+
+    needle = _fold_for_search(query.strip())
+    if not needle:
+        return []
+
+    try:
+        rows = db.conn.execute(
+            """
+            SELECT data FROM artifacts
+            WHERE artifact_type IN ('people', 'places', 'organizations', 'keywords')
+            """,
+        ).fetchall()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("did-you-mean lookup failed: %s", exc)
+        return []
+
+    candidates: set[str] = set()
+    for (data_blob,) in rows:
+        if not data_blob:
+            continue
+        # data is JSON-serialised; parse defensively.
+        import json
+
+        try:
+            parsed = json.loads(data_blob) if isinstance(data_blob, str) else data_blob
+        except (TypeError, ValueError):
+            continue
+        if isinstance(parsed, dict):
+            items = parsed.get("items")
+            if isinstance(items, list):
+                for entry in items:
+                    if isinstance(entry, dict):
+                        for value in entry.values():
+                            if isinstance(value, str) and value:
+                                candidates.add(value)
+            keywords = parsed.get("keywords")
+            if isinstance(keywords, list):
+                for kw in keywords:
+                    if isinstance(kw, str) and kw:
+                        candidates.add(kw)
+
+    # Score each candidate by simple overlap + length-distance heuristic.
+    # Levenshtein avoided to skip a dependency; length-of-folded-overlap
+    # is good enough for "did you mean" UX where we just want the
+    # 5 closest names to surface as clickable suggestions.
+    scored: list[tuple[float, str]] = []
+    for name in candidates:
+        folded = _fold_for_search(name)
+        if not folded:
+            continue
+        # Substring containment is the strongest signal.
+        if needle in folded or folded in needle:
+            similarity = 1.0 - abs(len(folded) - len(needle)) / max(len(folded), len(needle))
+        else:
+            # Character-set overlap as a coarse fallback.
+            common = set(needle) & set(folded)
+            similarity = len(common) / max(len(set(needle) | set(folded)), 1)
+        scored.append((similarity, name))
+
+    scored.sort(reverse=True)
+    return [name for score, name in scored[:limit] if score >= 0.5]
+
+
 def _apply_phrase_and_exclude_filters(
     db: Database,
     results: list[SearchResult],
@@ -330,6 +408,17 @@ async def enhanced_search(
     # db_embeddings._l2_normalize). The user-controllable min_score on
     # SearchRequest replaces it for callers who want to floor explicitly.
 
+    # Did-you-mean: only when the user got *zero* results, AND their
+    # query looks substantive (>2 chars). Avoids spamming suggestions on
+    # short or accidental queries.
+    suggestions: list[str] | None = None
+    if not results and len(request.query.strip()) > 2:
+        try:
+            hits = _suggest_for_no_results(db, request.query, limit=5)
+            suggestions = hits or None
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("did-you-mean failed: %s", exc)
+
     return SearchResponse(
         query=request.query,
         results=results,
@@ -339,7 +428,7 @@ async def enhanced_search(
         execution_time_ms=search_stats.get("execution_time_ms", 0),
         has_more=search_stats.get("has_more", False),
         filters_applied=request.filters,
-        suggestions=None,  # Could be populated with search suggestions
+        suggestions=suggestions,
     )
 
 
