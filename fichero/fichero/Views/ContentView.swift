@@ -246,6 +246,21 @@ struct ContentView: View {
         // Avoid duplicate generic per-column title pills in macOS split view.
         .navigationTitle(toolbarTitle)
         .toolbar(removing: .sidebarToggle)
+        // Single Finder-style search field in the toolbar (magnifying-glass
+        // collapses by default, expands when clicked). Always visible when
+        // the search feature is enabled — this is the one entry point for
+        // search across the whole app. Submitting routes through
+        // runToolbarSearch which creates a saved search and switches the
+        // sidebar into search mode. SearchView's own .searchable was
+        // removed to avoid two competing search fields.
+        .searchable(
+            text: $toolbarSearchText,
+            placement: .toolbar,
+            prompt: "Search documents…"
+        )
+        .onSubmit(of: .search) {
+            runToolbarSearch(toolbarSearchText)
+        }
         .onAppear {
             // Restore all persisted state from @SceneStorage
             restorePersistedState()
@@ -422,31 +437,13 @@ struct ContentView: View {
                 }
             }
 
-            // Toolbar search field: always visible when search is enabled,
-            // not gated to search mode. Submitting from any mode creates a
-            // saved search and switches the sidebar into search mode (see
-            // runToolbarSearch). This is the entry point — without it the
-            // search feature has no door.
-            if featureManager.isSearchEnabled {
-                ToolbarItem(placement: .principal) {
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.secondary)
-                        TextField("Search", text: $toolbarSearchText)
-                            .textFieldStyle(.plain)
-                            .onSubmit {
-                                runToolbarSearch(toolbarSearchText)
-                            }
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .frame(minWidth: 260, idealWidth: 340, maxWidth: 460)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(nsColor: .controlBackgroundColor))
-                    )
-                }
-            }
+            // Search entry point lives in the system .searchable modifier
+            // applied to mainContentView (below). On macOS that renders as
+            // a Finder-style magnifying-glass that expands to a search
+            // field — placed by the system to the right of the trailing
+            // toolbar items. We keep it system-rendered (one consistent
+            // bar) instead of having a custom .principal field competing
+            // with SearchView's own .searchable.
 
             // Document grid toggle — hides/shows the icon-grid/list middle column
             // so the preview pane can fill the full content area (#616).

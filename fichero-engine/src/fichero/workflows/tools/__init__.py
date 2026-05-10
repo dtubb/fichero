@@ -22,6 +22,7 @@ from fichero.workflows.tools import sources
 
 # Vision tools (use shared vision_base)
 from fichero.workflows.tools import transcribe
+from fichero.workflows.tools import transcribe_review
 from fichero.workflows.tools import describe
 from fichero.workflows.tools import classify
 from fichero.workflows.tools import caption

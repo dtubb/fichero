@@ -905,22 +905,13 @@ private struct EntityKindBlock: View {
     var body: some View {
         DisclosureGroup(isExpanded: isExpanded) {
             if kind == .concept {
-                // Keywords as wrapping pale-blue capsule lozenges
-                // (Finder tag-pill style). Daniel's call: scan-ability
-                // beats single-block selection here. A context menu
-                // copies the full list as "; " joined for the rare
-                // case the user needs all keywords as text.
+                // Keywords as wrapping lozenges. Use the same EntityLozenge
+                // component as the inspector + list-view so tap-to-search
+                // works consistently and styling is uniform across all
+                // entity rendering paths in the app.
                 FlowLayout(spacing: 4) {
                     ForEach(items) { item in
-                        Text(item.displayName)
-                            .font(.caption)
-                            .foregroundStyle(.primary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(
-                                Capsule().fill(Color.accentColor.opacity(0.18))
-                            )
-                            .textSelection(.enabled)
+                        EntityLozenge(name: item.displayName)
                     }
                 }
                 .padding(.leading, 16)
