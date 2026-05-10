@@ -616,19 +616,49 @@ class Database(DatabaseEmbeddingMixin):
                 except Exception as e:
                     logger.warning("Full-text search failed: %s", e)
 
-            # Combine results for hybrid search
+            # Combine results for hybrid search.
+            #
+            # Bug history: previous code did `semantic + fulltext` then
+            # de-duped by keeping the FIRST occurrence of each doc_id.
+            # Semantic results came first, so a doc that matched both
+            # (e.g. real "Leidy" pages: distance ~400 → score 0.0025
+            # semantic, score 1.0 fulltext) ended up with the tiny
+            # semantic score, while a doc that only matched semantic
+            # got the same tiny score. Result: every page in the user's
+            # library scored 0.3% — search felt like a coin toss.
+            #
+            # New behavior: merge by document_id and take MAX(score) so
+            # any doc whose page_content actually contains the query
+            # gets the fulltext-perfect 1.0, not the bottom-of-the-band
+            # semantic distance score. Tag the match source so the UI
+            # can show whether a hit came from text content, semantic
+            # similarity, or both.
             combined_results = []
             if search_type == "hybrid":
-                # Combine semantic and full-text results
-                combined_results = semantic_results + fulltext_results
-                # Remove duplicates
-                seen_ids = set()
-                unique_results = []
-                for result in combined_results:
-                    if result["document_id"] not in seen_ids:
-                        seen_ids.add(result["document_id"])
-                        unique_results.append(result)
-                combined_results = unique_results
+                merged: dict[str, dict] = {}
+                for result in semantic_results:
+                    doc_id = result["document_id"]
+                    enriched = dict(result)
+                    enriched["match_sources"] = ["semantic"]
+                    merged[doc_id] = enriched
+                for result in fulltext_results:
+                    doc_id = result["document_id"]
+                    if doc_id in merged:
+                        prior = merged[doc_id]
+                        if result["score"] > prior["score"]:
+                            # Fulltext wins on score but keep both labels
+                            prior["score"] = result["score"]
+                            prior["content"] = result.get("content") or prior.get(
+                                "content", ""
+                            )
+                        prior["match_sources"] = sorted(
+                            set(prior["match_sources"]) | {"fulltext"}
+                        )
+                    else:
+                        enriched = dict(result)
+                        enriched["match_sources"] = ["fulltext"]
+                        merged[doc_id] = enriched
+                combined_results = list(merged.values())
             elif search_type == "semantic":
                 combined_results = semantic_results
             elif search_type == "fulltext":
