@@ -92,7 +92,11 @@ class SearchRequest(BaseModel):
 
     query: str
     limit: int = 10
-    min_score: float = 0.0
+    # 0.3 cosine ≈ "loosely related" floor; below that are usually
+    # incidental matches across an embedding space. Callers wanting
+    # everything can pass 0.0; callers wanting tight matches can pass
+    # 0.5+. Applies to semantic results only.
+    min_score: float = 0.3
 
     # Advanced search options
     search_type: str = "hybrid"  # "semantic", "fulltext", or "hybrid"
@@ -220,33 +224,10 @@ async def enhanced_search(
                 results = list(results) + entity_hits
                 total_count = total_count + len(entity_hits)
 
-    # Suppress pure-semantic noise. The current scoring uses
-    # 1 / (1 + L2_distance) on un-normalised embeddings — every doc lands
-    # in the 0.002–0.005 band, which the UI shows as ~0.2% and which has
-    # no real signal. Keep semantic results only when (a) they had a
-    # meaningful score (>= _SEMANTIC_NOISE_FLOOR) or (b) they were also
-    # promoted by fulltext / entity match. Without this, a 100% fulltext
-    # hit gets buried in pages of 0.2% nonsense. (#481 follow-up)
-    _SEMANTIC_NOISE_FLOOR = 0.05
-    filtered: list[SearchResult] = []
-    for result in results:
-        sources = (result.metadata or {}).get("match_sources") if result.metadata else None
-        is_pure_semantic = isinstance(sources, list) and sources == ["semantic"]
-        # If we don't have match_sources (semantic-only and fulltext-only
-        # paths don't tag), fall back to score: anything below the floor
-        # is treated as semantic noise.
-        if is_pure_semantic and result.score < _SEMANTIC_NOISE_FLOOR:
-            continue
-        if sources is None and result.score < _SEMANTIC_NOISE_FLOOR:
-            # Pure-semantic / pure-fulltext modes don't set match_sources;
-            # rely on score alone. Fulltext sets score=1.0 so it survives.
-            continue
-        filtered.append(result)
-    if filtered:
-        # Keep at least one result if everything got filtered (rare —
-        # only when the entire library is below the floor).
-        results = filtered
-        total_count = len(filtered)
+    # The noise-floor hack is no longer needed now that embeddings are
+    # L2-normalised and scores are real cosine similarities (see
+    # db_embeddings._l2_normalize). The user-controllable min_score on
+    # SearchRequest replaces it for callers who want to floor explicitly.
 
     return SearchResponse(
         query=request.query,

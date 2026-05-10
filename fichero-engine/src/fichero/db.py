@@ -42,6 +42,7 @@ import json
 import logging
 import re
 import time
+import unicodedata
 import duckdb
 from pydantic import BaseModel
 from fichero.db_embeddings import DatabaseEmbeddingMixin
@@ -61,6 +62,24 @@ DEFAULT_MODEL = "intfloat/multilingual-e5-large"
 
 # Valid identifier pattern for SQL column/table names
 _VALID_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+
+def _fold_for_search(text: str) -> str:
+    """Normalise text for accent-insensitive substring search.
+
+    Decomposes via Unicode NFD, drops combining marks (category Mn), and
+    lowercases. Result: 'Quibdó' → 'quibdo', 'CAFÉ' → 'cafe', 'español'
+    → 'espanol'. Critical for the Spanish + Latin manuscript corpus where
+    queries are typed ASCII but the page_content is full diacritic.
+
+    Stable + fast (no compilation, no regex). Pure-string in/out so it
+    composes with pandas `str.contains` and any other str path.
+    """
+    if not text:
+        return ""
+    return "".join(
+        c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn"
+    ).lower()
 
 
 @dataclass
@@ -549,10 +568,16 @@ class Database(DatabaseEmbeddingMixin):
 
                     # Convert to SearchResult, filter by score
                     for r in raw_results:
-                        # LanceDB returns _distance (lower is better)
-                        # Convert to score (higher is better, 0-1 range)
-                        distance = r.get("_distance", 1.0)
-                        score = 1.0 / (1.0 + distance)
+                        # LanceDB returns _distance (L2; lower is better).
+                        # Vectors are L2-normalised at index + query time
+                        # (see db_embeddings._l2_normalize), so L2² = 2 - 2·cos.
+                        # That makes `cos = 1 - L2²/2` a real cosine similarity
+                        # in [-1, 1], clamped to [0, 1] for ranking.
+                        # Without normalisation distances are 200–500 and the
+                        # old `1/(1+d)` collapsed everything to ~0.003 (#481).
+                        distance = r.get("_distance", 2.0)
+                        cos_sim = 1.0 - (distance * distance) / 2.0
+                        score = max(0.0, min(1.0, cos_sim))
 
                         if score < min_score:
                             continue
@@ -583,16 +608,20 @@ class Database(DatabaseEmbeddingMixin):
                         table = self.lance.open_table("embeddings")
                         all_docs = table.to_pandas()
 
-                        # Filter by query text (simple full-text search)
-                        if use_fuzzy_match:
-                            # Simple fuzzy matching - could be enhanced with proper fuzzy search library
-                            mask = all_docs["text"].str.contains(
-                                query, case=False, regex=False
-                            )
-                        else:
-                            mask = all_docs["text"].str.contains(
-                                query, case=False, regex=False
-                            )
+                        # Accent-insensitive match: NFD-decompose both
+                        # query and indexed text, strip combining diacritics.
+                        # 'Quibdó' / 'Quibdo' / 'QUIBDÓ' all match. Critical
+                        # for Spanish/Latin manuscript corpora where the
+                        # user types ASCII but the text is fully diacritic.
+                        # See _fold_for_search.
+                        normalised_query = _fold_for_search(query)
+                        normalised_text = all_docs["text"].astype(str).map(_fold_for_search)
+                        # Phrase mode: a quoted query like '"el escribano"' is
+                        # already-stripped at the caller; we just match its
+                        # full collapsed form. Substring fallback otherwise.
+                        mask = normalised_text.str.contains(
+                            normalised_query, case=False, regex=False, na=False
+                        )
 
                         fulltext_docs = all_docs[mask]
 
@@ -616,48 +645,58 @@ class Database(DatabaseEmbeddingMixin):
                 except Exception as e:
                     logger.warning("Full-text search failed: %s", e)
 
-            # Combine results for hybrid search.
+            # Hybrid combiner: Reciprocal Rank Fusion (RRF).
             #
-            # Bug history: previous code did `semantic + fulltext` then
-            # de-duped by keeping the FIRST occurrence of each doc_id.
-            # Semantic results came first, so a doc that matched both
-            # (e.g. real "Leidy" pages: distance ~400 → score 0.0025
-            # semantic, score 1.0 fulltext) ended up with the tiny
-            # semantic score, while a doc that only matched semantic
-            # got the same tiny score. Result: every page in the user's
-            # library scored 0.3% — search felt like a coin toss.
+            # RRF ranks each list independently and sums 1/(k+rank) across
+            # lists. A doc that ranks #1 in fulltext AND #1 in semantic
+            # scores 2/(k+1); ranking only in one list scores half that.
+            # The k=60 constant is the standard literature value (Cormack
+            # et al., 2009) — small enough that top ranks dominate, large
+            # enough that lower ranks still contribute.
             #
-            # New behavior: merge by document_id and take MAX(score) so
-            # any doc whose page_content actually contains the query
-            # gets the fulltext-perfect 1.0, not the bottom-of-the-band
-            # semantic distance score. Tag the match source so the UI
-            # can show whether a hit came from text content, semantic
-            # similarity, or both.
+            # RRF replaces an earlier max(score) hack which broke when
+            # semantic + fulltext scores live on different scales. With
+            # L2-normalised embeddings semantic scores are real cosines
+            # in [0,1], but fulltext is still 1.0 perfect-match —
+            # combining them by max() over-weighted any string match. RRF
+            # ignores absolute scores and uses only ordering, which is
+            # exactly the right thing when the two retrievers are
+            # calibrated differently. (#481)
             combined_results = []
             if search_type == "hybrid":
+                rrf_k = 60
                 merged: dict[str, dict] = {}
-                for result in semantic_results:
-                    doc_id = result["document_id"]
-                    enriched = dict(result)
-                    enriched["match_sources"] = ["semantic"]
-                    merged[doc_id] = enriched
-                for result in fulltext_results:
-                    doc_id = result["document_id"]
-                    if doc_id in merged:
-                        prior = merged[doc_id]
-                        if result["score"] > prior["score"]:
-                            # Fulltext wins on score but keep both labels
-                            prior["score"] = result["score"]
-                            prior["content"] = result.get("content") or prior.get(
-                                "content", ""
+
+                def _rrf_add(items: list[dict], source: str) -> None:
+                    for rank, item in enumerate(items):
+                        doc_id = item["document_id"]
+                        contribution = 1.0 / (rrf_k + rank + 1)
+                        if doc_id in merged:
+                            prior = merged[doc_id]
+                            prior["_rrf"] += contribution
+                            prior["match_sources"] = sorted(
+                                set(prior["match_sources"]) | {source}
                             )
-                        prior["match_sources"] = sorted(
-                            set(prior["match_sources"]) | {"fulltext"}
-                        )
-                    else:
-                        enriched = dict(result)
-                        enriched["match_sources"] = ["fulltext"]
-                        merged[doc_id] = enriched
+                            # Prefer fulltext content snippet (real text)
+                            # over semantic excerpt when both available.
+                            if source == "fulltext" and item.get("content"):
+                                prior["content"] = item["content"]
+                        else:
+                            enriched = dict(item)
+                            enriched["_rrf"] = contribution
+                            enriched["match_sources"] = [source]
+                            merged[doc_id] = enriched
+
+                _rrf_add(semantic_results, "semantic")
+                _rrf_add(fulltext_results, "fulltext")
+
+                # Project the RRF score into [0, 1] for UI display:
+                # the theoretical max with both lists ranking the doc #1
+                # is 2/(k+1); divide by that for a normalised [0, 1].
+                rrf_max = 2.0 / (rrf_k + 1)
+                for item in merged.values():
+                    item["score"] = min(1.0, item["_rrf"] / rrf_max)
+                    item.pop("_rrf", None)
                 combined_results = list(merged.values())
             elif search_type == "semantic":
                 combined_results = semantic_results

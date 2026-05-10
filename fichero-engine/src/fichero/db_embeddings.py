@@ -9,12 +9,34 @@ and are only valid when mixed into a Database subclass.
 from __future__ import annotations
 
 import logging
+import math
 from typing import Callable
 
 logger = logging.getLogger(__name__)
 
 # Default embedding model (FastEmbed - no scikit-learn dependency)
 DEFAULT_MODEL = "intfloat/multilingual-e5-large"
+
+
+def _l2_normalize(vec: list[float]) -> list[float]:
+    """L2-normalise a vector to unit length.
+
+    Why: LanceDB returns L2 distance from `table.search(query_vector)`. On
+    *un-normalised* vectors L2 distance can be hundreds, so the score
+    formula `1/(1+d)` collapses every result into the 0.002–0.005 band —
+    indistinguishable noise. On *unit-length* vectors L2 distance lives
+    in [0, 2] and relates to cosine similarity exactly:
+
+        L2² = 2 - 2·cos_sim   ⇒   cos_sim = 1 - L2²/2
+
+    So normalising once at index time and once at query time gives us
+    real, interpretable [0, 1] cosine scores from the same `_distance`
+    column without changing the LanceDB API.
+    """
+    norm = math.sqrt(sum(x * x for x in vec))
+    if norm == 0.0:
+        return vec
+    return [x / norm for x in vec]
 
 
 class DatabaseEmbeddingMixin:
@@ -121,7 +143,7 @@ class DatabaseEmbeddingMixin:
         """
         self._ensure_embedder()
         embeddings = list(self._embedder.embed([text]))
-        return embeddings[0].tolist()
+        return _l2_normalize(embeddings[0].tolist())
 
     def _embed_texts(self, texts: list[str]) -> list[list[float]]:
         """Batch embed multiple texts.
@@ -139,4 +161,4 @@ class DatabaseEmbeddingMixin:
 
         self._ensure_embedder()
         embeddings = list(self._embedder.embed(texts))
-        return [e.tolist() for e in embeddings]
+        return [_l2_normalize(e.tolist()) for e in embeddings]
