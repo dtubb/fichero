@@ -241,15 +241,17 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
         case "entities":
             entitiesPreview(data)
         case "people", "mines", "properties", "legal_references":
-            CatalogueArtifactPreviews.nameContext(data, primaryKey: "nombre")
+            CatalogueArtifactPreviews.nameContext(data, primaryKey: "nombre", entityType: type)
         case "events":
-            CatalogueArtifactPreviews.nameContext(data, primaryKey: "evento")
+            CatalogueArtifactPreviews.nameContext(data, primaryKey: "evento", entityType: type)
         case "dates":
-            CatalogueArtifactPreviews.dates(data)
+            CatalogueArtifactPreviews.dates(data, entityType: type)
         case "rivers":
             CatalogueArtifactPreviews.rivers(data)
         case "keywords":
-            CatalogueArtifactPreviews.keywords(data)
+            CatalogueArtifactPreviews.keywords(data, entityType: type)
+        case "places", "organizations":
+            CatalogueArtifactPreviews.nameContext(data, primaryKey: "nombre", entityType: type)
         default:
             EmptyView()
         }
@@ -421,7 +423,8 @@ enum CatalogueArtifactPreviews {
     @ViewBuilder
     static func nameContext(
         _ data: [String: AnyCodable],
-        primaryKey: String
+        primaryKey: String,
+        entityType: String? = nil
     ) -> some View {
         let items = items(from: data)
         if !items.isEmpty {
@@ -435,7 +438,7 @@ enum CatalogueArtifactPreviews {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                     if let name = item[primaryKey] as? String {
                         let context = item["contexto"] as? String ?? item["context"] as? String
-                        EntityLozenge(name: name, tooltip: context)
+                        EntityLozenge(name: name, tooltip: context, entityType: entityType)
                     }
                 }
             }
@@ -446,7 +449,7 @@ enum CatalogueArtifactPreviews {
     }
 
     @ViewBuilder
-    static func dates(_ data: [String: AnyCodable]) -> some View {
+    static func dates(_ data: [String: AnyCodable], entityType: String? = nil) -> some View {
         let items = items(from: data)
         if !items.isEmpty {
             FlowLayout(spacing: 4) {
@@ -459,7 +462,11 @@ enum CatalogueArtifactPreviews {
                         ?? (item["context"] as? String) ?? ""
                     let label = normalized.isEmpty ? raw : normalized
                     if !label.isEmpty {
-                        EntityLozenge(name: label, tooltip: context.isEmpty ? nil : context)
+                        EntityLozenge(
+                            name: label,
+                            tooltip: context.isEmpty ? nil : context,
+                            entityType: entityType
+                        )
                     }
                 }
             }
@@ -502,13 +509,13 @@ enum CatalogueArtifactPreviews {
     }
 
     @ViewBuilder
-    static func keywords(_ data: [String: AnyCodable]) -> some View {
+    static func keywords(_ data: [String: AnyCodable], entityType: String? = "keywords") -> some View {
         if let value = data["keywords"]?.value,
            let keywords = value as? [String],
            !keywords.isEmpty {
             FlowLayout(spacing: 4) {
                 ForEach(Array(keywords.enumerated()), id: \.offset) { _, keyword in
-                    EntityLozenge(name: keyword)
+                    EntityLozenge(name: keyword, entityType: entityType)
                 }
             }
             .padding(6)
@@ -528,6 +535,15 @@ enum CatalogueArtifactPreviews {
 struct EntityLozenge: View {
     let name: String
     var tooltip: String?
+    /// Optional entity type ('people', 'places', 'organizations',
+    /// 'dates', 'events', 'keywords'). When set, lozenge taps fire an
+    /// entity-scoped search like `keywords:"social license"` instead of
+    /// a plain text search — so clicking the 'social license' tag finds
+    /// docs whose KEYWORDS artifact contains that term, not docs whose
+    /// page_content happens to mention it. Daniel's "if I click on a
+    /// name, it should find other documents with that person's name"
+    /// requirement.
+    var entityType: String?
     /// Cap so a single super-long name (e.g. 'Canadian Association of
     /// Latin American and Caribbean Studies') doesn't push the lozenge
     /// past its column boundary. Truncated with middle-ellipsis like
@@ -543,10 +559,14 @@ struct EntityLozenge: View {
             // NotificationCenter avoids prop-drilling a closure through
             // ArtifactEntitiesView → MailStyleRow → LibraryView →
             // ContentView (5 levels deep).
+            var userInfo: [String: Any] = ["name": name]
+            if let entityType {
+                userInfo["entityType"] = entityType
+            }
             NotificationCenter.default.post(
                 name: .ficheroEntitySearchRequested,
                 object: nil,
-                userInfo: ["name": name]
+                userInfo: userInfo
             )
         } label: {
             Text(name)
@@ -908,10 +928,12 @@ private struct EntityKindBlock: View {
                 // Keywords as wrapping lozenges. Use the same EntityLozenge
                 // component as the inspector + list-view so tap-to-search
                 // works consistently and styling is uniform across all
-                // entity rendering paths in the app.
+                // entity rendering paths in the app. EntityKind.concept
+                // maps to the 'keywords' artifact type — pass that so
+                // taps fire `keywords:"<term>"` scoped queries.
                 FlowLayout(spacing: 4) {
                     ForEach(items) { item in
-                        EntityLozenge(name: item.displayName)
+                        EntityLozenge(name: item.displayName, entityType: "keywords")
                     }
                 }
                 .padding(.leading, 16)

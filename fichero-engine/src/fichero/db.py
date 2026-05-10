@@ -97,6 +97,37 @@ def _collect_folder_descendants_helper(conn: duckdb.DuckDBPyConnection, folder_i
     return seen
 
 
+# Markers transcribe writes when a page is blank or unreadable. When
+# page_content is just a marker, embedding it makes every marker-only
+# doc share an identical vector and cluster at the top of every
+# semantic query (#481 follow-up). _is_content_marker_only catches
+# this so db.embed() can fall back to the doc's name.
+_MARKER_PATTERNS = (
+    "[sin texto]",
+    "[ilegible]",
+    "[no text]",
+    "[blank]",
+    "[empty]",
+    "[unreadable]",
+)
+
+
+def _is_content_marker_only(text: str) -> bool:
+    """True when `text` is a transcribe marker (or a few of them) and
+    nothing else of substance. Case-insensitive, accent-tolerant.
+    """
+    folded = _fold_for_search(text)
+    if not folded:
+        return True
+    # Strip all known markers and see if anything is left.
+    residual = folded
+    for marker in _MARKER_PATTERNS:
+        residual = residual.replace(_fold_for_search(marker), "")
+    # Whitespace + punctuation only = marker-only.
+    residual = "".join(c for c in residual if c.isalnum())
+    return len(residual) < 3  # 'a' / 'el' / single-token noise allowed through.
+
+
 def _fold_for_search(text: str) -> str:
     """Normalise text for accent-insensitive substring search.
 
@@ -516,10 +547,24 @@ class Database(DatabaseEmbeddingMixin):
         Returns:
             True if embedding was created
         """
-        # Get text to embed
+        # Get text to embed.
+        #
+        # Marker-only content guard: when transcribe runs against a blank
+        # or unreadable page it sets page_content to '[sin texto]' (or
+        # '[ilegible]'). Embedding that literal string makes every
+        # marker-only doc share an identical vector, and they cluster at
+        # the top of every semantic query (the 95%-on-blank-doc bug
+        # Daniel hit on the social-license search). Treat marker-only
+        # content as 'no content' and fall back to the doc's name —
+        # which at least varies per-doc and reflects the legal-case
+        # / archive structure the user is browsing.
         text = ""
         if hasattr(doc, "page_content") and doc.page_content:
-            text = doc.page_content
+            stripped = doc.page_content.strip()
+            if _is_content_marker_only(stripped):
+                text = doc.name if hasattr(doc, "name") and doc.name else ""
+            else:
+                text = doc.page_content
         elif hasattr(doc, "name") and doc.name:
             text = doc.name
 

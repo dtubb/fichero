@@ -695,12 +695,28 @@ struct ContentView: View {
             // Click on a blue entity lozenge anywhere in the UI fires the
             // toolbar search for that name. Same code path as typing in
             // the toolbar — creates a saved search, switches to search
-            // mode, runs the query. The user sees results in the search
-            // pane without having to retype the name.
+            // mode, runs the query.
+            //
+            // When the lozenge knows its entity_type (people / places /
+            // keywords / etc.), we construct a SCOPED query like
+            // `keywords:"social license"` so the search hits only that
+            // artifact type — exactly the docs the user is asking about.
+            // Free-text fallback when the type isn't tagged so older
+            // call sites still work.
             guard let name = note.userInfo?["name"] as? String,
                   !name.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-            toolbarSearchText = name
-            runToolbarSearch(name)
+            let entityType = note.userInfo?["entityType"] as? String
+            let query: String
+            if let entityType, !entityType.isEmpty {
+                let needsQuoting = name.contains(" ")
+                query = needsQuoting
+                    ? "\(entityType):\"\(name)\""
+                    : "\(entityType):\(name)"
+            } else {
+                query = name
+            }
+            toolbarSearchText = query
+            runToolbarSearch(query)
         }
         .modifier(
             MainContentModifiers(

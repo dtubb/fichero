@@ -278,11 +278,28 @@ struct ArtifactEntitiesView: View {
                     .frame(minWidth: 90, alignment: .leading)
                 FlowLayout(spacing: 4) {
                     ForEach(names, id: \.self) { name in
-                        EntityLozenge(name: name)
+                        // Pass entityType so the tap fires a scoped query
+                        // (e.g. `places:"Quibdó"` instead of free-text).
+                        EntityLozenge(name: name, entityType: Self.entityTypeId(for: label))
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+        }
+    }
+
+    /// Map the human-facing row label ("People", "Places", "Organizations",
+    /// "Dates", "Events", "Keywords") to the backend's entity_type id.
+    /// Used by lozenge taps to fire `<type>:<name>` scoped queries.
+    private static func entityTypeId(for label: String) -> String {
+        switch label.lowercased() {
+        case "people": return "people"
+        case "places": return "places"
+        case "organizations": return "organizations"
+        case "dates": return "dates"
+        case "events": return "events"
+        case "keywords": return "keywords"
+        default: return label.lowercased()
         }
     }
 
@@ -379,7 +396,7 @@ struct ArtifactEntityCell: View {
             } else {
                 FlowLayout(spacing: 4) {
                     ForEach(names, id: \.self) { name in
-                        EntityLozenge(name: name)
+                        EntityLozenge(name: name, entityType: entityType)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .topLeading)

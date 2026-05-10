@@ -205,7 +205,15 @@ extension SearchView {
             },
             keywordCloud: keywordCloud,
             onKeywordTap: { keyword in
-                queryText = keyword
+                // Keyword cloud taps fire a scoped query — the cloud
+                // lives over the 'keywords' artifact type, so a tap on
+                // 'social license' should search keywords:"social license"
+                // instead of free-text. (#481 follow-up: Daniel hit
+                // 95%-on-blank-doc issue without this scoping.)
+                let needsQuoting = keyword.contains(" ")
+                queryText = needsQuoting
+                    ? "keywords:\"\(keyword)\""
+                    : "keywords:\(keyword)"
                 performSearch()
             }
         )
