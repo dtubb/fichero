@@ -1,0 +1,70 @@
+{
+  "name": "NER per-page (local)",
+  "description": "Local NER extraction over a folder of text files (.md / .txt). No transcription step (text already has page_content); no folder cleanup; no aggregate-combine output. Each file gets its own per-doc people / places / organizations / dates / events / keywords artifacts. Uses the $small alias — point it at Apple Intelligence in Settings → AI Defaults to keep everything on-device. Designed for field notes, journals, and any plain-text corpus where you want entity extraction without burning cloud tokens.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Catalogue",
+  "tags": ["preset", "ner", "local", "text", "field-notes"],
+  "config": {
+    "preset_version": 1
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files (text)",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "aggregate_text",
+      "tool": "aggregate",
+      "label": "Collect per-file text",
+      "position_x": 360,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "mode": "concat",
+        "separator": "\n\n---\n\n"
+      }
+    },
+    {
+      "id": "extract_all",
+      "tool": "extract_all",
+      "label": "Extract entities (per-page)",
+      "position_x": 720,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "output_language": "auto",
+        "provider_name": "$small"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-files-aggregate-documents",
+      "source": "files-source",
+      "target": "aggregate_text",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
+      "id": "e-aggregate-extract-text",
+      "source": "aggregate_text",
+      "target": "extract_all",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-aggregate-extract-records",
+      "source": "aggregate_text",
+      "target": "extract_all",
+      "source_port": "records",
+      "target_port": "records"
+    }
+  ]
+}

@@ -328,6 +328,7 @@ class TestSeedDefaultWorkflows:
             "Catalogue (composable)",
             "Catalogue (Apple Intelligence)",
             "Spanish Paleography (18th–19th C.)",
+            "NER per-page (local)",
         ])
         seeded = seed_default_workflows(db)
         assert seeded == 0

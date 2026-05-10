@@ -62,6 +62,12 @@ def _coerce_records(inputs: dict[str, Any]) -> list[dict[str, Any]]:
     Accepts the same shapes the implicit aggregator produces:
     - inputs["text"] can be a string OR list of strings
     - inputs["documents"] can be list of dicts (doc metadata) or missing
+
+    Text-files passthrough: when no `text` is supplied but `documents`
+    carry `page_content`, fall back to reading page_content from each
+    document. This lets `files-source → aggregate → extract_all` work
+    on a folder of .md / .txt files (no transcribe step needed) — the
+    'NER per-page' workflow Daniel asked for.
     """
     texts_raw = inputs.get("text")
     documents_raw = inputs.get("documents") or []
@@ -69,6 +75,22 @@ def _coerce_records(inputs: dict[str, Any]) -> list[dict[str, Any]]:
         documents_raw = [documents_raw] if documents_raw else []
 
     if texts_raw is None:
+        # Fallback: read page_content directly off each upstream document.
+        if documents_raw:
+            records: list[dict[str, Any]] = []
+            for i, doc in enumerate(documents_raw):
+                if not isinstance(doc, dict):
+                    continue
+                content = doc.get("page_content") or doc.get("pageContent") or ""
+                if not content:
+                    continue
+                records.append({
+                    "index": i,
+                    "text": str(content),
+                    "doc_id": str(doc.get("id") or ""),
+                    "doc_name": str(doc.get("name") or doc.get("path") or f"item-{i + 1}"),
+                })
+            return records
         return []
 
     if isinstance(texts_raw, list):
