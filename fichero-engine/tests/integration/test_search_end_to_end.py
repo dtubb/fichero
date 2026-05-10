@@ -322,6 +322,37 @@ class TestKnowledgeGraphRoutes:
         # Self never appears in co-occurrence — would be nonsensical.
         assert "kg-leidy" not in related_ids
 
+    def test_top_entities_ranks_by_claim_count(self, search_library) -> None:
+        """`/api/entities/top` returns entities ranked by total claim count."""
+        from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim
+        from fichero.api.routes.entities import top_entities
+        import asyncio
+
+        # Seed: 'frequent' has 3 claims, 'rare' has 1.
+        frequent = KnowledgeEntity(id="top-freq", canonical_name="Frequent")
+        rare = KnowledgeEntity(id="top-rare", canonical_name="Rare")
+        for e in (frequent, rare):
+            search_library.save(e)
+        for i in range(3):
+            search_library.save(KnowledgeClaim(
+                id=f"top-c-freq-{i}", text=f"frequent claim {i}",
+                source_document_id="fix-leidy-001", entity_ids=["top-freq"],
+            ))
+        search_library.save(KnowledgeClaim(
+            id="top-c-rare", text="rare claim",
+            source_document_id="fix-leidy-001", entity_ids=["top-rare"],
+        ))
+
+        rows = asyncio.run(top_entities(limit=10, db=search_library))
+        names = [r.name for r in rows]
+        # 'Frequent' must beat 'Rare' (3 claims vs 1).
+        assert names.index("Frequent") < names.index("Rare")
+        # Counts reflect input.
+        freq_row = next(r for r in rows if r.name == "Frequent")
+        rare_row = next(r for r in rows if r.name == "Rare")
+        assert freq_row.claim_count == 3
+        assert rare_row.claim_count == 1
+
     def test_related_documents_aggregates_via_shared_entities(
         self, search_library
     ) -> None:
