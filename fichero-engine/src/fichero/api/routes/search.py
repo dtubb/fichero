@@ -301,9 +301,52 @@ async def enhanced_search(
     Perform enhanced search over documents.
 
     Supports hybrid search (semantic + full-text), advanced filtering, sorting, and pagination.
+    Empty query is allowed: returns the most-recently-updated docs as a
+    "browse the index" affordance — better UX than 400-on-empty.
     """
     if not request.query.strip():
-        raise HTTPException(status_code=400, detail="Query cannot be empty")
+        # Empty-query → recent documents. Lets the search pane double
+        # as a "show me what's indexed" view instead of dead-empty.
+        try:
+            rows = db.conn.execute(
+                """
+                SELECT d.id, d.name, d.doc_type, d.file_type, d.updated_at, d.page_content
+                FROM documents d
+                WHERE d.page_content IS NOT NULL AND length(d.page_content) > 0
+                ORDER BY d.updated_at DESC
+                LIMIT $limit
+                """,
+                {"limit": request.limit},
+            ).fetchall()
+        except Exception:
+            rows = []
+        recents = [
+            SearchResult(
+                document_id=row[0],
+                score=0.0,
+                content_preview=(row[5] or "")[:200],
+                metadata={
+                    "name": row[1],
+                    "doc_type": row[2],
+                    "file_type": row[3],
+                    "updated_at": _safe_isoformat(row[4]),
+                    "match_source": "recent",
+                },
+                highlights=[],
+            )
+            for row in rows
+        ]
+        return SearchResponse(
+            query="",
+            results=recents,
+            count=len(recents),
+            total_results=len(recents),
+            search_type="recent",
+            execution_time_ms=0.0,
+            has_more=False,
+            filters_applied=None,
+            suggestions=None,
+        )
 
     # Validate search type
     if request.search_type not in ["semantic", "fulltext", "hybrid"]:

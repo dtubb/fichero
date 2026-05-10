@@ -18,6 +18,12 @@ struct SearchResultsDisplay: View {
     var isReindexing: Bool = false
     var onReindex: (() -> Void)?
 
+    /// Did-you-mean suggestions surfaced by the backend when results=0
+    /// and the query looks substantive. Each is clickable — taps run a
+    /// fresh search for that suggested term via onSuggestionTap.
+    var suggestions: [String] = []
+    var onSuggestionTap: ((String) -> Void)?
+
     var body: some View {
         if searchResults.isEmpty {
             emptyState
@@ -124,6 +130,37 @@ struct SearchResultsDisplay: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
+                // Did-you-mean: clickable backend-supplied suggestions
+                // when the query is substantive but found nothing.
+                if !suggestions.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Did you mean…")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                        FlowLayout(spacing: 6) {
+                            ForEach(suggestions, id: \.self) { suggestion in
+                                Button {
+                                    onSuggestionTap?(suggestion)
+                                } label: {
+                                    Text(suggestion)
+                                        .font(.caption)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 4)
+                                        .background(
+                                            Capsule().fill(Color.accentColor.opacity(0.12))
+                                        )
+                                        .overlay(
+                                            Capsule().stroke(Color.accentColor.opacity(0.25), lineWidth: 0.5)
+                                        )
+                                        .foregroundStyle(Color.accentColor)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: 360)
+                    .padding(.top, 8)
+                }
                 if let onReindex {
                     Button(action: onReindex) {
                         Label("Re-index Library", systemImage: "arrow.triangle.2.circlepath")

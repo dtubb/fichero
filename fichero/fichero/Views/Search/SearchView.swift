@@ -156,7 +156,12 @@ extension SearchView {
             isSearching: isSearching,
             indexedCount: indexedCount,
             isReindexing: isReindexing,
-            onReindex: { Task { await reindexLibrary() } }
+            onReindex: { Task { await reindexLibrary() } },
+            suggestions: searchStats?.suggestions ?? [],
+            onSuggestionTap: { suggestion in
+                queryText = suggestion
+                performSearch()
+            }
         )
     }
 }

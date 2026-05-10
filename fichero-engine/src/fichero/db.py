@@ -64,6 +64,39 @@ DEFAULT_MODEL = "intfloat/multilingual-e5-large"
 _VALID_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 
+def _collect_folder_descendants_helper(conn: duckdb.DuckDBPyConnection, folder_id: str) -> set[str]:
+    """BFS over parent_id to gather every doc under the given folder.
+
+    Pulled out as a free function so Database.search can call it without
+    growing the class API. Includes the folder itself in the returned
+    set, so a search scoped to a folder also returns that folder's own
+    document row when applicable.
+    """
+    seen: set[str] = {folder_id}
+    frontier: list[str] = [folder_id]
+    while frontier:
+        batch = frontier
+        frontier = []
+        # IN-clause batch lookup; cap batches so we don't blow past
+        # DuckDB's parameter limits on enormous trees.
+        for chunk_start in range(0, len(batch), 500):
+            chunk = batch[chunk_start: chunk_start + 500]
+            placeholders = ",".join(f"$p{i}" for i in range(len(chunk)))
+            params = {f"p{i}": parent_id for i, parent_id in enumerate(chunk)}
+            try:
+                rows = conn.execute(
+                    f"SELECT id FROM documents WHERE parent_id IN ({placeholders})",
+                    params,
+                ).fetchall()
+            except Exception:
+                rows = []
+            for (child_id,) in rows:
+                if child_id not in seen:
+                    seen.add(child_id)
+                    frontier.append(child_id)
+    return seen
+
+
 def _fold_for_search(text: str) -> str:
     """Normalise text for accent-insensitive substring search.
 
@@ -503,6 +536,10 @@ class Database(DatabaseEmbeddingMixin):
             logger.warning("Failed to create embedding for %s: %s", doc.id, e)
             return False
 
+    def _collect_folder_descendants(self, folder_id: str) -> set[str]:
+        """Wrap the free helper so callers don't reach into module level."""
+        return _collect_folder_descendants_helper(self.conn, folder_id)
+
     def search(
         self,
         query: str,
@@ -705,10 +742,25 @@ class Database(DatabaseEmbeddingMixin):
 
             # Apply filters
             if filters:
+                # Per-folder scope: when filters['folder_id'] is set, drop
+                # results that aren't descendants of that folder. Walks
+                # parent_id one hop at a time to keep the query simple;
+                # for deeply nested trees the recursive variant could be
+                # added later. Resolved once before the per-result loop.
+                folder_descendants: set[str] | None = None
+                if "folder_id" in filters and filters["folder_id"]:
+                    folder_descendants = self._collect_folder_descendants(
+                        str(filters["folder_id"])
+                    )
+
                 filtered_results = []
                 for result in combined_results:
                     metadata = result["metadata"]
                     match = True
+
+                    if folder_descendants is not None:
+                        if result["document_id"] not in folder_descendants:
+                            match = False
 
                     # Filter by doc_type
                     if (
