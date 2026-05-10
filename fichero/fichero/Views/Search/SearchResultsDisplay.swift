@@ -24,6 +24,13 @@ struct SearchResultsDisplay: View {
     var suggestions: [String] = []
     var onSuggestionTap: ((String) -> Void)?
 
+    /// User's recent successful queries (most recent first). Surfaced
+    /// in the empty state when no query is typed so the user can re-run
+    /// past searches with one click. Persisted in @SceneStorage by the
+    /// caller (SearchView).
+    var recentSearches: [String] = []
+    var onRecentSearchTap: ((String) -> Void)?
+
     var body: some View {
         if searchResults.isEmpty {
             emptyState
@@ -118,6 +125,39 @@ struct SearchResultsDisplay: View {
                         Text("\(indexedCount) document\(indexedCount == 1 ? "" : "s") indexed")
                             .font(.caption)
                             .foregroundStyle(.tertiary)
+                    }
+                    // Recent searches — clickable history pills, only
+                    // when the user has prior successful queries to
+                    // recall. Most-recent first, capped to 10.
+                    if !recentSearches.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Recent")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                            FlowLayout(spacing: 6) {
+                                ForEach(recentSearches, id: \.self) { recent in
+                                    Button {
+                                        onRecentSearchTap?(recent)
+                                    } label: {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "clock")
+                                                .imageScale(.small)
+                                            Text(recent)
+                                        }
+                                        .font(.caption)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 4)
+                                        .background(
+                                            Capsule().fill(Color.secondary.opacity(0.10))
+                                        )
+                                        .foregroundStyle(.primary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: 360)
+                        .padding(.top, 8)
                     }
                 }
             } else {

@@ -141,6 +141,12 @@ extension SearchView {
                     searchResults = response.results
                     searchStats = response
                     isSearching = false
+                    // Record the query in @SceneStorage history once it
+                    // returned a real result set; suppress 'recents'
+                    // pollution when the user is just typing fragments.
+                    if response.count > 0 {
+                        recordRecentSearch(queryText)
+                    }
                 }
             } catch {
                 logger.error("Search error: \(String(describing: error))")

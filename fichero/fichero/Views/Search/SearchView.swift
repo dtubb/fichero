@@ -30,6 +30,30 @@ struct SearchView: View {
     @SceneStorage("searchSortBy") var sortBy: String = "relevance"
     @SceneStorage("searchSortDirection") var sortDirection: String = "desc"
 
+    /// JSON-encoded `[String]` of recent queries — most recent first,
+    /// dedup'd, capped at 10. @SceneStorage persists across launches.
+    /// Used by the empty-state to surface "Recent" pills.
+    @SceneStorage("recentSearchQueries") var recentSearchQueriesJSON: String = "[]"
+
+    var recentSearches: [String] {
+        guard let data = recentSearchQueriesJSON.data(using: .utf8),
+              let list = try? JSONDecoder().decode([String].self, from: data)
+        else { return [] }
+        return list
+    }
+
+    func recordRecentSearch(_ query: String) {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        var list = recentSearches.filter { $0 != trimmed }
+        list.insert(trimmed, at: 0)
+        list = Array(list.prefix(10))
+        if let data = try? JSONEncoder().encode(list),
+           let json = String(data: data, encoding: .utf8) {
+            recentSearchQueriesJSON = json
+        }
+    }
+
     @EnvironmentObject var searchService: SearchServiceGenerated
     @EnvironmentObject var apiClient: APIClient
     @EnvironmentObject var libraryManager: LibraryManager
@@ -160,6 +184,11 @@ extension SearchView {
             suggestions: searchStats?.suggestions ?? [],
             onSuggestionTap: { suggestion in
                 queryText = suggestion
+                performSearch()
+            },
+            recentSearches: recentSearches,
+            onRecentSearchTap: { recent in
+                queryText = recent
                 performSearch()
             }
         )
