@@ -1,6 +1,6 @@
 # Search rewrite — overnight handoff
 
-**Branch:** `0.0.2` · **As of commit:** `6d7495bb`
+**Branch:** `0.0.2` · **As of commit:** `80a68323` (day 2 / 2026-05-10)
 
 This is a status snapshot you can read first thing in the morning so you
 know what to test, what's working, and what's still TODO.
@@ -56,6 +56,13 @@ deeper plumbing (#17 search-then-batch-action), or fall into the
 | `af8ee6e4` | **Phase 9 tests**: +7 integration tests + smarter did-you-mean | Multi-word entity-name typos surface suggestions correctly. |
 | `f2e6afb0` | **Phase 9**: keyword cloud — browse-by-tag empty state | Pills sized by frequency; click to search. |
 | `6d7495bb` | **Phase 10**: Run Workflow on multi-selected search results | Select N results → Run Workflow → batch runs on those N. |
+| `c0677b69` | **Phase 11**: marker-only embedding fix + lozenge entity-scoped search | `[sin texto]` no longer dominates semantic; lozenges fire `keywords:"…"` etc. |
+| `b08ec159` | **Phase 12**: NER per-page (local) preset for text-file folders | Run on a folder of `.md` notes; per-doc artifacts; `$small` (Apple Intelligence). |
+| `9b29eab3` | **Phase 13**: search field always in library toolbar | Type+Return in any folder fires global search. |
+| `a5971014` | **Phase 14**: PDF backfill route | `POST /api/documents/pdfs/backfill-pages` creates missing page children. |
+| `c5adaea3` | **Phase 15**: KG entity drill-down endpoints | `/entities/{id}/documents` and `/co-occurrence` — backend for #729. |
+| `b86889ae` | **Phase 16**: Saved Searches sidebar reorder | Now lives below Workflows + Activity. |
+| `80a68323` | **Phase 17**: case-insensitive recent-search dedup + 8 marker-detection unit tests | 65 search tests pass. |
 
 ## How the new query syntax works
 
@@ -78,6 +85,31 @@ You can type any of these in the search field:
 |---|---|---|---|
 | 11 | Per-folder scope toggle UI | Backend done, UI not wired | Needs SearchView state + Picker; backend `filters['folder_id']` already works (verified by integration test). |
 | 19 | Saved-search rename UI | Confirmed already in app | `SidebarItemRow+Rename.swift` calls `renameSavedSearch` — flagged earlier as todo, was actually already there. |
+
+## What landed on day 2 (2026-05-10)
+
+After Daniel left for the day, the work fanned out beyond search:
+
+- **Marker-only embedding fix** (Phase 11): `[sin texto]` blank pages no longer share an identical embedding vector. They were clustering at the top of every semantic query (the 95%-on-blank-doc bug Daniel saw on the social-license search). Now we fall back to `doc.name` for embedding when the content is just a marker.
+- **Lozenge entity-scoped search** (Phase 11): clicking the 'social license' keyword lozenge now fires `keywords:"social license"` instead of free-text. Each lozenge knows its entity type and passes it through; the keyword cloud and keyword-cloud-in-disclosure also do this.
+- **NER per-page (local) preset** (Phase 12): three-node local-only workflow for folders of `.md` / `.txt` files. No transcribe step (text already loaded at ingest), no folder cleanup, no aggregate-combine. Per-doc people / places / organizations / dates / events / keywords artifacts.
+- **Library toolbar search** (Phase 13): library mode now has its own `.searchable` like every other mode. Type+Return fires global search and switches to search mode.
+- **PDF page backfill** (Phase 14): `POST /api/documents/pdfs/backfill-pages` creates missing page children for PDFs ingested before that code path landed (or where Kreuzberg silently failed). Idempotent.
+- **KG entity drill-down endpoints** (Phase 15): `GET /api/entities/{id}/documents` (sorted by claim density) and `GET /api/entities/{id}/co-occurrence` (entities sharing claims). Backend for the #729 cross-doc entity navigation UI.
+- **Sidebar reorder** (Phase 16): Saved Searches lives below Workflows + Activity (Daniel's mental model: tools and history live below the Library tree).
+- **Case-insensitive recent-search dedup + marker-detection tests** (Phase 17).
+
+## Tests at the end of day 2
+
+```bash
+PYTHONPATH=fichero-engine/src .venv/bin/pytest \
+  fichero-engine/tests/unit/test_search_scoring.py \
+  fichero-engine/tests/unit/test_search_query_parser.py \
+  fichero-engine/tests/integration/test_search_end_to_end.py
+# 65 passed
+```
+
+Plus 17 default-workflow seeding tests (paleography + NER per-page presets covered).
 
 ## Tests I added (run anytime)
 
