@@ -25,9 +25,20 @@ struct LibraryView: View {
     /// only — you can't have a multi-select if one click navigates away.
     /// (#786)
     var sidebarHidden: Bool = false
+    /// Submit handler for the toolbar search field. ContentView wires
+    /// this to runToolbarSearch so typing+Return in library mode fires
+    /// a global search and switches the sidebar into search mode —
+    /// matches the behaviour of every other mode-specific .searchable.
+    var onToolbarSearchSubmit: (String) -> Void = { _ in }
 
     @State var searchText: String = ""
     @State var showFilterBar = false
+    /// Text for the toolbar's `.searchable` field. Distinct from
+    /// `searchText` (which drives the inline ⌘F filter bar inside the
+    /// view) — `toolbarQuery` lives on the window toolbar so users can
+    /// fire a *global* search from any folder context, while the
+    /// inline filter stays as a quick local-narrow.
+    @State var toolbarQuery: String = ""
     @FocusState var filterFieldFocused: Bool
     @State var sortFieldRaw: String = LibrarySortField.name.rawValue
     @State var sortAscending: Bool = true
@@ -226,6 +237,22 @@ struct LibraryView: View {
             // instantly, not slide in cascading from the top.
             .transaction(value: folderId) { $0.animation = nil }
         )
+        // Toolbar search field — Finder-style magnifying-glass that
+        // expands when clicked, always visible while in library mode.
+        // Submit fires onToolbarSearchSubmit (wired to runToolbarSearch
+        // by ContentView), which switches the sidebar to .search mode.
+        // Each mode owns its own .searchable to avoid the NSToolbar
+        // duplicate-identifier crash we hit when stacking them.
+        .searchable(
+            text: $toolbarQuery,
+            placement: .toolbar,
+            prompt: "Search documents…"
+        )
+        .onSubmit(of: .search) {
+            let trimmed = toolbarQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            onToolbarSearchSubmit(trimmed)
+        }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 // Filter button — opens inline filter bar (like Finder's filter strip)
