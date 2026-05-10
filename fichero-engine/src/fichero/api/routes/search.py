@@ -12,6 +12,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.api.main import get_library_database
+from fichero.api.routes.search_query import parse_query
 from fichero.db import Database, SearchResult
 from fichero.models import Document, SavedSearch
 
@@ -26,40 +27,95 @@ def _safe_isoformat(value) -> str:
     )
 
 
+def _apply_phrase_and_exclude_filters(
+    db: Database,
+    results: list[SearchResult],
+    phrases: list[str],
+    excludes: list[str],
+) -> list[SearchResult]:
+    """Drop docs that don't satisfy required phrases or that contain an
+    excluded term. Looks up the doc's full page_content from DuckDB
+    (the result.content_preview is truncated to 200 chars and may not
+    reach a phrase match in the body).
+    """
+    if not phrases and not excludes:
+        return results
+
+    from fichero.db import _fold_for_search
+
+    folded_phrases = [_fold_for_search(p) for p in phrases]
+    folded_excludes = [_fold_for_search(e) for e in excludes]
+
+    out: list[SearchResult] = []
+    for r in results:
+        try:
+            row = db.conn.execute(
+                "SELECT page_content FROM documents WHERE id = $id", {"id": r.document_id}
+            ).fetchone()
+            content = (row[0] or "") if row else ""
+        except Exception:
+            content = r.content_preview or ""
+        folded = _fold_for_search(content)
+
+        if any(p not in folded for p in folded_phrases):
+            continue
+        if any(e in folded for e in folded_excludes):
+            continue
+        out.append(r)
+    return out
+
+
+_ALL_ENTITY_TYPES: tuple[str, ...] = (
+    "people",
+    "places",
+    "organizations",
+    "dates",
+    "events",
+    "keywords",
+)
+
+
 def _entity_match_results(
-    db: Database, query: str, limit: int, exclude_doc_ids: set[str]
+    db: Database,
+    query: str,
+    limit: int,
+    exclude_doc_ids: set[str],
+    entity_types: tuple[str, ...] = _ALL_ENTITY_TYPES,
 ) -> list[SearchResult]:
     """Find documents whose extracted entity artifacts contain `query`.
 
     Catches the case where a name (e.g. 'Asprilla') was extracted by the
     catalogue/extract_all workflow into an artifact's typed JSON but
     never appeared in the document's page_content (image-only PDFs,
-    handwritten notes). Without this bridge a user clicking the
-    'Asprilla' lozenge in the inspector and getting routed to search
-    would see zero hits — the very document where the lozenge came from
-    wouldn't be in the result set. (#481 / B4)
+    handwritten notes). (#481 / B4)
+
+    Pass `entity_types` to scope the search (e.g. `("people",)` for a
+    `people:Asprilla` query). Defaults to all six types when the caller
+    doesn't care.
 
     DuckDB's `LIKE` over the JSON-serialised `data` column is enough for
     sub-string match across the typed shapes ({"items": [{"name": ...}]}
     for people/places/orgs, {"keywords": [...]} for keywords, dates,
-    events). Case-insensitive via ICU (DuckDB native).
+    events). Case-insensitive.
     """
-    if not query.strip():
+    if not query.strip() or not entity_types:
         return []
     needle = f"%{query.strip().lower()}%"
+    placeholders = ",".join(f"$t{i}" for i in range(len(entity_types)))
+    params: dict[str, object] = {"needle": needle, "limit": limit}
+    for i, t in enumerate(entity_types):
+        params[f"t{i}"] = t
     try:
         rows = db.conn.execute(
-            """
+            f"""
             SELECT DISTINCT a.document_id, d.name, d.doc_type, d.file_type
             FROM artifacts a
             JOIN documents d ON d.id = a.document_id
-            WHERE a.artifact_type IN (
-                'people', 'places', 'organizations', 'dates', 'events', 'keywords'
-            )
+            WHERE a.artifact_type IN ({placeholders})
               AND lower(CAST(a.data AS VARCHAR)) LIKE $needle
             LIMIT $limit
             """,
-            {"needle": needle, "limit": limit},
+            params,
         ).fetchall()
     except Exception as exc:  # noqa: BLE001
         logger.warning("entity-match search failed: %s", exc)
@@ -190,36 +246,81 @@ async def enhanced_search(
             status_code=400, detail="Invalid sort_direction. Must be 'asc' or 'desc'"
         )
 
+    # Parse query into a plan (quoted phrases / field scopes /
+    # NOT exclusions / plain free-text). The retriever still consumes
+    # a plain query string — we feed it the free-text portion, then
+    # post-filter for phrases + excludes and union-in entity scopes.
+    plan = parse_query(request.query)
+    retrieval_query = plan.free_text or " ".join(plan.phrases) or request.query
+
+    # Pure scope queries (e.g. `people:Asprilla` alone) skip the
+    # text retriever entirely — answers are 100% from the entity bridge.
+    skip_retriever = plan.has_entity_scope and not plan.has_freetext_intent
+
     # Perform enhanced search
-    results, total_count, search_stats = db.search(
-        query=request.query,
-        limit=request.limit,
-        min_score=request.min_score,
-        search_type=request.search_type,
-        filters=request.filters,
-        sort_by=request.sort_by,
-        sort_order=request.sort_direction,  # db.search uses sort_order param for direction
-        offset=request.offset,
-        use_fuzzy_match=request.use_fuzzy_match,
-        highlight_results=request.highlight_results,
-    )
+    if skip_retriever:
+        results, total_count, search_stats = (
+            [],
+            0,
+            {"search_type": request.search_type, "execution_time_ms": 0.0, "filters_applied": {}},
+        )
+    else:
+        results, total_count, search_stats = db.search(
+            query=retrieval_query,
+            limit=request.limit,
+            min_score=request.min_score,
+            search_type=request.search_type,
+            filters=request.filters,
+            sort_by=request.sort_by,
+            sort_order=request.sort_direction,  # db.search uses sort_order param for direction
+            offset=request.offset,
+            use_fuzzy_match=request.use_fuzzy_match,
+            highlight_results=request.highlight_results,
+        )
+
+    # Apply NOT exclusions and required phrases. Both operate on the
+    # post-retrieval result set — cheaper than rebuilding the index for
+    # exotic queries and keeps the retrievers simple.
+    if plan.excludes or len(plan.phrases) > 1:
+        results = _apply_phrase_and_exclude_filters(
+            db, results, phrases=plan.phrases, excludes=plan.excludes
+        )
+        total_count = len(results)
 
     # Entity-name bridge: also match the query against extracted entity
-    # artifacts (people / places / organizations / dates / events /
-    # keywords) and union those documents into the result set. This is
-    # what makes clicking a blue lozenge always return the doc the
-    # lozenge came from, even when the entity name never appeared in
-    # the page_content. (#481 / B4)
-    if request.search_type in ("hybrid", "fulltext"):
+    # artifacts. When the user typed an explicit scope (e.g. `people:Asprilla`)
+    # we restrict to that entity_type. Otherwise we fall back to scanning
+    # all entity types, which is what makes clicking a blue lozenge
+    # always return the doc the lozenge came from. (#481 / B4)
+    bridge_run = (
+        request.search_type in ("hybrid", "fulltext") or skip_retriever
+    )
+    if bridge_run:
         seen_ids = {r.document_id for r in results}
         slots_remaining = max(0, request.limit - len(results))
         if slots_remaining > 0:
-            entity_hits = _entity_match_results(
-                db,
-                query=request.query,
-                limit=slots_remaining,
-                exclude_doc_ids=seen_ids,
-            )
+            entity_hits: list[SearchResult] = []
+            if plan.has_entity_scope:
+                # Scoped: emit one batch per (type, value) and dedupe.
+                for entity_type, values in plan.scopes.items():
+                    for value in values:
+                        hits = _entity_match_results(
+                            db,
+                            query=value,
+                            limit=slots_remaining,
+                            exclude_doc_ids=seen_ids,
+                            entity_types=(entity_type,),
+                        )
+                        for hit in hits:
+                            seen_ids.add(hit.document_id)
+                        entity_hits.extend(hits)
+            else:
+                entity_hits = _entity_match_results(
+                    db,
+                    query=request.query,
+                    limit=slots_remaining,
+                    exclude_doc_ids=seen_ids,
+                )
             if entity_hits:
                 results = list(results) + entity_hits
                 total_count = total_count + len(entity_hits)
