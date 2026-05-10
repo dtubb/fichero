@@ -22,17 +22,46 @@ struct SearchResultsDisplay: View {
         if searchResults.isEmpty {
             emptyState
         } else {
-            switch displayMode {
-            case .icon:
-                iconView
-            case .list:
-                listView
-            case .table:
-                tableView
-            case .map:
-                mapView
+            VStack(spacing: 0) {
+                resultCountHeader
+                switch displayMode {
+                case .icon:
+                    iconView
+                case .list:
+                    listView
+                case .table:
+                    tableView
+                case .map:
+                    mapView
+                }
             }
         }
+    }
+
+    /// Lightweight header that shows "N results" + the index-health
+    /// hint so the user always knows whether they're seeing everything
+    /// the index has. Hidden when there are no results (the empty state
+    /// already covers that case).
+    @ViewBuilder
+    private var resultCountHeader: some View {
+        let count = searchResults.count
+        let suffix = count == 1 ? "result" : "results"
+        HStack(spacing: 8) {
+            Text("\(count) \(suffix)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if let indexedCount, indexedCount > 0 {
+                Text("·")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                Text("\(indexedCount) indexed")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
     }
 
     // MARK: - Empty State (#481)

@@ -15,6 +15,21 @@ struct SearchView: View {
     @State var indexedCount: Int?
     @State var isReindexing: Bool = false
 
+    /// Token used to debounce live-as-you-type search. Each keystroke
+    /// schedules a query and stamps a fresh UUID; the scheduled task only
+    /// runs the search if its captured token matches the latest. Avoids
+    /// hammering the backend on every key press while still feeling
+    /// instant once the user pauses (Finder behaviour). 300 ms is the
+    /// system's macOS-toolbar-search debounce sweet spot.
+    @State private var liveSearchToken = UUID()
+    private static let liveSearchDebounceMs: Int = 300
+
+    /// Sort order chosen from the in-view sort menu. Matches backend
+    /// `sort_by` values. Persisted via @SceneStorage so the user's pick
+    /// survives window restoration.
+    @SceneStorage("searchSortBy") var sortBy: String = "relevance"
+    @SceneStorage("searchSortDirection") var sortDirection: String = "desc"
+
     @EnvironmentObject var searchService: SearchServiceGenerated
     @EnvironmentObject var apiClient: APIClient
     @EnvironmentObject var libraryManager: LibraryManager
@@ -45,6 +60,29 @@ struct SearchView: View {
                         .help("Save this search to the sidebar")
                     }
                 }
+                // Sort menu — visible when results exist. Pickers persist
+                // via @SceneStorage in SearchView. Re-runs the query on
+                // change (see .onChange(of: sortBy / sortDirection)).
+                if !searchResults.isEmpty {
+                    ToolbarItem(placement: .primaryAction) {
+                        Menu {
+                            Picker("Sort by", selection: $sortBy) {
+                                Text("Relevance").tag("relevance")
+                                Text("Date").tag("date")
+                                Text("Name").tag("name")
+                                Text("Size").tag("size")
+                            }
+                            Divider()
+                            Picker("Order", selection: $sortDirection) {
+                                Text("Descending").tag("desc")
+                                Text("Ascending").tag("asc")
+                            }
+                        } label: {
+                            Label("Sort", systemImage: "arrow.up.arrow.down")
+                        }
+                        .help("Sort results by relevance, date, name, or size")
+                    }
+                }
             }
             .onAppear {
                 if let search = savedSearch {
@@ -69,6 +107,28 @@ struct SearchView: View {
                     searchResults = []
                     searchStats = nil
                     searchError = nil
+                    return
+                }
+                // Live re-search as you type, debounced by 300 ms. Each
+                // keystroke updates the token; only the most recent
+                // scheduled task actually runs.
+                let token = UUID()
+                liveSearchToken = token
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: UInt64(Self.liveSearchDebounceMs) * 1_000_000)
+                    if liveSearchToken == token {
+                        performSearch()
+                    }
+                }
+            }
+            .onChange(of: sortBy) { _, _ in
+                if !queryText.trimmingCharacters(in: .whitespaces).isEmpty {
+                    performSearch()
+                }
+            }
+            .onChange(of: sortDirection) { _, _ in
+                if !queryText.trimmingCharacters(in: .whitespaces).isEmpty {
+                    performSearch()
                 }
             }
             .onChange(of: selection) { _, newSelection in

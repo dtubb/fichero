@@ -126,11 +126,11 @@ extension SearchView {
                 let response = try await searchService.searchCompatible(
                     query: queryText,
                     limit: 50,
-                    minScore: 0.0,
+                    minScore: 0.0,  // Backend defaults; UI shows everything ≥ floor.
                     searchType: "hybrid",
                     filters: nil,
-                    sortBy: "relevance",
-                    sortOrder: "desc",
+                    sortBy: sortBy,
+                    sortOrder: sortDirection,
                     offset: 0,
                     useFuzzyMatch: false,
                     highlightResults: true
