@@ -6,6 +6,7 @@ providing a clean separation from the broader knowledge graph functionality.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Annotated, Any
 
@@ -19,6 +20,8 @@ from fichero.knowledge_models import (
     EntityType,
     KnowledgeEntity,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/entities", tags=["entities"])
 
@@ -284,6 +287,159 @@ async def get_entity(
     if entity is None:
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
     return entity
+
+
+class EntityDocumentLink(BaseModel):
+    """One row of /entities/{id}/documents — document that mentions
+    this entity at least once via a knowledge claim, with the smallest
+    relevant excerpt and the count of claims linking them.
+    """
+
+    document_id: str
+    document_name: str | None = None
+    doc_type: str | None = None
+    file_type: str | None = None
+    claim_count: int
+    first_excerpt: str | None = None
+
+
+class EntityCoOccurrence(BaseModel):
+    """One row of /entities/{id}/co-occurrence — another entity that
+    appears in at least one claim alongside this one, with the count
+    of shared claims.
+    """
+
+    entity_id: str
+    name: str
+    kind: str | None = None
+    aliases: list[str] = []
+    shared_claims: int
+
+
+@router.get("/{entity_id}/documents", response_model=list[EntityDocumentLink])
+async def get_entity_documents(
+    entity_id: str,
+    limit: int = 100,
+    db: Database = Depends(get_library_database),
+) -> list[EntityDocumentLink]:
+    """Documents that mention `entity_id` via a knowledge claim.
+
+    Powers the cross-document entity drill-down (#729): clicking
+    "Asprilla" should show every document where Asprilla appears,
+    sorted by claim density. The result includes a small excerpt so
+    the UI can render context preview without a second fetch.
+
+    JSON-LIKE filter on claim.entity_ids is the simplest path that
+    works across DuckDB versions — exact-match for the entity id
+    embedded in the JSON-serialised list. Returns deduped per-doc
+    rows with claim counts as a second-pass aggregation.
+    """
+    entity = db.get(KnowledgeEntity, entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+
+    needle = f'%"{entity_id}"%'
+    try:
+        rows = db.conn.execute(
+            """
+            SELECT c.source_document_id,
+                   d.name,
+                   d.doc_type,
+                   d.file_type,
+                   COUNT(*) AS claim_count,
+                   MIN(c.source_excerpt) AS first_excerpt
+            FROM claims c
+            LEFT JOIN documents d ON d.id = c.source_document_id
+            WHERE c.entity_ids LIKE $needle
+            GROUP BY c.source_document_id, d.name, d.doc_type, d.file_type
+            ORDER BY claim_count DESC, d.name
+            LIMIT $limit
+            """,
+            {"needle": needle, "limit": limit},
+        ).fetchall()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("entity-documents lookup failed: %s", exc)
+        return []
+
+    return [
+        EntityDocumentLink(
+            document_id=row[0],
+            document_name=row[1],
+            doc_type=row[2],
+            file_type=row[3],
+            claim_count=int(row[4] or 0),
+            first_excerpt=row[5],
+        )
+        for row in rows
+        if row[0]
+    ]
+
+
+@router.get("/{entity_id}/co-occurrence", response_model=list[EntityCoOccurrence])
+async def get_entity_co_occurrence(
+    entity_id: str,
+    limit: int = 50,
+    db: Database = Depends(get_library_database),
+) -> list[EntityCoOccurrence]:
+    """Entities that share at least one claim with `entity_id`.
+
+    Powers a 'related entities' rail in the entity drill-down — see
+    Asprilla → also see the people, places, organisations who appear
+    in the same claims. Sorted by number of shared claims.
+
+    Walks claims rather than entities. JSON-LIKE on entity_ids is the
+    same shape as get_entity_documents.
+    """
+    entity = db.get(KnowledgeEntity, entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+
+    needle = f'%"{entity_id}"%'
+    try:
+        claim_rows = db.conn.execute(
+            "SELECT entity_ids FROM claims WHERE entity_ids LIKE $needle",
+            {"needle": needle},
+        ).fetchall()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("co-occurrence lookup failed: %s", exc)
+        return []
+
+    import json as _json
+    from collections import Counter
+
+    counter: Counter[str] = Counter()
+    for (raw,) in claim_rows:
+        if not raw:
+            continue
+        try:
+            ids = _json.loads(raw) if isinstance(raw, str) else raw
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(ids, list):
+            continue
+        for other in ids:
+            if isinstance(other, str) and other and other != entity_id:
+                counter[other] += 1
+
+    if not counter:
+        return []
+
+    top_ids = [eid for eid, _count in counter.most_common(limit)]
+    out: list[EntityCoOccurrence] = []
+    for other_id in top_ids:
+        other = db.get(KnowledgeEntity, other_id)
+        if other is None:
+            continue
+        out.append(
+            EntityCoOccurrence(
+                entity_id=other.id,
+                name=other.name,
+                kind=getattr(other.kind, "value", None) if hasattr(other, "kind") else None,
+                aliases=list(getattr(other, "aliases", []) or []),
+                shared_claims=counter[other_id],
+            )
+        )
+    return out
 
 
 @router.post("/{entity_id}/aliases", response_model=KnowledgeEntity)
