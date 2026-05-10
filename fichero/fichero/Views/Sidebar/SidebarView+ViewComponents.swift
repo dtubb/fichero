@@ -216,16 +216,6 @@ extension SidebarView {
             items: buckets.documentItems
         )
 
-        if FeatureManager.shared.isSearchEnabled {
-            unifiedDisclosureSection(
-                title: "Saved Searches",
-                icon: "magnifyingglass",
-                sectionKey: "search",
-                libraryId: libraryId,
-                items: buckets.searchItems
-            )
-        }
-
         // Visual separator between document library and tools section
         Divider()
             .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
@@ -248,6 +238,21 @@ extension SidebarView {
 
         if FeatureManager.shared.isActivityEnabled {
             activityNavigationRow()
+        }
+
+        // Saved Searches at the bottom — Daniel: 'saved searches should
+        // be down beside Workflows and Activity'. Mental model: Library
+        // is the source-of-truth tree; Workflows / Activity / Saved
+        // Searches are *tools and history* over that tree, so they
+        // belong together below the library.
+        if FeatureManager.shared.isSearchEnabled {
+            unifiedDisclosureSection(
+                title: "Saved Searches",
+                icon: "magnifyingglass",
+                sectionKey: "search",
+                libraryId: libraryId,
+                items: buckets.searchItems
+            )
         }
     }
 
