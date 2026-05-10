@@ -83,22 +83,39 @@ def _suggest_for_no_results(
                     if isinstance(kw, str) and kw:
                         candidates.add(kw)
 
-    # Score each candidate by simple overlap + length-distance heuristic.
-    # Levenshtein avoided to skip a dependency; length-of-folded-overlap
-    # is good enough for "did you mean" UX where we just want the
-    # 5 closest names to surface as clickable suggestions.
+    # Score each candidate by best-of (substring containment, per-word
+    # substring containment, character-set overlap). Multi-word entity
+    # names like "Joseph Antonio Asprilla" need per-word matching so a
+    # 1-token typo like "Aspriya" still surfaces — just checking the
+    # whole name against the typo gives diluted scores. No Levenshtein
+    # to keep the dependency surface flat.
     scored: list[tuple[float, str]] = []
     for name in candidates:
         folded = _fold_for_search(name)
         if not folded:
             continue
-        # Substring containment is the strongest signal.
         if needle in folded or folded in needle:
             similarity = 1.0 - abs(len(folded) - len(needle)) / max(len(folded), len(needle))
         else:
-            # Character-set overlap as a coarse fallback.
-            common = set(needle) & set(folded)
-            similarity = len(common) / max(len(set(needle) | set(folded)), 1)
+            # Per-word containment: best score across each whitespace
+            # token in the candidate. Helps "Aspriya" match "Joseph
+            # Antonio Asprilla" via the 'asprilla' token.
+            best_word = 0.0
+            for word in folded.split():
+                if needle in word or word in needle:
+                    best_word = max(
+                        best_word,
+                        1.0 - abs(len(word) - len(needle)) / max(len(word), len(needle)),
+                    )
+                else:
+                    common = set(needle) & set(word)
+                    overlap = len(common) / max(len(set(needle) | set(word)), 1)
+                    # Bonus for sharing a leading char — typos usually
+                    # preserve the first letter.
+                    if word and needle and word[0] == needle[0]:
+                        overlap += 0.1
+                    best_word = max(best_word, overlap)
+            similarity = best_word
         scored.append((similarity, name))
 
     scored.sort(reverse=True)

@@ -157,3 +157,135 @@ class TestScoreShape:
         results, total, _ = search_library.search(query="Leidy", limit=10, sort_by="relevance")
         scores = [r.score for r in results]
         assert scores == sorted(scores, reverse=True)
+
+
+class TestRouteLevelQueryFeatures:
+    """Exercise route-level features (parser, entity bridge, did-you-mean,
+    phrase + exclude post-filter) end-to-end against the real Database.
+
+    These build on _build_library's fixture corpus, including the
+    'Asprilla' artifact planted on doc fix-asprilla-001.
+    """
+
+    def test_phrase_required_filters_partial_matches(self, search_library) -> None:
+        from fichero.api.routes.search import _apply_phrase_and_exclude_filters
+
+        results, _, _ = search_library.search(query="Leidy gold", limit=10)
+        # 'sluice wedged in a gully' appears in fix-leidy-001 only.
+        filtered = _apply_phrase_and_exclude_filters(
+            search_library, results, phrases=["sluice wedged"], excludes=[]
+        )
+        ids = {r.document_id for r in filtered}
+        assert "fix-leidy-001" in ids
+        # fix-leidy-002 has 'sluice' but not 'sluice wedged' verbatim.
+        assert "fix-leidy-002" not in ids
+
+    def test_exclude_drops_matching_docs(self, search_library) -> None:
+        from fichero.api.routes.search import _apply_phrase_and_exclude_filters
+
+        results, _, _ = search_library.search(query="gold", limit=10)
+        filtered = _apply_phrase_and_exclude_filters(
+            search_library, results, phrases=[], excludes=["mining"]
+        )
+        ids = {r.document_id for r in filtered}
+        # fix-mining-001 contains 'mining' — must drop.
+        assert "fix-mining-001" not in ids
+
+    def test_exclude_is_accent_insensitive(self, search_library) -> None:
+        from fichero.api.routes.search import _apply_phrase_and_exclude_filters
+
+        results, _, _ = search_library.search(query="Quibdo", limit=10)
+        # exclude 'Quibdo' (no accent) — should still drop docs with 'Quibdó'
+        filtered = _apply_phrase_and_exclude_filters(
+            search_library, results, phrases=[], excludes=["Quibdo"]
+        )
+        # All Quibdó docs gone.
+        assert all("Quibd" not in (r.metadata.get("name") or "") for r in filtered)
+
+    def test_entity_bridge_finds_artifact_only_match(self, search_library) -> None:
+        from fichero.api.routes.search import _entity_match_results
+
+        # 'Asprilla' is only in entities artifact data on fix-asprilla-001
+        # AND in its page_content. Bridge should find it via the artifact too.
+        hits = _entity_match_results(
+            search_library, query="Asprilla", limit=10, exclude_doc_ids=set()
+        )
+        ids = {h.document_id for h in hits}
+        assert "fix-asprilla-001" in ids
+
+    def test_entity_bridge_scope_restricts_to_type(self, search_library) -> None:
+        from fichero.api.routes.search import _entity_match_results
+
+        # Scoping to 'people' returns the Asprilla doc; scoping to a type
+        # the artifact *isn't* should return nothing for that needle.
+        people = _entity_match_results(
+            search_library, query="Asprilla", limit=10,
+            exclude_doc_ids=set(), entity_types=("people",),
+        )
+        places = _entity_match_results(
+            search_library, query="Asprilla", limit=10,
+            exclude_doc_ids=set(), entity_types=("places",),
+        )
+        people_ids = {h.document_id for h in people}
+        places_ids = {h.document_id for h in places}
+        assert "fix-asprilla-001" in people_ids
+        assert "fix-asprilla-001" not in places_ids
+
+    def test_suggestions_for_typo(self, search_library) -> None:
+        from fichero.api.routes.search import _suggest_for_no_results
+
+        # 'Aspriya' — close-ish typo of 'Asprilla'. The entity-name
+        # corpus contains 'Joseph Antonio Asprilla', so the suggester
+        # should surface it (or similar).
+        suggestions = _suggest_for_no_results(
+            search_library, query="Aspriya", limit=5
+        )
+        # Best-effort: our heuristic is set-overlap based, so we just
+        # assert that *something* relevant comes back. The fixture has
+        # one entity name so we expect that one to be surfaced.
+        assert any("Asprilla" in s for s in suggestions)
+
+
+class TestEmptyQueryRecents:
+    def test_empty_query_recent_docs_via_route_helper(self, search_library) -> None:
+        # The empty-query path lives in the route, not in db.search; we
+        # can still exercise the SQL it runs to make sure it returns
+        # only docs with non-empty page_content, sorted by updated_at.
+        rows = search_library.conn.execute(
+            """
+            SELECT id, length(page_content) FROM documents
+            WHERE page_content IS NOT NULL AND length(page_content) > 0
+            ORDER BY updated_at DESC LIMIT 10
+            """,
+        ).fetchall()
+        ids = [r[0] for r in rows]
+        # All five fixture docs have content (including '[sin texto]').
+        assert len(ids) == 5
+        assert all(r[1] > 0 for r in rows)
+
+
+class TestFolderScope:
+    def test_folder_scope_collects_descendants(self, search_library) -> None:
+        # Build a parent + two children and verify the folder filter
+        # returns just the children.
+        from fichero.models import Document
+
+        parent = Document(id="folder-parent", name="Test Folder")
+        child_a = Document(
+            id="child-a", name="A.txt", parent_id="folder-parent",
+            page_content="alpha word",
+        )
+        child_b = Document(
+            id="child-b", name="B.txt", parent_id="folder-parent",
+            page_content="beta word",
+        )
+        for d in (parent, child_a, child_b):
+            search_library.save(d, auto_embed=True)
+
+        # Helper directly:
+        descendants = search_library._collect_folder_descendants("folder-parent")
+        assert "folder-parent" in descendants
+        assert "child-a" in descendants
+        assert "child-b" in descendants
+        # Unrelated docs aren't pulled in.
+        assert "fix-leidy-001" not in descendants
