@@ -291,7 +291,9 @@ struct ArtifactEntitiesView: View {
     /// Map the human-facing row label ("People", "Places", "Organizations",
     /// "Dates", "Events", "Keywords") to the backend's entity_type id.
     /// Used by lozenge taps to fire `<type>:<name>` scoped queries.
-    private static func entityTypeId(for label: String) -> String {
+    /// Internal so tests can verify the mapping without spinning up a
+    /// view hierarchy. (`@testable import Fichero` reaches it.)
+    static func entityTypeId(for label: String) -> String {
         switch label.lowercased() {
         case "people": return "people"
         case "places": return "places"

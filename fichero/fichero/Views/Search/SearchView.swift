@@ -42,26 +42,15 @@ struct SearchView: View {
     @SceneStorage("recentSearchQueries") var recentSearchQueriesJSON: String = "[]"
 
     var recentSearches: [String] {
-        guard let data = recentSearchQueriesJSON.data(using: .utf8),
-              let list = try? JSONDecoder().decode([String].self, from: data)
-        else { return [] }
-        return list
+        RecentSearchesStore.decode(recentSearchQueriesJSON)
     }
 
     func recordRecentSearch(_ query: String) {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        // Case-insensitive dedup so 'Asprilla' and 'asprilla' don't
-        // both occupy slots in the recent list. Keep the most recent
-        // *original* casing as the visible value (it's likely what the
-        // user just typed).
-        let foldedNew = trimmed.lowercased()
-        var list = recentSearches.filter { $0.lowercased() != foldedNew }
-        list.insert(trimmed, at: 0)
-        list = Array(list.prefix(10))
-        if let data = try? JSONEncoder().encode(list),
-           let json = String(data: data, encoding: .utf8) {
-            recentSearchQueriesJSON = json
+        let updated = RecentSearchesStore.recording(query, into: recentSearches)
+        // Only write back if the list actually changed — avoids
+        // touching @SceneStorage on whitespace-only submits.
+        if updated != recentSearches {
+            recentSearchQueriesJSON = RecentSearchesStore.encode(updated)
         }
     }
 
