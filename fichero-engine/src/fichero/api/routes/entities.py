@@ -348,7 +348,7 @@ async def get_entity_documents(
                    d.file_type,
                    COUNT(*) AS claim_count,
                    MIN(c.source_excerpt) AS first_excerpt
-            FROM claims c
+            FROM knowledgeclaims c
             LEFT JOIN documents d ON d.id = c.source_document_id
             WHERE c.entity_ids LIKE $needle
             GROUP BY c.source_document_id, d.name, d.doc_type, d.file_type
@@ -397,7 +397,7 @@ async def get_entity_co_occurrence(
     needle = f'%"{entity_id}"%'
     try:
         claim_rows = db.conn.execute(
-            "SELECT entity_ids FROM claims WHERE entity_ids LIKE $needle",
+            "SELECT entity_ids FROM knowledgeclaims WHERE entity_ids LIKE $needle",
             {"needle": needle},
         ).fetchall()
     except Exception as exc:  # noqa: BLE001
@@ -430,11 +430,15 @@ async def get_entity_co_occurrence(
         other = db.get(KnowledgeEntity, other_id)
         if other is None:
             continue
+        kind_val = getattr(other, "entity_type", None)
+        kind_str = kind_val.value if hasattr(kind_val, "value") else (
+            str(kind_val) if kind_val else None
+        )
         out.append(
             EntityCoOccurrence(
                 entity_id=other.id,
-                name=other.name,
-                kind=getattr(other.kind, "value", None) if hasattr(other, "kind") else None,
+                name=other.canonical_name,
+                kind=kind_str,
                 aliases=list(getattr(other, "aliases", []) or []),
                 shared_claims=counter[other_id],
             )

@@ -264,6 +264,65 @@ class TestEmptyQueryRecents:
         assert all(r[1] > 0 for r in rows)
 
 
+class TestKnowledgeGraphRoutes:
+    """End-to-end test of the new entity-drill-down endpoints. Builds a
+    tiny knowledge graph (3 entities + 2 claims) on top of the search
+    fixture corpus and exercises both /documents and /co-occurrence.
+    """
+
+    def test_entity_documents_and_co_occurrence(self, search_library) -> None:
+        from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim
+        from fichero.api.routes.entities import (
+            get_entity_documents,
+            get_entity_co_occurrence,
+        )
+        import asyncio
+
+        # Three entities + two claims:
+        #   - claim A: Leidy + Quibdó in fix-leidy-001
+        #   - claim B: Leidy + gold-keyword in fix-leidy-002
+        leidy = KnowledgeEntity(id="kg-leidy", canonical_name="Leidy")
+        quibdo = KnowledgeEntity(id="kg-quibdo", canonical_name="Quibdó")
+        gold = KnowledgeEntity(id="kg-gold", canonical_name="gold mining")
+        for e in (leidy, quibdo, gold):
+            search_library.save(e)
+
+        claim_a = KnowledgeClaim(
+            id="claim-a",
+            text="Leidy works the sluice in Quibdó",
+            source_document_id="fix-leidy-001",
+            source_excerpt="Leidy cleared gravel and stones from a wooden sluice",
+            entity_ids=["kg-leidy", "kg-quibdo"],
+        )
+        claim_b = KnowledgeClaim(
+            id="claim-b",
+            text="Leidy panned for gold",
+            source_document_id="fix-leidy-002",
+            source_excerpt="Leidy's mother worked alongside her",
+            entity_ids=["kg-leidy", "kg-gold"],
+        )
+        for c in (claim_a, claim_b):
+            search_library.save(c)
+
+        # /entities/{id}/documents: Leidy appears in two docs.
+        docs = asyncio.run(get_entity_documents("kg-leidy", limit=10, db=search_library))
+        ids = {d.document_id for d in docs}
+        assert "fix-leidy-001" in ids
+        assert "fix-leidy-002" in ids
+        assert all(d.claim_count >= 1 for d in docs)
+
+        # /entities/{id}/co-occurrence: Leidy is in claims with both
+        # Quibdó (1 shared) and gold (1 shared). Order may vary.
+        cos = asyncio.run(
+            get_entity_co_occurrence("kg-leidy", limit=10, db=search_library)
+        )
+        related_ids = {c.entity_id for c in cos}
+        assert "kg-quibdo" in related_ids
+        assert "kg-gold" in related_ids
+        # Self never appears in co-occurrence — would be nonsensical.
+        assert "kg-leidy" not in related_ids
+
+
 class TestFolderScope:
     def test_folder_scope_collects_descendants(self, search_library) -> None:
         # Build a parent + two children and verify the folder filter
