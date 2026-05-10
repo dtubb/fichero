@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import math
 
-from fichero.db import _fold_for_search
+from fichero.db import _fold_for_search, _is_content_marker_only
 from fichero.db_embeddings import _l2_normalize
 
 
@@ -111,6 +111,45 @@ class TestRRFHybridCombiner:
         score_rank5_both = (2 * contribution_rank_5) / max_rrf
         # 2 * (1/65) / (2/61) = 61/65 ≈ 0.938
         assert score_rank5_both > score_one_list  # both-lists still beats one-list
+
+
+class TestMarkerOnlyDetection:
+    """`_is_content_marker_only` decides whether to fall back to doc.name
+    when embedding (avoids the [sin texto]-cluster bug where every blank
+    page shares one vector and dominates semantic results)."""
+
+    def test_sin_texto_is_marker(self) -> None:
+        assert _is_content_marker_only("[sin texto]")
+        assert _is_content_marker_only("  [sin texto]  ")
+        assert _is_content_marker_only("[SIN TEXTO]")  # case-insensitive
+
+    def test_ilegible_is_marker(self) -> None:
+        assert _is_content_marker_only("[ilegible]")
+        assert _is_content_marker_only("[Ilegible]")
+
+    def test_two_markers_concatenated(self) -> None:
+        assert _is_content_marker_only("[sin texto] [ilegible]")
+        assert _is_content_marker_only("[blank] [empty]")
+
+    def test_real_content_is_not_marker(self) -> None:
+        assert not _is_content_marker_only("Real content here.")
+        assert not _is_content_marker_only("Leidy cleared gravel from the sluice.")
+        assert not _is_content_marker_only("Asprilla")
+
+    def test_marker_plus_real_text_is_not_marker(self) -> None:
+        # Only-marker filter; if there's real prose alongside, embed it.
+        assert not _is_content_marker_only("[sin texto] Recibido en 8bre de 1788")
+
+    def test_empty_treated_as_marker(self) -> None:
+        # Empty triggers fallback the same as marker — db.embed handles
+        # both via the 'text falls back to name' branch.
+        assert _is_content_marker_only("")
+        assert _is_content_marker_only("   ")
+
+    def test_accent_insensitive(self) -> None:
+        # The marker check folds via _fold_for_search so accented variants
+        # in user-edited content are also recognised.
+        assert _is_content_marker_only("[íléǵiblé]")  # noqa: RUF001  (intentional accent test)
 
 
 class TestCosineFromL2:

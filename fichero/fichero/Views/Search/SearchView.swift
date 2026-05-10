@@ -51,7 +51,12 @@ struct SearchView: View {
     func recordRecentSearch(_ query: String) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        var list = recentSearches.filter { $0 != trimmed }
+        // Case-insensitive dedup so 'Asprilla' and 'asprilla' don't
+        // both occupy slots in the recent list. Keep the most recent
+        // *original* casing as the visible value (it's likely what the
+        // user just typed).
+        let foldedNew = trimmed.lowercased()
+        var list = recentSearches.filter { $0.lowercased() != foldedNew }
         list.insert(trimmed, at: 0)
         list = Array(list.prefix(10))
         if let data = try? JSONEncoder().encode(list),
