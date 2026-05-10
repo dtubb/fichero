@@ -22,14 +22,14 @@ struct SearchView: View {
 
     var body: some View {
         resultsPanel
-            // Search input wired via the standard macOS .searchable
-            // modifier so users get ⌘F focus, the system clear button,
-            // and the toolbar-integrated search field for free (#481).
-            // Submitting (Return) fires the query; live re-querying as
-            // the user types is left to the saved-search auto-trigger
-            // path so we don't hammer the backend on each keystroke.
-            .searchable(text: $queryText, placement: .toolbar, prompt: "Search documents…")
-            .onSubmit(of: .search) { performSearch() }
+            // The single root-level .searchable on ContentView is now the
+            // toolbar entry point — SearchView no longer owns one of its
+            // own (avoids a stacked / duplicated search field on macOS).
+            // queryText still drives this view's results display + the
+            // empty-state copy; it gets seeded from savedSearch on appear
+            // and on saved-search changes (see .onAppear / .onChange below)
+            // and from the toolbar's runToolbarSearch flow when a new
+            // search is submitted.
             // Save-Search action only when results exist and we're not
             // already viewing a saved search (#481). The button persists
             // the current query as a SavedSearch and routes the sidebar
