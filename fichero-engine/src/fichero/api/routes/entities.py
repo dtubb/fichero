@@ -527,6 +527,72 @@ async def get_entity_co_occurrence(
     return out
 
 
+class EntityDrillDownResponse(BaseModel):
+    """Bundle response for /entities/{id}/drill-down — three lists in
+    one call so the inspector renders an entity-detail view from one
+    fetch instead of three round-trips.
+    """
+
+    entity: KnowledgeEntity
+    documents: list[EntityDocumentLink]
+    co_occurring: list[EntityCoOccurrence]
+    claim_excerpts: list[str]
+
+
+@router.get("/{entity_id}/drill-down", response_model=EntityDrillDownResponse)
+async def entity_drill_down(
+    entity_id: str,
+    documents_limit: int = 20,
+    co_occurrence_limit: int = 10,
+    excerpts_limit: int = 5,
+    db: Database = Depends(get_library_database),
+) -> EntityDrillDownResponse:
+    """Three-rail entity detail in one fetch.
+
+    Combines /documents (where this entity appears), /co-occurrence
+    (related entities), and a list of representative claim excerpts.
+    Frontend renders an Inspector panel with three sections from
+    a single round-trip — useful for the cross-doc entity navigation
+    UI tracked in #729.
+    """
+    entity = db.get(KnowledgeEntity, entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+
+    documents = await get_entity_documents(entity_id, limit=documents_limit, db=db)
+    co_occurring = await get_entity_co_occurrence(
+        entity_id, limit=co_occurrence_limit, db=db
+    )
+
+    needle = f'%"{entity_id}"%'
+    excerpts: list[str] = []
+    try:
+        rows = db.conn.execute(
+            """
+            SELECT source_excerpt FROM knowledgeclaims
+            WHERE entity_ids LIKE $needle
+              AND source_excerpt IS NOT NULL
+              AND length(source_excerpt) > 0
+            ORDER BY length(source_excerpt) ASC
+            LIMIT $limit
+            """,
+            {"needle": needle, "limit": excerpts_limit},
+        ).fetchall()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("excerpt lookup failed: %s", exc)
+        rows = []
+    for (excerpt,) in rows:
+        if excerpt:
+            excerpts.append(excerpt)
+
+    return EntityDrillDownResponse(
+        entity=entity,
+        documents=documents,
+        co_occurring=co_occurring,
+        claim_excerpts=excerpts,
+    )
+
+
 @router.post("/{entity_id}/aliases", response_model=KnowledgeEntity)
 async def add_entity_aliases(
     entity_id: str,

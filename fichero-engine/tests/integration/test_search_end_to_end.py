@@ -403,6 +403,35 @@ class TestKnowledgeGraphRoutes:
         # Self never appears in co-occurrence — would be nonsensical.
         assert "kg-leidy" not in related_ids
 
+    def test_drill_down_bundles_documents_co_occurrence_excerpts(
+        self, search_library
+    ) -> None:
+        """`/api/entities/{id}/drill-down` returns the three rails in
+        one shot — frontend can render an entity inspector from one
+        fetch."""
+        from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim
+        from fichero.api.routes.entities import entity_drill_down
+        import asyncio
+
+        leidy = KnowledgeEntity(id="dd-leidy", canonical_name="Leidy")
+        place = KnowledgeEntity(id="dd-quibdo", canonical_name="Quibdó")
+        for e in (leidy, place):
+            search_library.save(e)
+        c = KnowledgeClaim(
+            id="dd-c1",
+            text="Leidy lives in Quibdó",
+            source_document_id="fix-leidy-001",
+            source_excerpt="Leidy cleared gravel from a sluice in Quibdó",
+            entity_ids=["dd-leidy", "dd-quibdo"],
+        )
+        search_library.save(c)
+
+        bundle = asyncio.run(entity_drill_down("dd-leidy", db=search_library))
+        assert bundle.entity.id == "dd-leidy"
+        assert any(d.document_id == "fix-leidy-001" for d in bundle.documents)
+        assert any(co.entity_id == "dd-quibdo" for co in bundle.co_occurring)
+        assert bundle.claim_excerpts  # at least one excerpt
+
     def test_top_entities_ranks_by_claim_count(self, search_library) -> None:
         """`/api/entities/top` returns entities ranked by total claim count."""
         from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim
