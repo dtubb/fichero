@@ -1,6 +1,6 @@
 # Search rewrite — overnight handoff
 
-**Branch:** `0.0.2` · **As of commit:** `80a68323` (day 2 / 2026-05-10)
+**Branch:** `0.0.2` · **As of commit:** `00fd42ba` (day 2 / 2026-05-10)
 
 This is a status snapshot you can read first thing in the morning so you
 know what to test, what's working, and what's still TODO.
@@ -63,6 +63,10 @@ deeper plumbing (#17 search-then-batch-action), or fall into the
 | `c5adaea3` | **Phase 15**: KG entity drill-down endpoints | `/entities/{id}/documents` and `/co-occurrence` — backend for #729. |
 | `b86889ae` | **Phase 16**: Saved Searches sidebar reorder | Now lives below Workflows + Activity. |
 | `80a68323` | **Phase 17**: case-insensitive recent-search dedup + 8 marker-detection unit tests | 65 search tests pass. |
+| `d6de99f1` | **Phase 18**: KG `GET /api/documents/{id}/related` | Aggregates entities across a doc's claims, finds neighbours by overlap. |
+| `4b8d0c58` | **Phase 19**: KG `GET /api/entities/top` | Top-N entities by claim count; `?entity_type=` filter. |
+| `a8fe49bc` | **Phase 20**: route-level integration tests + single-phrase filter fix | Caught a real bug — `'X "phrase"'` wasn't enforcing the phrase. |
+| `00fd42ba` | **Phase 21**: KG `GET /api/entities/{id}/drill-down` | Three-rail bundled response: documents + co-occurrence + excerpts. |
 
 ## How the new query syntax works
 
@@ -105,11 +109,47 @@ After Daniel left for the day, the work fanned out beyond search:
 PYTHONPATH=fichero-engine/src .venv/bin/pytest \
   fichero-engine/tests/unit/test_search_scoring.py \
   fichero-engine/tests/unit/test_search_query_parser.py \
-  fichero-engine/tests/integration/test_search_end_to_end.py
-# 65 passed
+  fichero-engine/tests/integration/test_search_end_to_end.py \
+  fichero-engine/tests/unit/workflows/test_default_workflows.py
+# 91 passed
 ```
 
-Plus 17 default-workflow seeding tests (paleography + NER per-page presets covered).
+The route-level integration tests (TestRouteLevelEnhancedSearch) drive
+the full enhanced_search pipeline end-to-end and were responsible for
+catching the single-phrase-filter bug. Both unit + integration coverage
+together:
+
+- 18 unit tests for scoring math
+- 24 unit tests for query parser
+- 17 default-workflow seeding tests
+- 32 integration tests against real Database + LanceDB + FastEmbed:
+  - hybrid scoring shape, accent insensitivity, score ordering
+  - phrase / NOT / scope filters and combinations
+  - entity bridge (with type-scope variants)
+  - did-you-mean
+  - empty-query recents
+  - folder scope helper
+  - **6 new** route-level enhanced_search tests
+  - **5 new** KG-route tests:
+    - `/entities/{id}/documents`
+    - `/entities/{id}/co-occurrence`
+    - `/documents/{id}/related`
+    - `/entities/top`
+    - `/entities/{id}/drill-down`
+
+## New backend endpoints (KG forward-pull from #729)
+
+For the SwiftUI frontend to consume tomorrow:
+
+| Endpoint | Returns | Use |
+|---|---|---|
+| `GET /entities/top?entity_type=&limit=` | List of `{entity_id, name, kind, aliases, claim_count}` | "Top entities" entry-point in search empty state |
+| `GET /entities/{id}/documents?limit=` | List of `{document_id, name, doc_type, claim_count, first_excerpt}` | "Docs that mention this entity" rail |
+| `GET /entities/{id}/co-occurrence?limit=` | List of `{entity_id, name, kind, aliases, shared_claims}` | "Related entities" rail |
+| `GET /entities/{id}/drill-down?…` | Bundle: entity + documents + co_occurring + claim_excerpts | One-shot for the entity inspector view |
+| `GET /documents/{id}/related?limit=` | List of `{document_id, name, …, shared_entities, sample_entity_names}` | "Related docs" rail in document inspector |
+| `POST /documents/pdfs/backfill-pages` | `{pdfs_scanned, pdfs_backfilled, pages_created, skipped}` | One-shot to fix old PDFs missing page children |
+| `GET /search/keywords?limit=` | List of `{name, count}` | Keyword cloud (already wired in SearchView) |
 
 ## Tests I added (run anytime)
 
