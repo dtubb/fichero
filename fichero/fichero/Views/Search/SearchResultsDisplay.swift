@@ -95,6 +95,11 @@ struct SearchResultsDisplay: View {
                 Text("Indexing library…")
                     .font(.headline)
                     .foregroundStyle(.secondary)
+                if let indexedCount, indexedCount > 0 {
+                    Text("\(indexedCount) document\(indexedCount == 1 ? "" : "s") indexed so far")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
                 Text("This runs in the background; you can keep using\nthe rest of the app. Search will return results\nonce indexing completes.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
