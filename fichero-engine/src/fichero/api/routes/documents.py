@@ -33,6 +33,20 @@ class OrphanCleanupResponse(BaseModel):
     artifacts_deleted: int
 
 
+class RelatedDocumentsResponse(BaseModel):
+    """One row of /documents/{id}/related — another document that shares
+    entities with this one via knowledge claims, with the count of
+    shared entities and a small excerpt for context.
+    """
+
+    document_id: str
+    name: str | None = None
+    doc_type: str | None = None
+    file_type: str | None = None
+    shared_entities: int
+    sample_entity_names: list[str] = []
+
+
 class PdfBackfillResponse(BaseModel):
     """Result of /pdfs/backfill-pages — how many PDFs needed pages
     created and how many pages were created in total.
@@ -310,6 +324,117 @@ async def delete_document(doc_id: str, db: Database = Depends(get_library_databa
             db.delete(current_doc)
 
     logger.info(f"Deleted document subtree: root={doc_id}, total={len(to_delete_ids)}")
+
+
+@router.get("/{doc_id}/related", response_model=list[RelatedDocumentsResponse])
+async def related_documents(
+    doc_id: str,
+    limit: int = 20,
+    db: Database = Depends(get_library_database),
+) -> list[RelatedDocumentsResponse]:
+    """Documents that share knowledge-graph entities with this one.
+
+    Aggregates entities across this doc's claims, then asks: which
+    OTHER docs have claims involving any of those same entities?
+    Sorted by overlap count.
+
+    Powers a 'Related' rail on the document inspector — useful for
+    field notes and archival research where the user wants to follow
+    a name or place across documents without manual searching.
+    """
+    doc = db.get(Document, doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+
+    import json as _json
+    from collections import Counter
+
+    # Step 1: gather distinct entity_ids from this doc's claims.
+    try:
+        rows = db.conn.execute(
+            "SELECT entity_ids FROM knowledgeclaims WHERE source_document_id = $id",
+            {"id": doc_id},
+        ).fetchall()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("related-documents claim lookup failed: %s", exc)
+        return []
+
+    seed_entity_ids: set[str] = set()
+    for (raw,) in rows:
+        if not raw:
+            continue
+        try:
+            ids = _json.loads(raw) if isinstance(raw, str) else raw
+        except (TypeError, ValueError):
+            continue
+        if isinstance(ids, list):
+            for eid in ids:
+                if isinstance(eid, str) and eid:
+                    seed_entity_ids.add(eid)
+
+    if not seed_entity_ids:
+        return []
+
+    # Step 2: find docs whose claims reference ANY of those entities.
+    # JSON-LIKE per-id is fine at this scale; for large entity sets we
+    # could batch into a single regex but that's premature.
+    counter: Counter[str] = Counter()
+    sample_per_doc: dict[str, set[str]] = {}
+    for entity_id in seed_entity_ids:
+        needle = f'%"{entity_id}"%'
+        try:
+            related_rows = db.conn.execute(
+                "SELECT source_document_id FROM knowledgeclaims WHERE entity_ids LIKE $needle",
+                {"needle": needle},
+            ).fetchall()
+        except Exception:
+            continue
+        seen_ids_for_entity: set[str] = set()
+        for (other_doc_id,) in related_rows:
+            if not other_doc_id or other_doc_id == doc_id or other_doc_id in seen_ids_for_entity:
+                continue
+            seen_ids_for_entity.add(other_doc_id)
+            counter[other_doc_id] += 1
+            sample_per_doc.setdefault(other_doc_id, set()).add(entity_id)
+
+    if not counter:
+        return []
+
+    top = counter.most_common(limit)
+    out: list[RelatedDocumentsResponse] = []
+    for other_id, overlap_count in top:
+        other = db.get(Document, other_id)
+        if other is None:
+            continue
+        # Resolve up to 3 sample entity names per related doc.
+        sample_names: list[str] = []
+        for sample_eid in list(sample_per_doc.get(other_id, set()))[:3]:
+            try:
+                row = db.conn.execute(
+                    "SELECT canonical_name FROM knowledgeentitys WHERE id = $id",
+                    {"id": sample_eid},
+                ).fetchone()
+            except Exception:
+                row = None
+            if row and row[0]:
+                sample_names.append(row[0])
+        doc_type_str = other.doc_type.value if hasattr(other.doc_type, "value") else (
+            str(other.doc_type) if other.doc_type else None
+        )
+        file_type_str = other.file_type.value if hasattr(other.file_type, "value") and other.file_type else (
+            str(other.file_type) if other.file_type else None
+        )
+        out.append(
+            RelatedDocumentsResponse(
+                document_id=other_id,
+                name=other.name,
+                doc_type=doc_type_str,
+                file_type=file_type_str,
+                shared_entities=overlap_count,
+                sample_entity_names=sample_names,
+            )
+        )
+    return out
 
 
 @router.post("/pdfs/backfill-pages")

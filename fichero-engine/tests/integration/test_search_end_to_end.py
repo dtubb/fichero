@@ -322,6 +322,61 @@ class TestKnowledgeGraphRoutes:
         # Self never appears in co-occurrence — would be nonsensical.
         assert "kg-leidy" not in related_ids
 
+    def test_related_documents_aggregates_via_shared_entities(
+        self, search_library
+    ) -> None:
+        """`/api/documents/{id}/related` finds other docs sharing entities.
+
+        Build a third doc that shares the Quibdó entity with fix-leidy-001
+        and assert it surfaces as related. Self is excluded.
+        """
+        from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim
+        from fichero.models import Document
+        from fichero.api.routes.documents import related_documents
+        import asyncio
+
+        # Seed entities and a 'leidy lives in Quibdó' claim on doc-001.
+        leidy = KnowledgeEntity(id="rel-leidy", canonical_name="Leidy")
+        quibdo = KnowledgeEntity(id="rel-quibdo", canonical_name="Quibdó")
+        for e in (leidy, quibdo):
+            search_library.save(e)
+
+        # Plant a third doc + claim that shares Quibdó with fix-leidy-001.
+        third_doc = Document(
+            id="rel-third",
+            name="Third document mentioning Quibdó",
+            page_content="A separate document mentions Quibdó for entirely different reasons.",
+        )
+        search_library.save(third_doc, auto_embed=True)
+
+        c1 = KnowledgeClaim(
+            id="rel-c1",
+            text="Leidy lives in Quibdó",
+            source_document_id="fix-leidy-001",
+            entity_ids=["rel-leidy", "rel-quibdo"],
+        )
+        c2 = KnowledgeClaim(
+            id="rel-c2",
+            text="Another doc mentions Quibdó",
+            source_document_id="rel-third",
+            entity_ids=["rel-quibdo"],
+        )
+        for c in (c1, c2):
+            search_library.save(c)
+
+        # /related on fix-leidy-001 → should surface rel-third (shared Quibdó).
+        results = asyncio.run(
+            related_documents("fix-leidy-001", limit=10, db=search_library)
+        )
+        ids = {r.document_id for r in results}
+        assert "rel-third" in ids
+        # Self is never in related.
+        assert "fix-leidy-001" not in ids
+        # Sample entity names round-trip from KnowledgeEntity.canonical_name.
+        third_row = next(r for r in results if r.document_id == "rel-third")
+        assert third_row.shared_entities >= 1
+        assert "Quibdó" in third_row.sample_entity_names
+
 
 class TestFolderScope:
     def test_folder_scope_collects_descendants(self, search_library) -> None:
