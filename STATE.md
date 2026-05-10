@@ -2,15 +2,27 @@
 
 ## Current Focus
 
-**Branch:** `0.0.2` — pushed `52af797b` (37 commits ahead since 2026-05-01).
-Catalogue pipeline now per-page end-to-end (Phase E multi-output + Phase
-C/D cleanup tools); inspector V2 has the Finder Get Info shape Daniel
-asked for; Debug iteration loop down to ~5s thanks to Embed-skip on
-Debug. Apple Intelligence runs locally via on-device Foundation Models.
+**Branch:** `0.0.2` — pushed `6c190cfe` (50+ commits ahead since 2026-05-01;
+day-2 search rewrite + KG forward-pull + frontend tests landed today).
 
-**Goal:** Daniel runs the new Catalogue pipeline on a real folder and
-confirms per-file artifacts land + KG inspector reads well, then we
-move to release packaging (#658–#660).
+**Headline (2026-05-10):**
+- **Search is real now.** L2-normalised cosine + RRF + accent-insensitive
+  fold + query parser (phrases / scopes / NOT) + did-you-mean + per-folder
+  filter + lozenge entity-scoped search + library-mode toolbar field +
+  sidebar reorder.
+- **5 new KG endpoints** pull #729 backend forward: `/entities/top`,
+  `/entities/{id}/documents`, `/entities/{id}/co-occurrence`,
+  `/entities/{id}/drill-down`, `/documents/{id}/related`.
+- **NER per-page (local)** preset for folders of `.md` / `.txt` files —
+  Apple Intelligence via `$small`, no transcribe step.
+- **PDF backfill** route fixes old libraries with missing page children.
+- **Test coverage:** 91 backend tests (unit + integration) + 31 frontend
+  tests (unit). The integration test `TestRouteLevelEnhancedSearch`
+  caught a real bug — single-phrase queries weren't enforcing the phrase.
+
+**Goal:** Daniel bug-tests tomorrow (2026-05-11). After verifying the
+search + KG flow on his field-notes library, we move toward release
+packaging (#658–#660).
 
 ## Open Issues (0.0.2 milestone)
 
@@ -121,6 +133,84 @@ structure. Verified by grep on 0.0.2's tree:
 ### Then for Search v1 (#481)
 
 After the criteria strip lands, add the actual `.searchable(text: $queryText, prompt: ...)` to SearchView so users can type queries (this is the original "input not wired" gap). 30-60min, all in `fichero/fichero/Views/Search/SearchView.swift`.
+
+## Next Session — Start Here (2026-05-10 end-of-day hand-off)
+
+**Latest commit on 0.0.2: `6c190cfe`** — frontend tests landed
+(`RecentSearchesStore`, `attributedHighlight`, entity-type mapping,
+keyword-cloud font scaling).
+
+### What's deployed and waiting for bug-test
+
+1. **Score-correctness rewrite** (Phase 1–11): un-normalised
+   embeddings → cosine; RRF combiner; accent-insensitive fold;
+   marker-only embed fix (`[sin texto]` no longer dominates).
+2. **Query parser** (Phase 3): phrases / `field:value` / `-exclude`.
+3. **Lozenge tap-to-search** with entity scope (Phase 11).
+4. **NER per-page (local)** preset for `.md` folders (Phase 12).
+5. **Library toolbar search field** always visible (Phase 13).
+6. **PDF page backfill** route (Phase 14).
+7. **5 KG endpoints** (Phase 15, 18, 19, 21) — `/entities/top`,
+   `/entities/{id}/documents`, `/entities/{id}/co-occurrence`,
+   `/entities/{id}/drill-down`, `/documents/{id}/related`.
+8. **Sidebar reorder** — Saved Searches below Workflows + Activity (Phase 16).
+9. **Reindex live progress count** (Phase 8).
+10. **27+4 frontend Swift unit tests** (Phase 22) + 91 backend tests.
+
+### Restart procedure (engine + app)
+
+```bash
+# 1. Pull
+git pull origin 0.0.2
+
+# 2. Restart engine cleanly (avoids the 401 token-rotation issue
+#    flagged in #879 — old worker holds stale token-in-memory while
+#    file got rewritten)
+pkill -f "uvicorn fichero.api.main"
+./scripts/start_backend.sh
+
+# 3. Re-index (old un-normalised embeddings need refresh)
+TOKEN=$(cat ~/Library/Application\ Support/Fichero/.api-key)
+LIB="$HOME/Library/Application Support/com.fichero.fichero/global.fichero"
+curl -X POST http://localhost:8765/api/search/reindex \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Fichero-Library-Path: $LIB"
+
+# 4. Rebuild Xcode + run
+```
+
+### Test scripts (run anytime, no restart needed)
+
+```bash
+# Backend (91 tests)
+PYTHONPATH=fichero-engine/src .venv/bin/pytest \
+  fichero-engine/tests/unit/test_search_scoring.py \
+  fichero-engine/tests/unit/test_search_query_parser.py \
+  fichero-engine/tests/integration/test_search_end_to_end.py \
+  fichero-engine/tests/unit/workflows/test_default_workflows.py
+
+# Frontend (31 tests)
+xcodebuild test -project fichero/fichero.xcodeproj -scheme Fichero \
+  -configuration Debug -destination 'platform=macOS' \
+  -derivedDataPath /tmp/fichero-build -skipPackagePluginValidation \
+  -only-testing:FicheroTests/RecentSearchesStoreTests \
+  -only-testing:FicheroTests/SearchResultRowFromAPITests \
+  -only-testing:FicheroTests/EntityTypeMappingTests \
+  -only-testing:FicheroTests/SearchResultsDisplayTests
+```
+
+### Known issues for tomorrow's test session
+
+- **#879 — 401 token rotation**: Daniel saw repeated 401s while my
+  edits triggered uvicorn `--reload` rotations. Workaround: start the
+  engine without `--reload`, or restart engine+app after each backend
+  change.
+- **Per-folder scope toggle UI** (#11 in handoff list): backend works
+  (filters['folder_id']), UI not wired.
+- **Frontend KG hookups** for the new endpoints — not yet wired into
+  inspector / search empty state. Backend ready.
+
+---
 
 ## Next Session — Start Here (2026-05-09 evening hand-off)
 
