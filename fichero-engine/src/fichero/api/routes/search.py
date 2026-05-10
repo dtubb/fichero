@@ -418,8 +418,11 @@ async def enhanced_search(
 
     # Apply NOT exclusions and required phrases. Both operate on the
     # post-retrieval result set — cheaper than rebuilding the index for
-    # exotic queries and keeps the retrievers simple.
-    if plan.excludes or len(plan.phrases) > 1:
+    # exotic queries and keeps the retrievers simple. The phrase filter
+    # MUST run when there's a phrase even if there's only one — semantic
+    # retrieval finds neighbours that don't contain the phrase verbatim
+    # (e.g. another doc about Leidy without 'sluice wedged' literally).
+    if plan.excludes or plan.phrases:
         results = _apply_phrase_and_exclude_filters(
             db, results, phrases=plan.phrases, excludes=plan.excludes
         )
