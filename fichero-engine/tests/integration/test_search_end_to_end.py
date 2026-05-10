@@ -519,6 +519,54 @@ class TestKnowledgeGraphRoutes:
         assert "Quibdó" in third_row.sample_entity_names
 
 
+class TestMarkerOnlyEmbedFallback:
+    """Verify the marker-only embed fallback that prevents the
+    `[sin texto]` cluster bug (every blank page sharing one vector).
+
+    We can't directly inspect the LanceDB record's source text without
+    digging into pyarrow, but we CAN verify behaviour: two docs with
+    `[sin texto]` content but DIFFERENT names should embed to
+    different vectors (because the fallback uses doc.name). If both
+    embedded the marker text itself, their vectors would be identical
+    and a search for one's name would find both at the same score.
+    """
+
+    def test_marker_only_docs_with_different_names_get_different_embeddings(
+        self, search_library
+    ) -> None:
+        from fichero.models import Document
+
+        a = Document(
+            id="marker-aleph",
+            name="Aleph manuscript fragment",
+            page_content="[sin texto]",
+        )
+        b = Document(
+            id="marker-bet",
+            name="Bet manuscript fragment",
+            page_content="[sin texto]",
+        )
+        # Both are saved with auto_embed; fallback should kick in.
+        search_library.save(a, auto_embed=True)
+        search_library.save(b, auto_embed=True)
+
+        # Searching for 'Aleph' should preferentially find marker-aleph,
+        # not place marker-bet at the same score. If embeddings were
+        # both `[sin texto]` they'd tie — fallback prevents that.
+        results, _, _ = search_library.search(query="Aleph", limit=5)
+        ids = [r.document_id for r in results]
+        if "marker-aleph" in ids and "marker-bet" in ids:
+            a_score = next(r.score for r in results if r.document_id == "marker-aleph")
+            b_score = next(r.score for r in results if r.document_id == "marker-bet")
+            # 'Aleph' is in marker-aleph's name only. Score gap should
+            # be meaningful — if vectors were identical, scores would
+            # tie. We assert at least some daylight.
+            assert a_score > b_score, (
+                f"marker-aleph={a_score} should outscore marker-bet={b_score} "
+                f"when query matches only marker-aleph's name"
+            )
+
+
 class TestFolderScope:
     def test_folder_scope_collects_descendants(self, search_library) -> None:
         # Build a parent + two children and verify the folder filter
