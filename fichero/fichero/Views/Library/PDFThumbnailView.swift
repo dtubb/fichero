@@ -197,8 +197,17 @@ struct PDFPageView: NSViewRepresentable {
         func scaleDidChange(_ notification: Notification) {
             guard let view = notification.object as? PDFView else { return }
             view.autoScales = false
-            // PDFViewScaleChanged fires on the main thread.
-            zoomController?.scale = view.scaleFactor
+            // PDFViewScaleChanged can fire synchronously inside PDFView's
+            // setDocument: → during a SwiftUI view-update pass. Publishing
+            // to the @ObservedObject zoomController in that window trips
+            // "Publishing changes from within view updates is not allowed".
+            // Hop to the next runloop tick so the publish happens after
+            // the current update commits. PDFViewScaleChanged is on the
+            // main thread already, so Task { @MainActor in … } is fine.
+            let newScale = view.scaleFactor
+            Task { @MainActor [weak self] in
+                self?.zoomController?.scale = newScale
+            }
         }
 
         /// Horizontal pan at fit-scale turns pages; at zoom-in PDFKit pans normally.

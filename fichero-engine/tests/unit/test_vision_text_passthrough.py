@@ -197,6 +197,49 @@ async def test_whitespace_only_page_content_does_not_short_circuit(tmp_path: Pat
 
 
 @pytest.mark.asyncio
+async def test_per_page_fan_out_uses_page_content_when_path_is_nil(tmp_path: Path) -> None:
+    """The per-page fan-out (#891) gives Transcribe one branch per page
+    child. Each page child has its OWN page_content but path=None (it
+    shares the parent PDF's path via files[i]). The fast-path lookup
+    must therefore key by INDEX, not by doc.path — otherwise it never
+    matches and falls through to vision OCR on the parent path N times
+    (which is what broke Daniel's 252-page Catalogue run).
+    """
+    pdf = tmp_path / "book.pdf"
+    pdf.write_bytes(b"")
+
+    # Simulates one fan-out branch: 1 file path (parent), 1 document
+    # (the page child, path=None, has page_content).
+    documents = [{
+        "id": "page-14",
+        "path": None,  # page children have no path of their own
+        "page_content": "Page 14 of the book.",
+        "sequence": 14,
+    }]
+
+    with patch(
+        "fichero.workflows.tools.vision_base.save_artifact",
+        new=AsyncMock(return_value="artifact-14"),
+    ) as mock_save:
+        result = await process_vision(
+            files=[str(pdf)],
+            documents=documents,
+            prompt="Transcribe.",
+            llm_config=_make_llm_config(),
+            library_path="/tmp/lib",
+            task_id=None,
+            tool_config=_tool_config(),
+            vision_mode="llm",
+        )
+
+    assert "Page 14" in result["text"]
+    # Verify save_artifact got the page child's id, not the parent's
+    assert mock_save.await_count == 1
+    save_kwargs = mock_save.await_args.kwargs
+    assert save_kwargs["document_id"] == "page-14"
+
+
+@pytest.mark.asyncio
 async def test_save_to_db_false_skips_artifact_persistence(tmp_path: Path) -> None:
     """When save_to_db=False, the artifact write is not attempted."""
     md_file = tmp_path / "n.md"

@@ -759,22 +759,32 @@ async def process_vision(
 
     # Build path -> document_id mapping
     path_to_doc = {}
-    # Also remember which paths already have extracted text on their
-    # ingest-time document record, so Transcribe can short-circuit to
-    # that text instead of re-OCRing a PDF whose text layer was already
-    # extracted by Kreuzberg / PDFTextLoader. See #884 follow-up.
-    path_to_existing_text: dict[str, str] = {}
     if documents:
         for doc in documents:
             if isinstance(doc, dict) and doc.get("path"):
                 path_to_doc[doc["path"]] = doc.get("id")
+    # Per-page fan-out (#891) pairs files[i] with documents[i] — for a
+    # parent PDF expanded into N page children, every file_path is the
+    # parent path and the unique info lives in the document dict (its
+    # own .id and .page_content). Path-keyed lookup collapses those, so
+    # build the existing-text + page-id maps by index instead.
+    existing_text_by_index: list[str] = []
+    page_doc_id_by_index: list[str | None] = []
+    if documents:
+        for doc in documents:
+            if isinstance(doc, dict):
                 pc = doc.get("page_content")
-                if isinstance(pc, str) and pc.strip():
-                    path_to_existing_text[doc["path"]] = pc
+                existing_text_by_index.append(
+                    pc if isinstance(pc, str) and pc.strip() else ""
+                )
+                page_doc_id_by_index.append(doc.get("id"))
+            else:
+                existing_text_by_index.append("")
+                page_doc_id_by_index.append(None)
     logger.debug(
         f"process_vision: {len(files)} files, {len(documents)} documents, "
         f"{len(path_to_doc)} path mappings, "
-        f"{len(path_to_existing_text)} with pre-extracted text"
+        f"{sum(1 for t in existing_text_by_index if t)} with pre-extracted text"
     )
 
     # Build context section
@@ -810,7 +820,7 @@ async def process_vision(
         ".txt", ".md", ".markdown", ".rst", ".html", ".htm", ".xml", ".csv",
     }
 
-    for file_path in files:
+    for file_index, file_path in enumerate(files):
         try:
             # Pre-extracted text fast path. If the document record for
             # this file already has non-empty page_content (because
@@ -818,12 +828,27 @@ async def process_vision(
             # import time), there is no reason to re-OCR. Treat the
             # existing text as the transcription. Covers digital PDFs,
             # DOCX, EPUB, etc. — anything Kreuzberg can extract on
-            # ingest. #884 follow-up.
-            existing_text = path_to_existing_text.get(file_path, "")
+            # ingest. Index-paired with documents[file_index] so
+            # per-page fan-out works (page children share parent path).
+            # #884 follow-up + #891.
+            existing_text = (
+                existing_text_by_index[file_index]
+                if file_index < len(existing_text_by_index)
+                else ""
+            )
+            # Prefer the page-doc's own id when present (per-page fan
+            # out passes the page child as documents[i]); fall back to
+            # the path-based lookup for callers that don't use the
+            # per-index pattern.
+            doc_id_for_file = (
+                page_doc_id_by_index[file_index]
+                if file_index < len(page_doc_id_by_index)
+                else None
+            ) or path_to_doc.get(file_path)
             if existing_text:
                 logger.info(
                     f"Pre-extracted text passthrough: {Path(file_path).name} "
-                    f"({len(existing_text)} chars)"
+                    f"({len(existing_text)} chars, doc_id={doc_id_for_file})"
                 )
                 results.append(
                     {"file": file_path, "text": existing_text, "value": existing_text}
@@ -833,7 +858,7 @@ async def process_vision(
                 page_records.extend(
                     _build_page_records_for_file(
                         library_path,
-                        path_to_doc.get(file_path),
+                        doc_id_for_file,
                         existing_text,
                         None,
                     )
@@ -842,7 +867,7 @@ async def process_vision(
                     artifact_id = await save_artifact(
                         file_path=file_path,
                         content=existing_text,
-                        document_id=path_to_doc.get(file_path),
+                        document_id=doc_id_for_file,
                         library_path=library_path,
                         llm_config=effective_config,
                         task_id=task_id,
