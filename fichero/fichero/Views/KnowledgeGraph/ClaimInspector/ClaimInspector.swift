@@ -125,7 +125,7 @@ struct ClaimInspector: View {
         claimType: .fact,
         epistemicStatus: .confirmed,
         entityIds: ["entity-1", "entity-2"],
-        curationState: .approved,
+        curationState: .curated,
         confidence: 0.95,
         predictedConfidence: nil,
         predictedBy: nil,

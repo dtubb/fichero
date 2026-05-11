@@ -46,7 +46,7 @@ struct OntologyBrowser: View {
         .background(Color(.controlBackgroundColor))
     }
 
-    @State private var entities: [Components.Schemas.EntityCoreference] = []
+    @State private var entities: [Components.Schemas.KnowledgeEntity] = []
     @State private var loadError: String?
     @State private var isLoading = false
 
@@ -85,9 +85,9 @@ struct OntologyBrowser: View {
                 .padding()
                 .listRowBackground(Color.clear)
             } else {
-                ForEach(entities, id: \.entityId) { entity in
+                ForEach(entities, id: \.id) { entity in
                     EntityRow(entity: entity)
-                        .tag(entity.entityId)
+                        .tag(entity.id)
                 }
             }
         }
@@ -102,8 +102,8 @@ struct OntologyBrowser: View {
         loadError = nil
 
         do {
-            let library = LibraryManager.shared.globalLibrary
-            let service = KnowledgeGraphServiceGenerated(apiClient: library!.apiClient)
+            let library = LibraryManager.shared.globalLibrary!
+            let service = library.entityService
             entities = try await service.listEntities(limit: 100)
         } catch {
             loadError = error.localizedDescription
@@ -122,12 +122,13 @@ struct OntologyBrowser: View {
         loadError = nil
 
         do {
-            let library = LibraryManager.shared.globalLibrary
-            let service = KnowledgeGraphServiceGenerated(apiClient: library!.apiClient)
-            let resolved = try await service.resolveEntity(value: searchText)
-            entities = [resolved]
+            let library = LibraryManager.shared.globalLibrary!
+            let service = library.entityService
+            // EntityServiceGenerated.listEntities supports a free-text
+            // `query` filter — same as searching by canonical name or
+            // alias. No need for a separate resolve-by-value API.
+            entities = try await service.listEntities(query: searchText, limit: 100)
         } catch {
-            // Fall back to listing all entities
             await loadEntities()
         }
 
@@ -142,14 +143,14 @@ struct OntologyBrowser: View {
     private var entityDetailPanel: some View {
         Group {
             if let entityId = selectedEntityId,
-               let entity = entities.first(where: { $0.entityId == entityId }) {
+               let entity = entities.first(where: { $0.id == entityId }) {
                 EntityDetailView(
                     entity: entity,
                     claims: entityClaims,
                     isLoadingClaims: isLoadingClaims
                 )
                 .task {
-                    await loadEntityClaims(entityId: entityId)
+                    await loadEntityClaims(id: entityId)
                 }
             } else {
                 emptyDetailState
@@ -176,13 +177,14 @@ struct OntologyBrowser: View {
         .padding()
     }
 
-    private func loadEntityClaims(entityId: String) async {
+    private func loadEntityClaims(id: String) async {
         isLoadingClaims = true
 
         do {
-            let library = LibraryManager.shared.globalLibrary
-            let service = KnowledgeGraphServiceGenerated(apiClient: library!.apiClient)
-            entityClaims = try await service.filterClaims(entityIds: [entityId], limit: 50)
+            let library = LibraryManager.shared.globalLibrary!
+            let service = library.entityService
+            // listClaims(entityId:) filters /api/claims by entity.
+            entityClaims = try await service.listClaims(entityId: id, limit: 50)
         } catch {
             entityClaims = []
         }
@@ -200,8 +202,8 @@ struct OntologyBrowser: View {
 
 #Preview("Entity Row") {
     List {
-        EntityRow(entity: Components.Schemas.EntityCoreference(
-            entityId: "entity-1",
+        EntityRow(entity: Components.Schemas.KnowledgeEntity(
+            id: "entity-1",
             canonicalName: "Napoleon Bonaparte",
             entityType: .person,
             aliases: ["The Emperor", "Napoleon I"],

@@ -173,16 +173,10 @@ extension ContentView {
             }
 
         case .ontology:
-            // Knowledge Graph entity browser (#498). The OntologyBrowser
-            // View exists at Views/KnowledgeGraph/OntologyBrowser/ but
-            // its files are not yet in the Xcode project target — added
-            // in a follow-up commit that wires the full pbxproj
-            // membership for the KG view layer.
-            ContentUnavailableView(
-                "Knowledge Graph",
-                systemImage: "circle.hexagongrid",
-                description: Text("Loading entity browser…")
-            )
+            // Knowledge Graph entity browser (#498). Lists entities
+            // across the library, click → see all claims mentioning
+            // that entity. Per-library scope.
+            OntologyBrowser()
         }
     }
 }

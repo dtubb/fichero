@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - Entity Detail View
 
 struct EntityDetailView: View {
-    let entity: Components.Schemas.EntityCoreference
+    let entity: Components.Schemas.KnowledgeEntity
     let claims: [Components.Schemas.KnowledgeClaim]
     let isLoadingClaims: Bool
 
@@ -24,7 +24,7 @@ struct EntityDetailView: View {
             HStack {
                 Image(systemName: iconForEntityType)
                     .font(.system(size: 24))
-                    .foregroundStyle(.accentColor)
+                    .foregroundStyle(Color.accentColor)
 
                 Text(entity.canonicalName)
                     .font(.title2)
@@ -64,7 +64,6 @@ struct EntityDetailView: View {
         case .organization: return "building.2.fill"
         case .location: return "mappin.circle.fill"
         case .event: return "calendar.circle.fill"
-        case .document: return "doc.fill"
         case .concept: return "lightbulb.fill"
         case .other: return "circle.fill"
         }

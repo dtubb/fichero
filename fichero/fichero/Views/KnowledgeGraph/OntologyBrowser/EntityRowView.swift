@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - Entity Row
 
 struct EntityRow: View {
-    let entity: Components.Schemas.EntityCoreference
+    let entity: Components.Schemas.KnowledgeEntity
 
     var body: some View {
         HStack(spacing: 8) {
@@ -35,7 +35,6 @@ struct EntityRow: View {
         case .organization: return "building.2.fill"
         case .location: return "mappin.circle.fill"
         case .event: return "calendar.circle.fill"
-        case .document: return "doc.fill"
         case .concept: return "lightbulb.fill"
         case .other: return "circle.fill"
         }

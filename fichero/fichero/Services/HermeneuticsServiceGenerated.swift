@@ -43,7 +43,7 @@ class HermeneuticsServiceGenerated {
     /// Create a new hermeneutic framework
     func createFramework(
         name: String,
-        frameworkType: Components.Schemas.FrameworkType = .hermeneutic,
+        frameworkType: Components.Schemas.FrameworkType = .theoretical,
         description: String? = nil
     ) async throws -> Components.Schemas.InterpretiveFramework {
         var body = Components.Schemas.FrameworkCreateRequest(

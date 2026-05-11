@@ -249,7 +249,7 @@ class KnowledgeGraphServiceGenerated {
     // MARK: - Entities
 
     /// List all entities
-    func listEntities(limit: Int = 100, offset: Int = 0) async throws -> [Components.Schemas.EntityCoreference] {
+    func listEntities(limit: Int = 100, offset: Int = 0) async throws -> [Components.Schemas.KnowledgeEntity] {
         let response = try await client.api.listEntitiesApiKnowledgeGraphEntitiesGet(
             query: .init(limit: limit, offset: offset),
             headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
@@ -271,7 +271,7 @@ class KnowledgeGraphServiceGenerated {
         name: String,
         entityType: String? = nil,
         aliases: [String]? = nil
-    ) async throws -> Components.Schemas.EntityCoreference {
+    ) async throws -> Components.Schemas.KnowledgeEntity {
         var body = Components.Schemas.UpsertEntityRequest(name: name)
         body.entityType = entityType
         if let aliases = aliases {
@@ -295,7 +295,7 @@ class KnowledgeGraphServiceGenerated {
     }
 
     /// Add aliases to an entity
-    func addEntityAliases(entityId: String, aliases: [String]) async throws -> Components.Schemas.EntityCoreference {
+    func addEntityAliases(entityId: String, aliases: [String]) async throws -> Components.Schemas.KnowledgeEntity {
         var body = Components.Schemas.AddAliasesRequest()
         body.aliases = aliases
 
@@ -317,7 +317,7 @@ class KnowledgeGraphServiceGenerated {
     }
 
     /// Resolve an entity by name or alias
-    func resolveEntity(value: String) async throws -> Components.Schemas.EntityCoreference {
+    func resolveEntity(value: String) async throws -> Components.Schemas.KnowledgeEntity {
         let response = try await client.api.resolveEntityApiKnowledgeGraphEntitiesResolveValueGet(
             path: .init(value: value),
             headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
@@ -387,23 +387,11 @@ class KnowledgeGraphServiceGenerated {
     }
 
     // MARK: - Overview
-
-    /// Get knowledge graph overview statistics
-    func getOverview() async throws -> Components.Schemas.KnowledgeGraphOverview {
-        let response = try await client.api.overviewApiKnowledgeGraphOverviewGet(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
-        )
-
-        switch response {
-        case .ok(let ok):
-            return try ok.body.json
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw KnowledgeGraphServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let code, _):
-            throw KnowledgeGraphServiceError.unexpectedResponse(code)
-        }
-    }
+    //
+    // NOTE: The getOverview() / KnowledgeGraphOverview schema was
+    // removed from the dev-tier OpenAPI export and is not currently
+    // available. Restore here once the backend re-publishes the
+    // overview endpoint (tracking issue to be filed).
 }
 
 // MARK: - Error Types
