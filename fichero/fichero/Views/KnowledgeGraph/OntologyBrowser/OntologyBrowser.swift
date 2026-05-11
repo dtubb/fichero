@@ -10,9 +10,10 @@ struct OntologyBrowser: View {
     @State private var searchText = ""
     @State private var isSearching = false
 
-    /// Persisted across launches per the KG inspector pattern. Empty
+    /// Shared with the document-inspector KG tab (`inspector.kg.hiddenKinds`)
+    /// so toggling a kind in one place updates the other. #887. Empty
     /// CSV = show every entity kind (default).
-    @AppStorage("ontology.browser.hiddenKinds")
+    @AppStorage("inspector.kg.hiddenKinds")
     private var hiddenKindsCSV: String = ""
 
     private var hiddenKinds: Set<String> {
