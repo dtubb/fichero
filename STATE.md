@@ -2,8 +2,44 @@
 
 ## Current Focus
 
-**Branch:** `0.0.2` — pushed `6c190cfe` (50+ commits ahead since 2026-05-01;
-day-2 search rewrite + KG forward-pull + frontend tests landed today).
+**Branch:** `0.0.2` — latest commit `fc31fda0` (2026-05-11 morning/midday
+work: bug fixes + #498 OntologyBrowser wired into sidebar + 240+ new
+frontend tests).
+
+**Headline (2026-05-11 — autonomous day):**
+- **OntologyBrowser wired (#498)** — Knowledge Graph sidebar entry
+  per library, peer to Workflows + Activity. Two-pane content view:
+  searchable entity list (left, with type-filter chips) + entity
+  detail with claims (right). Uses canonical
+  `library.entityService: EntityServiceGenerated` (`/api/entities` +
+  `/api/claims`).
+- **#884 fixed** — Transcribe node text-passthrough so `.md`/`.txt`
+  files don't crash Catalogue with "cannot identify image file".
+- **#882 shipped** — KG inspector entity names (People/Places/Orgs/
+  Events) tap-to-search like keyword lozenges.
+- **#883 partial** — Sidebar breathing room 8→12pt, MiniToolbar
+  `.background(.bar)` + height 36→44pt to match NSToolbar, filter
+  menu re-styled to actually appear in the toolbar.
+- **240+ new frontend tests** across 14 files; coverage 9.20% → 9.94%
+  (this session) → 12.37% (post-OntologyBrowser).
+
+**KG follow-up filed:**
+- **#888** KG service-layer cleanup (KnowledgeGraphServiceGenerated +
+  HermeneuticsServiceGenerated need regenerating against current
+  OpenAPI; method signatures + type names drifted significantly).
+- **#889** KG view rewrites (ClaimInspector / EpistemologyGraph /
+  PredictionReview / Hermeneutics targeted older schema; rewrite per
+  current types after #888).
+- **#729 partial** — `person:X` syntax already works end-to-end (Phase
+  3 backend parser + #882 lozenge wire). Cross-doc detail page +
+  graph viz remain.
+
+**Other 0.0.2 bugs filed today:**
+- **#881** Markdown ingest content missing (test once #884 fix verified)
+- **#885** Preserve all extractor outputs as artifacts (Kreuzberg
+  tables, A/V transcripts, slide text — tracking issue)
+- **#886** Search filename-match ranking (verify with richer corpus)
+- **#887** Unify KG-tab kind-filter and library-toolbar entity-filter
 
 **Headline (2026-05-10):**
 - **Search is real now.** L2-normalised cosine + RRF + accent-insensitive
