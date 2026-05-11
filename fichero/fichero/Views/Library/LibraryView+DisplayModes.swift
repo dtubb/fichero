@@ -233,8 +233,10 @@ extension LibraryView {
     }
 
     /// Top-right filter menu — toggles per-entity-type visibility for
-    /// the list-row lozenge rows. Daniel: 'in the top right of the list
-    /// view a way to filter what artefacts and entitites to show.'
+    /// the list-row lozenge rows. Lives as a `ToolbarItem` so it shows
+    /// in icon / list / table / map. Plain Menu styling — no custom
+    /// material/padding so NSToolbar lays it out like any other item.
+    /// (#883)
     @ViewBuilder
     var entityFilterMenu: some View {
         Menu {
@@ -262,15 +264,8 @@ extension LibraryView {
                 showKeywordsEntities = false
             }
         } label: {
-            Image(systemName: "line.3.horizontal.decrease.circle")
-                .imageScale(.medium)
-                .padding(8)
-                .background(.ultraThinMaterial, in: Circle())
+            Label("Filter Entities", systemImage: "line.3.horizontal.decrease.circle")
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .padding(8)
         .help("Filter entity types shown")
     }
 
