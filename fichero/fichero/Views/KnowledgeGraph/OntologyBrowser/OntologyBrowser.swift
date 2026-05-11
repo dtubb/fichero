@@ -16,12 +16,32 @@ struct OntologyBrowser: View {
     private var hiddenKindsCSV: String = ""
 
     private var hiddenKinds: Set<String> {
+        Self.parseHiddenKinds(hiddenKindsCSV)
+    }
+
+    /// Pure helper for parsing the persisted CSV. Exposed for tests
+    /// (\`@testable import Fichero\`).
+    static func parseHiddenKinds(_ csv: String) -> Set<String> {
         Set(
-            hiddenKindsCSV
-                .split(separator: ",")
+            csv.split(separator: ",")
                 .map { String($0) }
                 .filter { !$0.isEmpty }
         )
+    }
+
+    /// Pure helper for applying the kind filter to an entity list.
+    /// When \`hidden\` is empty, returns the input unchanged. Otherwise
+    /// drops entities whose entityType raw value is in \`hidden\`. Nil
+    /// entityType is treated as "other".
+    static func filterEntities(
+        _ entities: [Components.Schemas.KnowledgeEntity],
+        hidden: Set<String>
+    ) -> [Components.Schemas.KnowledgeEntity] {
+        guard !hidden.isEmpty else { return entities }
+        return entities.filter { entity in
+            let kind = entity.entityType?.rawValue ?? "other"
+            return !hidden.contains(kind)
+        }
     }
 
     private func setHidden(_ kind: String, hidden: Bool) {
@@ -43,12 +63,7 @@ struct OntologyBrowser: View {
     ]
 
     private var filteredEntities: [Components.Schemas.KnowledgeEntity] {
-        let hidden = hiddenKinds
-        guard !hidden.isEmpty else { return entities }
-        return entities.filter { entity in
-            let kind = entity.entityType?.rawValue ?? "other"
-            return !hidden.contains(kind)
-        }
+        Self.filterEntities(entities, hidden: hiddenKinds)
     }
 
     var body: some View {
