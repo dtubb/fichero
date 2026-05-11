@@ -137,13 +137,25 @@ struct MailStyleRow: View {
            FileManager.default.fileExists(atPath: metadataPath) {
             return metadataPath
         }
-        guard let parentId = doc.metadata["pdf_parent_id"]?.value as? String,
-              let parent = documentStore.currentDocuments.first(where: { $0.id == parentId }),
-              let parentPath = parent.path,
-              !parentPath.isEmpty else {
-            return metadataPath
+        // The parent PDF is the selectedCollection when we're viewing its
+        // page children — currentDocuments is the *children* list, so the
+        // parent isn't in it. Check selectedCollection first, then fall
+        // back to currentDocuments (covers other lookup paths). (#890)
+        let parentId = doc.metadata["pdf_parent_id"]?.value as? String ?? doc.parentId
+        if let parentId {
+            if let selected = documentStore.selectedCollection,
+               selected.id == parentId,
+               let selectedPath = selected.path,
+               !selectedPath.isEmpty {
+                return selectedPath
+            }
+            if let parent = documentStore.currentDocuments.first(where: { $0.id == parentId }),
+               let parentPath = parent.path,
+               !parentPath.isEmpty {
+                return parentPath
+            }
         }
-        return parentPath
+        return metadataPath
     }
 
     @ViewBuilder

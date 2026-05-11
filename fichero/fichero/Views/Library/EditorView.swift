@@ -11,6 +11,8 @@ struct EditorView: View {
     /// matching page sibling (#586).
     var onPDFPageIndexChange: ((Int) -> Void)?
 
+    @EnvironmentObject private var documentStore: DocumentStore
+
     var body: some View {
         Group {
             if let doc = document {
@@ -76,16 +78,49 @@ struct EditorView: View {
 
     // MARK: - Preview Content
 
+    /// Resolve the parent PDF's on-disk path for a page-child document.
+    /// Checks metadata["pdf_path"] first (set when ingest knows the path
+    /// upfront), then the selected collection, then currentDocuments —
+    /// mirrors LibraryListRow.resolvedParentPDFPath. (#890)
+    private func resolvedParentPDFPath(for doc: Document) -> String? {
+        let metadataPath = doc.metadata["pdf_path"]?.value as? String
+        if let metadataPath, !metadataPath.isEmpty,
+           !metadataPath.contains("/fichero-drop-"),
+           FileManager.default.fileExists(atPath: metadataPath) {
+            return metadataPath
+        }
+        let parentId = doc.metadata["pdf_parent_id"]?.value as? String ?? doc.parentId
+        if let parentId {
+            if let selected = documentStore.selectedCollection,
+               selected.id == parentId,
+               let selectedPath = selected.path,
+               !selectedPath.isEmpty {
+                return selectedPath
+            }
+            if let parent = documentStore.currentDocuments.first(where: { $0.id == parentId }),
+               let parentPath = parent.path,
+               !parentPath.isEmpty {
+                return parentPath
+            }
+        }
+        return metadataPath
+    }
+
     @ViewBuilder
     private func previewContent(_ doc: Document) -> some View {
         if doc.docType == .folder {
             FolderContentsGrid(folder: doc)
         } else if doc.docType == .page,
-                  let pdfPath = doc.metadata["pdf_path"]?.value as? String,
+                  let pdfPath = resolvedParentPDFPath(for: doc),
                   !pdfPath.isEmpty {
             // PDF page child — single-page view at the specific page (#595).
             // Swipe left/right at fit-scale to turn pages; onPageIndexChange
             // wires back so the grid's selected thumbnail follows (#586).
+            //
+            // Resolver checks metadata["pdf_path"] first, then falls back
+            // to the parent doc via documentStore.selectedCollection /
+            // currentDocuments — the metadata key isn't always set on
+            // page children created by the ingest split (#890).
             let pageIndex = max(0, (doc.sequence ?? 1) - 1)
             PDFPageWithToolbar(
                 path: pdfPath,
