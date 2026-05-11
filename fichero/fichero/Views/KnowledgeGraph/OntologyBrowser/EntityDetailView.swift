@@ -8,6 +8,53 @@ struct EntityDetailView: View {
     let claims: [Components.Schemas.KnowledgeClaim]
     let isLoadingClaims: Bool
 
+    /// CSV of hidden EpistemicStatus raw values. Shared with the rest
+    /// of the KG views so a setting in one place persists everywhere
+    /// (peer to inspector.kg.hiddenKinds). (#892/#893)
+    @AppStorage("inspector.kg.hiddenEpistemic")
+    private var hiddenEpistemicCSV: String = ""
+
+    /// CSV of hidden ClaimType raw values — the ontological axis.
+    @AppStorage("inspector.kg.hiddenClaimTypes")
+    private var hiddenClaimTypesCSV: String = ""
+
+    private var hiddenEpistemic: Set<String> {
+        Self.parseCSV(hiddenEpistemicCSV)
+    }
+    private var hiddenClaimTypes: Set<String> {
+        Self.parseCSV(hiddenClaimTypesCSV)
+    }
+
+    /// Pure helper exposed for tests.
+    static func parseCSV(_ csv: String) -> Set<String> {
+        Set(csv.split(separator: ",").map(String.init).filter { !$0.isEmpty })
+    }
+
+    /// Pure helper exposed for tests — filter claims by both axes.
+    /// Nil epistemic/claim_type values are treated as "tentative" and
+    /// "fact" respectively (the model defaults) so an unclassified
+    /// claim doesn't disappear under the default filters.
+    static func filterClaims(
+        _ claims: [Components.Schemas.KnowledgeClaim],
+        hiddenEpistemic: Set<String>,
+        hiddenClaimTypes: Set<String>
+    ) -> [Components.Schemas.KnowledgeClaim] {
+        guard !hiddenEpistemic.isEmpty || !hiddenClaimTypes.isEmpty else { return claims }
+        return claims.filter { claim in
+            let epi = claim.epistemicStatus?.rawValue ?? "tentative"
+            let kind = claim.claimType?.rawValue ?? "fact"
+            return !hiddenEpistemic.contains(epi) && !hiddenClaimTypes.contains(kind)
+        }
+    }
+
+    private var filteredClaims: [Components.Schemas.KnowledgeClaim] {
+        Self.filterClaims(
+            claims,
+            hiddenEpistemic: hiddenEpistemic,
+            hiddenClaimTypes: hiddenClaimTypes
+        )
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -111,10 +158,17 @@ struct EntityDetailView: View {
                     ProgressView()
                         .scaleEffect(0.7)
                 } else {
-                    Text("\(claims.count)")
+                    Text(claimsCountLabel)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            }
+
+            // Twin filter strips — epistemic (how firmly asserted) +
+            // ontological / claim_type (what kind of knowledge). Both
+            // axes shipped in #892. @AppStorage persists across views.
+            if !claims.isEmpty {
+                filterStrips
             }
 
             if isLoadingClaims {
@@ -129,13 +183,18 @@ struct EntityDetailView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 12)
+            } else if filteredClaims.isEmpty {
+                Text("All \(claims.count) claims filtered out — toggle chips above to reveal")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 12)
             } else {
-                ForEach(claims.prefix(10), id: \.id) { claim in
+                ForEach(filteredClaims.prefix(10), id: \.id) { claim in
                     ClaimSummaryCard(claim: claim)
                 }
 
-                if claims.count > 10 {
-                    Text("+ \(claims.count - 10) more claims")
+                if filteredClaims.count > 10 {
+                    Text("+ \(filteredClaims.count - 10) more claims")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(.top, 4)
@@ -146,5 +205,74 @@ struct EntityDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var claimsCountLabel: String {
+        let total = claims.count
+        let shown = filteredClaims.count
+        return shown == total ? "\(total)" : "\(shown) / \(total)"
+    }
+
+    // MARK: - Filter chips
+
+    private var filterStrips: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Text("Status")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 56, alignment: .leading)
+                ForEach(["confirmed", "tentative", "rejected"], id: \.self) { key in
+                    chip(label: key.capitalized,
+                         isHidden: hiddenEpistemic.contains(key),
+                         color: epistemicColor(key)) {
+                        toggle(key, in: &hiddenEpistemicCSV)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: 4) {
+                Text("Kind")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 56, alignment: .leading)
+                ForEach(["fact", "analysis", "interpretation", "argument", "historiography", "theory"], id: \.self) { key in
+                    chip(label: key.capitalized,
+                         isHidden: hiddenClaimTypes.contains(key),
+                         color: .gray) {
+                        toggle(key, in: &hiddenClaimTypesCSV)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private func chip(label: String, isHidden: Bool, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.caption2)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background((isHidden ? Color.gray : color).opacity(isHidden ? 0.1 : 0.25))
+                .foregroundStyle(isHidden ? .secondary : .primary)
+                .clipShape(RoundedRectangle(cornerRadius: 3))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func epistemicColor(_ raw: String) -> Color {
+        switch raw {
+        case "confirmed": return .green
+        case "rejected": return .red
+        case "tentative": return .orange
+        default: return .gray
+        }
+    }
+
+    private func toggle(_ key: String, in csv: inout String) {
+        var set = Self.parseCSV(csv)
+        if set.contains(key) { set.remove(key) } else { set.insert(key) }
+        csv = set.sorted().joined(separator: ",")
     }
 }
