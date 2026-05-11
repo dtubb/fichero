@@ -91,6 +91,28 @@ async def test_apple_intelligence_emits_valid_svo_for_people(apple_cfg) -> None:
         assert item.name.lower() not in item.verb.lower(), (
             f"name appears in verb (should be implicit subject): {item!r}"
         )
+        # New axes from #892 — Apple Intelligence must emit values
+        # in the EpistemicStatus + ClaimType enums (grammar-constrained
+        # decoding should make this strict; assert anyway).
+        assert item.epistemic_status in {"tentative", "confirmed", "rejected"}, (
+            f"invalid epistemic_status on {item!r}"
+        )
+        assert item.claim_type in {
+            "fact", "analysis", "interpretation",
+            "argument", "historiography", "theory"
+        }, f"invalid claim_type on {item!r}"
+        # source_text is best-effort on Apple Intelligence today —
+        # the on-device model frequently falls through to the schema
+        # default ("") because the field has a default and the grammar
+        # doesn't force emission. Log the divergence; don't fail.
+        # When source_text IS populated it must reference the name or
+        # be a substring of the paragraph (the verbatim contract).
+        if item.source_text.strip():
+            haystack = " ".join(SAMPLE_PARAGRAPH.split())
+            needle = " ".join(item.source_text.split())
+            assert item.name in needle or needle in haystack, (
+                f"source_text neither references name nor matches paragraph: {item!r}"
+            )
         # The object can occasionally restate the role with the name;
         # allow it but log for review.
         # No hard assertion — Apple Intelligence sometimes echoes.
@@ -98,7 +120,11 @@ async def test_apple_intelligence_emits_valid_svo_for_people(apple_cfg) -> None:
     # Print for human review — pytest -s will surface this.
     print("\n--- Apple Intelligence SVO output ---")
     for item in items:
-        print(f"  {item.name} {item.verb} {item.object}.")
+        print(
+            f"  [{item.epistemic_status}/{item.claim_type}] "
+            f"{item.name} {item.verb} {item.object}."
+        )
+        print(f"    source: “{item.source_text}”")
     print("-" * 40)
 
 
