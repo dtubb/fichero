@@ -7,11 +7,24 @@ import Testing
 
 struct InspectorTabTests {
 
-    @Test("InspectorTab has exactly two cases: info and content")
+    @Test("InspectorTab has four cases after Inspector V2: content, knowledgeGraph, artifacts, info")
     func allCases() {
-        #expect(InspectorTab.allCases.count == 2)
-        #expect(InspectorTab.allCases.contains(.info))
+        // Inspector V2 (#155) added knowledgeGraph + artifacts tabs.
+        // Order in the enum drives left-to-right tab-bar rendering;
+        // assertions below lock that ordering.
+        #expect(InspectorTab.allCases.count == 4)
         #expect(InspectorTab.allCases.contains(.content))
+        #expect(InspectorTab.allCases.contains(.knowledgeGraph))
+        #expect(InspectorTab.allCases.contains(.artifacts))
+        #expect(InspectorTab.allCases.contains(.info))
+    }
+
+    @Test("InspectorTab order: content, knowledgeGraph, artifacts, info")
+    func ordering() {
+        // Tab bar reads .allCases left-to-right. If someone reorders
+        // the enum cases, every user's muscle memory breaks. Lock it.
+        let expected: [InspectorTab] = [.content, .knowledgeGraph, .artifacts, .info]
+        #expect(InspectorTab.allCases == expected)
     }
 
     @Test("InspectorTab id equals rawValue")
@@ -23,14 +36,18 @@ struct InspectorTabTests {
 
     @Test("InspectorTab icons are correct SF Symbols")
     func icons() {
-        #expect(InspectorTab.info.icon == "info.circle")
         #expect(InspectorTab.content.icon == "doc.text")
+        #expect(InspectorTab.knowledgeGraph.icon == "point.3.connected.trianglepath.dotted")
+        #expect(InspectorTab.artifacts.icon == "shippingbox")
+        #expect(InspectorTab.info.icon == "info.circle")
     }
 
     @Test("InspectorTab rawValues are display names")
     func rawValues() {
-        #expect(InspectorTab.info.rawValue == "Info")
         #expect(InspectorTab.content.rawValue == "Content")
+        #expect(InspectorTab.knowledgeGraph.rawValue == "Knowledge Graph")
+        #expect(InspectorTab.artifacts.rawValue == "Artifacts")
+        #expect(InspectorTab.info.rawValue == "Info")
     }
 }
 
@@ -327,10 +344,17 @@ struct RichTextControllerTests {
     @Test("textView reference is weak so dropped editors don't dangle")
     func textViewIsWeak() {
         let controller = RichTextController()
-        var textView: AppKit.NSTextView? = AppKit.NSTextView()
-        controller.textView = textView
-        #expect(controller.textView === textView)
-        textView = nil
+        // Wrap creation + initial assignment in autoreleasepool so the
+        // NSTextView's autoreleased internal retains drain before we
+        // check the weak ref. Without this drain the weak property
+        // can stay non-nil briefly even after the strong ref goes
+        // away — a flake in the test, not a leak in the code.
+        autoreleasepool {
+            var textView: AppKit.NSTextView? = AppKit.NSTextView()
+            controller.textView = textView
+            #expect(controller.textView === textView)
+            textView = nil
+        }
         #expect(controller.textView == nil)
     }
 
