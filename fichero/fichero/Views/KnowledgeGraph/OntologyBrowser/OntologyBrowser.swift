@@ -51,16 +51,21 @@ struct OntologyBrowser: View {
         hiddenKindsCSV = set.sorted().joined(separator: ",")
     }
 
-    /// Entity-type cases shown as filter chips. Matches
+    /// Entity-type cases shown in the filter menu. Matches
     /// `EntityType-Output` schema (person/location/organization/event/
     /// concept/other) — keep the order stable for sidebar muscle memory.
-    private let entityKinds: [(String, String, String)] = [
-        ("person", "People", "person.2"),
-        ("location", "Places", "mappin.circle"),
-        ("organization", "Organizations", "building.2"),
-        ("event", "Events", "calendar"),
-        ("concept", "Concepts", "tag"),
-        ("other", "Other", "questionmark.circle")
+    private struct EntityKindChip {
+        let key: String
+        let label: String
+        let icon: String
+    }
+    private let entityKinds: [EntityKindChip] = [
+        .init(key: "person", label: "People", icon: "person.2"),
+        .init(key: "location", label: "Places", icon: "mappin.circle"),
+        .init(key: "organization", label: "Organizations", icon: "building.2"),
+        .init(key: "event", label: "Events", icon: "calendar"),
+        .init(key: "concept", label: "Concepts", icon: "tag"),
+        .init(key: "other", label: "Other", icon: "questionmark.circle")
     ]
 
     private var filteredEntities: [Components.Schemas.KnowledgeEntity] {
@@ -68,11 +73,67 @@ struct OntologyBrowser: View {
     }
 
     var body: some View {
-        HSplitView {
-            entityListSidebar
-            entityDetailPanel
+        VStack(spacing: 0) {
+            toolbar
+            Divider()
+            HSplitView {
+                entityListSidebar
+                entityDetailPanel
+            }
         }
         .frame(minWidth: 300, minHeight: 200)
+    }
+
+    // MARK: - Top Toolbar (matches MiniToolbar pattern used elsewhere)
+
+    private var toolbar: some View {
+        MiniToolbar {
+            Image(systemName: "circle.hexagongrid")
+                .foregroundStyle(.secondary)
+            Text("Knowledge Graph")
+                .font(.headline)
+                .foregroundStyle(.primary)
+            Spacer(minLength: 0)
+            filterMenu
+            Button {
+                Task { await loadEntities() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.plain)
+            .help("Reload entities")
+        }
+    }
+
+    /// Filter menu — Tinderbox-style 'displayed attributes' picker,
+    /// shared @AppStorage with the inspector KG tab.
+    private var filterMenu: some View {
+        Menu {
+            ForEach(entityKinds, id: \.key) { chip in
+                let isHidden = hiddenKinds.contains(chip.key)
+                Button {
+                    setHidden(chip.key, hidden: !isHidden)
+                } label: {
+                    Label(chip.label, systemImage: isHidden ? "" : "checkmark")
+                }
+            }
+            Divider()
+            Button("Show All") { hiddenKindsCSV = "" }
+            Button("Hide All") {
+                hiddenKindsCSV = entityKinds
+                    .map(\.key)
+                    .sorted()
+                    .joined(separator: ",")
+            }
+        } label: {
+            Image(systemName: hiddenKinds.isEmpty
+                  ? "line.3.horizontal.decrease.circle"
+                  : "line.3.horizontal.decrease.circle.fill")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Filter entity kinds")
     }
 
     // MARK: - Entity List Sidebar
@@ -81,40 +142,9 @@ struct OntologyBrowser: View {
         VStack(spacing: 0) {
             searchBar
             Divider()
-            filterChips
-            Divider()
             entityList
         }
         .frame(minWidth: 220, maxWidth: 320)
-    }
-
-    private var filterChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(entityKinds, id: \.0) { kind, label, icon in
-                    let isOn = !hiddenKinds.contains(kind)
-                    Button {
-                        setHidden(kind, hidden: isOn)
-                    } label: {
-                        Label(label, systemImage: icon)
-                            .font(.caption)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule()
-                                    .fill(isOn
-                                          ? Color.accentColor.opacity(0.18)
-                                          : Color.gray.opacity(0.12))
-                            )
-                            .foregroundStyle(isOn ? Color.accentColor : .secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help(isOn ? "Hide \(label.lowercased())" : "Show \(label.lowercased())")
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-        }
     }
 
     private var searchBar: some View {
