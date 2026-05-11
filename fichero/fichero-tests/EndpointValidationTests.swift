@@ -20,6 +20,10 @@ import FicheroAPIClient
 import Foundation
 import Testing
 
+/// Anchor class for Bundle(for:) — gives us a reliable handle on the
+/// test bundle's runtime location even when #file is relativised.
+private final class BundleAnchor {}
+
 /// Path to the Python-exported endpoints file
 private func endpointsFilePath() -> URL {
     let contractsDir = findContractsDirectory()
@@ -28,10 +32,32 @@ private func endpointsFilePath() -> URL {
 
 private func findContractsDirectory() -> URL {
     let fileManager = FileManager.default
-    let starts = [
-        URL(fileURLWithPath: #file).deletingLastPathComponent(),
-        URL(fileURLWithPath: fileManager.currentDirectoryPath)
-    ]
+
+    // Build candidate starting points in priority order.
+    //
+    // Under Swift Testing's parallel runner #file gets relativised to
+    // /<TargetName>/... so the walk-up returns garbage; cwd is "/" too.
+    // Build env vars (SRCROOT, PROJECT_DIR) aren't inherited by the
+    // test-host subprocess either.
+    //
+    // The reliable anchor in that case is the TEST BUNDLE's location:
+    // .../DerivedData/.../Products/Debug/Fichero.app/Contents/PlugIns/
+    //   FicheroTests.xctest/Contents/MacOS/FicheroTests.
+    // Walk up from there hoping to find a build-output directory whose
+    // grandparent contains the repo. Doesn't work if the test bundle
+    // lives outside the repo tree, in which case the FICHERO_REPO_ROOT
+    // env var or absolute fallback below kicks in.
+    var starts: [URL] = []
+    let env = ProcessInfo.processInfo.environment
+    for key in ["FICHERO_REPO_ROOT", "SRCROOT", "PROJECT_DIR"] {
+        if let path = env[key], !path.isEmpty {
+            starts.append(URL(fileURLWithPath: path))
+        }
+    }
+    // Bundle-relative — works under Swift Testing's parallel runner.
+    starts.append(Bundle(for: BundleAnchor.self).bundleURL)
+    starts.append(URL(fileURLWithPath: #file).deletingLastPathComponent())
+    starts.append(URL(fileURLWithPath: fileManager.currentDirectoryPath))
 
     for start in starts {
         var current = start
@@ -185,7 +211,9 @@ struct GeneratedClientValidationTests {
             "delete_workflow_api_workflows__workflow_id__delete",
             "list_documents_api_documents_get",
             "create_document_api_documents_post",
-            "search_documents_api_search_post",
+            // The main search route is `enhanced_search` (renamed from
+            // `search_documents` when hybrid + RRF + scoping landed).
+            "enhanced_search_api_search_post",
             "health_check_api_health_get"
         ]
 
@@ -379,15 +407,38 @@ struct PythonEndpointStructureTests {
         let filePath = endpointsFilePath()
 
         guard FileManager.default.fileExists(atPath: filePath.path) else {
-            print("SKIP: endpoints.json not generated (see #594). Run export_openapi_schema.py.")
+            let env = ProcessInfo.processInfo.environment
+            let envKeys = ["SRCROOT", "PROJECT_DIR", "FICHERO_REPO_ROOT", "BUILT_PRODUCTS_DIR"]
+                .compactMap { key in env[key].map { "\(key)=\($0)" } }
+                .joined(separator: " | ")
+            Issue.record(
+                "endpoints.json not found at \(filePath.path). cwd=\(FileManager.default.currentDirectoryPath), #file dir=\(URL(fileURLWithPath: #file).deletingLastPathComponent().path), env: \(envKeys)"
+            )
             return []
         }
 
-        let data = try Data(contentsOf: filePath)
-        let file = try JSONDecoder().decode(EndpointsFile.self, from: data)
+        let data: Data
+        do {
+            data = try Data(contentsOf: filePath)
+        } catch {
+            Issue.record("Failed to read endpoints.json at \(filePath.path): \(error)")
+            return []
+        }
+
+        let file: EndpointsFile
+        do {
+            file = try JSONDecoder().decode(EndpointsFile.self, from: data)
+        } catch {
+            Issue.record(
+                "Failed to decode endpoints.json (\(data.count) bytes from \(filePath.path)): \(error)"
+            )
+            return []
+        }
 
         guard let endpoints = file.endpoints[resource] else {
-            Issue.record("Resource '\(resource)' not found in endpoints.json")
+            Issue.record(
+                "Resource '\(resource)' not found in endpoints.json (keys: \(file.endpoints.keys.sorted()))"
+            )
             return []
         }
 
