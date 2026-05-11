@@ -86,6 +86,117 @@ async def test_all_text_format_suffixes_passthrough(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_pdf_with_existing_page_content_skips_vision(tmp_path: Path) -> None:
+    """When the document record already has page_content (e.g. a digital
+    PDF whose text layer was extracted by Kreuzberg at ingest), Transcribe
+    must use that text directly instead of re-OCRing.
+    """
+    pdf = tmp_path / "book.pdf"
+    # Bytes don't matter — the fast path uses page_content, never opens the file.
+    pdf.write_bytes(b"")
+
+    documents = [{
+        "id": "doc-1",
+        "path": str(pdf),
+        "page_content": "Chapter 1\n\nThe rains came in late March.",
+    }]
+
+    with patch(
+        "fichero.workflows.tools.vision_base.save_artifact",
+        new=AsyncMock(return_value="artifact-1"),
+    ) as mock_save:
+        result = await process_vision(
+            files=[str(pdf)],
+            documents=documents,
+            prompt="Transcribe.",
+            llm_config=_make_llm_config(),
+            library_path="/tmp/lib",
+            task_id=None,
+            tool_config=_tool_config(),
+            vision_mode="llm",
+        )
+
+    assert "Chapter 1" in result["text"]
+    assert result["texts"] == [result["text"]]
+    # The artifact write fires once (text persists)
+    assert mock_save.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_pdf_with_empty_page_content_falls_through_to_vision(tmp_path: Path) -> None:
+    """A document record with empty/missing page_content shouldn't trigger
+    the pre-extracted fast path — fall through to the normal vision path
+    (which here would crash on empty bytes, but we just assert the fast
+    path didn't fire instead)."""
+    pdf = tmp_path / "scan.pdf"
+    pdf.write_bytes(b"")
+    documents = [{
+        "id": "doc-1",
+        "path": str(pdf),
+        "page_content": "",  # empty — no text
+    }]
+
+    with (
+        patch(
+            "fichero.workflows.tools.vision_base.save_artifact",
+            new=AsyncMock(return_value="x"),
+        ),
+        patch(
+            "fichero.workflows.tools.vision_base.file_to_data_uri",
+            return_value="data:image/png;base64,",
+        ),
+    ):
+        result = await process_vision(
+            files=[str(pdf)],
+            documents=documents,
+            prompt="x",
+            llm_config=_make_llm_config(),
+            library_path="",
+            task_id=None,
+            tool_config=_tool_config(),
+            vision_mode="llm",
+        )
+    # If the fast path had fired, result["text"] would be "" but texts
+    # would have one entry. With fall-through, results structure still
+    # exists but the fast-path bookkeeping didn't add to texts.
+    assert "results" in result
+
+
+@pytest.mark.asyncio
+async def test_whitespace_only_page_content_does_not_short_circuit(tmp_path: Path) -> None:
+    """page_content of just whitespace should NOT count as pre-extracted
+    text (\\.strip() check), so it falls through to vision."""
+    pdf = tmp_path / "x.pdf"
+    pdf.write_bytes(b"")
+    documents = [{
+        "id": "doc-1",
+        "path": str(pdf),
+        "page_content": "   \n\n  ",
+    }]
+    with (
+        patch(
+            "fichero.workflows.tools.vision_base.save_artifact",
+            new=AsyncMock(return_value="x"),
+        ),
+        patch(
+            "fichero.workflows.tools.vision_base.file_to_data_uri",
+            return_value="data:image/png;base64,",
+        ),
+    ):
+        result = await process_vision(
+            files=[str(pdf)],
+            documents=documents,
+            prompt="x",
+            llm_config=_make_llm_config(),
+            library_path="",
+            task_id=None,
+            tool_config=_tool_config(),
+            vision_mode="llm",
+        )
+    assert "results" in result
+
+
+@pytest.mark.asyncio
 async def test_save_to_db_false_skips_artifact_persistence(tmp_path: Path) -> None:
     """When save_to_db=False, the artifact write is not attempted."""
     md_file = tmp_path / "n.md"

@@ -759,12 +759,22 @@ async def process_vision(
 
     # Build path -> document_id mapping
     path_to_doc = {}
+    # Also remember which paths already have extracted text on their
+    # ingest-time document record, so Transcribe can short-circuit to
+    # that text instead of re-OCRing a PDF whose text layer was already
+    # extracted by Kreuzberg / PDFTextLoader. See #884 follow-up.
+    path_to_existing_text: dict[str, str] = {}
     if documents:
         for doc in documents:
             if isinstance(doc, dict) and doc.get("path"):
                 path_to_doc[doc["path"]] = doc.get("id")
+                pc = doc.get("page_content")
+                if isinstance(pc, str) and pc.strip():
+                    path_to_existing_text[doc["path"]] = pc
     logger.debug(
-        f"process_vision: {len(files)} files, {len(documents)} documents, {len(path_to_doc)} path mappings"
+        f"process_vision: {len(files)} files, {len(documents)} documents, "
+        f"{len(path_to_doc)} path mappings, "
+        f"{len(path_to_existing_text)} with pre-extracted text"
     )
 
     # Build context section
@@ -802,6 +812,48 @@ async def process_vision(
 
     for file_path in files:
         try:
+            # Pre-extracted text fast path. If the document record for
+            # this file already has non-empty page_content (because
+            # ingest extracted it via Kreuzberg / PDFTextLoader at
+            # import time), there is no reason to re-OCR. Treat the
+            # existing text as the transcription. Covers digital PDFs,
+            # DOCX, EPUB, etc. — anything Kreuzberg can extract on
+            # ingest. #884 follow-up.
+            existing_text = path_to_existing_text.get(file_path, "")
+            if existing_text:
+                logger.info(
+                    f"Pre-extracted text passthrough: {Path(file_path).name} "
+                    f"({len(existing_text)} chars)"
+                )
+                results.append(
+                    {"file": file_path, "text": existing_text, "value": existing_text}
+                )
+                texts.append(existing_text)
+                values.append(existing_text)
+                page_records.extend(
+                    _build_page_records_for_file(
+                        library_path,
+                        path_to_doc.get(file_path),
+                        existing_text,
+                        None,
+                    )
+                )
+                if save_to_db and library_path:
+                    artifact_id = await save_artifact(
+                        file_path=file_path,
+                        content=existing_text,
+                        document_id=path_to_doc.get(file_path),
+                        library_path=library_path,
+                        llm_config=effective_config,
+                        task_id=task_id,
+                        tool_config=tool_config,
+                        metadata_field=metadata_field,
+                        custom_metadata=custom_metadata,
+                    )
+                    if artifact_id:
+                        artifact_ids.append(artifact_id)
+                continue
+
             # Text-file fast path: read directly and treat as the
             # "transcription" output. We still save the artifact and
             # update page_content downstream so Extract All Entities
