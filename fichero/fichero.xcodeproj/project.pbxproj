@@ -7,10 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0F105FC52C12302CF5A2AC42 /* ClaimSummaryCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1ACEB8F688C8749B36E04B /* ClaimSummaryCardView.swift */; };
-		0F10EA9CD30A9CC13ED3E074 /* EntityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F14337BE87CA15E70323ED4 /* EntityDetailView.swift */; };
-		0F1CA90D364622756AFC004A /* EntityRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F11A721FF01A4F5A66A4568 /* EntityRowView.swift */; };
-		0F17A8BE887BF69F2A84F67B /* OntologyBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1C81E90821C016E2CE3A60 /* OntologyBrowser.swift */; };
 		001 /* FicheroApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 101 /* FicheroApp.swift */; };
 		002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 102 /* ContentView.swift */; };
 		003 /* Document.swift in Sources */ = {isa = PBXBuildFile; fileRef = 103 /* Document.swift */; };
@@ -40,6 +36,10 @@
 		048 /* WorkflowExecutionObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149 /* WorkflowExecutionObserver.swift */; };
 		049 /* DocumentServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148 /* DocumentServiceGenerated.swift */; };
 		0EB90A1DBB324F96AE256464 /* PDFThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1786CA1F532B414196BAAABE /* PDFThumbnailView.swift */; };
+		0F105FC52C12302CF5A2AC42 /* ClaimSummaryCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1ACEB8F688C8749B36E04B /* ClaimSummaryCardView.swift */; };
+		0F10EA9CD30A9CC13ED3E074 /* EntityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F14337BE87CA15E70323ED4 /* EntityDetailView.swift */; };
+		0F17A8BE887BF69F2A84F67B /* OntologyBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1C81E90821C016E2CE3A60 /* OntologyBrowser.swift */; };
+		0F1CA90D364622756AFC004A /* EntityRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F11A721FF01A4F5A66A4568 /* EntityRowView.swift */; };
 		150 /* ChainEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 151 /* ChainEditorView.swift */; };
 		154 /* ScheduleCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152 /* ScheduleCreationSheet.swift */; };
 		155 /* TriggerCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153 /* TriggerCreationSheet.swift */; };
@@ -369,12 +369,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		0F1ACEB8F688C8749B36E04B /* ClaimSummaryCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaimSummaryCardView.swift; sourceTree = "<group>"; };
-		0F14337BE87CA15E70323ED4 /* EntityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityDetailView.swift; sourceTree = "<group>"; };
-		0F11A721FF01A4F5A66A4568 /* EntityRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityRowView.swift; sourceTree = "<group>"; };
-		0F1C81E90821C016E2CE3A60 /* OntologyBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OntologyBrowser.swift; sourceTree = "<group>"; };
 		004167806445469D9A3595E4 /* AttributedTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AttributedTextEditor.swift; path = fichero/Views/Library/DocumentInspector/AttributedTextEditor.swift; sourceTree = SOURCE_ROOT; };
 		04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DynamicConfigView.swift; sourceTree = "<group>"; };
+		0F11A721FF01A4F5A66A4568 /* EntityRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityRowView.swift; sourceTree = "<group>"; };
+		0F14337BE87CA15E70323ED4 /* EntityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityDetailView.swift; sourceTree = "<group>"; };
+		0F1ACEB8F688C8749B36E04B /* ClaimSummaryCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaimSummaryCardView.swift; sourceTree = "<group>"; };
+		0F1C81E90821C016E2CE3A60 /* OntologyBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OntologyBrowser.swift; sourceTree = "<group>"; };
 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		101 /* FicheroApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FicheroApp.swift; sourceTree = "<group>"; };
 		102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -746,7 +746,7 @@
 			isa = PBXGroup;
 			children = (
 				0F17DC81A1D33B888F71486E /* OntologyBrowser */,
-);
+			);
 			path = KnowledgeGraph;
 			sourceTree = "<group>";
 		};
