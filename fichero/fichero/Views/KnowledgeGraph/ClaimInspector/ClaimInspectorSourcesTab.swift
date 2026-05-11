@@ -8,13 +8,62 @@ struct ClaimInspectorSourcesTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                if sourceIds.isEmpty {
-                    emptySourcesState
-                } else {
+                primarySourceSection
+                if !sourceIds.isEmpty {
+                    Divider()
                     sourceList
+                } else if (claim.sourceExcerpt?.isEmpty ?? true) && claim.sourceDocumentId.isEmpty {
+                    emptySourcesState
                 }
             }
             .padding()
+        }
+    }
+
+    // Primary source: the document the claim was extracted from plus
+    // the verbatim excerpt the LLM lifted it from (#892/#893). Shown
+    // even when sourceIds is empty — every claim has a primary
+    // source_document_id, while sourceIds is the *additional* multi-
+    // source list. The excerpt is the citation Daniel asked for.
+    @ViewBuilder
+    private var primarySourceSection: some View {
+        if !claim.sourceDocumentId.isEmpty || !(claim.sourceExcerpt?.isEmpty ?? true) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Primary Source")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                if let excerpt = claim.sourceExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !excerpt.isEmpty {
+                    Text("“\(excerpt)”")
+                        .font(.callout)
+                        .italic()
+                        .foregroundStyle(.primary)
+                        .textSelection(.enabled)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.controlBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+
+                Form {
+                    if !claim.sourceDocumentId.isEmpty {
+                        LabeledContent("Document") {
+                            Text(claim.sourceDocumentId)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
+                    }
+                    if let page = claim.sourcePageLabel, !page.isEmpty {
+                        LabeledContent("Page") {
+                            Text(page)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .formStyle(.grouped)
+            }
         }
     }
 

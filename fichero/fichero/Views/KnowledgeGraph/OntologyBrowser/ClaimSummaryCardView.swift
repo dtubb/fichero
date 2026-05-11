@@ -13,6 +13,22 @@ struct ClaimSummaryCard: View {
                 .lineLimit(2)
                 .textSelection(.enabled)
 
+            // Verbatim source quote the LLM lifted the claim from
+            // (#892/#893). Italicised + smaller font so it reads as a
+            // citation underneath the composed claim sentence. Truncated
+            // to 3 lines — tap-to-search in the parent doc will land
+            // separately in #893.
+            if let excerpt = claim.sourceExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !excerpt.isEmpty,
+               excerpt != claim.text {
+                Text("“\(excerpt)”")
+                    .font(.caption2)
+                    .italic()
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .textSelection(.enabled)
+            }
+
             HStack(spacing: 8) {
                 if let claimType = claim.claimType {
                     Text(claimType.rawValue.capitalized)
