@@ -18,7 +18,7 @@ from typing import Any
 from fichero.workflows.types import State, PortDef, DataType
 from fichero.workflows.registry import register_tool
 from fichero.db import db_manager
-from fichero.models import Document, DocType
+from fichero.models import Document, DocType, FileType
 from fichero.llm import LLMConfig
 
 logger = logging.getLogger(__name__)
@@ -142,9 +142,52 @@ async def files_tool(
             docs = [db.get(Document, doc_id) for doc_id in selected_doc_ids]
             docs = [d for d in docs if d is not None]
 
-            # Page children have path=None — resolve to parent so the real file is used.
-            # Folders have no path — expand recursively to file descendants.
-            resolved: dict[str, Document] = {}
+            # Per-page fan-out (#891). We emit one (file_path, document)
+            # entry per ATOMIC UNIT of work:
+            # - Folder → recursively expand to file descendants
+            # - Parent PDF (or any file with page children) → expand to
+            #   one entry per page child. Each entry shares the parent's
+            #   on-disk path (downstream tools use the document.id and
+            #   .page_content, not just the path). This gives extract_all
+            #   a per-page source_document_id so every entity/claim is
+            #   anchored to a specific page.
+            # - Leaf file (no page children) → one entry as before
+            # - Page selected directly → one entry, parent resolved for path
+            #
+            # `pairs` preserves order and supports duplicate paths (which
+            # parent PDFs WILL have, one per page child). Earlier code
+            # used a path-keyed dict that collapsed page children.
+            pairs: list[tuple[str, Document]] = []
+            seen_ids: set[str] = set()
+
+            def _add(path: str, document: Document) -> None:
+                if document.id in seen_ids:
+                    return
+                seen_ids.add(document.id)
+                pairs.append((path, document))
+
+            def _expand_to_pages(file_doc: Document) -> bool:
+                """If file_doc has page children, emit one entry per page
+                and return True. Otherwise return False.
+
+                Gated on file_type == .pdf because only PDFs currently
+                get per-page children at ingest time. Saves a DB query
+                for every leaf file in folder expansions and keeps the
+                pre-#891 contract for non-PDFs.
+                """
+                if not file_doc.path:
+                    return False
+                if file_doc.file_type != FileType.pdf:
+                    return False
+                page_children = db.query(
+                    Document, parent_id=file_doc.id, doc_type=DocType.page
+                )
+                if not page_children:
+                    return False
+                ordered = sorted(page_children, key=lambda p: p.sequence or 0)
+                for page in ordered:
+                    _add(file_doc.path, page)
+                return True
 
             def _expand_folder(folder: Document) -> None:
                 """Recursively collect file descendants of a folder."""
@@ -152,25 +195,36 @@ async def files_tool(
                 for child in children:
                     if child.doc_type == DocType.folder:
                         _expand_folder(child)
-                    elif child.path:
-                        resolved[child.path] = child
+                    elif child.path and not _expand_to_pages(child):
+                        _add(child.path, child)
 
             for doc in docs:
                 if doc.doc_type == DocType.folder:
                     _expand_folder(doc)
-                    logger.info(f"files_tool: expanded folder {doc.id} → {len(resolved)} file(s) so far")
+                    logger.info(
+                        f"files_tool: expanded folder {doc.id} → {len(pairs)} entries so far"
+                    )
                 elif doc.path:
-                    resolved[doc.path] = doc
+                    if not _expand_to_pages(doc):
+                        _add(doc.path, doc)
                 elif doc.parent_id:
+                    # Page selected directly — emit just this page,
+                    # using the parent's path as the file pointer.
                     resolved_parent = _resolve_page_to_parent(doc, db)
                     if resolved_parent is not None and resolved_parent.path:
-                        resolved[resolved_parent.path] = resolved_parent
+                        _add(resolved_parent.path, doc)
                 else:
-                    logger.warning(f"files_tool: doc {doc.id} type={doc.doc_type} has no path and no parent — skipping")
+                    logger.warning(
+                        f"files_tool: doc {doc.id} type={doc.doc_type} "
+                        "has no path and no parent — skipping"
+                    )
 
-            files = list(resolved.keys())
-            documents = [d.model_dump() for d in resolved.values()]
-            logger.info(f"Files source tool: {len(files)} files from selected_doc_ids")
+            files = [path for path, _ in pairs]
+            documents = [d.model_dump() for _, d in pairs]
+            logger.info(
+                f"Files source tool: {len(files)} entries from selected_doc_ids "
+                f"({len(seen_ids)} unique docs)"
+            )
             return {"files": files, "documents": documents, "count": len(files)}
 
     # Priority 3: executor-level input_files
