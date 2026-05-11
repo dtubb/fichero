@@ -2,9 +2,12 @@
 
 ## Current Focus
 
-**Branch:** `0.0.2` — latest commit `fc31fda0` (2026-05-11 morning/midday
-work: bug fixes + #498 OntologyBrowser wired into sidebar + 240+ new
-frontend tests).
+**Branch:** `0.0.2` — latest commit `43517322` (2026-05-11 full day
+autonomous: bug fixes + #498 OntologyBrowser wired into sidebar with
+filter chips + ~270 new frontend tests).
+
+**Test suite:** 683 passing, 0 failing. Coverage 10.78% (was 9.20%
+this morning — +1.58pp on the day).
 
 **Headline (2026-05-11 — autonomous day):**
 - **OntologyBrowser wired (#498)** — Knowledge Graph sidebar entry
