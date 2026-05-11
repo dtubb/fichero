@@ -73,9 +73,28 @@ struct EntityDetailView: View {
                     .font(.system(size: 24))
                     .foregroundStyle(Color.accentColor)
 
-                Text(entity.canonicalName)
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                Button {
+                    // #882 — tap canonical name to run a scoped library
+                    // search. Pass entityType so ContentView's receiver
+                    // takes the typed branch (e.g. `people:"Eugenio Córdoba"`)
+                    // and hits only that artifact instead of free-text.
+                    NotificationCenter.default.post(
+                        name: .ficheroEntitySearchRequested,
+                        object: nil,
+                        userInfo: [
+                            "name": entity.canonicalName,
+                            "entityType": entitySearchScope
+                        ]
+                    )
+                } label: {
+                    Text(entity.canonicalName)
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.accentColor)
+                        .underline()
+                }
+                .buttonStyle(.plain)
+                .help("Search the library for \"\(entity.canonicalName)\"")
             }
 
             if let description = entity.description {
@@ -102,6 +121,22 @@ struct EntityDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    /// Map EntityType → the search-scope token consumed by
+    /// runToolbarSearch via the entity-search notification. Mirrors
+    /// what the library entity lozenges use so tapping a name here
+    /// hits the same artifact bucket.
+    private var entitySearchScope: String {
+        guard let type = entity.entityType else { return "" }
+        switch type {
+        case .person: return "people"
+        case .location: return "places"
+        case .organization: return "organizations"
+        case .event: return "events"
+        case .concept: return "keywords"
+        case .other: return ""
+        }
     }
 
     private var iconForEntityType: String {
