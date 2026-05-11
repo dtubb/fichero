@@ -110,6 +110,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertEqual(AppViewMode.schedule(nil).category, .workflow)
         XCTAssertEqual(AppViewMode.trigger(nil).category, .workflow)
         XCTAssertEqual(AppViewMode.activity(nil).category, .workflow)
+        XCTAssertEqual(AppViewMode.ontology.category, .folder)
     }
 
     // MARK: - ActivityChildType
