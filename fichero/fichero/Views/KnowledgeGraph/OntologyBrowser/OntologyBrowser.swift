@@ -1,11 +1,55 @@
 import FicheroAPIClient
 import SwiftUI
 
-/// Browser panel for exploring entities and their associated claims
+/// Browser panel for exploring entities and their associated claims.
+/// Wires #498 — per-library Knowledge Graph view, peer to Workflows
+/// and Activity. Uses `EntityServiceGenerated` (\`/api/entities\` +
+/// \`/api/claims\`).
 struct OntologyBrowser: View {
     @State private var selectedEntityId: String?
     @State private var searchText = ""
     @State private var isSearching = false
+
+    /// Persisted across launches per the KG inspector pattern. Empty
+    /// CSV = show every entity kind (default).
+    @AppStorage("ontology.browser.hiddenKinds")
+    private var hiddenKindsCSV: String = ""
+
+    private var hiddenKinds: Set<String> {
+        Set(
+            hiddenKindsCSV
+                .split(separator: ",")
+                .map { String($0) }
+                .filter { !$0.isEmpty }
+        )
+    }
+
+    private func setHidden(_ kind: String, hidden: Bool) {
+        var set = hiddenKinds
+        if hidden { set.insert(kind) } else { set.remove(kind) }
+        hiddenKindsCSV = set.sorted().joined(separator: ",")
+    }
+
+    /// Entity-type cases shown as filter chips. Matches
+    /// `EntityType-Output` schema (person/location/organization/event/
+    /// concept/other) — keep the order stable for sidebar muscle memory.
+    private let entityKinds: [(String, String, String)] = [
+        ("person", "People", "person.2"),
+        ("location", "Places", "mappin.circle"),
+        ("organization", "Organizations", "building.2"),
+        ("event", "Events", "calendar"),
+        ("concept", "Concepts", "tag"),
+        ("other", "Other", "questionmark.circle")
+    ]
+
+    private var filteredEntities: [Components.Schemas.KnowledgeEntity] {
+        let hidden = hiddenKinds
+        guard !hidden.isEmpty else { return entities }
+        return entities.filter { entity in
+            let kind = entity.entityType?.rawValue ?? "other"
+            return !hidden.contains(kind)
+        }
+    }
 
     var body: some View {
         HSplitView {
@@ -21,9 +65,40 @@ struct OntologyBrowser: View {
         VStack(spacing: 0) {
             searchBar
             Divider()
+            filterChips
+            Divider()
             entityList
         }
-        .frame(minWidth: 200, maxWidth: 300)
+        .frame(minWidth: 220, maxWidth: 320)
+    }
+
+    private var filterChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(entityKinds, id: \.0) { kind, label, icon in
+                    let isOn = !hiddenKinds.contains(kind)
+                    Button {
+                        setHidden(kind, hidden: isOn)
+                    } label: {
+                        Label(label, systemImage: icon)
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule()
+                                    .fill(isOn
+                                          ? Color.accentColor.opacity(0.18)
+                                          : Color.gray.opacity(0.12))
+                            )
+                            .foregroundStyle(isOn ? Color.accentColor : .secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(isOn ? "Hide \(label.lowercased())" : "Show \(label.lowercased())")
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+        }
     }
 
     private var searchBar: some View {
@@ -70,14 +145,16 @@ struct OntologyBrowser: View {
                 }
                 .padding()
                 .listRowBackground(Color.clear)
-            } else if entities.isEmpty {
+            } else if filteredEntities.isEmpty {
                 VStack(spacing: 8) {
-                    Image(systemName: "person.2")
+                    Image(systemName: entities.isEmpty ? "person.2" : "line.3.horizontal.decrease.circle")
                         .font(.system(size: 28))
                         .foregroundStyle(.secondary)
-                    Text("No Entities")
+                    Text(entities.isEmpty ? "No Entities" : "All Filtered Out")
                         .font(.subheadline)
-                    Text("Entities will appear as you create claims")
+                    Text(entities.isEmpty
+                         ? "Entities will appear as you create claims"
+                         : "Tap a chip above to show entities of that kind")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -85,7 +162,7 @@ struct OntologyBrowser: View {
                 .padding()
                 .listRowBackground(Color.clear)
             } else {
-                ForEach(entities, id: \.id) { entity in
+                ForEach(filteredEntities, id: \.id) { entity in
                     EntityRow(entity: entity)
                         .tag(entity.id)
                 }
