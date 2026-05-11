@@ -255,6 +255,12 @@ struct LibraryView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+                // Entity-type filter — toggles which People/Places/Orgs/
+                // Dates/Events/Keywords lozenges show in list-row UI.
+                // Always present so the top-right control survives across
+                // icon / list / table / map modes (#883).
+                entityFilterMenu
+
                 // Filter button — opens inline filter bar (like Finder's filter strip)
                 if featureManager.isLibraryFilterToolbarEnabled {
                     Button {
