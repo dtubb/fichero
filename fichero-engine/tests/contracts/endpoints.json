@@ -1179,6 +1179,34 @@
         "response_model": "[Document]"
       },
       {
+        "method": "GET",
+        "path": "/documents/{doc_id}/related",
+        "operation_id": "related_documents_api_documents__doc_id__related_get",
+        "summary": "Related Documents",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[RelatedDocumentsResponse]"
+      },
+      {
+        "method": "POST",
+        "path": "/documents/pdfs/backfill-pages",
+        "operation_id": "backfill_pdf_pages_api_documents_pdfs_backfill_pages_post",
+        "summary": "Backfill Pdf Pages",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PdfBackfillResponse"
+      },
+      {
         "method": "POST",
         "path": "/documents/reorder",
         "operation_id": "reorder_documents_api_documents_reorder_post",
@@ -1309,6 +1337,91 @@
         "query_params": [],
         "request_model": null,
         "response_model": "KnowledgeEntity"
+      },
+      {
+        "method": "GET",
+        "path": "/entities/top",
+        "operation_id": "top_entities_api_entities_top_get",
+        "summary": "Top Entities",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[TopEntityRow]"
+      },
+      {
+        "method": "GET",
+        "path": "/entities/{entity_id}/documents",
+        "operation_id": "get_entity_documents_api_entities__entity_id__documents_get",
+        "summary": "Get Entity Documents",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[EntityDocumentLink]"
+      },
+      {
+        "method": "GET",
+        "path": "/entities/{entity_id}/co-occurrence",
+        "operation_id": "get_entity_co_occurrence_api_entities__entity_id__co_occurrence_get",
+        "summary": "Get Entity Co Occurrence",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[EntityCoOccurrence]"
+      },
+      {
+        "method": "GET",
+        "path": "/entities/{entity_id}/drill-down",
+        "operation_id": "entity_drill_down_api_entities__entity_id__drill_down_get",
+        "summary": "Entity Drill Down",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [
+          {
+            "name": "documents_limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "co_occurrence_limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "excerpts_limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "EntityDrillDownResponse"
       },
       {
         "method": "POST",
@@ -2009,6 +2122,22 @@
         "query_params": [],
         "request_model": null,
         "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/search/keywords",
+        "operation_id": "keyword_cloud_api_search_keywords_get",
+        "summary": "Keyword Cloud",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[KeywordCloudEntry]"
       },
       {
         "method": "POST",

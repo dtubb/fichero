@@ -3569,6 +3569,115 @@
         }
       }
     },
+    "/api/documents/{doc_id}/related": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Related Documents",
+        "description": "Documents that share knowledge-graph entities with this one.\n\nAggregates entities across this doc's claims, then asks: which\nOTHER docs have claims involving any of those same entities?\nSorted by overlap count.\n\nPowers a 'Related' rail on the document inspector \u2014 useful for\nfield notes and archival research where the user wants to follow\na name or place across documents without manual searching.",
+        "operationId": "related_documents_api_documents__doc_id__related_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RelatedDocumentsResponse"
+                  },
+                  "title": "Response Related Documents Api Documents  Doc Id  Related Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/pdfs/backfill-pages": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Backfill Pdf Pages",
+        "description": "Find PDFs without page children and create the page Documents.\n\nDaniel hit this on PDFs ingested before _create_pdf_page_children\nlanded (or where Kreuzberg silently failed at ingest time): the\nsidebar shows the PDF as a leaf with no expandable child pages.\n\nFor each PDF in the library, check whether it already has child\ndocuments with doc_type=page. If not, run the same _create_pdf_page_children\nhelper that ingest uses now. Idempotent \u2014 re-running on a fully\nbackfilled library is a no-op.",
+        "operationId": "backfill_pdf_pages_api_documents_pdfs_backfill_pages_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PdfBackfillResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/reorder": {
       "post": {
         "tags": [
@@ -4069,6 +4178,293 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/KnowledgeEntity"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/entities/top": {
+      "get": {
+        "tags": [
+          "entities",
+          "entities"
+        ],
+        "summary": "Top Entities",
+        "description": "Top-N entities by claim count across the whole library.\n\nPowers a 'Who's in this archive?' entry-point \u2014 the catalogue\nworkflow extracts entities per page; this aggregates per-entity\nclaim counts so the user can browse by salience instead of\ntyping a name they already know.\n\nOptional `entity_type` filter (people / places / organizations\n/ dates / events / other) restricts the cloud to one kind.",
+        "operationId": "top_entities_api_entities_top_get",
+        "parameters": [
+          {
+            "name": "entity_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
+              "nullable": true,
+              "title": "Entity Type"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TopEntityRow"
+                  },
+                  "title": "Response Top Entities Api Entities Top Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/entities/{entity_id}/documents": {
+      "get": {
+        "tags": [
+          "entities",
+          "entities"
+        ],
+        "summary": "Get Entity Documents",
+        "description": "Documents that mention `entity_id` via a knowledge claim.\n\nPowers the cross-document entity drill-down (#729): clicking\n\"Asprilla\" should show every document where Asprilla appears,\nsorted by claim density. The result includes a small excerpt so\nthe UI can render context preview without a second fetch.\n\nJSON-LIKE filter on claim.entity_ids is the simplest path that\nworks across DuckDB versions \u2014 exact-match for the entity id\nembedded in the JSON-serialised list. Returns deduped per-doc\nrows with claim counts as a second-pass aggregation.",
+        "operationId": "get_entity_documents_api_entities__entity_id__documents_get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EntityDocumentLink"
+                  },
+                  "title": "Response Get Entity Documents Api Entities  Entity Id  Documents Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/entities/{entity_id}/co-occurrence": {
+      "get": {
+        "tags": [
+          "entities",
+          "entities"
+        ],
+        "summary": "Get Entity Co Occurrence",
+        "description": "Entities that share at least one claim with `entity_id`.\n\nPowers a 'related entities' rail in the entity drill-down \u2014 see\nAsprilla \u2192 also see the people, places, organisations who appear\nin the same claims. Sorted by number of shared claims.\n\nWalks claims rather than entities. JSON-LIKE on entity_ids is the\nsame shape as get_entity_documents.",
+        "operationId": "get_entity_co_occurrence_api_entities__entity_id__co_occurrence_get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EntityCoOccurrence"
+                  },
+                  "title": "Response Get Entity Co Occurrence Api Entities  Entity Id  Co Occurrence Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/entities/{entity_id}/drill-down": {
+      "get": {
+        "tags": [
+          "entities",
+          "entities"
+        ],
+        "summary": "Entity Drill Down",
+        "description": "Three-rail entity detail in one fetch.\n\nCombines /documents (where this entity appears), /co-occurrence\n(related entities), and a list of representative claim excerpts.\nFrontend renders an Inspector panel with three sections from\na single round-trip \u2014 useful for the cross-doc entity navigation\nUI tracked in #729.",
+        "operationId": "entity_drill_down_api_entities__entity_id__drill_down_get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "documents_limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "title": "Documents Limit"
+            }
+          },
+          {
+            "name": "co_occurrence_limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "title": "Co Occurrence Limit"
+            }
+          },
+          {
+            "name": "excerpts_limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 5,
+              "title": "Excerpts Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityDrillDownResponse"
                 }
               }
             }
@@ -6763,7 +7159,7 @@
           "search"
         ],
         "summary": "Enhanced Search",
-        "description": "Perform enhanced search over documents.\n\nSupports hybrid search (semantic + full-text), advanced filtering, sorting, and pagination.",
+        "description": "Perform enhanced search over documents.\n\nSupports hybrid search (semantic + full-text), advanced filtering, sorting, and pagination.\nEmpty query is allowed: returns the most-recently-updated docs as a\n\"browse the index\" affordance \u2014 better UX than 400-on-empty.",
         "operationId": "enhanced_search_api_search_post",
         "parameters": [
           {
@@ -6835,6 +7231,65 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search/keywords": {
+      "get": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Keyword Cloud",
+        "description": "Top-N keywords across the library, sorted by document frequency.\n\nReads the 'keywords' artifacts emitted by extract_all and counts the\ndistinct documents each keyword appears in. Empty list when no\nkeywords have been extracted yet (workflow hasn't run).\n\nUsed by the search empty-state to surface clickable terms \u2014 a\n\"browse by tag\" affordance for users who don't know what to type.",
+        "operationId": "keyword_cloud_api_search_keywords_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KeywordCloudEntry"
+                  },
+                  "title": "Response Keyword Cloud Api Search Keywords Get"
+                }
               }
             }
           },
@@ -30227,6 +30682,119 @@
         ],
         "title": "EntityAuditResponse"
       },
+      "EntityCoOccurrence": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kind"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases",
+            "default": []
+          },
+          "shared_claims": {
+            "type": "integer",
+            "title": "Shared Claims"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "name",
+          "shared_claims"
+        ],
+        "title": "EntityCoOccurrence",
+        "description": "One row of /entities/{id}/co-occurrence \u2014 another entity that\nappears in at least one claim alongside this one, with the count\nof shared claims."
+      },
+      "EntityDocumentLink": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "document_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Name"
+          },
+          "doc_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "Doc Type"
+          },
+          "file_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "File Type"
+          },
+          "claim_count": {
+            "type": "integer",
+            "title": "Claim Count"
+          },
+          "first_excerpt": {
+            "type": "string",
+            "nullable": true,
+            "title": "First Excerpt"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "claim_count"
+        ],
+        "title": "EntityDocumentLink",
+        "description": "One row of /entities/{id}/documents \u2014 document that mentions\nthis entity at least once via a knowledge claim, with the smallest\nrelevant excerpt and the count of claims linking them."
+      },
+      "EntityDrillDownResponse": {
+        "properties": {
+          "entity": {
+            "$ref": "#/components/schemas/KnowledgeEntity"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/EntityDocumentLink"
+            },
+            "type": "array",
+            "title": "Documents"
+          },
+          "co_occurring": {
+            "items": {
+              "$ref": "#/components/schemas/EntityCoOccurrence"
+            },
+            "type": "array",
+            "title": "Co Occurring"
+          },
+          "claim_excerpts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Claim Excerpts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity",
+          "documents",
+          "co_occurring",
+          "claim_excerpts"
+        ],
+        "title": "EntityDrillDownResponse",
+        "description": "Bundle response for /entities/{id}/drill-down \u2014 three lists in\none call so the inspector renders an entity-detail view from one\nfetch instead of three round-trips."
+      },
       "EntityInterpretationsResponse": {
         "properties": {
           "entity_id": {
@@ -32006,12 +32574,12 @@
           "extract_text": {
             "type": "boolean",
             "title": "Extract Text",
-            "default": false
+            "default": true
           },
           "auto_embed": {
             "type": "boolean",
             "title": "Auto Embed",
-            "default": false
+            "default": true
           }
         },
         "type": "object",
@@ -32852,6 +33420,25 @@
         ],
         "title": "KGMetricsResponse",
         "description": "Response for knowledge graph metrics."
+      },
+      "KeywordCloudEntry": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "count"
+        ],
+        "title": "KeywordCloudEntry",
+        "description": "Single entry in the keyword cloud \u2014 name + how many docs use it."
       },
       "KnowledgeClaim": {
         "properties": {
@@ -35819,6 +36406,35 @@
         "type": "object",
         "title": "PatternUpdateRequest"
       },
+      "PdfBackfillResponse": {
+        "properties": {
+          "pdfs_scanned": {
+            "type": "integer",
+            "title": "Pdfs Scanned"
+          },
+          "pdfs_backfilled": {
+            "type": "integer",
+            "title": "Pdfs Backfilled"
+          },
+          "pages_created": {
+            "type": "integer",
+            "title": "Pages Created"
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pdfs_scanned",
+          "pdfs_backfilled",
+          "pages_created",
+          "skipped"
+        ],
+        "title": "PdfBackfillResponse",
+        "description": "Result of /pdfs/backfill-pages \u2014 how many PDFs needed pages\ncreated and how many pages were created in total."
+      },
       "PlanCreateRequest": {
         "properties": {
           "project_id": {
@@ -37232,6 +37848,48 @@
         ],
         "title": "ReindexStartedResponse"
       },
+      "RelatedDocumentsResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name"
+          },
+          "doc_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "Doc Type"
+          },
+          "file_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "File Type"
+          },
+          "shared_entities": {
+            "type": "integer",
+            "title": "Shared Entities"
+          },
+          "sample_entity_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sample Entity Names",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "shared_entities"
+        ],
+        "title": "RelatedDocumentsResponse",
+        "description": "One row of /documents/{id}/related \u2014 another document that shares\nentities with this one via knowledge claims, with the count of\nshared entities and a small excerpt for context."
+      },
       "RelationDirection": {
         "type": "string",
         "enum": [
@@ -38469,7 +39127,7 @@
           "min_score": {
             "type": "number",
             "title": "Min Score",
-            "default": 0.0
+            "default": 0.3
           },
           "search_type": {
             "type": "string",
@@ -40645,6 +41303,43 @@
         ],
         "title": "TopEntity",
         "description": "Entity with activity metrics."
+      },
+      "TopEntityRow": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kind"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases",
+            "default": []
+          },
+          "claim_count": {
+            "type": "integer",
+            "title": "Claim Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "name",
+          "claim_count"
+        ],
+        "title": "TopEntityRow",
+        "description": "One row of /entities/top \u2014 most-claimed entity in the library\nwith name, kind, alias list, and claim count."
       },
       "TrainRequest": {
         "properties": {
