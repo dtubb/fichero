@@ -19,6 +19,7 @@ from fichero.db import Database
 from fichero.knowledge_models import (
     ClaimType,
     EntityType,
+    EpistemicStatus,
     KnowledgeClaim,
     KnowledgeEntity,
 )
@@ -67,6 +68,7 @@ def save_claim(
     claim_type: ClaimType = ClaimType.fact,
     confidence: float = 0.5,
     metadata: Optional[dict] = None,
+    epistemic_status: Optional[EpistemicStatus] = None,
 ) -> str:
     """Save a `KnowledgeClaim` row. Returns the claim ID.
 
@@ -78,6 +80,10 @@ def save_claim(
     ``source_page_label`` lands on the dedicated ``KnowledgeClaim`` field
     so cross-doc views and graph traversal can answer "which page of
     which document mentions this entity?"
+
+    ``epistemic_status`` records the LLM-assigned confidence label
+    (tentative/confirmed/rejected) so the inspector can filter and
+    badge claims. None means leave the default on the model.
     """
     claim = KnowledgeClaim(
         text=text,
@@ -88,6 +94,7 @@ def save_claim(
         claim_type=claim_type,
         confidence=confidence,
         metadata=metadata or {},
+        epistemic_status=epistemic_status,
     )
     db.save(claim)
     return claim.id

@@ -449,15 +449,16 @@ class TestEntityDescription:
     async def test_first_run_context_becomes_entity_description(
         self, db, test_package, container_doc, llm_config
     ):
-        """The 'context' field from the extractor lands on
-        ``KnowledgeEntity.description`` — useful for the inspector view
-        when there's no other description source yet."""
+        """The SVO predicate lands on ``KnowledgeEntity.description``
+        as a real sentence fragment — useful for the inspector view
+        when there's no other description source yet. Replaces the
+        old free-form `context` field (#892)."""
         from fichero.workflows.tools.extractors import _run_extractor, _SECTIONS
 
         people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
         fake_response = (
             '{"people": [{"name": "Juan", '
-            '"context": "deed signer in 1930 sale"}]}'
+            '"verb": "signed", "object": "the deed in the 1930 sale"}]}'
         )
 
         with patch(
@@ -475,4 +476,4 @@ class TestEntityDescription:
             )
 
         entity = db.query(KnowledgeEntity, canonical_name="Juan")[0]
-        assert entity.description == "deed signer in 1930 sale"
+        assert entity.description == "signed the deed in the 1930 sale"

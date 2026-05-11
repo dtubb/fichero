@@ -350,18 +350,75 @@ _SECTIONS: list[dict[str, Any]] = [
 # - The entity name is the implicit subject — never repeated in either
 #   field.
 _SVO_VERB_FIELD = Field(
+    default="",
     description=(
         "Predicate verb or verb phrase. The entity name is the implicit "
         "subject — do NOT repeat it. Examples: 'is', 'was', 'served as', "
         "'wrote', 'founded', 'is located in'."
-    )
+    ),
 )
 _SVO_OBJECT_FIELD = Field(
+    default="",
     description=(
         "Rest of the predicate after the verb — a noun phrase or "
         "clause. Examples: 'the alcalde of Popayán', 'a gold-mining "
         "region in the Chocó', 'the deed of sale'."
-    )
+    ),
+)
+# Epistemic status — drives the curation state of the resulting
+# KnowledgeClaim. The LLM tags each item based on how firmly the
+# source text asserts the claim. Default "tentative" so an LLM that
+# omits the field still produces a safe (reviewable) claim. (#892)
+_EPISTEMIC_FIELD = Field(
+    default="tentative",
+    description=(
+        "How firmly the source text asserts this claim. "
+        "'confirmed' = the text states the fact directly without "
+        "hedging ('Pérez signed the deed'). "
+        "'tentative' = hedged, reported, speculated, or attributed "
+        "('Pérez may have signed', 'is said to have signed'). "
+        "'rejected' = the text explicitly refutes the claim "
+        "('Pérez did NOT sign'). When in doubt, use 'tentative'."
+    ),
+)
+# Ontological status — what *kind* of knowledge the claim is. Peer
+# axis to epistemic_status: epistemic = how firmly, ontological =
+# what type. Drives downstream filtering / colour-coding in the KG
+# inspector. Default "fact" because most NER-style extractions are
+# concrete statements rather than analysis. (#892, peer to ClaimType
+# on KnowledgeClaim.)
+# Verbatim source excerpt — the exact sentence (or short paragraph)
+# from the input text that the LLM lifted this claim from. Required so
+# the UI can show provenance and search-highlight the span in the
+# source PDF / page preview. Empty string permitted but discouraged —
+# the prompt should always quote.
+_SOURCE_TEXT_FIELD = Field(
+    default="",
+    description=(
+        "The exact sentence or short paragraph from the input text "
+        "where this claim appears, copied verbatim (preserve original "
+        "spelling, accents, punctuation). Quote the smallest span that "
+        "still contains the full predicate. This text will be shown "
+        "to the user and used to highlight the source span in the "
+        "document — do NOT paraphrase or translate."
+    ),
+)
+_CLAIM_TYPE_FIELD = Field(
+    default="fact",
+    description=(
+        "What kind of knowledge claim this is. "
+        "'fact' = a concrete statement of what happened, who/what "
+        "exists, or what is named ('Pérez signed the deed'). "
+        "'analysis' = the source breaks the subject into parts or "
+        "examines structure. "
+        "'interpretation' = the source assigns meaning, motive, or "
+        "significance. "
+        "'argument' = the source advances a position with reasons. "
+        "'historiography' = the source comments on how history has "
+        "been written about the subject. "
+        "'theory' = the source proposes a general model or framework. "
+        "When in doubt, use 'fact'."
+    ),
 )
 
 
@@ -373,6 +430,9 @@ class _SectionPerson(BaseModel):
     )
     verb: str = _SVO_VERB_FIELD
     object: str = _SVO_OBJECT_FIELD
+    epistemic_status: str = _EPISTEMIC_FIELD
+    claim_type: str = _CLAIM_TYPE_FIELD
+    source_text: str = _SOURCE_TEXT_FIELD
 
 
 class _SectionPlace(BaseModel):
@@ -380,6 +440,9 @@ class _SectionPlace(BaseModel):
     alternative_spellings: list[str] = Field(default_factory=list)
     verb: str = _SVO_VERB_FIELD
     object: str = _SVO_OBJECT_FIELD
+    epistemic_status: str = _EPISTEMIC_FIELD
+    claim_type: str = _CLAIM_TYPE_FIELD
+    source_text: str = _SOURCE_TEXT_FIELD
 
 
 class _SectionOrganization(BaseModel):
@@ -387,6 +450,9 @@ class _SectionOrganization(BaseModel):
     alternative_spellings: list[str] = Field(default_factory=list)
     verb: str = _SVO_VERB_FIELD
     object: str = _SVO_OBJECT_FIELD
+    epistemic_status: str = _EPISTEMIC_FIELD
+    claim_type: str = _CLAIM_TYPE_FIELD
+    source_text: str = _SOURCE_TEXT_FIELD
 
 
 class _SectionDate(BaseModel):
@@ -399,6 +465,9 @@ class _SectionDate(BaseModel):
     )
     verb: str = _SVO_VERB_FIELD
     object: str = _SVO_OBJECT_FIELD
+    epistemic_status: str = _EPISTEMIC_FIELD
+    claim_type: str = _CLAIM_TYPE_FIELD
+    source_text: str = _SOURCE_TEXT_FIELD
 
 
 class _SectionRiver(BaseModel):
@@ -406,6 +475,9 @@ class _SectionRiver(BaseModel):
     alternative_spellings: list[str] = Field(default_factory=list)
     verb: str = _SVO_VERB_FIELD
     object: str = _SVO_OBJECT_FIELD
+    epistemic_status: str = _EPISTEMIC_FIELD
+    claim_type: str = _CLAIM_TYPE_FIELD
+    source_text: str = _SOURCE_TEXT_FIELD
 
 
 class _SectionEvent(BaseModel):
@@ -413,24 +485,36 @@ class _SectionEvent(BaseModel):
     date: str | None = Field(default=None, description="YYYY-MM-DD when stated, else null")
     verb: str = _SVO_VERB_FIELD
     object: str = _SVO_OBJECT_FIELD
+    epistemic_status: str = _EPISTEMIC_FIELD
+    claim_type: str = _CLAIM_TYPE_FIELD
+    source_text: str = _SOURCE_TEXT_FIELD
 
 
 class _SectionMine(BaseModel):
     name: str
     verb: str = _SVO_VERB_FIELD
     object: str = _SVO_OBJECT_FIELD
+    epistemic_status: str = _EPISTEMIC_FIELD
+    claim_type: str = _CLAIM_TYPE_FIELD
+    source_text: str = _SOURCE_TEXT_FIELD
 
 
 class _SectionProperty(BaseModel):
     name: str
     verb: str = _SVO_VERB_FIELD
     object: str = _SVO_OBJECT_FIELD
+    epistemic_status: str = _EPISTEMIC_FIELD
+    claim_type: str = _CLAIM_TYPE_FIELD
+    source_text: str = _SOURCE_TEXT_FIELD
 
 
 class _SectionLegalReference(BaseModel):
     name: str
     verb: str = _SVO_VERB_FIELD
     object: str = _SVO_OBJECT_FIELD
+    epistemic_status: str = _EPISTEMIC_FIELD
+    claim_type: str = _CLAIM_TYPE_FIELD
+    source_text: str = _SOURCE_TEXT_FIELD
 
 
 def _make_section_schema(item_model: type[BaseModel], schema_key: str) -> type[BaseModel]:
@@ -492,6 +576,15 @@ def _build_section_prompt(section: dict[str, Any], output_language: str) -> str:
         f"- Include ALL occurrences.\n"
         f"- Only include facts supported by the text. Do not speculate.\n"
         f"- Write all prose in {output_language}.\n"
+        f"- For 'source_text', copy the exact sentence (or shortest "
+        f"  paragraph) where the claim appears, verbatim — preserve "
+        f"  original spelling, accents, and punctuation. Do NOT "
+        f"  paraphrase or translate this field.\n"
+        f"- For 'epistemic_status', tag tentative / confirmed / "
+        f"  rejected based on how firmly the source asserts the claim.\n"
+        f"- For 'claim_type', tag fact / analysis / interpretation / "
+        f"  argument / historiography / theory based on what KIND of "
+        f"  knowledge the claim is.\n"
         f"- Return ONLY valid JSON matching this schema (no prose outside JSON):\n\n"
         f"{shape}\n"
     )
@@ -927,10 +1020,25 @@ def _write_kg_rows(
     Both fields land on the ``KnowledgeClaim`` so cross-doc views can
     answer "which page of which document mentions this entity?"
     """
+    from fichero.knowledge_models import ClaimType, EpistemicStatus
     from fichero.workflows.tools._entity_writer import upsert_entity, save_claim
 
     entity_type = section.get("entity_type")
     page_excerpt = source_excerpt  # rename for clarity below
+
+    def _coerce_enum(raw: Any, enum_cls):
+        """Map an LLM-emitted string to enum_cls; None for unknowns.
+
+        Grammar-constrained decoding usually keeps values inside the
+        valid set, but legacy artifacts and unconstrained providers can
+        emit anything. None → save_claim leaves the model default.
+        """
+        if not raw:
+            return None
+        try:
+            return enum_cls(str(raw).strip().lower())
+        except ValueError:
+            return None
 
     for item in items:
         if not isinstance(item, dict):
@@ -962,16 +1070,32 @@ def _write_kg_rows(
             f"{verb} {obj}".strip() if (verb or obj) else legacy_context
         )
 
-        # The chunk excerpt anchors provenance to the page the LLM saw;
-        # the per-item predicate is its narrower description. Prefer
-        # predicate for the source_excerpt field, fall back to chunk.
-        excerpt = predicate or page_excerpt or None
+        # Verbatim source text the LLM lifted from the input — the
+        # narrowest, most useful excerpt for showing + highlighting in
+        # the source PDF. Falls back to the predicate (legacy items) and
+        # then the whole page chunk so older artifacts still surface
+        # something rather than going blank.
+        source_text = (item.get("source_text") or "").strip()
+        excerpt = source_text or predicate or page_excerpt or None
 
         meta: dict[str, Any] = {}
         if verb:
             meta["verb"] = verb
         if obj:
             meta["object"] = obj
+        if source_text:
+            # Persist the verbatim quote separately from source_excerpt
+            # so the UI can distinguish "LLM-quoted span" from
+            # "fallback page chunk" and drive search-highlight.
+            meta["source_text"] = source_text
+
+        # Two-axis classification on every claim:
+        #   epistemic_status — how firmly asserted (tentative/confirmed/rejected)
+        #   claim_type        — ontological status (fact/analysis/.../theory)
+        # Both are declared fields on KnowledgeClaim, so values survive
+        # model_dump(). Unknown LLM strings → None → model default.
+        epistemic = _coerce_enum(item.get("epistemic_status"), EpistemicStatus)
+        ctype = _coerce_enum(item.get("claim_type"), ClaimType)
 
         if entity_type is None:
             # Date-style section: claim only. Normalized date in metadata.
@@ -996,7 +1120,9 @@ def _write_kg_rows(
                 source_document_id=container_id,
                 source_excerpt=excerpt,
                 source_page_label=page_label,
+                claim_type=ctype or ClaimType.fact,
                 metadata=meta,
+                epistemic_status=epistemic,
             )
             continue
 
@@ -1036,7 +1162,9 @@ def _write_kg_rows(
             entity_ids=[entity_id],
             source_excerpt=excerpt,
             source_page_label=page_label,
+            claim_type=ctype or ClaimType.fact,
             metadata=meta,
+            epistemic_status=epistemic,
         )
 
 

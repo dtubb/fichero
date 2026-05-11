@@ -206,6 +206,89 @@ def test_verb_only_or_object_only_still_composes() -> None:
     assert captured[0]["text"] == "Juan Pérez signed."
 
 
+def test_epistemic_and_claim_type_plumbed_through() -> None:
+    """LLM-emitted epistemic_status + claim_type land on the claim,
+    coerced to enums. Unknown values silently fall back to None /
+    ClaimType.fact (model defaults), so a single misclassification
+    doesn't drop the claim."""
+    from fichero.knowledge_models import ClaimType, EpistemicStatus
+
+    db, captured = _capture_save_claim()
+    _write_kg_rows(
+        db,
+        _people_section(),
+        items=[{
+            "name": "Eugenio Córdoba",
+            "verb": "served as",
+            "object": "the alcalde of Popayán",
+            "epistemic_status": "confirmed",
+            "claim_type": "fact",
+        }, {
+            "name": "Juan Pérez",
+            "verb": "may have signed",
+            "object": "the deed",
+            "epistemic_status": "tentative",
+            "claim_type": "interpretation",
+        }, {
+            "name": "Mystery Man",
+            "verb": "wrote",
+            "object": "the letter",
+            "epistemic_status": "garbage",  # unknown — coerces to None
+            "claim_type": "made-up-type",  # unknown — falls back to fact
+        }],
+        container_id="doc-1",
+    )
+    assert len(captured) == 3
+    assert captured[0]["epistemic_status"] == EpistemicStatus.confirmed
+    assert captured[0]["claim_type"] == ClaimType.fact
+    assert captured[1]["epistemic_status"] == EpistemicStatus.tentative
+    assert captured[1]["claim_type"] == ClaimType.interpretation
+    assert captured[2]["epistemic_status"] is None
+    assert captured[2]["claim_type"] == ClaimType.fact
+
+
+def test_source_text_lands_in_excerpt_and_metadata() -> None:
+    """When the LLM emits a verbatim source_text, the writer routes it
+    to source_excerpt (for cross-doc display) AND metadata.source_text
+    (so the UI can distinguish quoted-span from page-chunk-fallback)."""
+    db, captured = _capture_save_claim()
+    quote = "Eugenio Córdoba, alcalde de Popayán, recibió la petición."
+    _write_kg_rows(
+        db,
+        _people_section(),
+        items=[{
+            "name": "Eugenio Córdoba",
+            "verb": "served as",
+            "object": "the alcalde",
+            "source_text": quote,
+        }],
+        container_id="doc-1",
+    )
+    claim = captured[0]
+    assert claim["source_excerpt"] == quote
+    assert claim["metadata"]["source_text"] == quote
+
+
+def test_source_text_absent_falls_back_to_predicate() -> None:
+    """No source_text → source_excerpt falls back to the predicate (old
+    behaviour) and metadata.source_text is NOT set, so the UI knows the
+    excerpt is constructed rather than quoted."""
+    db, captured = _capture_save_claim()
+    _write_kg_rows(
+        db,
+        _people_section(),
+        items=[{
+            "name": "Juan Pérez",
+            "verb": "signed",
+            "object": "the deed",
+        }],
+        container_id="doc-1",
+    )
+    claim = captured[0]
+    assert claim["source_excerpt"] == "signed the deed"
+    assert "source_text" not in claim["metadata"]
+
+
 @pytest.mark.parametrize(
     "section_name,artifact",
     [(s["name"], s["artifact"]) for s in _SECTIONS if s["name"] != "keywords_extract"],
