@@ -33,6 +33,10 @@ struct MiniToolbar<Content: View>: View {
         }
         .padding(.horizontal, 12)
         .frame(height: Self.standardHeight)
+        // `.bar` matches SidebarBottomToolbar + the window's NSToolbar
+        // material, so pane headers don't visually float over a darker
+        // content area. (#883)
+        .background(.bar)
     }
 }
 

@@ -23,9 +23,10 @@ extension SidebarView {
         VStack(spacing: 0) {
             // Breathing room between the window's title bar and the sidebar's
             // first row. Without this the 'Library' header sits flush against
-            // the toolbar — feels cramped on macOS Tahoe / Sequoia.
+            // the toolbar — feels cramped on macOS Tahoe / Sequoia. 12pt
+            // matches Mail.app / Finder.app's sidebar-to-toolbar gap. (#883)
             Spacer()
-                .frame(height: 8)
+                .frame(height: 12)
 
             unifiedContent
 
