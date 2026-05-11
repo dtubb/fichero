@@ -167,9 +167,12 @@ final class SidebarSearchTypesTests: XCTestCase {
 
     func testWorkflowSidebarItemHashable() {
         // Sidebar List(selection:) requires Hashable to dedupe selection
-        // diffs. Two items with the same id must hash equal.
-        let a = WorkflowSidebarItem(id: "x", name: "A")
-        let b = WorkflowSidebarItem(id: "x", name: "A")
+        // diffs. Two items with the same id + identical createdAt /
+        // updatedAt must hash equal. (Default `Date()` defaults differ
+        // at sub-second precision — pin them.)
+        let fixed = Date(timeIntervalSince1970: 0)
+        let a = WorkflowSidebarItem(id: "x", name: "A", createdAt: fixed, updatedAt: fixed)
+        let b = WorkflowSidebarItem(id: "x", name: "A", createdAt: fixed, updatedAt: fixed)
         XCTAssertEqual(a, b)
         XCTAssertEqual(a.hashValue, b.hashValue)
     }
