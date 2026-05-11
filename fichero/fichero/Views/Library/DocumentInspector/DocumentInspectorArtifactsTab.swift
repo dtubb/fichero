@@ -600,7 +600,6 @@ extension Notification.Name {
         "ficheroEntitySearchRequested"
     )
 }
-// swiftlint:enable file_length
 import FicheroAPIClient
 
 /// Inspector section that shows knowledge-graph entities and claims for
@@ -871,6 +870,21 @@ private enum EntityKind: String, Hashable, CaseIterable {
         }
     }
 
+    /// Backend entity-type id used when firing a scoped search from a
+    /// tap. Matches `entityTypeId(for:)` in LibraryView+ColumnConfig
+    /// (the table-view keyword column uses the same ids).
+    var searchScope: String {
+        switch self {
+        case .person:       return "people"
+        case .location:     return "places"
+        case .organization: return "organizations"
+        case .event:        return "events"
+        case .concept:      return "keywords"
+        case .date:         return "dates"
+        case .other:        return "keywords"  // best-effort fallback
+        }
+    }
+
     static var displayOrder: [EntityKind] {
         // Keywords (concept) up top — densest summary, scan first.
         // Named entities next; events last (they carry their own dates
@@ -952,6 +966,7 @@ private struct EntityKindBlock: View {
                     ForEach(items) { item in
                         EntityKindRow(
                             item: item,
+                            kind: kind,
                             onNavigateToSource: onNavigateToSource
                         )
                     }
@@ -976,49 +991,84 @@ private struct EntityKindBlock: View {
     }
 }
 
-/// One row inside an EntityKindBlock. Plain selectable text — name on
-/// top, then aliases (if present), then a short context blurb (where
-/// the entity carries one). No interactive elements — read + ⌘C only.
+/// One row inside an EntityKindBlock. The **name** is tappable —
+/// clicking fires a scoped entity search (e.g. `person:"…"`) via the
+/// `.ficheroEntitySearchRequested` notification, same path Keyword
+/// lozenges use. Aliases / page reference / context render as plain
+/// selectable text below for ⌘C. (#882)
 private struct EntityKindRow: View {
     let item: GroupedItem
+    let kind: EntityKind
     var onNavigateToSource: ((String) -> Void)?
 
     var body: some View {
-        // Two visual rows in ONE selectable Text run:
-        //   line 1: name  (aka alias1, alias2)  (p. label)
-        //   line 2: context (when non-empty, non-redundant)
-        // Because it's one composed Text, triple-click + ⌘C grabs the
-        // whole entity as a multi-line block.
-        // Trailing arrow button (when source is known) navigates to the
-        // source page — scholarly footnote style. (#833)
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            composedText
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .textSelection(.enabled)
-            if let sourceId = item.sourceDocumentId,
-               let navigate = onNavigateToSource {
-                Button {
-                    navigate(sourceId)
-                } label: {
-                    Image(systemName: "arrow.right.circle")
+        // Layout:
+        //   line 1: [name button]  (aka alias1, alias2)  (p. label)   → arrow
+        //   line 2: context  (when non-empty, non-redundant)
+        // Name is its own Button so a tap doesn't have to compete with
+        // textSelection on the rest of the row.
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Button(action: fireEntitySearch) {
+                    Text(item.displayName)
                         .font(.body)
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(.primary)
                 }
                 .buttonStyle(.plain)
-                .help("Go to source")
+                .help("Search for \"\(item.displayName)\"")
+                .accessibilityHint("Searches for this \(kind.label.lowercased())")
+
+                trailingText
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+
+                if let sourceId = item.sourceDocumentId,
+                   let navigate = onNavigateToSource {
+                    Button {
+                        navigate(sourceId)
+                    } label: {
+                        Image(systemName: "arrow.right.circle")
+                            .font(.body)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Go to source")
+                }
+            }
+
+            if !item.context.isEmpty,
+               item.context != item.displayName,
+               !item.displayName.contains(item.context) {
+                Text(item.context)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
             }
         }
         .padding(.vertical, 2)
     }
 
-    private var composedText: Text {
-        var text = Text(item.displayName)
-            .font(.body)
-            .foregroundStyle(.primary)
+    private func fireEntitySearch() {
+        NotificationCenter.default.post(
+            name: .ficheroEntitySearchRequested,
+            object: nil,
+            userInfo: [
+                "name": item.displayName,
+                "entityType": kind.searchScope
+            ]
+        )
+    }
+
+    /// Aliases + page reference rendered as one selectable text run,
+    /// sitting beside the tappable name on line 1.
+    private var trailingText: Text {
+        var text = Text("")
+            .font(.caption)
+            .foregroundStyle(.secondary)
         if !item.aliases.isEmpty {
             // swiftlint:disable:next shorthand_operator
             text = text
-                + Text("  (aka " + item.aliases.joined(separator: ", ") + ")")
+                + Text(" (aka " + item.aliases.joined(separator: ", ") + ")")
                     .font(.caption)
                     .foregroundStyle(.secondary)
         }
@@ -1027,15 +1077,6 @@ private struct EntityKindRow: View {
             text = text
                 + Text("  (\(pageRef))")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
-        }
-        if !item.context.isEmpty,
-           item.context != item.displayName,
-           !item.displayName.contains(item.context) {
-            // swiftlint:disable:next shorthand_operator
-            text = text
-                + Text("\n" + item.context)
-                    .font(.body)
                     .foregroundStyle(.secondary)
         }
         return text
