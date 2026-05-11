@@ -18,8 +18,10 @@ struct MiniToolbar<Content: View>: View {
     /// Fixed height for all pane mini-toolbars so the list-view mode strip,
     /// preview pane toolbar, and inspector tab strip line up across the
     /// window. Daniel: 'the height of the toolbar for the list view, the
-    /// preview pane, and the inspector' should match.
-    static var standardHeight: CGFloat { 36 }
+    /// preview pane, and the inspector' should match. 44pt matches
+    /// NSToolbar's default regular-size height so pane headers visually
+    /// rhyme with the window toolbar above them. (#883)
+    static var standardHeight: CGFloat { 44 }
 
     let content: Content
 
