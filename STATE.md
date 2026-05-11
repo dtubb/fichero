@@ -134,11 +134,37 @@ structure. Verified by grep on 0.0.2's tree:
 
 After the criteria strip lands, add the actual `.searchable(text: $queryText, prompt: ...)` to SearchView so users can type queries (this is the original "input not wired" gap). 30-60min, all in `fichero/fichero/Views/Search/SearchView.swift`.
 
-## Next Session — Start Here (2026-05-10 end-of-day hand-off)
+## Next Session — Start Here (2026-05-10 late-night hand-off)
 
-**Latest commit on 0.0.2: `6c190cfe`** — frontend tests landed
-(`RecentSearchesStore`, `attributedHighlight`, entity-type mapping,
-keyword-cloud font scaling).
+**Latest commit on 0.0.2: `8065f96e`** — frontend test coverage sweep
+(Phase 28→34). Coverage on Fichero.app: 9.20% → 9.94% (+0.74pp).
+**472 tests passing, 0 failing.**
+
+### Phase 28–34 — test coverage push (Models + DTOs)
+
+Test files added this evening (10 new files, ~210 new tests):
+
+- `ItemTypeRegistryTests` (10) — Add-menu handler injection contract
+- `ModelComparisonTypesTests` (19) — Compare-Models DTOs; locks the
+  `<provider>/<model>` Identifiable formula and snake_case decoders.
+  Note: `ComparisonResult` clashes with `Foundation.ComparisonResult`;
+  qualify as `Fichero.ComparisonResult` in tests.
+- `WorkflowResponseTypesTests` (12) — workflow API + SSE event DTOs,
+  `NodeExecutionState.progressText`/`isParallelProcessing` rules
+- `MCPServerTests` (19) — per-transport validation (stdio→command,
+  net→url), status icon/color, snake_case Codable
+- `BackendDTOTests` (20) — CheckpointTypes + BatchTypes; locks
+  `CheckpointValue.stringValue` per-branch render + Batch status maps
+- `WorkflowChainTests` (18) — full chain-execution DTO surface
+
+(Plus 9 fixed pre-existing test failures: EndpointValidationTests
+path-resolution via `Bundle(for:)` anchor, InspectorTab cases bumped
+from 2→4, RichTextController weak-binding contract test, etc.)
+
+### Earlier today (Phase 22+ Search v1)
+
+Score-correctness rewrite, query parser, KG endpoints, library
+toolbar search — see commit history `git log --oneline 0.0.2`.
 
 ### What's deployed and waiting for bug-test
 
