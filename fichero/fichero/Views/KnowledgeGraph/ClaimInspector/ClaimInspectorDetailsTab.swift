@@ -193,19 +193,19 @@ struct CurationStateBadge: View {
 
     private var backgroundColor: Color {
         switch state {
-        case .approved: return .green.opacity(0.2)
+        case .curated: return .green.opacity(0.2)
         case .rejected: return .red.opacity(0.2)
         case .unreviewed: return .gray.opacity(0.2)
-        case .pending: return .orange.opacity(0.2)
+        case .shortlisted: return .blue.opacity(0.2)
         }
     }
 
     private var foregroundColor: Color {
         switch state {
-        case .approved: return .green
+        case .curated: return .green
         case .rejected: return .red
         case .unreviewed: return .gray
-        case .pending: return .orange
+        case .shortlisted: return .blue
         }
     }
 }
