@@ -125,19 +125,24 @@ _SECTIONS: list[dict[str, Any]] = [
         "icon": "person.2",
         "color": "blue",
         "schema_key": "people",
-        "item_shape": '{"name": "...", "context": "role and importance in __LANG__"}',
+        "item_shape": (
+            '{"name": "...", "alternative_spellings": ["..."], '
+            '"verb": "...", "object": "..."}'
+        ),
         "instruction": (
             "List every PROPER NAME of a person — first name, surname, "
             "full name, with honorific or title when used. An entry must "
             "be a name a person would answer to. Skip pronouns, kinship "
             "terms without a name, generic groups, and role descriptions. "
             "Output: 'name' in Title Case (preserve original spelling "
-            "and accents). 'context' is a sentence-completing predicate "
-            "starting with a verb (is/was/appears as/served as), ending "
-            "with a period — the name is the implicit subject, do not "
-            "repeat it. Example shape: 'is described as the alcalde of "
-            "Popayán.' Aliases are spelling variants of the SAME named "
-            "person; never group different unnamed referents under one entry."
+            "and accents). The predicate is split into 'verb' + 'object' "
+            "so the claim text composes as a real sentence: "
+            "f'{name} {verb} {object}.' — name is the implicit subject, "
+            "do NOT repeat it inside verb or object. "
+            "Example: name='Eugenio Córdoba', verb='served as', "
+            "object='the alcalde of Popayán'. Aliases are spelling "
+            "variants of the SAME named person; never group different "
+            "unnamed referents under one entry."
         ),
     },
     {
@@ -149,17 +154,18 @@ _SECTIONS: list[dict[str, Any]] = [
         "color": "green",
         "schema_key": "places",
         "item_shape": (
-            '{"name": "...", "alternative_spellings": ["..."], "context": "..."}'
+            '{"name": "...", "alternative_spellings": ["..."], '
+            '"verb": "...", "object": "..."}'
         ),
         "instruction": (
             "List every named place — cities, towns, regions, countries, "
             "neighbourhoods, addresses, rivers, mines, estates. 'name' "
             "in Title Case (preserve original spelling and accents). "
             "'alternative_spellings' = spelling variants in the text. "
-            "'context' is a sentence-completing predicate starting with "
-            "a verb (is/was/contains/located in), ending with a period — "
-            "the name is the implicit subject. Example shape: 'is the "
-            "region where artisanal mining occurs.'"
+            "Predicate split into 'verb' + 'object' so the claim text "
+            "composes as 'f'{name} {verb} {object}.' — name is the "
+            "implicit subject. Example: name='Chocó', verb='is', "
+            "object='the region where artisanal mining occurs'."
         ),
     },
     {
@@ -171,7 +177,8 @@ _SECTIONS: list[dict[str, Any]] = [
         "color": "indigo",
         "schema_key": "organizations",
         "item_shape": (
-            '{"name": "...", "alternative_spellings": ["..."], "context": "..."}'
+            '{"name": "...", "alternative_spellings": ["..."], '
+            '"verb": "...", "object": "..."}'
         ),
         "instruction": (
             "List every NAMED organisation — companies, courts, ministries, "
@@ -179,10 +186,9 @@ _SECTIONS: list[dict[str, Any]] = [
             "places, materials, occupations, and generic groups. 'name' "
             "in Title Case (preserve original spelling and accents). "
             "'alternative_spellings' = spelling variants in the text. "
-            "'context' is a sentence-completing predicate starting with "
-            "a verb (is/was/published/funded), ending with a period — "
-            "the name is the implicit subject. Example shape: 'is the "
-            "press that published the book.'"
+            "Predicate split into 'verb' + 'object'. Example: "
+            "name='Imprenta Oficial', verb='published', "
+            "object='the official gazette of the Republic'."
         ),
     },
     {
@@ -196,14 +202,16 @@ _SECTIONS: list[dict[str, Any]] = [
         "item_shape": (
             '{"date": "as written", '
             '"date_normalized": "YYYY-MM-DD or YYYY-MM-DD/YYYY-MM-DD", '
-            '"context": "..."}'
+            '"verb": "...", "object": "..."}'
         ),
         "instruction": (
             "List every date in the text. 'date' = original wording. "
             "'date_normalized' = YYYY-MM-DD (range YYYY-MM-DD/YYYY-MM-DD; "
-            "month-only YYYY-MM; year-only YYYY). 'context' is a complete "
-            "sentence describing what the document records for that date, "
-            "ending with a period. Example shape: 'The petition was filed.'"
+            "month-only YYYY-MM; year-only YYYY). The predicate describes "
+            "what the document records for that date, split into 'verb' "
+            "+ 'object'. The date is the implicit subject: claim text "
+            "composes as 'f'{date}: {verb} {object}.' Example: "
+            "verb='records', object='the filing of a mining petition by the heirs'."
         ),
     },
     {
@@ -215,11 +223,15 @@ _SECTIONS: list[dict[str, Any]] = [
         "color": "cyan",
         "schema_key": "rivers",
         "item_shape": (
-            '{"name": "...", "alternative_spellings": ["..."], "context": "..."}'
+            '{"name": "...", "alternative_spellings": ["..."], '
+            '"verb": "...", "object": "..."}'
         ),
         "instruction": (
-            "List every river, stream, waterway, or tributary mentioned. For each: "
-            "canonical name, alternative spellings found in the text, context."
+            "List every river, stream, waterway, or tributary mentioned. "
+            "For each: canonical name, alternative spellings found in the "
+            "text, predicate split into 'verb' + 'object'. Example: "
+            "name='Atrato', verb='drains', object='the Chocó department "
+            "westward to the Caribbean'."
         ),
     },
     {
@@ -231,8 +243,9 @@ _SECTIONS: list[dict[str, Any]] = [
         "color": "yellow",
         "schema_key": "events",
         "item_shape": (
-            '{"event": "subject verb object", "date": "YYYY-MM-DD or null", '
-            '"context": "..."}'
+            '{"event": "Title Case noun phrase", '
+            '"date": "YYYY-MM-DD or null", '
+            '"verb": "...", "object": "..."}'
         ),
         "instruction": (
             "List significant events (incidents, decisions, hearings, "
@@ -240,9 +253,9 @@ _SECTIONS: list[dict[str, Any]] = [
             "'event' is a Title Case noun phrase naming the event "
             "(e.g. 'Mining Boom', 'Petition to the Court'). 'date' is "
             "YYYY-MM-DD (or YYYY-MM / YYYY) when stated, else null. "
-            "'context' is a complete past-tense sentence describing what "
-            "happened, ending with a period. Example shape: "
-            "'Author learned artisanal mining techniques from the family.'"
+            "Predicate split into 'verb' + 'object' (past tense). "
+            "Example: event='Filing of the Petition', verb='was', "
+            "object='submitted to the Constitutional Court by the heirs'."
         ),
     },
     {
@@ -253,10 +266,12 @@ _SECTIONS: list[dict[str, Any]] = [
         "icon": "pickaxe",
         "color": "brown",
         "schema_key": "mines",
-        "item_shape": '{"name": "...", "context": "..."}',
+        "item_shape": '{"name": "...", "verb": "...", "object": "..."}',
         "instruction": (
             "List every mine, mining company, or mining claim mentioned. "
-            "Name + context."
+            "Name + predicate split into 'verb' + 'object'. Example: "
+            "name='La Esperanza', verb='produces', object='alluvial gold "
+            "in the upper Atrato basin'."
         ),
     },
     {
@@ -267,10 +282,11 @@ _SECTIONS: list[dict[str, Any]] = [
         "icon": "building.columns",
         "color": "indigo",
         "schema_key": "properties",
-        "item_shape": '{"name": "...", "context": "..."}',
+        "item_shape": '{"name": "...", "verb": "...", "object": "..."}',
         "instruction": (
-            "List every property, estate, parcel, building, or farm mentioned "
-            "that is not already a river or mine. Name + context."
+            "List every property, estate, parcel, building, or farm "
+            "mentioned that is not already a river or mine. Name + "
+            "predicate split into 'verb' + 'object'."
         ),
     },
     {
@@ -281,10 +297,11 @@ _SECTIONS: list[dict[str, Any]] = [
         "icon": "scale.3d",
         "color": "purple",
         "schema_key": "legal_references",
-        "item_shape": '{"name": "...", "context": "..."}',
+        "item_shape": '{"name": "...", "verb": "...", "object": "..."}',
         "instruction": (
             "List every law, article, decree, statute, or legal reference "
-            "cited. Name + context of how it's invoked."
+            "cited. Name + predicate split into 'verb' + 'object' "
+            "describing how it's invoked."
         ),
     },
     {
@@ -318,60 +335,102 @@ _SECTIONS: list[dict[str, Any]] = [
 # independently.
 
 
+# SVO claim composition (#730 / extractor refresh).
+#
+# Every extracted item carries `verb` + `object` instead of a free-form
+# `context` string. The downstream KG writer composes the claim text
+# deterministically as `"{name} {verb} {object}."` so claims always
+# read as real sentences, and the structured triple lands in
+# KnowledgeClaim.metadata for queryable use.
+#
+# - `verb`   = the predicate verb (or verb phrase): "is", "was", "served as",
+#              "wrote", "founded", "located in", "described as".
+# - `object` = the rest of the predicate after the verb: "the alcalde of
+#              Popayán", "a gold-mining region in the Chocó".
+# - The entity name is the implicit subject — never repeated in either
+#   field.
+_SVO_VERB_FIELD = Field(
+    description=(
+        "Predicate verb or verb phrase. The entity name is the implicit "
+        "subject — do NOT repeat it. Examples: 'is', 'was', 'served as', "
+        "'wrote', 'founded', 'is located in'."
+    )
+)
+_SVO_OBJECT_FIELD = Field(
+    description=(
+        "Rest of the predicate after the verb — a noun phrase or "
+        "clause. Examples: 'the alcalde of Popayán', 'a gold-mining "
+        "region in the Chocó', 'the deed of sale'."
+    )
+)
+
+
 class _SectionPerson(BaseModel):
     name: str
     alternative_spellings: list[str] = Field(
         default_factory=list,
         description="other surface forms found in the text (e.g. M. García for María García)",
     )
-    context: str = Field(description="role and importance")
+    verb: str = _SVO_VERB_FIELD
+    object: str = _SVO_OBJECT_FIELD
 
 
 class _SectionPlace(BaseModel):
     name: str
     alternative_spellings: list[str] = Field(default_factory=list)
-    context: str
+    verb: str = _SVO_VERB_FIELD
+    object: str = _SVO_OBJECT_FIELD
 
 
 class _SectionOrganization(BaseModel):
     name: str
     alternative_spellings: list[str] = Field(default_factory=list)
-    context: str
+    verb: str = _SVO_VERB_FIELD
+    object: str = _SVO_OBJECT_FIELD
 
 
 class _SectionDate(BaseModel):
+    # Dates are claim-only (no canonical entity). The `verb` + `object`
+    # describe what happened on that date, not the date itself —
+    # composed as `"{normalized}: {verb} {object}."` by the KG writer.
     date: str = Field(description="as written in the document")
     date_normalized: str = Field(
         description="YYYY-MM-DD (range YYYY-MM-DD/YYYY-MM-DD; month-only YYYY-MM; year-only YYYY)"
     )
-    context: str
+    verb: str = _SVO_VERB_FIELD
+    object: str = _SVO_OBJECT_FIELD
 
 
 class _SectionRiver(BaseModel):
     name: str
     alternative_spellings: list[str] = Field(default_factory=list)
-    context: str
+    verb: str = _SVO_VERB_FIELD
+    object: str = _SVO_OBJECT_FIELD
 
 
 class _SectionEvent(BaseModel):
     event: str = Field(description="Title Case noun phrase naming the event")
     date: str | None = Field(default=None, description="YYYY-MM-DD when stated, else null")
-    context: str
+    verb: str = _SVO_VERB_FIELD
+    object: str = _SVO_OBJECT_FIELD
 
 
 class _SectionMine(BaseModel):
     name: str
-    context: str
+    verb: str = _SVO_VERB_FIELD
+    object: str = _SVO_OBJECT_FIELD
 
 
 class _SectionProperty(BaseModel):
     name: str
-    context: str
+    verb: str = _SVO_VERB_FIELD
+    object: str = _SVO_OBJECT_FIELD
 
 
 class _SectionLegalReference(BaseModel):
     name: str
-    context: str
+    verb: str = _SVO_VERB_FIELD
+    object: str = _SVO_OBJECT_FIELD
 
 
 def _make_section_schema(item_model: type[BaseModel], schema_key: str) -> type[BaseModel]:
@@ -890,24 +949,47 @@ def _write_kg_rows(
             or item.get("fecha")
             or ""
         )
-        context = item.get("context") or item.get("contexto") or ""
+        # SVO predicate (new schema). `verb` + `object` compose the
+        # claim text as a real sentence; the legacy `context` is still
+        # accepted for any in-flight cache hits or human-authored items
+        # so deletions are graceful.
+        verb = (item.get("verb") or "").strip()
+        obj = (item.get("object") or "").strip()
+        legacy_context = (
+            item.get("context") or item.get("contexto") or ""
+        ).strip()
+        predicate = (
+            f"{verb} {obj}".strip() if (verb or obj) else legacy_context
+        )
+
         # The chunk excerpt anchors provenance to the page the LLM saw;
-        # the per-item context is its narrower description. Prefer item
-        # context for the source_excerpt field, fall back to chunk.
-        excerpt = context or page_excerpt or None
+        # the per-item predicate is its narrower description. Prefer
+        # predicate for the source_excerpt field, fall back to chunk.
+        excerpt = predicate or page_excerpt or None
 
         meta: dict[str, Any] = {}
+        if verb:
+            meta["verb"] = verb
+        if obj:
+            meta["object"] = obj
 
         if entity_type is None:
             # Date-style section: claim only. Normalized date in metadata.
+            # Claim text composes as "{date}: {verb} {object}." so it
+            # reads naturally with the date as implicit subject.
             date_text = item.get("date") or item.get("fecha") or canonical
-            normalized = item.get("date_normalized") or item.get("fecha_normalizada") or ""
+            normalized = (
+                item.get("date_normalized")
+                or item.get("fecha_normalizada")
+                or ""
+            )
+            stem = normalized or date_text
             claim_text = (
-                f"{normalized or date_text}: {context}" if context
-                else (normalized or date_text)
+                f"{stem}: {predicate}." if predicate else stem
             )
             meta["date_text"] = date_text
             meta["date_normalized"] = normalized
+            meta["subject"] = stem
             save_claim(
                 db,
                 text=claim_text,
@@ -926,20 +1008,35 @@ def _write_kg_rows(
             or item.get("ortografias_alternativas")
             or []
         )
+        meta["subject"] = canonical
+        # Claim text reads as a real sentence: "{name} {verb} {object}.".
+        # When verb+object are missing (legacy path), fall back to the
+        # older "{name}: {context}" shape rather than producing a noun
+        # fragment.
+        if verb or obj:
+            claim_text = f"{canonical} {predicate}.".strip()
+        elif legacy_context:
+            claim_text = f"{canonical}: {legacy_context}"
+        else:
+            claim_text = canonical
         entity_id = upsert_entity(
             db,
             canonical_name=canonical,
             entity_type=entity_type,
             aliases=aliases if isinstance(aliases, list) else [],
-            description=context or None,
+            # The entity's curated description used to be the raw
+            # context; with SVO it's the full predicate so users still
+            # see a useful blurb in the inspector.
+            description=predicate or None,
         )
         save_claim(
             db,
-            text=f"{canonical}: {context}" if context else canonical,
+            text=claim_text,
             source_document_id=container_id,
             entity_ids=[entity_id],
             source_excerpt=excerpt,
             source_page_label=page_label,
+            metadata=meta,
         )
 
 
