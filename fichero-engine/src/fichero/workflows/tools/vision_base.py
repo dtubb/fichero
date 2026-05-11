@@ -791,8 +791,64 @@ async def process_vision(
     output_files = []
     page_records: list[dict] = []
 
+    # Text-format extensions whose content is already plain text — no
+    # vision call needed. Mirrors loaders/document_loader.py:TEXT_FORMATS
+    # so Transcribe behaves like ingest for these files. Without this,
+    # Catalogue (Mixed) on a folder containing .md crashes the vision
+    # API with "cannot identify image file". See #884.
+    text_format_suffixes = {
+        ".txt", ".md", ".markdown", ".rst", ".html", ".htm", ".xml", ".csv",
+    }
+
     for file_path in files:
         try:
+            # Text-file fast path: read directly and treat as the
+            # "transcription" output. We still save the artifact and
+            # update page_content downstream so Extract All Entities
+            # gets text input. Skips Apple Vision / LLM vision entirely.
+            suffix = Path(file_path).suffix.lower()
+            if suffix in text_format_suffixes:
+                try:
+                    file_text = Path(file_path).read_text(
+                        encoding="utf-8", errors="replace"
+                    )
+                except OSError as e:
+                    logger.warning(
+                        f"Text-file fast path: cannot read {file_path}: {e}"
+                    )
+                    file_text = ""
+                logger.info(
+                    f"Text-format passthrough ({suffix}): {Path(file_path).name}"
+                )
+                results.append({"file": file_path, "text": file_text, "value": file_text})
+                texts.append(file_text)
+                values.append(file_text)
+                page_records.extend(
+                    _build_page_records_for_file(
+                        library_path,
+                        path_to_doc.get(file_path),
+                        file_text,
+                        None,
+                    )
+                )
+                # Persist as an artifact so downstream nodes that read
+                # artifacts (not page_content) still see the text.
+                if save_to_db and library_path and file_text:
+                    artifact_id = await save_artifact(
+                        file_path=file_path,
+                        content=file_text,
+                        document_id=path_to_doc.get(file_path),
+                        library_path=library_path,
+                        llm_config=effective_config,
+                        task_id=task_id,
+                        tool_config=tool_config,
+                        metadata_field=metadata_field,
+                        custom_metadata=custom_metadata,
+                    )
+                    if artifact_id:
+                        artifact_ids.append(artifact_id)
+                continue
+
             # Skip-if-done: use the existing artifact if one already exists
             # for this (document, artifact_type) and the tool config allows it.
             # Avoids re-OCRing files already processed by a previous workflow
