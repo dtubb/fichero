@@ -155,6 +155,12 @@ struct SidebarView: View {
                         viewMode = .workflow(nil)
                         return
                     }
+                    if id == "ontology-browser" {
+                        // #498 — Knowledge Graph entity browser. Per-
+                        // library scoped, sibling of Workflows/Activity.
+                        viewMode = .ontology
+                        return
+                    }
                     if id.hasPrefix("run:"),
                        let selectedRun = unifiedSelectedRun(forSidebarId: id) {
                         viewMode = .activity(selectedRun.toSelectedRun())

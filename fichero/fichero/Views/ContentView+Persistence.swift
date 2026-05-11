@@ -95,6 +95,8 @@ extension ContentView {
             return ("trigger", trigger.map { $0.triggerId })
         case .activity(let run):
             return ("activity", run?.id)
+        case .ontology:
+            return ("ontology", nil)
         }
     }
 

@@ -46,6 +46,8 @@ extension ContentView {
             } else {
                 viewName = "Activity"
             }
+        case .ontology:
+            viewName = "Knowledge Graph"
         }
 
         return viewName
@@ -98,7 +100,7 @@ extension ContentView {
     /// Only show for content modes (library, search, chat, workflows)
     var showNavigationToolbar: Bool {
         switch viewMode {
-        case .library, .search, .chat, .comparison, .workflow, .chain:
+        case .library, .search, .chat, .comparison, .workflow, .chain, .ontology:
             return true
         case .batches, .batch, .automation, .schedule, .trigger, .activity:
             return false

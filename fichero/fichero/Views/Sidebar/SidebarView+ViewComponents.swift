@@ -227,6 +227,11 @@ extension SidebarView {
             workflowsNavigationRow()
         }
 
+        // Knowledge Graph — peer to Workflows + Activity, scoped per
+        // library. Backend KG endpoints (#728/#729) ship in 0.0.2 so
+        // this wires the existing OntologyBrowser View (#498).
+        knowledgeGraphNavigationRow()
+
         if FeatureManager.shared.isAutomationEnabled {
             unifiedDisclosureSection(
                 title: "Automation",
@@ -456,6 +461,20 @@ extension SidebarView {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .tag("workflows-browser")
+            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+    }
+
+    /// Per-library Knowledge Graph navigation row (#498). Peer to
+    /// Workflows + Activity — clicking flips AppViewMode.ontology so the
+    /// OntologyBrowser fills the content pane. KG is scoped per library
+    /// (each .fichero database has its own entities/claims).
+    private func knowledgeGraphNavigationRow() -> some View {
+        Label("Knowledge Graph", systemImage: "circle.hexagongrid")
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .tag("ontology-browser")
             .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
