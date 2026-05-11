@@ -15,18 +15,30 @@ struct ClaimSummaryCard: View {
 
             // Verbatim source quote the LLM lifted the claim from
             // (#892/#893). Italicised + smaller font so it reads as a
-            // citation underneath the composed claim sentence. Truncated
-            // to 3 lines — tap-to-search in the parent doc will land
-            // separately in #893.
+            // citation underneath the composed claim sentence. Tap to
+            // run a library search for that exact text — same code
+            // path as the entity lozenges (ficheroEntitySearchRequested
+            // → ContentView → runToolbarSearch), with no entityType so
+            // it goes through the free-text branch.
             if let excerpt = claim.sourceExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines),
                !excerpt.isEmpty,
                excerpt != claim.text {
-                Text("“\(excerpt)”")
-                    .font(.caption2)
-                    .italic()
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-                    .textSelection(.enabled)
+                Button {
+                    NotificationCenter.default.post(
+                        name: .ficheroEntitySearchRequested,
+                        object: nil,
+                        userInfo: ["name": excerpt]
+                    )
+                } label: {
+                    Text("“\(excerpt)”")
+                        .font(.caption2)
+                        .italic()
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .help("Search the library for this quote")
             }
 
             HStack(spacing: 8) {

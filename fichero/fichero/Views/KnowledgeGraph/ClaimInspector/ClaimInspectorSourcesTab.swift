@@ -35,15 +35,24 @@ struct ClaimInspectorSourcesTab: View {
 
                 if let excerpt = claim.sourceExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !excerpt.isEmpty {
-                    Text("“\(excerpt)”")
-                        .font(.callout)
-                        .italic()
-                        .foregroundStyle(.primary)
-                        .textSelection(.enabled)
-                        .padding(10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(.controlBackgroundColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    Button {
+                        NotificationCenter.default.post(
+                            name: .ficheroEntitySearchRequested,
+                            object: nil,
+                            userInfo: ["name": excerpt]
+                        )
+                    } label: {
+                        Text("“\(excerpt)”")
+                            .font(.callout)
+                            .italic()
+                            .foregroundStyle(.primary)
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(.controlBackgroundColor))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Search the library for this quote")
                 }
 
                 Form {
