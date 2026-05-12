@@ -224,48 +224,67 @@ class AppDatabase:
             self.conn.commit()
 
     def save_model(self, model: Model) -> Model:
-        """Save or update a model."""
+        """Save or update a model.
 
-
-
+        Idempotent on (provider_id, model_id) — adding a model whose
+        model_id already exists on the same provider updates the
+        existing row instead of inserting a duplicate. Pre-fix, the
+        UI's '+ Add Model' button on Settings → Providers could add
+        the same Apple Vision row N times because conflict resolution
+        was only keyed on `id` (the row primary key, which is fresh
+        per add). Daniel hit this in #937.
+        """
         capabilities_json = (
             json.dumps(model.capabilities) if model.capabilities else "[]"
         )
 
-        self.conn.execute(
-            """
-            INSERT INTO models (
-                id, provider_id, name, model_id, capabilities,
-                is_default, enabled, sort_order, input_cost, output_cost, updated_at
+        # Check (provider_id, model_id) for an existing row. If found
+        # and it's NOT the same id we're trying to write, redirect the
+        # write to update that existing id — preserving its history
+        # (created_at, sort_order, etc.) while accepting the caller's
+        # name + capabilities + flags. (#937)
+        with self._lock:
+            existing_row = self.conn.execute(
+                "SELECT id FROM models WHERE provider_id = ? AND model_id = ?",
+                [model.provider_id, model.model_id],
+            ).fetchone()
+            if existing_row and existing_row[0] != model.id:
+                model = model.model_copy(update={"id": existing_row[0]})
+
+            self.conn.execute(
+                """
+                INSERT INTO models (
+                    id, provider_id, name, model_id, capabilities,
+                    is_default, enabled, sort_order, input_cost, output_cost, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (id) DO UPDATE SET
+                    provider_id = excluded.provider_id,
+                    name = excluded.name,
+                    model_id = excluded.model_id,
+                    capabilities = excluded.capabilities,
+                    is_default = excluded.is_default,
+                    enabled = excluded.enabled,
+                    sort_order = excluded.sort_order,
+                    input_cost = excluded.input_cost,
+                    output_cost = excluded.output_cost,
+                    updated_at = excluded.updated_at
+            """,
+                [
+                    model.id,
+                    model.provider_id,
+                    model.name,
+                    model.model_id,
+                    capabilities_json,
+                    model.is_default,
+                    model.enabled,
+                    model.sort_order,
+                    model.input_cost,
+                    model.output_cost,
+                    datetime.now(),
+                ],
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (id) DO UPDATE SET
-                provider_id = excluded.provider_id,
-                name = excluded.name,
-                model_id = excluded.model_id,
-                capabilities = excluded.capabilities,
-                is_default = excluded.is_default,
-                enabled = excluded.enabled,
-                sort_order = excluded.sort_order,
-                input_cost = excluded.input_cost,
-                output_cost = excluded.output_cost,
-                updated_at = excluded.updated_at
-        """,
-            [
-                model.id,
-                model.provider_id,
-                model.name,
-                model.model_id,
-                capabilities_json,
-                model.is_default,
-                model.enabled,
-                model.sort_order,
-                model.input_cost,
-                model.output_cost,
-                datetime.now(),
-            ],
-        )
-        self.conn.commit()
+            self.conn.commit()
         return model
 
     def list_models(self, provider_id: str | None = None) -> list[Model]:
