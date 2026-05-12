@@ -540,6 +540,7 @@ from fichero.api.routes import (  # noqa: E402
     ingest,
     integrations,
     interpretations,
+    kg_rebuild,
     knowledge_graph,
     local_models,
     mcp_servers,
@@ -597,6 +598,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
 _DEV_ROUTE_SPECS: list[RouteSpec] = [
     # Originally dev-tier
     (knowledge_graph.router, "/api/knowledge-graph", ["knowledge-graph"]),
+    (kg_rebuild.router, "/api", ["knowledge-graph"]),
     (search_explain.router, "/api", ["search-explanation"]),
     (hermeneutics.router, "/api/hermeneutics", ["hermeneutics"]),
     (interpretations.router, "/api", ["interpretations"]),
