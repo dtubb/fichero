@@ -40,7 +40,7 @@ class TestPyKEENSecurity:
         try:
             # Currently no signature verification
             # This test documents the vulnerability
-            from fichero.api.routes.knowledge_graph.predictions import _prediction_artifacts_dir
+            from fichero.api.routes.kg_predictions import _prediction_artifacts_dir
 
             # The vulnerability: pykeen.models.Model.load_directory()
             # uses pickle without verification
@@ -57,7 +57,7 @@ class TestPyKEENSecurity:
         Expected: FAIL (path not validated)
         Fixed: Should block paths outside artifacts directory.
         """
-        from fichero.api.routes.knowledge_graph.predictions import _prediction_artifacts_dir
+        from fichero.api.routes.kg_predictions import _prediction_artifacts_dir
 
         # Test path validation
         traversal_path = "../../../etc/passwd"
@@ -82,8 +82,11 @@ class TestPyKEENSecurity:
         # Check if safe loading is implemented
         try:
             import pykeen
-            # PyKEEN internally uses torch.load which uses pickle
-            # This is the vulnerability
+            # Importing kg_predictions installs the load_directory compat
+            # shim for older PyKEEN versions that ship trained_model.pkl
+            # without a directory-loader. The shim is what makes the
+            # vulnerability surface uniformly across versions.
+            from fichero.api.routes import kg_predictions  # noqa: F401
             assert hasattr(pykeen.models.Model, 'load_directory')
             pytest.skip("PyKEEN uses torch.load - vulnerability exists but is upstream")
         except ImportError:
@@ -190,7 +193,7 @@ class TestTripleBuildingSecurity:
         Expected: FAIL (no sensitivity flag)
         Fixed: Check claim.sensitivity before adding to triples.
         """
-        from fichero.api.routes.knowledge_graph.predictions import _build_minimal_pykeen_triples
+        from fichero.api.routes.kg_predictions import _build_minimal_pykeen_triples
         from fichero.knowledge_models import KnowledgeClaim
 
         # Create a confidential claim

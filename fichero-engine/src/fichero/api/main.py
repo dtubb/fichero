@@ -539,23 +539,25 @@ from fichero.api.routes import (  # noqa: E402
     entities,
     entity_inspector,
     folders,
-    graph_exploration,
     graph_reasoning,
     hermeneutics,
     iiif,
     ingest,
     integrations,
-    interpretations,
     kg_citations,
+    kg_claim_analysis,
+    kg_claim_search,
+    kg_entity_curation,
     kg_graph,
-    kg_search,
+    kg_inclusion,
     kg_interpretations,
     kg_mutations,
+    kg_predictions,
     kg_pykeen,
     kg_rebuild,
     kg_review,
+    kg_search,
     kg_triangulation,
-    knowledge_graph,
     local_models,
     mcp_servers,
     mcp_tools,
@@ -621,16 +623,24 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
 ]
 
 _DEV_ROUTE_SPECS: list[RouteSpec] = [
-    # Originally dev-tier
-    (knowledge_graph.router, "/api/knowledge-graph", ["knowledge-graph"]),
+    # KG sub-surfaces all live under /api/kg/* (each router declares its
+    # own prefix). The old monolithic /api/knowledge-graph/* sub-package
+    # was deleted 2026-05-11 (#919 5c); semantic search / contradictions /
+    # evidence-chain / entity merge-split / heuristic predictions /
+    # inclusion were ported into the kg_* modules below.
     (kg_rebuild.router, "/api", ["knowledge-graph"]),
     (kg_triangulation.router, "/api", ["knowledge-graph"]),
     (kg_graph.router, "/api", ["knowledge-graph"]),
     (kg_pykeen.router, "/api", ["knowledge-graph"]),
+    (kg_predictions.router, "/api", ["knowledge-graph"]),
     (kg_review.router, "/api", ["knowledge-graph"]),
     (kg_mutations.router, "/api", ["knowledge-graph"]),
     (kg_citations.router, "/api", ["knowledge-graph"]),
     (kg_interpretations.router, "/api", ["knowledge-graph"]),
+    (kg_claim_search.router, "/api", ["knowledge-graph"]),
+    (kg_claim_analysis.router, "/api", ["knowledge-graph"]),
+    (kg_entity_curation.router, "/api", ["knowledge-graph"]),
+    (kg_inclusion.router, "/api", ["knowledge-graph"]),
     (search_explain.router, "/api", ["search-explanation"]),
     # Hermeneutics is the interpretation-reading layer on top of KG —
     # PatternInstance + hermeneutic-circle navigation + LLM suggestions

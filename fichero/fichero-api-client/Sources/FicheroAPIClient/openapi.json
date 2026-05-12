@@ -1017,8 +1017,7 @@
     "/api/annotations": {
       "post": {
         "tags": [
-          "annotations",
-          "knowledge-graph"
+          "annotations"
         ],
         "summary": "Create an annotation",
         "operationId": "create_annotation_api_annotations_post",
@@ -1068,8 +1067,7 @@
       },
       "get": {
         "tags": [
-          "annotations",
-          "knowledge-graph"
+          "annotations"
         ],
         "summary": "List annotations, filterable by document / kind / tag",
         "operationId": "list_annotations_api_annotations_get",
@@ -1157,8 +1155,7 @@
     "/api/annotations/{annotation_id}": {
       "get": {
         "tags": [
-          "annotations",
-          "knowledge-graph"
+          "annotations"
         ],
         "summary": "Get Annotation",
         "operationId": "get_annotation_api_annotations__annotation_id__get",
@@ -1207,8 +1204,7 @@
       },
       "patch": {
         "tags": [
-          "annotations",
-          "knowledge-graph"
+          "annotations"
         ],
         "summary": "Patch Annotation",
         "operationId": "patch_annotation_api_annotations__annotation_id__patch",
@@ -1267,8 +1263,7 @@
       },
       "delete": {
         "tags": [
-          "annotations",
-          "knowledge-graph"
+          "annotations"
         ],
         "summary": "Delete Annotation",
         "operationId": "delete_annotation_api_annotations__annotation_id__delete",
@@ -1309,11 +1304,60 @@
         }
       }
     },
+    "/api/annotations/{annotation_id}/crop": {
+      "get": {
+        "tags": [
+          "annotations"
+        ],
+        "summary": "Cropped content for this annotation (text body or image bytes)",
+        "description": "Returns the annotation's underlying content cropped to its anchor: substring for text, PNG bytes for image / PDF region. Workflow tools call this to feed only the highlighted region to vision / LLM providers instead of the whole document. (#914)",
+        "operationId": "get_crop_api_annotations__annotation_id__crop_get",
+        "parameters": [
+          {
+            "name": "annotation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Annotation Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/annotations/{annotation_id}/promote-to-claim": {
       "post": {
         "tags": [
-          "annotations",
-          "knowledge-graph"
+          "annotations"
         ],
         "summary": "Turn a highlight or note into a KnowledgeClaim",
         "description": "Creates a KnowledgeClaim using the annotation's anchor as source provenance. The claim.text defaults to the annotation.text; the source_excerpt uses the annotation's highlighted text via char_start/end + the document's page_content. The annotation is updated to point at the new claim_id.",
@@ -1365,8 +1409,7 @@
     "/api/notes": {
       "post": {
         "tags": [
-          "notes",
-          "knowledge-graph"
+          "notes"
         ],
         "summary": "Create Note",
         "operationId": "create_note_api_notes_post",
@@ -1416,8 +1459,7 @@
       },
       "get": {
         "tags": [
-          "notes",
-          "knowledge-graph"
+          "notes"
         ],
         "summary": "List Notes",
         "operationId": "list_notes_api_notes_get",
@@ -1525,8 +1567,7 @@
     "/api/notes/{note_id}": {
       "get": {
         "tags": [
-          "notes",
-          "knowledge-graph"
+          "notes"
         ],
         "summary": "Get Note",
         "operationId": "get_note_api_notes__note_id__get",
@@ -1575,8 +1616,7 @@
       },
       "patch": {
         "tags": [
-          "notes",
-          "knowledge-graph"
+          "notes"
         ],
         "summary": "Patch Note",
         "operationId": "patch_note_api_notes__note_id__patch",
@@ -1635,8 +1675,7 @@
       },
       "delete": {
         "tags": [
-          "notes",
-          "knowledge-graph"
+          "notes"
         ],
         "summary": "Delete Note",
         "operationId": "delete_note_api_notes__note_id__delete",
@@ -1680,8 +1719,7 @@
     "/api/notes/{note_id}/links": {
       "post": {
         "tags": [
-          "notes",
-          "knowledge-graph"
+          "notes"
         ],
         "summary": "Create a bidirectional link between two notes",
         "operationId": "create_note_link_api_notes__note_id__links_post",
@@ -1742,8 +1780,7 @@
     "/api/notes/{note_id}/links/{link_id}": {
       "delete": {
         "tags": [
-          "notes",
-          "knowledge-graph"
+          "notes"
         ],
         "summary": "Delete Note Link",
         "operationId": "delete_note_link_api_notes__note_id__links__link_id__delete",
@@ -1796,8 +1833,7 @@
     "/api/notes/{note_id}/backlinks": {
       "get": {
         "tags": [
-          "notes",
-          "knowledge-graph"
+          "notes"
         ],
         "summary": "Every note that links to this one",
         "description": "Returns the notes that point at ``note_id`` via NoteLink (target side). This is the Zettelkasten 'what points here' query \u2014 the graph IS the analysis.",
@@ -1853,8 +1889,7 @@
     "/api/notes/{note_id}/forward-links": {
       "get": {
         "tags": [
-          "notes",
-          "knowledge-graph"
+          "notes"
         ],
         "summary": "Every note this one links to",
         "operationId": "forward_links_api_notes__note_id__forward_links_get",
@@ -1909,8 +1944,7 @@
     "/api/projects": {
       "post": {
         "tags": [
-          "projects",
-          "knowledge-graph"
+          "projects"
         ],
         "summary": "Create Project",
         "operationId": "create_project_api_projects_post",
@@ -1960,8 +1994,7 @@
       },
       "get": {
         "tags": [
-          "projects",
-          "knowledge-graph"
+          "projects"
         ],
         "summary": "List Projects",
         "operationId": "list_projects_api_projects_get",
@@ -2017,8 +2050,7 @@
     "/api/projects/{project_id}": {
       "get": {
         "tags": [
-          "projects",
-          "knowledge-graph"
+          "projects"
         ],
         "summary": "Get Project",
         "operationId": "get_project_api_projects__project_id__get",
@@ -2067,8 +2099,7 @@
       },
       "patch": {
         "tags": [
-          "projects",
-          "knowledge-graph"
+          "projects"
         ],
         "summary": "Patch Project",
         "operationId": "patch_project_api_projects__project_id__patch",
@@ -2127,8 +2158,7 @@
       },
       "delete": {
         "tags": [
-          "projects",
-          "knowledge-graph"
+          "projects"
         ],
         "summary": "Delete Project",
         "operationId": "delete_project_api_projects__project_id__delete",
@@ -2172,8 +2202,7 @@
     "/api/projects/{project_id}/include": {
       "post": {
         "tags": [
-          "projects",
-          "knowledge-graph"
+          "projects"
         ],
         "summary": "Add a KG item (document / entity / claim / note / interpretation / annotation) to a project",
         "operationId": "include_item_api_projects__project_id__include_post",
@@ -2234,8 +2263,7 @@
     "/api/projects/{project_id}/include/{inclusion_id}": {
       "delete": {
         "tags": [
-          "projects",
-          "knowledge-graph"
+          "projects"
         ],
         "summary": "Remove Inclusion",
         "operationId": "remove_inclusion_api_projects__project_id__include__inclusion_id__delete",
@@ -2288,8 +2316,7 @@
     "/api/projects/{project_id}/items": {
       "get": {
         "tags": [
-          "projects",
-          "knowledge-graph"
+          "projects"
         ],
         "summary": "List every item included in a project, optionally filtered by type",
         "operationId": "list_items_api_projects__project_id__items_get",
@@ -2354,8 +2381,7 @@
     "/api/projects/membership/{target_id}": {
       "get": {
         "tags": [
-          "projects",
-          "knowledge-graph"
+          "projects"
         ],
         "summary": "Which projects include this KG row?",
         "operationId": "project_membership_api_projects_membership__target_id__get",
@@ -2807,8 +2833,7 @@
     "/api/bibliography/document/{document_id}": {
       "get": {
         "tags": [
-          "bibliography",
-          "knowledge-graph"
+          "bibliography"
         ],
         "summary": "Get a document's bibliographic metadata",
         "operationId": "get_metadata_api_bibliography_document__document_id__get",
@@ -2857,8 +2882,7 @@
       },
       "patch": {
         "tags": [
-          "bibliography",
-          "knowledge-graph"
+          "bibliography"
         ],
         "summary": "Set or update a document's bibliographic metadata",
         "description": "Replaces the document's source_metadata dict. To merge rather than replace, GET first and pass the merged dict.",
@@ -2920,8 +2944,7 @@
     "/api/bibliography/import": {
       "post": {
         "tags": [
-          "bibliography",
-          "knowledge-graph"
+          "bibliography"
         ],
         "summary": "Parse BibTeX / RIS / CSL JSON into SourceMetadata dicts (#909)",
         "description": "Parses bibliography file content posted as the request body's ``text`` field. Returns the parsed entries WITHOUT writing them to any document \u2014 the caller decides how to associate each entry with an in-library document (auto-match by title or manual pick).",
@@ -2974,8 +2997,7 @@
     "/api/bibliography/export.bib": {
       "post": {
         "tags": [
-          "bibliography",
-          "knowledge-graph"
+          "bibliography"
         ],
         "summary": "Bulk export multiple documents as BibTeX",
         "description": "Returns a multi-entry .bib file built from each document's source_metadata. Documents without metadata are skipped.",
@@ -3026,8 +3048,7 @@
     "/api/bibliography/resolve": {
       "post": {
         "tags": [
-          "bibliography",
-          "knowledge-graph"
+          "bibliography"
         ],
         "summary": "Resolve a DOI or ISBN via Crossref / Open Library (#910)",
         "description": "Online lookup \u2014 Crossref for DOIs, Open Library for ISBNs. Free, no API key needed. Returns the resolved metadata merged with whatever's already on the document. NOT associated with a document by default; set document_id to merge the result into a document's source_metadata.",
@@ -3090,8 +3111,7 @@
     "/api/bibliography/document/{document_id}/extract": {
       "post": {
         "tags": [
-          "bibliography",
-          "knowledge-graph"
+          "bibliography"
         ],
         "summary": "Run the bibliographic extractor on a document",
         "description": "Pulls PDF metadata via PyMuPDF + optionally LLM-extracts from the first page text. Merges with existing curated metadata \u2014 user values are preserved. Returns the new merged dict and writes it back to the document.",
@@ -4090,8 +4110,7 @@
     "/api/citations/graph": {
       "post": {
         "tags": [
-          "citations",
-          "knowledge-graph"
+          "citations"
         ],
         "summary": "Record a citation from one document to another",
         "operationId": "create_citation_api_citations_graph_post",
@@ -4141,8 +4160,7 @@
       },
       "get": {
         "tags": [
-          "citations",
-          "knowledge-graph"
+          "citations"
         ],
         "summary": "List citations (filter by source/target/detector)",
         "operationId": "list_citations_api_citations_graph_get",
@@ -4230,8 +4248,7 @@
     "/api/citations/graph/document/{document_id}/outbound": {
       "get": {
         "tags": [
-          "citations",
-          "knowledge-graph"
+          "citations"
         ],
         "summary": "Citations FROM this document \u2014 what it cites",
         "operationId": "outbound_api_citations_graph_document__document_id__outbound_get",
@@ -4286,8 +4303,7 @@
     "/api/citations/graph/document/{document_id}/inbound": {
       "get": {
         "tags": [
-          "citations",
-          "knowledge-graph"
+          "citations"
         ],
         "summary": "Citations TO this document \u2014 what cites it",
         "operationId": "inbound_api_citations_graph_document__document_id__inbound_get",
@@ -4342,8 +4358,7 @@
     "/api/citations/graph/{citation_id}": {
       "patch": {
         "tags": [
-          "citations",
-          "knowledge-graph"
+          "citations"
         ],
         "summary": "Patch Citation",
         "operationId": "patch_citation_api_citations_graph__citation_id__patch",
@@ -4402,8 +4417,7 @@
       },
       "delete": {
         "tags": [
-          "citations",
-          "knowledge-graph"
+          "citations"
         ],
         "summary": "Delete Citation",
         "operationId": "delete_citation_api_citations_graph__citation_id__delete",
@@ -4447,8 +4461,7 @@
     "/api/classifications": {
       "get": {
         "tags": [
-          "classifications",
-          "knowledge-graph"
+          "classifications"
         ],
         "summary": "List classification values (filter by dimension)",
         "operationId": "list_values_api_classifications_get",
@@ -4502,8 +4515,7 @@
       },
       "post": {
         "tags": [
-          "classifications",
-          "knowledge-graph"
+          "classifications"
         ],
         "summary": "Add a custom classification value",
         "operationId": "create_value_api_classifications_post",
@@ -4555,8 +4567,7 @@
     "/api/classifications/{value_id}": {
       "patch": {
         "tags": [
-          "classifications",
-          "knowledge-graph"
+          "classifications"
         ],
         "summary": "Edit a classification value's label / color / order",
         "operationId": "patch_value_api_classifications__value_id__patch",
@@ -4615,8 +4626,7 @@
       },
       "delete": {
         "tags": [
-          "classifications",
-          "knowledge-graph"
+          "classifications"
         ],
         "summary": "Delete Value",
         "operationId": "delete_value_api_classifications__value_id__delete",
@@ -6281,7 +6291,6 @@
     "/api/documents/{document_id}/inspector": {
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "One-call aggregate of every KG row attached to this document",
@@ -6334,7 +6343,6 @@
     "/api/entities/{entity_id}/inspector": {
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "One-call aggregate of every KG row attached to this entity",
@@ -6386,7 +6394,6 @@
     "/api/kg/search": {
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Mixed-type KG search \u2014 one call, hits across entities + claims + notes + annotations",
@@ -17115,7 +17122,6 @@
     "/api/kg/rebuild": {
       "post": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Backfill KG derived stores",
@@ -17170,7 +17176,6 @@
     "/api/kg/triangulation/entity/{entity_id}": {
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Triangulated triples for one entity",
@@ -17227,7 +17232,6 @@
     "/api/kg/triangulation": {
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Triangulated facts across the library",
@@ -17288,7 +17292,6 @@
     "/api/kg/graph/centrality": {
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Top-k entities by composite centrality",
@@ -17360,7 +17363,6 @@
     "/api/kg/graph/cooccurrence/{entity_id}": {
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Co-occurrence neighbours of an entity",
@@ -17414,10 +17416,126 @@
         }
       }
     },
+    "/api/kg/graph/metrics": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Library-wide KG metrics (counts + averages)",
+        "description": "One-call summary for the KG sidebar overview. Ported from the now-deprecated /api/graph/metrics into the canonical /api/kg namespace with the modern model shapes. (#919 5b)",
+        "operationId": "metrics_api_kg_graph_metrics_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/fichero__api__routes__kg_graph__GraphMetricsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/graph/traverse/{entity_id}": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "BFS traversal \u2014 entity neighbourhood",
+        "description": "Breadth-first walk from the entity through its claims and claim-linked relations, up to ``max_depth`` hops. Use for the SwiftUI force-directed neighbourhood view (#902). Ported from the now-deprecated /api/graph/traverse \u2014 same shape, lives under the canonical /api/kg/graph namespace. (#919 5b)",
+        "operationId": "traverse_api_kg_graph_traverse__entity_id__get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "max_depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5,
+              "minimum": 1,
+              "default": 2,
+              "title": "Max Depth"
+            }
+          },
+          {
+            "name": "include_claims",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Include Claims"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraverseResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kg/graph/path": {
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Shortest path between two entities",
@@ -17462,7 +17580,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__kg_graph__PathResponse"
+                  "$ref": "#/components/schemas/PathResponse"
                 }
               }
             }
@@ -17483,7 +17601,6 @@
     "/api/kg/pykeen/train": {
       "post": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Train a PyKEEN link-prediction model on the library's claims",
@@ -17561,7 +17678,6 @@
     "/api/kg/pykeen/predict/{entity_id}": {
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Top-k predicted facts for one entity",
@@ -17630,7 +17746,6 @@
     "/api/kg/review/pairs": {
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "List pending entity-match pairs",
@@ -17688,7 +17803,6 @@
       },
       "post": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Manually queue an entity pair for review",
@@ -17741,7 +17855,6 @@
     "/api/kg/review/pairs/{pair_id}/accept": {
       "post": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Merge candidate into survivor \u2014 accept the suggested match",
@@ -17794,7 +17907,6 @@
     "/api/kg/review/pairs/{pair_id}/reject": {
       "post": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Keep distinct \u2014 labels this pair as definitely-different",
@@ -17847,7 +17959,6 @@
     "/api/kg/review/labels": {
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Accumulated human-labelled pairs for splink / PyKEEN training",
@@ -17894,7 +18005,6 @@
     "/api/kg/mutations": {
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "List recent KG mutations (newest first)",
@@ -17954,7 +18064,6 @@
     "/api/kg/mutations/{mutation_id}/undo": {
       "post": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Reverse a previous KG mutation",
@@ -18007,7 +18116,6 @@
     "/api/citations/document/{document_id}": {
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Render a document's citation in one of the supported styles",
@@ -18077,7 +18185,6 @@
     "/api/citations/document/{document_id}.bib": {
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Download a single document's BibTeX entry as text",
@@ -18129,7 +18236,6 @@
     "/api/citations/export": {
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Bulk export \u2014 BibTeX for a list of documents",
@@ -18186,7 +18292,6 @@
     "/api/kg/interpretations/frameworks": {
       "post": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Create an interpretive framework (e.g. 'Marxist historical materialism')",
@@ -18237,7 +18342,6 @@
       },
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "List Frameworks",
@@ -18284,7 +18388,6 @@
     "/api/kg/interpretations/frameworks/{framework_id}": {
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Get Framework",
@@ -18334,7 +18437,6 @@
       },
       "patch": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Patch Framework",
@@ -18394,7 +18496,6 @@
       },
       "delete": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Delete Framework",
@@ -18439,7 +18540,6 @@
     "/api/kg/interpretations": {
       "post": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Create an interpretation \u2014 the result of applying a framework to evidence",
@@ -18490,7 +18590,6 @@
       },
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "List Interpretations",
@@ -18567,7 +18666,6 @@
     "/api/kg/interpretations/{interpretation_id}": {
       "get": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Get Interpretation",
@@ -18617,7 +18715,6 @@
       },
       "patch": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Patch Interpretation",
@@ -18677,7 +18774,6 @@
       },
       "delete": {
         "tags": [
-          "knowledge-graph",
           "knowledge-graph"
         ],
         "summary": "Delete Interpretation",
@@ -18712,6 +18808,28 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/interpretations/taxonomy/methods": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Picker values for interpretation editor (acts + framework types)",
+        "description": "Returns the enum values for InterpretiveActType + FrameworkType formatted as label/value pairs the Swift inspector can drop straight into a Picker. Consolidated from the older /api/interpretations/taxonomy/methods endpoint per #919.",
+        "operationId": "get_taxonomy_api_kg_interpretations_taxonomy_methods_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MethodTaxonomyResponse"
                 }
               }
             }
@@ -18926,7 +19044,7 @@
     "/api/hermeneutics/frameworks": {
       "post": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Create Framework",
         "operationId": "create_framework_api_hermeneutics_frameworks_post",
@@ -18976,7 +19094,7 @@
       },
       "get": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "List Frameworks",
         "operationId": "list_frameworks_api_hermeneutics_frameworks_get",
@@ -19042,7 +19160,7 @@
     "/api/hermeneutics/frameworks/{framework_id}": {
       "get": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Get Framework",
         "operationId": "get_framework_api_hermeneutics_frameworks__framework_id__get",
@@ -19091,7 +19209,7 @@
       },
       "patch": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Update Framework",
         "operationId": "update_framework_api_hermeneutics_frameworks__framework_id__patch",
@@ -19150,7 +19268,7 @@
       },
       "delete": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Delete Framework",
         "operationId": "delete_framework_api_hermeneutics_frameworks__framework_id__delete",
@@ -19201,7 +19319,7 @@
     "/api/hermeneutics/interpretations": {
       "post": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Create Interpretation",
         "operationId": "create_interpretation_api_hermeneutics_interpretations_post",
@@ -19221,7 +19339,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__hermeneutics__InterpretationCreateRequest"
+                "$ref": "#/components/schemas/InterpretationCreateRequest"
               }
             }
           }
@@ -19251,7 +19369,7 @@
       },
       "get": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "List Interpretations",
         "operationId": "list_interpretations_api_hermeneutics_interpretations_get",
@@ -19337,7 +19455,7 @@
     "/api/hermeneutics/interpretations/{interpretation_id}": {
       "get": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Get Interpretation",
         "operationId": "get_interpretation_api_hermeneutics_interpretations__interpretation_id__get",
@@ -19386,7 +19504,7 @@
       },
       "patch": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Update Interpretation",
         "operationId": "update_interpretation_api_hermeneutics_interpretations__interpretation_id__patch",
@@ -19415,7 +19533,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__hermeneutics__InterpretationUpdateRequest"
+                "$ref": "#/components/schemas/InterpretationUpdateRequest"
               }
             }
           }
@@ -19447,7 +19565,7 @@
     "/api/hermeneutics/patterns": {
       "post": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Create Pattern",
         "operationId": "create_pattern_api_hermeneutics_patterns_post",
@@ -19497,7 +19615,7 @@
       },
       "get": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "List Patterns",
         "operationId": "list_patterns_api_hermeneutics_patterns_get",
@@ -19573,7 +19691,7 @@
     "/api/hermeneutics/patterns/{pattern_id}": {
       "get": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Get Pattern",
         "operationId": "get_pattern_api_hermeneutics_patterns__pattern_id__get",
@@ -19622,7 +19740,7 @@
       },
       "patch": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Update Pattern",
         "operationId": "update_pattern_api_hermeneutics_patterns__pattern_id__patch",
@@ -19683,7 +19801,7 @@
     "/api/hermeneutics/patterns/{pattern_id}/claims/{claim_id}": {
       "post": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Add Claim To Pattern",
         "operationId": "add_claim_to_pattern_api_hermeneutics_patterns__pattern_id__claims__claim_id__post",
@@ -19743,7 +19861,7 @@
     "/api/hermeneutics/circle-state": {
       "post": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Create Circle State",
         "operationId": "create_circle_state_api_hermeneutics_circle_state_post",
@@ -19793,7 +19911,7 @@
       },
       "get": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "List Circle States",
         "operationId": "list_circle_states_api_hermeneutics_circle_state_get",
@@ -19849,7 +19967,7 @@
     "/api/hermeneutics/circle-state/{state_id}": {
       "get": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Get Circle State",
         "operationId": "get_circle_state_api_hermeneutics_circle_state__state_id__get",
@@ -19900,7 +20018,7 @@
     "/api/hermeneutics/circle-state/{state_id}/navigate": {
       "post": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Navigate Circle",
         "operationId": "navigate_circle_api_hermeneutics_circle_state__state_id__navigate_post",
@@ -19961,7 +20079,7 @@
     "/api/hermeneutics/circle-state/{state_id}/backtrack": {
       "post": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Backtrack Circle",
         "operationId": "backtrack_circle_api_hermeneutics_circle_state__state_id__backtrack_post",
@@ -20012,7 +20130,7 @@
     "/api/hermeneutics/suggestions": {
       "post": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Suggest Interpretations",
         "description": "Generate AI interpretation suggestions for claims.\n\nUses available LiteLLM providers to suggest how frameworks might\nbe applied to the given claims. Returns ranked suggestions.",
@@ -20049,936 +20167,6 @@
                     "$ref": "#/components/schemas/HermesSuggestion"
                   },
                   "title": "Response Suggest Interpretations Api Hermeneutics Suggestions Post"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/interpretations": {
-      "get": {
-        "tags": [
-          "interpretations",
-          "interpretations"
-        ],
-        "summary": "List Interpretations",
-        "description": "List interpretations with optional filtering.\n\nReturns interpretations sorted by creation date (newest first).",
-        "operationId": "list_interpretations_api_interpretations_get",
-        "parameters": [
-          {
-            "name": "framework_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Framework Id"
-            }
-          },
-          {
-            "name": "claim_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Claim Id"
-            }
-          },
-          {
-            "name": "document_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Document Id"
-            }
-          },
-          {
-            "name": "act",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/InterpretiveActType",
-              "nullable": true,
-              "title": "Act"
-            }
-          },
-          {
-            "name": "min_confidence",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "number",
-              "maximum": 1.0,
-              "minimum": 0.0,
-              "default": 0.0,
-              "title": "Min Confidence"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "default": 50,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "title": "Offset"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/InterpretationListItem"
-                  },
-                  "title": "Response List Interpretations Api Interpretations Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "interpretations",
-          "interpretations"
-        ],
-        "summary": "Create Interpretation",
-        "description": "Create a new interpretation.\n\nRequires at least one of: claim_id, document_id, or passage_text.",
-        "operationId": "create_interpretation_api_interpretations_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__interpretations__InterpretationCreateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterpretationDetailResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/interpretations/{interpretation_id}": {
-      "get": {
-        "tags": [
-          "interpretations",
-          "interpretations"
-        ],
-        "summary": "Get Interpretation",
-        "description": "Get interpretation detail with citation lineage.",
-        "operationId": "get_interpretation_api_interpretations__interpretation_id__get",
-        "parameters": [
-          {
-            "name": "interpretation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Interpretation Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterpretationDetailResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "interpretations",
-          "interpretations"
-        ],
-        "summary": "Update Interpretation",
-        "description": "Update an interpretation.",
-        "operationId": "update_interpretation_api_interpretations__interpretation_id__patch",
-        "parameters": [
-          {
-            "name": "interpretation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Interpretation Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__interpretations__InterpretationUpdateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterpretationDetailResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "interpretations",
-          "interpretations"
-        ],
-        "summary": "Delete Interpretation",
-        "description": "Delete an interpretation.",
-        "operationId": "delete_interpretation_api_interpretations__interpretation_id__delete",
-        "parameters": [
-          {
-            "name": "interpretation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Interpretation Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterpretationDeletedResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/interpretations/taxonomy/methods": {
-      "get": {
-        "tags": [
-          "interpretations",
-          "interpretations"
-        ],
-        "summary": "Get Method Taxonomy",
-        "description": "Get method taxonomy for interpretations (taggable in API).\n\nReturns available interpretive acts and framework types.",
-        "operationId": "get_method_taxonomy_api_interpretations_taxonomy_methods_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MethodTaxonomyResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/graph/paths/{entity_id1}/{entity_id2}": {
-      "get": {
-        "tags": [
-          "graph-exploration",
-          "graph-exploration"
-        ],
-        "summary": "Find paths between entities",
-        "description": "Find relationship paths between two entities through claims and links.",
-        "operationId": "find_entity_paths_api_graph_paths__entity_id1___entity_id2__get",
-        "parameters": [
-          {
-            "name": "entity_id1",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Entity Id1"
-            }
-          },
-          {
-            "name": "entity_id2",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Entity Id2"
-            }
-          },
-          {
-            "name": "algorithm",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/PathAlgorithm",
-              "description": "Pathfinding algorithm",
-              "default": "shortest"
-            },
-            "description": "Pathfinding algorithm"
-          },
-          {
-            "name": "max_depth",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 5,
-              "minimum": 1,
-              "description": "Maximum path depth",
-              "default": 3,
-              "title": "Max Depth"
-            },
-            "description": "Maximum path depth"
-          },
-          {
-            "name": "min_edge_weight",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "number",
-              "maximum": 1.0,
-              "minimum": 0.0,
-              "description": "Minimum edge weight",
-              "default": 0.0,
-              "title": "Min Edge Weight"
-            },
-            "description": "Minimum edge weight"
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__graph_exploration__PathResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/graph/interpretations/exploration/{entity_id}": {
-      "get": {
-        "tags": [
-          "graph-exploration",
-          "graph-exploration"
-        ],
-        "summary": "Explore interpretations for entity",
-        "description": "Find interpretation paths and related content for an entity.",
-        "operationId": "explore_interpretations_api_graph_interpretations_exploration__entity_id__get",
-        "parameters": [
-          {
-            "name": "entity_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Entity Id"
-            }
-          },
-          {
-            "name": "depth",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/ExplorationDepth",
-              "description": "Exploration depth",
-              "default": "medium"
-            },
-            "description": "Exploration depth"
-          },
-          {
-            "name": "include_frameworks",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "Include framework nodes",
-              "default": true,
-              "title": "Include Frameworks"
-            },
-            "description": "Include framework nodes"
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterpretationExplorationResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/graph/query": {
-      "post": {
-        "tags": [
-          "graph-exploration",
-          "graph-exploration"
-        ],
-        "summary": "Complex graph query",
-        "description": "Execute complex graph query with custom parameters.",
-        "operationId": "execute_graph_query_api_graph_query_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GraphQueryRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GraphQueryResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/graph/neighborhood/{entity_id}": {
-      "get": {
-        "tags": [
-          "graph-exploration",
-          "graph-exploration"
-        ],
-        "summary": "Get entity neighborhood",
-        "description": "Get local neighborhood graph around an entity.",
-        "operationId": "get_entity_neighborhood_api_graph_neighborhood__entity_id__get",
-        "parameters": [
-          {
-            "name": "entity_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Entity Id"
-            }
-          },
-          {
-            "name": "depth",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 3,
-              "minimum": 1,
-              "description": "Neighborhood depth",
-              "default": 1,
-              "title": "Depth"
-            },
-            "description": "Neighborhood depth"
-          },
-          {
-            "name": "include_claims",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "Include claim nodes",
-              "default": true,
-              "title": "Include Claims"
-            },
-            "description": "Include claim nodes"
-          },
-          {
-            "name": "include_interpretations",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "Include interpretation nodes",
-              "default": true,
-              "title": "Include Interpretations"
-            },
-            "description": "Include interpretation nodes"
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EntityNeighborhood"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/graph/metrics": {
-      "get": {
-        "tags": [
-          "graph-exploration",
-          "graph-exploration"
-        ],
-        "summary": "Get graph metrics",
-        "description": "Get overall knowledge graph metrics and statistics.",
-        "operationId": "get_graph_metrics_api_graph_metrics_get",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__graph_exploration__GraphMetricsResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/graph/traverse/{entity_id}": {
-      "get": {
-        "tags": [
-          "graph-exploration",
-          "graph-exploration"
-        ],
-        "summary": "Traverse graph from entity",
-        "description": "BFS traversal from an entity to discover connected nodes.",
-        "operationId": "traverse_graph_api_graph_traverse__entity_id__get",
-        "parameters": [
-          {
-            "name": "entity_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Entity Id"
-            }
-          },
-          {
-            "name": "max_depth",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 5,
-              "minimum": 1,
-              "default": 2,
-              "title": "Max Depth"
-            }
-          },
-          {
-            "name": "direction",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/RelationDirection",
-              "default": "both"
-            }
-          },
-          {
-            "name": "include_claims",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": true,
-              "title": "Include Claims"
-            }
-          },
-          {
-            "name": "include_interpretations",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Include Interpretations"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GraphTraversalResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/graph/interpretations/{entity_id}": {
-      "get": {
-        "tags": [
-          "graph-exploration",
-          "graph-exploration"
-        ],
-        "summary": "Get interpretations for entity",
-        "description": "Get all interpretations related to an entity.",
-        "operationId": "get_entity_interpretations_api_graph_interpretations__entity_id__get",
-        "parameters": [
-          {
-            "name": "entity_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Entity Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EntityInterpretationsResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/graph/subgraph": {
-      "post": {
-        "tags": [
-          "graph-exploration",
-          "graph-exploration"
-        ],
-        "summary": "Extract subgraph",
-        "description": "Extract a subgraph around specified center nodes, optimized for visualization.",
-        "operationId": "extract_subgraph_api_graph_subgraph_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SubgraphRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SubgraphResponse"
                 }
               }
             }
@@ -32888,61 +32076,6 @@
         ],
         "title": "CitationCreateRequest"
       },
-      "CitationLineage": {
-        "properties": {
-          "claim_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Claim Id"
-          },
-          "claim_text": {
-            "type": "string",
-            "nullable": true,
-            "title": "Claim Text"
-          },
-          "document_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Document Id"
-          },
-          "document_name": {
-            "type": "string",
-            "nullable": true,
-            "title": "Document Name"
-          },
-          "source_metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "nullable": true,
-            "title": "Source Metadata"
-          },
-          "framework_id": {
-            "type": "string",
-            "title": "Framework Id"
-          },
-          "framework_name": {
-            "type": "string",
-            "title": "Framework Name"
-          },
-          "framework_type": {
-            "type": "string",
-            "title": "Framework Type"
-          }
-        },
-        "type": "object",
-        "required": [
-          "claim_id",
-          "claim_text",
-          "document_id",
-          "document_name",
-          "source_metadata",
-          "framework_id",
-          "framework_name",
-          "framework_type"
-        ],
-        "title": "CitationLineage",
-        "description": "Citation lineage for an interpretation."
-      },
       "CitationPatchRequest": {
         "properties": {
           "target_document_id": {
@@ -35943,47 +35076,6 @@
         "title": "EntityInspectorResponse",
         "description": "Everything the entity-detail view needs in one shot."
       },
-      "EntityInterpretationsResponse": {
-        "properties": {
-          "entity_id": {
-            "type": "string",
-            "title": "Entity Id"
-          },
-          "entity_name": {
-            "type": "string",
-            "title": "Entity Name"
-          },
-          "interpretations": {
-            "items": {
-              "$ref": "#/components/schemas/InterpretationView"
-            },
-            "type": "array",
-            "title": "Interpretations"
-          },
-          "frameworks": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Frameworks"
-          },
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          }
-        },
-        "type": "object",
-        "required": [
-          "entity_id",
-          "entity_name",
-          "interpretations",
-          "frameworks",
-          "total"
-        ],
-        "title": "EntityInterpretationsResponse",
-        "description": "Response for entity interpretations."
-      },
       "EntityMergeOperationType": {
         "type": "string",
         "enum": [
@@ -36031,61 +35123,6 @@
         ],
         "title": "EntityMergeRequest"
       },
-      "EntityNeighborhood": {
-        "properties": {
-          "entity_id": {
-            "type": "string",
-            "title": "Entity Id"
-          },
-          "entity_name": {
-            "type": "string",
-            "title": "Entity Name"
-          },
-          "depth": {
-            "type": "integer",
-            "title": "Depth"
-          },
-          "nodes": {
-            "items": {
-              "$ref": "#/components/schemas/GraphNode"
-            },
-            "type": "array",
-            "title": "Nodes"
-          },
-          "edges": {
-            "items": {
-              "$ref": "#/components/schemas/GraphEdge"
-            },
-            "type": "array",
-            "title": "Edges"
-          },
-          "claim_count": {
-            "type": "integer",
-            "title": "Claim Count"
-          },
-          "interpretation_count": {
-            "type": "integer",
-            "title": "Interpretation Count"
-          },
-          "entity_count": {
-            "type": "integer",
-            "title": "Entity Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "entity_id",
-          "entity_name",
-          "depth",
-          "nodes",
-          "edges",
-          "claim_count",
-          "interpretation_count",
-          "entity_count"
-        ],
-        "title": "EntityNeighborhood",
-        "description": "Neighborhood around an entity."
-      },
       "EntityPatchRequest": {
         "properties": {
           "canonical_name": {
@@ -36125,53 +35162,6 @@
         "type": "object",
         "title": "EntityPatchRequest",
         "description": "Partial update \u2014 only fields present in the payload are written.\n\nEvery editable attribute is here as ``Optional`` so PATCH can\ntarget a single field without losing the rest. (#901)"
-      },
-      "EntityPath": {
-        "properties": {
-          "path_id": {
-            "type": "string",
-            "title": "Path Id"
-          },
-          "source_id": {
-            "type": "string",
-            "title": "Source Id"
-          },
-          "target_id": {
-            "type": "string",
-            "title": "Target Id"
-          },
-          "segments": {
-            "items": {
-              "$ref": "#/components/schemas/PathSegment"
-            },
-            "type": "array",
-            "title": "Segments"
-          },
-          "length": {
-            "type": "integer",
-            "title": "Length"
-          },
-          "total_weight": {
-            "type": "number",
-            "title": "Total Weight"
-          },
-          "strength_score": {
-            "type": "number",
-            "title": "Strength Score"
-          }
-        },
-        "type": "object",
-        "required": [
-          "path_id",
-          "source_id",
-          "target_id",
-          "segments",
-          "length",
-          "total_weight",
-          "strength_score"
-        ],
-        "title": "EntityPath",
-        "description": "A path between two entities."
       },
       "EntityResolutionResponse": {
         "properties": {
@@ -36559,16 +35549,6 @@
         ],
         "title": "ExecutionStatusResponse",
         "description": "Response with workflow execution status."
-      },
-      "ExplorationDepth": {
-        "type": "string",
-        "enum": [
-          "shallow",
-          "medium",
-          "deep"
-        ],
-        "title": "ExplorationDepth",
-        "description": "Depth of exploration."
       },
       "ExportResponse": {
         "properties": {
@@ -37034,139 +36014,8 @@
         "type": "object",
         "title": "FrameworkUpdateRequest"
       },
-      "GraphEdge": {
+      "GraphMetrics": {
         "properties": {
-          "source": {
-            "type": "string",
-            "title": "Source"
-          },
-          "target": {
-            "type": "string",
-            "title": "Target"
-          },
-          "type": {
-            "type": "string",
-            "title": "Type"
-          },
-          "weight": {
-            "type": "number",
-            "title": "Weight",
-            "default": 1.0
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata"
-          }
-        },
-        "type": "object",
-        "required": [
-          "source",
-          "target",
-          "type"
-        ],
-        "title": "GraphEdge",
-        "description": "Edge in a graph path."
-      },
-      "GraphNode": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "type": {
-            "type": "string",
-            "title": "Type"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "type",
-          "label"
-        ],
-        "title": "GraphNode",
-        "description": "Node in a graph path."
-      },
-      "GraphQueryRequest": {
-        "properties": {
-          "start_entity_id": {
-            "type": "string",
-            "title": "Start Entity Id"
-          },
-          "end_entity_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "End Entity Id"
-          },
-          "relation_types": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Relation Types"
-          },
-          "max_depth": {
-            "type": "integer",
-            "maximum": 5.0,
-            "minimum": 1.0,
-            "title": "Max Depth",
-            "default": 3
-          },
-          "algorithm": {
-            "$ref": "#/components/schemas/PathAlgorithm",
-            "default": "shortest"
-          },
-          "min_edge_weight": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Min Edge Weight",
-            "default": 0.0
-          }
-        },
-        "type": "object",
-        "required": [
-          "start_entity_id"
-        ],
-        "title": "GraphQueryRequest",
-        "description": "Request for complex graph query."
-      },
-      "GraphQueryResponse": {
-        "properties": {
-          "query_id": {
-            "type": "string",
-            "title": "Query Id"
-          },
-          "start_entity_id": {
-            "type": "string",
-            "title": "Start Entity Id"
-          },
-          "end_entity_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "End Entity Id"
-          },
-          "results": {
-            "items": {
-              "$ref": "#/components/schemas/EntityPath"
-            },
-            "type": "array",
-            "title": "Results"
-          },
-          "execution_time_ms": {
-            "type": "number",
-            "title": "Execution Time Ms"
-          },
           "node_count": {
             "type": "integer",
             "title": "Node Count"
@@ -37174,69 +36023,35 @@
           "edge_count": {
             "type": "integer",
             "title": "Edge Count"
+          },
+          "density": {
+            "type": "number",
+            "title": "Density"
+          },
+          "clustering_coefficient": {
+            "type": "number",
+            "title": "Clustering Coefficient"
+          },
+          "connected_components": {
+            "type": "integer",
+            "title": "Connected Components"
+          },
+          "largest_component_size": {
+            "type": "integer",
+            "title": "Largest Component Size"
           }
         },
         "type": "object",
         "required": [
-          "query_id",
-          "start_entity_id",
-          "end_entity_id",
-          "results",
-          "execution_time_ms",
           "node_count",
-          "edge_count"
+          "edge_count",
+          "density",
+          "clustering_coefficient",
+          "connected_components",
+          "largest_component_size"
         ],
-        "title": "GraphQueryResponse",
-        "description": "Response for complex graph query."
-      },
-      "GraphTraversalResponse": {
-        "properties": {
-          "entity_id": {
-            "type": "string",
-            "title": "Entity Id"
-          },
-          "start_node": {
-            "$ref": "#/components/schemas/TraversedNode"
-          },
-          "nodes": {
-            "items": {
-              "$ref": "#/components/schemas/TraversedNode"
-            },
-            "type": "array",
-            "title": "Nodes"
-          },
-          "edges": {
-            "items": {
-              "$ref": "#/components/schemas/TraversedEdge"
-            },
-            "type": "array",
-            "title": "Edges"
-          },
-          "max_depth": {
-            "type": "integer",
-            "title": "Max Depth"
-          },
-          "total_nodes": {
-            "type": "integer",
-            "title": "Total Nodes"
-          },
-          "total_edges": {
-            "type": "integer",
-            "title": "Total Edges"
-          }
-        },
-        "type": "object",
-        "required": [
-          "entity_id",
-          "start_node",
-          "nodes",
-          "edges",
-          "max_depth",
-          "total_nodes",
-          "total_edges"
-        ],
-        "title": "GraphTraversalResponse",
-        "description": "Response for graph traversal."
+        "title": "GraphMetrics",
+        "description": "Basic graph metrics."
       },
       "GridViewData": {
         "properties": {
@@ -38137,41 +36952,11 @@
         "title": "Interpretation",
         "description": "An interpretation \u2014 the result of applying a framework to evidence.\n\nAn interpretation is always about something (the claim or passage)\nand from the perspective of a specific framework."
       },
-      "InterpretationDeletedResponse": {
+      "InterpretationCreateRequest": {
         "properties": {
-          "deleted": {
-            "type": "boolean",
-            "title": "Deleted"
-          },
-          "id": {
-            "type": "string",
-            "title": "Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "deleted",
-          "id"
-        ],
-        "title": "InterpretationDeletedResponse"
-      },
-      "InterpretationDetailResponse": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
           "framework_id": {
             "type": "string",
             "title": "Framework Id"
-          },
-          "framework_name": {
-            "type": "string",
-            "title": "Framework Name"
-          },
-          "framework_type": {
-            "type": "string",
-            "title": "Framework Type"
           },
           "claim_id": {
             "type": "string",
@@ -38193,12 +36978,14 @@
             "title": "Interpretation Text"
           },
           "act": {
-            "type": "string",
-            "title": "Act"
+            "$ref": "#/components/schemas/InterpretiveActType"
           },
           "confidence": {
             "type": "number",
-            "title": "Confidence"
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "default": 0.5
           },
           "key_insights": {
             "items": {
@@ -38221,9 +37008,6 @@
             "type": "array",
             "title": "Connections"
           },
-          "citation_lineage": {
-            "$ref": "#/components/schemas/CitationLineage"
-          },
           "metadata": {
             "additionalProperties": true,
             "type": "object",
@@ -38231,205 +37015,17 @@
           },
           "created_by": {
             "type": "string",
-            "title": "Created By"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
+            "title": "Created By",
+            "default": "human"
           }
         },
         "type": "object",
         "required": [
-          "id",
           "framework_id",
-          "framework_name",
-          "framework_type",
-          "claim_id",
-          "document_id",
-          "passage_text",
           "interpretation_text",
-          "act",
-          "confidence",
-          "key_insights",
-          "tensions",
-          "connections",
-          "citation_lineage",
-          "metadata",
-          "created_by",
-          "created_at",
-          "updated_at"
+          "act"
         ],
-        "title": "InterpretationDetailResponse",
-        "description": "Detailed interpretation with citation lineage."
-      },
-      "InterpretationExplorationResponse": {
-        "properties": {
-          "entity_id": {
-            "type": "string",
-            "title": "Entity Id"
-          },
-          "entity_name": {
-            "type": "string",
-            "title": "Entity Name"
-          },
-          "paths": {
-            "items": {
-              "$ref": "#/components/schemas/InterpretationPath"
-            },
-            "type": "array",
-            "title": "Paths"
-          },
-          "related_interpretations": {
-            "items": {
-              "$ref": "#/components/schemas/InterpretationNode"
-            },
-            "type": "array",
-            "title": "Related Interpretations"
-          },
-          "related_claims": {
-            "items": {
-              "$ref": "#/components/schemas/InterpretationNode"
-            },
-            "type": "array",
-            "title": "Related Claims"
-          },
-          "related_frameworks": {
-            "items": {
-              "$ref": "#/components/schemas/InterpretationNode"
-            },
-            "type": "array",
-            "title": "Related Frameworks"
-          },
-          "total_paths": {
-            "type": "integer",
-            "title": "Total Paths"
-          }
-        },
-        "type": "object",
-        "required": [
-          "entity_id",
-          "entity_name",
-          "paths",
-          "related_interpretations",
-          "related_claims",
-          "related_frameworks",
-          "total_paths"
-        ],
-        "title": "InterpretationExplorationResponse",
-        "description": "Response for interpretation exploration."
-      },
-      "InterpretationListItem": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "framework_id": {
-            "type": "string",
-            "title": "Framework Id"
-          },
-          "framework_name": {
-            "type": "string",
-            "title": "Framework Name"
-          },
-          "claim_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Claim Id"
-          },
-          "document_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Document Id"
-          },
-          "interpretation_text": {
-            "type": "string",
-            "title": "Interpretation Text"
-          },
-          "act": {
-            "type": "string",
-            "title": "Act"
-          },
-          "confidence": {
-            "type": "number",
-            "title": "Confidence"
-          },
-          "created_by": {
-            "type": "string",
-            "title": "Created By"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "framework_id",
-          "framework_name",
-          "claim_id",
-          "document_id",
-          "interpretation_text",
-          "act",
-          "confidence",
-          "created_by",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "InterpretationListItem",
-        "description": "Interpretation list item with summary."
-      },
-      "InterpretationNode": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "type": {
-            "type": "string",
-            "title": "Type"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "confidence": {
-            "type": "number",
-            "nullable": true,
-            "title": "Confidence"
-          },
-          "created_at": {
-            "type": "string",
-            "title": "Created At"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "type",
-          "label",
-          "created_at"
-        ],
-        "title": "InterpretationNode",
-        "description": "Node in interpretation exploration."
+        "title": "InterpretationCreateRequest"
       },
       "InterpretationPatchRequest": {
         "properties": {
@@ -38474,46 +37070,6 @@
         },
         "type": "object",
         "title": "InterpretationPatchRequest"
-      },
-      "InterpretationPath": {
-        "properties": {
-          "path_id": {
-            "type": "string",
-            "title": "Path Id"
-          },
-          "start_node": {
-            "$ref": "#/components/schemas/InterpretationNode"
-          },
-          "end_node": {
-            "$ref": "#/components/schemas/InterpretationNode"
-          },
-          "intermediate_nodes": {
-            "items": {
-              "$ref": "#/components/schemas/InterpretationNode"
-            },
-            "type": "array",
-            "title": "Intermediate Nodes"
-          },
-          "path_type": {
-            "type": "string",
-            "title": "Path Type"
-          },
-          "relevance_score": {
-            "type": "number",
-            "title": "Relevance Score"
-          }
-        },
-        "type": "object",
-        "required": [
-          "path_id",
-          "start_node",
-          "end_node",
-          "intermediate_nodes",
-          "path_type",
-          "relevance_score"
-        ],
-        "title": "InterpretationPath",
-        "description": "Path through interpretation space."
       },
       "InterpretationRequest": {
         "properties": {
@@ -38587,44 +37143,57 @@
         ],
         "title": "InterpretationRequest"
       },
-      "InterpretationView": {
+      "InterpretationUpdateRequest": {
         "properties": {
-          "id": {
+          "interpretation_text": {
             "type": "string",
-            "title": "Id"
+            "nullable": true,
+            "title": "Interpretation Text"
           },
-          "framework_id": {
-            "type": "string",
-            "title": "Framework Id"
-          },
-          "framework_name": {
-            "type": "string",
-            "title": "Framework Name"
-          },
-          "text": {
-            "type": "string",
-            "title": "Text"
+          "act": {
+            "$ref": "#/components/schemas/InterpretiveActType",
+            "nullable": true
           },
           "confidence": {
             "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
             "title": "Confidence"
           },
-          "created_at": {
-            "type": "string",
-            "title": "Created At"
+          "key_insights": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Key Insights"
+          },
+          "tensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Tensions"
+          },
+          "connections": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Connections"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Metadata"
           }
         },
         "type": "object",
-        "required": [
-          "id",
-          "framework_id",
-          "framework_name",
-          "text",
-          "confidence",
-          "created_at"
-        ],
-        "title": "InterpretationView",
-        "description": "Simplified interpretation view."
+        "title": "InterpretationUpdateRequest"
       },
       "InterpretiveActType": {
         "type": "string",
@@ -40261,16 +38830,14 @@
         "properties": {
           "acts": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/TaxonomyItem"
             },
             "type": "array",
             "title": "Acts"
           },
           "frameworks": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/TaxonomyItem"
             },
             "type": "array",
             "title": "Frameworks"
@@ -40282,7 +38849,7 @@
           "frameworks"
         ],
         "title": "MethodTaxonomyResponse",
-        "description": "Method taxonomy for interpretations."
+        "description": "Pickers for the interpretation editor \u2014 acts + framework types."
       },
       "MetricsResponse": {
         "properties": {
@@ -41987,15 +40554,37 @@
         ],
         "title": "OverviewScope"
       },
-      "PathAlgorithm": {
-        "type": "string",
-        "enum": [
-          "shortest",
-          "all_simple",
-          "strongest"
+      "PathResponse": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "path": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Path"
+          },
+          "length": {
+            "type": "integer",
+            "title": "Length"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_id",
+          "target_id",
+          "path",
+          "length"
         ],
-        "title": "PathAlgorithm",
-        "description": "Pathfinding algorithm to use."
+        "title": "PathResponse",
+        "description": "Shortest path between two entities as a list of entity IDs."
       },
       "PathResult": {
         "properties": {
@@ -42038,23 +40627,6 @@
         ],
         "title": "PathResult",
         "description": "Path analysis result."
-      },
-      "PathSegment": {
-        "properties": {
-          "node": {
-            "$ref": "#/components/schemas/GraphNode"
-          },
-          "edge": {
-            "$ref": "#/components/schemas/GraphEdge",
-            "nullable": true
-          }
-        },
-        "type": "object",
-        "required": [
-          "node"
-        ],
-        "title": "PathSegment",
-        "description": "Single segment in a path (node + edge to next)."
       },
       "PatternCreateRequest": {
         "properties": {
@@ -43995,16 +42567,6 @@
         ],
         "title": "RelatedDocumentsResponse",
         "description": "One row of /documents/{id}/related \u2014 another document that shares\nentities with this one via knowledge claims, with the count of\nshared entities and a small excerpt for context."
-      },
-      "RelationDirection": {
-        "type": "string",
-        "enum": [
-          "outbound",
-          "inbound",
-          "both"
-        ],
-        "title": "RelationDirection",
-        "description": "Direction of relationship traversal."
       },
       "RenameFolderRequest": {
         "properties": {
@@ -46746,89 +45308,6 @@
         "title": "StoredPrediction",
         "description": "Stored prediction with metadata."
       },
-      "SubgraphRequest": {
-        "properties": {
-          "center_entity_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Center Entity Ids"
-          },
-          "max_depth": {
-            "type": "integer",
-            "maximum": 4.0,
-            "minimum": 1.0,
-            "title": "Max Depth",
-            "default": 2
-          },
-          "include_nodes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Include Nodes"
-          },
-          "exclude_nodes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Exclude Nodes"
-          }
-        },
-        "type": "object",
-        "required": [
-          "center_entity_ids"
-        ],
-        "title": "SubgraphRequest",
-        "description": "Request for subgraph extraction."
-      },
-      "SubgraphResponse": {
-        "properties": {
-          "nodes": {
-            "items": {
-              "$ref": "#/components/schemas/TraversedNode"
-            },
-            "type": "array",
-            "title": "Nodes"
-          },
-          "edges": {
-            "items": {
-              "$ref": "#/components/schemas/TraversedEdge"
-            },
-            "type": "array",
-            "title": "Edges"
-          },
-          "center_nodes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Center Nodes"
-          },
-          "max_depth": {
-            "type": "integer",
-            "title": "Max Depth"
-          },
-          "optimization": {
-            "type": "string",
-            "title": "Optimization"
-          }
-        },
-        "type": "object",
-        "required": [
-          "nodes",
-          "edges",
-          "center_nodes",
-          "max_depth",
-          "optimization"
-        ],
-        "title": "SubgraphResponse",
-        "description": "Response for subgraph extraction."
-      },
       "TableViewData": {
         "properties": {
           "columns": {
@@ -47184,6 +45663,24 @@
         },
         "type": "object",
         "title": "TaskUpdateRequest"
+      },
+      "TaxonomyItem": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "TaxonomyItem"
       },
       "ThreadDeletedResponse": {
         "properties": {
@@ -47794,7 +46291,7 @@
         "title": "TransliterationResponse",
         "description": "Transliteration variants."
       },
-      "TraversedEdge": {
+      "TraverseEdge": {
         "properties": {
           "source": {
             "type": "string",
@@ -47820,10 +46317,9 @@
           "type",
           "depth"
         ],
-        "title": "TraversedEdge",
-        "description": "Edge discovered during traversal."
+        "title": "TraverseEdge"
       },
-      "TraversedNode": {
+      "TraverseNode": {
         "properties": {
           "id": {
             "type": "string",
@@ -47844,6 +46340,7 @@
           "metadata": {
             "additionalProperties": true,
             "type": "object",
+            "nullable": true,
             "title": "Metadata"
           }
         },
@@ -47854,8 +46351,41 @@
           "label",
           "depth"
         ],
-        "title": "TraversedNode",
-        "description": "Node discovered during traversal."
+        "title": "TraverseNode"
+      },
+      "TraverseResponse": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/TraverseNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/TraverseEdge"
+            },
+            "type": "array",
+            "title": "Edges"
+          },
+          "max_depth": {
+            "type": "integer",
+            "title": "Max Depth"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "nodes",
+          "edges",
+          "max_depth"
+        ],
+        "title": "TraverseResponse"
       },
       "TrendPoint": {
         "properties": {
@@ -49761,136 +48291,6 @@
         "title": "EntityType",
         "description": "Type of entity for folder operations."
       },
-      "fichero__api__routes__graph_exploration__GraphMetrics": {
-        "properties": {
-          "entity_count": {
-            "type": "integer",
-            "title": "Entity Count"
-          },
-          "claim_count": {
-            "type": "integer",
-            "title": "Claim Count"
-          },
-          "interpretation_count": {
-            "type": "integer",
-            "title": "Interpretation Count"
-          },
-          "edge_count": {
-            "type": "integer",
-            "title": "Edge Count"
-          },
-          "avg_degree": {
-            "type": "number",
-            "title": "Avg Degree"
-          },
-          "max_degree": {
-            "type": "integer",
-            "title": "Max Degree"
-          },
-          "connected_components": {
-            "type": "integer",
-            "title": "Connected Components"
-          },
-          "density": {
-            "type": "number",
-            "title": "Density"
-          }
-        },
-        "type": "object",
-        "required": [
-          "entity_count",
-          "claim_count",
-          "interpretation_count",
-          "edge_count",
-          "avg_degree",
-          "max_degree",
-          "connected_components",
-          "density"
-        ],
-        "title": "GraphMetrics",
-        "description": "Graph metrics for visualization."
-      },
-      "fichero__api__routes__graph_exploration__GraphMetricsResponse": {
-        "properties": {
-          "metrics": {
-            "$ref": "#/components/schemas/fichero__api__routes__graph_exploration__GraphMetrics"
-          },
-          "last_updated": {
-            "type": "string",
-            "title": "Last Updated"
-          },
-          "time_range": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "nullable": true,
-            "title": "Time Range"
-          }
-        },
-        "type": "object",
-        "required": [
-          "metrics",
-          "last_updated",
-          "time_range"
-        ],
-        "title": "GraphMetricsResponse",
-        "description": "Response for graph metrics."
-      },
-      "fichero__api__routes__graph_exploration__PathResponse": {
-        "properties": {
-          "source_id": {
-            "type": "string",
-            "title": "Source Id"
-          },
-          "target_id": {
-            "type": "string",
-            "title": "Target Id"
-          },
-          "source_entity": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Source Entity"
-          },
-          "target_entity": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Target Entity"
-          },
-          "paths": {
-            "items": {
-              "$ref": "#/components/schemas/EntityPath"
-            },
-            "type": "array",
-            "title": "Paths"
-          },
-          "total_paths": {
-            "type": "integer",
-            "title": "Total Paths"
-          },
-          "algorithm": {
-            "type": "string",
-            "title": "Algorithm"
-          },
-          "max_depth": {
-            "type": "integer",
-            "title": "Max Depth"
-          }
-        },
-        "type": "object",
-        "required": [
-          "source_id",
-          "target_id",
-          "source_entity",
-          "target_entity",
-          "paths",
-          "total_paths",
-          "algorithm",
-          "max_depth"
-        ],
-        "title": "PathResponse",
-        "description": "Response for pathfinding between entities."
-      },
       "fichero__api__routes__graph_reasoning__EnableRequest": {
         "properties": {
           "enabled": {
@@ -49908,7 +48308,7 @@
       "fichero__api__routes__graph_reasoning__GraphMetricsResponse": {
         "properties": {
           "metrics": {
-            "$ref": "#/components/schemas/fichero__graph_reasoning__GraphMetrics",
+            "$ref": "#/components/schemas/GraphMetrics",
             "nullable": true
           },
           "networkx_available": {
@@ -49928,133 +48328,6 @@
         ],
         "title": "GraphMetricsResponse",
         "description": "Response for graph metrics."
-      },
-      "fichero__api__routes__hermeneutics__InterpretationCreateRequest": {
-        "properties": {
-          "framework_id": {
-            "type": "string",
-            "title": "Framework Id"
-          },
-          "claim_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Claim Id"
-          },
-          "document_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Document Id"
-          },
-          "passage_text": {
-            "type": "string",
-            "nullable": true,
-            "title": "Passage Text"
-          },
-          "interpretation_text": {
-            "type": "string",
-            "title": "Interpretation Text"
-          },
-          "act": {
-            "$ref": "#/components/schemas/InterpretiveActType"
-          },
-          "confidence": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Confidence",
-            "default": 0.5
-          },
-          "key_insights": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Key Insights"
-          },
-          "tensions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Tensions"
-          },
-          "connections": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Connections"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata"
-          },
-          "created_by": {
-            "type": "string",
-            "title": "Created By",
-            "default": "human"
-          }
-        },
-        "type": "object",
-        "required": [
-          "framework_id",
-          "interpretation_text",
-          "act"
-        ],
-        "title": "InterpretationCreateRequest"
-      },
-      "fichero__api__routes__hermeneutics__InterpretationUpdateRequest": {
-        "properties": {
-          "interpretation_text": {
-            "type": "string",
-            "nullable": true,
-            "title": "Interpretation Text"
-          },
-          "act": {
-            "$ref": "#/components/schemas/InterpretiveActType",
-            "nullable": true
-          },
-          "confidence": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "nullable": true,
-            "title": "Confidence"
-          },
-          "key_insights": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Key Insights"
-          },
-          "tensions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Tensions"
-          },
-          "connections": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Connections"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "nullable": true,
-            "title": "Metadata"
-          }
-        },
-        "type": "object",
-        "title": "InterpretationUpdateRequest"
       },
       "fichero__api__routes__integrations__CitationResponse": {
         "properties": {
@@ -50157,131 +48430,6 @@
         "title": "ImportResponse",
         "description": "Response from import operation."
       },
-      "fichero__api__routes__interpretations__InterpretationCreateRequest": {
-        "properties": {
-          "framework_id": {
-            "type": "string",
-            "title": "Framework Id"
-          },
-          "claim_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Claim Id"
-          },
-          "document_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Document Id"
-          },
-          "passage_text": {
-            "type": "string",
-            "nullable": true,
-            "title": "Passage Text"
-          },
-          "interpretation_text": {
-            "type": "string",
-            "minLength": 1,
-            "title": "Interpretation Text"
-          },
-          "act": {
-            "$ref": "#/components/schemas/InterpretiveActType"
-          },
-          "confidence": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Confidence",
-            "default": 0.5
-          },
-          "key_insights": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Key Insights"
-          },
-          "tensions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Tensions"
-          },
-          "connections": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Connections"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata"
-          }
-        },
-        "type": "object",
-        "required": [
-          "framework_id",
-          "interpretation_text",
-          "act"
-        ],
-        "title": "InterpretationCreateRequest",
-        "description": "Create a new interpretation."
-      },
-      "fichero__api__routes__interpretations__InterpretationUpdateRequest": {
-        "properties": {
-          "interpretation_text": {
-            "type": "string",
-            "nullable": true,
-            "title": "Interpretation Text"
-          },
-          "act": {
-            "$ref": "#/components/schemas/InterpretiveActType",
-            "nullable": true
-          },
-          "confidence": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "nullable": true,
-            "title": "Confidence"
-          },
-          "key_insights": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Key Insights"
-          },
-          "tensions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Tensions"
-          },
-          "connections": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Connections"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "nullable": true,
-            "title": "Metadata"
-          }
-        },
-        "type": "object",
-        "title": "InterpretationUpdateRequest",
-        "description": "Update an interpretation."
-      },
       "fichero__api__routes__kg_citations__CitationResponse": {
         "properties": {
           "style": {
@@ -50310,37 +48458,59 @@
         ],
         "title": "CitationResponse"
       },
-      "fichero__api__routes__kg_graph__PathResponse": {
+      "fichero__api__routes__kg_graph__GraphMetricsResponse": {
         "properties": {
-          "source_id": {
-            "type": "string",
-            "title": "Source Id"
-          },
-          "target_id": {
-            "type": "string",
-            "title": "Target Id"
-          },
-          "path": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Path"
-          },
-          "length": {
+          "entity_count": {
             "type": "integer",
-            "title": "Length"
+            "title": "Entity Count"
+          },
+          "claim_count": {
+            "type": "integer",
+            "title": "Claim Count"
+          },
+          "annotation_count": {
+            "type": "integer",
+            "title": "Annotation Count"
+          },
+          "note_count": {
+            "type": "integer",
+            "title": "Note Count"
+          },
+          "interpretation_count": {
+            "type": "integer",
+            "title": "Interpretation Count"
+          },
+          "document_citation_count": {
+            "type": "integer",
+            "title": "Document Citation Count"
+          },
+          "project_count": {
+            "type": "integer",
+            "title": "Project Count"
+          },
+          "avg_claims_per_entity": {
+            "type": "number",
+            "title": "Avg Claims Per Entity"
+          },
+          "avg_entities_per_claim": {
+            "type": "number",
+            "title": "Avg Entities Per Claim"
           }
         },
         "type": "object",
         "required": [
-          "source_id",
-          "target_id",
-          "path",
-          "length"
+          "entity_count",
+          "claim_count",
+          "annotation_count",
+          "note_count",
+          "interpretation_count",
+          "document_citation_count",
+          "project_count",
+          "avg_claims_per_entity",
+          "avg_entities_per_claim"
         ],
-        "title": "PathResponse",
-        "description": "Shortest path between two entities as a list of entity IDs."
+        "title": "GraphMetricsResponse",
+        "description": "Library-wide KG counts + averages. Drives the inspector summary."
       },
       "fichero__api__routes__knowledge_graph__claims__ClaimCreateRequest": {
         "properties": {
@@ -51104,45 +49274,6 @@
         ],
         "title": "ToolListResponse",
         "description": "All tools by category."
-      },
-      "fichero__graph_reasoning__GraphMetrics": {
-        "properties": {
-          "node_count": {
-            "type": "integer",
-            "title": "Node Count"
-          },
-          "edge_count": {
-            "type": "integer",
-            "title": "Edge Count"
-          },
-          "density": {
-            "type": "number",
-            "title": "Density"
-          },
-          "clustering_coefficient": {
-            "type": "number",
-            "title": "Clustering Coefficient"
-          },
-          "connected_components": {
-            "type": "integer",
-            "title": "Connected Components"
-          },
-          "largest_component_size": {
-            "type": "integer",
-            "title": "Largest Component Size"
-          }
-        },
-        "type": "object",
-        "required": [
-          "node_count",
-          "edge_count",
-          "density",
-          "clustering_coefficient",
-          "connected_components",
-          "largest_component_size"
-        ],
-        "title": "GraphMetrics",
-        "description": "Basic graph metrics."
       },
       "fichero__knowledge_models__EntityType": {
         "type": "string",

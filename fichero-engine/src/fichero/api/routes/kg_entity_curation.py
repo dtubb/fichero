@@ -1,0 +1,329 @@
+"""Entity merge/split with audit trail + semantic entity search.
+
+Ported from the deprecated ``/api/knowledge-graph/entities/{merge,split,audit,semantic}``
+endpoints. Lives under ``/api/kg/entity-curation``. The audit table is
+what the Swift curation UI shows when displaying "Davidson absorbed
+3 aliases" — see EntityMergeAudit in knowledge_models.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
+
+from fichero.api.main import get_library_database
+from fichero.db import Database
+from fichero.knowledge_models import (
+    EntityMergeAudit,
+    EntityMergeOperationType,
+    EntityType,
+    KnowledgeEntity,
+)
+
+router = APIRouter(prefix="/kg/entity-curation")
+
+KG_ENTITY_EMBEDDINGS_TABLE = "kg_entity_embeddings"
+
+
+class EntityMergeRequest(BaseModel):
+    absorbing_entity_id: str = Field(description="Entity that absorbs the others (survivor)")
+    absorbed_entity_ids: list[str] = Field(description="Entities merged into the absorber")
+    merged_aliases: list[str] = Field(default_factory=list)
+    merged_description: str | None = None
+
+
+class EntitySplitRequest(BaseModel):
+    primary_entity_id: str
+    split_off_entity_ids: list[str]
+    aliases_to_move: list[str] = Field(default_factory=list)
+
+
+class EntityAuditResponse(BaseModel):
+    id: str
+    operation_type: EntityMergeOperationType
+    source_entity_ids: list[str]
+    target_entity_id: str
+    alias_changes: dict
+    reversal_id: str | None
+    created_by: str
+    created_at: datetime
+
+
+class EmbedEntitiesResponse(BaseModel):
+    embedded: int
+    table: str
+
+
+class _EmbedEntityRequest(BaseModel):
+    entity_ids: list[str] | None = None
+
+
+def _audit_response(audit: EntityMergeAudit) -> EntityAuditResponse:
+    return EntityAuditResponse(
+        id=audit.id,
+        operation_type=audit.operation_type,
+        source_entity_ids=audit.source_entity_ids,
+        target_entity_id=audit.target_entity_id,
+        alias_changes=audit.alias_changes,
+        reversal_id=audit.reversal_id,
+        created_by=audit.created_by,
+        created_at=audit.created_at,
+    )
+
+
+@router.post("/merge", response_model=EntityAuditResponse)
+async def merge_entities(
+    request: EntityMergeRequest,
+    db: Database = Depends(get_library_database),
+) -> EntityAuditResponse:
+    """Merge multiple entities into a single absorbing entity, with audit."""
+    absorber = db.get(KnowledgeEntity, request.absorbing_entity_id)
+    if absorber is None:
+        raise HTTPException(status_code=404, detail=f"Absorbing entity not found: {request.absorbing_entity_id}")
+
+    absorbed: list[KnowledgeEntity] = []
+    for eid in request.absorbed_entity_ids:
+        ent = db.get(KnowledgeEntity, eid)
+        if ent is None:
+            raise HTTPException(status_code=404, detail=f"Absorbed entity not found: {eid}")
+        if ent.merged_into_id is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Entity {eid} was already merged into {ent.merged_into_id}",
+            )
+        absorbed.append(ent)
+
+    alias_changes: dict[str, Any] = {"added": [], "removed": [], "moved_to": {}}
+    absorber_aliases = set(absorber.aliases)
+    now = datetime.now()
+    for ent in absorbed:
+        for alias in ent.aliases:
+            if alias not in absorber_aliases:
+                alias_changes["added"].append(alias)
+                absorber_aliases.add(alias)
+            alias_changes["moved_to"][alias] = absorber.id
+        alias_changes["removed"].extend(ent.aliases)
+        ent.merged_into_id = absorber.id
+        ent.updated_at = now
+
+    for alias in request.merged_aliases:
+        stripped = alias.strip()
+        if stripped and stripped not in absorber_aliases:
+            alias_changes["added"].append(stripped)
+            absorber_aliases.add(stripped)
+
+    absorber.aliases = sorted(absorber_aliases)
+    if request.merged_description:
+        absorber.description = request.merged_description
+    absorber.updated_at = now
+
+    audit = EntityMergeAudit(
+        operation_type=EntityMergeOperationType.merge,
+        source_entity_ids=[e.id for e in absorbed],
+        target_entity_id=absorber.id,
+        alias_changes=alias_changes,
+        created_by="human",
+        created_at=now,
+    )
+    db.save(audit)
+    audit.reversal_id = audit.id
+    db.save(audit)
+    for ent in absorbed:
+        db.save(ent)
+    db.save(absorber)
+    return _audit_response(audit)
+
+
+@router.post("/split", response_model=EntityAuditResponse)
+async def split_entity(
+    request: EntitySplitRequest,
+    db: Database = Depends(get_library_database),
+) -> EntityAuditResponse:
+    """Split one entity into a primary + new split-off entities."""
+    primary = db.get(KnowledgeEntity, request.primary_entity_id)
+    if primary is None:
+        raise HTTPException(status_code=404, detail=f"Primary entity not found: {request.primary_entity_id}")
+
+    moved = {a.strip() for a in request.aliases_to_move if a.strip()}
+    alias_changes: dict[str, Any] = {
+        "restored_from": list(moved),
+        "moved_to": {},
+    }
+    primary.aliases = [a for a in primary.aliases if a not in moved]
+    now = datetime.now()
+    primary.updated_at = now
+
+    split_ids: list[str] = []
+    for sid in request.split_off_entity_ids:
+        sp = db.get(KnowledgeEntity, sid)
+        if sp is None:
+            raise HTTPException(status_code=404, detail=f"Split-off entity not found: {sid}")
+        sp.merged_into_id = None
+        sp.updated_at = now
+        db.save(sp)
+        split_ids.append(sp.id)
+        alias_changes["moved_to"][sp.id] = []
+
+    audit = EntityMergeAudit(
+        operation_type=EntityMergeOperationType.split,
+        source_entity_ids=split_ids,
+        target_entity_id=primary.id,
+        alias_changes=alias_changes,
+        created_by="human",
+        created_at=now,
+    )
+    db.save(audit)
+    audit.reversal_id = audit.id
+    db.save(audit)
+    db.save(primary)
+    return _audit_response(audit)
+
+
+@router.post("/audit/{audit_id}/undo", response_model=EntityAuditResponse)
+async def undo_entity_operation(
+    audit_id: str,
+    db: Database = Depends(get_library_database),
+) -> EntityAuditResponse:
+    """Undo a previous merge or split using its audit record."""
+    audit = db.get(EntityMergeAudit, audit_id)
+    if audit is None:
+        raise HTTPException(status_code=404, detail=f"Audit record not found: {audit_id}")
+    if audit.reversal_id != audit.id:
+        raise HTTPException(
+            status_code=409,
+            detail="This operation was already undone or is not directly reversible",
+        )
+
+    now = datetime.now()
+    if audit.operation_type == EntityMergeOperationType.merge:
+        absorber = db.get(KnowledgeEntity, audit.target_entity_id)
+        if absorber is None:
+            raise HTTPException(status_code=404, detail=f"Target entity not found: {audit.target_entity_id}")
+        restored: list[str] = []
+        for eid in audit.source_entity_ids:
+            ent = db.get(KnowledgeEntity, eid)
+            if ent is None:
+                raise HTTPException(status_code=404, detail=f"Source entity not found: {eid}")
+            ent.merged_into_id = None
+            ent.updated_at = now
+            db.save(ent)
+            for alias, target in audit.alias_changes.get("moved_to", {}).items():
+                if target == absorber.id and alias in ent.aliases:
+                    restored.append(alias)
+        absorbed_aliases = set(audit.alias_changes.get("added", []))
+        absorber.aliases = [a for a in absorber.aliases if a not in absorbed_aliases]
+        absorber.updated_at = now
+        db.save(absorber)
+        undo = EntityMergeAudit(
+            operation_type=EntityMergeOperationType.undo_merge,
+            source_entity_ids=audit.source_entity_ids,
+            target_entity_id=audit.target_entity_id,
+            alias_changes={"added": [], "removed": [], "moved_to": {}, "restored_from": restored},
+            reversal_id=audit_id,
+            created_by="human",
+            created_at=now,
+        )
+    elif audit.operation_type == EntityMergeOperationType.split:
+        primary = db.get(KnowledgeEntity, audit.target_entity_id)
+        if primary is None:
+            raise HTTPException(status_code=404, detail=f"Primary entity not found: {audit.target_entity_id}")
+        moved = audit.alias_changes.get("restored_from", [])
+        primary.aliases = sorted(set(primary.aliases) | set(moved))
+        primary.updated_at = now
+        db.save(primary)
+        undo = EntityMergeAudit(
+            operation_type=EntityMergeOperationType.undo_split,
+            source_entity_ids=audit.source_entity_ids,
+            target_entity_id=audit.target_entity_id,
+            alias_changes={"restored_from": [], "moved_to": {}},
+            reversal_id=audit_id,
+            created_by="human",
+            created_at=now,
+        )
+    else:
+        raise HTTPException(status_code=409, detail=f"Cannot undo operation type: {audit.operation_type}")
+
+    db.save(undo)
+    audit.reversal_id = undo.id
+    db.save(audit)
+    return _audit_response(undo)
+
+
+@router.get("/audit", response_model=list[EntityAuditResponse])
+async def list_entity_audits(
+    entity_id: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Database = Depends(get_library_database),
+) -> list[EntityAuditResponse]:
+    """List entity merge/split audit records, optionally filtered by entity."""
+    audits = db.all(EntityMergeAudit)
+    if entity_id:
+        audits = [
+            a for a in audits
+            if a.target_entity_id == entity_id or entity_id in a.source_entity_ids
+        ]
+    audits.sort(key=lambda a: a.created_at, reverse=True)
+    return [_audit_response(a) for a in audits[:limit]]
+
+
+@router.post("/semantic/embed", response_model=EmbedEntitiesResponse)
+async def embed_entities(
+    request: _EmbedEntityRequest | None = None,
+    db: Database = Depends(get_library_database),
+) -> EmbedEntitiesResponse:
+    """Embed entities into LanceDB for semantic search."""
+    if request and request.entity_ids:
+        entities = [db.get(KnowledgeEntity, eid) for eid in request.entity_ids]
+        entities = [e for e in entities if e is not None]
+    else:
+        entities = db.all(KnowledgeEntity)
+    if not entities:
+        return EmbedEntitiesResponse(embedded=0, table=KG_ENTITY_EMBEDDINGS_TABLE)
+
+    texts = [
+        e.canonical_name + (" " + " ".join(e.aliases) if e.aliases else "")
+        for e in entities
+    ]
+    vectors = db._embed_texts(texts)  # type: ignore[attr-defined]
+    records = [
+        {
+            "id": e.id, "text": e.canonical_name, "aliases": e.aliases,
+            "entity_type": e.entity_type.value, "vector": v,
+        }
+        for e, v in zip(entities, vectors)
+    ]
+    db.save_vectors(KG_ENTITY_EMBEDDINGS_TABLE, records)
+    return EmbedEntitiesResponse(embedded=len(records), table=KG_ENTITY_EMBEDDINGS_TABLE)
+
+
+@router.get("/semantic")
+async def search_entities_semantic(
+    q: str = Query(..., description="Natural language query"),
+    entity_type: EntityType | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    db: Database = Depends(get_library_database),
+) -> list[dict[str, Any]]:
+    """Semantic entity search via LanceDB."""
+    if KG_ENTITY_EMBEDDINGS_TABLE not in db._lance_tables():
+        raise HTTPException(
+            status_code=503,
+            detail="Entity embeddings not yet indexed. POST /kg/entity-curation/semantic/embed first.",
+        )
+    try:
+        query_vector = db._embed_text(q)  # type: ignore[attr-defined]
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Embedding generation failed: {exc}") from exc
+    results = db.search_vectors(KG_ENTITY_EMBEDDINGS_TABLE, query_vector, limit=limit)
+    entity_ids = [r["id"] for r in results]
+    if not entity_ids:
+        return []
+    entities = {e.id: e for e in db.all(KnowledgeEntity) if e.id in entity_ids}
+    score_map = {r["id"]: r.get("_score", 0.0) for r in results}
+    return [
+        {**entities[eid].model_dump(), "similarity_score": score_map.get(eid, 0.0)}
+        for eid in entity_ids
+        if eid in entities and (entity_type is None or entities[eid].entity_type == entity_type)
+    ]
