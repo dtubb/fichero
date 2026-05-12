@@ -73,7 +73,14 @@ extension ContentView {
     // MARK: - Center Content (with Layout Modes)
 
     var showModeRail: Bool {
-        (sidebarMode == .library || sidebarMode == .search)
+        // Hide the icons/list/table/map mode strip in KG mode (#895).
+        // KG entry lives inside the library sidebar section so
+        // sidebarMode stays .library, but the OntologyBrowser has its
+        // own MiniToolbar — stacking both bars looks wrong. Workflows
+        // doesn't have this problem because sidebarMode flips to
+        // .workflows when the user clicks Workflows.
+        if case .ontology = viewMode { return false }
+        return (sidebarMode == .library || sidebarMode == .search)
             && showViewModePicker
             && availableViewDisplayModes.count > 1
     }
