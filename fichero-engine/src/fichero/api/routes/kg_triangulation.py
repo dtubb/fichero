@@ -25,6 +25,7 @@ class TripleSupportResponse(BaseModel):
     predicate: str
     object_text: str
     support_count: int
+    weighted_support: float  # #903 — scaled by SourceAuthority
     corroboration: str  # "single-source" | "corroborated" | "triangulated"
     source_document_ids: list[str]
     claim_ids: list[str]
@@ -54,6 +55,7 @@ async def entity_triangulation(
             predicate=t.key.predicate,
             object_text=t.key.object_text,
             support_count=t.support_count,
+            weighted_support=t.weighted_support,
             corroboration=t.corroboration,
             source_document_ids=list(t.source_document_ids),
             claim_ids=list(t.claim_ids),
@@ -89,6 +91,7 @@ async def library_triangulation(
             predicate=t.key.predicate,
             object_text=t.key.object_text,
             support_count=t.support_count,
+            weighted_support=t.weighted_support,
             corroboration=t.corroboration,
             source_document_ids=list(t.source_document_ids),
             claim_ids=list(t.claim_ids),

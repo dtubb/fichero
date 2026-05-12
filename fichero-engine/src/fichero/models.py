@@ -75,6 +75,34 @@ class FileType(str, Enum):
     other = "other"
 
 
+class SourceAuthority(str, Enum):
+    """How authoritative this source is for KG triangulation (#903).
+
+    Weighted contribution to ``triangulation.support_count``:
+    - primary:   1.0  — original archive document, primary research output
+    - secondary: 0.6  — academic / journalistic citation of primary sources
+    - tertiary:  0.3  — encyclopaedic / aggregate / textbook
+    - unknown:   1.0  — default for un-tagged documents (treated as primary
+                       to avoid silently down-weighting existing libraries
+                       before the user has tagged anything)
+    """
+
+    primary = "primary"
+    secondary = "secondary"
+    tertiary = "tertiary"
+    unknown = "unknown"
+
+
+# Weight by SourceAuthority (#903). Module-level so triangulation,
+# splink, and any future scorer share the same scale.
+AUTHORITY_WEIGHTS: dict[str, float] = {
+    "primary": 1.0,
+    "secondary": 0.6,
+    "tertiary": 0.3,
+    "unknown": 1.0,
+}
+
+
 class Status(str, Enum):
     """Processing status."""
 
@@ -140,6 +168,11 @@ class Document(BaseModel):
 
     # Extensible metadata - see properties below for common keys
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    # Source authority for KG weighting (#903). Defaults to ``unknown``
+    # so existing libraries don't suddenly down-weight every claim
+    # they emit; the user sets per-document via the inspector.
+    source_authority: SourceAuthority = SourceAuthority.unknown
 
     # Processing state
     status: Status = Status.pending

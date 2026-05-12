@@ -64,18 +64,37 @@ class TripleKey:
 
 @dataclass(frozen=True)
 class TripleSupport:
-    """Result of triangulation aggregation for one triple."""
+    """Result of triangulation aggregation for one triple.
+
+    Two support metrics:
+    - ``support_count`` — raw number of distinct source documents
+      asserting the fact. The user-facing "is this triangulated?"
+      question uses this.
+    - ``weighted_support`` — same count, scaled by each contributing
+      document's ``SourceAuthority`` (primary=1.0, secondary=0.6,
+      tertiary=0.3). Distinguishes "3 archive originals all say X"
+      from "3 textbook citations of the same blog post." (#903)
+    """
     key: TripleKey
     support_count: int
+    weighted_support: float
     source_document_ids: tuple[str, ...]
     claim_ids: tuple[str, ...]
 
     @property
     def corroboration(self) -> str:
-        """Human-readable corroboration label."""
-        if self.support_count >= TRIANGULATED_THRESHOLD:
+        """Human-readable corroboration label based on weighted support.
+
+        Falls back to raw count when authority isn't set anywhere
+        (so existing libraries don't suddenly show "single-source"
+        on what used to be triangulated facts).
+        """
+        # The weighted_support metric is preferred — if it crosses
+        # the threshold, the fact is triangulated regardless of raw
+        # count (3 primaries + 5 tertiaries both clear 3.0).
+        if self.weighted_support >= TRIANGULATED_THRESHOLD:
             return "triangulated"
-        if self.support_count >= CORROBORATED_THRESHOLD:
+        if self.weighted_support >= CORROBORATED_THRESHOLD:
             return "corroborated"
         return "single-source"
 
@@ -142,10 +161,35 @@ def compute_support_counts(db: "Database") -> dict[TripleKey, TripleSupport]:
                 sources.add(claim.source_document_id)
             claim_ids.append(claim.id)
 
+    # Build authority weights for every source document that
+    # contributes — one query, cached per call. (#903)
+    authority_by_doc: dict[str, float] = {}
+    try:
+        from fichero.models import AUTHORITY_WEIGHTS, Document
+
+        contributing_doc_ids: set[str] = set()
+        for sources, _ in grouped.values():
+            contributing_doc_ids.update(sources)
+        for doc_id in contributing_doc_ids:
+            doc = db.get(Document, doc_id)
+            if doc is None:
+                continue
+            authority = (
+                doc.source_authority.value
+                if hasattr(doc.source_authority, "value")
+                else str(doc.source_authority or "unknown")
+            )
+            authority_by_doc[doc_id] = AUTHORITY_WEIGHTS.get(authority, 1.0)
+    except Exception as exc:
+        logger.warning("triangulation: authority lookup failed, weights default to 1.0: %s", exc)
+
     return {
         key: TripleSupport(
             key=key,
             support_count=len(sources),
+            weighted_support=sum(
+                authority_by_doc.get(doc_id, 1.0) for doc_id in sources
+            ),
             source_document_ids=tuple(sorted(sources)),
             claim_ids=tuple(claims),
         )
