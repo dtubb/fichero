@@ -97,6 +97,36 @@ struct OntologyBrowser: View {
                 showCreateSheet = false
             }
         }
+        .confirmationDialog(
+            "Delete this entity?",
+            isPresented: Binding(
+                get: { entityPendingDeletion != nil },
+                set: { if !$0 { entityPendingDeletion = nil } }
+            ),
+            presenting: entityPendingDeletion
+        ) { entity in
+            Button("Delete \(entity.canonicalName)", role: .destructive) {
+                Task { await deleteEntity(entity) }
+            }
+            Button("Cancel", role: .cancel) { entityPendingDeletion = nil }
+        } message: { entity in
+            Text("The entity will be removed along with any claims that reference it (#901).")
+        }
+    }
+
+    private func deleteEntity(_ entity: Components.Schemas.KnowledgeEntity) async {
+        guard let library = LibraryManager.shared.globalLibrary,
+              let entityId = entity.id else { return }
+        entityPendingDeletion = nil
+        do {
+            try await library.entityService.deleteEntity(entityId)
+            entities.removeAll { $0.id == entityId }
+            if selectedEntityId == entityId {
+                selectedEntityId = nil
+            }
+        } catch {
+            loadError = "Delete failed: \(error.localizedDescription)"
+        }
     }
 
     // MARK: - Top Toolbar (matches MiniToolbar pattern used elsewhere)
@@ -183,6 +213,7 @@ struct OntologyBrowser: View {
 
     @State private var pendingPredictions: Components.Schemas.HeuristicPredictionsResponse?
     @State private var showCreateSheet = false
+    @State private var entityPendingDeletion: Components.Schemas.KnowledgeEntity?
 
     private func runHeuristicPredictions() async {
         guard let library = LibraryManager.shared.globalLibrary else { return }
@@ -330,6 +361,11 @@ struct OntologyBrowser: View {
                 ForEach(filteredEntities, id: \.id) { entity in
                     EntityRow(entity: entity)
                         .tag(entity.id)
+                        .contextMenu {
+                            Button("Delete entity…", role: .destructive) {
+                                entityPendingDeletion = entity
+                            }
+                        }
                 }
             }
         }
