@@ -213,6 +213,24 @@ async def extract_all(
     # WHY a page came back empty (#800, #829).
     page_errors: list[str | None] = [None] * len(chunks)
 
+    # Concurrency throttle for Apple Intelligence calls (#962 follow-up).
+    # Apple Intelligence is a single-instance on-device model; firing
+    # asyncio.gather() over 15+ chunks lets concurrent fm-bridge processes
+    # compete for grammar-decoder state and thrash the local sampler,
+    # which produces the "terminated generation early — Failed to
+    # deserialize a Generable type" symptom on a non-trivial fraction of
+    # chunks (Daniel reported 2/15 fails on tubb2020shift Preface).
+    #
+    # Cap at 3 concurrent — enough to keep the GPU busy without
+    # serializing-by-default, but well below the thrash threshold.
+    # Cloud-model chunks aren't affected by this because LangChain's
+    # async paths don't hit fm-bridge; the semaphore still acquires
+    # but the contention is on the upstream provider's rate limit,
+    # not our local GPU. Make it tunable via env for future profiling.
+    import os
+    max_in_flight = int(os.environ.get("FICHERO_EXTRACT_MAX_IN_FLIGHT", "3"))
+    extraction_sem = asyncio.Semaphore(max_in_flight)
+
     async def _extract_one(idx: int, chunk_text: str) -> dict[str, list]:
         # Sub-chunk if the page exceeds the small-model window. Apple
         # Intelligence's on-device window is ~4K tokens; chunks above
@@ -240,18 +258,19 @@ async def extract_all(
         # chat_structured_with_fallback escapes to $large on Apple's
         # on-device guardrail refusal, keeping the local-first default.
         try:
-            extraction = await chat_structured_with_fallback(
-                prompt=chunk_text,
-                schema=_Extraction,
-                config=llm_config,
-                system=instructions,
-                # Apple Intelligence has a ~4K window; the schema is
-                # already enforced at decode time, so the auto-injected
-                # schema dump in the prompt is wasted tokens. Our system
-                # instructions cover behavior; let the grammar carry the
-                # shape (#843).
-                include_schema_in_prompt=False,
-            )
+            async with extraction_sem:
+                extraction = await chat_structured_with_fallback(
+                    prompt=chunk_text,
+                    schema=_Extraction,
+                    config=llm_config,
+                    system=instructions,
+                    # Apple Intelligence has a ~4K window; the schema is
+                    # already enforced at decode time, so the auto-injected
+                    # schema dump in the prompt is wasted tokens. Our system
+                    # instructions cover behavior; let the grammar carry the
+                    # shape (#843).
+                    include_schema_in_prompt=False,
+                )
         except Exception as exc:
             msg = f"structured LLM call failed: {exc}"
             logger.error(f"extract_all {msg}")
