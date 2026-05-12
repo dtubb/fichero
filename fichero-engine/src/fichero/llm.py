@@ -281,6 +281,25 @@ class UnsupportedLocaleError(AppleUnavailableError):
     """
 
 
+class StructuredDecodeError(AppleUnavailableError):
+    """Raised when Apple Intelligence's grammar-constrained decoder fails
+    to produce a valid Generable for the requested schema — symptom is
+    'terminated generation early before producing valid output: Failed
+    to deserialize a Generable type from model output'.
+
+    Happens unpredictably on dense / long / unusual input where the
+    constrained sampler can't find a path that satisfies the grammar
+    within the available context. fm-bridge surfaces this as kind
+    `decoding`, `generation`, `context_overflow`, or `schema` depending
+    on which part of the pipeline gave up.
+
+    Treating these as Apple-unavailable lets chat_structured_with_fallback
+    escape to $large for the chunk, which is what we want — extract_all
+    was losing ~10% of chunks (#949 / #962) because these errors became
+    plain RuntimeError and the fallback path skipped them.
+    """
+
+
 def resolve_model_alias(provider: str, model: str) -> tuple[str, str]:
     """Resolve $small / $large aliases against app-level settings.
 
@@ -736,6 +755,19 @@ def _raise_from_bridge_stderr(stderr_bytes: bytes, returncode: int) -> None:
         # so chat_with_fallback / chat_structured_with_fallback escape to
         # cloud $large the same way they handle guardrail refusals (#868).
         raise UnsupportedLocaleError(
+            f"Apple Intelligence ({kind}): {message}"
+        )
+
+    if kind in {"decoding", "generation", "context_overflow", "schema"}:
+        # Grammar-constrained Generable calls that the on-device sampler
+        # couldn't satisfy. Symptom: 'terminated generation early —
+        # Failed to deserialize a Generable type from model output'.
+        # extract_all was losing ~10% of chunks (#949 / #962) because
+        # these became plain RuntimeError and the structured-fallback
+        # wrapper only escaped on AppleUnavailableError subclasses.
+        # Promote them so the cloud $large model gets a retry per
+        # chunk (matching the guardrail / locale paths).
+        raise StructuredDecodeError(
             f"Apple Intelligence ({kind}): {message}"
         )
 
