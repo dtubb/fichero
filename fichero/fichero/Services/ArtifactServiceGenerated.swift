@@ -614,6 +614,40 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    /// PATCH a KnowledgeEntity — partial update of canonical name,
+    /// entity type, aliases, description, language. Any nil field is
+    /// left untouched on the server side. (#901)
+    @discardableResult
+    func patchEntity(
+        _ entityId: String,
+        canonicalName: String? = nil,
+        entityType: String? = nil,
+        aliases: [String]? = nil,
+        description: String? = nil
+    ) async throws -> Components.Schemas.KnowledgeEntity {
+        var body = Components.Schemas.EntityPatchRequest()
+        body.canonicalName = canonicalName
+        body.entityType = entityType.flatMap {
+            Components.Schemas.FicheroKnowledgeModelsEntityType(rawValue: $0)
+        }
+        body.aliases = aliases
+        body.description = description
+        let response = try await client.api.patchEntityApiEntitiesEntityIdPatch(
+            path: .init(entityId: entityId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(body)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     /// Delete a single KnowledgeClaim. Entities referenced by the
     /// claim are NOT cascaded — the entity is the bigger concept, the
     /// claim is one piece of evidence about it (#901).

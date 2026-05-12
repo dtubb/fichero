@@ -97,6 +97,17 @@ struct OntologyBrowser: View {
                 showCreateSheet = false
             }
         }
+        .sheet(item: Binding(
+            get: { entityPendingEdit.map(IdentifiedEntity.init) },
+            set: { entityPendingEdit = $0?.entity }
+        )) { wrapped in
+            NewEntitySheet(editing: wrapped.entity) { updated in
+                if let idx = entities.firstIndex(where: { $0.id == updated.id }) {
+                    entities[idx] = updated
+                }
+                entityPendingEdit = nil
+            }
+        }
         .confirmationDialog(
             "Delete this entity?",
             isPresented: Binding(
@@ -214,6 +225,7 @@ struct OntologyBrowser: View {
     @State private var pendingPredictions: Components.Schemas.HeuristicPredictionsResponse?
     @State private var showCreateSheet = false
     @State private var entityPendingDeletion: Components.Schemas.KnowledgeEntity?
+    @State private var entityPendingEdit: Components.Schemas.KnowledgeEntity?
 
     private func runHeuristicPredictions() async {
         guard let library = LibraryManager.shared.globalLibrary else { return }
@@ -362,6 +374,10 @@ struct OntologyBrowser: View {
                     EntityRow(entity: entity)
                         .tag(entity.id)
                         .contextMenu {
+                            Button("Edit entity…") {
+                                entityPendingEdit = entity
+                            }
+                            Divider()
                             Button("Delete entity…", role: .destructive) {
                                 entityPendingDeletion = entity
                             }
@@ -481,6 +497,11 @@ struct OntologyBrowser: View {
 private struct IdentifiedPredictions: Identifiable {
     let id = UUID()
     let response: Components.Schemas.HeuristicPredictionsResponse
+}
+
+private struct IdentifiedEntity: Identifiable {
+    let id = UUID()
+    let entity: Components.Schemas.KnowledgeEntity
 }
 
 /// Sheet that presents heuristic-prediction candidates with accept/
@@ -604,19 +625,34 @@ struct HeuristicReviewSheet: View {
 
 // MARK: - New Entity Sheet (#916)
 
-/// Simple form to manually create a KnowledgeEntity — fills the gap
+/// Simple form to create OR edit a KnowledgeEntity — fills the gap
 /// where everything in the KG today comes from extractors. Backed by
-/// `EntityServiceGenerated.upsertEntity`. Calls `onCreated` with the
-/// new entity so the browser can append + select it.
+/// `EntityServiceGenerated.upsertEntity` (create) or `patchEntity`
+/// (edit, when `editing` is non-nil). Calls `onCommit` with the
+/// new / updated entity so the browser can refresh.
 struct NewEntitySheet: View {
-    var onCreated: (Components.Schemas.KnowledgeEntity) -> Void
+    var editing: Components.Schemas.KnowledgeEntity?
+    var onCommit: (Components.Schemas.KnowledgeEntity) -> Void
+
+    init(
+        editing: Components.Schemas.KnowledgeEntity? = nil,
+        onCreated: @escaping (Components.Schemas.KnowledgeEntity) -> Void
+    ) {
+        self.editing = editing
+        self.onCommit = onCreated
+        _canonicalName = State(initialValue: editing?.canonicalName ?? "")
+        _entityType = State(initialValue: editing?.entityType?.rawValue ?? "person")
+        _aliasesText = State(initialValue: (editing?.aliases ?? []).joined(separator: "\n"))
+    }
 
     @Environment(\.dismiss) private var dismiss
-    @State private var canonicalName: String = ""
-    @State private var entityType: String = "person"
-    @State private var aliasesText: String = ""
+    @State private var canonicalName: String
+    @State private var entityType: String
+    @State private var aliasesText: String
     @State private var isSaving: Bool = false
     @State private var errorText: String?
+
+    private var isEditing: Bool { editing != nil }
 
     private let kinds: [(key: String, label: String)] = [
         ("person", "Person"),
@@ -630,7 +666,7 @@ struct NewEntitySheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("New Entity").font(.headline)
+                Text(isEditing ? "Edit Entity" : "New Entity").font(.headline)
                 Spacer()
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
@@ -682,7 +718,7 @@ struct NewEntitySheet: View {
                     .lineLimit(2)
             }
             Spacer()
-            Button("Create", action: save)
+            Button(isEditing ? "Save" : "Create", action: save)
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
                 .disabled(canonicalName.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
@@ -701,12 +737,22 @@ struct NewEntitySheet: View {
             .filter { !$0.isEmpty }
         Task {
             do {
-                let created = try await library.entityService.upsertEntity(
-                    name: name,
-                    entityType: entityType,
-                    aliases: aliases
-                )
-                onCreated(created)
+                let result: Components.Schemas.KnowledgeEntity
+                if let editing = editing, let entityId = editing.id {
+                    result = try await library.entityService.patchEntity(
+                        entityId,
+                        canonicalName: name,
+                        entityType: entityType,
+                        aliases: aliases
+                    )
+                } else {
+                    result = try await library.entityService.upsertEntity(
+                        name: name,
+                        entityType: entityType,
+                        aliases: aliases
+                    )
+                }
+                onCommit(result)
                 dismiss()
             } catch {
                 errorText = error.localizedDescription
