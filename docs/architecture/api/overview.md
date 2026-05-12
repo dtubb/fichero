@@ -61,18 +61,37 @@ Routes are registered at startup based on the `FICHERO_FEATURE_TIER` environment
 | `/api/workflow-execution` | `workflow_execution` | Workflow runtime endpoints |
 | `/api/workflows` | `workflows` | Workflow CRUD |
 
-### Dev-Tier Routes (`FICHERO_FEATURE_TIER=dev` — 8 additional)
+### Dev-Tier Routes (`FICHERO_FEATURE_TIER=dev`)
+
+KG analytics + curation surfaces live under `/api/kg/*` after the
+1587a1b6 namespace consolidation. The old monolithic
+`/api/knowledge-graph/*` sub-package and the stand-alone
+`/api/interpretations` router were deleted; their unique features
+were ported into focused single-purpose modules below.
 
 | Prefix | Module | Purpose |
 |---|---|---|
-| `/api/knowledge-graph` | `knowledge_graph` | Semantic graph CRUD and queries |
-| `/api` | `search_explain` | Search algorithm explanation |
-| `/api/hermeneutics` | `hermeneutics` | Textual interpretation |
-| `/api` | `interpretations` | Document interpretation |
-| `/api` | `graph_exploration` | Graph traversal and path finding |
-| `/api/mind-palace` | `mind_palace` | Memory/context management |
+| `/api/kg/search` | `kg_search` | General KG semantic search |
+| `/api/kg/claim-search` | `kg_claim_search` | Claim embed + similarity |
+| `/api/kg/claim-analysis` | `kg_claim_analysis` | Contradictions + evidence-chain |
+| `/api/kg/entity-curation` | `kg_entity_curation` | Entity merge/split/audit + semantic |
+| `/api/kg/graph` | `kg_graph` | Centrality, traverse, path, co-occurrence, metrics |
+| `/api/kg/triangulation` | `kg_triangulation` | Cross-source SVO support |
+| `/api/kg/predictions` | `kg_predictions` | Heuristic predictions + run management |
+| `/api/kg/pykeen` | `kg_pykeen` | PyKEEN train + predict (KGE) |
+| `/api/kg/review` | `kg_review` | Entity-pair review queue |
+| `/api/kg/mutations` | `kg_mutations` | Undo individual mutations |
+| `/api/kg/inclusion` | `kg_inclusion` | Declarative scope rules |
+| `/api/kg/interpretations` | `kg_interpretations` | Interpretation CRUD + frameworks + taxonomy |
+| `/api/kg/rebuild` | `kg_rebuild` | Rebuild kg.nt materialization |
+| `/api/citations` | `kg_citations` | BibTeX export (cross-cuts entities) |
+| `/api/hermeneutics` | `hermeneutics` | Textual interpretation (PatternInstance + hermeneutic circle) |
+| `/api/mind-palace` | `mind_palace` | Spatial memory/context management |
 | `/api/research` | `research_agents` | Autonomous research workflows |
 | `/api/iiif` | `iiif` | IIIF image interoperability |
+| `/api` | `search_explain` | Search algorithm explanation |
+| `/api` | `graph_exploration` | Multi-entity neighborhood + paths-between (uniquely covers compound queries not in `kg_graph`) |
+| `/api` | `graph_traversal` | Subgraph extraction (uniquely covers custom subgraph not in `kg_graph`) |
 
 ### Additional Dev-Tier Routes (staged features)
 
