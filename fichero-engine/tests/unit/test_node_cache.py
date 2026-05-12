@@ -326,6 +326,45 @@ class TestCacheKey:
 
         assert key1 == key2
 
+    def test_document_id_disambiguates_shared_path(self, temp_file):
+        """Regression test for #896 — PDF page children share their
+        parent PDF's on-disk path. Without document_id in the key,
+        all six page docs collide and the cache returns page 1's
+        result for pages 2-6, producing Davidson ×6.
+        """
+        base_kwargs = {
+            "workflow_id": "wf_123",
+            "node_id": "node_456",
+            "tool": "extract_all",
+            "config": {},
+            "provider": "apple",
+            "model": "fm-bridge",
+            "file_path": temp_file,
+        }
+        key_page_1 = compute_cache_key(document_id="page-doc-1", **base_kwargs)
+        key_page_2 = compute_cache_key(document_id="page-doc-2", **base_kwargs)
+        assert key_page_1 != key_page_2, (
+            "Page Documents sharing a parent PDF path must get distinct cache keys"
+        )
+
+    def test_document_id_default_is_backward_compatible(self, temp_file):
+        """Omitting document_id keeps the historical key (before
+        #896 fix). Non-page inputs that have no shared-path
+        ambiguity continue to hit cache the way they did pre-fix.
+        """
+        kwargs = {
+            "workflow_id": "wf_123",
+            "node_id": "node_456",
+            "tool": "describe",
+            "config": {},
+            "provider": "openai",
+            "model": "gpt-4",
+            "file_path": temp_file,
+        }
+        key_without = compute_cache_key(**kwargs)
+        key_with_empty = compute_cache_key(**kwargs, document_id=None)
+        assert key_without == key_with_empty
+
 
 # =============================================================================
 # File Identity Tests
