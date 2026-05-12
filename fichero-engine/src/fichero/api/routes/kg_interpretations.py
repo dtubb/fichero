@@ -214,6 +214,49 @@ async def patch_interpretation(
     return interp
 
 
+class TaxonomyItem(BaseModel):
+    value: str
+    label: str
+
+
+class MethodTaxonomyResponse(BaseModel):
+    """Pickers for the interpretation editor — acts + framework types."""
+    acts: list[TaxonomyItem]
+    frameworks: list[TaxonomyItem]
+
+
+@router.get(
+    "/taxonomy/methods",
+    response_model=MethodTaxonomyResponse,
+    summary="Picker values for interpretation editor (acts + framework types)",
+    description=(
+        "Returns the enum values for InterpretiveActType + "
+        "FrameworkType formatted as label/value pairs the Swift "
+        "inspector can drop straight into a Picker. Consolidated "
+        "from the older /api/interpretations/taxonomy/methods "
+        "endpoint per #919."
+    ),
+)
+async def get_taxonomy() -> MethodTaxonomyResponse:
+    from fichero.hermeneutics_models import FrameworkType
+
+    acts = [
+        TaxonomyItem(
+            value=act.value,
+            label=act.name.replace("_", " ").title(),
+        )
+        for act in InterpretiveActType
+    ]
+    frameworks = [
+        TaxonomyItem(
+            value=ft.value,
+            label=ft.name.replace("_", " ").title(),
+        )
+        for ft in FrameworkType
+    ]
+    return MethodTaxonomyResponse(acts=acts, frameworks=frameworks)
+
+
 @router.delete("/{interpretation_id}", status_code=204)
 async def delete_interpretation(
     interpretation_id: str,

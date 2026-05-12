@@ -177,7 +177,7 @@ def _build_citation_lineage(
 # =============================================================================
 
 
-@router.get("", response_model=list[InterpretationListItem])
+@router.get("", response_model=list[InterpretationListItem], deprecated=True)
 async def list_interpretations(
     framework_id: str | None = Query(default=None),
     claim_id: str | None = Query(default=None),
@@ -242,7 +242,7 @@ async def list_interpretations(
     return results
 
 
-@router.post("", response_model=InterpretationDetailResponse)
+@router.post("", response_model=InterpretationDetailResponse, deprecated=True)
 async def create_interpretation(
     request: InterpretationCreateRequest,
     db: Database = Depends(get_library_database),
@@ -329,7 +329,7 @@ async def create_interpretation(
     )
 
 
-@router.get("/{interpretation_id}", response_model=InterpretationDetailResponse)
+@router.get("/{interpretation_id}", response_model=InterpretationDetailResponse, deprecated=True)
 async def get_interpretation(
     interpretation_id: str,
     db: Database = Depends(get_library_database),
@@ -366,7 +366,7 @@ async def get_interpretation(
     )
 
 
-@router.patch("/{interpretation_id}", response_model=InterpretationDetailResponse)
+@router.patch("/{interpretation_id}", response_model=InterpretationDetailResponse, deprecated=True)
 async def update_interpretation(
     interpretation_id: str,
     request: InterpretationUpdateRequest,
@@ -422,7 +422,7 @@ async def update_interpretation(
     )
 
 
-@router.delete("/{interpretation_id}")
+@router.delete("/{interpretation_id}", deprecated=True)
 async def delete_interpretation(
     interpretation_id: str,
     db: Database = Depends(get_library_database),
@@ -440,7 +440,7 @@ async def delete_interpretation(
     return InterpretationDeletedResponse(deleted=True, id=interpretation_id)
 
 
-@router.get("/taxonomy/methods", response_model=MethodTaxonomyResponse)
+@router.get("/taxonomy/methods", response_model=MethodTaxonomyResponse, deprecated=True)
 async def get_method_taxonomy() -> MethodTaxonomyResponse:
     """Get method taxonomy for interpretations (taggable in API).
 
