@@ -366,6 +366,76 @@ class EntityMergeAudit(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class NoteKind(str, Enum):
+    """Zettelkasten note kinds (#917)."""
+
+    zettel = "zettel"          # atomic idea, one note per concept
+    reference = "reference"    # literature note — summary of a source
+    hub = "hub"                # structure note — index over related zettels
+    inbox = "inbox"            # quick capture, not yet processed
+    fleeting = "fleeting"      # transient thought, may or may not become a zettel
+    permanent = "permanent"    # the elaborated, well-formed idea
+
+
+class Note(BaseModel):
+    """A Zettelkasten-style atomic user note (#917).
+
+    Notes are user-authored prose units that link to each other,
+    to entities, to claims, and to documents — forming a personal
+    knowledge graph independent of the source corpus's KG.
+
+    Distinct from Annotation: annotations are anchored to a specific
+    document region (a highlight on page 14). Notes are floating —
+    they can reference any number of documents/claims/entities but
+    don't sit on a document themselves.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    title: str | None = None
+    body: str = ""  # rich-text markdown
+    kind: NoteKind = NoteKind.zettel
+    tags: list[str] = Field(default_factory=list)
+
+    # Cross-links to other KG nodes. Each list holds ids of the
+    # appropriate type; bidirectional resolution is via NoteLink for
+    # note↔note edges (other targets are unidirectional from the note).
+    linked_note_ids: list[str] = Field(default_factory=list)
+    linked_entity_ids: list[str] = Field(default_factory=list)
+    linked_claim_ids: list[str] = Field(default_factory=list)
+    linked_document_ids: list[str] = Field(default_factory=list)
+
+    # Luhmann-style numeric address (optional). "1.4a.2" denotes
+    # zettel #2 under branch 1.4a. Free-form so users can adopt other
+    # conventions.
+    address: str | None = None
+    parent_address: str | None = None
+
+    author_type: str = "user"  # "user" | "ai"
+    created_by: str = "human"
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class NoteLink(BaseModel):
+    """Bidirectional link between two Notes — the Zettelkasten edge (#917).
+
+    Stored separately from Note.linked_note_ids so both sides can
+    query the relation efficiently and the link itself can carry
+    metadata (type, annotation).
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    source_note_id: str
+    target_note_id: str
+    link_type: str = "free"     # follows | references | contradicts | supports | free
+    annotation: str | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class AnnotationKind(str, Enum):
     """User annotation kinds (#914).
 

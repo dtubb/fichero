@@ -558,6 +558,7 @@ from fichero.api.routes import (  # noqa: E402
     model_comparison,
     models,
     multilingual,
+    notes,
     orchestration,
     predictions,
     providers,
@@ -580,6 +581,7 @@ RouteSpec = tuple[object, str, list[str]]
 _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (activity.router, "/api", ["activity"]),
     (annotations.router, "/api", ["annotations"]),
+    (notes.router, "/api", ["notes"]),
     (artifacts.router, "/api/artifacts", ["artifacts"]),
     (batch.router, "/api", ["batches"]),
     (chat.router, "/api/chat", ["chat"]),
