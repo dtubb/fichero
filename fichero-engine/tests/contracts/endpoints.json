@@ -836,6 +836,18 @@
         "response_model": "KnowledgeClaim"
       },
       {
+        "method": "DELETE",
+        "path": "/claims/{claim_id}",
+        "operation_id": "delete_claim_api_claims__claim_id__delete",
+        "summary": "Delete Claim",
+        "path_params": [
+          "claim_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
         "method": "PATCH",
         "path": "/claims/{claim_id}/transition",
         "operation_id": "transition_claim_api_claims__claim_id__transition_patch",
@@ -1337,6 +1349,36 @@
         "query_params": [],
         "request_model": null,
         "response_model": "KnowledgeEntity"
+      },
+      {
+        "method": "PATCH",
+        "path": "/entities/{entity_id}",
+        "operation_id": "patch_entity_api_entities__entity_id__patch",
+        "summary": "Patch Entity",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [],
+        "request_model": "EntityPatchRequest",
+        "response_model": "KnowledgeEntity"
+      },
+      {
+        "method": "DELETE",
+        "path": "/entities/{entity_id}",
+        "operation_id": "delete_entity_api_entities__entity_id__delete",
+        "summary": "Delete Entity",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [
+          {
+            "name": "cascade_claims",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
       },
       {
         "method": "GET",
@@ -3996,6 +4038,144 @@
         "response_model": "EvidenceChainResponse"
       }
     ],
+    "kg": [
+      {
+        "method": "POST",
+        "path": "/kg/rebuild",
+        "operation_id": "rebuild_kg_api_kg_rebuild_post",
+        "summary": "Backfill KG derived stores",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "RebuildRequest",
+        "response_model": "RebuildResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/triangulation/entity/{entity_id}",
+        "operation_id": "entity_triangulation_api_kg_triangulation_entity__entity_id__get",
+        "summary": "Triangulated triples for one entity",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[TripleSupportResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/triangulation",
+        "operation_id": "library_triangulation_api_kg_triangulation_get",
+        "summary": "Triangulated facts across the library",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "threshold",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[TripleSupportResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/graph/centrality",
+        "operation_id": "centrality_api_kg_graph_centrality_get",
+        "summary": "Top-k entities by composite centrality",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "top_k",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[CentralityRow]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/graph/cooccurrence/{entity_id}",
+        "operation_id": "cooccurrence_neighbours_api_kg_graph_cooccurrence__entity_id__get",
+        "summary": "Co-occurrence neighbours of an entity",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[CooccurrenceNeighbour]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/graph/path",
+        "operation_id": "shortest_path_api_kg_graph_path_get",
+        "summary": "Shortest path between two entities",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "source",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "target",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "fichero__api__routes__kg_graph__PathResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/pykeen/train",
+        "operation_id": "train_api_kg_pykeen_train_post",
+        "summary": "Train a PyKEEN link-prediction model on the library's claims",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "model",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "embedding_dim",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "num_epochs",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "TrainResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/pykeen/predict/{entity_id}",
+        "operation_id": "predict_api_kg_pykeen_predict__entity_id__get",
+        "summary": "Top-k predicted facts for one entity",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [
+          {
+            "name": "top_k",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[LinkPredictionRow]"
+      }
+    ],
     "hermeneutics": [
       {
         "method": "POST",
@@ -4407,7 +4587,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "PathResponse"
+        "response_model": "fichero__api__routes__graph_exploration__PathResponse"
       },
       {
         "method": "GET",

@@ -8,7 +8,6 @@ cite?" — the citation network alongside the entity network.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query

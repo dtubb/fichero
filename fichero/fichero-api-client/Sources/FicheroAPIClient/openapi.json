@@ -3021,6 +3021,50 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "claims",
+          "claims"
+        ],
+        "summary": "Delete Claim",
+        "description": "Hard-delete a single knowledge claim.\n\nEntities referenced by the claim's ``entity_ids`` are not\ntouched \u2014 the entity is the bigger concept, the claim is one\npiece of evidence about it. Use \\`DELETE /api/entities/{id}\\`\nto remove the entity itself. (#901)",
+        "operationId": "delete_claim_api_claims__claim_id__delete",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Claim Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/documents": {
@@ -4181,6 +4225,123 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "entities",
+          "entities"
+        ],
+        "summary": "Patch Entity",
+        "description": "Partial-update a knowledge entity.\n\nRefreshes the entity's vector in LanceDB after the write so\nsemantic-dedup keeps working. (#899 Phase B + #901)",
+        "operationId": "patch_entity_api_entities__entity_id__patch",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeEntity"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "entities",
+          "entities"
+        ],
+        "summary": "Delete Entity",
+        "description": "Hard-delete a knowledge entity.\n\nSide effects:\n- Removes the entity's vector from LanceDB.\n- Either cascades to dependent claims (``cascade_claims=true``)\n  or strips this id from each claim's ``entity_ids`` (default).\n(#901)",
+        "operationId": "delete_entity_api_entities__entity_id__delete",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "cascade_claims",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "When true, also delete every claim that references this entity. When false (default), claims keep their entity_ids list intact but with this id stripped \u2014 preserves provenance for claims that mention multiple entities.",
+              "default": false,
+              "title": "Cascade Claims"
+            },
+            "description": "When true, also delete every claim that references this entity. When false (default), claims keep their entity_ids list intact but with this id stripped \u2014 preserves provenance for claims that mention multiple entities."
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -14439,6 +14600,521 @@
         }
       }
     },
+    "/api/kg/rebuild": {
+      "post": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Backfill KG derived stores",
+        "description": "Rebuild the entity vector store (LanceDB) and/or the RDF triple file (kg.nt next to the DuckDB file) from the canonical KnowledgeEntity + KnowledgeClaim tables. Idempotent \u2014 safe to call repeatedly. Both stages run synchronously and the response carries counts. (#899)",
+        "operationId": "rebuild_kg_api_kg_rebuild_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RebuildRequest",
+                "nullable": true,
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RebuildResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/triangulation/entity/{entity_id}": {
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Triangulated triples for one entity",
+        "description": "Return every (subject, predicate, object) triple where the entity appears as subject, with a support_count of how many distinct source documents assert the same fact. Sorted by descending support_count. (#900)",
+        "operationId": "entity_triangulation_api_kg_triangulation_entity__entity_id__get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TripleSupportResponse"
+                  },
+                  "title": "Response Entity Triangulation Api Kg Triangulation Entity  Entity Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/triangulation": {
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Triangulated facts across the library",
+        "description": "Return triples whose support_count meets the threshold (default 3 = triangulated). Use this to surface the most strongly-attested facts in the corpus.",
+        "operationId": "library_triangulation_api_kg_triangulation_get",
+        "parameters": [
+          {
+            "name": "threshold",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Minimum distinct sources required.",
+              "default": 3,
+              "title": "Threshold"
+            },
+            "description": "Minimum distinct sources required."
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TripleSupportResponse"
+                  },
+                  "title": "Response Library Triangulation Api Kg Triangulation Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/graph/centrality": {
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Top-k entities by composite centrality",
+        "description": "Ranks entities by degree + betweenness + eigenvector centrality (z-score normalised). Optionally filter to one EntityType to ask 'who is most central among the people' vs 'which places connect the most claims'. (#376)",
+        "operationId": "centrality_api_kg_graph_centrality_get",
+        "parameters": [
+          {
+            "name": "top_k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 20,
+              "title": "Top K"
+            }
+          },
+          {
+            "name": "entity_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Filter to one EntityType (person/location/...).",
+              "title": "Entity Type"
+            },
+            "description": "Filter to one EntityType (person/location/...)."
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CentralityRow"
+                  },
+                  "title": "Response Centrality Api Kg Graph Centrality Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/graph/cooccurrence/{entity_id}": {
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Co-occurrence neighbours of an entity",
+        "description": "Returns every other entity that shares a source document with the target, sorted by descending co-occurrence count. Use case: 'who appears alongside Eugenio C\u00f3rdoba in the archive?' (#376)",
+        "operationId": "cooccurrence_neighbours_api_kg_graph_cooccurrence__entity_id__get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CooccurrenceNeighbour"
+                  },
+                  "title": "Response Cooccurrence Neighbours Api Kg Graph Cooccurrence  Entity Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/graph/path": {
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Shortest path between two entities",
+        "description": "Finds the shortest sequence of claim edges connecting source \u2192 target. Returns an empty path with length 0 when no connection exists. (#376)",
+        "operationId": "shortest_path_api_kg_graph_path_get",
+        "parameters": [
+          {
+            "name": "source",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Source entity ID",
+              "title": "Source"
+            },
+            "description": "Source entity ID"
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Target entity ID",
+              "title": "Target"
+            },
+            "description": "Target entity ID"
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/fichero__api__routes__kg_graph__PathResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/pykeen/train": {
+      "post": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Train a PyKEEN link-prediction model on the library's claims",
+        "description": "Train + persist a KGE model. Synchronous (can take 30s+ on a\nsmall library; minutes on larger). Use the response to learn\nwhether the corpus had enough triples.",
+        "operationId": "train_api_kg_pykeen_train_post",
+        "parameters": [
+          {
+            "name": "model",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "TransE",
+              "title": "Model"
+            }
+          },
+          {
+            "name": "embedding_dim",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 512,
+              "minimum": 8,
+              "default": 64,
+              "title": "Embedding Dim"
+            }
+          },
+          {
+            "name": "num_epochs",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 50,
+              "title": "Num Epochs"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/pykeen/predict/{entity_id}": {
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Top-k predicted facts for one entity",
+        "description": "Surfaces the curation queue: ranked candidate (predicate, object) pairs the model thinks are plausibly true for this entity. A reviewer accepts (creates a KnowledgeClaim), rejects (logs a negative example), or skips. Requires a model trained via POST /api/kg/pykeen/train. (#377)",
+        "operationId": "predict_api_kg_pykeen_predict__entity_id__get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "top_k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 10,
+              "title": "Top K"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LinkPredictionRow"
+                  },
+                  "title": "Response Predict Api Kg Pykeen Predict  Entity Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/search/explain": {
       "post": {
         "tags": [
@@ -16232,7 +16908,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PathResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__graph_exploration__PathResponse"
                 }
               }
             }
@@ -27508,6 +28184,40 @@
         "title": "CentralityResult",
         "description": "Centrality metric for a single node."
       },
+      "CentralityRow": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "degree": {
+            "type": "integer",
+            "title": "Degree"
+          },
+          "betweenness": {
+            "type": "number",
+            "title": "Betweenness"
+          },
+          "eigenvector": {
+            "type": "number",
+            "title": "Eigenvector"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "canonical_name",
+          "degree",
+          "betweenness",
+          "eigenvector"
+        ],
+        "title": "CentralityRow",
+        "description": "One entity in the centrality ranking."
+      },
       "ChainCancelResponse": {
         "properties": {
           "cancelled": {
@@ -29182,6 +29892,35 @@
         "type": "object",
         "title": "ConversationUpdate",
         "description": "Request to update conversation properties."
+      },
+      "CooccurrenceNeighbour": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type"
+          },
+          "weight": {
+            "type": "integer",
+            "title": "Weight"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "canonical_name",
+          "entity_type",
+          "weight"
+        ],
+        "title": "CooccurrenceNeighbour",
+        "description": "One entity adjacent to the query entity in the co-occurrence graph."
       },
       "CostEstimateItem": {
         "properties": {
@@ -30937,6 +31676,46 @@
         ],
         "title": "EntityNeighborhood",
         "description": "Neighborhood around an entity."
+      },
+      "EntityPatchRequest": {
+        "properties": {
+          "canonical_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Canonical Name"
+          },
+          "entity_type": {
+            "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
+            "nullable": true
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Aliases"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "title": "EntityPatchRequest",
+        "description": "Partial update \u2014 only fields present in the payload are written.\n\nEvery editable attribute is here as ``Optional`` so PATCH can\ntarget a single field without losing the rest. (#901)"
       },
       "EntityPath": {
         "properties": {
@@ -34140,6 +34919,34 @@
         "title": "LibrarySnapshot",
         "description": "A point-in-time snapshot of a library database and its vectors.\n\nSnapshots are stored as Parquet exports of DuckDB tables plus a copy\nof the LanceDB vector directory. They are named with a timestamp and\nan optional reason, and can be restored to recover from bad AI runs\nor schema changes.\n\nStored in:\n    ~/Library/Application Support/com.fichero.fichero/snapshots/{library_name}/"
       },
+      "LinkPredictionRow": {
+        "properties": {
+          "subject_id": {
+            "type": "string",
+            "title": "Subject Id"
+          },
+          "predicate": {
+            "type": "string",
+            "title": "Predicate"
+          },
+          "object_id": {
+            "type": "string",
+            "title": "Object Id"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subject_id",
+          "predicate",
+          "object_id",
+          "score"
+        ],
+        "title": "LinkPredictionRow"
+      },
       "LocalModelInfoResponse": {
         "properties": {
           "model_id": {
@@ -36055,60 +36862,6 @@
         "title": "PathAlgorithm",
         "description": "Pathfinding algorithm to use."
       },
-      "PathResponse": {
-        "properties": {
-          "source_id": {
-            "type": "string",
-            "title": "Source Id"
-          },
-          "target_id": {
-            "type": "string",
-            "title": "Target Id"
-          },
-          "source_entity": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Source Entity"
-          },
-          "target_entity": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Target Entity"
-          },
-          "paths": {
-            "items": {
-              "$ref": "#/components/schemas/EntityPath"
-            },
-            "type": "array",
-            "title": "Paths"
-          },
-          "total_paths": {
-            "type": "integer",
-            "title": "Total Paths"
-          },
-          "algorithm": {
-            "type": "string",
-            "title": "Algorithm"
-          },
-          "max_depth": {
-            "type": "integer",
-            "title": "Max Depth"
-          }
-        },
-        "type": "object",
-        "required": [
-          "source_id",
-          "target_id",
-          "source_entity",
-          "target_entity",
-          "paths",
-          "total_paths",
-          "algorithm",
-          "max_depth"
-        ],
-        "title": "PathResponse",
-        "description": "Response for pathfinding between entities."
-      },
       "PathResult": {
         "properties": {
           "path_id": {
@@ -37802,6 +38555,52 @@
         ],
         "title": "RAGModesResponse",
         "description": "Response listing available RAG modes."
+      },
+      "RebuildRequest": {
+        "properties": {
+          "vectors": {
+            "type": "boolean",
+            "title": "Vectors",
+            "default": true
+          },
+          "triples": {
+            "type": "boolean",
+            "title": "Triples",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "RebuildRequest",
+        "description": "Toggle which derived stores get refreshed."
+      },
+      "RebuildResponse": {
+        "properties": {
+          "entities": {
+            "type": "integer",
+            "title": "Entities"
+          },
+          "claims": {
+            "type": "integer",
+            "title": "Claims"
+          },
+          "vector_indexed": {
+            "type": "integer",
+            "title": "Vector Indexed"
+          },
+          "triples_written": {
+            "type": "integer",
+            "title": "Triples Written"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entities",
+          "claims",
+          "vector_indexed",
+          "triples_written"
+        ],
+        "title": "RebuildResponse",
+        "description": "Stats describing what got refreshed."
       },
       "ReindexResponse": {
         "properties": {
@@ -41399,6 +42198,49 @@
         "title": "TrainRequest",
         "description": "Request to train a PyKEEN model."
       },
+      "TrainResponse": {
+        "properties": {
+          "triples": {
+            "type": "integer",
+            "title": "Triples"
+          },
+          "entities": {
+            "type": "integer",
+            "title": "Entities"
+          },
+          "relations": {
+            "type": "integer",
+            "title": "Relations"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "trained": {
+            "type": "boolean",
+            "title": "Trained"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "triples",
+          "entities",
+          "relations",
+          "model",
+          "path",
+          "trained"
+        ],
+        "title": "TrainResponse"
+      },
       "TrainingResult": {
         "properties": {
           "model_id": {
@@ -41897,6 +42739,56 @@
         ],
         "title": "TriggerResponse",
         "description": "Trigger response."
+      },
+      "TripleSupportResponse": {
+        "properties": {
+          "subject_id": {
+            "type": "string",
+            "title": "Subject Id"
+          },
+          "predicate": {
+            "type": "string",
+            "title": "Predicate"
+          },
+          "object_text": {
+            "type": "string",
+            "title": "Object Text"
+          },
+          "support_count": {
+            "type": "integer",
+            "title": "Support Count"
+          },
+          "corroboration": {
+            "type": "string",
+            "title": "Corroboration"
+          },
+          "source_document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Document Ids"
+          },
+          "claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Claim Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subject_id",
+          "predicate",
+          "object_text",
+          "support_count",
+          "corroboration",
+          "source_document_ids",
+          "claim_ids"
+        ],
+        "title": "TripleSupportResponse",
+        "description": "One triangulated triple \u2014 the SVO + the supporting source list."
       },
       "UndoRequest": {
         "properties": {
@@ -43395,6 +44287,60 @@
         "title": "GraphMetricsResponse",
         "description": "Response for graph metrics."
       },
+      "fichero__api__routes__graph_exploration__PathResponse": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "source_entity": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Source Entity"
+          },
+          "target_entity": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Target Entity"
+          },
+          "paths": {
+            "items": {
+              "$ref": "#/components/schemas/EntityPath"
+            },
+            "type": "array",
+            "title": "Paths"
+          },
+          "total_paths": {
+            "type": "integer",
+            "title": "Total Paths"
+          },
+          "algorithm": {
+            "type": "string",
+            "title": "Algorithm"
+          },
+          "max_depth": {
+            "type": "integer",
+            "title": "Max Depth"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_id",
+          "target_id",
+          "source_entity",
+          "target_entity",
+          "paths",
+          "total_paths",
+          "algorithm",
+          "max_depth"
+        ],
+        "title": "PathResponse",
+        "description": "Response for pathfinding between entities."
+      },
       "fichero__api__routes__graph_reasoning__EnableRequest": {
         "properties": {
           "enabled": {
@@ -43684,6 +44630,38 @@
         "type": "object",
         "title": "InterpretationUpdateRequest",
         "description": "Update an interpretation."
+      },
+      "fichero__api__routes__kg_graph__PathResponse": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "path": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Path"
+          },
+          "length": {
+            "type": "integer",
+            "title": "Length"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_id",
+          "target_id",
+          "path",
+          "length"
+        ],
+        "title": "PathResponse",
+        "description": "Shortest path between two entities as a list of entity IDs."
       },
       "fichero__api__routes__knowledge_graph__claims__ClaimCreateRequest": {
         "properties": {
