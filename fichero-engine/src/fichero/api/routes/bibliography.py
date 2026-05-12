@@ -39,6 +39,59 @@ async def get_metadata(
     )
 
 
+class ResolveRequest(BaseModel):
+    doi: str | None = None
+    isbn: str | None = None
+
+
+@router.post(
+    "/resolve",
+    response_model=MetadataResponse,
+    summary="Resolve a DOI or ISBN via Crossref / Open Library (#910)",
+    description=(
+        "Online lookup — Crossref for DOIs, Open Library for ISBNs. "
+        "Free, no API key needed. Returns the resolved metadata "
+        "merged with whatever's already on the document. NOT "
+        "associated with a document by default; set document_id "
+        "to merge the result into a document's source_metadata."
+    ),
+)
+async def resolve(
+    request: ResolveRequest,
+    document_id: str | None = Query(default=None),
+    db: Database = Depends(get_library_database),
+) -> MetadataResponse:
+    from fichero.bibliography.doi_lookup import resolve_doi, resolve_isbn
+
+    resolved: dict[str, Any] = {}
+    if request.doi:
+        resolved = await resolve_doi(request.doi)
+    if not resolved and request.isbn:
+        resolved = await resolve_isbn(request.isbn)
+    if not resolved:
+        raise HTTPException(404, "DOI / ISBN did not resolve to any metadata")
+
+    if document_id is not None:
+        doc = db.get(Document, document_id)
+        if doc is None:
+            raise HTTPException(404, f"Document not found: {document_id}")
+        # Merge: existing curated values win over resolved.
+        existing = doc.source_metadata or {}
+        merged = dict(existing)
+        for key, value in resolved.items():
+            if not value:
+                continue
+            if key in merged and merged[key]:
+                continue
+            merged[key] = value
+        doc.source_metadata = merged
+        doc.updated_at = datetime.now()
+        db.save(doc)
+        return MetadataResponse(document_id=document_id, metadata=merged)
+
+    return MetadataResponse(document_id="", metadata=resolved)
+
+
 class MetadataPatchRequest(BaseModel):
     metadata: dict[str, Any]
 
