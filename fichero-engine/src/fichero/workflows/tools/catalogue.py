@@ -571,6 +571,28 @@ async def catalogue(
             f"Catalogue: {len(catalogue_errors)} LLM call(s) failed — "
             f"{actionable}"
         )
+
+    # Auto-refresh derived KG stores after a successful catalogue run
+    # (#899). Writes <library>/kg.nt and ensures every entity has its
+    # LanceDB vector. Cheap on small libraries (~100ms / 1k entities);
+    # capped at 60s to avoid blocking workflow completion on huge
+    # corpora. Failures log + carry on — kg.nt being stale isn't
+    # worth taking down a successful catalogue.
+    if library_path and saved_artifact_ids:
+        try:
+            from fichero.db import db_manager
+            from fichero.kg.rebuild import rebuild_kg
+
+            db = db_manager.get_database(library_path)
+            stats = rebuild_kg(db, vectors=False, triples=True)
+            logger.info(
+                "catalogue: auto-rebuilt kg.nt — %d entities, %d claims, "
+                "%d triples written",
+                stats["entities"], stats["claims"], stats["triples_written"],
+            )
+        except Exception as exc:
+            logger.warning("catalogue: kg.nt auto-rebuild failed: %s", exc)
+
     return result
 
 
