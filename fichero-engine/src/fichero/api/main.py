@@ -687,14 +687,13 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (tasks.router, "/api/tasks", ["tasks"]),
     (workflow_execution.router, "/api/workflow-execution", ["workflow-execution"]),
     (workflows.router, "/api/workflows", ["workflows"]),
-]
-
-_DEV_ROUTE_SPECS: list[RouteSpec] = [
-    # KG sub-surfaces all live under /api/kg/* (each router declares its
-    # own prefix). The old monolithic /api/knowledge-graph/* sub-package
-    # was deleted 2026-05-11 (#919 5c); semantic search / contradictions /
-    # evidence-chain / entity merge-split / heuristic predictions /
-    # inclusion were ported into the kg_* modules below.
+    # /api/kg/* — promoted from dev-tier to core 2026-05-12 (#967).
+    # The Swift OntologyBrowser + DocumentInspector consume these
+    # endpoints unconditionally; gating them behind FICHERO_FEATURE_TIER=dev
+    # meant default-tier engines silently 404'd every KG request and
+    # the UI degraded to empty state without telling the user. Each of
+    # these has a Swift caller and ships in the OpenAPI client; they
+    # belong in core.
     (kg_rebuild.router, "/api", ["knowledge-graph"]),
     (kg_triangulation.router, "/api", ["knowledge-graph"]),
     (kg_graph.router, "/api", ["knowledge-graph"]),
@@ -708,6 +707,9 @@ _DEV_ROUTE_SPECS: list[RouteSpec] = [
     (kg_claim_analysis.router, "/api", ["knowledge-graph"]),
     (kg_entity_curation.router, "/api", ["knowledge-graph"]),
     (kg_inclusion.router, "/api", ["knowledge-graph"]),
+]
+
+_DEV_ROUTE_SPECS: list[RouteSpec] = [
     (search_explain.router, "/api", ["search-explanation"]),
     # Hermeneutics is the interpretation-reading layer on top of KG —
     # PatternInstance + hermeneutic-circle navigation + LLM suggestions
