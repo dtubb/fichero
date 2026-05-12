@@ -181,7 +181,7 @@ def ingest_file(
     parent_id: str | None = None,
     extract_metadata: bool = True,
     extract_text: bool = True,
-    auto_embed: bool = False,
+    auto_embed: bool = True,
     save: bool = True,
     db: "Database | None" = None,
     package_path: Path | None = None,
@@ -200,7 +200,15 @@ def ingest_file(
             files like .jpg / .png correctly skip the loader and need the
             Transcribe / OCR workflow path. Override to False for batch
             imports where text extraction is deferred to a later workflow.
-        auto_embed: Create embedding for search after saving
+        auto_embed: Create vector embedding in LanceDB after saving, so the
+            doc is immediately reachable via semantic search. Defaults to
+            True (#881 follow-up) — paired with the extract_text default,
+            this means dropping a .md file in makes it both keyword AND
+            semantically searchable without any further user action. Embedding
+            runs only when \\\`doc.page_content\\\` is non-empty, so image-only
+            files (no extracted text yet) don't get pointless empty vectors.
+            Override to False for batch imports where embeddings are
+            deferred to a background job.
         save: If True, save to database
         db: Database instance (required if save=True)
         package_path: Library package path for COPY mode (stores files in {package}/files/)
