@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from fichero.knowledge_models import EntityType
+    pass
 
 logger = logging.getLogger(__name__)
 
