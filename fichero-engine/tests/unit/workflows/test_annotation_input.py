@@ -9,11 +9,10 @@ import pytest
 from PIL import Image
 
 from fichero.knowledge_models import Annotation, AnnotationKind
-from fichero.models import Document, DocType, FileType
+from fichero.models import Document, DocType
 from fichero.workflows.tools._annotation_input import (
     annotation_crops_for_document,
     crop_image,
-    crop_pdf_page,
     crop_text,
     _parse_page_index,
 )

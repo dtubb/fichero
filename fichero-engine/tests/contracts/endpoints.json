@@ -328,6 +328,360 @@
         "response_model": "ActivityMetricsSummary"
       }
     ],
+    "annotations": [
+      {
+        "method": "POST",
+        "path": "/annotations",
+        "operation_id": "create_annotation_api_annotations_post",
+        "summary": "Create an annotation",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "AnnotationCreateRequest",
+        "response_model": "Annotation"
+      },
+      {
+        "method": "GET",
+        "path": "/annotations",
+        "operation_id": "list_annotations_api_annotations_get",
+        "summary": "List annotations, filterable by document / kind / tag",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "document_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "tag",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "min_rating",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[Annotation]"
+      },
+      {
+        "method": "GET",
+        "path": "/annotations/{annotation_id}",
+        "operation_id": "get_annotation_api_annotations__annotation_id__get",
+        "summary": "Get Annotation",
+        "path_params": [
+          "annotation_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "Annotation"
+      },
+      {
+        "method": "PATCH",
+        "path": "/annotations/{annotation_id}",
+        "operation_id": "patch_annotation_api_annotations__annotation_id__patch",
+        "summary": "Patch Annotation",
+        "path_params": [
+          "annotation_id"
+        ],
+        "query_params": [],
+        "request_model": "AnnotationPatchRequest",
+        "response_model": "Annotation"
+      },
+      {
+        "method": "DELETE",
+        "path": "/annotations/{annotation_id}",
+        "operation_id": "delete_annotation_api_annotations__annotation_id__delete",
+        "summary": "Delete Annotation",
+        "path_params": [
+          "annotation_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/annotations/{annotation_id}/promote-to-claim",
+        "operation_id": "promote_to_claim_api_annotations__annotation_id__promote_to_claim_post",
+        "summary": "Turn a highlight or note into a KnowledgeClaim",
+        "path_params": [
+          "annotation_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PromoteResponse"
+      }
+    ],
+    "notes": [
+      {
+        "method": "POST",
+        "path": "/notes",
+        "operation_id": "create_note_api_notes_post",
+        "summary": "Create Note",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "fichero__api__routes__notes__NoteCreateRequest",
+        "response_model": "Note"
+      },
+      {
+        "method": "GET",
+        "path": "/notes",
+        "operation_id": "list_notes_api_notes_get",
+        "summary": "List Notes",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "kind",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "tag",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "linked_entity_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "linked_claim_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "linked_document_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[Note]"
+      },
+      {
+        "method": "GET",
+        "path": "/notes/{note_id}",
+        "operation_id": "get_note_api_notes__note_id__get",
+        "summary": "Get Note",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "Note"
+      },
+      {
+        "method": "PATCH",
+        "path": "/notes/{note_id}",
+        "operation_id": "patch_note_api_notes__note_id__patch",
+        "summary": "Patch Note",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": "NotePatchRequest",
+        "response_model": "Note"
+      },
+      {
+        "method": "DELETE",
+        "path": "/notes/{note_id}",
+        "operation_id": "delete_note_api_notes__note_id__delete",
+        "summary": "Delete Note",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/notes/{note_id}/links",
+        "operation_id": "create_note_link_api_notes__note_id__links_post",
+        "summary": "Create a bidirectional link between two notes",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": "NoteLinkCreateRequest",
+        "response_model": "NoteLink"
+      },
+      {
+        "method": "DELETE",
+        "path": "/notes/{note_id}/links/{link_id}",
+        "operation_id": "delete_note_link_api_notes__note_id__links__link_id__delete",
+        "summary": "Delete Note Link",
+        "path_params": [
+          "note_id",
+          "link_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/notes/{note_id}/backlinks",
+        "operation_id": "backlinks_api_notes__note_id__backlinks_get",
+        "summary": "Every note that links to this one",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[Note]"
+      },
+      {
+        "method": "GET",
+        "path": "/notes/{note_id}/forward-links",
+        "operation_id": "forward_links_api_notes__note_id__forward_links_get",
+        "summary": "Every note this one links to",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[Note]"
+      }
+    ],
+    "projects": [
+      {
+        "method": "POST",
+        "path": "/projects",
+        "operation_id": "create_project_api_projects_post",
+        "summary": "Create Project",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "fichero__api__routes__projects__ProjectCreateRequest",
+        "response_model": "Project"
+      },
+      {
+        "method": "GET",
+        "path": "/projects",
+        "operation_id": "list_projects_api_projects_get",
+        "summary": "List Projects",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "status",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[Project]"
+      },
+      {
+        "method": "GET",
+        "path": "/projects/{project_id}",
+        "operation_id": "get_project_api_projects__project_id__get",
+        "summary": "Get Project",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "Project"
+      },
+      {
+        "method": "PATCH",
+        "path": "/projects/{project_id}",
+        "operation_id": "patch_project_api_projects__project_id__patch",
+        "summary": "Patch Project",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [],
+        "request_model": "ProjectPatchRequest",
+        "response_model": "Project"
+      },
+      {
+        "method": "DELETE",
+        "path": "/projects/{project_id}",
+        "operation_id": "delete_project_api_projects__project_id__delete",
+        "summary": "Delete Project",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/projects/{project_id}/include",
+        "operation_id": "include_item_api_projects__project_id__include_post",
+        "summary": "Add a KG item (document / entity / claim / note / interpretation / annotation) to a project",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [],
+        "request_model": "InclusionRequest",
+        "response_model": "ProjectInclusion"
+      },
+      {
+        "method": "DELETE",
+        "path": "/projects/{project_id}/include/{inclusion_id}",
+        "operation_id": "remove_inclusion_api_projects__project_id__include__inclusion_id__delete",
+        "summary": "Remove Inclusion",
+        "path_params": [
+          "project_id",
+          "inclusion_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/projects/{project_id}/items",
+        "operation_id": "list_items_api_projects__project_id__items_get",
+        "summary": "List every item included in a project, optionally filtered by type",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [
+          {
+            "name": "target_type",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ProjectInclusion]"
+      },
+      {
+        "method": "GET",
+        "path": "/projects/membership/{target_id}",
+        "operation_id": "project_membership_api_projects_membership__target_id__get",
+        "summary": "Which projects include this KG row?",
+        "path_params": [
+          "target_id"
+        ],
+        "query_params": [
+          {
+            "name": "target_type",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[Project]"
+      }
+    ],
     "artifacts": [
       {
         "method": "GET",
@@ -433,6 +787,86 @@
         "query_params": [],
         "request_model": null,
         "response_model": null
+      }
+    ],
+    "bibliography": [
+      {
+        "method": "GET",
+        "path": "/bibliography/document/{document_id}",
+        "operation_id": "get_metadata_api_bibliography_document__document_id__get",
+        "summary": "Get a document's bibliographic metadata",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "MetadataResponse"
+      },
+      {
+        "method": "PATCH",
+        "path": "/bibliography/document/{document_id}",
+        "operation_id": "patch_metadata_api_bibliography_document__document_id__patch",
+        "summary": "Set or update a document's bibliographic metadata",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": "MetadataPatchRequest",
+        "response_model": "MetadataResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/bibliography/import",
+        "operation_id": "import_bibliography_api_bibliography_import_post",
+        "summary": "Parse BibTeX / RIS / CSL JSON into SourceMetadata dicts (#909)",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "fichero__api__routes__bibliography__ImportRequest",
+        "response_model": "fichero__api__routes__bibliography__ImportResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/bibliography/export.bib",
+        "operation_id": "export_bibtex_api_bibliography_export_bib_post",
+        "summary": "Bulk export multiple documents as BibTeX",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "fichero__api__routes__bibliography__ExportRequest",
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/bibliography/resolve",
+        "operation_id": "resolve_api_bibliography_resolve_post",
+        "summary": "Resolve a DOI or ISBN via Crossref / Open Library (#910)",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "document_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": "ResolveRequest",
+        "response_model": "MetadataResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/bibliography/document/{document_id}/extract",
+        "operation_id": "run_extractor_api_bibliography_document__document_id__extract_post",
+        "summary": "Run the bibliographic extractor on a document",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [
+          {
+            "name": "use_llm",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "MetadataResponse"
       }
     ],
     "batches": [
@@ -685,6 +1119,193 @@
         "query_params": [],
         "request_model": "ExtractTextRequest",
         "response_model": "ExtractTextResponse"
+      }
+    ],
+    "citations": [
+      {
+        "method": "POST",
+        "path": "/citations/graph",
+        "operation_id": "create_citation_api_citations_graph_post",
+        "summary": "Record a citation from one document to another",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CitationCreateRequest",
+        "response_model": "DocumentCitation"
+      },
+      {
+        "method": "GET",
+        "path": "/citations/graph",
+        "operation_id": "list_citations_api_citations_graph_get",
+        "summary": "List citations (filter by source/target/detector)",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "source_document_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "target_document_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "detector",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "min_confidence",
+            "required": false,
+            "type": "number"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[DocumentCitation]"
+      },
+      {
+        "method": "GET",
+        "path": "/citations/graph/document/{document_id}/outbound",
+        "operation_id": "outbound_api_citations_graph_document__document_id__outbound_get",
+        "summary": "Citations FROM this document \u2014 what it cites",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[DocumentCitation]"
+      },
+      {
+        "method": "GET",
+        "path": "/citations/graph/document/{document_id}/inbound",
+        "operation_id": "inbound_api_citations_graph_document__document_id__inbound_get",
+        "summary": "Citations TO this document \u2014 what cites it",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[DocumentCitation]"
+      },
+      {
+        "method": "PATCH",
+        "path": "/citations/graph/{citation_id}",
+        "operation_id": "patch_citation_api_citations_graph__citation_id__patch",
+        "summary": "Patch Citation",
+        "path_params": [
+          "citation_id"
+        ],
+        "query_params": [],
+        "request_model": "CitationPatchRequest",
+        "response_model": "DocumentCitation"
+      },
+      {
+        "method": "DELETE",
+        "path": "/citations/graph/{citation_id}",
+        "operation_id": "delete_citation_api_citations_graph__citation_id__delete",
+        "summary": "Delete Citation",
+        "path_params": [
+          "citation_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/citations/document/{document_id}",
+        "operation_id": "cite_document_api_citations_document__document_id__get",
+        "summary": "Render a document's citation in one of the supported styles",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [
+          {
+            "name": "style",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "fichero__api__routes__kg_citations__CitationResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/citations/document/{document_id}.bib",
+        "operation_id": "cite_document_bibtex_api_citations_document__document_id__bib_get",
+        "summary": "Download a single document's BibTeX entry as text",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/citations/export",
+        "operation_id": "export_bibtex_api_citations_export_get",
+        "summary": "Bulk export \u2014 BibTeX for a list of documents",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "document_ids",
+            "required": false,
+            "type": "array"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
+    "classifications": [
+      {
+        "method": "GET",
+        "path": "/classifications",
+        "operation_id": "list_values_api_classifications_get",
+        "summary": "List classification values (filter by dimension)",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "dimension",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ClassificationValue]"
+      },
+      {
+        "method": "POST",
+        "path": "/classifications",
+        "operation_id": "create_value_api_classifications_post",
+        "summary": "Add a custom classification value",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ClassificationCreateRequest",
+        "response_model": "ClassificationValue"
+      },
+      {
+        "method": "PATCH",
+        "path": "/classifications/{value_id}",
+        "operation_id": "patch_value_api_classifications__value_id__patch",
+        "summary": "Edit a classification value's label / color / order",
+        "path_params": [
+          "value_id"
+        ],
+        "query_params": [],
+        "request_model": "ClassificationPatchRequest",
+        "response_model": "ClassificationValue"
+      },
+      {
+        "method": "DELETE",
+        "path": "/classifications/{value_id}",
+        "operation_id": "delete_value_api_classifications__value_id__delete",
+        "summary": "Delete Value",
+        "path_params": [
+          "value_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
       }
     ],
     "claims": [
@@ -1277,9 +1898,33 @@
         "query_params": [],
         "request_model": null,
         "response_model": "OrphanCleanupResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/{document_id}/inspector",
+        "operation_id": "inspector_api_documents__document_id__inspector_get",
+        "summary": "One-call aggregate of every KG row attached to this document",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "DocumentInspectorResponse"
       }
     ],
     "entities": [
+      {
+        "method": "GET",
+        "path": "/entities/{entity_id}/inspector",
+        "operation_id": "inspector_api_entities__entity_id__inspector_get",
+        "summary": "One-call aggregate of every KG row attached to this entity",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EntityInspectorResponse"
+      },
       {
         "method": "POST",
         "path": "/entities",
@@ -1476,6 +2121,386 @@
         "query_params": [],
         "request_model": "fichero__api__routes__entities__EntityAliasRequest",
         "response_model": "KnowledgeEntity"
+      }
+    ],
+    "kg": [
+      {
+        "method": "GET",
+        "path": "/kg/search",
+        "operation_id": "search_kg_api_kg_search_get",
+        "summary": "Mixed-type KG search \u2014 one call, hits across entities + claims + notes + annotations",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "types",
+            "required": false,
+            "type": "array"
+          }
+        ],
+        "request_model": null,
+        "response_model": "KGSearchResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/rebuild",
+        "operation_id": "rebuild_kg_api_kg_rebuild_post",
+        "summary": "Backfill KG derived stores",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "RebuildRequest",
+        "response_model": "RebuildResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/triangulation/entity/{entity_id}",
+        "operation_id": "entity_triangulation_api_kg_triangulation_entity__entity_id__get",
+        "summary": "Triangulated triples for one entity",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[TripleSupportResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/triangulation",
+        "operation_id": "library_triangulation_api_kg_triangulation_get",
+        "summary": "Triangulated facts across the library",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "threshold",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[TripleSupportResponse]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/graph/centrality",
+        "operation_id": "centrality_api_kg_graph_centrality_get",
+        "summary": "Top-k entities by composite centrality",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "top_k",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[CentralityRow]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/graph/cooccurrence/{entity_id}",
+        "operation_id": "cooccurrence_neighbours_api_kg_graph_cooccurrence__entity_id__get",
+        "summary": "Co-occurrence neighbours of an entity",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[CooccurrenceNeighbour]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/graph/path",
+        "operation_id": "shortest_path_api_kg_graph_path_get",
+        "summary": "Shortest path between two entities",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "source",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "target",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "fichero__api__routes__kg_graph__PathResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/pykeen/train",
+        "operation_id": "train_api_kg_pykeen_train_post",
+        "summary": "Train a PyKEEN link-prediction model on the library's claims",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "model",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "embedding_dim",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "num_epochs",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "TrainResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/pykeen/predict/{entity_id}",
+        "operation_id": "predict_api_kg_pykeen_predict__entity_id__get",
+        "summary": "Top-k predicted facts for one entity",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [
+          {
+            "name": "top_k",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[LinkPredictionRow]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/review/pairs",
+        "operation_id": "list_pairs_api_kg_review_pairs_get",
+        "summary": "List pending entity-match pairs",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ReviewPairResponse]"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/review/pairs",
+        "operation_id": "queue_pair_api_kg_review_pairs_post",
+        "summary": "Manually queue an entity pair for review",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ManualPairRequest",
+        "response_model": "ReviewPairResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/review/pairs/{pair_id}/accept",
+        "operation_id": "accept_pair_api_kg_review_pairs__pair_id__accept_post",
+        "summary": "Merge candidate into survivor \u2014 accept the suggested match",
+        "path_params": [
+          "pair_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "AcceptResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/review/pairs/{pair_id}/reject",
+        "operation_id": "reject_pair_api_kg_review_pairs__pair_id__reject_post",
+        "summary": "Keep distinct \u2014 labels this pair as definitely-different",
+        "path_params": [
+          "pair_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RejectResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/review/labels",
+        "operation_id": "list_labels_api_kg_review_labels_get",
+        "summary": "Accumulated human-labelled pairs for splink / PyKEEN training",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[LabelRow]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/mutations",
+        "operation_id": "list_mutations_api_kg_mutations_get",
+        "summary": "List recent KG mutations (newest first)",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[MutationRow]"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/mutations/{mutation_id}/undo",
+        "operation_id": "undo_mutation_api_kg_mutations__mutation_id__undo_post",
+        "summary": "Reverse a previous KG mutation",
+        "path_params": [
+          "mutation_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "UndoResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/interpretations/frameworks",
+        "operation_id": "create_framework_api_kg_interpretations_frameworks_post",
+        "summary": "Create an interpretive framework (e.g. 'Marxist historical materialism')",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "FrameworkRequest",
+        "response_model": "InterpretiveFramework"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/interpretations/frameworks",
+        "operation_id": "list_frameworks_api_kg_interpretations_frameworks_get",
+        "summary": "List Frameworks",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[InterpretiveFramework]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/interpretations/frameworks/{framework_id}",
+        "operation_id": "get_framework_api_kg_interpretations_frameworks__framework_id__get",
+        "summary": "Get Framework",
+        "path_params": [
+          "framework_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "InterpretiveFramework"
+      },
+      {
+        "method": "PATCH",
+        "path": "/kg/interpretations/frameworks/{framework_id}",
+        "operation_id": "patch_framework_api_kg_interpretations_frameworks__framework_id__patch",
+        "summary": "Patch Framework",
+        "path_params": [
+          "framework_id"
+        ],
+        "query_params": [],
+        "request_model": "FrameworkPatchRequest",
+        "response_model": "InterpretiveFramework"
+      },
+      {
+        "method": "DELETE",
+        "path": "/kg/interpretations/frameworks/{framework_id}",
+        "operation_id": "delete_framework_api_kg_interpretations_frameworks__framework_id__delete",
+        "summary": "Delete Framework",
+        "path_params": [
+          "framework_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/kg/interpretations",
+        "operation_id": "create_interpretation_api_kg_interpretations_post",
+        "summary": "Create an interpretation \u2014 the result of applying a framework to evidence",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "InterpretationRequest",
+        "response_model": "Interpretation"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/interpretations",
+        "operation_id": "list_interpretations_api_kg_interpretations_get",
+        "summary": "List Interpretations",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "framework_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "claim_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "document_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[Interpretation]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/interpretations/{interpretation_id}",
+        "operation_id": "get_interpretation_api_kg_interpretations__interpretation_id__get",
+        "summary": "Get Interpretation",
+        "path_params": [
+          "interpretation_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "Interpretation"
+      },
+      {
+        "method": "PATCH",
+        "path": "/kg/interpretations/{interpretation_id}",
+        "operation_id": "patch_interpretation_api_kg_interpretations__interpretation_id__patch",
+        "summary": "Patch Interpretation",
+        "path_params": [
+          "interpretation_id"
+        ],
+        "query_params": [],
+        "request_model": "InterpretationPatchRequest",
+        "response_model": "Interpretation"
+      },
+      {
+        "method": "DELETE",
+        "path": "/kg/interpretations/{interpretation_id}",
+        "operation_id": "delete_interpretation_api_kg_interpretations__interpretation_id__delete",
+        "summary": "Delete Interpretation",
+        "path_params": [
+          "interpretation_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
       }
     ],
     "folders": [
@@ -4038,144 +5063,6 @@
         "response_model": "EvidenceChainResponse"
       }
     ],
-    "kg": [
-      {
-        "method": "POST",
-        "path": "/kg/rebuild",
-        "operation_id": "rebuild_kg_api_kg_rebuild_post",
-        "summary": "Backfill KG derived stores",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "RebuildRequest",
-        "response_model": "RebuildResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/kg/triangulation/entity/{entity_id}",
-        "operation_id": "entity_triangulation_api_kg_triangulation_entity__entity_id__get",
-        "summary": "Triangulated triples for one entity",
-        "path_params": [
-          "entity_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "[TripleSupportResponse]"
-      },
-      {
-        "method": "GET",
-        "path": "/kg/triangulation",
-        "operation_id": "library_triangulation_api_kg_triangulation_get",
-        "summary": "Triangulated facts across the library",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "threshold",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "[TripleSupportResponse]"
-      },
-      {
-        "method": "GET",
-        "path": "/kg/graph/centrality",
-        "operation_id": "centrality_api_kg_graph_centrality_get",
-        "summary": "Top-k entities by composite centrality",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "top_k",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "name": "entity_type",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "request_model": null,
-        "response_model": "[CentralityRow]"
-      },
-      {
-        "method": "GET",
-        "path": "/kg/graph/cooccurrence/{entity_id}",
-        "operation_id": "cooccurrence_neighbours_api_kg_graph_cooccurrence__entity_id__get",
-        "summary": "Co-occurrence neighbours of an entity",
-        "path_params": [
-          "entity_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "[CooccurrenceNeighbour]"
-      },
-      {
-        "method": "GET",
-        "path": "/kg/graph/path",
-        "operation_id": "shortest_path_api_kg_graph_path_get",
-        "summary": "Shortest path between two entities",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "source",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "target",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "request_model": null,
-        "response_model": "fichero__api__routes__kg_graph__PathResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/kg/pykeen/train",
-        "operation_id": "train_api_kg_pykeen_train_post",
-        "summary": "Train a PyKEEN link-prediction model on the library's claims",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "model",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "embedding_dim",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "name": "num_epochs",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "TrainResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/kg/pykeen/predict/{entity_id}",
-        "operation_id": "predict_api_kg_pykeen_predict__entity_id__get",
-        "summary": "Top-k predicted facts for one entity",
-        "path_params": [
-          "entity_id"
-        ],
-        "query_params": [
-          {
-            "name": "top_k",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "[LinkPredictionRow]"
-      }
-    ],
     "hermeneutics": [
       {
         "method": "POST",
@@ -5277,7 +6164,7 @@
         "summary": "Create Project",
         "path_params": [],
         "query_params": [],
-        "request_model": "ProjectCreateRequest",
+        "request_model": "fichero__api__routes__research_crud__ProjectCreateRequest",
         "response_model": "ResearchProject"
       },
       {
@@ -6085,8 +6972,8 @@
           "app_name"
         ],
         "query_params": [],
-        "request_model": "ImportRequest",
-        "response_model": "ImportResponse"
+        "request_model": "fichero__api__routes__integrations__ImportRequest",
+        "response_model": "fichero__api__routes__integrations__ImportResponse"
       },
       {
         "method": "POST",
@@ -6097,7 +6984,7 @@
           "app_name"
         ],
         "query_params": [],
-        "request_model": "ExportRequest",
+        "request_model": "fichero__api__routes__integrations__ExportRequest",
         "response_model": "ExportResponse"
       },
       {
@@ -6149,7 +7036,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "CitationResponse"
+        "response_model": "fichero__api__routes__integrations__CitationResponse"
       },
       {
         "method": "GET",

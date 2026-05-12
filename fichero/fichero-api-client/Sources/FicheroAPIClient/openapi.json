@@ -1014,6 +1014,1409 @@
         }
       }
     },
+    "/api/annotations": {
+      "post": {
+        "tags": [
+          "annotations",
+          "knowledge-graph"
+        ],
+        "summary": "Create an annotation",
+        "operationId": "create_annotation_api_annotations_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnotationCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Annotation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "annotations",
+          "knowledge-graph"
+        ],
+        "summary": "List annotations, filterable by document / kind / tag",
+        "operationId": "list_annotations_api_annotations_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/AnnotationKind",
+              "nullable": true,
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Tag"
+            }
+          },
+          {
+            "name": "min_rating",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5,
+              "minimum": 1,
+              "nullable": true,
+              "title": "Min Rating"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Annotation"
+                  },
+                  "title": "Response List Annotations Api Annotations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/annotations/{annotation_id}": {
+      "get": {
+        "tags": [
+          "annotations",
+          "knowledge-graph"
+        ],
+        "summary": "Get Annotation",
+        "operationId": "get_annotation_api_annotations__annotation_id__get",
+        "parameters": [
+          {
+            "name": "annotation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Annotation Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Annotation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "annotations",
+          "knowledge-graph"
+        ],
+        "summary": "Patch Annotation",
+        "operationId": "patch_annotation_api_annotations__annotation_id__patch",
+        "parameters": [
+          {
+            "name": "annotation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Annotation Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnotationPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Annotation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "annotations",
+          "knowledge-graph"
+        ],
+        "summary": "Delete Annotation",
+        "operationId": "delete_annotation_api_annotations__annotation_id__delete",
+        "parameters": [
+          {
+            "name": "annotation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Annotation Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/annotations/{annotation_id}/promote-to-claim": {
+      "post": {
+        "tags": [
+          "annotations",
+          "knowledge-graph"
+        ],
+        "summary": "Turn a highlight or note into a KnowledgeClaim",
+        "description": "Creates a KnowledgeClaim using the annotation's anchor as source provenance. The claim.text defaults to the annotation.text; the source_excerpt uses the annotation's highlighted text via char_start/end + the document's page_content. The annotation is updated to point at the new claim_id.",
+        "operationId": "promote_to_claim_api_annotations__annotation_id__promote_to_claim_post",
+        "parameters": [
+          {
+            "name": "annotation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Annotation Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromoteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notes": {
+      "post": {
+        "tags": [
+          "notes",
+          "knowledge-graph"
+        ],
+        "summary": "Create Note",
+        "operationId": "create_note_api_notes_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/fichero__api__routes__notes__NoteCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Note"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "notes",
+          "knowledge-graph"
+        ],
+        "summary": "List Notes",
+        "operationId": "list_notes_api_notes_get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/NoteKind",
+              "nullable": true,
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Tag"
+            }
+          },
+          {
+            "name": "linked_entity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Linked Entity Id"
+            }
+          },
+          {
+            "name": "linked_claim_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Linked Claim Id"
+            }
+          },
+          {
+            "name": "linked_document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Linked Document Id"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "full-text body search",
+              "title": "Q"
+            },
+            "description": "full-text body search"
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Note"
+                  },
+                  "title": "Response List Notes Api Notes Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notes/{note_id}": {
+      "get": {
+        "tags": [
+          "notes",
+          "knowledge-graph"
+        ],
+        "summary": "Get Note",
+        "operationId": "get_note_api_notes__note_id__get",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Note"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "notes",
+          "knowledge-graph"
+        ],
+        "summary": "Patch Note",
+        "operationId": "patch_note_api_notes__note_id__patch",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotePatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Note"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "notes",
+          "knowledge-graph"
+        ],
+        "summary": "Delete Note",
+        "operationId": "delete_note_api_notes__note_id__delete",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notes/{note_id}/links": {
+      "post": {
+        "tags": [
+          "notes",
+          "knowledge-graph"
+        ],
+        "summary": "Create a bidirectional link between two notes",
+        "operationId": "create_note_link_api_notes__note_id__links_post",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteLinkCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteLink"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notes/{note_id}/links/{link_id}": {
+      "delete": {
+        "tags": [
+          "notes",
+          "knowledge-graph"
+        ],
+        "summary": "Delete Note Link",
+        "operationId": "delete_note_link_api_notes__note_id__links__link_id__delete",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          },
+          {
+            "name": "link_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Link Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notes/{note_id}/backlinks": {
+      "get": {
+        "tags": [
+          "notes",
+          "knowledge-graph"
+        ],
+        "summary": "Every note that links to this one",
+        "description": "Returns the notes that point at ``note_id`` via NoteLink (target side). This is the Zettelkasten 'what points here' query \u2014 the graph IS the analysis.",
+        "operationId": "backlinks_api_notes__note_id__backlinks_get",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Note"
+                  },
+                  "title": "Response Backlinks Api Notes  Note Id  Backlinks Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notes/{note_id}/forward-links": {
+      "get": {
+        "tags": [
+          "notes",
+          "knowledge-graph"
+        ],
+        "summary": "Every note this one links to",
+        "operationId": "forward_links_api_notes__note_id__forward_links_get",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Note"
+                  },
+                  "title": "Response Forward Links Api Notes  Note Id  Forward Links Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects": {
+      "post": {
+        "tags": [
+          "projects",
+          "knowledge-graph"
+        ],
+        "summary": "Create Project",
+        "operationId": "create_project_api_projects_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/fichero__api__routes__projects__ProjectCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "projects",
+          "knowledge-graph"
+        ],
+        "summary": "List Projects",
+        "operationId": "list_projects_api_projects_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/fichero__knowledge_models__ProjectStatus",
+              "nullable": true,
+              "title": "Status"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Project"
+                  },
+                  "title": "Response List Projects Api Projects Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}": {
+      "get": {
+        "tags": [
+          "projects",
+          "knowledge-graph"
+        ],
+        "summary": "Get Project",
+        "operationId": "get_project_api_projects__project_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "projects",
+          "knowledge-graph"
+        ],
+        "summary": "Patch Project",
+        "operationId": "patch_project_api_projects__project_id__patch",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "projects",
+          "knowledge-graph"
+        ],
+        "summary": "Delete Project",
+        "operationId": "delete_project_api_projects__project_id__delete",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/include": {
+      "post": {
+        "tags": [
+          "projects",
+          "knowledge-graph"
+        ],
+        "summary": "Add a KG item (document / entity / claim / note / interpretation / annotation) to a project",
+        "operationId": "include_item_api_projects__project_id__include_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InclusionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectInclusion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/include/{inclusion_id}": {
+      "delete": {
+        "tags": [
+          "projects",
+          "knowledge-graph"
+        ],
+        "summary": "Remove Inclusion",
+        "operationId": "remove_inclusion_api_projects__project_id__include__inclusion_id__delete",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "inclusion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Inclusion Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/items": {
+      "get": {
+        "tags": [
+          "projects",
+          "knowledge-graph"
+        ],
+        "summary": "List every item included in a project, optionally filtered by type",
+        "operationId": "list_items_api_projects__project_id__items_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "target_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Target Type"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectInclusion"
+                  },
+                  "title": "Response List Items Api Projects  Project Id  Items Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/membership/{target_id}": {
+      "get": {
+        "tags": [
+          "projects",
+          "knowledge-graph"
+        ],
+        "summary": "Which projects include this KG row?",
+        "operationId": "project_membership_api_projects_membership__target_id__get",
+        "parameters": [
+          {
+            "name": "target_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Target Id"
+            }
+          },
+          {
+            "name": "target_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Target Type"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Project"
+                  },
+                  "title": "Response Project Membership Api Projects Membership  Target Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/artifacts/": {
       "get": {
         "tags": [
@@ -1387,6 +2790,354 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bibliography/document/{document_id}": {
+      "get": {
+        "tags": [
+          "bibliography",
+          "knowledge-graph"
+        ],
+        "summary": "Get a document's bibliographic metadata",
+        "operationId": "get_metadata_api_bibliography_document__document_id__get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "bibliography",
+          "knowledge-graph"
+        ],
+        "summary": "Set or update a document's bibliographic metadata",
+        "description": "Replaces the document's source_metadata dict. To merge rather than replace, GET first and pass the merged dict.",
+        "operationId": "patch_metadata_api_bibliography_document__document_id__patch",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MetadataPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bibliography/import": {
+      "post": {
+        "tags": [
+          "bibliography",
+          "knowledge-graph"
+        ],
+        "summary": "Parse BibTeX / RIS / CSL JSON into SourceMetadata dicts (#909)",
+        "description": "Parses bibliography file content posted as the request body's ``text`` field. Returns the parsed entries WITHOUT writing them to any document \u2014 the caller decides how to associate each entry with an in-library document (auto-match by title or manual pick).",
+        "operationId": "import_bibliography_api_bibliography_import_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/fichero__api__routes__bibliography__ImportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/fichero__api__routes__bibliography__ImportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bibliography/export.bib": {
+      "post": {
+        "tags": [
+          "bibliography",
+          "knowledge-graph"
+        ],
+        "summary": "Bulk export multiple documents as BibTeX",
+        "description": "Returns a multi-entry .bib file built from each document's source_metadata. Documents without metadata are skipped.",
+        "operationId": "export_bibtex_api_bibliography_export_bib_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/fichero__api__routes__bibliography__ExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bibliography/resolve": {
+      "post": {
+        "tags": [
+          "bibliography",
+          "knowledge-graph"
+        ],
+        "summary": "Resolve a DOI or ISBN via Crossref / Open Library (#910)",
+        "description": "Online lookup \u2014 Crossref for DOIs, Open Library for ISBNs. Free, no API key needed. Returns the resolved metadata merged with whatever's already on the document. NOT associated with a document by default; set document_id to merge the result into a document's source_metadata.",
+        "operationId": "resolve_api_bibliography_resolve_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bibliography/document/{document_id}/extract": {
+      "post": {
+        "tags": [
+          "bibliography",
+          "knowledge-graph"
+        ],
+        "summary": "Run the bibliographic extractor on a document",
+        "description": "Pulls PDF metadata via PyMuPDF + optionally LLM-extracts from the first page text. Merges with existing curated metadata \u2014 user values are preserved. Returns the new merged dict and writes it back to the document.",
+        "operationId": "run_extractor_api_bibliography_document__document_id__extract_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "use_llm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "When true, in addition to PDF metadata run an Apple Intelligence first-page extractor. Requires a configured LLM.",
+              "default": false,
+              "title": "Use Llm"
+            },
+            "description": "When true, in addition to PDF metadata run an Apple Intelligence first-page extractor. Requires a configured LLM."
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataResponse"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -2336,6 +4087,576 @@
         }
       }
     },
+    "/api/citations/graph": {
+      "post": {
+        "tags": [
+          "citations",
+          "knowledge-graph"
+        ],
+        "summary": "Record a citation from one document to another",
+        "operationId": "create_citation_api_citations_graph_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CitationCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentCitation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "citations",
+          "knowledge-graph"
+        ],
+        "summary": "List citations (filter by source/target/detector)",
+        "operationId": "list_citations_api_citations_graph_get",
+        "parameters": [
+          {
+            "name": "source_document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Source Document Id"
+            }
+          },
+          {
+            "name": "target_document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Target Document Id"
+            }
+          },
+          {
+            "name": "detector",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Detector"
+            }
+          },
+          {
+            "name": "min_confidence",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "nullable": true,
+              "title": "Min Confidence"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentCitation"
+                  },
+                  "title": "Response List Citations Api Citations Graph Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/citations/graph/document/{document_id}/outbound": {
+      "get": {
+        "tags": [
+          "citations",
+          "knowledge-graph"
+        ],
+        "summary": "Citations FROM this document \u2014 what it cites",
+        "operationId": "outbound_api_citations_graph_document__document_id__outbound_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentCitation"
+                  },
+                  "title": "Response Outbound Api Citations Graph Document  Document Id  Outbound Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/citations/graph/document/{document_id}/inbound": {
+      "get": {
+        "tags": [
+          "citations",
+          "knowledge-graph"
+        ],
+        "summary": "Citations TO this document \u2014 what cites it",
+        "operationId": "inbound_api_citations_graph_document__document_id__inbound_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentCitation"
+                  },
+                  "title": "Response Inbound Api Citations Graph Document  Document Id  Inbound Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/citations/graph/{citation_id}": {
+      "patch": {
+        "tags": [
+          "citations",
+          "knowledge-graph"
+        ],
+        "summary": "Patch Citation",
+        "operationId": "patch_citation_api_citations_graph__citation_id__patch",
+        "parameters": [
+          {
+            "name": "citation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Citation Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CitationPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentCitation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "citations",
+          "knowledge-graph"
+        ],
+        "summary": "Delete Citation",
+        "operationId": "delete_citation_api_citations_graph__citation_id__delete",
+        "parameters": [
+          {
+            "name": "citation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Citation Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/classifications": {
+      "get": {
+        "tags": [
+          "classifications",
+          "knowledge-graph"
+        ],
+        "summary": "List classification values (filter by dimension)",
+        "operationId": "list_values_api_classifications_get",
+        "parameters": [
+          {
+            "name": "dimension",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ClassificationDimension",
+              "nullable": true,
+              "title": "Dimension"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClassificationValue"
+                  },
+                  "title": "Response List Values Api Classifications Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "classifications",
+          "knowledge-graph"
+        ],
+        "summary": "Add a custom classification value",
+        "operationId": "create_value_api_classifications_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClassificationCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassificationValue"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/classifications/{value_id}": {
+      "patch": {
+        "tags": [
+          "classifications",
+          "knowledge-graph"
+        ],
+        "summary": "Edit a classification value's label / color / order",
+        "operationId": "patch_value_api_classifications__value_id__patch",
+        "parameters": [
+          {
+            "name": "value_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Value Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClassificationPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassificationValue"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "classifications",
+          "knowledge-graph"
+        ],
+        "summary": "Delete Value",
+        "operationId": "delete_value_api_classifications__value_id__delete",
+        "parameters": [
+          {
+            "name": "value_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Value Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/claims/{claim_id}/links": {
       "post": {
         "tags": [
@@ -3028,7 +5349,7 @@
           "claims"
         ],
         "summary": "Delete Claim",
-        "description": "Hard-delete a single knowledge claim.\n\nEntities referenced by the claim's ``entity_ids`` are not\ntouched \u2014 the entity is the bigger concept, the claim is one\npiece of evidence about it. Use \\`DELETE /api/entities/{id}\\`\nto remove the entity itself. (#901)",
+        "description": "Hard-delete a single knowledge claim.\n\nEntities referenced by the claim's ``entity_ids`` are not\ntouched \u2014 the entity is the bigger concept, the claim is one\npiece of evidence about it. Use ``DELETE /api/entities/{id}``\nto remove the entity itself. (#901)",
         "operationId": "delete_claim_api_claims__claim_id__delete",
         "parameters": [
           {
@@ -3940,6 +6261,197 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrphanCleanupResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{document_id}/inspector": {
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "One-call aggregate of every KG row attached to this document",
+        "description": "Returns claims, entities, annotations, notes, citations (both directions), interpretations, and project memberships. Use this to populate the right-side inspector with a single request instead of 7 separate ones. (#902 prep)",
+        "operationId": "inspector_api_documents__document_id__inspector_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentInspectorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/entities/{entity_id}/inspector": {
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "One-call aggregate of every KG row attached to this entity",
+        "operationId": "inspector_api_entities__entity_id__inspector_get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityInspectorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/search": {
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Mixed-type KG search \u2014 one call, hits across entities + claims + notes + annotations",
+        "operationId": "search_kg_api_kg_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Q"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "types",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "entity",
+                  "claim",
+                  "note",
+                  "annotation"
+                ],
+                "type": "string"
+              },
+              "nullable": true,
+              "description": "Filter to specific row types \u2014 pass repeated 'types' params. Defaults to all four when omitted.",
+              "title": "Types"
+            },
+            "description": "Filter to specific row types \u2014 pass repeated 'types' params. Defaults to all four when omitted."
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KGSearchResponse"
                 }
               }
             }
@@ -15115,6 +17627,1098 @@
         }
       }
     },
+    "/api/kg/review/pairs": {
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "List pending entity-match pairs",
+        "description": "Return up-to ``limit`` pending pairs, newest first.",
+        "operationId": "list_pairs_api_kg_review_pairs_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewPairResponse"
+                  },
+                  "title": "Response List Pairs Api Kg Review Pairs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Manually queue an entity pair for review",
+        "operationId": "queue_pair_api_kg_review_pairs_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualPairRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewPairResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/review/pairs/{pair_id}/accept": {
+      "post": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Merge candidate into survivor \u2014 accept the suggested match",
+        "description": "Reassigns every claim that referenced the candidate to the survivor instead, folds candidate.canonical_name + aliases into survivor.aliases, soft-deletes the candidate via merged_into_id, drops the candidate's LanceDB vector, and refreshes the survivor's vector. Writes an EntityMergeAudit for reversibility. (#899 Phase D / #377)",
+        "operationId": "accept_pair_api_kg_review_pairs__pair_id__accept_post",
+        "parameters": [
+          {
+            "name": "pair_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pair Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/review/pairs/{pair_id}/reject": {
+      "post": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Keep distinct \u2014 labels this pair as definitely-different",
+        "description": "Records the reviewer's decision that survivor and candidate are NOT the same entity. The labelled negative feeds future splink / PyKEEN training (#899 Phase D).",
+        "operationId": "reject_pair_api_kg_review_pairs__pair_id__reject_post",
+        "parameters": [
+          {
+            "name": "pair_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pair Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RejectResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/review/labels": {
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Accumulated human-labelled pairs for splink / PyKEEN training",
+        "operationId": "list_labels_api_kg_review_labels_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LabelRow"
+                  },
+                  "title": "Response List Labels Api Kg Review Labels Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/mutations": {
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "List recent KG mutations (newest first)",
+        "description": "Recent entity/claim edits + deletes for undo. (#901)",
+        "operationId": "list_mutations_api_kg_mutations_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MutationRow"
+                  },
+                  "title": "Response List Mutations Api Kg Mutations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/mutations/{mutation_id}/undo": {
+      "post": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Reverse a previous KG mutation",
+        "description": "Restores the before-state of a previously-logged mutation. Writes a new ``restore``-type MutationLog row pointing back at the original via reversal_id, so the undo itself is auditable. (#901)",
+        "operationId": "undo_mutation_api_kg_mutations__mutation_id__undo_post",
+        "parameters": [
+          {
+            "name": "mutation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Mutation Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UndoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/citations/document/{document_id}": {
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Render a document's citation in one of the supported styles",
+        "operationId": "cite_document_api_citations_document__document_id__get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "style",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "bibtex",
+                "chicago",
+                "apa",
+                "mla"
+              ],
+              "type": "string",
+              "description": "Citation style: bibtex | chicago | apa | mla",
+              "default": "bibtex",
+              "title": "Style"
+            },
+            "description": "Citation style: bibtex | chicago | apa | mla"
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/fichero__api__routes__kg_citations__CitationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/citations/document/{document_id}.bib": {
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Download a single document's BibTeX entry as text",
+        "operationId": "cite_document_bibtex_api_citations_document__document_id__bib_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/citations/export": {
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Bulk export \u2014 BibTeX for a list of documents",
+        "description": "Returns a multi-entry BibTeX file. Pass document_ids as repeated query parameters: /api/citations/export?document_ids=A&document_ids=B",
+        "operationId": "export_bibtex_api_citations_export_get",
+        "parameters": [
+          {
+            "name": "document_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [],
+              "title": "Document Ids"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/interpretations/frameworks": {
+      "post": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Create an interpretive framework (e.g. 'Marxist historical materialism')",
+        "operationId": "create_framework_api_kg_interpretations_frameworks_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FrameworkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterpretiveFramework"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "List Frameworks",
+        "operationId": "list_frameworks_api_kg_interpretations_frameworks_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InterpretiveFramework"
+                  },
+                  "title": "Response List Frameworks Api Kg Interpretations Frameworks Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/interpretations/frameworks/{framework_id}": {
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Get Framework",
+        "operationId": "get_framework_api_kg_interpretations_frameworks__framework_id__get",
+        "parameters": [
+          {
+            "name": "framework_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Framework Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterpretiveFramework"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Patch Framework",
+        "operationId": "patch_framework_api_kg_interpretations_frameworks__framework_id__patch",
+        "parameters": [
+          {
+            "name": "framework_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Framework Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FrameworkPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterpretiveFramework"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Delete Framework",
+        "operationId": "delete_framework_api_kg_interpretations_frameworks__framework_id__delete",
+        "parameters": [
+          {
+            "name": "framework_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Framework Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/interpretations": {
+      "post": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Create an interpretation \u2014 the result of applying a framework to evidence",
+        "operationId": "create_interpretation_api_kg_interpretations_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterpretationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interpretation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "List Interpretations",
+        "operationId": "list_interpretations_api_kg_interpretations_get",
+        "parameters": [
+          {
+            "name": "framework_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Framework Id"
+            }
+          },
+          {
+            "name": "claim_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Claim Id"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Interpretation"
+                  },
+                  "title": "Response List Interpretations Api Kg Interpretations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/interpretations/{interpretation_id}": {
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Get Interpretation",
+        "operationId": "get_interpretation_api_kg_interpretations__interpretation_id__get",
+        "parameters": [
+          {
+            "name": "interpretation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Interpretation Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interpretation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Patch Interpretation",
+        "operationId": "patch_interpretation_api_kg_interpretations__interpretation_id__patch",
+        "parameters": [
+          {
+            "name": "interpretation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Interpretation Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterpretationPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interpretation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Delete Interpretation",
+        "operationId": "delete_interpretation_api_kg_interpretations__interpretation_id__delete",
+        "parameters": [
+          {
+            "name": "interpretation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Interpretation Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/search/explain": {
       "post": {
         "tags": [
@@ -19206,7 +22810,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProjectCreateRequest"
+                "$ref": "#/components/schemas/fichero__api__routes__research_crud__ProjectCreateRequest"
               }
             }
           }
@@ -19246,7 +22850,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/ProjectStatus",
+              "$ref": "#/components/schemas/fichero__research_models__ProjectStatus",
               "nullable": true,
               "title": "Status"
             }
@@ -23032,7 +26636,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ImportRequest"
+                "$ref": "#/components/schemas/fichero__api__routes__integrations__ImportRequest"
               }
             }
           }
@@ -23043,7 +26647,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ImportResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__integrations__ImportResponse"
                 }
               }
             }
@@ -23086,7 +26690,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ExportRequest"
+                "$ref": "#/components/schemas/fichero__api__routes__integrations__ExportRequest"
               }
             }
           }
@@ -23250,7 +26854,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CitationResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__integrations__CitationResponse"
                 }
               }
             }
@@ -26545,6 +30149,34 @@
         ],
         "title": "APIKeyStoredResponse"
       },
+      "AcceptResponse": {
+        "properties": {
+          "survivor_entity_id": {
+            "type": "string",
+            "title": "Survivor Entity Id"
+          },
+          "absorbed_entity_id": {
+            "type": "string",
+            "title": "Absorbed Entity Id"
+          },
+          "claims_reassigned": {
+            "type": "integer",
+            "title": "Claims Reassigned"
+          },
+          "audit_id": {
+            "type": "string",
+            "title": "Audit Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "survivor_entity_id",
+          "absorbed_entity_id",
+          "claims_reassigned",
+          "audit_id"
+        ],
+        "title": "AcceptResponse"
+      },
       "ActionJsonResponse": {
         "properties": {
           "json_data": {
@@ -27312,6 +30944,283 @@
           "community_algorithms"
         ],
         "title": "AlgorithmsListResponse"
+      },
+      "Annotation": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Label"
+          },
+          "char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char End"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Bbox"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AnnotationKind"
+          },
+          "text": {
+            "type": "string",
+            "nullable": true,
+            "title": "Text"
+          },
+          "rating": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "nullable": true,
+            "title": "Rating"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "title": "Color",
+            "description": "Hex colour for highlight tint, e.g. '#FFFF00'"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "linked_claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Claim Ids"
+          },
+          "linked_entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Entity Ids"
+          },
+          "linked_note_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Note Ids"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "default": "human"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "document_id",
+          "kind"
+        ],
+        "title": "Annotation",
+        "description": "User-authored annotation on a document, text span, or image region (#914).\n\nAnchored to a Document via document_id, optionally further refined\nby char_start/char_end (text spans, reuses #913's offsets) and/or\nbbox (image / PDF rectangles). Workflows can consume annotations\nas AI input (see #914 comment on workflow-input extension) so a\nbbox over 10% of a 100MB image becomes the cropped input that\nApple Intelligence actually sees.\n\nDistinct from KnowledgeClaim \u2014 annotations are user-authored\nsurface marks, claims are knowledge-graph propositions. A\nhighlight can be promoted to a claim via\nPOST /api/annotations/{id}/promote-to-claim."
+      },
+      "AnnotationCreateRequest": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AnnotationKind"
+          },
+          "page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Label"
+          },
+          "char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char End"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Bbox"
+          },
+          "text": {
+            "type": "string",
+            "nullable": true,
+            "title": "Text"
+          },
+          "rating": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Rating"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "title": "Color"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags",
+            "default": []
+          },
+          "linked_claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Claim Ids",
+            "default": []
+          },
+          "linked_entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Entity Ids",
+            "default": []
+          },
+          "linked_note_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Note Ids",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "kind"
+        ],
+        "title": "AnnotationCreateRequest"
+      },
+      "AnnotationKind": {
+        "type": "string",
+        "enum": [
+          "highlight",
+          "note",
+          "rating",
+          "bookmark",
+          "comment"
+        ],
+        "title": "AnnotationKind",
+        "description": "User annotation kinds (#914).\n\nEach kind has slightly different rendering + payload conventions:\n- highlight: coloured tint over a span; ``color`` + ``rating`` carry weight\n- note: margin/sticky note; ``text`` is the body\n- rating: 1-5 importance flag; ``rating`` carries weight\n- bookmark: navigation marker; ``text`` optional label\n- comment: threaded discussion (future); ``text`` is the body"
+      },
+      "AnnotationPatchRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "nullable": true,
+            "title": "Text"
+          },
+          "rating": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Rating"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "title": "Color"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Tags"
+          },
+          "linked_claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Linked Claim Ids"
+          },
+          "linked_entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Linked Entity Ids"
+          },
+          "linked_note_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Linked Note Ids"
+          },
+          "char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char End"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Bbox"
+          }
+        },
+        "type": "object",
+        "title": "AnnotationPatchRequest"
       },
       "AppleIntelligenceProbeResponse": {
         "properties": {
@@ -28925,6 +32834,60 @@
         ],
         "title": "CircleStateNavigateRequest"
       },
+      "CitationCreateRequest": {
+        "properties": {
+          "source_document_id": {
+            "type": "string",
+            "title": "Source Document Id"
+          },
+          "target_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Document Id"
+          },
+          "target_citation_text": {
+            "type": "string",
+            "title": "Target Citation Text"
+          },
+          "page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Label"
+          },
+          "char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char End"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence",
+            "default": 1.0
+          },
+          "detector": {
+            "type": "string",
+            "title": "Detector",
+            "default": "manual"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_document_id",
+          "target_citation_text"
+        ],
+        "title": "CitationCreateRequest"
+      },
       "CitationLineage": {
         "properties": {
           "claim_id": {
@@ -28980,23 +32943,41 @@
         "title": "CitationLineage",
         "description": "Citation lineage for an interpretation."
       },
-      "CitationResponse": {
+      "CitationPatchRequest": {
         "properties": {
-          "citation": {
+          "target_document_id": {
             "type": "string",
-            "title": "Citation"
+            "nullable": true,
+            "title": "Target Document Id"
           },
-          "style": {
+          "target_citation_text": {
             "type": "string",
-            "title": "Style"
+            "nullable": true,
+            "title": "Target Citation Text"
+          },
+          "page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Label"
+          },
+          "char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char End"
+          },
+          "confidence": {
+            "type": "number",
+            "nullable": true,
+            "title": "Confidence"
           }
         },
         "type": "object",
-        "required": [
-          "citation",
-          "style"
-        ],
-        "title": "CitationResponse"
+        "title": "CitationPatchRequest"
       },
       "ClaimCurationState": {
         "type": "string",
@@ -29240,6 +33221,178 @@
           "offset"
         ],
         "title": "ClaimsPageResponse"
+      },
+      "ClassificationCreateRequest": {
+        "properties": {
+          "dimension": {
+            "$ref": "#/components/schemas/ClassificationDimension"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description"
+          },
+          "parent_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Key"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "title": "Color"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "title": "Icon"
+          },
+          "sort_order": {
+            "type": "integer",
+            "title": "Sort Order",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "dimension",
+          "key",
+          "label"
+        ],
+        "title": "ClassificationCreateRequest"
+      },
+      "ClassificationDimension": {
+        "type": "string",
+        "enum": [
+          "epistemic_status",
+          "claim_type",
+          "entity_type"
+        ],
+        "title": "ClassificationDimension",
+        "description": "Which classification axis a registry value belongs to (#915)."
+      },
+      "ClassificationPatchRequest": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Label"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description"
+          },
+          "parent_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Key"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "title": "Color"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "title": "Icon"
+          },
+          "sort_order": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Sort Order"
+          }
+        },
+        "type": "object",
+        "title": "ClassificationPatchRequest"
+      },
+      "ClassificationValue": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "dimension": {
+            "$ref": "#/components/schemas/ClassificationDimension"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "Machine-readable identifier; lowercase, used in queries."
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "Human-readable display string."
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description"
+          },
+          "parent_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Key",
+            "description": "Optional hierarchy: 'binding' parent of 'constitutional'."
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "title": "Color",
+            "description": "Hex tint for badge rendering, e.g. '#FF8800'."
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "title": "Icon",
+            "description": "SF Symbol name for inspector chips."
+          },
+          "is_builtin": {
+            "type": "boolean",
+            "title": "Is Builtin",
+            "description": "Built-in values (tentative/confirmed/...) cannot be deleted.",
+            "default": false
+          },
+          "sort_order": {
+            "type": "integer",
+            "title": "Sort Order",
+            "default": 0
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "default": "human"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "dimension",
+          "key",
+          "label"
+        ],
+        "title": "ClassificationValue",
+        "description": "User-extensible classification taxonomy entry (#915).\n\nReplaces the hardcoded EpistemicStatus / ClaimType / EntityType\nenums for runtime registry: users add new buckets via\n/api/classifications without code changes. Built-in values are\nseeded on first run and protected from deletion.\n\nExample custom values a historiographer might add:\n- dimension=epistemic_status, key=\"contested\", label=\"Contested\"\n- dimension=claim_type, key=\"ethnographic\", label=\"Ethnographic\"\n- dimension=entity_type, key=\"plant_species\", label=\"Plant species\""
       },
       "CleanupResponse": {
         "properties": {
@@ -30803,6 +34956,17 @@
             "type": "object",
             "title": "Metadata"
           },
+          "source_authority": {
+            "$ref": "#/components/schemas/SourceAuthority",
+            "default": "unknown"
+          },
+          "source_metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Source Metadata",
+            "description": "Bibliographic metadata (SourceMetadata shape). See #908."
+          },
           "status": {
             "$ref": "#/components/schemas/Status",
             "default": "pending"
@@ -30844,6 +35008,75 @@
         ],
         "title": "Document",
         "description": "A node in the document hierarchy.\n\nRepresents any organizational unit or file:\n- Collection: top-level archive/project\n- Folder: organizational grouping (box, series)\n- Group: logical document (a letter that spans 3 pages)\n- File: actual file (image, PDF, audio)\n- Page: page within a PDF\n- Chunk: region within a page (signature, stamp, paragraph)\n\nHierarchy via parent_id:\n    Collection > Folder > Group > File > Page > Chunk\n\nCompatible with LangChain's Document concept via page_content and metadata."
+      },
+      "DocumentCitation": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source_document_id": {
+            "type": "string",
+            "title": "Source Document Id"
+          },
+          "target_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Document Id",
+            "description": "The cited document if resolved in the library, else None."
+          },
+          "target_citation_text": {
+            "type": "string",
+            "title": "Target Citation Text",
+            "description": "The citation as it appears in the source (the raw string)."
+          },
+          "page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Label"
+          },
+          "char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char End"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "default": 1.0
+          },
+          "detector": {
+            "type": "string",
+            "title": "Detector",
+            "description": "Which detector emitted this citation: manual / regex / llm / bibtex_import",
+            "default": "manual"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "source_document_id",
+          "target_citation_text"
+        ],
+        "title": "DocumentCitation",
+        "description": "One document citing another (#906).\n\nCaptures both the structural fact (A cites B) and the textual\nevidence (where in A the citation appears). Confidence reflects\nhow certain the detector is that ``target_document_id`` is the\nright resolution \u2014 needed when matching a bibliography string\nto an in-library document by fuzzy title + author."
       },
       "DocumentCreate": {
         "properties": {
@@ -31030,6 +35263,103 @@
           "success"
         ],
         "title": "DocumentFetchResponse"
+      },
+      "DocumentInspectorResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "document": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Document"
+          },
+          "source_metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Source Metadata"
+          },
+          "claim_count": {
+            "type": "integer",
+            "title": "Claim Count"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeClaim"
+            },
+            "type": "array",
+            "title": "Claims"
+          },
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeEntity"
+            },
+            "type": "array",
+            "title": "Entities"
+          },
+          "annotations": {
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            },
+            "type": "array",
+            "title": "Annotations"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/Note"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "citations_outbound": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentCitation"
+            },
+            "type": "array",
+            "title": "Citations Outbound"
+          },
+          "citations_inbound": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentCitation"
+            },
+            "type": "array",
+            "title": "Citations Inbound"
+          },
+          "interpretations": {
+            "items": {
+              "$ref": "#/components/schemas/Interpretation"
+            },
+            "type": "array",
+            "title": "Interpretations"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            },
+            "type": "array",
+            "title": "Projects"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "document",
+          "source_metadata",
+          "claim_count",
+          "claims",
+          "entities",
+          "annotations",
+          "notes",
+          "citations_outbound",
+          "citations_inbound",
+          "interpretations",
+          "projects"
+        ],
+        "title": "DocumentInspectorResponse",
+        "description": "Everything the inspector needs in one shot."
       },
       "DocumentListResponse": {
         "properties": {
@@ -31533,6 +35863,85 @@
         ],
         "title": "EntityDrillDownResponse",
         "description": "Bundle response for /entities/{id}/drill-down \u2014 three lists in\none call so the inspector renders an entity-detail view from one\nfetch instead of three round-trips."
+      },
+      "EntityInspectorResponse": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/KnowledgeEntity"
+          },
+          "claim_count": {
+            "type": "integer",
+            "title": "Claim Count"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeClaim"
+            },
+            "type": "array",
+            "title": "Claims"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            },
+            "type": "array",
+            "title": "Documents"
+          },
+          "annotations": {
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            },
+            "type": "array",
+            "title": "Annotations"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/Note"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            },
+            "type": "array",
+            "title": "Projects"
+          },
+          "similar_entities": {
+            "items": {
+              "$ref": "#/components/schemas/SimilarEntity"
+            },
+            "type": "array",
+            "title": "Similar Entities"
+          },
+          "triangulated_facts": {
+            "items": {
+              "$ref": "#/components/schemas/TriangulatedFact"
+            },
+            "type": "array",
+            "title": "Triangulated Facts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "entity",
+          "claim_count",
+          "claims",
+          "documents",
+          "annotations",
+          "notes",
+          "projects",
+          "similar_entities",
+          "triangulated_facts"
+        ],
+        "title": "EntityInspectorResponse",
+        "description": "Everything the entity-detail view needs in one shot."
       },
       "EntityInterpretationsResponse": {
         "properties": {
@@ -32161,46 +36570,6 @@
         "title": "ExplorationDepth",
         "description": "Depth of exploration."
       },
-      "ExportRequest": {
-        "properties": {
-          "file_path": {
-            "type": "string",
-            "title": "File Path"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "nullable": true,
-            "title": "Metadata"
-          },
-          "database": {
-            "type": "string",
-            "nullable": true,
-            "title": "Database"
-          },
-          "group": {
-            "type": "string",
-            "nullable": true,
-            "title": "Group"
-          },
-          "container": {
-            "type": "string",
-            "nullable": true,
-            "title": "Container"
-          },
-          "prototype": {
-            "type": "string",
-            "nullable": true,
-            "title": "Prototype"
-          }
-        },
-        "type": "object",
-        "required": [
-          "file_path"
-        ],
-        "title": "ExportRequest",
-        "description": "Request to export a file to an app."
-      },
       "ExportResponse": {
         "properties": {
           "success": {
@@ -32459,6 +36828,128 @@
           "status"
         ],
         "title": "FrameworkDeactivatedResponse"
+      },
+      "FrameworkPatchRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description"
+          },
+          "core_questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Core Questions"
+          },
+          "key_concepts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Key Concepts"
+          },
+          "typical_applications": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Typical Applications"
+          },
+          "origin": {
+            "type": "string",
+            "nullable": true,
+            "title": "Origin"
+          },
+          "creator": {
+            "type": "string",
+            "nullable": true,
+            "title": "Creator"
+          },
+          "is_active": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "title": "FrameworkPatchRequest"
+      },
+      "FrameworkRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "framework_type": {
+            "$ref": "#/components/schemas/FrameworkType"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "core_questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Core Questions",
+            "default": []
+          },
+          "key_concepts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Key Concepts",
+            "default": []
+          },
+          "typical_applications": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Typical Applications",
+            "default": []
+          },
+          "origin": {
+            "type": "string",
+            "nullable": true,
+            "title": "Origin"
+          },
+          "creator": {
+            "type": "string",
+            "nullable": true,
+            "title": "Creator"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "framework_type",
+          "description"
+        ],
+        "title": "FrameworkRequest"
       },
       "FrameworkType": {
         "type": "string",
@@ -33211,48 +37702,33 @@
         "title": "ImportActionRequest",
         "description": "Request to import an action."
       },
-      "ImportRequest": {
+      "InclusionRequest": {
         "properties": {
-          "external_id": {
+          "target_id": {
             "type": "string",
-            "title": "External Id"
+            "title": "Target Id"
           },
-          "target_path": {
+          "target_type": {
+            "type": "string",
+            "title": "Target Type"
+          },
+          "role": {
             "type": "string",
             "nullable": true,
-            "title": "Target Path"
+            "title": "Role"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "title": "Notes"
           }
         },
         "type": "object",
         "required": [
-          "external_id"
+          "target_id",
+          "target_type"
         ],
-        "title": "ImportRequest",
-        "description": "Request to import an item from an app."
-      },
-      "ImportResponse": {
-        "properties": {
-          "success": {
-            "type": "boolean",
-            "title": "Success"
-          },
-          "file_path": {
-            "type": "string",
-            "nullable": true,
-            "title": "File Path"
-          },
-          "error": {
-            "type": "string",
-            "nullable": true,
-            "title": "Error"
-          }
-        },
-        "type": "object",
-        "required": [
-          "success"
-        ],
-        "title": "ImportResponse",
-        "description": "Response from import operation."
+        "title": "InclusionRequest"
       },
       "InclusionScopeType": {
         "type": "string",
@@ -33955,6 +38431,50 @@
         "title": "InterpretationNode",
         "description": "Node in interpretation exploration."
       },
+      "InterpretationPatchRequest": {
+        "properties": {
+          "interpretation_text": {
+            "type": "string",
+            "nullable": true,
+            "title": "Interpretation Text"
+          },
+          "act": {
+            "$ref": "#/components/schemas/InterpretiveActType",
+            "nullable": true
+          },
+          "confidence": {
+            "type": "number",
+            "nullable": true,
+            "title": "Confidence"
+          },
+          "key_insights": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Key Insights"
+          },
+          "tensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Tensions"
+          },
+          "connections": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Connections"
+          }
+        },
+        "type": "object",
+        "title": "InterpretationPatchRequest"
+      },
       "InterpretationPath": {
         "properties": {
           "path_id": {
@@ -33994,6 +38514,78 @@
         ],
         "title": "InterpretationPath",
         "description": "Path through interpretation space."
+      },
+      "InterpretationRequest": {
+        "properties": {
+          "framework_id": {
+            "type": "string",
+            "title": "Framework Id"
+          },
+          "interpretation_text": {
+            "type": "string",
+            "title": "Interpretation Text"
+          },
+          "act": {
+            "$ref": "#/components/schemas/InterpretiveActType"
+          },
+          "claim_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Claim Id"
+          },
+          "document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Id"
+          },
+          "passage_text": {
+            "type": "string",
+            "nullable": true,
+            "title": "Passage Text"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence",
+            "default": 0.5
+          },
+          "key_insights": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Key Insights",
+            "default": []
+          },
+          "tensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tensions",
+            "default": []
+          },
+          "connections": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Connections",
+            "default": []
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "framework_id",
+          "interpretation_text",
+          "act"
+        ],
+        "title": "InterpretationRequest"
       },
       "InterpretationView": {
         "properties": {
@@ -34200,6 +38792,85 @@
         "title": "KGMetricsResponse",
         "description": "Response for knowledge graph metrics."
       },
+      "KGSearchHit": {
+        "properties": {
+          "hit_type": {
+            "type": "string",
+            "enum": [
+              "entity",
+              "claim",
+              "note",
+              "annotation"
+            ],
+            "title": "Hit Type"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "snippet": {
+            "type": "string",
+            "title": "Snippet"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Id"
+          },
+          "entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Entity Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hit_type",
+          "id",
+          "title",
+          "snippet",
+          "score"
+        ],
+        "title": "KGSearchHit",
+        "description": "One mixed-type hit."
+      },
+      "KGSearchResponse": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/KGSearchHit"
+            },
+            "type": "array",
+            "title": "Hits"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "hits",
+          "counts"
+        ],
+        "title": "KGSearchResponse"
+      },
       "KeywordCloudEntry": {
         "properties": {
           "name": {
@@ -34252,6 +38923,73 @@
             "type": "string",
             "nullable": true,
             "title": "Source Ref"
+          },
+          "source_char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Source Char Start"
+          },
+          "source_char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Source Char End"
+          },
+          "grounds": {
+            "type": "string",
+            "nullable": true,
+            "title": "Grounds",
+            "description": "Evidence: 'the heirs filed in 1933'."
+          },
+          "warrant": {
+            "type": "string",
+            "nullable": true,
+            "title": "Warrant",
+            "description": "Rule connecting grounds \u2192 claim."
+          },
+          "backing": {
+            "type": "string",
+            "nullable": true,
+            "title": "Backing",
+            "description": "Support for the warrant \u2014 why the rule holds."
+          },
+          "qualifier": {
+            "type": "string",
+            "nullable": true,
+            "title": "Qualifier",
+            "description": "'presumably' / 'usually' / 'in most cases'."
+          },
+          "rebuttal": {
+            "type": "string",
+            "nullable": true,
+            "title": "Rebuttal",
+            "description": "Known exception / counter-evidence."
+          },
+          "time_start": {
+            "type": "string",
+            "nullable": true,
+            "title": "Time Start",
+            "description": "Start of the time period the claim refers to, ISO 8601 (year / month / day). 'X became alcalde in 1933' \u2192 1933-01-01."
+          },
+          "time_end": {
+            "type": "string",
+            "nullable": true,
+            "title": "Time End",
+            "description": "End of the time period \u2014 equal to time_start for instant events, later for ranges. 'X served from 1933 to 1937' \u2192 time_end=1937-12-31."
+          },
+          "time_precision": {
+            "type": "string",
+            "nullable": true,
+            "title": "Time Precision",
+            "description": "'year' | 'month' | 'day' | 'range' | 'unknown'"
+          },
+          "source_bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Source Bbox",
+            "description": "[x, y, width, height] in PDF page coordinates. Populated via PyMuPDF page.search(excerpt) for PDF-backed claims; None for text-only or when the search misses."
           },
           "source_type": {
             "$ref": "#/components/schemas/SourceType",
@@ -34810,6 +39548,57 @@
         "title": "KnowledgePredictionRun",
         "description": "Stores a PyKEEN model training run and its output predictions.\n\nSeparate from individual claim predictions (which are stored in claim.prediction).\nThis tracks which model was trained, on what data, and the resulting predictions."
       },
+      "LabelRow": {
+        "properties": {
+          "pair_id": {
+            "type": "string",
+            "title": "Pair Id"
+          },
+          "survivor_entity_id": {
+            "type": "string",
+            "title": "Survivor Entity Id"
+          },
+          "candidate_entity_id": {
+            "type": "string",
+            "title": "Candidate Entity Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "decided_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Decided By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pair_id",
+          "survivor_entity_id",
+          "candidate_entity_id",
+          "label",
+          "score",
+          "method",
+          "decided_at",
+          "decided_by"
+        ],
+        "title": "LabelRow",
+        "description": "One accumulated decision \u2014 accepted (positive) or rejected (negative).\n\nFeeds splink probabilistic linkage and PyKEEN retraining: the\nunion of accepted-merge pairs and rejected pairs is the training\nset for future automation."
+      },
       "LibraryListResponse": {
         "properties": {
           "libraries": {
@@ -35334,6 +40123,29 @@
         "title": "MCPToolRegistryResponse",
         "description": "Result of loading MCP tools into the workflow registry."
       },
+      "ManualPairRequest": {
+        "properties": {
+          "survivor_entity_id": {
+            "type": "string",
+            "title": "Survivor Entity Id"
+          },
+          "candidate_entity_id": {
+            "type": "string",
+            "title": "Candidate Entity Id"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "survivor_entity_id",
+          "candidate_entity_id"
+        ],
+        "title": "ManualPairRequest"
+      },
       "MapMarker": {
         "properties": {
           "id": {
@@ -35411,6 +40223,39 @@
         ],
         "title": "MapViewData",
         "description": "Data for map view."
+      },
+      "MetadataPatchRequest": {
+        "properties": {
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metadata"
+        ],
+        "title": "MetadataPatchRequest"
+      },
+      "MetadataResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "metadata"
+        ],
+        "title": "MetadataResponse"
       },
       "MethodTaxonomyResponse": {
         "properties": {
@@ -36156,6 +41001,60 @@
         ],
         "title": "MutationOperationType"
       },
+      "MutationRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type"
+          },
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "operation": {
+            "type": "string",
+            "title": "Operation"
+          },
+          "changed_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Changed Fields"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "reversal_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reversal Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "entity_type",
+          "entity_id",
+          "operation",
+          "changed_fields",
+          "created_by",
+          "created_at",
+          "reversal_id"
+        ],
+        "title": "MutationRow"
+      },
       "NativeNote": {
         "properties": {
           "id": {
@@ -36662,6 +41561,242 @@
           "stemming"
         ],
         "title": "NormalizeResponse"
+      },
+      "Note": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "title": "Title"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body",
+            "default": ""
+          },
+          "kind": {
+            "$ref": "#/components/schemas/NoteKind",
+            "default": "zettel"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "linked_note_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Note Ids"
+          },
+          "linked_entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Entity Ids"
+          },
+          "linked_claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Claim Ids"
+          },
+          "linked_document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Document Ids"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "title": "Address"
+          },
+          "parent_address": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Address"
+          },
+          "author_type": {
+            "type": "string",
+            "title": "Author Type",
+            "default": "user"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "default": "human"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "Note",
+        "description": "A Zettelkasten-style atomic user note (#917).\n\nNotes are user-authored prose units that link to each other,\nto entities, to claims, and to documents \u2014 forming a personal\nknowledge graph independent of the source corpus's KG.\n\nDistinct from Annotation: annotations are anchored to a specific\ndocument region (a highlight on page 14). Notes are floating \u2014\nthey can reference any number of documents/claims/entities but\ndon't sit on a document themselves."
+      },
+      "NoteKind": {
+        "type": "string",
+        "enum": [
+          "zettel",
+          "reference",
+          "hub",
+          "inbox",
+          "fleeting",
+          "permanent"
+        ],
+        "title": "NoteKind",
+        "description": "Zettelkasten note kinds (#917)."
+      },
+      "NoteLink": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source_note_id": {
+            "type": "string",
+            "title": "Source Note Id"
+          },
+          "target_note_id": {
+            "type": "string",
+            "title": "Target Note Id"
+          },
+          "link_type": {
+            "type": "string",
+            "title": "Link Type",
+            "default": "free"
+          },
+          "annotation": {
+            "type": "string",
+            "nullable": true,
+            "title": "Annotation"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "source_note_id",
+          "target_note_id"
+        ],
+        "title": "NoteLink",
+        "description": "Bidirectional link between two Notes \u2014 the Zettelkasten edge (#917).\n\nStored separately from Note.linked_note_ids so both sides can\nquery the relation efficiently and the link itself can carry\nmetadata (type, annotation)."
+      },
+      "NoteLinkCreateRequest": {
+        "properties": {
+          "target_note_id": {
+            "type": "string",
+            "title": "Target Note Id"
+          },
+          "link_type": {
+            "type": "string",
+            "title": "Link Type",
+            "default": "free"
+          },
+          "annotation": {
+            "type": "string",
+            "nullable": true,
+            "title": "Annotation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target_note_id"
+        ],
+        "title": "NoteLinkCreateRequest"
+      },
+      "NotePatchRequest": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "title": "Title"
+          },
+          "body": {
+            "type": "string",
+            "nullable": true,
+            "title": "Body"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/NoteKind",
+            "nullable": true
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Tags"
+          },
+          "linked_note_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Linked Note Ids"
+          },
+          "linked_entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Linked Entity Ids"
+          },
+          "linked_claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Linked Claim Ids"
+          },
+          "linked_document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Linked Document Ids"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "title": "Address"
+          },
+          "parent_address": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Address"
+          }
+        },
+        "type": "object",
+        "title": "NotePatchRequest"
       },
       "NoteStatus": {
         "type": "string",
@@ -37929,43 +43064,159 @@
         ],
         "title": "PresetsResponse"
       },
-      "ProjectCreateRequest": {
+      "Project": {
         "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
           "name": {
             "type": "string",
             "title": "Name"
           },
           "description": {
             "type": "string",
-            "title": "Description",
-            "default": ""
+            "nullable": true,
+            "title": "Description"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "title": "Color"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "title": "Icon"
+          },
+          "status": {
+            "$ref": "#/components/schemas/fichero__knowledge_models__ProjectStatus",
+            "default": "active"
+          },
+          "members": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
           },
           "created_by": {
             "type": "string",
             "title": "Created By",
             "default": "human"
           },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata"
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
           }
         },
+        "additionalProperties": true,
         "type": "object",
         "required": [
           "name"
         ],
-        "title": "ProjectCreateRequest"
+        "title": "Project",
+        "description": "A research workspace \u2014 named container for sources + analysis (#918).\n\nGroups documents, entities, claims, notes, and interpretations\nunder a single project context (a thesis chapter, a JLAR review,\na conference talk). Inclusion is via ProjectInclusion rows so\nthe same KG row can sit in multiple projects."
       },
-      "ProjectStatus": {
-        "type": "string",
-        "enum": [
-          "active",
-          "paused",
-          "completed",
-          "archived"
+      "ProjectInclusion": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "target_type": {
+            "type": "string",
+            "title": "Target Type",
+            "description": "'document' | 'entity' | 'claim' | 'note' | 'interpretation' | 'annotation'"
+          },
+          "role": {
+            "type": "string",
+            "nullable": true,
+            "title": "Role",
+            "description": "Optional role label: 'primary source' | 'argument' | 'draft' | ..."
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "title": "Notes"
+          },
+          "added_by": {
+            "type": "string",
+            "title": "Added By",
+            "default": "human"
+          },
+          "added_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Added At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "project_id",
+          "target_id",
+          "target_type"
         ],
-        "title": "ProjectStatus"
+        "title": "ProjectInclusion",
+        "description": "One KG row's membership in a project (#918)."
+      },
+      "ProjectPatchRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "title": "Color"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "title": "Icon"
+          },
+          "status": {
+            "$ref": "#/components/schemas/fichero__knowledge_models__ProjectStatus",
+            "nullable": true
+          },
+          "members": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Members"
+          }
+        },
+        "type": "object",
+        "title": "ProjectPatchRequest"
       },
       "ProjectUpdateRequest": {
         "properties": {
@@ -37980,7 +43231,7 @@
             "title": "Description"
           },
           "status": {
-            "$ref": "#/components/schemas/ProjectStatus",
+            "$ref": "#/components/schemas/fichero__research_models__ProjectStatus",
             "nullable": true
           },
           "metadata": {
@@ -37992,6 +43243,29 @@
         },
         "type": "object",
         "title": "ProjectUpdateRequest"
+      },
+      "PromoteResponse": {
+        "properties": {
+          "annotation_id": {
+            "type": "string",
+            "title": "Annotation Id"
+          },
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          },
+          "claim_text": {
+            "type": "string",
+            "title": "Claim Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "annotation_id",
+          "claim_id",
+          "claim_text"
+        ],
+        "title": "PromoteResponse"
       },
       "PromptRequest": {
         "properties": {
@@ -38647,6 +43921,39 @@
         ],
         "title": "ReindexStartedResponse"
       },
+      "RejectResponse": {
+        "properties": {
+          "pair_id": {
+            "type": "string",
+            "title": "Pair Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "labelled_negative_pair": {
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Labelled Negative Pair"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pair_id",
+          "state",
+          "labelled_negative_pair"
+        ],
+        "title": "RejectResponse"
+      },
       "RelatedDocumentsResponse": {
         "properties": {
           "document_id": {
@@ -38956,7 +44263,7 @@
             "default": ""
           },
           "status": {
-            "$ref": "#/components/schemas/ProjectStatus",
+            "$ref": "#/components/schemas/fichero__research_models__ProjectStatus",
             "default": "active"
           },
           "created_by": {
@@ -39125,6 +44432,22 @@
         "title": "ResearchTask",
         "description": "Concrete unit of work within a plan."
       },
+      "ResolveRequest": {
+        "properties": {
+          "doi": {
+            "type": "string",
+            "nullable": true,
+            "title": "Doi"
+          },
+          "isbn": {
+            "type": "string",
+            "nullable": true,
+            "title": "Isbn"
+          }
+        },
+        "type": "object",
+        "title": "ResolveRequest"
+      },
       "ResumeWorkflowRequest": {
         "properties": {
           "inputs": {
@@ -39137,6 +44460,72 @@
         "type": "object",
         "title": "ResumeWorkflowRequest",
         "description": "Request to resume a paused workflow."
+      },
+      "ReviewPairResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "survivor_entity_id": {
+            "type": "string",
+            "title": "Survivor Entity Id"
+          },
+          "candidate_entity_id": {
+            "type": "string",
+            "title": "Candidate Entity Id"
+          },
+          "survivor_name": {
+            "type": "string",
+            "title": "Survivor Name"
+          },
+          "candidate_name": {
+            "type": "string",
+            "title": "Candidate Name"
+          },
+          "survivor_type": {
+            "type": "string",
+            "title": "Survivor Type"
+          },
+          "candidate_type": {
+            "type": "string",
+            "title": "Candidate Type"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "survivor_entity_id",
+          "candidate_entity_id",
+          "survivor_name",
+          "candidate_name",
+          "survivor_type",
+          "candidate_type",
+          "score",
+          "method",
+          "reason",
+          "created_at"
+        ],
+        "title": "ReviewPairResponse",
+        "description": "One pending pair waiting for a reviewer decision."
       },
       "RollbackRequest": {
         "properties": {
@@ -40383,6 +45772,29 @@
         "title": "ShortestPathsResponse",
         "description": "Response for shortest paths analysis."
       },
+      "SimilarEntity": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "cosine_score": {
+            "type": "number",
+            "title": "Cosine Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "canonical_name",
+          "cosine_score"
+        ],
+        "title": "SimilarEntity"
+      },
       "SnapshotDeleteResponse": {
         "properties": {
           "deleted": {
@@ -40511,6 +45923,17 @@
         ],
         "title": "SourceAttribution",
         "description": "Attribution for a single source in search results."
+      },
+      "SourceAuthority": {
+        "type": "string",
+        "enum": [
+          "primary",
+          "secondary",
+          "tertiary",
+          "unknown"
+        ],
+        "title": "SourceAuthority",
+        "description": "How authoritative this source is for KG triangulation (#903).\n\nWeighted contribution to ``triangulation.support_count``:\n- primary:   1.0  \u2014 original archive document, primary research output\n- secondary: 0.6  \u2014 academic / journalistic citation of primary sources\n- tertiary:  0.3  \u2014 encyclopaedic / aggregate / textbook\n- unknown:   1.0  \u2014 default for un-tagged documents (treated as primary\n                   to avoid silently down-weighting existing libraries\n                   before the user has tagged anything)"
       },
       "SourceMetadata": {
         "properties": {
@@ -42468,6 +47891,47 @@
         "title": "TrendPoint",
         "description": "Single point in a trend series."
       },
+      "TriangulatedFact": {
+        "properties": {
+          "predicate": {
+            "type": "string",
+            "title": "Predicate"
+          },
+          "object_text": {
+            "type": "string",
+            "title": "Object Text"
+          },
+          "support_count": {
+            "type": "integer",
+            "title": "Support Count"
+          },
+          "weighted_support": {
+            "type": "number",
+            "title": "Weighted Support"
+          },
+          "corroboration": {
+            "type": "string",
+            "title": "Corroboration"
+          },
+          "source_document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Document Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "predicate",
+          "object_text",
+          "support_count",
+          "weighted_support",
+          "corroboration",
+          "source_document_ids"
+        ],
+        "title": "TriangulatedFact"
+      },
       "TriggerConfigRequest": {
         "properties": {
           "watch_path": {
@@ -42758,6 +48222,10 @@
             "type": "integer",
             "title": "Support Count"
           },
+          "weighted_support": {
+            "type": "number",
+            "title": "Weighted Support"
+          },
           "corroboration": {
             "type": "string",
             "title": "Corroboration"
@@ -42783,6 +48251,7 @@
           "predicate",
           "object_text",
           "support_count",
+          "weighted_support",
           "corroboration",
           "source_document_ids",
           "claim_ids"
@@ -42807,6 +48276,30 @@
         },
         "type": "object",
         "title": "UndoRequest"
+      },
+      "UndoResponse": {
+        "properties": {
+          "mutation_id": {
+            "type": "string",
+            "title": "Mutation Id"
+          },
+          "reversal_mutation_id": {
+            "type": "string",
+            "title": "Reversal Mutation Id"
+          },
+          "restored_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Restored Entity Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mutation_id",
+          "reversal_mutation_id",
+          "restored_entity_id"
+        ],
+        "title": "UndoResponse"
       },
       "UpdateActionRequest": {
         "properties": {
@@ -43864,6 +49357,63 @@
         "type": "object",
         "title": "_EmbedEntityRequest"
       },
+      "fichero__api__routes__bibliography__ExportRequest": {
+        "properties": {
+          "document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Document Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_ids"
+        ],
+        "title": "ExportRequest"
+      },
+      "fichero__api__routes__bibliography__ImportRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "format": {
+            "type": "string",
+            "nullable": true,
+            "title": "Format"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "ImportRequest",
+        "description": "Inline import \u2014 the file content as a string."
+      },
+      "fichero__api__routes__bibliography__ImportResponse": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "entries": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "entries"
+        ],
+        "title": "ImportResponse"
+      },
       "fichero__api__routes__claim_links__ClaimLinkCreateRequest": {
         "properties": {
           "related_claim_id": {
@@ -44506,6 +50056,107 @@
         "type": "object",
         "title": "InterpretationUpdateRequest"
       },
+      "fichero__api__routes__integrations__CitationResponse": {
+        "properties": {
+          "citation": {
+            "type": "string",
+            "title": "Citation"
+          },
+          "style": {
+            "type": "string",
+            "title": "Style"
+          }
+        },
+        "type": "object",
+        "required": [
+          "citation",
+          "style"
+        ],
+        "title": "CitationResponse"
+      },
+      "fichero__api__routes__integrations__ExportRequest": {
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "title": "File Path"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Metadata"
+          },
+          "database": {
+            "type": "string",
+            "nullable": true,
+            "title": "Database"
+          },
+          "group": {
+            "type": "string",
+            "nullable": true,
+            "title": "Group"
+          },
+          "container": {
+            "type": "string",
+            "nullable": true,
+            "title": "Container"
+          },
+          "prototype": {
+            "type": "string",
+            "nullable": true,
+            "title": "Prototype"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file_path"
+        ],
+        "title": "ExportRequest",
+        "description": "Request to export a file to an app."
+      },
+      "fichero__api__routes__integrations__ImportRequest": {
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "title": "External Id"
+          },
+          "target_path": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "external_id"
+        ],
+        "title": "ImportRequest",
+        "description": "Request to import an item from an app."
+      },
+      "fichero__api__routes__integrations__ImportResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "file_path": {
+            "type": "string",
+            "nullable": true,
+            "title": "File Path"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "title": "ImportResponse",
+        "description": "Response from import operation."
+      },
       "fichero__api__routes__interpretations__InterpretationCreateRequest": {
         "properties": {
           "framework_id": {
@@ -44630,6 +50281,34 @@
         "type": "object",
         "title": "InterpretationUpdateRequest",
         "description": "Update an interpretation."
+      },
+      "fichero__api__routes__kg_citations__CitationResponse": {
+        "properties": {
+          "style": {
+            "type": "string",
+            "title": "Style"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Id"
+          },
+          "claim_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Claim Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "style",
+          "text"
+        ],
+        "title": "CitationResponse"
       },
       "fichero__api__routes__kg_graph__PathResponse": {
         "properties": {
@@ -45130,6 +50809,76 @@
         ],
         "title": "ToolListResponse"
       },
+      "fichero__api__routes__notes__NoteCreateRequest": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "title": "Title"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body",
+            "default": ""
+          },
+          "kind": {
+            "$ref": "#/components/schemas/NoteKind",
+            "default": "zettel"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags",
+            "default": []
+          },
+          "linked_note_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Note Ids",
+            "default": []
+          },
+          "linked_entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Entity Ids",
+            "default": []
+          },
+          "linked_claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Claim Ids",
+            "default": []
+          },
+          "linked_document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Document Ids",
+            "default": []
+          },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "title": "Address"
+          },
+          "parent_address": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Address"
+          }
+        },
+        "type": "object",
+        "title": "NoteCreateRequest"
+      },
       "fichero__api__routes__predictions__DeleteModelResponse": {
         "properties": {
           "deleted": {
@@ -45162,6 +50911,74 @@
         ],
         "title": "EnableRequest",
         "description": "Request to enable/disable PyKEEN inference."
+      },
+      "fichero__api__routes__projects__ProjectCreateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "title": "Color"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "title": "Icon"
+          },
+          "status": {
+            "$ref": "#/components/schemas/fichero__knowledge_models__ProjectStatus",
+            "default": "active"
+          },
+          "members": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Members",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ProjectCreateRequest"
+      },
+      "fichero__api__routes__research_crud__ProjectCreateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "default": "human"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ProjectCreateRequest"
       },
       "fichero__api__routes__research_notes__NoteCreateRequest": {
         "properties": {
@@ -45338,6 +51155,26 @@
           "other"
         ],
         "title": "EntityType"
+      },
+      "fichero__knowledge_models__ProjectStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "archived",
+          "shipped"
+        ],
+        "title": "ProjectStatus",
+        "description": "Lifecycle of a research workspace (#918)."
+      },
+      "fichero__research_models__ProjectStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "paused",
+          "completed",
+          "archived"
+        ],
+        "title": "ProjectStatus"
       }
     }
   }
