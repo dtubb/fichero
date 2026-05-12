@@ -173,7 +173,55 @@ structure. Verified by grep on 0.0.2's tree:
 
 After the criteria strip lands, add the actual `.searchable(text: $queryText, prompt: ...)` to SearchView so users can type queries (this is the original "input not wired" gap). 30-60min, all in `fichero/fichero/Views/Search/SearchView.swift`.
 
-## Next Session — Start Here (2026-05-12 overnight autonomous run)
+## Next Session — Start Here (2026-05-13 morning hand-off)
+
+**Latest commit on 0.0.2: `0fd37b1c`** — overnight backend run complete.
+Backend is now end-to-end ready for the SwiftUI work you want to start
+on. 169 tests passing, ruff clean, OpenAPI auto-synced into the Swift
+client.
+
+### Tonight's count
+- 15 concept tickets closed (#903–#915, #917, #918) + #919 master plan
+- 18 concept-issue tickets added + closed since last session
+- 448 active backend routes (down from 532 after consolidation — old
+  dark routers unregistered, best ideas ported)
+
+### What's ready for Swift work
+
+| You want | Hit this endpoint |
+|---|---|
+| Right-side inspector for a document | `GET /api/documents/{id}/inspector` |
+| Right-side inspector for an entity | `GET /api/entities/{id}/inspector` |
+| Force-directed graph data | `GET /api/kg/graph/traverse/{entity_id}` |
+| Library overview / counts | `GET /api/kg/graph/metrics` |
+| Mixed search bar | `GET /api/kg/search?q=` |
+| Triangulation badges | `GET /api/kg/triangulation` |
+| Citation export (BibTeX) | `POST /api/bibliography/export.bib` |
+| Citation render (Chicago/APA/MLA) | `GET /api/citations/document/{id}?style=…` |
+| Curation queue | `GET /api/kg/review/pairs` |
+| PyKEEN predictions | `GET /api/kg/pykeen/predict/{id}` |
+| Annotation crop for vision input | `GET /api/annotations/{id}/crop` |
+| Classification pickers | `GET /api/classifications?dimension=…` |
+| Edit any entity / claim | `PATCH` / `DELETE` on `/api/entities/{id}` + `/api/claims/{id}` |
+| Undo any edit | `POST /api/kg/mutations/{id}/undo` |
+
+Full reference: `docs/architecture/api/KG_ENDPOINTS.md`.
+
+### Suggested morning order
+
+1. **Pull + Xcode rebuild** — OpenAPI client just refreshed in `0c5ce607`; first build picks up all 62 KG endpoints.
+2. **#902 visualisation** — Swift Charts panels (triangulation strength, claim_type donut, epistemic distribution), then force-directed Canvas using `/api/kg/graph/traverse`. MapKit place layer when ready.
+3. **Wire the curation surface** — review queue UI, edit/delete buttons, undo button. All backend done.
+4. **Re-catalogue tubb2020shift** to see the Toulmin + temporal data flowing through. Most claims won't be analytic so Toulmin slots will be sparse; dates will populate freely.
+
+### Don't break
+- Use the canonical KG namespace `/api/kg/*` for new Swift calls, not the deprecated routers (`/api/interpretations`, `/api/graph/*`, `/api/hermeneutics`, `/api/mind-palace`, `/api/research/*`). Old code stays in tree but isn't mounted.
+- `docs/architecture/api/KG_ENDPOINTS.md` is the single source of truth.
+- Pattern: every `_DEV_ROUTE_SPECS` entry passes tags as the third tuple element — APIRouter constructors should NOT also set tags, or the OpenAPI export double-counts.
+
+---
+
+## Earlier next-session entry (2026-05-12 overnight autonomous run)
 
 **Latest commit on 0.0.2: `4ed74389`** — cross-source triangulation. Total
 night's work: ~15 commits implementing the #899 KG library rollup
