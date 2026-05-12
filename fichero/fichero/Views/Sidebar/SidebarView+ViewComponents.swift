@@ -62,6 +62,13 @@ extension SidebarView {
         }
         .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
+        // #883 — paint over the default sidebar NSVisualEffectView
+        // (which renders darker than the content area) with the window
+        // background colour so the sidebar tonally matches the content
+        // pane. scrollContentBackground(.hidden) alone wasn't enough on
+        // macOS — the NavigationSplitView's sidebar column has its own
+        // material layer underneath. .background here paints over that.
+        .background(Color(NSColor.windowBackgroundColor))
         .onDeleteCommand {
             deleteSelectedActivityRuns()
         }
