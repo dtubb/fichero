@@ -153,6 +153,17 @@ extension LibraryView {
                     }
                     listScrollCenterTarget = nil
                 }
+                // PDF preview scrolling → selection changes externally
+                // (via syncGridSelectionToPDFPage). Without this watcher,
+                // the row highlight moved but the viewport didn't follow,
+                // so the selected page could end up off-screen below or
+                // above what's rendered. (#929)
+                .onChange(of: selection.first) { _, id in
+                    guard let id else { return }
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        proxy.scrollTo(id, anchor: nil)
+                    }
+                }
             }
         }
     }
@@ -204,6 +215,16 @@ extension LibraryView {
                 guard let id else { return }
                 proxy.scrollTo(id, anchor: nil)
                 listScrollTarget = nil
+            }
+            // PDF preview scrolling → selection updates → list scrolls to
+            // keep the selected row visible. Mirrors the iconView watcher
+            // for the same reason: PDF-driven selection wasn't reaching
+            // the ScrollViewReader without it. (#929)
+            .onChange(of: selection.first) { _, id in
+                guard let id else { return }
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    proxy.scrollTo(id, anchor: nil)
+                }
             }
             .onAppear {
                 // Restored-from-launch selection scroll for list view (#808).
