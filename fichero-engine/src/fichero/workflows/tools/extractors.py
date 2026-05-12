@@ -811,6 +811,45 @@ async def _run_extractor(
     # have much larger windows but extra splits are cheap and parallel.
     _MAX_CHUNK_CHARS = 3000
 
+    # spaCy NER pre-pass (#899 Phase C). For people / places /
+    # organizations / events sections we run spaCy first and pass the
+    # detected mention list as a hint in the LLM prompt. Two wins:
+    # 1. Sub-chunk dedup: even when we split a long page at 3000 chars,
+    #    both sub-chunks see the same span list, so they produce one
+    #    canonical entity name across them (down with the #896
+    #    Davidson × 6 pattern). spaCy runs on the full chunk before
+    #    splitting.
+    # 2. Boundary consistency: the LLM trusts spaCy's PERSON / ORG /
+    #    GPE / EVENT calls — no more "Eugenio Córdoba" vs "Mr Córdoba"
+    #    drift between calls.
+    # Sections without a matching spaCy label (dates, keywords, etc.)
+    # bypass the hint and continue working unchanged.
+    _SPACY_HINT_TYPES = {
+        "people_extract": "person",
+        "places_extract": "location",
+        "organizations_extract": "organization",
+        "events_extract": "event",
+    }
+    spacy_hint_lines: list[str] = []
+    spacy_target = _SPACY_HINT_TYPES.get(section.get("name", ""))
+    if spacy_target:
+        try:
+            from fichero.kg import spacy_ner
+
+            all_spans = spacy_ner.extract_entities(text)
+            relevant = [s for s in all_spans if s.fichero_type == spacy_target]
+            clusters = spacy_ner.cluster_aliases(relevant)
+            for canonical, aliases in clusters.items():
+                if aliases:
+                    spacy_hint_lines.append(
+                        f"- {canonical.text} (aliases: {', '.join(aliases)})"
+                    )
+                else:
+                    spacy_hint_lines.append(f"- {canonical.text}")
+        except Exception as exc:
+            # Don't take down the catalogue if spaCy is unhealthy.
+            logger.warning("%s: spaCy pre-pass failed: %s", section["name"], exc)
+
     async def _extract_chunk(chunk_text: str) -> list[Any]:
         # Split a single page into sub-chunks if it exceeds the model's
         # context budget. Each sub-chunk gets its own LLM call; results
@@ -858,12 +897,27 @@ async def _run_extractor(
             "content_tagging" if section["schema_key"] == "keywords" else None
         )
 
+        # Append spaCy-detected mentions to the prompt as a hint. The
+        # LLM is instructed to use these as the canonical span set and
+        # fold any extras into alternative_spellings rather than
+        # inventing new entities.
+        effective_system = prompt
+        if spacy_hint_lines:
+            hint_block = "\n".join(spacy_hint_lines)
+            effective_system = (
+                f"{prompt}\n\n"
+                f"Pre-detected mentions in this section (use these as the "
+                f"canonical entity set — fold parenthetical variants into "
+                f"alternative_spellings rather than creating new items):\n"
+                f"{hint_block}\n"
+            )
+
         try:
             result = await chat_structured_with_fallback(
                 prompt=chunk_text,
                 schema=section_schema,
                 config=llm_config,
-                system=prompt,
+                system=effective_system,
                 # Per-section instructions describe the section
                 # specifically; the schema describes the shape. Skip
                 # the auto-injected schema dump on Apple Intelligence
