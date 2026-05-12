@@ -258,7 +258,50 @@ After the criteria strip lands, add the actual `.searchable(text: $queryText, pr
 20 new regression tests across pdf-text-layer, Apple-Intelligence
 decode errors, save_model dedup. Three-leg green throughout.
 
-## Next Session — Start Here (2026-05-12 morning hand-off)
+## Next Session — Start Here (2026-05-12 afternoon hand-off)
+
+**Latest commit on 0.0.2: `d41b178c`.** Four fixes shipped this afternoon
+(#948 page checkmarks, #960 inspector heights, #967 backend offline,
+ingest file types). Closed #948, #960, #967. Filed #975 (structured
+transcript ingest — future milestone). Backlog: 17 open in 0.0.2.
+
+### Start here
+
+1. **Pull + Xcode rebuild.** Four Swift files touched in #948
+   (DocumentStore + 4 SSE callsites) — clean build picks up the new
+   helpers.
+2. **Smoke-test #948**: run Catalogue on a multi-page PDF; spinner
+   should now persist through extract_all NER and only flip green
+   when workflow.complete fires.
+3. **Smoke-test #967**: kill the engine mid-session (`lsof -ti:8765 |
+   xargs kill -9`) and watch the app flip to the "Backend Not
+   Running" full-screen state within ~10s. Restart engine — should
+   auto-recover.
+4. **Smoke-test #960**: inspector → Artifacts tab on a doc with many
+   artifacts. Panels should size to content; long artifacts grow,
+   short ones don't pad to 120pt.
+5. **Pick next from backlog.** Best small candidates: #963 (blocked
+   on #924), #959 KG claim quote rendering, #885 preserve extractor
+   outputs. Bigger: #943 view stickiness (needs architectural call
+   first: global vs per-item vs hybrid), #958 structured artifact
+   editors (multi-day).
+
+### Don't break
+
+- DocumentStore.pendingFanoutCompletionPaths is the new in-memory Set
+  for #948; flushPendingFanoutCompletions(status:) must be called on
+  workflow.complete / .error / .systemicError or pages stay stuck on
+  spinner forever.
+- AppState heartbeat (#967) is 5s loop. If you change health URL or
+  add a global timeout, mirror it in both checkBackendHealth() and
+  pingBackendOnce().
+- AttributedTextEditor.sizeThatFits depends on layoutManager.ensureLayout
+  — don't remove the container-width set, or layout reports the
+  previous width's height.
+
+---
+
+## Earlier next-session entry (2026-05-12 morning hand-off)
 
 **Latest commit on 0.0.2: `340ff58f`.** 26 commits pushed overnight.
 8 GitHub issues closed: #832, #887, #888, #891, #893, #895, #896, #729.

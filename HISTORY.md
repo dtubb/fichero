@@ -1549,3 +1549,12 @@ Daniel left to pack/sleep; I worked through the deferred concept queue.
 - Three-leg check green (116 KG-adjacent unit tests pass, swiftlint
   clean, xcodebuild SUCCEEDED).
 - 25 commits to 0.0.2; 8 issues closed; 2 updated.
+
+## 2026-05-12 — Session Summary (afternoon, 4 commits)
+
+- a912793b — feat(ingest): add .odp/.html/.markdown/.htm/.xml + .srt/.vtt/.sbv to file_type map; loader's TEXT_FORMATS now includes subtitle/transcript files (timestamps become indexable noise, dialog text is the win)
+- 611ff9c5 — fix(inspector): #960 artifact panels size to content via AttributedTextEditor.sizeThatFits(layoutManager.usedRect); dropped 120pt minHeight floor to 60pt
+- 1a640493 — fix(workflow): #948 defer per-page green checkmark until workflow.complete; DocumentStore gains pendingFanoutCompletionPaths + recordFanoutComplete + flushPendingFanoutCompletions; patched all 4 SSE consumer sites (ContentView+Actions, SidebarItemRow, LibraryView+FilterAndBatch, WorkflowEditor+Actions)
+- d41b178c — fix(app): #967 5s backend heartbeat surfaces offline state mid-session; flips after 2 consecutive failures (offlineFlipThreshold), recovers + reloads providers on next success
+
+Closed: #948, #960, #967. Filed: #975 (structured transcript ingest, no milestone — future).
