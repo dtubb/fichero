@@ -1,5 +1,39 @@
 # Durable Lessons Learned / Decisions
 
+## Pydantic v2 schema-required + before-validator pattern — 2026-05-12
+
+To make a field required in the JSON schema (so grammar-constrained LLMs emit it) AND still gracefully parse legacy items that lack the field, use this two-step pattern:
+
+```python
+NEW_FIELD = Field(description="...")  # no default → required in schema
+
+class MySection(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_defaults(cls, data):
+        if isinstance(data, dict):
+            data.setdefault("new_field", "fallback")
+        return data
+    new_field: str = NEW_FIELD
+```
+
+Pydantic generates `"required": ["new_field"]` in the schema → fm-bridge / Apple Intelligence grammar forces emission. The before-validator fills the default in legacy dicts before validation runs, so `model_validate({"name": "Juan"})` still parses.
+
+The straight-forward `Field(default=..., json_schema_extra={"required": True})` does NOT work — Pydantic puts the marker on the field but doesn't change the parent's required array, and grammar engines still treat it as optional.
+
+Live evidence: Apple Intelligence on tubb2020shift Preface went from `[tentative/fact] source=""` to `[confirmed/fact] source="<verbatim quote>"` after the change. See #894.
+
+## spaCy-as-pre-pass to LLM, not replacement — 2026-05-12
+
+For NER in the catalogue extractor, run spaCy first (deterministic span detection) and feed the spans to the LLM as a "pre-detected mentions: use these as the canonical set" hint. The LLM still produces SVO predicate, epistemic_status, claim_type — spaCy owns "where in the text is a name", LLM owns "what is the predicate / how firmly is it asserted."
+
+This split:
+- Catches parenthetical aliases at the span level (Davidson + [Deibinson] → one cluster) so the LLM doesn't emit 6 items for one name (#896 root cause).
+- Cuts LLM token spend on the easy NER part — the on-device 4K window can focus on the hard parts.
+- Falls through to LLM-only NER when spaCy fails (model not downloaded, language not supported, etc.) — the failure is logged but the catalogue keeps running.
+
+Implementation: `fichero/kg/spacy_ner.py` provides `extract_entities(text, language?)` + `cluster_aliases(spans)`. Wired into `_run_extractor` in `extractors.py` for people / places / organizations / events sections only. See #899 Phase C.
+
 ## Pydantic defaults make fields optional in JSON schema → LLMs skip them — 2026-05-11
 
 A `Field(default=...)` in a Pydantic v2 model is NOT in the JSON schema's `required` array. Grammar-constrained decoding (fm-bridge, Apple Intelligence, structured-output endpoints) treats those fields as skippable and the model backfills with the default — so the LLM never actually emits a value.

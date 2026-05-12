@@ -1,0 +1,97 @@
+"""Knowledge graph triangulation routes (#900).
+
+Surfaces the cross-source support counts computed by
+``fichero.kg.triangulation`` so the inspector UI can display
+"triangulated (6 sources)" badges next to claims.
+"""
+
+from __future__ import annotations
+
+import logging
+
+from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
+
+from fichero.api.main import get_library_database
+from fichero.db import Database
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/kg/triangulation", tags=["knowledge-graph"])
+
+
+class TripleSupportResponse(BaseModel):
+    """One triangulated triple — the SVO + the supporting source list."""
+    subject_id: str
+    predicate: str
+    object_text: str
+    support_count: int
+    corroboration: str  # "single-source" | "corroborated" | "triangulated"
+    source_document_ids: list[str]
+    claim_ids: list[str]
+
+
+@router.get(
+    "/entity/{entity_id}",
+    response_model=list[TripleSupportResponse],
+    summary="Triangulated triples for one entity",
+    description=(
+        "Return every (subject, predicate, object) triple where the "
+        "entity appears as subject, with a support_count of how many "
+        "distinct source documents assert the same fact. Sorted by "
+        "descending support_count. (#900)"
+    ),
+)
+async def entity_triangulation(
+    entity_id: str,
+    db: Database = Depends(get_library_database),
+) -> list[TripleSupportResponse]:
+    """Triples for a single entity, sorted by corroboration strength."""
+    from fichero.kg.triangulation import triples_for_entity
+
+    return [
+        TripleSupportResponse(
+            subject_id=t.key.subject_id,
+            predicate=t.key.predicate,
+            object_text=t.key.object_text,
+            support_count=t.support_count,
+            corroboration=t.corroboration,
+            source_document_ids=list(t.source_document_ids),
+            claim_ids=list(t.claim_ids),
+        )
+        for t in triples_for_entity(db, entity_id)
+    ]
+
+
+@router.get(
+    "",
+    response_model=list[TripleSupportResponse],
+    summary="Triangulated facts across the library",
+    description=(
+        "Return triples whose support_count meets the threshold "
+        "(default 3 = triangulated). Use this to surface the most "
+        "strongly-attested facts in the corpus."
+    ),
+)
+async def library_triangulation(
+    threshold: int = Query(
+        default=3,
+        ge=1,
+        description="Minimum distinct sources required.",
+    ),
+    db: Database = Depends(get_library_database),
+) -> list[TripleSupportResponse]:
+    """Corpus-wide triangulated facts."""
+    from fichero.kg.triangulation import triangulated_facts
+
+    return [
+        TripleSupportResponse(
+            subject_id=t.key.subject_id,
+            predicate=t.key.predicate,
+            object_text=t.key.object_text,
+            support_count=t.support_count,
+            corroboration=t.corroboration,
+            source_document_ids=list(t.source_document_ids),
+            claim_ids=list(t.claim_ids),
+        )
+        for t in triangulated_facts(db, threshold=threshold)
+    ]
