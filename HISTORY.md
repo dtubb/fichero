@@ -1487,3 +1487,65 @@ Daniel left to pack/sleep; I worked through the deferred concept queue.
 - #919 — ship-prep plan with 5 slices: workflow input from annotations, Toulmin prompts,
   temporal prompts, Swift OpenAPI regen, and concept-overlap consolidation
   (interpretations × 3 routers, notes × 3, projects × 2, graph × 2)
+
+## 2026-05-12 overnight — KG namespace consolidation + UI surface lit up
+
+### Backend (`#919 slice 5c`)
+- Deleted `/api/knowledge-graph/*` sub-package (~8200 LOC duplicate
+  CRUD) and `routes/interpretations.py` (already replaced by
+  `kg_interpretations.py`).
+- Ported five unique features into focused single-purpose modules
+  under `/api/kg/*`: `kg_claim_search`, `kg_claim_analysis`,
+  `kg_entity_curation`, `kg_predictions`, `kg_inclusion`.
+- OpenAPI export: `kg` bucket = 45 endpoints; old `knowledge-graph`
+  bucket gone.
+
+### Bug fixes
+- **#896 Davidson ×6 — ROOT CAUSE** found and fixed (2f58a4f8):
+  `compute_cache_key` keyed only on `file_path`; per-page PDF fan-out
+  has all 6 page children sharing the parent PDF's on-disk path, so
+  page 1's cached result was returned for pages 2-6. Fix threads
+  `document_id` into the key.
+- Belt-and-braces: `save_claim` now skips writing if a near-duplicate
+  (same source_doc + page_label + entity_ids set, ≥90% text overlap)
+  already exists (4a3cc728).
+- Four new regression tests lock both layers down.
+
+### Frontend (OntologyBrowser as KG shell)
+- Tools menu (wrench icon): Embed claims / Embed entities / Generate
+  suggested links.
+- '+' New Entity button → form sheet → POST /api/entities (#916 first stroke).
+- Right-click → Edit / Delete with confirmationDialog (#901 entity side).
+- Curation History section in EntityDetailView from /api/kg/entity-curation/audit.
+- Expandable claim cards: tap chevron → fetch contradictions +
+  evidence-chain in parallel, inline summary.
+- Heuristic Predictions Review Sheet: accept/reject candidates writes
+  KnowledgeClaimLink rows.
+- Right-click → Delete claim with ficheroClaimDeleted notification
+  (#901 claim DELETE side).
+
+### Cross-cutting
+- Library toolbar entity filter unified with KG @AppStorage CSV (#887)
+  — toggling People in one surface toggles it everywhere.
+- DocumentInspector KG tab renders verbatim source_excerpt as
+  italicised tappable citation, mirroring the OntologyBrowser
+  ClaimSummaryCard (#893).
+- Dead code purge: `KnowledgeGraphServiceGenerated.swift`,
+  `HermeneuticsServiceGenerated.swift`, and 2360 LOC of orphan
+  ClaimInspector / EpistemologyGraph / PredictionReview view dirs
+  (referenced removed endpoints, not in pbxproj).
+
+### GitHub
+- Closed: #832 (duplicate routers), #888 (KG service-layer cleanup),
+  #895 (toolbar accumulation already fixed), #887 (entity filter
+  unify), #893 (verbatim source_text), #729 (KG navigation UI —
+  substantially shipped via OntologyBrowser), #896 (Davidson ×6
+  root cause + dedup + tests), #891 (per-page NER architecture).
+- Updated: #889 with rebuild blueprint pointing at OntologyBrowser
+  as the new shell; #901 with shipped entity PATCH/DELETE + claim
+  DELETE and pending claim PATCH inline editor.
+
+### Final state
+- Three-leg check green (116 KG-adjacent unit tests pass, swiftlint
+  clean, xcodebuild SUCCEEDED).
+- 25 commits to 0.0.2; 8 issues closed; 2 updated.
