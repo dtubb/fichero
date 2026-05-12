@@ -486,6 +486,28 @@ class KnowledgeClaim(BaseModel):
     # claims where the substring search fails.
     source_char_start: int | None = None
     source_char_end: int | None = None
+    # --- temporal scope (#904) — when did this claim's content happen? ---
+    # Distinct from created_at (when the claim was extracted). Lets the
+    # inspector / SPARQL surface answer "what happened in 1933?"
+    time_start: str | None = Field(
+        default=None,
+        description=(
+            "Start of the time period the claim refers to, ISO 8601 "
+            "(year / month / day). 'X became alcalde in 1933' → 1933-01-01."
+        ),
+    )
+    time_end: str | None = Field(
+        default=None,
+        description=(
+            "End of the time period — equal to time_start for "
+            "instant events, later for ranges. 'X served from 1933 "
+            "to 1937' → time_end=1937-12-31."
+        ),
+    )
+    time_precision: str | None = Field(
+        default=None,
+        description="'year' | 'month' | 'day' | 'range' | 'unknown'",
+    )
     source_bbox: list[float] | None = Field(
         default=None,
         description=(

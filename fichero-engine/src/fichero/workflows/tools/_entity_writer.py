@@ -266,6 +266,9 @@ def save_claim(
     source_char_start: Optional[int] = None,
     source_char_end: Optional[int] = None,
     source_bbox: Optional[list[float]] = None,
+    time_start: Optional[str] = None,
+    time_end: Optional[str] = None,
+    time_precision: Optional[str] = None,
 ) -> str:
     """Save a `KnowledgeClaim` row. Returns the claim ID.
 
@@ -291,6 +294,9 @@ def save_claim(
         source_char_start=source_char_start,
         source_char_end=source_char_end,
         source_bbox=source_bbox,
+        time_start=time_start,
+        time_end=time_end,
+        time_precision=time_precision,
         claim_type=claim_type,
         confidence=confidence,
         metadata=metadata or {},
