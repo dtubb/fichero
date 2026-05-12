@@ -4701,7 +4701,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__claim_links__ClaimLinkCreateRequest"
+                "$ref": "#/components/schemas/ClaimLinkCreateRequest"
               }
             }
           }
@@ -5042,7 +5042,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__claims__ClaimCreateRequest"
+                "$ref": "#/components/schemas/ClaimCreateRequest"
               }
             }
           }
@@ -5274,7 +5274,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__claims__ClaimPatchRequest"
+                "$ref": "#/components/schemas/ClaimPatchRequest"
               }
             }
           }
@@ -6501,7 +6501,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__entities__EntityUpsertRequest"
+                "$ref": "#/components/schemas/EntityUpsertRequest"
               }
             }
           }
@@ -7196,7 +7196,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__entities__EntityAliasRequest"
+                "$ref": "#/components/schemas/EntityAliasRequest"
               }
             }
           }
@@ -14795,2330 +14795,6 @@
         }
       }
     },
-    "/api/knowledge-graph/knowledge-mutations/undo": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Undo Mutations",
-        "description": "Undo specific mutation(s) by replaying before_state.\n\nAccepts either run_id (rollback all mutations in that AI run) or\nmutation_id (undo a single mutation).",
-        "operationId": "undo_mutations_api_knowledge_graph_knowledge_mutations_undo_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UndoRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/MutationLogResponse"
-                  },
-                  "title": "Response Undo Mutations Api Knowledge Graph Knowledge Mutations Undo Post"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/knowledge-mutations": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "List Mutations",
-        "description": "List mutation log entries, optionally filtered.",
-        "operationId": "list_mutations_api_knowledge_graph_knowledge_mutations_get",
-        "parameters": [
-          {
-            "name": "run_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Run Id"
-            }
-          },
-          {
-            "name": "entity_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Entity Id"
-            }
-          },
-          {
-            "name": "entity_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Entity Type"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 200,
-              "minimum": 1,
-              "default": 50,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/MutationLogResponse"
-                  },
-                  "title": "Response List Mutations Api Knowledge Graph Knowledge Mutations Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/entities/merge": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Merge Entities",
-        "description": "Merge multiple entities into a single absorbing entity.",
-        "operationId": "merge_entities_api_knowledge_graph_entities_merge_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EntityMergeRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EntityAuditResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/entities/split": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Split Entity",
-        "description": "Split one entity into a primary + new split-off entities.",
-        "operationId": "split_entity_api_knowledge_graph_entities_split_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EntitySplitRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EntityAuditResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/entities/audit/{audit_id}/undo": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Undo Entity Operation",
-        "description": "Undo a previous merge or split operation using its audit record.",
-        "operationId": "undo_entity_operation_api_knowledge_graph_entities_audit__audit_id__undo_post",
-        "parameters": [
-          {
-            "name": "audit_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Audit Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EntityAuditResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/entities/audit": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "List Entity Audits",
-        "description": "List entity merge/split audit records, optionally filtered by entity.",
-        "operationId": "list_entity_audits_api_knowledge_graph_entities_audit_get",
-        "parameters": [
-          {
-            "name": "entity_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Entity Id"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 200,
-              "minimum": 1,
-              "default": 50,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EntityAuditResponse"
-                  },
-                  "title": "Response List Entity Audits Api Knowledge Graph Entities Audit Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/entities/alias-map": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Get Entity Alias Map",
-        "description": "Return the full alias \u2192 entity mapping for reviewer decisions.",
-        "operationId": "get_entity_alias_map_api_knowledge_graph_entities_alias_map_get",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EntityAliasMapResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/entities/resolve/{value}": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Resolve Entity",
-        "description": "Resolve a lookup value (UUID, canonical name, or alias) to a canonical entity.",
-        "operationId": "resolve_entity_api_knowledge_graph_entities_resolve__value__get",
-        "parameters": [
-          {
-            "name": "value",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Value"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EntityResolutionResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/entities/semantic/embed": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Embed Entities",
-        "description": "Embed entities into LanceDB for semantic search.",
-        "operationId": "embed_entities_api_knowledge_graph_entities_semantic_embed_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/_EmbedEntityRequest",
-                "nullable": true,
-                "title": "Request"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EmbedEntitiesResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/entities/semantic": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Search Entities Semantic",
-        "description": "Semantic entity search using LanceDB vectors.",
-        "operationId": "search_entities_semantic_api_knowledge_graph_entities_semantic_get",
-        "parameters": [
-          {
-            "name": "q",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Natural language query",
-              "title": "Q"
-            },
-            "description": "Natural language query"
-          },
-          {
-            "name": "entity_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
-              "nullable": true,
-              "title": "Entity Type"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "default": 20,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "additionalProperties": true
-                  },
-                  "title": "Response Search Entities Semantic Api Knowledge Graph Entities Semantic Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/entities": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Upsert Entity",
-        "operationId": "upsert_entity_api_knowledge_graph_entities_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__knowledge_graph__entities__EntityUpsertRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/KnowledgeEntity"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "List Entities",
-        "operationId": "list_entities_api_knowledge_graph_entities_get",
-        "parameters": [
-          {
-            "name": "q",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Q"
-            }
-          },
-          {
-            "name": "entity_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
-              "nullable": true,
-              "title": "Entity Type"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 500,
-              "minimum": 1,
-              "default": 50,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/KnowledgeEntity"
-                  },
-                  "title": "Response List Entities Api Knowledge Graph Entities Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/entities/{entity_id}/aliases": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Add Entity Aliases",
-        "operationId": "add_entity_aliases_api_knowledge_graph_entities__entity_id__aliases_post",
-        "parameters": [
-          {
-            "name": "entity_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Entity Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__knowledge_graph__entities__EntityAliasRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/KnowledgeEntity"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/claims/semantic/embed": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Embed Claims",
-        "description": "Embed claims into LanceDB for semantic search.",
-        "operationId": "embed_claims_api_knowledge_graph_claims_semantic_embed_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/_EmbedClaimRequest",
-                "nullable": true,
-                "title": "Request"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EmbedClaimsResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/claims/semantic": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Search Claims Semantic",
-        "description": "Semantic claim search using LanceDB vectors.",
-        "operationId": "search_claims_semantic_api_knowledge_graph_claims_semantic_get",
-        "parameters": [
-          {
-            "name": "q",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Natural language query",
-              "title": "Q"
-            },
-            "description": "Natural language query"
-          },
-          {
-            "name": "claim_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/ClaimType",
-              "nullable": true,
-              "title": "Claim Type"
-            }
-          },
-          {
-            "name": "curation_state",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/ClaimCurationState",
-              "nullable": true,
-              "title": "Curation State"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "default": 20,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "additionalProperties": true
-                  },
-                  "title": "Response Search Claims Semantic Api Knowledge Graph Claims Semantic Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/claims/filtered": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "List Claims Filtered",
-        "description": "Advanced claim search with all filter types.",
-        "operationId": "list_claims_filtered_api_knowledge_graph_claims_filtered_get",
-        "parameters": [
-          {
-            "name": "q",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Q"
-            }
-          },
-          {
-            "name": "claim_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/ClaimType",
-              "nullable": true,
-              "title": "Claim Type"
-            }
-          },
-          {
-            "name": "curation_state",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/ClaimCurationState",
-              "nullable": true,
-              "title": "Curation State"
-            }
-          },
-          {
-            "name": "epistemic_status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/EpistemicStatus",
-              "nullable": true,
-              "title": "Epistemic Status"
-            }
-          },
-          {
-            "name": "entity_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Entity Id"
-            }
-          },
-          {
-            "name": "source_language",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Source Language"
-            }
-          },
-          {
-            "name": "source_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/SourceType",
-              "nullable": true,
-              "title": "Source Type"
-            }
-          },
-          {
-            "name": "scope_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/InclusionScopeType",
-              "nullable": true,
-              "title": "Scope Type"
-            }
-          },
-          {
-            "name": "target_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Target Id"
-            }
-          },
-          {
-            "name": "included_only",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Included Only"
-            }
-          },
-          {
-            "name": "curated_only",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Curated Only"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 1000,
-              "minimum": 1,
-              "default": 200,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "title": "Offset"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/KnowledgeClaim"
-                  },
-                  "title": "Response List Claims Filtered Api Knowledge Graph Claims Filtered Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/claims/{claim_id}": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Get Claim",
-        "operationId": "get_claim_api_knowledge_graph_claims__claim_id__get",
-        "parameters": [
-          {
-            "name": "claim_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Claim Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/KnowledgeClaim"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Patch Claim",
-        "operationId": "patch_claim_api_knowledge_graph_claims__claim_id__patch",
-        "parameters": [
-          {
-            "name": "claim_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Claim Id"
-            }
-          },
-          {
-            "name": "run_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Run Id"
-            }
-          },
-          {
-            "name": "agent_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Agent Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__knowledge_graph__claims__ClaimPatchRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/KnowledgeClaim"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/claims/{claim_id}/similar": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Find Similar Claims",
-        "description": "Find claims similar to a given claim.",
-        "operationId": "find_similar_claims_api_knowledge_graph_claims__claim_id__similar_get",
-        "parameters": [
-          {
-            "name": "claim_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Claim Id"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 50,
-              "minimum": 1,
-              "default": 10,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "additionalProperties": true
-                  },
-                  "title": "Response Find Similar Claims Api Knowledge Graph Claims  Claim Id  Similar Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/claims/{claim_id}/links": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Create Claim Link",
-        "operationId": "create_claim_link_api_knowledge_graph_claims__claim_id__links_post",
-        "parameters": [
-          {
-            "name": "claim_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Claim Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__knowledge_graph__claims__ClaimLinkCreateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/KnowledgeClaimLink"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "List Claim Links",
-        "operationId": "list_claim_links_api_knowledge_graph_claims__claim_id__links_get",
-        "parameters": [
-          {
-            "name": "claim_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Claim Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/KnowledgeClaimLink"
-                  },
-                  "title": "Response List Claim Links Api Knowledge Graph Claims  Claim Id  Links Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/claims": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Create Claim",
-        "operationId": "create_claim_api_knowledge_graph_claims_post",
-        "parameters": [
-          {
-            "name": "run_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Run Id"
-            }
-          },
-          {
-            "name": "agent_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Agent Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__knowledge_graph__claims__ClaimCreateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/KnowledgeClaim"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "List Claims",
-        "operationId": "list_claims_api_knowledge_graph_claims_get",
-        "parameters": [
-          {
-            "name": "q",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Q"
-            }
-          },
-          {
-            "name": "entity_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Entity Id"
-            }
-          },
-          {
-            "name": "entity",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Entity"
-            }
-          },
-          {
-            "name": "entity_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "title": "Entity Type"
-            }
-          },
-          {
-            "name": "curation_state",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/ClaimCurationState",
-              "nullable": true,
-              "title": "Curation State"
-            }
-          },
-          {
-            "name": "curated_only",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Curated Only"
-            }
-          },
-          {
-            "name": "claim_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/ClaimType",
-              "nullable": true,
-              "title": "Claim Type"
-            }
-          },
-          {
-            "name": "epistemic_status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/EpistemicStatus",
-              "nullable": true,
-              "title": "Epistemic Status"
-            }
-          },
-          {
-            "name": "source_document_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Source Document Id"
-            }
-          },
-          {
-            "name": "source_language",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Source Language"
-            }
-          },
-          {
-            "name": "source_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/SourceType",
-              "nullable": true,
-              "title": "Source Type"
-            }
-          },
-          {
-            "name": "scope_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/InclusionScopeType",
-              "nullable": true,
-              "title": "Scope Type"
-            }
-          },
-          {
-            "name": "target_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Target Id"
-            }
-          },
-          {
-            "name": "included_only",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Included Only"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 1000,
-              "minimum": 1,
-              "default": 200,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "title": "Offset"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/KnowledgeClaim"
-                  },
-                  "title": "Response List Claims Api Knowledge Graph Claims Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/inclusion": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Upsert Inclusion",
-        "operationId": "upsert_inclusion_api_knowledge_graph_inclusion_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InclusionUpsertRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/KnowledgeGraphInclusion"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "List Inclusion",
-        "operationId": "list_inclusion_api_knowledge_graph_inclusion_get",
-        "parameters": [
-          {
-            "name": "scope_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/InclusionScopeType",
-              "nullable": true,
-              "title": "Scope Type"
-            }
-          },
-          {
-            "name": "target_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Target Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/KnowledgeGraphInclusion"
-                  },
-                  "title": "Response List Inclusion Api Knowledge Graph Inclusion Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/overview": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Overview",
-        "operationId": "overview_api_knowledge_graph_overview_get",
-        "parameters": [
-          {
-            "name": "scope_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/InclusionScopeType",
-              "nullable": true,
-              "title": "Scope Type"
-            }
-          },
-          {
-            "name": "target_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Target Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClaimsOverviewResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/predictions/generate/pykeen": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Generate Pykeen Predictions",
-        "description": "Train a minimal PyKEEN pipeline and persist run metadata.",
-        "operationId": "generate_pykeen_predictions_api_knowledge_graph_predictions_generate_pykeen_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PredictionGeneratePyKEENRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/KnowledgePredictionRun"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/predictions/generate/heuristic": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Generate Heuristic Predictions",
-        "description": "Generate heuristic predictions using embedding similarity.",
-        "operationId": "generate_heuristic_predictions_api_knowledge_graph_predictions_generate_heuristic_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PredictionGenerateHeuristicRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HeuristicPredictionsResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/predictions": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "List Predictions",
-        "description": "List PyKEEN prediction runs.",
-        "operationId": "list_predictions_api_knowledge_graph_predictions_get",
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Status"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "default": 20,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/KnowledgePredictionRun"
-                  },
-                  "title": "Response List Predictions Api Knowledge Graph Predictions Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/predictions/{run_id}/apply": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Apply Prediction",
-        "description": "Apply a prediction run's top-scoring predictions as claim links.",
-        "operationId": "apply_prediction_api_knowledge_graph_predictions__run_id__apply_post",
-        "parameters": [
-          {
-            "name": "run_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Run Id"
-            }
-          },
-          {
-            "name": "min_confidence",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "number",
-              "maximum": 1.0,
-              "minimum": 0.0,
-              "default": 0.7,
-              "title": "Min Confidence"
-            }
-          },
-          {
-            "name": "max_links",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 1000,
-              "minimum": 1,
-              "default": 100,
-              "title": "Max Links"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApplyPredictionsResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/claims/{claim_id}/contradictions": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Get contradiction evidence",
-        "description": "Returns all contradicting claims with detailed evidence for analysis.",
-        "operationId": "get_contradiction_evidence_api_knowledge_graph_claims__claim_id__contradictions_get",
-        "parameters": [
-          {
-            "name": "claim_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Claim Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ContradictionEvidenceResponse"
-                  },
-                  "title": "Response Get Contradiction Evidence Api Knowledge Graph Claims  Claim Id  Contradictions Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/claims/related/{claim_id}/contradicting": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Get contradicting claims",
-        "description": "Returns claims that directly contradict the specified claim.",
-        "operationId": "get_contradicting_claims_api_knowledge_graph_claims_related__claim_id__contradicting_get",
-        "parameters": [
-          {
-            "name": "claim_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Claim Id"
-            }
-          },
-          {
-            "name": "min_link_quality",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "number",
-              "maximum": 1.0,
-              "minimum": 0.0,
-              "default": 0.0,
-              "title": "Min Link Quality"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ContradictingClaimItem"
-                  },
-                  "title": "Response Get Contradicting Claims Api Knowledge Graph Claims Related  Claim Id  Contradicting Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/knowledge-graph/claims/{claim_id}/evidence-chain": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Get evidence chain",
-        "description": "Traverse the evidence chain from claim to sources to related claims.",
-        "operationId": "get_evidence_chain_api_knowledge_graph_claims__claim_id__evidence_chain_get",
-        "parameters": [
-          {
-            "name": "claim_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Claim Id"
-            }
-          },
-          {
-            "name": "max_depth",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 5,
-              "minimum": 1,
-              "default": 2,
-              "title": "Max Depth"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EvidenceChainResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/kg/rebuild": {
       "post": {
         "tags": [
@@ -17726,6 +15402,204 @@
                     "$ref": "#/components/schemas/LinkPredictionRow"
                   },
                   "title": "Response Predict Api Kg Pykeen Predict  Entity Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/predictions/heuristic": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Generate Heuristic Predictions",
+        "description": "Generate cheap candidate links via embedding similarity.\n\nRequires claims to be embedded first via\n``POST /kg/claim-search/embed``.",
+        "operationId": "generate_heuristic_predictions_api_kg_predictions_heuristic_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HeuristicRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeuristicPredictionsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/predictions": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "List Prediction Runs",
+        "description": "List PyKEEN prediction runs (newest first).",
+        "operationId": "list_prediction_runs_api_kg_predictions_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KnowledgePredictionRun"
+                  },
+                  "title": "Response List Prediction Runs Api Kg Predictions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/predictions/{run_id}/apply": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Apply Prediction Run",
+        "description": "Apply a prediction run's top-scoring predictions as claim links.",
+        "operationId": "apply_prediction_run_api_kg_predictions__run_id__apply_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "min_confidence",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "default": 0.7,
+              "title": "Min Confidence"
+            }
+          },
+          {
+            "name": "max_links",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 100,
+              "title": "Max Links"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyPredictionsResponse"
                 }
               }
             }
@@ -18830,6 +16704,832 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MethodTaxonomyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/claim-search/embed": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Embed Claims",
+        "description": "Embed claims into LanceDB for semantic search.",
+        "operationId": "embed_claims_api_kg_claim_search_embed_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_EmbedClaimRequest",
+                "nullable": true,
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbedClaimsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/claim-search": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Search Claims Semantic",
+        "description": "Semantic claim search via LanceDB cosine similarity.",
+        "operationId": "search_claims_semantic_api_kg_claim_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Natural language query",
+              "title": "Q"
+            },
+            "description": "Natural language query"
+          },
+          {
+            "name": "claim_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ClaimType",
+              "nullable": true,
+              "title": "Claim Type"
+            }
+          },
+          {
+            "name": "curation_state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ClaimCurationState",
+              "nullable": true,
+              "title": "Curation State"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Search Claims Semantic Api Kg Claim Search Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/claim-search/{claim_id}/similar": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Find Similar Claims",
+        "description": "Find claims similar to a given claim (excludes the claim itself).",
+        "operationId": "find_similar_claims_api_kg_claim_search__claim_id__similar_get",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Claim Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Find Similar Claims Api Kg Claim Search  Claim Id  Similar Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/claim-analysis/{claim_id}/contradictions": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Contradictions",
+        "description": "Return all contradicting claims with evidence.",
+        "operationId": "contradictions_api_kg_claim_analysis__claim_id__contradictions_get",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Claim Id"
+            }
+          },
+          {
+            "name": "min_link_quality",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "default": 0.0,
+              "title": "Min Link Quality"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContradictionEvidence"
+                  },
+                  "title": "Response Contradictions Api Kg Claim Analysis  Claim Id  Contradictions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/claim-analysis/{claim_id}/evidence-chain": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Evidence Chain",
+        "description": "Traverse the evidence chain from claim \u2192 sources \u2192 linked claims.",
+        "operationId": "evidence_chain_api_kg_claim_analysis__claim_id__evidence_chain_get",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Claim Id"
+            }
+          },
+          {
+            "name": "max_depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5,
+              "minimum": 1,
+              "default": 2,
+              "title": "Max Depth"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceChain"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/entity-curation/merge": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Merge Entities",
+        "description": "Merge multiple entities into a single absorbing entity, with audit.",
+        "operationId": "merge_entities_api_kg_entity_curation_merge_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityMergeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityAuditResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/entity-curation/split": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Split Entity",
+        "description": "Split one entity into a primary + new split-off entities.",
+        "operationId": "split_entity_api_kg_entity_curation_split_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntitySplitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityAuditResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/entity-curation/audit/{audit_id}/undo": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Undo Entity Operation",
+        "description": "Undo a previous merge or split using its audit record.",
+        "operationId": "undo_entity_operation_api_kg_entity_curation_audit__audit_id__undo_post",
+        "parameters": [
+          {
+            "name": "audit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Audit Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityAuditResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/entity-curation/audit": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "List Entity Audits",
+        "description": "List entity merge/split audit records, optionally filtered by entity.",
+        "operationId": "list_entity_audits_api_kg_entity_curation_audit_get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EntityAuditResponse"
+                  },
+                  "title": "Response List Entity Audits Api Kg Entity Curation Audit Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/entity-curation/semantic/embed": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Embed Entities",
+        "description": "Embed entities into LanceDB for semantic search.",
+        "operationId": "embed_entities_api_kg_entity_curation_semantic_embed_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_EmbedEntityRequest",
+                "nullable": true,
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbedEntitiesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/entity-curation/semantic": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Search Entities Semantic",
+        "description": "Semantic entity search via LanceDB.",
+        "operationId": "search_entities_semantic_api_kg_entity_curation_semantic_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Natural language query",
+              "title": "Q"
+            },
+            "description": "Natural language query"
+          },
+          {
+            "name": "entity_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
+              "nullable": true,
+              "title": "Entity Type"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Search Entities Semantic Api Kg Entity Curation Semantic Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/inclusion": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Upsert Inclusion",
+        "description": "Upsert an inclusion rule. Most-recent row wins per (scope, target).",
+        "operationId": "upsert_inclusion_api_kg_inclusion_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InclusionUpsertRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeGraphInclusion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "List Inclusion",
+        "description": "List inclusion rules, optionally filtered by scope + target.",
+        "operationId": "list_inclusion_api_kg_inclusion_get",
+        "parameters": [
+          {
+            "name": "scope_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/InclusionScopeType",
+              "nullable": true,
+              "title": "Scope Type"
+            }
+          },
+          {
+            "name": "target_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Target Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KnowledgeGraphInclusion"
+                  },
+                  "title": "Response List Inclusion Api Kg Inclusion Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -32112,6 +30812,129 @@
         "type": "object",
         "title": "CitationPatchRequest"
       },
+      "ClaimCreateRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "source_document_id": {
+            "type": "string",
+            "title": "Source Document Id"
+          },
+          "source_segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Segment Id"
+          },
+          "source_page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Page Label"
+          },
+          "source_excerpt": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Excerpt"
+          },
+          "source_ref": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Ref"
+          },
+          "entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Entity Ids"
+          },
+          "curation_state": {
+            "$ref": "#/components/schemas/ClaimCurationState",
+            "default": "unreviewed"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "default": 0.5
+          },
+          "predicted_confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Predicted Confidence"
+          },
+          "predicted_by": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Predicted By"
+          },
+          "prediction": {
+            "$ref": "#/components/schemas/PredictionMetadata",
+            "nullable": true
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "default": "human"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/SourceType",
+            "default": "document"
+          },
+          "source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Ids"
+          },
+          "source_page_labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Page Labels"
+          },
+          "source_languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Languages"
+          },
+          "claim_type": {
+            "$ref": "#/components/schemas/ClaimType",
+            "nullable": true
+          },
+          "epistemic_status": {
+            "$ref": "#/components/schemas/EpistemicStatus",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "source_document_id"
+        ],
+        "title": "ClaimCreateRequest",
+        "description": "Request to create a knowledge claim."
+      },
       "ClaimCurationState": {
         "type": "string",
         "enum": [
@@ -32121,6 +30944,41 @@
           "rejected"
         ],
         "title": "ClaimCurationState"
+      },
+      "ClaimLinkCreateRequest": {
+        "properties": {
+          "related_claim_id": {
+            "type": "string",
+            "title": "Related Claim Id"
+          },
+          "relation_type": {
+            "$ref": "#/components/schemas/ClaimRelationType"
+          },
+          "link_quality": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Link Quality",
+            "default": 0.5
+          },
+          "evidence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Evidence"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "related_claim_id",
+          "relation_type"
+        ],
+        "title": "ClaimLinkCreateRequest",
+        "description": "Request to create a link between claims."
       },
       "ClaimLinkDeletedResponse": {
         "properties": {
@@ -32173,6 +31031,123 @@
         "type": "object",
         "title": "ClaimLinkUpdateRequest",
         "description": "Request to update a claim link."
+      },
+      "ClaimPatchRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "nullable": true,
+            "title": "Text"
+          },
+          "source_segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Segment Id"
+          },
+          "source_page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Page Label"
+          },
+          "source_excerpt": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Excerpt"
+          },
+          "source_ref": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Ref"
+          },
+          "entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Entity Ids"
+          },
+          "curation_state": {
+            "$ref": "#/components/schemas/ClaimCurationState",
+            "nullable": true
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Confidence"
+          },
+          "predicted_confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Predicted Confidence"
+          },
+          "predicted_by": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Predicted By"
+          },
+          "prediction": {
+            "$ref": "#/components/schemas/PredictionMetadata",
+            "nullable": true
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Metadata"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/SourceType",
+            "nullable": true
+          },
+          "source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Source Ids"
+          },
+          "source_page_labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Source Page Labels"
+          },
+          "source_languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Source Languages"
+          },
+          "claim_type": {
+            "$ref": "#/components/schemas/ClaimType",
+            "nullable": true
+          },
+          "epistemic_status": {
+            "$ref": "#/components/schemas/EpistemicStatus",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "title": "ClaimPatchRequest",
+        "description": "Request to patch/update a knowledge claim."
       },
       "ClaimRelationType": {
         "type": "string",
@@ -32298,26 +31273,6 @@
           "theory"
         ],
         "title": "ClaimType"
-      },
-      "ClaimsOverviewResponse": {
-        "properties": {
-          "counts": {
-            "$ref": "#/components/schemas/OverviewCounts"
-          },
-          "metrics": {
-            "$ref": "#/components/schemas/OverviewMetrics"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/OverviewScope"
-          }
-        },
-        "type": "object",
-        "required": [
-          "counts",
-          "metrics",
-          "scope"
-        ],
-        "title": "ClaimsOverviewResponse"
       },
       "ClaimsPageResponse": {
         "properties": {
@@ -32927,61 +31882,7 @@
         ],
         "title": "ConnectionType"
       },
-      "ContradictingClaimItem": {
-        "properties": {
-          "claim_id": {
-            "type": "string",
-            "title": "Claim Id"
-          },
-          "text": {
-            "type": "string",
-            "title": "Text"
-          },
-          "epistemic_status": {
-            "type": "string",
-            "nullable": true,
-            "title": "Epistemic Status"
-          },
-          "confidence": {
-            "type": "number",
-            "title": "Confidence"
-          },
-          "source_document_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Document Id"
-          },
-          "source_metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "nullable": true,
-            "title": "Source Metadata"
-          },
-          "link_quality": {
-            "type": "number",
-            "title": "Link Quality"
-          },
-          "evidence": {
-            "type": "string",
-            "nullable": true,
-            "title": "Evidence"
-          }
-        },
-        "type": "object",
-        "required": [
-          "claim_id",
-          "text",
-          "epistemic_status",
-          "confidence",
-          "source_document_id",
-          "source_metadata",
-          "link_quality",
-          "evidence"
-        ],
-        "title": "ContradictingClaimItem",
-        "description": "A claim that contradicts the target claim."
-      },
-      "ContradictionEvidenceResponse": {
+      "ContradictionEvidence": {
         "properties": {
           "claim_id": {
             "type": "string",
@@ -33032,8 +31933,7 @@
           "claim_text",
           "contradicting_text"
         ],
-        "title": "ContradictionEvidenceResponse",
-        "description": "Response for contradiction evidence between two claims."
+        "title": "ContradictionEvidence"
       },
       "ConversationDeletedResponse": {
         "properties": {
@@ -34831,6 +33731,23 @@
         "title": "EntityAliasMapResponse",
         "description": "Full alias \u2192 entity map for reviewer decisions."
       },
+      "EntityAliasRequest": {
+        "properties": {
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          }
+        },
+        "type": "object",
+        "required": [
+          "aliases"
+        ],
+        "title": "EntityAliasRequest",
+        "description": "Request to add aliases to an entity."
+      },
       "EntityAuditResponse": {
         "properties": {
           "id": {
@@ -35099,21 +34016,19 @@
             },
             "type": "array",
             "title": "Absorbed Entity Ids",
-            "description": "Entities to be merged into the absorber"
+            "description": "Entities merged into the absorber"
           },
           "merged_aliases": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Merged Aliases",
-            "description": "Aliases from absorbed entities to add to the absorbing entity"
+            "title": "Merged Aliases"
           },
           "merged_description": {
             "type": "string",
             "nullable": true,
-            "title": "Merged Description",
-            "description": "Optional override description for the absorbing entity"
+            "title": "Merged Description"
           }
         },
         "type": "object",
@@ -35205,24 +34120,21 @@
         "properties": {
           "primary_entity_id": {
             "type": "string",
-            "title": "Primary Entity Id",
-            "description": "Entity that retains canonical identity"
+            "title": "Primary Entity Id"
           },
           "split_off_entity_ids": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Split Off Entity Ids",
-            "description": "Entities to create from the split"
+            "title": "Split Off Entity Ids"
           },
           "aliases_to_move": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Aliases To Move",
-            "description": "Aliases from primary to move to the split-off entities"
+            "title": "Aliases To Move"
           }
         },
         "type": "object",
@@ -35312,6 +34224,51 @@
         "title": "EntityTypesResponse",
         "description": "Available entity types for filtering."
       },
+      "EntityUpsertRequest": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "entity_type": {
+            "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
+            "default": "other"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "canonical_name"
+        ],
+        "title": "EntityUpsertRequest",
+        "description": "Request to create or update a knowledge entity."
+      },
       "EpistemicStatus": {
         "type": "string",
         "enum": [
@@ -35320,6 +34277,44 @@
           "rejected"
         ],
         "title": "EpistemicStatus"
+      },
+      "EvidenceChain": {
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          },
+          "chain": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceChainItem"
+            },
+            "type": "array",
+            "title": "Chain"
+          },
+          "sources": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "related_claims": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Related Claims"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim_id",
+          "chain",
+          "sources",
+          "related_claims"
+        ],
+        "title": "EvidenceChain"
       },
       "EvidenceChainItem": {
         "properties": {
@@ -35357,47 +34352,7 @@
         "required": [
           "step_type"
         ],
-        "title": "EvidenceChainItem",
-        "description": "Single item in an evidence chain."
-      },
-      "EvidenceChainResponse": {
-        "properties": {
-          "claim_id": {
-            "type": "string",
-            "title": "Claim Id"
-          },
-          "chain": {
-            "items": {
-              "$ref": "#/components/schemas/EvidenceChainItem"
-            },
-            "type": "array",
-            "title": "Chain"
-          },
-          "sources": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Sources"
-          },
-          "related_claims": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Related Claims"
-          }
-        },
-        "type": "object",
-        "required": [
-          "claim_id",
-          "chain",
-          "sources",
-          "related_claims"
-        ],
-        "title": "EvidenceChainResponse",
-        "description": "Response for evidence chain traversal."
+        "title": "EvidenceChainItem"
       },
       "ExecuteAcceptedResponse": {
         "properties": {
@@ -36407,6 +35362,24 @@
           "claims_embedded"
         ],
         "title": "HeuristicPredictionsResponse"
+      },
+      "HeuristicRequest": {
+        "properties": {
+          "top_k": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Top K",
+            "default": 10
+          },
+          "entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Entity Id"
+          }
+        },
+        "type": "object",
+        "title": "HeuristicRequest"
       },
       "IIIFManifest": {
         "properties": {
@@ -39479,95 +38452,6 @@
         "title": "MoveItemsRequest",
         "description": "Request to move items to a folder."
       },
-      "MutationLogResponse": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "entity_type": {
-            "type": "string",
-            "title": "Entity Type"
-          },
-          "entity_id": {
-            "type": "string",
-            "title": "Entity Id"
-          },
-          "operation": {
-            "$ref": "#/components/schemas/MutationOperationType"
-          },
-          "before_state": {
-            "additionalProperties": true,
-            "type": "object",
-            "nullable": true,
-            "title": "Before State"
-          },
-          "after_state": {
-            "additionalProperties": true,
-            "type": "object",
-            "nullable": true,
-            "title": "After State"
-          },
-          "changed_fields": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Changed Fields"
-          },
-          "run_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Run Id"
-          },
-          "agent_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Agent Id"
-          },
-          "created_by": {
-            "type": "string",
-            "title": "Created By"
-          },
-          "reversal_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Reversal Id"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "entity_type",
-          "entity_id",
-          "operation",
-          "before_state",
-          "after_state",
-          "changed_fields",
-          "run_id",
-          "agent_id",
-          "created_by",
-          "reversal_id",
-          "created_at"
-        ],
-        "title": "MutationLogResponse"
-      },
-      "MutationOperationType": {
-        "type": "string",
-        "enum": [
-          "create",
-          "update",
-          "delete",
-          "restore"
-        ],
-        "title": "MutationOperationType"
-      },
       "MutationRow": {
         "properties": {
           "id": {
@@ -40468,92 +39352,6 @@
         "title": "OutputSchema",
         "description": "JSON Schema for structured output from LLM nodes.\n\nWhen specified, the LLM will be instructed to return\ndata matching this schema exactly (using structured output mode).\n\nExample for named entity extraction:\n{\n    \"type\": \"object\",\n    \"properties\": {\n        \"people\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"organizations\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"dates\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}\n    },\n    \"required\": [\"people\", \"organizations\", \"dates\"]\n}"
       },
-      "OverviewCounts": {
-        "properties": {
-          "claims": {
-            "type": "integer",
-            "title": "Claims"
-          },
-          "entities": {
-            "type": "integer",
-            "title": "Entities"
-          },
-          "claim_links": {
-            "type": "integer",
-            "title": "Claim Links"
-          },
-          "curated_claims": {
-            "type": "integer",
-            "title": "Curated Claims"
-          },
-          "shortlisted_claims": {
-            "type": "integer",
-            "title": "Shortlisted Claims"
-          },
-          "rejected_claims": {
-            "type": "integer",
-            "title": "Rejected Claims"
-          },
-          "unreviewed_claims": {
-            "type": "integer",
-            "title": "Unreviewed Claims"
-          },
-          "predicted_claims": {
-            "type": "integer",
-            "title": "Predicted Claims"
-          },
-          "included_claims": {
-            "type": "integer",
-            "title": "Included Claims"
-          }
-        },
-        "type": "object",
-        "required": [
-          "claims",
-          "entities",
-          "claim_links",
-          "curated_claims",
-          "shortlisted_claims",
-          "rejected_claims",
-          "unreviewed_claims",
-          "predicted_claims",
-          "included_claims"
-        ],
-        "title": "OverviewCounts"
-      },
-      "OverviewMetrics": {
-        "properties": {
-          "average_confidence": {
-            "type": "number",
-            "title": "Average Confidence"
-          }
-        },
-        "type": "object",
-        "required": [
-          "average_confidence"
-        ],
-        "title": "OverviewMetrics"
-      },
-      "OverviewScope": {
-        "properties": {
-          "scope_type": {
-            "type": "string",
-            "nullable": true,
-            "title": "Scope Type"
-          },
-          "target_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Target Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "scope_type",
-          "target_id"
-        ],
-        "title": "OverviewScope"
-      },
       "PathResponse": {
         "properties": {
           "source_id": {
@@ -41305,57 +40103,6 @@
           "end"
         ],
         "title": "PredictionEntity"
-      },
-      "PredictionGenerateHeuristicRequest": {
-        "properties": {
-          "top_k": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 1.0,
-            "title": "Top K",
-            "default": 10
-          },
-          "entity_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Entity Id"
-          }
-        },
-        "type": "object",
-        "title": "PredictionGenerateHeuristicRequest",
-        "description": "Generate heuristic link predictions based on embedding similarity."
-      },
-      "PredictionGeneratePyKEENRequest": {
-        "properties": {
-          "model_type": {
-            "$ref": "#/components/schemas/PredictionModelType",
-            "default": "transe"
-          },
-          "training_epochs": {
-            "type": "integer",
-            "maximum": 1000.0,
-            "minimum": 1.0,
-            "title": "Training Epochs",
-            "default": 100
-          },
-          "learning_rate": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0001,
-            "title": "Learning Rate",
-            "default": 0.001
-          },
-          "batch_size": {
-            "type": "integer",
-            "maximum": 1024.0,
-            "minimum": 8.0,
-            "title": "Batch Size",
-            "default": 256
-          }
-        },
-        "type": "object",
-        "title": "PredictionGeneratePyKEENRequest",
-        "description": "Train a PyKEEN model and generate predictions."
       },
       "PredictionLink": {
         "properties": {
@@ -46789,24 +45536,6 @@
         "title": "TripleSupportResponse",
         "description": "One triangulated triple \u2014 the SVO + the supporting source list."
       },
-      "UndoRequest": {
-        "properties": {
-          "run_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Run Id",
-            "description": "Rollback all mutations in this AI run"
-          },
-          "mutation_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Mutation Id",
-            "description": "Undo a specific mutation"
-          }
-        },
-        "type": "object",
-        "title": "UndoRequest"
-      },
       "UndoResponse": {
         "properties": {
           "mutation_id": {
@@ -47944,343 +46673,6 @@
         ],
         "title": "ImportResponse"
       },
-      "fichero__api__routes__claim_links__ClaimLinkCreateRequest": {
-        "properties": {
-          "related_claim_id": {
-            "type": "string",
-            "title": "Related Claim Id"
-          },
-          "relation_type": {
-            "$ref": "#/components/schemas/ClaimRelationType"
-          },
-          "link_quality": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Link Quality",
-            "default": 0.5
-          },
-          "evidence": {
-            "type": "string",
-            "nullable": true,
-            "title": "Evidence"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata"
-          }
-        },
-        "type": "object",
-        "required": [
-          "related_claim_id",
-          "relation_type"
-        ],
-        "title": "ClaimLinkCreateRequest",
-        "description": "Request to create a link between claims."
-      },
-      "fichero__api__routes__claims__ClaimCreateRequest": {
-        "properties": {
-          "text": {
-            "type": "string",
-            "title": "Text"
-          },
-          "source_document_id": {
-            "type": "string",
-            "title": "Source Document Id"
-          },
-          "source_segment_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Segment Id"
-          },
-          "source_page_label": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Page Label"
-          },
-          "source_excerpt": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Excerpt"
-          },
-          "source_ref": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Ref"
-          },
-          "entity_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Entity Ids"
-          },
-          "curation_state": {
-            "$ref": "#/components/schemas/ClaimCurationState",
-            "default": "unreviewed"
-          },
-          "confidence": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Confidence",
-            "default": 0.5
-          },
-          "predicted_confidence": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "nullable": true,
-            "title": "Predicted Confidence"
-          },
-          "predicted_by": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Predicted By"
-          },
-          "prediction": {
-            "$ref": "#/components/schemas/PredictionMetadata",
-            "nullable": true
-          },
-          "language": {
-            "type": "string",
-            "nullable": true,
-            "title": "Language"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata"
-          },
-          "created_by": {
-            "type": "string",
-            "title": "Created By",
-            "default": "human"
-          },
-          "source_type": {
-            "$ref": "#/components/schemas/SourceType",
-            "default": "document"
-          },
-          "source_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Source Ids"
-          },
-          "source_page_labels": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Source Page Labels"
-          },
-          "source_languages": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Source Languages"
-          },
-          "claim_type": {
-            "$ref": "#/components/schemas/ClaimType",
-            "nullable": true
-          },
-          "epistemic_status": {
-            "$ref": "#/components/schemas/EpistemicStatus",
-            "nullable": true
-          }
-        },
-        "type": "object",
-        "required": [
-          "text",
-          "source_document_id"
-        ],
-        "title": "ClaimCreateRequest",
-        "description": "Request to create a knowledge claim."
-      },
-      "fichero__api__routes__claims__ClaimPatchRequest": {
-        "properties": {
-          "text": {
-            "type": "string",
-            "nullable": true,
-            "title": "Text"
-          },
-          "source_segment_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Segment Id"
-          },
-          "source_page_label": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Page Label"
-          },
-          "source_excerpt": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Excerpt"
-          },
-          "source_ref": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Ref"
-          },
-          "entity_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Entity Ids"
-          },
-          "curation_state": {
-            "$ref": "#/components/schemas/ClaimCurationState",
-            "nullable": true
-          },
-          "confidence": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "nullable": true,
-            "title": "Confidence"
-          },
-          "predicted_confidence": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "nullable": true,
-            "title": "Predicted Confidence"
-          },
-          "predicted_by": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Predicted By"
-          },
-          "prediction": {
-            "$ref": "#/components/schemas/PredictionMetadata",
-            "nullable": true
-          },
-          "language": {
-            "type": "string",
-            "nullable": true,
-            "title": "Language"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "nullable": true,
-            "title": "Metadata"
-          },
-          "source_type": {
-            "$ref": "#/components/schemas/SourceType",
-            "nullable": true
-          },
-          "source_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Source Ids"
-          },
-          "source_page_labels": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Source Page Labels"
-          },
-          "source_languages": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Source Languages"
-          },
-          "claim_type": {
-            "$ref": "#/components/schemas/ClaimType",
-            "nullable": true
-          },
-          "epistemic_status": {
-            "$ref": "#/components/schemas/EpistemicStatus",
-            "nullable": true
-          }
-        },
-        "type": "object",
-        "title": "ClaimPatchRequest",
-        "description": "Request to patch/update a knowledge claim."
-      },
-      "fichero__api__routes__entities__EntityAliasRequest": {
-        "properties": {
-          "aliases": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Aliases"
-          }
-        },
-        "type": "object",
-        "required": [
-          "aliases"
-        ],
-        "title": "EntityAliasRequest",
-        "description": "Request to add aliases to an entity."
-      },
-      "fichero__api__routes__entities__EntityUpsertRequest": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Id"
-          },
-          "canonical_name": {
-            "type": "string",
-            "title": "Canonical Name"
-          },
-          "entity_type": {
-            "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
-            "default": "other"
-          },
-          "aliases": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Aliases"
-          },
-          "description": {
-            "type": "string",
-            "nullable": true,
-            "title": "Description"
-          },
-          "language": {
-            "type": "string",
-            "nullable": true,
-            "title": "Language"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata"
-          }
-        },
-        "type": "object",
-        "required": [
-          "canonical_name"
-        ],
-        "title": "EntityUpsertRequest",
-        "description": "Request to create or update a knowledge entity."
-      },
       "fichero__api__routes__folders__EntityType": {
         "type": "string",
         "enum": [
@@ -48511,338 +46903,6 @@
         ],
         "title": "GraphMetricsResponse",
         "description": "Library-wide KG counts + averages. Drives the inspector summary."
-      },
-      "fichero__api__routes__knowledge_graph__claims__ClaimCreateRequest": {
-        "properties": {
-          "text": {
-            "type": "string",
-            "title": "Text"
-          },
-          "source_document_id": {
-            "type": "string",
-            "title": "Source Document Id"
-          },
-          "source_segment_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Segment Id"
-          },
-          "source_page_label": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Page Label"
-          },
-          "source_excerpt": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Excerpt"
-          },
-          "source_ref": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Ref"
-          },
-          "entity_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Entity Ids"
-          },
-          "curation_state": {
-            "$ref": "#/components/schemas/ClaimCurationState",
-            "default": "unreviewed"
-          },
-          "confidence": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Confidence",
-            "default": 0.5
-          },
-          "predicted_confidence": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "nullable": true,
-            "title": "Predicted Confidence"
-          },
-          "predicted_by": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Predicted By"
-          },
-          "prediction": {
-            "$ref": "#/components/schemas/PredictionMetadata",
-            "nullable": true
-          },
-          "language": {
-            "type": "string",
-            "nullable": true,
-            "title": "Language"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata"
-          },
-          "created_by": {
-            "type": "string",
-            "title": "Created By",
-            "default": "human"
-          },
-          "source_type": {
-            "$ref": "#/components/schemas/SourceType",
-            "default": "document"
-          },
-          "source_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Source Ids"
-          },
-          "source_page_labels": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Source Page Labels"
-          },
-          "source_languages": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Source Languages"
-          },
-          "claim_type": {
-            "$ref": "#/components/schemas/ClaimType",
-            "nullable": true
-          },
-          "epistemic_status": {
-            "$ref": "#/components/schemas/EpistemicStatus",
-            "nullable": true
-          }
-        },
-        "type": "object",
-        "required": [
-          "text",
-          "source_document_id"
-        ],
-        "title": "ClaimCreateRequest"
-      },
-      "fichero__api__routes__knowledge_graph__claims__ClaimLinkCreateRequest": {
-        "properties": {
-          "related_claim_id": {
-            "type": "string",
-            "title": "Related Claim Id"
-          },
-          "relation_type": {
-            "$ref": "#/components/schemas/ClaimRelationType"
-          },
-          "link_quality": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Link Quality",
-            "default": 0.5
-          },
-          "evidence": {
-            "type": "string",
-            "nullable": true,
-            "title": "Evidence"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata"
-          }
-        },
-        "type": "object",
-        "required": [
-          "related_claim_id",
-          "relation_type"
-        ],
-        "title": "ClaimLinkCreateRequest"
-      },
-      "fichero__api__routes__knowledge_graph__claims__ClaimPatchRequest": {
-        "properties": {
-          "text": {
-            "type": "string",
-            "nullable": true,
-            "title": "Text"
-          },
-          "source_segment_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Segment Id"
-          },
-          "source_page_label": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Page Label"
-          },
-          "source_excerpt": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Excerpt"
-          },
-          "source_ref": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Ref"
-          },
-          "entity_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Entity Ids"
-          },
-          "curation_state": {
-            "$ref": "#/components/schemas/ClaimCurationState",
-            "nullable": true
-          },
-          "confidence": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "nullable": true,
-            "title": "Confidence"
-          },
-          "predicted_confidence": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "nullable": true,
-            "title": "Predicted Confidence"
-          },
-          "predicted_by": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Predicted By"
-          },
-          "prediction": {
-            "$ref": "#/components/schemas/PredictionMetadata",
-            "nullable": true
-          },
-          "language": {
-            "type": "string",
-            "nullable": true,
-            "title": "Language"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "nullable": true,
-            "title": "Metadata"
-          },
-          "source_type": {
-            "$ref": "#/components/schemas/SourceType",
-            "nullable": true
-          },
-          "source_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Source Ids"
-          },
-          "source_page_labels": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Source Page Labels"
-          },
-          "source_languages": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Source Languages"
-          },
-          "claim_type": {
-            "$ref": "#/components/schemas/ClaimType",
-            "nullable": true
-          },
-          "epistemic_status": {
-            "$ref": "#/components/schemas/EpistemicStatus",
-            "nullable": true
-          }
-        },
-        "type": "object",
-        "title": "ClaimPatchRequest"
-      },
-      "fichero__api__routes__knowledge_graph__entities__EntityAliasRequest": {
-        "properties": {
-          "aliases": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Aliases"
-          }
-        },
-        "type": "object",
-        "required": [
-          "aliases"
-        ],
-        "title": "EntityAliasRequest"
-      },
-      "fichero__api__routes__knowledge_graph__entities__EntityUpsertRequest": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Id"
-          },
-          "canonical_name": {
-            "type": "string",
-            "title": "Canonical Name"
-          },
-          "entity_type": {
-            "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
-            "default": "other"
-          },
-          "aliases": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Aliases"
-          },
-          "description": {
-            "type": "string",
-            "nullable": true,
-            "title": "Description"
-          },
-          "language": {
-            "type": "string",
-            "nullable": true,
-            "title": "Language"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata"
-          }
-        },
-        "type": "object",
-        "required": [
-          "canonical_name"
-        ],
-        "title": "EntityUpsertRequest"
       },
       "fichero__api__routes__local_models__DeleteModelResponse": {
         "properties": {

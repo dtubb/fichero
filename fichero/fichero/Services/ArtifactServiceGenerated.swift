@@ -452,4 +452,150 @@ final class EntityServiceGenerated: ObservableObject {
             throw ServiceError.unexpectedResponse(code)
         }
     }
+
+    // MARK: - KG analytics (post 1587a1b6 namespace consolidation)
+
+    /// Get contradiction evidence for a claim.
+    /// Backed by `/api/kg/claim-analysis/{id}/contradictions`.
+    func contradictions(
+        claimId: String,
+        minLinkQuality: Double = 0
+    ) async throws -> [Components.Schemas.ContradictionEvidence] {
+        let response = try await client.api.contradictionsApiKgClaimAnalysisClaimIdContradictionsGet(
+            path: .init(claimId: claimId),
+            query: .init(minLinkQuality: minLinkQuality),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+        switch response {
+        case .ok(let ok):
+            return try ok.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    /// Traverse the evidence chain for a claim.
+    /// Backed by `/api/kg/claim-analysis/{id}/evidence-chain`.
+    func evidenceChain(
+        claimId: String,
+        maxDepth: Int = 2
+    ) async throws -> Components.Schemas.EvidenceChain {
+        let response = try await client.api.evidenceChainApiKgClaimAnalysisClaimIdEvidenceChainGet(
+            path: .init(claimId: claimId),
+            query: .init(maxDepth: maxDepth),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+        switch response {
+        case .ok(let ok):
+            return try ok.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    /// Merge multiple entities into a single absorbing entity with audit.
+    /// Backed by `/api/kg/entity-curation/merge`.
+    func mergeEntities(
+        absorbingEntityId: String,
+        absorbedEntityIds: [String],
+        mergedAliases: [String] = [],
+        mergedDescription: String? = nil
+    ) async throws -> Components.Schemas.EntityAuditResponse {
+        let body = Components.Schemas.EntityMergeRequest(
+            absorbingEntityId: absorbingEntityId,
+            absorbedEntityIds: absorbedEntityIds,
+            mergedAliases: mergedAliases,
+            mergedDescription: mergedDescription
+        )
+        let response = try await client.api.mergeEntitiesApiKgEntityCurationMergePost(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(body)
+        )
+        switch response {
+        case .ok(let ok):
+            return try ok.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    /// Split off one or more entities from a primary entity, with audit.
+    /// Backed by `/api/kg/entity-curation/split`.
+    func splitEntity(
+        primaryEntityId: String,
+        splitOffEntityIds: [String],
+        aliasesToMove: [String] = []
+    ) async throws -> Components.Schemas.EntityAuditResponse {
+        let body = Components.Schemas.EntitySplitRequest(
+            primaryEntityId: primaryEntityId,
+            splitOffEntityIds: splitOffEntityIds,
+            aliasesToMove: aliasesToMove
+        )
+        let response = try await client.api.splitEntityApiKgEntityCurationSplitPost(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(body)
+        )
+        switch response {
+        case .ok(let ok):
+            return try ok.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    /// List entity merge/split audit records, optionally filtered.
+    /// Backed by `/api/kg/entity-curation/audit`.
+    func listEntityAudits(
+        entityId: String? = nil,
+        limit: Int = 50
+    ) async throws -> [Components.Schemas.EntityAuditResponse] {
+        let response = try await client.api.listEntityAuditsApiKgEntityCurationAuditGet(
+            query: .init(entityId: entityId, limit: limit),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+        switch response {
+        case .ok(let ok):
+            return try ok.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    /// Generate cheap candidate links via embedding similarity. Requires
+    /// claims to have been embedded first via the claim-search embed
+    /// endpoint. Backed by `/api/kg/predictions/heuristic`.
+    func generateHeuristicPredictions(
+        topK: Int = 10,
+        entityId: String? = nil
+    ) async throws -> Components.Schemas.HeuristicPredictionsResponse {
+        let body = Components.Schemas.HeuristicRequest(topK: topK, entityId: entityId)
+        let response = try await client.api.generateHeuristicPredictionsApiKgPredictionsHeuristicPost(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(body)
+        )
+        switch response {
+        case .ok(let ok):
+            return try ok.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
 }

@@ -9,6 +9,23 @@ autonomous: KG epistemology + ontology + verbatim source_text layer,
 **Test suite:** 683 passing, 0 failing. Coverage 10.78% (was 9.20%
 this morning — +1.58pp on the day).
 
+**Headline (2026-05-11 — late autonomous: KG namespace consolidation):**
+- **#832 closed.** `/api/knowledge-graph/*` sub-package deleted; the
+  five unique surfaces ported into focused single-purpose modules
+  under `/api/kg/*`:
+  - `kg_claim_search` — semantic claim search (embed + ?q= + similar)
+  - `kg_claim_analysis` — contradictions + evidence-chain
+  - `kg_entity_curation` — merge/split/audit/undo + semantic entity search
+  - `kg_predictions` — heuristic predictions + run listing + apply
+  - `kg_inclusion` — declarative library/folder/document scope rules
+- Also deleted: `routes/interpretations.py` (CRUD + taxonomy already
+  in `kg_interpretations.py`). Net ~8200 LOC removed.
+- OpenAPI: `kg` bucket now 45 endpoints (was 29 + 33 split). Old
+  `knowledge-graph` bucket gone.
+- Kept (per Daniel): `graph_exploration.py`, `graph_traversal.py`,
+  `graph_reasoning.py`, `hermeneutics.py`, `mind_palace.py`,
+  `research_*.py` — unique features, not duplicates.
+
 **Headline (2026-05-11 — autonomous day):**
 - **OntologyBrowser wired (#498)** — Knowledge Graph sidebar entry
   per library, peer to Workflows + Activity. Two-pane content view:
