@@ -199,13 +199,30 @@ async def delete_claim(
 
     Entities referenced by the claim's ``entity_ids`` are not
     touched — the entity is the bigger concept, the claim is one
-    piece of evidence about it. Use \`DELETE /api/entities/{id}\`
+    piece of evidence about it. Use ``DELETE /api/entities/{id}``
     to remove the entity itself. (#901)
     """
     claim = db.get(KnowledgeClaim, claim_id)
     if claim is None:
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
-    db.delete(KnowledgeClaim, claim_id)
+    before_state = claim.model_dump(mode="json")
+    db.delete(claim)
+
+    # Mutation log row for undo. (#901)
+    try:
+        from fichero.knowledge_models import MutationLog, MutationOperationType
+        db.save(MutationLog(
+            entity_type="KnowledgeClaim",
+            entity_id=claim_id,
+            operation=MutationOperationType.delete,
+            before_state=before_state,
+            after_state=None,
+        ))
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            "delete_claim: mutation log write failed: %s", exc
+        )
 
 
 # =============================================================================

@@ -318,20 +318,48 @@ async def patch_entity(
     if entity is None:
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
 
+    # Snapshot the before-state for the MutationLog so this edit is
+    # reversible via /api/kg/undo. (#901)
+    before_state = entity.model_dump(mode="json")
+
+    changed_fields: list[str] = []
     if request.canonical_name is not None:
         entity.canonical_name = request.canonical_name.strip()
+        changed_fields.append("canonical_name")
     if request.entity_type is not None:
         entity.entity_type = request.entity_type
+        changed_fields.append("entity_type")
     if request.aliases is not None:
         entity.aliases = sorted(set(a.strip() for a in request.aliases if a.strip()))
+        changed_fields.append("aliases")
     if request.description is not None:
         entity.description = request.description
+        changed_fields.append("description")
     if request.language is not None:
         entity.language = request.language
+        changed_fields.append("language")
     if request.metadata is not None:
         entity.metadata = request.metadata
+        changed_fields.append("metadata")
     entity.updated_at = datetime.now()
     db.save(entity)
+
+    # Mutation log row — captures before + after for undo.
+    try:
+        from fichero.knowledge_models import MutationLog, MutationOperationType
+        db.save(MutationLog(
+            entity_type="KnowledgeEntity",
+            entity_id=entity.id,
+            operation=MutationOperationType.update,
+            before_state=before_state,
+            after_state=entity.model_dump(mode="json"),
+            changed_fields=changed_fields,
+        ))
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            "patch_entity: mutation log write failed: %s", exc
+        )
 
     # Refresh the LanceDB vector so cosine search reflects the edit.
     try:
@@ -380,6 +408,9 @@ async def delete_entity(
     if entity is None:
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
 
+    # Snapshot before-state for undo. (#901)
+    before_state = entity.model_dump(mode="json")
+
     # Find dependent claims.
     from fichero.knowledge_models import KnowledgeClaim
     all_claims = db.query(KnowledgeClaim)
@@ -387,7 +418,7 @@ async def delete_entity(
 
     if cascade_claims:
         for claim in dependent:
-            db.delete(KnowledgeClaim, claim.id)
+            db.delete(claim)
     else:
         # Strip the id but keep the claim row.
         for claim in dependent:
@@ -405,7 +436,23 @@ async def delete_entity(
             "delete_entity: vector remove failed for %s: %s", entity_id, exc
         )
 
-    db.delete(KnowledgeEntity, entity_id)
+    db.delete(entity)
+
+    # Mutation log row.
+    try:
+        from fichero.knowledge_models import MutationLog, MutationOperationType
+        db.save(MutationLog(
+            entity_type="KnowledgeEntity",
+            entity_id=entity_id,
+            operation=MutationOperationType.delete,
+            before_state=before_state,
+            after_state=None,
+        ))
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            "delete_entity: mutation log write failed: %s", exc
+        )
 
 
 class TopEntityRow(BaseModel):
