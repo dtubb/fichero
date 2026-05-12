@@ -366,6 +366,55 @@ class EntityMergeAudit(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class ClassificationDimension(str, Enum):
+    """Which classification axis a registry value belongs to (#915)."""
+
+    epistemic_status = "epistemic_status"
+    claim_type = "claim_type"
+    entity_type = "entity_type"
+
+
+class ClassificationValue(BaseModel):
+    """User-extensible classification taxonomy entry (#915).
+
+    Replaces the hardcoded EpistemicStatus / ClaimType / EntityType
+    enums for runtime registry: users add new buckets via
+    /api/classifications without code changes. Built-in values are
+    seeded on first run and protected from deletion.
+
+    Example custom values a historiographer might add:
+    - dimension=epistemic_status, key="contested", label="Contested"
+    - dimension=claim_type, key="ethnographic", label="Ethnographic"
+    - dimension=entity_type, key="plant_species", label="Plant species"
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    dimension: ClassificationDimension
+    key: str = Field(
+        description="Machine-readable identifier; lowercase, used in queries.",
+    )
+    label: str = Field(description="Human-readable display string.")
+    description: str | None = None
+    parent_key: str | None = Field(
+        default=None,
+        description="Optional hierarchy: 'binding' parent of 'constitutional'.",
+    )
+    color: str | None = Field(
+        default=None, description="Hex tint for badge rendering, e.g. '#FF8800'."
+    )
+    icon: str | None = Field(default=None, description="SF Symbol name for inspector chips.")
+    is_builtin: bool = Field(
+        default=False,
+        description="Built-in values (tentative/confirmed/...) cannot be deleted.",
+    )
+    sort_order: int = 0
+    created_by: str = "human"
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
 class DocumentCitation(BaseModel):
     """One document citing another (#906).
 
