@@ -284,7 +284,31 @@ def save_claim(
     ``epistemic_status`` records the LLM-assigned confidence label
     (tentative/confirmed/rejected) so the inspector can filter and
     badge claims. None means leave the default on the model.
+
+    Defense-in-depth dedup (#896): if a claim already exists for the
+    same ``(source_document_id, source_page_label, entity_ids set)``
+    with text overlap >= 90%, return that claim's ID instead of
+    writing a new row. The Davidson ×6 incident landed before this
+    check existed; per the issue, the upstream fan-out gets fixed
+    separately but this guard means a partial regression can't
+    repopulate the same six rows.
     """
+    from difflib import SequenceMatcher
+
+    entity_ids_set = set(entity_ids or [])
+    if source_page_label and source_document_id:
+        existing = db.query(
+            KnowledgeClaim,
+            source_document_id=source_document_id,
+            source_page_label=source_page_label,
+        )
+        for prior in existing:
+            if set(prior.entity_ids) != entity_ids_set:
+                continue
+            ratio = SequenceMatcher(None, prior.text, text).ratio()
+            if ratio >= 0.9:
+                return prior.id
+
     claim = KnowledgeClaim(
         text=text,
         source_document_id=source_document_id,
