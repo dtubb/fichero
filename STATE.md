@@ -21,10 +21,16 @@ this morning — +1.58pp on the day).
   tappable citation (#893 closed).
 - Library + KG filter unified via @AppStorage (#887).
 - save_claim within-page dedup (defense-in-depth for #896).
-- Closed: #832, #888, #895, #887, #893, #729. Updated: #889 with
-  rebuild blueprint pointing at OntologyBrowser as the new shell;
-  #901 with shipped (entity PATCH/DELETE, claim DELETE) and pending
-  (claim PATCH inline editing) status.
+- Closed: #832, #888, #895, #887, #893, #729, #896, #891 (eight
+  issues). Updated: #889 with rebuild blueprint pointing at
+  OntologyBrowser as the new shell; #901 with shipped (entity
+  PATCH/DELETE, claim DELETE) and pending (claim PATCH inline
+  editing) status.
+- **#896 root cause** found: shared cache key across page children
+  collapsed pages 2-6 to page-1's cached result. Fix:
+  compute_cache_key gains document_id parameter (2f58a4f8).
+- **#891 architecture** verified in place: per-page fan-out +
+  per-page extract_all + cache-key-by-page-id + within-page dedup.
 
 
 - Backend KG namespace consolidation (1587a1b6); `kg` bucket = 45
