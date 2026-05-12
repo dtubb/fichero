@@ -2,9 +2,9 @@
 
 ## Current Focus
 
-**Branch:** `0.0.2` — latest commit `43517322` (2026-05-11 full day
-autonomous: bug fixes + #498 OntologyBrowser wired into sidebar with
-filter chips + ~270 new frontend tests).
+**Branch:** `0.0.2` — latest commit `23fdd6a3` (2026-05-11 evening
+autonomous: KG epistemology + ontology + verbatim source_text layer,
+7 commits, #882 closed, #893 mostly shipped, #894 filed).
 
 **Test suite:** 683 passing, 0 failing. Coverage 10.78% (was 9.20%
 this morning — +1.58pp on the day).
@@ -173,7 +173,62 @@ structure. Verified by grep on 0.0.2's tree:
 
 After the criteria strip lands, add the actual `.searchable(text: $queryText, prompt: ...)` to SearchView so users can type queries (this is the original "input not wired" gap). 30-60min, all in `fichero/fichero/Views/Search/SearchView.swift`.
 
-## Next Session — Start Here (2026-05-10 late-night hand-off)
+## Next Session — Start Here (2026-05-11 late hand-off)
+
+**Latest commit on 0.0.2: `23fdd6a3`** — KG epistemology + ontology +
+source_text layer (7 commits pushed today). Build green; 41 extractor
+tests + 2 live Apple Intelligence tests passing.
+
+### Test on next launch
+
+1. **Pull + restart engine + rebuild app.** New backend fields land
+   only on freshly catalogued docs; existing claims won't have them.
+2. **Catalogue a fresh PDF** (Daniel's earlier suggestion was
+   `tubb2020shift — Chapter 1.pdf` + `Preface.pdf`). Expect:
+   - KG inspector entities now have **two filter strips** above the
+     claims list — Status (confirmed/tentative/rejected) and Kind
+     (fact/analysis/interpretation/argument/historiography/theory).
+   - Each claim card shows the **LLM-quoted source excerpt** in italics.
+   - **Tap the excerpt** → library search for that exact passage.
+   - **Tap entity name in the header** (`Eugenio Córdoba`, etc.) →
+     scoped library search (`people:"Eugenio Córdoba"`).
+3. **Expected gap (already filed at #894):** Apple Intelligence will
+   probably leave source_text empty + epistemic="tentative" + kind
+   ="fact" on every claim because Pydantic defaults aren't required in
+   the JSON schema. Decide whether to (a) drop defaults so grammar
+   forces emission, or (b) `json_schema_extra={"required": True}` per
+   field for the same effect with graceful Pydantic parsing.
+
+### Visual queue carried over (not done — needs your screenshots)
+
+- Sidebar background shade vs. content area
+- Margin/divider between sidebar top and window toolbar
+- Toolbar background coherence with MiniToolbar pane headers
+
+### Open KG follow-ups
+
+- **#893** stays open for PDFKit `findString` integration so tapping
+  an excerpt navigates into the parent PDF preview and highlights
+  the matching span (currently only routes via library search).
+- **#894** prompt-vs-defaults — implement option 2 if you agree.
+- **#887** unify KG inspector kind-filter with library-toolbar entity
+  filter — 6× `@SceneStorage` + 1× `@AppStorage` need to converge.
+- **#888 / #889** regen KG service stubs + rewrite ClaimInspector /
+  EpistemologyGraph / PredictionReview / Hermeneutics views.
+
+### Don't break
+
+- `ClaimType` (ontological) ≠ `EpistemicStatus` (epistemic) — two
+  distinct axes, both already on `KnowledgeClaim`. Don't merge them.
+- `CurationStateBadge` uses `unreviewed/shortlisted/curated/rejected`
+  — NOT `approved/pending` (those were renamed in an earlier regen and
+  the broken switch hid behind incremental builds for weeks).
+- The on-device model's grammar-constrained decoding lets Pydantic
+  defaults silently win — only required fields are forced.
+
+---
+
+## Earlier next-session entry (2026-05-10 late-night hand-off)
 
 **Latest commit on 0.0.2: `8065f96e`** — frontend test coverage sweep
 (Phase 28→34). Coverage on Fichero.app: 9.20% → 9.94% (+0.74pp).

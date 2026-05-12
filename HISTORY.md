@@ -1434,3 +1434,23 @@ Multi-session day. ~17 commits, builds verified clean throughout.
 - Filter button needs to move to top-right toolbar across all views (overlay was removed; ToolbarItem not yet added)
 - Per-folder view-mode persistence verification (plumbing exists; needs read of save trigger)
 - Sidebar layout for macOS Tahoe (needs screenshot)
+
+## 2026-05-11 (evening) — KG epistemology + ontology layer
+
+Shipped on `0.0.2` (7 commits, all green xcodebuild + 41 extractor tests passing):
+
+- `16e379b3` **#892 backend** — `epistemic_status` + `claim_type` (ontological status) + verbatim `source_text` on every extracted KG item. Two-axis Pydantic schema → coerced enums → KnowledgeClaim. Legacy `context` mock-path preserved; `verb`/`object` defaulted to "".
+- `0a1d7647` **#893 UI part 1** — ClaimSummaryCard + ClaimInspectorSourcesTab show verbatim source_excerpt with quote marks, italic, max 3 lines.
+- `780e9885` **#893 UI part 2** — Twin filter strips (Status / Kind) above the claims list in EntityDetailView; `@AppStorage` persistence shared across views.
+- `d55b0935` **Latent fix** — CurationStateBadge was switching on `.approved`/`.pending` which don't exist in the generated `ClaimCurationState`. Incremental builds hid the broken switch; clean compile would have errored. Fixed to `curated/rejected/unreviewed/shortlisted`.
+- `253004da` **#893 tap-to-search part 1** — Tap a claim's source excerpt → posts `ficheroEntitySearchRequested` with the quote → ContentView routes through runToolbarSearch.
+- `378a651e` **#882 closed** — Tap entity canonical name in OntologyBrowser header → scoped search via entityType in the notification userInfo.
+- `23fdd6a3` **Live test telemetry** — Apple Intelligence assertions for the new fields; source_text logged-not-failed when LLM falls through to schema defaults (the #894 finding).
+
+Issues moved:
+- **#892** filed + delivered backend half.
+- **#893** filed for UI; bulk shipped, only PDFKit findString integration left open.
+- **#894** filed: Pydantic defaults aren't marked `required` in JSON schema → grammar-constrained LLMs skip the new fields. Options documented in the issue body.
+- **#882** closed by 378a651e.
+
+Three durable lessons added to MEMORY.md (Pydantic-defaults-skip / two-axis classification / latent incremental-build enum mismatch).

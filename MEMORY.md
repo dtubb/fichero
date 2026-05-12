@@ -1,5 +1,32 @@
 # Durable Lessons Learned / Decisions
 
+## Pydantic defaults make fields optional in JSON schema → LLMs skip them — 2026-05-11
+
+A `Field(default=...)` in a Pydantic v2 model is NOT in the JSON schema's `required` array. Grammar-constrained decoding (fm-bridge, Apple Intelligence, structured-output endpoints) treats those fields as skippable and the model backfills with the default — so the LLM never actually emits a value.
+
+Symptom: Apple Intelligence returned `epistemic_status="tentative"`, `claim_type="fact"`, `source_text=""` on every item, because those were the defaults. SVO `verb` / `object` worked despite also having `default=""` only because the prompt reinforced them so heavily.
+
+Options when adding new fields to extractor schemas:
+1. Drop the default → fields become required → grammar forces emission. Breaks `model_validate` on any legacy artifact missing the field.
+2. Keep default + `Field(json_schema_extra={"required": True})` — Pydantic v2 honors per-field overrides when generating the schema. Best of both worlds: graceful Pydantic parsing for synthetic items, strict schema for the LLM. (Note: a naive `{"x-required": True}` doesn't work — `required` lives on the parent object, not the field; only the explicit Pydantic v2 schema-extra override surfaces it.)
+3. Strengthen the prompt only — least durable.
+
+Tracked at #894.
+
+## ClaimType vs EpistemicStatus — two-axis classification on KnowledgeClaim — 2026-05-11
+
+`KnowledgeClaim` has two peer classification fields, easy to confuse:
+- **`claim_type`** (ontological status) — what KIND of knowledge: `fact / analysis / interpretation / argument / historiography / theory`. Don't repurpose for "how firm".
+- **`epistemic_status`** (epistemic status) — how firmly asserted: `tentative / confirmed / rejected`.
+
+The KG inspector filter strips drive both axes independently via `@AppStorage("inspector.kg.hiddenEpistemic")` + `@AppStorage("inspector.kg.hiddenClaimTypes")`. Nil values fall back to model defaults ("tentative" / "fact") when filtering so an unclassified claim doesn't disappear.
+
+## Latent enum-case mismatch hidden by incremental builds — 2026-05-11
+
+`CurationStateBadge` was switching on `.approved` / `.pending` — cases that don't exist on the generated `ClaimCurationState` (which has `unreviewed / shortlisted / curated / rejected`). The enum was renamed in an earlier OpenAPI regen but Xcode's incremental build kept skipping the file, so the broken switch never recompiled.
+
+Lesson: when an OpenAPI enum renames, grep the whole tree for old cases — incremental builds can't be trusted to surface dead matches. Better still: `mcp__xcode__XcodeListNavigatorIssues` after any schema change.
+
 ## AppleUnavailableError hierarchy — 2026-05-06/07
 
 When Apple Intelligence raises a typed error from `_raise_from_bridge_stderr`, classify it as either:
