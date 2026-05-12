@@ -11,7 +11,6 @@ Locks the contract that:
 
 from __future__ import annotations
 
-import pytest
 from rdflib import Literal
 from rdflib.namespace import FOAF, RDF, RDFS, SKOS
 
