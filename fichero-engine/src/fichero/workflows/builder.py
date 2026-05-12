@@ -679,6 +679,14 @@ def _make_parallel_node_function(
                 db_path = Path(library_path) / "fichero.duckdb"
                 if db_path.exists():
                     cache = get_node_cache(db_path)
+                    # Pass document.id so per-page PDF fan-out gets
+                    # distinct cache keys even though all six page
+                    # children share the parent PDF's path. (#896 root
+                    # cause: shared key meant the page-1 result was
+                    # returned for pages 2-6, producing Davidson ×6.)
+                    doc_id_for_cache: str | None = None
+                    if isinstance(document, dict):
+                        doc_id_for_cache = document.get("id")
                     cache_key = compute_cache_key(
                         workflow_id=workflow_id,
                         node_id=node_id,
@@ -687,6 +695,7 @@ def _make_parallel_node_function(
                         provider=node_llm_config.provider,
                         model=node_llm_config.model,
                         file_path=file_path,
+                        document_id=doc_id_for_cache,
                     )
 
                     # Check cache. Treat empty/unusable cached entries as

@@ -283,6 +283,7 @@ def compute_cache_key(
     provider: str,
     model: str,
     file_path: str,
+    document_id: str | None = None,
 ) -> str:
     """
     Compute cache key for a node execution.
@@ -293,6 +294,10 @@ def compute_cache_key(
     - Configuration (prompt, parameters)
     - LLM provider and model
     - File identity (path + mtime + size)
+    - Document identity (when distinct from file_path — required for
+      per-page PDF fan-out so the six page children of one PDF don't
+      collide on the parent's path. Without this the cache returned the
+      page-1 result for pages 2-6, which produced Davidson ×6 #896.)
 
     Args:
         workflow_id: Workflow ID
@@ -302,6 +307,8 @@ def compute_cache_key(
         provider: LLM provider name
         model: LLM model name
         file_path: Path to the input file
+        document_id: Optional unique Document.id — pass for per-page
+            fan-out so page children of one PDF don't share a key.
 
     Returns:
         32-character hex cache key
@@ -322,6 +329,7 @@ def compute_cache_key(
             provider or "",
             model or "",
             file_identity,
+            document_id or "",
         ]
     )
 
