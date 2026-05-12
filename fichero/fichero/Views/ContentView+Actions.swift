@@ -271,6 +271,24 @@ extension ContentView {
         workflowName: String,
         docIds: [String]
     ) {
+        // Optimistic insert (#944) — show the Activity row immediately
+        // so the user gets feedback within ~50ms of clicking Run,
+        // instead of waiting for the POST round-trip + threadId
+        // response (~200-500ms). The threadId field is a placeholder;
+        // the second startExecution call below replaces it with the
+        // real threadId once the POST returns AND attaches the
+        // cancel handler.
+        //
+        // If the POST fails, the catch block calls endExecution(.failed)
+        // which moves the optimistic row to the completed-executions
+        // archive — so the user sees the failure rather than a row
+        // that quietly disappears.
+        executionObserver.startExecution(
+            workflowId: workflowId,
+            name: workflowName,
+            threadId: "pending"
+        )
+
         Task { @MainActor in
             var streamCompleted = false
             do {
@@ -290,6 +308,8 @@ extension ContentView {
                 )
 
                 let threadId = response.threadId
+                // Re-register with the real threadId + cancel handler.
+                // Reuses the optimistic row's slot in activeExecutions.
                 executionObserver.startExecution(
                     workflowId: workflowId,
                     name: workflowName,
