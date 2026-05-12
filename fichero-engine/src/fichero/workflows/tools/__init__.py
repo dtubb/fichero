@@ -19,6 +19,7 @@ Categories:
 # Import tools to register them
 # Source tools
 from fichero.workflows.tools import sources
+from fichero.workflows.tools import annotations_source  # noqa: F401  (#914)
 
 # Vision tools (use shared vision_base)
 from fichero.workflows.tools import transcribe
