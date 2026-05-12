@@ -479,6 +479,21 @@ class KnowledgeClaim(BaseModel):
     source_page_label: str | None = None
     source_excerpt: str | None = None
     source_ref: str | None = None
+    # --- sub-page anchor (#913) — character offset + optional bbox ---
+    # Lets the inspector navigate to the exact span instead of just
+    # the page. Populated by the catalogue extractor when source_text
+    # can be located in page_content; nullable for legacy claims and
+    # claims where the substring search fails.
+    source_char_start: int | None = None
+    source_char_end: int | None = None
+    source_bbox: list[float] | None = Field(
+        default=None,
+        description=(
+            "[x, y, width, height] in PDF page coordinates. Populated "
+            "via PyMuPDF page.search(excerpt) for PDF-backed claims; "
+            "None for text-only or when the search misses."
+        ),
+    )
     # --- multi-source ---
     source_type: SourceType = SourceType.document
     source_ids: list[str] = Field(default_factory=list)  # additional source doc IDs

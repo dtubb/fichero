@@ -263,6 +263,9 @@ def save_claim(
     confidence: float = 0.5,
     metadata: Optional[dict] = None,
     epistemic_status: Optional[EpistemicStatus] = None,
+    source_char_start: Optional[int] = None,
+    source_char_end: Optional[int] = None,
+    source_bbox: Optional[list[float]] = None,
 ) -> str:
     """Save a `KnowledgeClaim` row. Returns the claim ID.
 
@@ -285,6 +288,9 @@ def save_claim(
         entity_ids=entity_ids or [],
         source_excerpt=source_excerpt,
         source_page_label=source_page_label,
+        source_char_start=source_char_start,
+        source_char_end=source_char_end,
+        source_bbox=source_bbox,
         claim_type=claim_type,
         confidence=confidence,
         metadata=metadata or {},

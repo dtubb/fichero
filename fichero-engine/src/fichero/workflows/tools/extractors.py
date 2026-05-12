@@ -1269,6 +1269,20 @@ def _write_kg_rows(
         source_text = (item.get("source_text") or "").strip()
         excerpt = source_text or predicate or page_excerpt or None
 
+        # Sub-page anchor (#913): when source_text appears verbatim
+        # inside the page chunk, record the character offset so the
+        # inspector can navigate to the exact span instead of just
+        # the page. Cheap substring search — bbox lookup (PyMuPDF)
+        # is deferred to a follow-up since it requires the PDF file
+        # on disk + page number.
+        char_start: int | None = None
+        char_end: int | None = None
+        if source_text and page_excerpt:
+            idx = page_excerpt.find(source_text)
+            if idx >= 0:
+                char_start = idx
+                char_end = idx + len(source_text)
+
         meta: dict[str, Any] = {}
         if verb:
             meta["verb"] = verb
@@ -1311,6 +1325,8 @@ def _write_kg_rows(
                 source_document_id=container_id,
                 source_excerpt=excerpt,
                 source_page_label=page_label,
+                source_char_start=char_start,
+                source_char_end=char_end,
                 claim_type=ctype or ClaimType.fact,
                 metadata=meta,
                 epistemic_status=epistemic,
@@ -1353,6 +1369,8 @@ def _write_kg_rows(
             entity_ids=[entity_id],
             source_excerpt=excerpt,
             source_page_label=page_label,
+            source_char_start=char_start,
+            source_char_end=char_end,
             claim_type=ctype or ClaimType.fact,
             metadata=meta,
             epistemic_status=epistemic,
