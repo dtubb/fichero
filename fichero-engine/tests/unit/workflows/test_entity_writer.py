@@ -288,3 +288,65 @@ class TestSaveClaim:
         loaded = db.get(KnowledgeClaim, claim_id)
         assert loaded.entity_ids == []
         assert loaded.metadata.get("date_normalized") == "1930-05-12"
+
+    def test_within_page_dedup_skips_near_duplicate(self, db):
+        """Regression test for the #896 dedup guard: a second
+        save_claim call with the same (source_doc, page_label,
+        entity_ids) and >=90% text overlap returns the prior claim's
+        ID instead of writing a near-duplicate row.
+        """
+        from fichero.workflows.tools._entity_writer import upsert_entity, save_claim
+
+        entity_id = upsert_entity(
+            db, canonical_name="Davidson", entity_type=EntityType.person
+        )
+        first = save_claim(
+            db,
+            text="Davidson is an alternative spelling of Deibinson",
+            source_document_id="doc_book_42",
+            entity_ids=[entity_id],
+            source_page_label="Page 1",
+        )
+        # Re-fire with cosmetic differences only (whitespace + period)
+        second = save_claim(
+            db,
+            text="Davidson is an alternative spelling of Deibinson.",
+            source_document_id="doc_book_42",
+            entity_ids=[entity_id],
+            source_page_label="Page 1",
+        )
+        assert first == second, "Near-duplicate within the same page should fold"
+        # And only one row landed
+        rows = db.query(
+            KnowledgeClaim,
+            source_document_id="doc_book_42",
+            source_page_label="Page 1",
+        )
+        assert len(rows) == 1
+
+    def test_within_page_dedup_does_not_cross_pages(self, db):
+        """Same text + same entity on a DIFFERENT page is intentional —
+        Davidson can be mentioned on both page 1 and page 2 of the
+        same document. The dedup is keyed on page_label so the two
+        rows survive.
+        """
+        from fichero.workflows.tools._entity_writer import upsert_entity, save_claim
+
+        entity_id = upsert_entity(
+            db, canonical_name="Davidson", entity_type=EntityType.person
+        )
+        first = save_claim(
+            db,
+            text="Davidson signed the deed",
+            source_document_id="doc_book_99",
+            entity_ids=[entity_id],
+            source_page_label="Page 1",
+        )
+        second = save_claim(
+            db,
+            text="Davidson signed the deed",
+            source_document_id="doc_book_99",
+            entity_ids=[entity_id],
+            source_page_label="Page 2",
+        )
+        assert first != second
