@@ -632,7 +632,12 @@ _DEV_ROUTE_SPECS: list[RouteSpec] = [
     (kg_citations.router, "/api", ["knowledge-graph"]),
     (kg_interpretations.router, "/api", ["knowledge-graph"]),
     (search_explain.router, "/api", ["search-explanation"]),
-    (hermeneutics.router, "/api/hermeneutics", ["hermeneutics"]),
+    # Hermeneutics is the interpretation-reading layer on top of KG —
+    # PatternInstance + hermeneutic-circle navigation + LLM suggestions
+    # share entity/claim ids with KnowledgeEntity/KnowledgeClaim. Tag
+    # under "knowledge-graph" so Swift codegen groups it with the rest
+    # of the KG surface. Path stays /api/hermeneutics for compatibility.
+    (hermeneutics.router, "/api/hermeneutics", ["knowledge-graph"]),
     # /api/interpretations + /api/graph/* deprecated 2026-05-12 — no
     # Swift consumers; useful endpoints (taxonomy, traverse, metrics)
     # ported into /api/kg/interpretations and /api/kg/graph. (#919 5b)
