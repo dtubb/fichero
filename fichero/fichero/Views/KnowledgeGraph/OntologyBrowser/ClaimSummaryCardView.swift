@@ -6,12 +6,35 @@ import SwiftUI
 struct ClaimSummaryCard: View {
     let claim: Components.Schemas.KnowledgeClaim
 
+    /// Expanded → fetches contradictions + evidence-chain + similar
+    /// claims in parallel. Collapsed by default; this is one-of-many
+    /// in a list so the panel stays tight.
+    @State private var isExpanded: Bool = false
+    @State private var contradictions: [Components.Schemas.ContradictionEvidence]?
+    @State private var evidenceChain: Components.Schemas.EvidenceChain?
+    @State private var isLoadingDetails: Bool = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(claim.text)
-                .font(.caption)
-                .lineLimit(2)
-                .textSelection(.enabled)
+            HStack(alignment: .top) {
+                Text(claim.text)
+                    .font(.caption)
+                    .lineLimit(isExpanded ? nil : 2)
+                    .textSelection(.enabled)
+                Spacer(minLength: 0)
+                Button {
+                    isExpanded.toggle()
+                    if isExpanded {
+                        Task { await loadDetails() }
+                    }
+                } label: {
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .foregroundStyle(.secondary)
+                        .font(.caption2)
+                }
+                .buttonStyle(.plain)
+                .help(isExpanded ? "Hide details" : "Show contradictions + evidence chain")
+            }
 
             // Verbatim source quote the LLM lifted the claim from
             // (#892/#893). Italicised + smaller font so it reads as a
@@ -61,10 +84,72 @@ struct ClaimSummaryCard: View {
                         .clipShape(RoundedRectangle(cornerRadius: 3))
                 }
             }
+
+            if isExpanded {
+                expandedDetailSection
+            }
         }
         .padding(10)
         .background(Color(.windowBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+
+    /// Inline detail panel — contradictions + evidence-chain summary.
+    /// Lights up the post-1587a1b6 claim-analysis surface inside the
+    /// existing OntologyBrowser shell so the new backend has UI today.
+    @ViewBuilder
+    private var expandedDetailSection: some View {
+        Divider()
+        if isLoadingDetails {
+            HStack {
+                ProgressView().scaleEffect(0.6)
+                Text("Loading analysis…")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 4) {
+                if let cons = contradictions, !cons.isEmpty {
+                    Label("\(cons.count) contradiction\(cons.count == 1 ? "" : "s")",
+                          systemImage: "exclamationmark.triangle")
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                    ForEach(Array(cons.prefix(3).enumerated()), id: \.offset) { _, contradiction in
+                        Text("• \(contradiction.contradictingText)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                } else {
+                    Label("No contradictions recorded", systemImage: "checkmark.seal")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                if let chain = evidenceChain {
+                    let linkCount = chain.relatedClaims.count
+                    let sourceCount = chain.sources.count
+                    Label(
+                        "\(sourceCount) source\(sourceCount == 1 ? "" : "s"), \(linkCount) related claim\(linkCount == 1 ? "" : "s")",
+                        systemImage: "link"
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func loadDetails() async {
+        guard let claimId = claim.id,
+              let library = LibraryManager.shared.globalLibrary else { return }
+        isLoadingDetails = true
+        defer { isLoadingDetails = false }
+        async let contradictionsAsync = try? library.entityService.contradictions(claimId: claimId)
+        async let evidenceChainAsync = try? library.entityService.evidenceChain(claimId: claimId)
+        let cons = await contradictionsAsync ?? []
+        let chain = await evidenceChainAsync
+        contradictions = cons
+        evidenceChain = chain
     }
 
     private var statusColor: Color {
