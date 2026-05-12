@@ -1454,3 +1454,36 @@ Issues moved:
 - **#882** closed by 378a651e.
 
 Three durable lessons added to MEMORY.md (Pydantic-defaults-skip / two-axis classification / latent incremental-build enum mismatch).
+
+## 2026-05-12 (overnight, post-handoff) — KG epistemic stack + consolidation prep
+
+Daniel left to pack/sleep; I worked through the deferred concept queue.
+
+### Shipped (15 concept tickets closed, ~80 new endpoints):
+- #903 source authority weighting → SourceAuthority enum + AUTHORITY_WEIGHTS in triangulation
+- #904 temporal claims → time_start/time_end/time_precision on KnowledgeClaim
+- #905 hermeneutics CRUD → 10 endpoints on /api/kg/interpretations
+- #906 citation graph → DocumentCitation model + 7 endpoints
+- #907 Toulmin → grounds/warrant/backing/qualifier/rebuttal on KnowledgeClaim
+- #908 biblio extraction → PyMuPDF + LLM cover-pages + curated-merge
+- #909 BibTeX/RIS/CSL import + .bib export
+- #910 DOI/ISBN online lookup (Crossref + Open Library)
+- #911 cross-library entity linking → CLOSED as deferred (too much complexity for current single-user)
+- #912 citation rendering → BibTeX / Chicago / APA / MLA hand-rolled
+- #913 sub-page anchors → source_char_start/end/bbox on KnowledgeClaim
+- #914 annotations → highlight / note / rating / bookmark / comment + promote-to-claim
+- #915 user-extensible classification registry (ClassificationValue)
+- #917 Zettelkasten → Note + NoteLink + backlinks/forward-links
+- #918 Projects → Project + ProjectInclusion + membership query
+
+### Helper layers shipped (#902 prep):
+- Aggregate /documents/{id}/inspector (one call, full inspector data)
+- Aggregate /entities/{id}/inspector (claims, docs, similar entities, triangulated facts)
+- /api/kg/search mixed-type (entities + claims + notes + annotations)
+- Tag-dedupe fix (was double-counting kg vs knowledge-graph)
+- docs/architecture/api/KG_ENDPOINTS.md reference for tomorrow's Swift work
+
+### Filed for follow-up:
+- #919 — ship-prep plan with 5 slices: workflow input from annotations, Toulmin prompts,
+  temporal prompts, Swift OpenAPI regen, and concept-overlap consolidation
+  (interpretations × 3 routers, notes × 3, projects × 2, graph × 2)

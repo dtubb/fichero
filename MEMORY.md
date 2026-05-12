@@ -1,5 +1,24 @@
 # Durable Lessons Learned / Decisions
 
+## FastAPI tag double-count via APIRouter + include_router collision — 2026-05-12
+
+If an `APIRouter` is constructed with `tags=["foo"]` AND main.py's `include_router(router, tags=["foo"])` also passes the same tag, FastAPI appends both to every operation. The OpenAPI export then lists each route's tags as `["foo", "foo"]`. Any tag-grouped tooling (export scripts, UI tag pickers) double-counts the endpoint.
+
+**Fix**: keep tags on ONE side only. In Fichero, the canonical source is `main.py`'s `_DEV_ROUTE_SPECS` tuple — `(router, prefix, tags)`. New routers should construct `APIRouter(prefix=...)` without tags. The tag-doubling was a real bug that landed Sat night during the KG concept blast and got fixed at `029d91d3`.
+
+## Concept-overlap policy — canonical route owns the surface — 2026-05-12
+
+When old + new routers expose the same concept (e.g. `/api/interpretations` + `/api/hermeneutics/interpretations` + `/api/kg/interpretations`), the new KG-namespaced route is the canonical home. Old routes are deprecated then removed once Swift services migrate. Take richer endpoints from the old surfaces (e.g. hermeneutics' PatternInstance / Framework taxonomy lookup) and merge into the canonical route — don't keep multiple code paths doing similar things.
+
+Pairs to consolidate:
+- Interpretations: 3 routers → `/api/kg/interpretations`
+- Notes: `/api/notes` (new Zettelkasten) vs mind-palace/notes (spatial) vs research/notes — canonical is `/api/notes`; mind-palace stays for spatial placement; research stays for checklists
+- Projects: `/api/projects` (new) vs research/projects — canonical is `/api/projects`
+- Graph traversal: `/api/kg/graph` (new) vs old `/api/graph/*` — canonical is `/api/kg/graph`; pull pathfinding helpers forward
+- Predictions: `/api/kg/pykeen` (new, trained model) vs `/api/predictions` (legacy heuristic) — keep both, name them clearly
+
+Tracked at #919 slice 5b.
+
 ## Pydantic v2 schema-required + before-validator pattern — 2026-05-12
 
 To make a field required in the JSON schema (so grammar-constrained LLMs emit it) AND still gracefully parse legacy items that lack the field, use this two-step pattern:
