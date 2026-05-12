@@ -174,6 +174,19 @@ class Document(BaseModel):
     # they emit; the user sets per-document via the inspector.
     source_authority: SourceAuthority = SourceAuthority.unknown
 
+    # Bibliographic metadata (#908). Populated by the bibliography
+    # extractor workflow tool (PyMuPDF for PDF metadata, LLM for
+    # cover-page extraction, optional DOI lookup at #910). Used by
+    # the citation renderer (#912) to emit BibTeX / Chicago / APA /
+    # MLA. Stored as a dict because Document already lives in DuckDB
+    # and adding a nested Pydantic model would require a migration
+    # and a serializer — the renderer accepts a SourceMetadata
+    # constructed on the fly from this dict at read-time.
+    source_metadata: dict[str, Any] | None = Field(
+        default=None,
+        description="Bibliographic metadata (SourceMetadata shape). See #908.",
+    )
+
     # Processing state
     status: Status = Status.pending
 
