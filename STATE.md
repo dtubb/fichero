@@ -235,12 +235,49 @@ structure. Verified by grep on 0.0.2's tree:
 
 After the criteria strip lands, add the actual `.searchable(text: $queryText, prompt: ...)` to SearchView so users can type queries (this is the original "input not wired" gap). 30-60min, all in `fichero/fichero/Views/Search/SearchView.swift`.
 
-## Next Session — Start Here (2026-05-13 morning hand-off)
+## Next Session — Start Here (2026-05-12 morning hand-off)
 
-**Latest commit on 0.0.2: `0fd37b1c`** — overnight backend run complete.
-Backend is now end-to-end ready for the SwiftUI work you want to start
-on. 169 tests passing, ruff clean, OpenAPI auto-synced into the Swift
-client.
+**Latest commit on 0.0.2: `340ff58f`.** 26 commits pushed overnight.
+8 GitHub issues closed: #832, #887, #888, #891, #893, #895, #896, #729.
+Three-leg check green throughout (116 KG-adjacent tests pass, swiftlint
+clean, xcodebuild SUCCEEDED).
+
+### What landed
+1. **Backend KG namespace consolidation (#919 5c).** `/api/knowledge-graph/*`
+   sub-package deleted (~8200 LOC dupes); five focused modules under
+   `/api/kg/*`: `kg_claim_search`, `kg_claim_analysis`, `kg_entity_curation`,
+   `kg_predictions`, `kg_inclusion`. `kg` bucket = 45 endpoints.
+2. **#896 Davidson ×6 — ROOT CAUSE.** `compute_cache_key` was keyed
+   on `file_path` only, so all six page children of a PDF (which share
+   the parent's on-disk path) collided on cache → page-1 result returned
+   for pages 2-6 → six near-identical claims. Fix threads `document_id`
+   into the key (2f58a4f8). Belt-and-braces: `save_claim` dedups
+   within-page near-duplicates (4a3cc728). Regression tests at both
+   layers (ffc46a81, 3a3dadc9).
+3. **OntologyBrowser as the KG shell.** Tools menu (embed claims /
+   entities / generate suggested links), '+' New Entity sheet,
+   right-click Edit/Delete entity with confirmationDialog, right-click
+   Delete claim, Curation History section, expandable claim cards
+   (contradictions + evidence-chain), Heuristic Predictions Review
+   Sheet (accept writes KnowledgeClaimLink).
+4. **DocumentInspector KG tab** renders verbatim source_excerpt as
+   italicised tappable citation (#893).
+5. **Library toolbar entity filter unified** with KG @AppStorage CSV (#887).
+6. **Dead-code purge.** Removed `KnowledgeGraphServiceGenerated.swift`,
+   `HermeneuticsServiceGenerated.swift`, and 2360 LOC of orphan view
+   dirs that referenced removed endpoints.
+
+### Suggested morning order
+1. **Pull + Xcode rebuild.** OpenAPI client was regenerated at the
+   start of the night, so the build picks up all the new methods.
+2. **Smoke-test the KG bug fix.** Re-catalogue `tubb2020shift` —
+   Davidson should now produce **one** KnowledgeClaim per page, not
+   six. Verify by opening Knowledge Graph → Davidson → claim count.
+3. **Try the new UI.** Right-click an entity for Edit/Delete. Click
+   the wrench in the OntologyBrowser toolbar for the Tools menu.
+   Expand a claim card to see contradictions + evidence-chain inline.
+4. **Filed for follow-up:** claim PATCH inline editor (#901 remaining
+   stroke), force-directed graph viz (#902).
 
 ### Tonight's count
 - 15 concept tickets closed (#903–#915, #917, #918) + #919 master plan
