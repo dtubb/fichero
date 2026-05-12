@@ -694,7 +694,8 @@ struct KnowledgeGraphInspectorSection: View {
                 context: context,
                 aliases: entity?.aliases ?? [],
                 sourceDocumentId: claim.sourceDocumentId,
-                sourcePageLabel: claim.sourcePageLabel
+                sourcePageLabel: claim.sourcePageLabel,
+                sourceExcerpt: claim.sourceExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines)
             )
             byKind[kind, default: []].append(item)
         }
@@ -832,6 +833,12 @@ private struct GroupedItem: Identifiable {
     /// Page label as recorded on the claim (e.g. "page 4", "folio 12r").
     /// Rendered as inline parenthetical when present.
     var sourcePageLabel: String?
+    /// Verbatim quote the LLM lifted the claim from (#893). Shown as
+    /// an italicised tappable citation underneath the curated context
+    /// when distinct from both the displayName and the context. Tap
+    /// runs a library search for the exact text — same path as the
+    /// OntologyBrowser ClaimSummaryCard.
+    var sourceExcerpt: String?
     var id: String { claimId }
 }
 
@@ -1049,6 +1056,31 @@ private struct EntityKindRow: View {
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
+            }
+
+            // Verbatim source quote — only when distinct from both the
+            // displayName and the curated context. Tap runs a library
+            // search for the exact text (#893).
+            if let excerpt = item.sourceExcerpt,
+               !excerpt.isEmpty,
+               excerpt != item.displayName,
+               excerpt != item.context {
+                Button {
+                    NotificationCenter.default.post(
+                        name: .ficheroEntitySearchRequested,
+                        object: nil,
+                        userInfo: ["name": excerpt]
+                    )
+                } label: {
+                    Text("\u{201C}\(excerpt)\u{201D}")
+                        .font(.caption)
+                        .italic()
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .help("Search the library for this quote")
             }
         }
         .padding(.vertical, 2)
