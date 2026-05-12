@@ -430,6 +430,9 @@ struct OntologyBrowser: View {
                 .task {
                     await loadEntityClaims(id: entityId)
                 }
+                .onReceive(NotificationCenter.default.publisher(for: .ficheroClaimDeleted)) { _ in
+                    Task { await loadEntityClaims(id: entityId) }
+                }
             } else {
                 emptyDetailState
             }

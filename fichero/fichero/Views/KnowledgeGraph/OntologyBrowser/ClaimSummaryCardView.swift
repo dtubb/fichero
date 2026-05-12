@@ -92,6 +92,11 @@ struct ClaimSummaryCard: View {
         .padding(10)
         .background(Color(.windowBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 6))
+        .contextMenu {
+            Button("Delete claim…", role: .destructive) {
+                deleteClaim()
+            }
+        }
     }
 
     /// Inline detail panel — contradictions + evidence-chain summary.
@@ -150,6 +155,23 @@ struct ClaimSummaryCard: View {
         let chain = await evidenceChainAsync
         contradictions = cons
         evidenceChain = chain
+    }
+
+    fileprivate func deleteClaim() {
+        guard let claimId = claim.id,
+              let library = LibraryManager.shared.globalLibrary else { return }
+        Task {
+            do {
+                try await library.entityService.deleteClaim(claimId)
+                NotificationCenter.default.post(name: .ficheroClaimDeleted, object: claimId)
+            } catch {
+                NotificationCenter.default.post(
+                    name: .ficheroClaimDeleted,
+                    object: nil,
+                    userInfo: ["error": error.localizedDescription]
+                )
+            }
+        }
     }
 
     private var statusColor: Color {

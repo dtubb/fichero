@@ -614,6 +614,25 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    /// Delete a single KnowledgeClaim. Entities referenced by the
+    /// claim are NOT cascaded — the entity is the bigger concept, the
+    /// claim is one piece of evidence about it (#901).
+    func deleteClaim(_ claimId: String) async throws {
+        let response = try await client.api.deleteClaimApiClaimsClaimIdDelete(
+            path: .init(claimId: claimId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+        switch response {
+        case .noContent:
+            return
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     /// Delete a KnowledgeEntity. The backend cascade-removes claims
     /// whose entity_ids reference it (per #901). Returns once the
     /// 204 response lands.

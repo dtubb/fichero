@@ -599,6 +599,12 @@ extension Notification.Name {
     static let ficheroEntitySearchRequested = Notification.Name(
         "ficheroEntitySearchRequested"
     )
+    /// Posted after a claim is deleted from the KG UI (right-click →
+    /// Delete in ClaimSummaryCard). `object` is the deleted claim ID
+    /// (String) or nil on error (in which case userInfo["error"]
+    /// carries the message). EntityDetailView listens to refresh its
+    /// claim list.
+    static let ficheroClaimDeleted = Notification.Name("ficheroClaimDeleted")
 }
 import FicheroAPIClient
 
