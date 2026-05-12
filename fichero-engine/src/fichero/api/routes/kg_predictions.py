@@ -231,7 +231,7 @@ async def apply_prediction_run(
         "claim_supports": ClaimRelationType.supports,
         "claim_refines": ClaimRelationType.refines,
         "claim_contradicts": ClaimRelationType.contradicts,
-        "mentions": ClaimRelationType.related_to,
+        "mentions": ClaimRelationType.supports,
     }
 
     new_links: list[KnowledgeClaimLink] = []

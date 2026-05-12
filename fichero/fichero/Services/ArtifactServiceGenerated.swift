@@ -614,6 +614,38 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    /// Create a typed claim ↔ claim relationship (supports / refines /
+    /// contradicts / related_to). Backed by `/api/claims/{id}/links`.
+    @discardableResult
+    func createClaimLink(
+        claimId: String,
+        relatedClaimId: String,
+        relationType: Components.Schemas.ClaimRelationType,
+        linkQuality: Double? = nil,
+        evidence: String? = nil
+    ) async throws -> Components.Schemas.KnowledgeClaimLink {
+        let body = Components.Schemas.ClaimLinkCreateRequest(
+            relatedClaimId: relatedClaimId,
+            relationType: relationType,
+            linkQuality: linkQuality,
+            evidence: evidence
+        )
+        let response = try await client.api.createClaimLinkApiClaimsClaimIdLinksPost(
+            path: .init(claimId: claimId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(body)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     /// Generate cheap candidate links via embedding similarity. Requires
     /// claims to have been embedded first via the claim-search embed
     /// endpoint. Backed by `/api/kg/predictions/heuristic`.
