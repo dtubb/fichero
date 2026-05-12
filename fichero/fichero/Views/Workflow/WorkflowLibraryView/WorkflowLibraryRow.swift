@@ -23,10 +23,13 @@ struct WorkflowLibraryRow: View {
                 }
 
                 if let desc = workflow.description, !desc.isEmpty {
+                    // Wrap to as many lines as the description needs — was
+                    // truncating at 2 lines + ellipsis, which clipped useful
+                    // detail (#931). \`fixedSize(vertical: true)\` lets the row
+                    // grow to fit the wrapped text instead of compressing it.
                     Text(desc)
                         .font(.caption)
                         .foregroundColor(.secondary)
-                        .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
