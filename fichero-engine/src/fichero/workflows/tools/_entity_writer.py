@@ -125,6 +125,10 @@ def upsert_entity(
     # Stage 2: embedding cosine. Lazy-imports the model on first call;
     # subsequent calls are free. Failures fall through to stage 3.
     matched: Optional[KnowledgeEntity] = None
+    # _pending_review: (survivor_id, score, survivor_name) when we hit
+    # the review band; consumed AFTER stage 4 creates the new entity
+    # so the EntityMatchCandidate row references a real candidate id.
+    _pending_review: Optional[tuple[str, float, str]] = None
     try:
         from fichero.kg import entity_vectors
 
@@ -145,15 +149,17 @@ def upsert_entity(
                         canonical_name, best_id, best_name, best_score,
                     )
             elif best_score >= entity_vectors.REVIEW_THRESHOLD:
-                # Mid-band: surface for future curation UI (#377).
-                # Don't auto-merge — that's the risky region where
-                # false positives would silently collapse distinct
-                # entities. Log so the decision is traceable.
+                # Mid-band: surface for the human review queue (#377 /
+                # #899 Phase D). We DON'T auto-merge here — false
+                # positives would silently collapse distinct entities.
+                # Defer the EntityMatchCandidate write until after we
+                # know the new entity's id (stage 4 below).
                 logger.info(
                     "upsert_entity: embedding flagged-for-review "
-                    "%r ~ %s (%r, cosine=%.3f) — kept distinct",
+                    "%r ~ %s (%r, cosine=%.3f) — queued for human review",
                     canonical_name, best_id, best_name, best_score,
                 )
+                _pending_review = (best_id, best_score, best_name)
     except Exception as exc:
         # Vector backend unhealthy — don't take down the catalogue.
         logger.warning("upsert_entity: embedding stage failed: %s", exc)
@@ -215,6 +221,34 @@ def upsert_entity(
         )
     except Exception as exc:
         logger.warning("upsert_entity: failed to index new entity vector: %s", exc)
+
+    # Stage 5: write the EntityMatchCandidate row when stage 2 hit the
+    # review band. The survivor is the existing entity (higher claim
+    # count typically, definitely the older one); the candidate is the
+    # newly-created entity. Reviewer decides later via the review
+    # queue API. (#899 Phase D / #377)
+    if _pending_review is not None:
+        survivor_id, score, survivor_name = _pending_review
+        try:
+            from fichero.knowledge_models import (
+                EntityMatchCandidate,
+                PendingMatchMethod,
+                PendingMatchState,
+            )
+            db.save(EntityMatchCandidate(
+                survivor_entity_id=survivor_id,
+                candidate_entity_id=entity.id,
+                score=float(score),
+                method=PendingMatchMethod.embedding_cosine,
+                state=PendingMatchState.pending,
+                reason=(
+                    f"embedding cosine {score:.3f} between "
+                    f"{canonical_name!r} and {survivor_name!r}"
+                ),
+            ))
+        except Exception as exc:
+            logger.warning("upsert_entity: failed to queue review candidate: %s", exc)
+
     return entity.id
 
 

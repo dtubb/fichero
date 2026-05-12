@@ -366,6 +366,64 @@ class EntityMergeAudit(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class PendingMatchState(str, Enum):
+    """Lifecycle state of an EntityMatchCandidate."""
+    pending = "pending"
+    accepted = "accepted"  # human merged
+    rejected = "rejected"  # human said "definitely different" — labelled negative
+
+
+class PendingMatchMethod(str, Enum):
+    """Which detector flagged this candidate pair."""
+    embedding_cosine = "embedding_cosine"
+    splink = "splink"
+    manual = "manual"
+
+
+class EntityMatchCandidate(BaseModel):
+    """A pair of entities the system suspects might be the same, waiting
+    on a human review-gate decision (#899 Phase D / #377).
+
+    Created by ``upsert_entity`` when a fuzzy match falls in the
+    review band (cosine 0.75-0.92 today). The reviewer accepts
+    (merges survivor + candidate) or rejects (labelled negative,
+    feeds splink/PyKEEN training).
+
+    Decisions live on this row; the actual merge writes an
+    ``EntityMergeAudit`` for the reversible history. Splitting
+    review state from merge state lets us re-suggest the same pair
+    if a user later edits one of the entities significantly.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    survivor_entity_id: str = Field(
+        description="The entity that survives on accept — typically the older / more-claimed one."
+    )
+    candidate_entity_id: str = Field(
+        description="The entity that absorbs into the survivor on accept."
+    )
+    score: float = Field(
+        ge=0.0, le=1.0,
+        description="Calibrated probability or cosine similarity in [0, 1].",
+    )
+    method: PendingMatchMethod = PendingMatchMethod.embedding_cosine
+    state: PendingMatchState = PendingMatchState.pending
+    reason: str | None = Field(
+        default=None,
+        description=(
+            "Optional human-readable explanation of why the pair was "
+            "flagged — useful when reviewing later. Examples: 'name "
+            "token-set similarity 0.82', 'embedded description "
+            "cosine 0.88'."
+        ),
+    )
+    decided_by: str | None = None
+    decided_at: datetime | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class MutationOperationType(str, Enum):
     create = "create"
     update = "update"
