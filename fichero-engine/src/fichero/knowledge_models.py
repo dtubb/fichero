@@ -754,6 +754,33 @@ class KnowledgeClaim(BaseModel):
     # claims where the substring search fails.
     source_char_start: int | None = None
     source_char_end: int | None = None
+    # --- Toulmin argument structure (#907) — populated only for ---
+    # --- claim_type in {analysis, argument, interpretation, theory} ---
+    # Fact claims stay flat (just text + SVO). Analytic claims gain the
+    # six Toulmin slots: grounds (evidence), warrant (rule linking
+    # grounds → claim), backing (support for warrant), qualifier
+    # (presumably / usually), rebuttal (known counter).
+    # All nullable so existing claims and fact claims survive.
+    grounds: str | None = Field(
+        default=None,
+        description="Evidence: 'the heirs filed in 1933'.",
+    )
+    warrant: str | None = Field(
+        default=None,
+        description="Rule connecting grounds → claim.",
+    )
+    backing: str | None = Field(
+        default=None,
+        description="Support for the warrant — why the rule holds.",
+    )
+    qualifier: str | None = Field(
+        default=None,
+        description="'presumably' / 'usually' / 'in most cases'.",
+    )
+    rebuttal: str | None = Field(
+        default=None,
+        description="Known exception / counter-evidence.",
+    )
     # --- temporal scope (#904) — when did this claim's content happen? ---
     # Distinct from created_at (when the claim was extracted). Lets the
     # inspector / SPARQL surface answer "what happened in 1933?"
