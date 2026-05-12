@@ -73,13 +73,16 @@ struct OntologyBrowser: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            toolbar
-            Divider()
-            HSplitView {
+        // Toolbar moved INSIDE the entity list pane (#964) so it scopes
+        // to the list only — was previously spanning across both panes
+        // including the detail / preview area on the right.
+        HSplitView {
+            VStack(spacing: 0) {
+                toolbar
+                Divider()
                 entityListSidebar
-                entityDetailPanel
             }
+            entityDetailPanel
         }
         .frame(minWidth: 300, minHeight: 200)
         .sheet(item: Binding(
@@ -120,7 +123,7 @@ struct OntologyBrowser: View {
                 Task { await deleteEntity(entity) }
             }
             Button("Cancel", role: .cancel) { entityPendingDeletion = nil }
-        } message: { entity in
+        } message: { _ in
             Text("The entity will be removed along with any claims that reference it (#901).")
         }
     }
@@ -210,15 +213,15 @@ struct OntologyBrowser: View {
 
     private func runEmbedClaims() async {
         await runTool(label: "Embedding claims") { service in
-            let n = try await service.embedClaims()
-            return "\(n) claims embedded"
+            let count = try await service.embedClaims()
+            return "\(count) claims embedded"
         }
     }
 
     private func runEmbedEntities() async {
         await runTool(label: "Embedding entities") { service in
-            let n = try await service.embedEntities()
-            return "\(n) entities embedded"
+            let count = try await service.embedEntities()
+            return "\(count) entities embedded"
         }
     }
 
@@ -443,7 +446,12 @@ struct OntologyBrowser: View {
                     claims: entityClaims,
                     isLoadingClaims: isLoadingClaims
                 )
-                .task {
+                // `.task(id: entityId)` re-keys on selection change so
+                // each entity's claims re-fetch — was previously a bare
+                // `.task` that only fired on first appear, leaving the
+                // claim list stuck on the first entity's claims even as
+                // the header updated. (#965)
+                .task(id: entityId) {
                     await loadEntityClaims(id: entityId)
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .ficheroClaimDeleted)) { _ in
