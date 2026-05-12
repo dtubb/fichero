@@ -90,6 +90,13 @@ struct OntologyBrowser: View {
                 pendingPredictions = nil
             }
         }
+        .sheet(isPresented: $showCreateSheet) {
+            NewEntitySheet { newEntity in
+                entities.insert(newEntity, at: 0)
+                selectedEntityId = newEntity.id
+                showCreateSheet = false
+            }
+        }
     }
 
     // MARK: - Top Toolbar (matches MiniToolbar pattern used elsewhere)
@@ -108,6 +115,13 @@ struct OntologyBrowser: View {
                     .foregroundStyle(.secondary)
                     .transition(.opacity)
             }
+            Button {
+                showCreateSheet = true
+            } label: {
+                Image(systemName: "plus")
+            }
+            .buttonStyle(.plain)
+            .help("New entity (#916)")
             toolsMenu
             filterMenu
             Button {
@@ -168,6 +182,7 @@ struct OntologyBrowser: View {
     }
 
     @State private var pendingPredictions: Components.Schemas.HeuristicPredictionsResponse?
+    @State private var showCreateSheet = false
 
     private func runHeuristicPredictions() async {
         guard let library = LibraryManager.shared.globalLibrary else { return }
@@ -544,6 +559,120 @@ struct HeuristicReviewSheet: View {
             status = "Linked \(pred.sourceClaimId) ↔ \(pred.targetClaimId)"
         } catch {
             status = "Failed: \(error.localizedDescription)"
+        }
+    }
+}
+
+// MARK: - New Entity Sheet (#916)
+
+/// Simple form to manually create a KnowledgeEntity — fills the gap
+/// where everything in the KG today comes from extractors. Backed by
+/// `EntityServiceGenerated.upsertEntity`. Calls `onCreated` with the
+/// new entity so the browser can append + select it.
+struct NewEntitySheet: View {
+    var onCreated: (Components.Schemas.KnowledgeEntity) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var canonicalName: String = ""
+    @State private var entityType: String = "person"
+    @State private var aliasesText: String = ""
+    @State private var isSaving: Bool = false
+    @State private var errorText: String?
+
+    private let kinds: [(key: String, label: String)] = [
+        ("person", "Person"),
+        ("location", "Place"),
+        ("organization", "Organization"),
+        ("event", "Event"),
+        ("concept", "Concept"),
+        ("other", "Other")
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("New Entity").font(.headline)
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+            }
+            .padding()
+            Divider()
+            form
+            Spacer()
+            footer
+        }
+        .frame(width: 420, height: 320)
+    }
+
+    private var form: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Canonical name")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("e.g. Eugenio Córdoba", text: $canonicalName)
+                .textFieldStyle(.roundedBorder)
+
+            Text("Type")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Picker("", selection: $entityType) {
+                ForEach(kinds, id: \.key) { kind in
+                    Text(kind.label).tag(kind.key)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            Text("Aliases (one per line)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextEditor(text: $aliasesText)
+                .frame(minHeight: 60)
+                .border(Color.gray.opacity(0.2))
+        }
+        .padding()
+    }
+
+    private var footer: some View {
+        HStack {
+            if let errorText = errorText {
+                Text(errorText)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .lineLimit(2)
+            }
+            Spacer()
+            Button("Create", action: save)
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+                .disabled(canonicalName.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
+        }
+        .padding()
+    }
+
+    private func save() {
+        guard let library = LibraryManager.shared.globalLibrary else { return }
+        isSaving = true
+        errorText = nil
+        let name = canonicalName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let aliases = aliasesText
+            .split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        Task {
+            do {
+                let created = try await library.entityService.upsertEntity(
+                    name: name,
+                    entityType: entityType,
+                    aliases: aliases
+                )
+                onCreated(created)
+                dismiss()
+            } catch {
+                errorText = error.localizedDescription
+            }
+            isSaving = false
         }
     }
 }

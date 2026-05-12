@@ -614,6 +614,35 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    /// Create or update a KnowledgeEntity manually (user-driven CRUD
+    /// path for #916). Backed by `POST /api/entities`.
+    @discardableResult
+    func upsertEntity(
+        name: String,
+        entityType: String? = nil,
+        aliases: [String] = []
+    ) async throws -> Components.Schemas.KnowledgeEntity {
+        let typeEnum = entityType.flatMap {
+            Components.Schemas.FicheroKnowledgeModelsEntityType(rawValue: $0)
+        }
+        var body = Components.Schemas.EntityUpsertRequest(canonicalName: name)
+        body.entityType = typeEnum
+        body.aliases = aliases.isEmpty ? nil : aliases
+        let response = try await client.api.upsertEntityApiEntitiesPost(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(body)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     /// Create a typed claim ↔ claim relationship (supports / refines /
     /// contradicts / related_to). Backed by `/api/claims/{id}/links`.
     @discardableResult

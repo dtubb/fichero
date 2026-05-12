@@ -227,12 +227,17 @@ extension LibraryView {
     /// Map KG EntityType raw values to the lozenge-scope tokens used by
     /// MailStyleRow / ArtifactEntitiesView (#882). Dates have no KG
     /// counterpart and stay on a Library-only toggle.
-    private static let kgKindToLozenge: [(kind: String, scope: String, label: String)] = [
-        ("person", "people", "People"),
-        ("location", "places", "Places"),
-        ("organization", "organizations", "Organizations"),
-        ("event", "events", "Events"),
-        ("concept", "keywords", "Keywords"),
+    struct KgKindMapping {
+        let kind: String
+        let scope: String
+        let label: String
+    }
+    private static let kgKindToLozenge: [KgKindMapping] = [
+        KgKindMapping(kind: "person", scope: "people", label: "People"),
+        KgKindMapping(kind: "location", scope: "places", label: "Places"),
+        KgKindMapping(kind: "organization", scope: "organizations", label: "Organizations"),
+        KgKindMapping(kind: "event", scope: "events", label: "Events"),
+        KgKindMapping(kind: "concept", scope: "keywords", label: "Keywords")
     ]
 
     /// Set of entity-type ids the user wants visible in list rows.
