@@ -277,6 +277,66 @@ def _normalize_for_vision(
         return (image_path, None)
 
 
+def _try_pdf_text_layer(
+    pdf_path: str,
+    min_chars_per_page: int = 20,
+) -> list[str] | None:
+    """Extract per-page text from a PDF's embedded text layer.
+
+    Returns a list of page texts when the PDF has a usable text layer,
+    or None when extraction fails / produces empty / degenerate output
+    (sign that the PDF is scanned + needs OCR).
+
+    Per-page threshold: a page is considered to have a usable layer
+    when its extracted text has at least `min_chars_per_page` non-space
+    characters. We require every page to clear the bar — a single
+    empty page in a born-digital PDF (chapter break, blank verso) is
+    fine but a single page of text in an otherwise-scanned PDF means
+    we should still run OCR over the whole thing for consistency.
+
+    (#957 — born-digital PDFs were being run through Apple Vision OCR
+    unnecessarily, costing ~1.5s/page and producing noisier output
+    than the embedded text would.)
+    """
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        logger.warning("PyMuPDF not installed; cannot check PDF text layer")
+        return None
+
+    try:
+        doc = fitz.open(pdf_path)
+    except Exception as exc:
+        logger.warning("PyMuPDF could not open %s: %s", pdf_path, exc)
+        return None
+
+    try:
+        per_page: list[str] = []
+        for page in doc:
+            try:
+                text = page.get_text("text") or ""
+            except Exception:
+                text = ""
+            per_page.append(text)
+    finally:
+        doc.close()
+
+    # Every non-empty page should clear the threshold. A page with NO
+    # text (blank verso) is fine — we just skip the threshold check
+    # for it. But if EVERY page returns empty, the PDF is scanned.
+    non_empty = [t for t in per_page if t.strip()]
+    if not non_empty:
+        return None
+    if any(
+        t.strip() and len(t.replace(" ", "").replace("\n", "")) < min_chars_per_page
+        for t in per_page
+    ):
+        # At least one page has too-short text → mixed PDF (some pages
+        # text, some scanned). Bail to OCR for uniformity.
+        return None
+    return per_page
+
+
 def apple_vision_ocr(image_path: str, language: str = "en") -> str:
     """Extract text from image or PDF using macOS Vision framework.
 
@@ -973,9 +1033,24 @@ async def process_vision(
             if vision_mode == "apple" and tool_config.supports_apple_vision:
                 logger.info(f"Apple Vision: {Path(file_path).name}")
                 if file_path.lower().endswith(".pdf"):
-                    # OCR page-by-page so we can propagate per-page content
-                    # to page child documents after saving the parent artifact.
-                    per_page_texts = await apple_vision_ocr_pages_async(file_path, language)
+                    # #957 — Short-circuit Apple Vision OCR when the PDF
+                    # already has an embedded text layer. Born-digital
+                    # PDFs (InDesign exports, LaTeX, Word→PDF) all have
+                    # selectable text; running Vision on them is wasted
+                    # compute (~1.5s/page) and produces noisier output
+                    # than the native text. Only fall through to OCR
+                    # when extraction yields nothing meaningful.
+                    per_page_texts = _try_pdf_text_layer(file_path)
+                    if per_page_texts is None:
+                        # OCR page-by-page so we can propagate per-page content
+                        # to page child documents after saving the parent artifact.
+                        per_page_texts = await apple_vision_ocr_pages_async(file_path, language)
+                    else:
+                        logger.info(
+                            "PDF text layer present — skipped Apple Vision "
+                            "OCR for %s (%d pages)",
+                            Path(file_path).name, len(per_page_texts),
+                        )
                     parts = []
                     for i, t in enumerate(per_page_texts):
                         if t:
