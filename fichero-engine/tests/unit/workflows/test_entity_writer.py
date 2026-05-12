@@ -141,6 +141,120 @@ class TestFuzzyEntityMatch:
         assert a != b
 
 
+class TestEmbeddingMatch:
+    """#899 Phase B — sentence-transformer embeddings in LanceDB drive
+    the fuzzy-match fallback. Catches semantic divergence in noun
+    phrases that pure SequenceMatcher misses.
+
+    These tests need the fastembed model downloaded (~220MB) on the
+    first run. Subsequent runs are cache hits.
+    """
+
+    def test_new_entity_gets_indexed_in_lancedb(self, db):
+        from fichero.kg import entity_vectors
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        description = "The heirs filed the original mining petition."
+        entity_id = upsert_entity(
+            db,
+            canonical_name="Filing of the Petition",
+            entity_type=EntityType.event,
+            description=description,
+        )
+        # Pass the same description on the query — the indexed vector
+        # is encoded from name + description, so an exact match on
+        # both lands at ~1.0 cosine. Querying with only the name
+        # would still be findable (~0.7) but the strict assertion is
+        # for the indexing-roundtrip, not partial-text recall.
+        hits = entity_vectors.find_similar(
+            db=db,
+            canonical_name="Filing of the Petition",
+            entity_type=EntityType.event,
+            description=description,
+            top_k=1,
+        )
+        assert hits, "expected the newly-indexed entity to be findable"
+        assert hits[0][0] == entity_id
+        assert hits[0][1] > 0.99, "exact text → near-1.0 cosine"
+
+    def test_semantic_divergence_collapses_at_high_cosine(self, db):
+        """The #897 follow-up: titles that share the underlying claim
+        but diverge in surface noun phrase should still collapse via
+        embedding similarity.
+
+        "Narrator's Account of Racial Economic Exclusion" should
+        embed close to "Narrator's Monologue on Race and Economic
+        Marginalization" — both describe the same conceptual scene.
+        """
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        first_id = upsert_entity(
+            db,
+            canonical_name="Narrator's Account of Racial Economic Exclusion",
+            entity_type=EntityType.event,
+            description="A Black narrator describes systemic exclusion from stable employment.",
+        )
+        second_id = upsert_entity(
+            db,
+            canonical_name="Narrator's Monologue on Race and Economic Marginalization",
+            entity_type=EntityType.event,
+            description="A Black narrator describes systemic exclusion from stable employment.",
+        )
+        # Same description → embedding cosine should be high enough to
+        # cross the AUTO_MERGE_THRESHOLD even with divergent titles.
+        assert first_id == second_id
+
+    def test_genuinely_distinct_events_stay_separate_under_embeddings(self, db):
+        """The dual obligation: don't auto-merge events that are
+        actually distinct. "Filing of the Petition" and "Sale of the
+        Estate" share no semantic content beyond being events; cosine
+        should fall well below the auto-merge threshold."""
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        a = upsert_entity(
+            db,
+            canonical_name="Filing of the Petition",
+            entity_type=EntityType.event,
+            description="The heirs filed a mining petition with the Constitutional Court.",
+        )
+        b = upsert_entity(
+            db,
+            canonical_name="Sale of the Estate",
+            entity_type=EntityType.event,
+            description="The estate was sold at public auction.",
+        )
+        assert a != b
+
+    def test_vector_refreshes_on_alias_merge(self, db):
+        """When upsert_entity folds a new surface form into an existing
+        entity, the LanceDB vector should refresh so future matches
+        see the latest description. Locks the contract that the
+        merge path calls index_entity again."""
+        from fichero.kg import entity_vectors
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        entity_id = upsert_entity(
+            db,
+            canonical_name="Eugenio Córdoba",
+            entity_type=EntityType.person,
+            description="alcalde",
+        )
+        # Trigger a merge via the SequenceMatcher fallback (no accent).
+        merged_id = upsert_entity(
+            db,
+            canonical_name="Eugenio Cordoba",
+            entity_type=EntityType.person,
+        )
+        assert entity_id == merged_id
+        hits = entity_vectors.find_similar(
+            db=db,
+            canonical_name="Eugenio Córdoba",
+            entity_type=EntityType.person,
+            top_k=1,
+        )
+        assert hits and hits[0][0] == entity_id
+
+
 class TestSaveClaim:
     def test_creates_claim_with_entity_links(self, db):
         from fichero.workflows.tools._entity_writer import upsert_entity, save_claim

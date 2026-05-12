@@ -93,17 +93,26 @@ def upsert_entity(
 ) -> str:
     """Look up entity by ``(canonical_name, entity_type)``; create if missing.
 
-    Two-stage match (#897):
+    Three-stage match (#897 → #899 Phase B):
     1. Exact ``(canonical_name, entity_type)`` lookup — covers stable
        names like "Eugenio Córdoba" repeated across pages.
-    2. Fuzzy fallback over all entities of the same type — catches LLM
-       rephrasings of the same recurring scene as N event entities, plus
-       accent/case drift. When a fuzzy match hits, the new ``canonical_name``
-       and ``aliases`` fold into the existing entity's ``aliases``
-       (preserving surface-form evidence) and we reuse its id.
+    2. **Embedding cosine** via LanceDB (`kg.entity_vectors`) over
+       same-type entities. Catches semantic divergence in noun
+       phrases ("Racial Economic Exclusion" vs "Race and Economic
+       Marginalization") that pure SequenceMatcher misses. Cosine
+       >= 0.92 → auto-merge; 0.75–0.92 → logged for future review
+       gate (#377); <0.75 → fall through.
+    3. SequenceMatcher fallback for the case where vectors aren't
+       available yet (table empty, model failed to load, etc.). Keeps
+       the 0.0.2 behaviour as a floor.
 
-    Returns the entity ID. Still idempotent on the exact path; the
-    fuzzy path is the new contract.
+    On a successful merge (#2 or #3), the new ``canonical_name`` and
+    ``aliases`` fold into the existing entity's ``aliases``. On a
+    create, the new entity is indexed in LanceDB so future lookups
+    can find it.
+
+    Returns the entity ID. Idempotent on the exact path; the fuzzy
+    paths preserve surface-form evidence via the aliases list.
     """
     existing = db.query(
         KnowledgeEntity,
@@ -113,12 +122,54 @@ def upsert_entity(
     if existing:
         return existing[0].id
 
-    # Fuzzy fallback. Scope: all entities of this type. Could be tightened
-    # to "same source document" if cross-doc bleed becomes a problem, but
-    # the cross-doc consolidation is actually a feature for the KG: one
-    # Davidson across the whole library.
-    same_type = db.query(KnowledgeEntity, entity_type=entity_type)
-    matched = _fuzzy_match_existing(same_type, canonical_name)
+    # Stage 2: embedding cosine. Lazy-imports the model on first call;
+    # subsequent calls are free. Failures fall through to stage 3.
+    matched: Optional[KnowledgeEntity] = None
+    try:
+        from fichero.kg import entity_vectors
+
+        hits = entity_vectors.find_similar(
+            db=db,
+            canonical_name=canonical_name,
+            entity_type=entity_type,
+            description=description,
+            top_k=3,
+        )
+        if hits:
+            best_id, best_score, best_name = hits[0]
+            if best_score >= entity_vectors.AUTO_MERGE_THRESHOLD:
+                matched = db.get(KnowledgeEntity, best_id)
+                if matched is not None:
+                    logger.info(
+                        "upsert_entity: embedding auto-merge %r → %s (%r, cosine=%.3f)",
+                        canonical_name, best_id, best_name, best_score,
+                    )
+            elif best_score >= entity_vectors.REVIEW_THRESHOLD:
+                # Mid-band: surface for future curation UI (#377).
+                # Don't auto-merge — that's the risky region where
+                # false positives would silently collapse distinct
+                # entities. Log so the decision is traceable.
+                logger.info(
+                    "upsert_entity: embedding flagged-for-review "
+                    "%r ~ %s (%r, cosine=%.3f) — kept distinct",
+                    canonical_name, best_id, best_name, best_score,
+                )
+    except Exception as exc:
+        # Vector backend unhealthy — don't take down the catalogue.
+        logger.warning("upsert_entity: embedding stage failed: %s", exc)
+
+    # Stage 3: SequenceMatcher floor. Only run when embeddings didn't
+    # decide a merge; mirrors the 0.0.2 behaviour as a safety net.
+    if matched is None:
+        same_type = db.query(KnowledgeEntity, entity_type=entity_type)
+        matched = _fuzzy_match_existing(same_type, canonical_name)
+        if matched is not None:
+            logger.info(
+                "upsert_entity: SequenceMatcher fallback merged "
+                "%r → %s (%r)",
+                canonical_name, matched.id, matched.canonical_name,
+            )
+
     if matched is not None:
         # Fold the new surface form + aliases into the existing entity.
         existing_aliases = set(matched.aliases or [])
@@ -127,12 +178,24 @@ def upsert_entity(
             existing_aliases.add(alias)
         matched.aliases = sorted(existing_aliases - {matched.canonical_name})
         db.save(matched)
-        logger.info(
-            "upsert_entity: fuzzy-matched %r → existing entity %s (%r); folded aliases",
-            canonical_name, matched.id, matched.canonical_name,
-        )
+        # Refresh the vector to reflect the new alias set — the
+        # encoded description grows with each merged occurrence so
+        # future matches keep improving.
+        try:
+            from fichero.kg import entity_vectors
+
+            entity_vectors.index_entity(
+                db=db,
+                entity_id=matched.id,
+                entity_type=entity_type,
+                canonical_name=matched.canonical_name,
+                description=matched.description,
+            )
+        except Exception:
+            pass
         return matched.id
 
+    # Stage 4: create a brand-new entity + index its vector.
     entity = KnowledgeEntity(
         canonical_name=canonical_name,
         entity_type=entity_type,
@@ -140,6 +203,18 @@ def upsert_entity(
         description=description,
     )
     db.save(entity)
+    try:
+        from fichero.kg import entity_vectors
+
+        entity_vectors.index_entity(
+            db=db,
+            entity_id=entity.id,
+            entity_type=entity_type,
+            canonical_name=canonical_name,
+            description=description,
+        )
+    except Exception as exc:
+        logger.warning("upsert_entity: failed to index new entity vector: %s", exc)
     return entity.id
 
 
