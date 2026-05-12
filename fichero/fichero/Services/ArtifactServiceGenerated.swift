@@ -467,8 +467,8 @@ final class EntityServiceGenerated: ObservableObject {
             headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
-        case .ok(let ok):
-            return try ok.body.json
+        case .ok(let okResponse):
+            return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
@@ -489,8 +489,8 @@ final class EntityServiceGenerated: ObservableObject {
             headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
-        case .ok(let ok):
-            return try ok.body.json
+        case .ok(let okResponse):
+            return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
@@ -518,8 +518,8 @@ final class EntityServiceGenerated: ObservableObject {
             body: .json(body)
         )
         switch response {
-        case .ok(let ok):
-            return try ok.body.json
+        case .ok(let okResponse):
+            return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
@@ -545,8 +545,8 @@ final class EntityServiceGenerated: ObservableObject {
             body: .json(body)
         )
         switch response {
-        case .ok(let ok):
-            return try ok.body.json
+        case .ok(let okResponse):
+            return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
@@ -566,8 +566,46 @@ final class EntityServiceGenerated: ObservableObject {
             headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
-        case .ok(let ok):
-            return try ok.body.json
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    /// Index all claims in LanceDB for semantic search + heuristic
+    /// predictions. Returns the number of vectors written.
+    /// Backed by `/api/kg/claim-search/embed`.
+    @discardableResult
+    func embedClaims() async throws -> Int {
+        let response = try await client.api.embedClaimsApiKgClaimSearchEmbedPost(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.embedded
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    /// Index all entities (canonical names + aliases) for semantic
+    /// search. Returns the number of vectors written.
+    /// Backed by `/api/kg/entity-curation/semantic/embed`.
+    @discardableResult
+    func embedEntities() async throws -> Int {
+        let response = try await client.api.embedEntitiesApiKgEntityCurationSemanticEmbedPost(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.embedded
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
@@ -589,8 +627,8 @@ final class EntityServiceGenerated: ObservableObject {
             body: .json(body)
         )
         switch response {
-        case .ok(let ok):
-            return try ok.body.json
+        case .ok(let okResponse):
+            return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")

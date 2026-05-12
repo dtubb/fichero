@@ -8,6 +8,13 @@ struct EntityDetailView: View {
     let claims: [Components.Schemas.KnowledgeClaim]
     let isLoadingClaims: Bool
 
+    /// Curation audit log for this entity — populated lazily from
+    /// `/api/kg/entity-curation/audit?entity_id=…`. Each row is a
+    /// reversible merge/split operation. Empty list = no curation has
+    /// happened yet (the common case until a reviewer touches the entity).
+    @State private var audits: [Components.Schemas.EntityAuditResponse] = []
+    @State private var isLoadingAudits: Bool = false
+
     /// CSV of hidden EpistemicStatus raw values. Shared with the rest
     /// of the KG views so a setting in one place persists everywhere
     /// (peer to inspector.kg.hiddenKinds). (#892/#893)
@@ -61,8 +68,101 @@ struct EntityDetailView: View {
                 headerSection
                 aliasesSection
                 claimsSection
+                auditSection
             }
             .padding()
+        }
+        .task(id: entity.id) {
+            await loadAudits()
+        }
+    }
+
+    /// Curation history surfaced from /api/kg/entity-curation/audit.
+    /// Only renders when there's a history — keeps the panel tight for
+    /// the 95% case where the entity hasn't been merged/split yet.
+    @ViewBuilder
+    private var auditSection: some View {
+        if isLoadingAudits {
+            HStack {
+                ProgressView().scaleEffect(0.7)
+                Text("Loading curation history…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal)
+        } else if !audits.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Curation History")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                ForEach(audits, id: \.id) { audit in
+                    auditRow(audit)
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    private func auditRow(_ audit: Components.Schemas.EntityAuditResponse) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: auditIcon(audit.operationType))
+                .foregroundStyle(auditTint(audit.operationType))
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(auditLabel(audit))
+                    .font(.caption)
+                Text(audit.createdAt, style: .relative)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            Text(audit.createdBy)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func auditIcon(_ op: Components.Schemas.EntityMergeOperationType) -> String {
+        switch op {
+        case .merge: return "arrow.triangle.merge"
+        case .split: return "arrow.triangle.branch"
+        case .undoMerge, .undoSplit: return "arrow.uturn.backward.circle"
+        }
+    }
+
+    private func auditTint(_ op: Components.Schemas.EntityMergeOperationType) -> Color {
+        switch op {
+        case .merge: return .blue
+        case .split: return .orange
+        case .undoMerge, .undoSplit: return .gray
+        }
+    }
+
+    private func auditLabel(_ audit: Components.Schemas.EntityAuditResponse) -> String {
+        switch audit.operationType {
+        case .merge:
+            return "Absorbed \(audit.sourceEntityIds.count) entity\(audit.sourceEntityIds.count == 1 ? "" : "s")"
+        case .split:
+            return "Split off \(audit.sourceEntityIds.count) entity\(audit.sourceEntityIds.count == 1 ? "" : "s")"
+        case .undoMerge:
+            return "Undid earlier merge"
+        case .undoSplit:
+            return "Undid earlier split"
+        }
+    }
+
+    private func loadAudits() async {
+        guard let library = LibraryManager.shared.globalLibrary else { return }
+        isLoadingAudits = true
+        defer { isLoadingAudits = false }
+        do {
+            audits = try await library.entityService.listEntityAudits(entityId: entity.id, limit: 25)
+        } catch {
+            audits = []
         }
     }
 

@@ -94,6 +94,13 @@ struct OntologyBrowser: View {
                 .font(.headline)
                 .foregroundStyle(.primary)
             Spacer(minLength: 0)
+            if let status = toolStatus {
+                Text(status)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .transition(.opacity)
+            }
+            toolsMenu
             filterMenu
             Button {
                 Task { await loadEntities() }
@@ -103,6 +110,77 @@ struct OntologyBrowser: View {
             .buttonStyle(.plain)
             .help("Reload entities")
         }
+    }
+
+    @State private var toolStatus: String?
+
+    /// "Tools" menu — surfaces the post-consolidation /api/kg/* surfaces:
+    /// claim+entity embedding and heuristic prediction generation. Each
+    /// action runs in a Task and updates `toolStatus` so the user sees
+    /// progress in the toolbar without a modal. (#919 5c)
+    private var toolsMenu: some View {
+        Menu {
+            Button {
+                Task { await runEmbedClaims() }
+            } label: {
+                Label("Embed claims for semantic search", systemImage: "doc.text.magnifyingglass")
+            }
+            Button {
+                Task { await runEmbedEntities() }
+            } label: {
+                Label("Embed entities for semantic search", systemImage: "magnifyingglass.circle")
+            }
+            Divider()
+            Button {
+                Task { await runHeuristicPredictions() }
+            } label: {
+                Label("Generate suggested links (heuristic)", systemImage: "wand.and.stars")
+            }
+        } label: {
+            Image(systemName: "wrench.and.screwdriver")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Knowledge graph tools")
+    }
+
+    private func runEmbedClaims() async {
+        await runTool(label: "Embedding claims") { service in
+            let n = try await service.embedClaims()
+            return "\(n) claims embedded"
+        }
+    }
+
+    private func runEmbedEntities() async {
+        await runTool(label: "Embedding entities") { service in
+            let n = try await service.embedEntities()
+            return "\(n) entities embedded"
+        }
+    }
+
+    private func runHeuristicPredictions() async {
+        await runTool(label: "Generating suggestions") { service in
+            let res = try await service.generateHeuristicPredictions(topK: 10)
+            return "\(res.predictions.count) suggested links"
+        }
+    }
+
+    private func runTool(
+        label: String,
+        action: @escaping (EntityServiceGenerated) async throws -> String
+    ) async {
+        guard let library = LibraryManager.shared.globalLibrary else { return }
+        toolStatus = "\(label)…"
+        do {
+            let result = try await action(library.entityService)
+            toolStatus = result
+        } catch {
+            toolStatus = "Failed: \(error.localizedDescription)"
+        }
+        // Clear status after a few seconds so the toolbar settles.
+        try? await Task.sleep(nanoseconds: 4_000_000_000)
+        toolStatus = nil
     }
 
     /// Filter menu — Tinderbox-style 'displayed attributes' picker,
