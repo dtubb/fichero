@@ -392,14 +392,13 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
         }
-        // Sizing: the AttributedTextEditor (NSTextView) has no SwiftUI
-        // intrinsic height. Without a min, expanding a panel collapses
-        // its content to 0pt and the panel becomes a header-only sliver
-        // (Daniel feedback 2026-05-05: "the height was 0"). We give it a
-        // sensible expanded floor (~5 visible lines) and let the editor
-        // grow taller when content needs more room. Collapsed panels
-        // have no frame and shrink to header height (~30 px).
-        .frame(minHeight: isExpanded ? 120 : nil)
+        // Sizing: AttributedTextEditor now reports its layoutManager-used
+        // height via sizeThatFits, so an expanded panel matches its actual
+        // content. We keep a small min so empty editors don't collapse to
+        // a sliver (Daniel 2026-05-05: "the height was 0"); long artifacts
+        // grow naturally and the outer ScrollView handles overflow (#960).
+        // Collapsed panels have no frame and shrink to header height (~30 px).
+        .frame(minHeight: isExpanded ? 60 : nil)
         .onChange(of: isExpanded) { _, newValue in
             // Persist the user's choice so it carries across documents
             // and across app launches. See `storageKey(for:)` for keying.
@@ -510,7 +509,11 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
                 marginTrailing: 0,
                 controller: richTextController
             )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Width stretches; height comes from AttributedTextEditor's
+            // sizeThatFits (its layoutManager.usedRect). No maxHeight here:
+            // letting it claim .infinity inside the outer ScrollView made
+            // every expanded panel fill the viewport (#960).
+            .frame(maxWidth: .infinity)
             .background(Color(.textBackgroundColor))
             .cornerRadius(4)
             if let saveError {

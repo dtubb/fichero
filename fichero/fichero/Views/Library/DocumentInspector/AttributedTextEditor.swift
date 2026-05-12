@@ -142,6 +142,39 @@ struct AttributedTextEditor: NSViewRepresentable {
         return scrollView
     }
 
+    /// Report the editor's natural layout height to SwiftUI so the parent
+    /// panel sizes to actual content instead of filling the outer ScrollView
+    /// viewport. Fixes #960: without this, NSViewRepresentable has no
+    /// intrinsic vertical size, the panel's .frame(maxHeight: .infinity)
+    /// took every available pt, and the outer ScrollView ended up with one
+    /// panel per screen regardless of content length.
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        nsView: NSScrollView,
+        context: Context
+    ) -> CGSize? {
+        guard let textView = nsView.documentView as? NSTextView,
+              let layoutManager = textView.layoutManager,
+              let textContainer = textView.textContainer
+        else { return nil }
+        let proposedWidth = proposal.width ?? nsView.bounds.width
+        // Account for the NSScrollView's leading/trailing insets — those
+        // come out of the container width, not the editor's reported width.
+        let containerWidth = max(0, proposedWidth - leadingInset - trailingInset)
+        if abs(textContainer.size.width - containerWidth) > 0.5 {
+            textContainer.size = NSSize(
+                width: containerWidth,
+                height: .greatestFiniteMagnitude
+            )
+        }
+        layoutManager.ensureLayout(for: textContainer)
+        let used = layoutManager.usedRect(for: textContainer)
+        // marginV is the textContainerInset top+bottom; double it.
+        let height = ceil(used.height) + CGFloat(marginV) * 2
+        // Sensible minimum so an empty editor still shows a line of room.
+        return CGSize(width: proposedWidth, height: max(height, 24))
+    }
+
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = context.coordinator.textView else { return }
         if controller?.textView !== textView { controller?.textView = textView }
