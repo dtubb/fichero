@@ -366,6 +366,70 @@ class EntityMergeAudit(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class AnnotationKind(str, Enum):
+    """User annotation kinds (#914).
+
+    Each kind has slightly different rendering + payload conventions:
+    - highlight: coloured tint over a span; ``color`` + ``rating`` carry weight
+    - note: margin/sticky note; ``text`` is the body
+    - rating: 1-5 importance flag; ``rating`` carries weight
+    - bookmark: navigation marker; ``text`` optional label
+    - comment: threaded discussion (future); ``text`` is the body
+    """
+
+    highlight = "highlight"
+    note = "note"
+    rating = "rating"
+    bookmark = "bookmark"
+    comment = "comment"
+
+
+class Annotation(BaseModel):
+    """User-authored annotation on a document, text span, or image region (#914).
+
+    Anchored to a Document via document_id, optionally further refined
+    by char_start/char_end (text spans, reuses #913's offsets) and/or
+    bbox (image / PDF rectangles). Workflows can consume annotations
+    as AI input (see #914 comment on workflow-input extension) so a
+    bbox over 10% of a 100MB image becomes the cropped input that
+    Apple Intelligence actually sees.
+
+    Distinct from KnowledgeClaim — annotations are user-authored
+    surface marks, claims are knowledge-graph propositions. A
+    highlight can be promoted to a claim via
+    POST /api/annotations/{id}/promote-to-claim.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    document_id: str
+    page_label: str | None = None
+    # Sub-page anchors (reuse #913 substrate).
+    char_start: int | None = None
+    char_end: int | None = None
+    # Image / PDF region as [x, y, width, height] in source coordinates.
+    bbox: list[float] | None = None
+
+    kind: AnnotationKind
+    text: str | None = None  # note body / comment text / bookmark label
+    rating: int | None = Field(default=None, ge=1, le=5)
+    color: str | None = Field(
+        default=None,
+        description="Hex colour for highlight tint, e.g. '#FFFF00'",
+    )
+    tags: list[str] = Field(default_factory=list)
+
+    # Cross-links — promote annotations into the KG.
+    linked_claim_ids: list[str] = Field(default_factory=list)
+    linked_entity_ids: list[str] = Field(default_factory=list)
+    linked_note_ids: list[str] = Field(default_factory=list)  # see Note model
+
+    created_by: str = "human"
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
 class PendingMatchState(str, Enum):
     """Lifecycle state of an EntityMatchCandidate."""
     pending = "pending"

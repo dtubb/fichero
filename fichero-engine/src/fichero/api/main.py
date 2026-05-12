@@ -524,6 +524,7 @@ async def get_stats(db: Database = Depends(get_library_database)):
 from fichero.api.routes import (  # noqa: E402
     actions,
     activity,
+    annotations,
     artifacts,
     batch,
     chains,
@@ -578,6 +579,7 @@ RouteSpec = tuple[object, str, list[str]]
 
 _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (activity.router, "/api", ["activity"]),
+    (annotations.router, "/api", ["annotations"]),
     (artifacts.router, "/api/artifacts", ["artifacts"]),
     (batch.router, "/api", ["batches"]),
     (chat.router, "/api/chat", ["chat"]),
