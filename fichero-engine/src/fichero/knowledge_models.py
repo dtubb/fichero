@@ -366,6 +366,58 @@ class EntityMergeAudit(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class ProjectStatus(str, Enum):
+    """Lifecycle of a research workspace (#918)."""
+
+    active = "active"
+    archived = "archived"
+    shipped = "shipped"
+
+
+class Project(BaseModel):
+    """A research workspace — named container for sources + analysis (#918).
+
+    Groups documents, entities, claims, notes, and interpretations
+    under a single project context (a thesis chapter, a JLAR review,
+    a conference talk). Inclusion is via ProjectInclusion rows so
+    the same KG row can sit in multiple projects.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    name: str
+    description: str | None = None
+    color: str | None = None
+    icon: str | None = None  # SF Symbol name for the sidebar
+    status: ProjectStatus = ProjectStatus.active
+    members: list[str] = Field(default_factory=list)
+    metadata: dict = Field(default_factory=dict)
+    created_by: str = "human"
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class ProjectInclusion(BaseModel):
+    """One KG row's membership in a project (#918)."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    project_id: str
+    target_id: str
+    target_type: str = Field(
+        description="'document' | 'entity' | 'claim' | 'note' | 'interpretation' | 'annotation'"
+    )
+    role: str | None = Field(
+        default=None,
+        description="Optional role label: 'primary source' | 'argument' | 'draft' | ...",
+    )
+    notes: str | None = None
+    added_by: str = "human"
+    added_at: datetime = Field(default_factory=datetime.now)
+
+
 class NoteKind(str, Enum):
     """Zettelkasten note kinds (#917)."""
 
