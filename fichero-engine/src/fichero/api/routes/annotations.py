@@ -131,6 +131,54 @@ async def delete_annotation(
     db.delete(ann)
 
 
+@router.get(
+    "/{annotation_id}/crop",
+    summary="Cropped content for this annotation (text body or image bytes)",
+    description=(
+        "Returns the annotation's underlying content cropped to its "
+        "anchor: substring for text, PNG bytes for image / PDF region. "
+        "Workflow tools call this to feed only the highlighted region "
+        "to vision / LLM providers instead of the whole document. (#914)"
+    ),
+)
+async def get_crop(
+    annotation_id: str,
+    db: Database = Depends(get_library_database),
+):
+    from pathlib import Path
+
+    from fastapi.responses import PlainTextResponse, Response
+
+    from fichero.workflows.tools._annotation_input import (
+        crop_image,
+        crop_pdf_page,
+        crop_text,
+    )
+
+    ann = db.get(Annotation, annotation_id)
+    if ann is None:
+        raise HTTPException(404, f"Annotation not found: {annotation_id}")
+    doc = db.get(Document, ann.document_id)
+    if doc is None:
+        raise HTTPException(404, f"Document not found: {ann.document_id}")
+
+    if doc.path and ann.bbox:
+        suffix = Path(doc.path).suffix.lower()
+        if suffix == ".pdf":
+            png = crop_pdf_page(doc.path, ann)
+            if png:
+                return Response(content=png, media_type="image/png")
+        elif suffix in {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp", ".heic"}:
+            png = crop_image(doc.path, ann)
+            if png:
+                return Response(content=png, media_type="image/png")
+
+    text = crop_text(doc, ann)
+    if text is None:
+        raise HTTPException(404, "No crop available for this annotation")
+    return PlainTextResponse(text)
+
+
 class PromoteResponse(BaseModel):
     annotation_id: str
     claim_id: str
