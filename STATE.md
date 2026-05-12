@@ -235,6 +235,29 @@ structure. Verified by grep on 0.0.2's tree:
 
 After the criteria strip lands, add the actual `.searchable(text: $queryText, prompt: ...)` to SearchView so users can type queries (this is the original "input not wired" gap). 30-60min, all in `fichero/fichero/Views/Search/SearchView.swift`.
 
+## Morning push (2026-05-12) — 12 fixes + 8 dedups
+
+12 fixes shipped + pushed today:
+- **#931** wf list description no longer truncates
+- **#932** first-run AI Defaults auto-populated with Apple Intelligence
+- **#935** three Apple model rows seeded (apple-intelligence / -vision / -speech)
+- **#937** save_model idempotent on (provider_id, model_id) — no more duplicate adds
+- **#946** PDF thumbnails show multi-page badge (paper-stack + count)
+- **#952** mermaid 500 → graceful 204 with mermaid source in header
+- **#957** Apple Vision OCR skipped when PDF has embedded text layer
+- **#962** Apple Intelligence Generable failures promoted to AppleUnavailableError → \$large fallback
+- **#962 follow-up** asyncio.Semaphore(3) throttle on concurrent fm-bridge calls
+- **#964** OntologyBrowser toolbar moved inside entity list pane only
+- **#965** \`.task(id: entityId)\` re-fires claim fetch on selection change
+- **#966** /api/kg/* promoted from dev-tier to core (13 routers)
+
+8 duplicates folded: #941+#942 → #943, #945 → #946, #950 → #952,
+#953 → #957, #954 → #958, #955 → #959, #956 → #960.
+
+26 unique open bugs remain in the morning queue.
+20 new regression tests across pdf-text-layer, Apple-Intelligence
+decode errors, save_model dedup. Three-leg green throughout.
+
 ## Next Session — Start Here (2026-05-12 morning hand-off)
 
 **Latest commit on 0.0.2: `340ff58f`.** 26 commits pushed overnight.
