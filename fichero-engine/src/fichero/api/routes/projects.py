@@ -22,7 +22,7 @@ from fichero.knowledge_models import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/projects", tags=["knowledge-graph"])
+router = APIRouter(prefix="/projects")
 
 
 VALID_TARGET_TYPES = {

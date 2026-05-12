@@ -19,7 +19,7 @@ from fichero.db import Database
 from fichero.knowledge_models import Note, NoteKind, NoteLink
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/notes", tags=["knowledge-graph"])
+router = APIRouter(prefix="/notes")
 
 
 # =============================================================================

@@ -24,7 +24,7 @@ from fichero.knowledge_models import (
 from fichero.models import Document
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/annotations", tags=["knowledge-graph"])
+router = APIRouter(prefix="/annotations")
 
 
 class AnnotationCreateRequest(BaseModel):

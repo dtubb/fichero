@@ -13,7 +13,7 @@ from fichero.api.main import get_library_database
 from fichero.db import Database
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/citations", tags=["knowledge-graph"])
+router = APIRouter(prefix="/citations")
 
 
 CitationStyle = Literal["bibtex", "chicago", "apa", "mla"]

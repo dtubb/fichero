@@ -22,7 +22,7 @@ from fichero.knowledge_models import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/classifications", tags=["knowledge-graph"])
+router = APIRouter(prefix="/classifications")
 
 
 # Built-in seed values mirror the existing hardcoded enums so a fresh

@@ -14,7 +14,7 @@ from fichero.db import Database
 from fichero.models import Document
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/bibliography", tags=["knowledge-graph"])
+router = APIRouter(prefix="/bibliography")
 
 
 class MetadataResponse(BaseModel):

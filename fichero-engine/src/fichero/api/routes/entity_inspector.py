@@ -26,7 +26,7 @@ from fichero.knowledge_models import (
 from fichero.models import Document
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/entities", tags=["knowledge-graph"])
+router = APIRouter(prefix="/entities")
 
 
 class SimilarEntity(BaseModel):

@@ -23,7 +23,7 @@ from fichero.knowledge_models import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/kg/search", tags=["knowledge-graph"])
+router = APIRouter(prefix="/kg/search")
 
 
 HitType = Literal["entity", "claim", "note", "annotation"]

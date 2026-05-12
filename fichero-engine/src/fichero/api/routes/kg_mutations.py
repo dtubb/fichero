@@ -19,7 +19,7 @@ from fichero.knowledge_models import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/kg/mutations", tags=["knowledge-graph"])
+router = APIRouter(prefix="/kg/mutations")
 
 
 class MutationRow(BaseModel):

@@ -25,7 +25,7 @@ from fichero.hermeneutics_models import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/kg/interpretations", tags=["knowledge-graph"])
+router = APIRouter(prefix="/kg/interpretations")
 
 
 # =============================================================================

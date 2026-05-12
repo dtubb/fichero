@@ -33,7 +33,7 @@ from fichero.knowledge_models import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/kg/review", tags=["knowledge-graph"])
+router = APIRouter(prefix="/kg/review")
 
 
 # Auto-retrain trigger — every N new labelled decisions kicks off a

@@ -19,7 +19,7 @@ from fichero.knowledge_models import DocumentCitation
 from fichero.models import Document
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/citations/graph", tags=["knowledge-graph"])
+router = APIRouter(prefix="/citations/graph")
 
 
 class CitationCreateRequest(BaseModel):

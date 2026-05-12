@@ -11,7 +11,7 @@ from fichero.api.main import get_library_database
 from fichero.db import Database
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/kg/pykeen", tags=["knowledge-graph"])
+router = APIRouter(prefix="/kg/pykeen")
 
 
 class TrainResponse(BaseModel):

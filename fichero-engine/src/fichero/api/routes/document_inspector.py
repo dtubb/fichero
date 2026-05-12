@@ -30,7 +30,7 @@ from fichero.knowledge_models import (
 from fichero.models import Document
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/documents", tags=["knowledge-graph"])
+router = APIRouter(prefix="/documents")
 
 
 class DocumentInspectorResponse(BaseModel):
