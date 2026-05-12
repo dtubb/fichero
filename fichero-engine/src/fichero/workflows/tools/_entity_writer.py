@@ -27,6 +27,63 @@ from fichero.knowledge_models import (
 logger = logging.getLogger(__name__)
 
 
+def _fuzzy_match_existing(
+    existing: list[KnowledgeEntity],
+    canonical_name: str,
+    threshold: float = 0.78,
+) -> Optional[KnowledgeEntity]:
+    """Return the best fuzzy match for ``canonical_name`` among existing
+    entities of the same type, or None if nothing scores above threshold.
+
+    Handles two divergence patterns observed on per-page extraction (#897):
+    - **Surface variation**: "Eugenio Córdoba" vs "Eugenio Cordoba" vs
+      "E. Córdoba". Caught by SequenceMatcher token-set similarity.
+    - **Rephrasing the same recurring scene as N events**: the LLM
+      titles the same monologue differently per page ("Narrator's
+      Account of Racial Economic Exclusion" / "Narrator's Monologue
+      on Race and Economic Marginalization" / etc.). Caught by
+      token-overlap on the noun phrase after stop-word removal.
+
+    Threshold defaults to 0.78 — empirically separates the 6-event
+    monologue cluster (~0.85 between any two) from genuinely distinct
+    events ("Filing of the Petition" vs "Sale of the Estate" — 0.30).
+
+    The match is a heuristic, not a knowledge-graph linker. For a real
+    entity-resolution pipeline we'd swap in splink or dedupe.io with
+    learned model weights (#897 follow-up).
+    """
+    from difflib import SequenceMatcher
+
+    if not canonical_name or not existing:
+        return None
+
+    # Normalise: lower, drop punctuation. Token-set similarity is
+    # more forgiving of reordering than raw SequenceMatcher.ratio.
+    def _tokens(s: str) -> set[str]:
+        cleaned = "".join(c if c.isalnum() or c.isspace() else " " for c in s.lower())
+        return {tok for tok in cleaned.split() if len(tok) > 2}
+
+    needle_tokens = _tokens(canonical_name)
+    needle_lower = canonical_name.lower()
+
+    best: tuple[float, Optional[KnowledgeEntity]] = (0.0, None)
+    for ent in existing:
+        # Two metrics, take the max so either signal can hit threshold.
+        seq_ratio = SequenceMatcher(None, needle_lower, ent.canonical_name.lower()).ratio()
+        ent_tokens = _tokens(ent.canonical_name)
+        if needle_tokens and ent_tokens:
+            intersection = len(needle_tokens & ent_tokens)
+            union = len(needle_tokens | ent_tokens)
+            token_ratio = intersection / union if union else 0.0
+        else:
+            token_ratio = 0.0
+        score = max(seq_ratio, token_ratio)
+        if score > best[0]:
+            best = (score, ent)
+
+    return best[1] if best[0] >= threshold else None
+
+
 def upsert_entity(
     db: Database,
     canonical_name: str,
@@ -36,9 +93,17 @@ def upsert_entity(
 ) -> str:
     """Look up entity by ``(canonical_name, entity_type)``; create if missing.
 
-    Returns the entity ID. Idempotent — calling twice with the same args
-    reuses the existing row, so re-running an extractor on the same document
-    doesn't accumulate duplicate entities.
+    Two-stage match (#897):
+    1. Exact ``(canonical_name, entity_type)`` lookup — covers stable
+       names like "Eugenio Córdoba" repeated across pages.
+    2. Fuzzy fallback over all entities of the same type — catches LLM
+       rephrasings of the same recurring scene as N event entities, plus
+       accent/case drift. When a fuzzy match hits, the new ``canonical_name``
+       and ``aliases`` fold into the existing entity's ``aliases``
+       (preserving surface-form evidence) and we reuse its id.
+
+    Returns the entity ID. Still idempotent on the exact path; the
+    fuzzy path is the new contract.
     """
     existing = db.query(
         KnowledgeEntity,
@@ -47,6 +112,26 @@ def upsert_entity(
     )
     if existing:
         return existing[0].id
+
+    # Fuzzy fallback. Scope: all entities of this type. Could be tightened
+    # to "same source document" if cross-doc bleed becomes a problem, but
+    # the cross-doc consolidation is actually a feature for the KG: one
+    # Davidson across the whole library.
+    same_type = db.query(KnowledgeEntity, entity_type=entity_type)
+    matched = _fuzzy_match_existing(same_type, canonical_name)
+    if matched is not None:
+        # Fold the new surface form + aliases into the existing entity.
+        existing_aliases = set(matched.aliases or [])
+        existing_aliases.add(canonical_name)
+        for alias in aliases or []:
+            existing_aliases.add(alias)
+        matched.aliases = sorted(existing_aliases - {matched.canonical_name})
+        db.save(matched)
+        logger.info(
+            "upsert_entity: fuzzy-matched %r → existing entity %s (%r); folded aliases",
+            canonical_name, matched.id, matched.canonical_name,
+        )
+        return matched.id
 
     entity = KnowledgeEntity(
         canonical_name=canonical_name,

@@ -67,6 +67,80 @@ class TestUpsertEntity:
         assert "Maria Angel" in loaded.aliases
 
 
+class TestFuzzyEntityMatch:
+    """#897 — cross-page event extraction produces N near-duplicate
+    entities for one recurring scene. upsert_entity now fuzzy-matches
+    on a fallback path so a rephrased title collapses into the
+    existing entity instead of creating a new one."""
+
+    def test_event_rephrasing_collapses_to_one_entity(self, db):
+        """The Preface monologue cluster — titles share the same noun
+        phrase ("Racial Economic Exclusion") with only the verb
+        rephrased (Account / Monologue). These collapse on token-set
+        similarity.
+
+        Note: titles that diverge in the core noun phrase (e.g.
+        Exclusion → Marginalization) do NOT collapse — pure
+        SequenceMatcher can't bridge that semantic gap. Tracked as a
+        follow-up at #897 for embedding-based / splink-based
+        entity resolution.
+        """
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        first_id = upsert_entity(
+            db,
+            canonical_name="Narrator's Account of Racial Economic Exclusion",
+            entity_type=EntityType.event,
+        )
+        second_id = upsert_entity(
+            db,
+            canonical_name="Narrator's Monologue on Racial Economic Exclusion",
+            entity_type=EntityType.event,
+        )
+        assert first_id == second_id, (
+            "expected near-identical rephrasings to collapse to one entity"
+        )
+        # Survivor accumulates the rephrasing as an alias.
+        loaded = db.get(KnowledgeEntity, first_id)
+        assert "Narrator's Monologue on Racial Economic Exclusion" in (loaded.aliases or [])
+
+    def test_distinct_events_stay_separate(self, db):
+        """Two events with low token overlap remain distinct rows."""
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        a = upsert_entity(
+            db, canonical_name="Filing of the Petition", entity_type=EntityType.event
+        )
+        b = upsert_entity(
+            db, canonical_name="Sale of the Estate", entity_type=EntityType.event
+        )
+        assert a != b
+
+    def test_accent_drift_collapses_for_people(self, db):
+        """"Eugenio Córdoba" and "Eugenio Cordoba" (no accent) should
+        be one entity — common when one extractor pass drops the accent."""
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        accented = upsert_entity(
+            db, canonical_name="Eugenio Córdoba", entity_type=EntityType.person
+        )
+        unaccented = upsert_entity(
+            db, canonical_name="Eugenio Cordoba", entity_type=EntityType.person
+        )
+        assert accented == unaccented
+
+    def test_completely_different_names_stay_separate(self, db):
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        a = upsert_entity(
+            db, canonical_name="Juan Pérez", entity_type=EntityType.person
+        )
+        b = upsert_entity(
+            db, canonical_name="Andrés Restrepo", entity_type=EntityType.person
+        )
+        assert a != b
+
+
 class TestSaveClaim:
     def test_creates_claim_with_entity_links(self, db):
         from fichero.workflows.tools._entity_writer import upsert_entity, save_claim
