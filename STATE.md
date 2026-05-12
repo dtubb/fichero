@@ -10,16 +10,21 @@ autonomous: KG epistemology + ontology + verbatim source_text layer,
 this morning — +1.58pp on the day).
 
 **Headline (2026-05-11 / 2026-05-12 overnight — KG surface lit up):**
-- Heuristic Predictions Review Sheet wired (6de19c6e) — generate
-  + accept/reject candidates writes KnowledgeClaimLink rows.
-- Manual Entity creation (#916 first stroke, aa20abe9) — '+' button
-  in OntologyBrowser toolbar → form sheet → POST /api/entities.
-- Entity Delete with confirmationDialog (#901 part 1, 8a7911a4) —
-  context-menu on each entity row.
-- Library filter unified with KG ontology browser (#887, c6466ba3) —
-  one @AppStorage CSV drives People/Places/Org/Event/Concept across
-  three surfaces. Dates stays Library-only.
-- Closed: #832, #888, #895, #887. Updated: #889 with rebuild blueprint.
+- #919 5c backend consolidation: /api/knowledge-graph deleted; 5
+  new kg_* modules under /api/kg/*.
+- EntityServiceGenerated rewired to new schema (no more dead service stubs).
+- OntologyBrowser: Tools menu, '+' New Entity, Edit/Delete context
+  menu, Curation History section, expandable claim cards with
+  contradictions + evidence-chain, Heuristic Predictions Review
+  Sheet (accept/reject writes KnowledgeClaimLink).
+- DocumentInspector: verbatim source_text per claim — italicised
+  tappable citation (#893 closed).
+- Library + KG filter unified via @AppStorage (#887).
+- save_claim within-page dedup (defense-in-depth for #896).
+- Closed: #832, #888, #895, #887, #893, #729. Updated: #889 with
+  rebuild blueprint pointing at OntologyBrowser as the new shell;
+  #901 with shipped (entity PATCH/DELETE, claim DELETE) and pending
+  (claim PATCH inline editing) status.
 
 
 - Backend KG namespace consolidation (1587a1b6); `kg` bucket = 45
