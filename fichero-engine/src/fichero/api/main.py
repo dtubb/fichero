@@ -632,24 +632,13 @@ _DEV_ROUTE_SPECS: list[RouteSpec] = [
     (kg_citations.router, "/api", ["knowledge-graph"]),
     (kg_interpretations.router, "/api", ["knowledge-graph"]),
     (search_explain.router, "/api", ["search-explanation"]),
-    # hermeneutics deprecated 2026-05-12 — useful ideas (PatternInstance,
-    # circle-state, suggestions) noted in #919 for future mining. Zero
-    # Swift consumers; new canonical is /api/kg/interpretations.
-    # (hermeneutics.router, "/api/hermeneutics", ["hermeneutics"]),
+    (hermeneutics.router, "/api/hermeneutics", ["hermeneutics"]),
     # /api/interpretations + /api/graph/* deprecated 2026-05-12 — no
     # Swift consumers; useful endpoints (taxonomy, traverse, metrics)
     # ported into /api/kg/interpretations and /api/kg/graph. (#919 5b)
     # Routers stay imported for diff history but are NOT registered.
-    # mind-palace deprecated 2026-05-12 — spatial Notes; useful for
-    # future RealityKit work (#274). Zero Swift consumers. New canonical
-    # for non-spatial notes is /api/notes (#917).
-    # (mind_palace.router, "/api/mind-palace", ["mind-palace"]),
-    # research_agents / research_crud / research_notes / research_tools
-    # deprecated 2026-05-12 — agent orchestration + project + note
-    # variants. Useful ideas merged into /api/projects + /api/notes;
-    # agent work folds into the LangGraph workflow runtime. Zero Swift
-    # consumers.
-    # (research_agents.router, "/api/research", ["research"]),
+    (mind_palace.router, "/api/mind-palace", ["mind-palace"]),
+    (research_agents.router, "/api/research", ["research"]),
     (iiif.router, "/api/iiif", ["iiif"]),
     # Staged routes — feature-gated behind dev tier
     (actions.router, "/api", ["actions"]),
