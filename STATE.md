@@ -173,7 +173,112 @@ structure. Verified by grep on 0.0.2's tree:
 
 After the criteria strip lands, add the actual `.searchable(text: $queryText, prompt: ...)` to SearchView so users can type queries (this is the original "input not wired" gap). 30-60min, all in `fichero/fichero/Views/Search/SearchView.swift`.
 
-## Next Session — Start Here (2026-05-11 late hand-off)
+## Next Session — Start Here (2026-05-12 overnight autonomous run)
+
+**Latest commit on 0.0.2: `4ed74389`** — cross-source triangulation. Total
+night's work: ~15 commits implementing the #899 KG library rollup
+(rdflib, sentence-transformers, spaCy) + #900 triangulation + #894 fix
+(Apple Intelligence now emits real epistemic_status / source_text) +
+the earlier #895 / #896 / #897 dedup fixes.
+
+### What's now wired
+
+1. **#896 / #897 dedup** — Davidson should appear once on p.1 with
+   variants in aliases; the 6 narrator-monologue events should
+   consolidate to 1-2.
+2. **#899 Phase A — rdflib substrate**. `fichero.kg.triples` materializes
+   KnowledgeEntity + KnowledgeClaim as RDF using FOAF / schema.org /
+   SKOS / fichero: namespaces. SPARQL queries work over the in-memory
+   graph.
+3. **#899 Phase B — sentence-transformer entity vectors**.
+   `fichero.kg.entity_vectors` encodes canonical_name + description
+   into LanceDB. `upsert_entity` is now a 4-stage pipeline (exact →
+   cosine ≥0.92 auto-merge → 0.75-0.92 review-gate log → SequenceMatcher
+   floor → create + index). Semantic-divergence dedup works.
+4. **#899 Phase C — spaCy NER pre-pass**.
+   `fichero.kg.spacy_ner` loads `en_core_web_sm` + `es_core_news_sm`,
+   `detect_language()` picks per chunk. Wired into the catalogue extractor
+   for people/places/orgs/events — spaCy spans land in the LLM prompt
+   as "use these as canonical entities."
+5. **#900 triangulation** — `fichero.kg.triangulation` computes
+   support_count per (subject, predicate, object) triple across the
+   corpus. New axis distinct from per-claim `epistemic_status`. Two
+   dev-tier endpoints: `GET /api/kg/triangulation/entity/{id}` and
+   `GET /api/kg/triangulation?threshold=3`.
+6. **#894 closed** — Apple Intelligence now emits `epistemic_status`
+   (confirmed/tentative/rejected) and `source_text` (verbatim quote)
+   instead of falling through to defaults. Pydantic v2 schema-required
+   + before-validator pattern.
+7. **#895 closed** — KG sidebar click no longer leaves the library
+   icons/list/table/map mode rail visible.
+
+### Test for visible wins on next launch
+
+1. Pull `0.0.2`, restart engine, rebuild Xcode.
+2. Nuke library (or use a fresh one), import `tubb2020shift - Preface.pdf`.
+3. Run Catalogue.
+4. Open Knowledge Graph → check:
+   - **Davidson**: 1 entity, claims show parenthetical variants in aliases.
+   - **Events**: 1-2 entities for the recurring monologue (not 6).
+   - **Claim cards**: epistemic_status badges show "Confirmed" / "Tentative"
+     based on the LLM's read, NOT all "Tentative" defaults. Source quote
+     italics under each claim shows real text, not empty.
+   - **KG sidebar**: only the KG MiniToolbar appears, no mode-strip.
+5. Hit the rebuild endpoint to populate the RDF graph + backfill any
+   missing vectors:
+   ```bash
+   TOKEN=$(cat ~/Library/Application\ Support/Fichero/.api-key)
+   LIB="$HOME/Library/Application Support/com.fichero.fichero/global.fichero"
+   curl -X POST http://localhost:8765/api/kg/rebuild \
+     -H "Authorization: Bearer $TOKEN" \
+     -H "X-Fichero-Library-Path: $LIB"
+   # → {"entities": N, "claims": M, "vector_indexed": N, "triples_written": K}
+   ```
+6. Inspect the RDF graph file:
+   ```bash
+   ls "$LIB" | grep kg.nt   # → kg.nt
+   head -20 "$LIB/kg.nt"
+   ```
+7. Triangulation query (after multiple PDFs catalogued):
+   ```bash
+   curl -H "Authorization: Bearer $TOKEN" \
+     -H "X-Fichero-Library-Path: $LIB" \
+     http://localhost:8765/api/kg/triangulation?threshold=2
+   ```
+
+### Pending / next slices
+
+- **#899 Phase D (splink)** — probabilistic record linkage. Needs
+  labelled pairs from Phase B's 0.75-0.92 review-gate region. Deferred
+  until the curation UI from #377 lands (or until Daniel labels a few
+  pairs manually).
+- **#900 slice 3** — materialize support counts to DuckDB for cached
+  reads. Defer until inspector hits perf issues (~100k claims is the
+  trigger).
+- **#900 slice 5** — Swift UI corroboration badge + source-list
+  popover next to existing epistemic_status badge.
+- **#893** — true PDFKit findString integration (open parent PDF + jump
+  to highlight) — current "tap excerpt → library search" is a graceful
+  fallback.
+- **#887** — unify KG inspector kind-filter with library-toolbar entity
+  filter (six SceneStorage booleans → single AppStorage CSV).
+
+### Don't break
+
+- **Pydantic schema-required + before-validator pattern** — see new
+  MEMORY entry. The naive `Field(default=..., json_schema_extra=
+  {"required": True})` approach does NOT work; only the no-default +
+  before-validator combination forces grammar emission.
+- **`ClaimType` (ontological) ≠ `EpistemicStatus` (epistemic)**. Two
+  axes, both on `KnowledgeClaim`. And now **`support_count`** is a
+  third axis (cross-source corroboration, derived). Three distinct
+  signals — don't conflate.
+- spaCy + fastembed models are bundled, but first-run downloads.
+  Engine cold start stays fast because both are lazy-loaded.
+
+---
+
+## Earlier next-session entry (2026-05-11 late hand-off)
 
 **Latest commit on 0.0.2: `23fdd6a3`** — KG epistemology + ontology +
 source_text layer (7 commits pushed today). Build green; 41 extractor
