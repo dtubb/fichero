@@ -366,6 +366,39 @@ class EntityMergeAudit(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class DocumentCitation(BaseModel):
+    """One document citing another (#906).
+
+    Captures both the structural fact (A cites B) and the textual
+    evidence (where in A the citation appears). Confidence reflects
+    how certain the detector is that ``target_document_id`` is the
+    right resolution — needed when matching a bibliography string
+    to an in-library document by fuzzy title + author.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    source_document_id: str   # the citing document
+    target_document_id: str | None = Field(
+        default=None,
+        description="The cited document if resolved in the library, else None.",
+    )
+    target_citation_text: str = Field(
+        description="The citation as it appears in the source (the raw string).",
+    )
+    page_label: str | None = None
+    char_start: int | None = None
+    char_end: int | None = None
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    detector: str = Field(
+        default="manual",
+        description="Which detector emitted this citation: manual / regex / llm / bibtex_import",
+    )
+    metadata: dict = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class ProjectStatus(str, Enum):
     """Lifecycle of a research workspace (#918)."""
 
