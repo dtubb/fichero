@@ -183,20 +183,20 @@ struct WorkflowListView: View {
                 }
                 .help("Create new workflow")
 
-                Menu {
-                    Button("Install Defaults") {
-                        Task { await installDefaultWorkflows() }
-                    }
-                    .disabled(isManagingDefaults)
-
-                    Button("Reset Defaults", role: .destructive) {
-                        showResetDefaultsConfirmation = true
-                    }
-                    .disabled(isManagingDefaults)
+                // #930 — collapsed Install + Reset into one Reset
+                // action. Reset is a superset of Install (ensures all
+                // defaults are present AND replaces any that the user
+                // has edited), so the separate Install button was
+                // redundant + confusing ("Not sure install defaults
+                // does anything" — Daniel). Confirmation dialog warns
+                // about overwriting user edits before firing.
+                Button(role: .destructive) {
+                    showResetDefaultsConfirmation = true
                 } label: {
-                    Image(systemName: "sparkles")
+                    Label("Reset Default Workflows", systemImage: "sparkles")
                 }
-                .help("Manage built-in default workflows")
+                .disabled(isManagingDefaults)
+                .help("Reinstall the built-in default workflows from scratch (overwrites any edits to defaults)")
 
                 if featureManager.isWorkflowImportExportEnabled {
                     Button {
@@ -520,22 +520,9 @@ struct WorkflowListView: View {
         }
     }
 
-    private func installDefaultWorkflows() async {
-        guard !isManagingDefaults else { return }
-        isManagingDefaults = true
-        defer { isManagingDefaults = false }
-
-        do {
-            let created = try await workflowStore.installDefaultWorkflowTemplates()
-            if created.isEmpty {
-                templateOperationMessage = "Default workflows are already installed."
-            } else {
-                templateOperationMessage = "Installed \(created.count) default workflow(s)."
-            }
-        } catch {
-            templateOperationMessage = "Failed to install defaults: \(error.localizedDescription)"
-        }
-    }
+    // installDefaultWorkflows() removed at #930 fix — Reset is a
+    // superset (adds missing AND replaces user-edited) so the
+    // separate Install action was redundant + confusing.
 
     private func resetDefaultWorkflows() async {
         guard !isManagingDefaults else { return }
