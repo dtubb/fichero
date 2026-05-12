@@ -394,6 +394,49 @@ _EPISTEMIC_FIELD = Field(
 # decoding on Apple Intelligence / fm-bridge forces the LLM to emit
 # this field rather than skip it. A before-validator on each section
 # model fills in "" for legacy items missing the field. (#894 option 2)
+# Temporal scope (#904) — when in real-world time did this claim refer to?
+# Distinct from when the claim was extracted (created_at). Empty string
+# default — only populate when the source dates the claim.
+_TIME_START_FIELD = Field(
+    default="",
+    description=(
+        "Start of the time period the claim refers to, ISO 8601 "
+        "('1933' or '1933-07-23'). Empty when the source doesn't "
+        "date the claim. 'X became alcalde in 1933' → '1933'."
+    ),
+)
+_TIME_END_FIELD = Field(
+    default="",
+    description=(
+        "End of the time period. Equal to time_start for instant "
+        "events ('signed the deed on 1933-07-23'); later for ranges "
+        "('served from 1933 to 1937' → '1937'). Empty when the "
+        "source doesn't bound the claim in time."
+    ),
+)
+
+# Toulmin argument structure (#907) — populated only for analytic
+# claim_types (analysis / argument / interpretation / theory). Default
+# empty so fact claims stay flat.
+_GROUNDS_FIELD = Field(
+    default="",
+    description=(
+        "Evidence for an analytic claim. Only populate when the "
+        "claim_type is analysis / argument / interpretation / theory. "
+        "Example: for 'mining caused social fragmentation', grounds "
+        "could be 'household-survey data showed 60% of mining-camp "
+        "families had relatives elsewhere'. Empty for fact claims."
+    ),
+)
+_WARRANT_FIELD = Field(
+    default="",
+    description=(
+        "Rule linking grounds → claim for analytic claims. Example: "
+        "'when household composition fractures, communities lose "
+        "cohesion'. Empty for fact claims."
+    ),
+)
+
 _SOURCE_TEXT_FIELD = Field(
     description=(
         "The exact sentence or short paragraph from the input text "
@@ -454,6 +497,10 @@ class _SectionPerson(BaseModel):
     epistemic_status: str = _EPISTEMIC_FIELD
     claim_type: str = _CLAIM_TYPE_FIELD
     source_text: str = _SOURCE_TEXT_FIELD
+    time_start: str = _TIME_START_FIELD
+    time_end: str = _TIME_END_FIELD
+    grounds: str = _GROUNDS_FIELD
+    warrant: str = _WARRANT_FIELD
 
 
 class _SectionPlace(BaseModel):
@@ -469,6 +516,10 @@ class _SectionPlace(BaseModel):
     epistemic_status: str = _EPISTEMIC_FIELD
     claim_type: str = _CLAIM_TYPE_FIELD
     source_text: str = _SOURCE_TEXT_FIELD
+    time_start: str = _TIME_START_FIELD
+    time_end: str = _TIME_END_FIELD
+    grounds: str = _GROUNDS_FIELD
+    warrant: str = _WARRANT_FIELD
 
 
 class _SectionOrganization(BaseModel):
@@ -484,6 +535,10 @@ class _SectionOrganization(BaseModel):
     epistemic_status: str = _EPISTEMIC_FIELD
     claim_type: str = _CLAIM_TYPE_FIELD
     source_text: str = _SOURCE_TEXT_FIELD
+    time_start: str = _TIME_START_FIELD
+    time_end: str = _TIME_END_FIELD
+    grounds: str = _GROUNDS_FIELD
+    warrant: str = _WARRANT_FIELD
 
 
 class _SectionDate(BaseModel):
@@ -504,6 +559,10 @@ class _SectionDate(BaseModel):
     epistemic_status: str = _EPISTEMIC_FIELD
     claim_type: str = _CLAIM_TYPE_FIELD
     source_text: str = _SOURCE_TEXT_FIELD
+    time_start: str = _TIME_START_FIELD
+    time_end: str = _TIME_END_FIELD
+    grounds: str = _GROUNDS_FIELD
+    warrant: str = _WARRANT_FIELD
 
 
 class _SectionRiver(BaseModel):
@@ -519,6 +578,10 @@ class _SectionRiver(BaseModel):
     epistemic_status: str = _EPISTEMIC_FIELD
     claim_type: str = _CLAIM_TYPE_FIELD
     source_text: str = _SOURCE_TEXT_FIELD
+    time_start: str = _TIME_START_FIELD
+    time_end: str = _TIME_END_FIELD
+    grounds: str = _GROUNDS_FIELD
+    warrant: str = _WARRANT_FIELD
 
 
 class _SectionEvent(BaseModel):
@@ -534,6 +597,10 @@ class _SectionEvent(BaseModel):
     epistemic_status: str = _EPISTEMIC_FIELD
     claim_type: str = _CLAIM_TYPE_FIELD
     source_text: str = _SOURCE_TEXT_FIELD
+    time_start: str = _TIME_START_FIELD
+    time_end: str = _TIME_END_FIELD
+    grounds: str = _GROUNDS_FIELD
+    warrant: str = _WARRANT_FIELD
 
 
 class _SectionMine(BaseModel):
@@ -548,6 +615,10 @@ class _SectionMine(BaseModel):
     epistemic_status: str = _EPISTEMIC_FIELD
     claim_type: str = _CLAIM_TYPE_FIELD
     source_text: str = _SOURCE_TEXT_FIELD
+    time_start: str = _TIME_START_FIELD
+    time_end: str = _TIME_END_FIELD
+    grounds: str = _GROUNDS_FIELD
+    warrant: str = _WARRANT_FIELD
 
 
 class _SectionProperty(BaseModel):
@@ -562,6 +633,10 @@ class _SectionProperty(BaseModel):
     epistemic_status: str = _EPISTEMIC_FIELD
     claim_type: str = _CLAIM_TYPE_FIELD
     source_text: str = _SOURCE_TEXT_FIELD
+    time_start: str = _TIME_START_FIELD
+    time_end: str = _TIME_END_FIELD
+    grounds: str = _GROUNDS_FIELD
+    warrant: str = _WARRANT_FIELD
 
 
 class _SectionLegalReference(BaseModel):
@@ -576,6 +651,10 @@ class _SectionLegalReference(BaseModel):
     epistemic_status: str = _EPISTEMIC_FIELD
     claim_type: str = _CLAIM_TYPE_FIELD
     source_text: str = _SOURCE_TEXT_FIELD
+    time_start: str = _TIME_START_FIELD
+    time_end: str = _TIME_END_FIELD
+    grounds: str = _GROUNDS_FIELD
+    warrant: str = _WARRANT_FIELD
 
 
 def _make_section_schema(item_model: type[BaseModel], schema_key: str) -> type[BaseModel]:
@@ -646,6 +725,16 @@ def _build_section_prompt(section: dict[str, Any], output_language: str) -> str:
         f"- For 'claim_type', tag fact / analysis / interpretation / "
         f"  argument / historiography / theory based on what KIND of "
         f"  knowledge the claim is.\n"
+        f"- For 'time_start' / 'time_end', ISO 8601 (year, year-month, "
+        f"  or full date). Only populate when the source dates the claim "
+        f"  ('became alcalde in 1933', 'on 23 July 1933'). Leave empty "
+        f"  when the source is undated. For instant events, time_end "
+        f"  equals time_start.\n"
+        f"- For 'grounds' / 'warrant', only populate when claim_type is "
+        f"  analysis / argument / interpretation / theory — these are "
+        f"  the Toulmin-model components. 'grounds' = the evidence the "
+        f"  source presents; 'warrant' = the rule connecting grounds to "
+        f"  the claim. Leave empty for plain facts.\n"
         f"- Return ONLY valid JSON matching this schema (no prose outside JSON):\n\n"
         f"{shape}\n"
     )
@@ -1302,6 +1391,21 @@ def _write_kg_rows(
         epistemic = _coerce_enum(item.get("epistemic_status"), EpistemicStatus)
         ctype = _coerce_enum(item.get("claim_type"), ClaimType)
 
+        # Temporal scope (#904) — empty strings become None so the
+        # KnowledgeClaim field stays NULL when the LLM doesn't date it.
+        t_start = (item.get("time_start") or "").strip() or None
+        t_end = (item.get("time_end") or "").strip() or None
+        # Toulmin (#907) — populated by the LLM only for analytic
+        # claim_types; fact claims emit empty strings which we drop.
+        grounds_val = (item.get("grounds") or "").strip() or None
+        warrant_val = (item.get("warrant") or "").strip() or None
+        if grounds_val or warrant_val:
+            meta.setdefault("toulmin", {})
+            if grounds_val:
+                meta["toulmin"]["grounds"] = grounds_val
+            if warrant_val:
+                meta["toulmin"]["warrant"] = warrant_val
+
         if entity_type is None:
             # Date-style section: claim only. Normalized date in metadata.
             # Claim text composes as "{date}: {verb} {object}." so it
@@ -1330,6 +1434,8 @@ def _write_kg_rows(
                 claim_type=ctype or ClaimType.fact,
                 metadata=meta,
                 epistemic_status=epistemic,
+                time_start=t_start,
+                time_end=t_end,
             )
             continue
 
