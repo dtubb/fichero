@@ -10,6 +10,18 @@ autonomous: KG epistemology + ontology + verbatim source_text layer,
 this morning — +1.58pp on the day).
 
 **Headline (2026-05-11 / 2026-05-12 overnight — KG surface lit up):**
+- Heuristic Predictions Review Sheet wired (6de19c6e) — generate
+  + accept/reject candidates writes KnowledgeClaimLink rows.
+- Manual Entity creation (#916 first stroke, aa20abe9) — '+' button
+  in OntologyBrowser toolbar → form sheet → POST /api/entities.
+- Entity Delete with confirmationDialog (#901 part 1, 8a7911a4) —
+  context-menu on each entity row.
+- Library filter unified with KG ontology browser (#887, c6466ba3) —
+  one @AppStorage CSV drives People/Places/Org/Event/Concept across
+  three surfaces. Dates stays Library-only.
+- Closed: #832, #888, #895, #887. Updated: #889 with rebuild blueprint.
+
+
 - Backend KG namespace consolidation (1587a1b6); `kg` bucket = 45
   endpoints, old `knowledge-graph` bucket deleted.
 - Swift API client regenerated against new schema. Build clean.
