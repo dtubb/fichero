@@ -633,8 +633,10 @@ _DEV_ROUTE_SPECS: list[RouteSpec] = [
     (kg_interpretations.router, "/api", ["knowledge-graph"]),
     (search_explain.router, "/api", ["search-explanation"]),
     (hermeneutics.router, "/api/hermeneutics", ["hermeneutics"]),
-    (interpretations.router, "/api", ["interpretations"]),
-    (graph_exploration.router, "/api", ["graph-exploration"]),
+    # /api/interpretations + /api/graph/* deprecated 2026-05-12 — no
+    # Swift consumers; useful endpoints (taxonomy, traverse, metrics)
+    # ported into /api/kg/interpretations and /api/kg/graph. (#919 5b)
+    # Routers stay imported for diff history but are NOT registered.
     (mind_palace.router, "/api/mind-palace", ["mind-palace"]),
     (research_agents.router, "/api/research", ["research"]),
     (iiif.router, "/api/iiif", ["iiif"]),
