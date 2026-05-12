@@ -57,7 +57,8 @@ class TestDocumentInspector:
         # Two entities + a claim mentioning both
         e1 = KnowledgeEntity(canonical_name="Davidson", entity_type=EntityType.person)
         e2 = KnowledgeEntity(canonical_name="Popayán", entity_type=EntityType.location)
-        db.save(e1); db.save(e2)
+        db.save(e1)
+        db.save(e2)
         claim = KnowledgeClaim(
             text="Davidson lived in Popayán.",
             source_document_id=doc.id,
@@ -159,7 +160,8 @@ class TestEntityInspector:
 
         doc_a = Document(name="a.pdf", doc_type=DocType.file)
         doc_b = Document(name="b.pdf", doc_type=DocType.file)
-        db.save(doc_a); db.save(doc_b)
+        db.save(doc_a)
+        db.save(doc_b)
 
         # Two claims in different docs both reference the entity.
         db.save(KnowledgeClaim(
