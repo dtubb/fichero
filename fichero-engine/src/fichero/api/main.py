@@ -151,19 +151,35 @@ def _seed_builtin_providers() -> None:
             existing_model_ids = {
                 m.model_id for m in app_db.list_models(apple_provider.id)
             }
+            # Three distinct Apple rows (#935 / #937): users who delete one
+            # row and re-add another deserve clear capability labels — the
+            # earlier conflated "Apple Vision Transcribe" with caps
+            # [vision, transcription, audio] was ambiguous and caused
+            # capability-filter bugs (#940). Split into:
+            #   - apple-intelligence — text LLM (Foundation Models)
+            #   - apple-vision       — image OCR
+            #   - apple-speech       — speech-to-text transcription
+            # is_default=True on apple-intelligence so the Defaults pane
+            # has a sensible starting pick for $small / $medium.
             builtins = [
-                Model(
-                    provider_id=apple_provider.id,
-                    name="Apple Vision Transcribe",
-                    model_id="apple-vision",
-                    capabilities=["vision", "transcription", "audio"],
-                    is_default=True,
-                ),
                 Model(
                     provider_id=apple_provider.id,
                     name="Apple Intelligence (Foundation Models)",
                     model_id="apple-intelligence",
                     capabilities=["text"],
+                    is_default=True,
+                ),
+                Model(
+                    provider_id=apple_provider.id,
+                    name="Apple Vision (OCR)",
+                    model_id="apple-vision",
+                    capabilities=["vision"],
+                ),
+                Model(
+                    provider_id=apple_provider.id,
+                    name="Apple Speech (Transcription)",
+                    model_id="apple-speech",
+                    capabilities=["audio", "transcription"],
                 ),
             ]
             for model in builtins:
@@ -174,8 +190,59 @@ def _seed_builtin_providers() -> None:
                         model.name,
                         model.model_id,
                     )
+
+            # Ensure AI Defaults are populated so first-run workflows
+            # don't blow up at \$small resolution (#932 / #933). Only sets
+            # keys that are currently missing — never overwrites a user
+            # configuration. Apple Intelligence is the natural pick on
+            # macOS 26+ Apple Silicon (free, on-device, always available).
+            _ensure_default_ai_defaults(app_db, apple_provider.id)
     except Exception as exc:
         logger.warning("Could not seed built-in providers: %s", exc)
+
+
+def _ensure_default_ai_defaults(app_db, apple_provider_id: str) -> None:
+    """Populate AI Defaults if missing — Apple Intelligence everywhere.
+
+    On a fresh install the \`default_*_provider\` / \`default_*_model\`
+    settings are unset, so workflows using \$small / \$medium / \$large
+    placeholders fail immediately with "no default model configured"
+    (#932 first-run blocker).
+
+    This sets sensible defaults using the just-seeded Apple models:
+      - text / small / medium / large → apple-intelligence
+      - vision                        → apple-vision
+      - audio                         → apple-speech
+
+    Only writes a key when it is currently unset; user configuration is
+    never overwritten. (#933 — Reset Defaults must not erase user choices
+    on its own; explicit per-pane Reset buttons handle that case.)
+    """
+    apple_type = "apple"
+    pairs = [
+        ("default_text_provider", apple_type),
+        ("default_text_model", "apple-intelligence"),
+        ("default_small_provider", apple_type),
+        ("default_small_model", "apple-intelligence"),
+        ("default_medium_provider", apple_type),
+        ("default_medium_model", "apple-intelligence"),
+        ("default_large_provider", apple_type),
+        ("default_large_model", "apple-intelligence"),
+        ("default_vision_provider", apple_type),
+        ("default_vision_model", "apple-vision"),
+        ("default_audio_provider", apple_type),
+        ("default_audio_model", "apple-speech"),
+    ]
+    written: list[str] = []
+    for key, value in pairs:
+        if not app_db.get_setting(key):
+            app_db.set_setting(key, value)
+            written.append(key)
+    if written:
+        logger.info(
+            "Seeded Apple Intelligence as default for %d AI tier keys: %s",
+            len(written), ", ".join(written),
+        )
 
 
 def _collapse_duplicate_providers() -> None:
