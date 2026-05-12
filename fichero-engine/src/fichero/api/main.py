@@ -219,13 +219,15 @@ def _ensure_default_ai_defaults(app_db, apple_provider_id: str) -> None:
     on its own; explicit per-pane Reset buttons handle that case.)
     """
     apple_type = "apple"
+    # Only the tiers the resolver actually consumes today
+    # ($small / $large + typed text / vision / audio). $medium isn't
+    # wired in the alias resolver yet — no point seeding a default
+    # for it until something resolves it. (#933)
     pairs = [
         ("default_text_provider", apple_type),
         ("default_text_model", "apple-intelligence"),
         ("default_small_provider", apple_type),
         ("default_small_model", "apple-intelligence"),
-        ("default_medium_provider", apple_type),
-        ("default_medium_model", "apple-intelligence"),
         ("default_large_provider", apple_type),
         ("default_large_model", "apple-intelligence"),
         ("default_vision_provider", apple_type),

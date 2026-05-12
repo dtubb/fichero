@@ -435,28 +435,52 @@ class AppDatabase:
         return None
 
     def reset_ai_defaults(self):
-        """Delete all AI default settings."""
-        keys = [
-            "default_vision_provider",
-            "default_vision_model",
-            "default_text_provider",
-            "default_text_model",
-            "default_audio_provider",
-            "default_audio_model",
-            "default_video_provider",
-            "default_video_model",
-            "default_embeddings_provider",
-            "default_embeddings_model",
-            "default_small_provider",
-            "default_small_model",
-            "default_large_provider",
-            "default_large_model",
-            "default_temperature",
-            "default_max_tokens",
-            "default_prompt_prefix",
+        """Reset AI defaults to factory: Apple Intelligence everywhere.
+
+        Pre-fix this just deleted every default_* key, leaving the user
+        with blank AI Defaults until the next engine launch re-ran
+        bootstrap. Between reset and restart the Catalogue workflow
+        would fail with the first-run "no $small model" error (#932
+        reprise). Now we delete the bag and immediately re-seed
+        with the Apple Intelligence factory baseline, so 'Reset' really
+        means 'back to defaults' rather than 'empty everything.'
+
+        Scope guarantee (#933): touches ONLY the default_* setting keys.
+        Never modifies the providers or models tables — those have
+        their own reset surface (per-screen \"Reset Providers and
+        Models\" button — separate feature when shipped).
+        """
+        keys_to_delete = [
+            "default_vision_provider", "default_vision_model",
+            "default_text_provider", "default_text_model",
+            "default_audio_provider", "default_audio_model",
+            "default_video_provider", "default_video_model",
+            "default_embeddings_provider", "default_embeddings_model",
+            "default_small_provider", "default_small_model",
+            "default_large_provider", "default_large_model",
+            "default_temperature", "default_max_tokens", "default_prompt_prefix",
         ]
-        for key in keys:
+        for key in keys_to_delete:
             self.delete_setting(key)
+
+        # Re-seed with the Apple Intelligence factory baseline matching
+        # what _ensure_default_ai_defaults() writes on first launch
+        # (see api/main.py). Kept in lockstep with that bootstrap; if
+        # bootstrap's pairs change, update both. Apple Intelligence is
+        # always available on macOS 26+ Apple Silicon — free, on-device,
+        # no user setup needed. Only the tiers the resolver actually
+        # consumes today (`$small` / `$large` / typed: text / vision /
+        # audio) — no point seeding `$medium` until something resolves it.
+        apple = "apple"
+        factory_defaults = {
+            "default_text_provider": apple, "default_text_model": "apple-intelligence",
+            "default_small_provider": apple, "default_small_model": "apple-intelligence",
+            "default_large_provider": apple, "default_large_model": "apple-intelligence",
+            "default_vision_provider": apple, "default_vision_model": "apple-vision",
+            "default_audio_provider": apple, "default_audio_model": "apple-speech",
+        }
+        for key, value in factory_defaults.items():
+            self.set_setting(key, value)
 
     def delete_model(self, model_id: str):
         """Delete a model."""
