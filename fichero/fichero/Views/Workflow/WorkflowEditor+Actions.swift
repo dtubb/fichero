@@ -201,10 +201,18 @@ extension WorkflowEditor {
             documentStore.updateProcessingStatus(forPath: filePath, status: .processing)
 
         case .fileComplete(_, _, let filePath, _, _, _, _):
-            documentStore.updateProcessingStatus(forPath: filePath, status: .completed)
+            // Defer the green checkmark — reduce-phase nodes may still
+            // be touching this page (#948).
+            documentStore.recordFanoutComplete(forPath: filePath)
 
         case .fileError(_, _, let filePath, _, _):
             documentStore.updateProcessingStatus(forPath: filePath, status: .failed)
+
+        case .complete:
+            documentStore.flushPendingFanoutCompletions(status: .completed)
+
+        case .error, .systemicError:
+            documentStore.flushPendingFanoutCompletions(status: .failed)
 
         default:
             break

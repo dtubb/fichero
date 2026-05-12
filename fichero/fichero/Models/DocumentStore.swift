@@ -60,6 +60,14 @@ class DocumentStore: ObservableObject {
     /// In-memory only; clears on app restart.
     @Published var workflowStatusOverrides: [String: Status] = [:]
 
+    /// File paths whose per-file fanout slot has finished (the `fileComplete`
+    /// SSE event arrived) but whose enclosing workflow is still running
+    /// reduce-phase nodes that further touch the page (extract_all, etc.).
+    /// Held here so the sidebar/grid keep showing a spinner — flipping to
+    /// the green checkmark happens only when the workflow's `complete`
+    /// event fires and `flushPendingFanoutCompletions` runs (#948).
+    var pendingFanoutCompletionPaths: Set<String> = []
+
     /// Publisher for document changes.
     var documentChangePublisher: AnyPublisher<DocumentChange, Error> {
         documentChanges.eraseToAnyPublisher()

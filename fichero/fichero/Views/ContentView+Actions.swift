@@ -356,9 +356,17 @@ extension ContentView {
         case .fileStart(_, _, let filePath, _, _, _):
             documentStore.updateProcessingStatus(forPath: filePath, status: .processing)
         case .fileComplete(_, _, let filePath, _, _, _, _):
-            documentStore.updateProcessingStatus(forPath: filePath, status: .completed)
+            // Per-file fanout slot finished, but reduce-phase nodes
+            // (extract_all etc.) may still be touching this page. Defer
+            // the green checkmark until the workflow's terminal event.
+            // See DocumentStore.recordFanoutComplete + flushPendingFanoutCompletions (#948).
+            documentStore.recordFanoutComplete(forPath: filePath)
         case .fileError(_, _, let filePath, _, _):
             documentStore.updateProcessingStatus(forPath: filePath, status: .failed)
+        case .complete:
+            documentStore.flushPendingFanoutCompletions(status: .completed)
+        case .error, .systemicError:
+            documentStore.flushPendingFanoutCompletions(status: .failed)
         default:
             break
         }

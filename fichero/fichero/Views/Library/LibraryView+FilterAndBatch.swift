@@ -330,7 +330,9 @@ extension LibraryView {
                         case .fileStart(_, _, let filePath, _, _, _):
                             store.updateProcessingStatus(forPath: filePath, status: .processing)
                         case .fileComplete(_, _, let filePath, _, _, _, _):
-                            store.updateProcessingStatus(forPath: filePath, status: .completed)
+                            // Hold the spinner until workflow.complete —
+                            // reduce-phase nodes may still touch this page (#948).
+                            store.recordFanoutComplete(forPath: filePath)
                         case .fileError(_, _, let filePath, _, _):
                             store.updateProcessingStatus(forPath: filePath, status: .failed)
                         default:
@@ -338,7 +340,11 @@ extension LibraryView {
                         }
                     }
                     switch event {
-                    case .complete, .error, .systemicError:
+                    case .complete:
+                        documentStore?.flushPendingFanoutCompletions(status: .completed)
+                        streamCompleted = true
+                    case .error, .systemicError:
+                        documentStore?.flushPendingFanoutCompletions(status: .failed)
                         streamCompleted = true
                     default:
                         break

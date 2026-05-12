@@ -284,14 +284,21 @@ struct SidebarItemRow: View {
                         case .fileStart(_, _, let filePath, _, _, _):
                             store.updateProcessingStatus(forPath: filePath, status: .processing)
                         case .fileComplete(_, _, let filePath, _, _, _, _):
-                            store.updateProcessingStatus(forPath: filePath, status: .completed)
+                            // Defer the green checkmark until workflow.complete
+                            // — reduce-phase nodes (extract_all) may still be
+                            // processing this page (#948).
+                            store.recordFanoutComplete(forPath: filePath)
                         case .fileError(_, _, let filePath, _, _):
                             store.updateProcessingStatus(forPath: filePath, status: .failed)
                         default:
                             break
                         }
                         switch event {
-                        case .complete, .error, .systemicError:
+                        case .complete:
+                            store.flushPendingFanoutCompletions(status: .completed)
+                            streamCompleted = true
+                        case .error, .systemicError:
+                            store.flushPendingFanoutCompletions(status: .failed)
                             streamCompleted = true
                         default:
                             break

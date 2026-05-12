@@ -147,6 +147,27 @@ extension DocumentStore {
         }
     }
 
+    /// Record that the per-file fanout slot for `filePath` has finished —
+    /// but DO NOT flip the document's status to `.completed` yet. Reduce-phase
+    /// nodes (extract_all, folder_cleanup) keep touching pages after the
+    /// fanout's `fileComplete` event fires. The status stays `.processing`
+    /// until the workflow's `complete` event fires and
+    /// `flushPendingFanoutCompletions` promotes everything. (#948)
+    func recordFanoutComplete(forPath filePath: String) {
+        pendingFanoutCompletionPaths.insert(filePath)
+    }
+
+    /// Promote every path recorded via `recordFanoutComplete` to `.completed`.
+    /// Called by workflow-runner sites when the workflow's terminal event
+    /// (`complete` / `error` / `systemicError`) arrives. (#948)
+    func flushPendingFanoutCompletions(status: Status = .completed) {
+        let paths = pendingFanoutCompletionPaths
+        pendingFanoutCompletionPaths.removeAll()
+        for path in paths {
+            updateProcessingStatus(forPath: path, status: status)
+        }
+    }
+
     /// Apply workflowStatusOverrides to a freshly-loaded array so the UI sees
     /// the in-flight / failed state survive reloads. Called by every load
     /// path that populates currentDocuments / collections / childrenCache.
