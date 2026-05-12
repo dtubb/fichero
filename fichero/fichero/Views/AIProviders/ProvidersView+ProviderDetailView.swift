@@ -116,8 +116,21 @@ struct ProviderDetailView: View {
                                 Spacer()
                             }
 
-                            SecureField(maskedKeyPlaceholder, text: $apiKey)
-                                .textFieldStyle(.roundedBorder)
+                            // #934 — SecureField in a macOS Form treats
+                            // its label parameter as a leading-label,
+                            // which rendered the masked dots floating to
+                            // the LEFT of the input box (Daniel: \"is not
+                            // showing the key properly, it's to the left
+                            // of the text box\"). Use an empty label +
+                            // `prompt:` so the dots appear INSIDE the
+                            // field as placeholder text — the intent.
+                            SecureField(
+                                "", text: $apiKey,
+                                prompt: Text(maskedKeyPlaceholder)
+                                    .foregroundStyle(.secondary)
+                            )
+                            .textFieldStyle(.roundedBorder)
+                            .labelsHidden()
 
                             Text("Enter a new key to replace the saved one")
                                 .font(.caption)
@@ -137,8 +150,15 @@ struct ProviderDetailView: View {
                             Text("No API key configured")
                                 .foregroundColor(.orange)
 
-                            SecureField("Enter your API key", text: $apiKey)
-                                .textFieldStyle(.roundedBorder)
+                            // Same labels-on-left issue as the saved-key
+                            // branch; same fix. (#934)
+                            SecureField(
+                                "", text: $apiKey,
+                                prompt: Text("Enter your API key")
+                                    .foregroundStyle(.secondary)
+                            )
+                            .textFieldStyle(.roundedBorder)
+                            .labelsHidden()
 
                             Button("Save Key") {
                                 saveAPIKey()
