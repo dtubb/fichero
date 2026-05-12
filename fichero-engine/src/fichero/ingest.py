@@ -180,7 +180,7 @@ def ingest_file(
     mode: IngestMode = IngestMode.LINK,
     parent_id: str | None = None,
     extract_metadata: bool = True,
-    extract_text: bool = False,
+    extract_text: bool = True,
     auto_embed: bool = False,
     save: bool = True,
     db: "Database | None" = None,
@@ -193,7 +193,13 @@ def ingest_file(
         mode: LINK (bookmark) or COPY (import)
         parent_id: Parent collection ID
         extract_metadata: Run metadata extraction (size, checksum, etc.)
-        extract_text: Use loaders to extract text content for search
+        extract_text: Use loaders to extract text content for search. Defaults
+            to True so .md / .txt / .docx / .pdf-with-text files are searchable
+            immediately after ingest without requiring an explicit workflow run
+            (#881). The extraction is keyed on _TEXT_EXTRACTABLE so image-only
+            files like .jpg / .png correctly skip the loader and need the
+            Transcribe / OCR workflow path. Override to False for batch
+            imports where text extraction is deferred to a later workflow.
         auto_embed: Create embedding for search after saving
         save: If True, save to database
         db: Database instance (required if save=True)
