@@ -30,7 +30,13 @@ OFFICE_FORMATS = {
 EBOOK_FORMATS = {".epub", ".mobi"}
 
 # Plain text formats (including CSV which is structured plain text)
-TEXT_FORMATS = {".txt", ".md", ".markdown", ".rst", ".html", ".htm", ".xml", ".csv"}
+TEXT_FORMATS = {
+    ".txt", ".md", ".markdown", ".rst", ".html", ".htm", ".xml", ".csv",
+    # Subtitle / transcript files — plain text with timestamp markers.
+    # Timestamps become indexable noise, but the dialog/transcript text
+    # is what users search for.
+    ".srt", ".vtt", ".sbv",
+}
 
 ALL_DOCUMENT_FORMATS = OFFICE_FORMATS | EBOOK_FORMATS | TEXT_FORMATS
 

@@ -119,11 +119,23 @@ _FILE_TYPE_MAP = {
     ".avi": FileType.video,
     ".mkv": FileType.video,
     ".webm": FileType.video,
-    # Text
+    # Text. \\\`.rtf\\\` reads as text — Kreuzberg's RTF loader extracts plain
+    # body text, no rich formatting passes through, but for full-text
+    # search that's exactly what we want. \\\`.html\\\` / \\\`.htm\\\` / \\\`.xml\\\`
+    # also map here so the loader extracts the textual content via
+    # the document_loader pipeline.
     ".txt": FileType.text,
     ".md": FileType.text,
+    ".markdown": FileType.text,
     ".rst": FileType.text,
     ".rtf": FileType.text,
+    ".html": FileType.text,
+    ".htm": FileType.text,
+    ".xml": FileType.text,
+    # Subtitles / transcripts — searchable as plain text
+    ".srt": FileType.text,
+    ".vtt": FileType.text,
+    ".sbv": FileType.text,
     # Word
     ".doc": FileType.word,
     ".docx": FileType.word,
@@ -136,6 +148,7 @@ _FILE_TYPE_MAP = {
     # Presentations
     ".pptx": FileType.presentation,
     ".ppt": FileType.presentation,
+    ".odp": FileType.presentation,
     # Ebooks
     ".epub": FileType.epub,
     ".mobi": FileType.epub,
