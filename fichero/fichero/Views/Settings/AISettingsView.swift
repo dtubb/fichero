@@ -90,7 +90,9 @@ struct AISettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 providerPicker(selection: $defaults.textProvider)
-                modelPicker(selection: $defaults.textModel, models: textModels)
+                // tier:.text filters the dropdown to LLM-shaped models
+                // (excludes Apple Vision OCR / Apple Speech). (#940)
+                modelPicker(selection: $defaults.textModel, models: textModels, tier: .text)
             }
 
             Section("Vision") {
@@ -98,7 +100,7 @@ struct AISettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 providerPicker(selection: $defaults.visionProvider)
-                modelPicker(selection: $defaults.visionModel, models: visionModels)
+                modelPicker(selection: $defaults.visionModel, models: visionModels, tier: .vision)
             }
 
             Section("Audio") {
@@ -106,7 +108,7 @@ struct AISettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 providerPicker(selection: $defaults.audioProvider)
-                modelPicker(selection: $defaults.audioModel, models: audioModels)
+                modelPicker(selection: $defaults.audioModel, models: audioModels, tier: .audio)
             }
 
             if featureManager.isWorkflowToolsVideoEnabled {
@@ -115,7 +117,7 @@ struct AISettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     providerPicker(selection: $defaults.videoProvider)
-                    modelPicker(selection: $defaults.videoModel, models: videoModels)
+                    modelPicker(selection: $defaults.videoModel, models: videoModels, tier: .vision)
                 }
             }
 
@@ -267,18 +269,59 @@ private extension AISettingsView {
         }
     }
 
+    /// Capability requirement for a Defaults tier — used by modelPicker
+    /// to filter the dropdown to only models that support the tier's
+    /// purpose (Vision tier shows vision models only, Audio shows
+    /// audio/transcription only). \\\`text\\\` includes any LLM (everything
+    /// that isn't strictly vision-only or audio-only). \\\`any\\\` shows
+    /// everything — used for the user-tier \\\`\$small\\\` / \\\`\$large\\\`
+    /// pickers where the user picks the cheapest / most-capable for
+    /// their workflows regardless of typed capability. (#940)
+    enum TierCapability {
+        case text
+        case vision
+        case audio
+        case any
+
+        func matches(_ model: ModelInfo) -> Bool {
+            switch self {
+            case .text:
+                // A model is text-capable when it's NOT vision-or-audio
+                // only. Most LLMs are; the seeded Apple Vision (OCR)
+                // and Apple Speech rows are not.
+                return !(model.supportsVision || model.supportsAudioInput)
+                    || model.modelId == "apple-intelligence"
+            case .vision:
+                return model.supportsVision
+            case .audio:
+                return model.supportsAudioInput
+            case .any:
+                return true
+            }
+        }
+    }
+
     @ViewBuilder
-    func modelPicker(selection: Binding<String>, models: [ModelInfo]) -> some View {
+    func modelPicker(
+        selection: Binding<String>,
+        models: [ModelInfo],
+        tier: TierCapability = .any,
+    ) -> some View {
         let currentSelection = selection.wrappedValue
         let hasCurrentSelection = !currentSelection.isEmpty
-        let hasCurrentInList = models.contains { $0.modelId == currentSelection }
+        let filtered = models.filter { tier.matches($0) }
+        let hasCurrentInList = filtered.contains { $0.modelId == currentSelection }
 
         Picker("Model", selection: selection) {
             Text("None").tag("")
             if hasCurrentSelection && !hasCurrentInList {
-                Text("\(currentSelection) (saved)").tag(currentSelection)
+                // Show the saved value even when filtered-out so the
+                // user can see "this saved selection doesn't match the
+                // tier" instead of a silent reset. They can pick a new
+                // compatible one from the dropdown.
+                Text("\(currentSelection) (saved — wrong capability)").tag(currentSelection)
             }
-            ForEach(models, id: \.modelId) { model in
+            ForEach(filtered, id: \.modelId) { model in
                 Text(model.fullName).tag(model.modelId)
             }
         }
