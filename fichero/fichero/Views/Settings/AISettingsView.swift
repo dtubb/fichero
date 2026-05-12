@@ -167,26 +167,45 @@ struct AISettingsView: View {
             }
         }
         .formStyle(.grouped)
+        // Provider-change handlers reset the model AND reload the list
+        // for the new provider, then pick its first model as the new
+        // default. Pre-fix, switching provider left the stale model
+        // selected (which would 404 at runtime) and required
+        // tab-away-and-back to refresh the picker. (#936)
         .onChange(of: defaults.textProvider) { _, newValue in
-            loadModels(for: newValue, into: $textModels)
+            loadModelsResettingSelection(
+                for: newValue, into: $textModels, selecting: $defaults.textModel,
+            )
         }
         .onChange(of: defaults.visionProvider) { _, newValue in
-            loadModels(for: newValue, into: $visionModels)
+            loadModelsResettingSelection(
+                for: newValue, into: $visionModels, selecting: $defaults.visionModel,
+            )
         }
         .onChange(of: defaults.audioProvider) { _, newValue in
-            loadModels(for: newValue, into: $audioModels)
+            loadModelsResettingSelection(
+                for: newValue, into: $audioModels, selecting: $defaults.audioModel,
+            )
         }
         .onChange(of: defaults.videoProvider) { _, newValue in
-            loadModels(for: newValue, into: $videoModels)
+            loadModelsResettingSelection(
+                for: newValue, into: $videoModels, selecting: $defaults.videoModel,
+            )
         }
         .onChange(of: defaults.embeddingsProvider) { _, newValue in
-            loadModels(for: newValue, into: $embeddingsModels)
+            loadModelsResettingSelection(
+                for: newValue, into: $embeddingsModels, selecting: $defaults.embeddingsModel,
+            )
         }
         .onChange(of: defaults.smallProvider) { _, newValue in
-            loadModels(for: newValue, into: $smallModels)
+            loadModelsResettingSelection(
+                for: newValue, into: $smallModels, selecting: $defaults.smallModel,
+            )
         }
         .onChange(of: defaults.largeProvider) { _, newValue in
-            loadModels(for: newValue, into: $largeModels)
+            loadModelsResettingSelection(
+                for: newValue, into: $largeModels, selecting: $defaults.largeModel,
+            )
         }
     }
 
@@ -261,6 +280,83 @@ private extension AISettingsView {
             }
             ForEach(models, id: \.modelId) { model in
                 Text(model.fullName).tag(model.modelId)
+            }
+        }
+    }
+
+    /// Provider-change companion to \\\`loadModels\\\` — clears the model
+    /// selection immediately so the picker doesn't briefly show a
+    /// stale model for the OLD provider, then loads the new list and
+    /// auto-picks its first model. Fixes the two halves of #936:
+    /// stale picker after provider change AND requires-tab-cycle to
+    /// load. Combined into one helper because the load + reselect are
+    /// always tied together — separate \\\`loadModels\\\` stays for the
+    /// loadDefaults() initial pass which already knows the right
+    /// model from persisted defaults.
+    func loadModelsResettingSelection(
+        for providerType: String,
+        into models: Binding<[ModelInfo]>,
+        selecting selection: Binding<String>,
+    ) {
+        // Clear immediately so the picker drops the stale row.
+        selection.wrappedValue = ""
+
+        guard !providerType.isEmpty else {
+            models.wrappedValue = []
+            return
+        }
+
+        guard let provider = appState.providers.first(
+            where: { $0.providerType == providerType }
+        ) else {
+            models.wrappedValue = []
+            return
+        }
+
+        Task {
+            do {
+                let configured = try await appState.providerService
+                    .listProviderModels(providerId: provider.id)
+                let list = configured.map { user in
+                    ModelInfo(
+                        modelId: user.modelId,
+                        fullName: user.name,
+                        description: nil,
+                        isRecommended: false,
+                        isLocal: false,
+                        inputCostPerMillion: 0,
+                        outputCostPerMillion: 0,
+                        batchInputCostPerMillion: nil,
+                        batchOutputCostPerMillion: nil,
+                        cacheReadCostPerMillion: nil,
+                        maxInputTokens: nil,
+                        maxOutputTokens: nil,
+                        mode: nil,
+                        supportsVision: user.capabilities.contains("vision"),
+                        supportsFunctionCalling: user.capabilities.contains("tools"),
+                        supportsAudioInput: user.capabilities.contains("audio"),
+                        supportsAudioOutput: false,
+                        supportsPdfInput: false,
+                        supportsPromptCaching: false,
+                        supportsReasoning: false,
+                        supportsWebSearch: false,
+                        supportsStreaming: false,
+                        supportsBatchApi: false,
+                        provider: providerType
+                    )
+                }
+                models.wrappedValue = list
+                // Auto-pick the first model for the new provider so
+                // the picker isn't left on "None" — saves a click on
+                // every provider change.
+                if let first = list.first {
+                    selection.wrappedValue = first.modelId
+                }
+            } catch {
+                logger.error(
+                    "Failed to load models for \(providerType): \(error.localizedDescription)"
+                )
+                models.wrappedValue = []
             }
         }
     }
