@@ -1026,6 +1026,82 @@ def _write_kg_rows(
     entity_type = section.get("entity_type")
     page_excerpt = source_excerpt  # rename for clarity below
 
+    # Within-call dedup (#896): when a page gets sub-chunked at the
+    # 3000-char boundary (#extract_chunk), each sub-chunk's LLM call
+    # may independently emit the same entity, and a single LLM call
+    # often emits one item per textual occurrence rather than folding
+    # variants into alternative_spellings. The result is N near-
+    # duplicate items for one underlying fact on one page. Collapse
+    # them here BEFORE any DB write so we don't get six "Davidson is
+    # an alternative spelling of Deibinson" claims for one page-1
+    # mention pattern.
+    #
+    # Dedup key: (canonical lowered, normalized predicate). Date
+    # sections key on (normalized date, predicate). Preserves the
+    # first item's source_text + alternative_spellings; later
+    # duplicates fold their spellings into the first.
+    def _norm(s: Any) -> str:
+        return " ".join(str(s or "").lower().split())
+
+    def _dedup_key(item: dict) -> tuple[str, str]:
+        canonical = (
+            item.get("name")
+            or item.get("event")
+            or item.get("date")
+            or item.get("nombre")
+            or item.get("evento")
+            or item.get("fecha")
+            or ""
+        )
+        if entity_type is None:
+            canonical = item.get("date_normalized") or canonical
+        predicate = f"{item.get('verb') or ''} {item.get('object') or ''}".strip()
+        legacy = item.get("context") or item.get("contexto") or ""
+        return (_norm(canonical), _norm(predicate or legacy))
+
+    deduped: list[dict] = []
+    seen: dict[tuple[str, str], dict] = {}
+    for raw_item in items:
+        if not isinstance(raw_item, dict):
+            # Keywords come through as bare strings — preserve uniqueness
+            # by the string itself.
+            key = ("", _norm(raw_item))
+            if key in seen:
+                continue
+            seen[key] = {"name": str(raw_item)}
+            deduped.append(seen[key])
+            continue
+        key = _dedup_key(raw_item)
+        if not key[0] and not key[1]:
+            # Nothing to dedup against — pass through.
+            deduped.append(raw_item)
+            continue
+        if key in seen:
+            # Fold alternative spellings from the duplicate into the
+            # first occurrence so we don't lose surface-form evidence.
+            existing = seen[key]
+            existing_aliases = set(existing.get("alternative_spellings") or [])
+            dup_aliases = set(raw_item.get("alternative_spellings") or [])
+            merged = existing_aliases | dup_aliases
+            # Also fold the duplicate's name itself when it differs in
+            # casing/accent — useful surface-form evidence.
+            existing_name = existing.get("name")
+            dup_name = raw_item.get("name")
+            if existing_name and dup_name and _norm(existing_name) == _norm(dup_name) and existing_name != dup_name:
+                merged.add(dup_name)
+            if merged:
+                existing["alternative_spellings"] = sorted(merged)
+            continue
+        seen[key] = raw_item
+        deduped.append(raw_item)
+
+    if len(deduped) < len(items):
+        logger.info(
+            f"_write_kg_rows: deduped {len(items)} → {len(deduped)} items "
+            f"for {section.get('name')} on {container_id}"
+        )
+    items = deduped
+
     def _coerce_enum(raw: Any, enum_cls):
         """Map an LLM-emitted string to enum_cls; None for unknowns.
 
