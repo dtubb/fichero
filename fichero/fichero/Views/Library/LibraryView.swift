@@ -74,15 +74,17 @@ struct LibraryView: View {
     @SceneStorage("column_artifacts") var showArtifacts = false  // #519: hidden by default
 
     // Per-entity-type visibility flags for the list-view lozenge rows.
-    // Daniel asked for a top-right filter menu so users can hide
-    // categories they don't care about. Persisted per-window so the
-    // setting follows the user's library workflow. (#519 follow-up)
-    @SceneStorage("list_show_people") var showPeopleEntities = true
-    @SceneStorage("list_show_places") var showPlacesEntities = true
-    @SceneStorage("list_show_organizations") var showOrganizationsEntities = true
+    // Now driven by the same @AppStorage CSV used by the KG ontology
+    // browser + document-inspector KG tab so toggling People in any
+    // surface affects all of them. The CSV stores HIDDEN EntityType
+    // raw values ("person", "location", "organization", "event",
+    // "concept", "other"); empty CSV = show everything. (#887)
+    @AppStorage("inspector.kg.hiddenKinds") var hiddenKindsCSV: String = ""
+
+    // "dates" doesn't have a KnowledgeEntity counterpart (dates are
+    // surfaced via the timeline tool, not as KG entities) so the dates
+    // lozenge stays on a Library-only @SceneStorage flag.
     @SceneStorage("list_show_dates") var showDatesEntities = true
-    @SceneStorage("list_show_events") var showEventsEntities = true
-    @SceneStorage("list_show_keywords") var showKeywordsEntities = true
 
     /// Mac-native column customization for the table view (right-click on
     /// any column header → show/hide menu, drag to reorder). Backed by

@@ -9,6 +9,28 @@ autonomous: KG epistemology + ontology + verbatim source_text layer,
 **Test suite:** 683 passing, 0 failing. Coverage 10.78% (was 9.20%
 this morning — +1.58pp on the day).
 
+**Headline (2026-05-11 / 2026-05-12 overnight — KG surface lit up):**
+- Backend KG namespace consolidation (1587a1b6); `kg` bucket = 45
+  endpoints, old `knowledge-graph` bucket deleted.
+- Swift API client regenerated against new schema. Build clean.
+- `EntityServiceGenerated` extended with contradictions, evidence-chain,
+  entity merge/split/audit, claim+entity embedding, heuristic
+  predictions (66c8320a).
+- `OntologyBrowser` gained a Tools menu (wrench icon): embed claims,
+  embed entities, generate suggested links. Transient status string
+  in the toolbar (bce81165).
+- `EntityDetailView` gained a Curation History section — driven by
+  `/api/kg/entity-curation/audit`, renders nothing when empty (bce81165).
+- `ClaimSummaryCard` is now expandable: chevron toggle fetches
+  contradictions + evidence-chain in parallel and shows inline (96a13e74).
+- Dead Swift removed: `KnowledgeGraphServiceGenerated.swift`,
+  `HermeneuticsServiceGenerated.swift`, and the orphan
+  `ClaimInspector` / `EpistemologyGraph` / `PredictionReview` view
+  dirs (2360 LOC of unbuildable cruft).
+- GitHub issues closed: #832 (duplicate routers), #895 (toolbar
+  accumulation), #888 (service-layer cleanup). #889 updated with
+  rebuild blueprint pointing at OntologyBrowser as the new shell.
+
 **Headline (2026-05-11 — late autonomous: KG namespace consolidation):**
 - **#832 closed.** `/api/knowledge-graph/*` sub-package deleted; the
   five unique surfaces ported into focused single-purpose modules

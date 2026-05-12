@@ -218,50 +218,74 @@ extension LibraryView {
         }
     }
 
+    /// EntityType raw values currently hidden (KG canonical vocabulary).
+    /// Translated to the lozenge-row scope names via `kgKindToLozenge`.
+    private var hiddenKgKinds: Set<String> {
+        Set(hiddenKindsCSV.split(separator: ",").map(String.init).filter { !$0.isEmpty })
+    }
+
+    /// Map KG EntityType raw values to the lozenge-scope tokens used by
+    /// MailStyleRow / ArtifactEntitiesView (#882). Dates have no KG
+    /// counterpart and stay on a Library-only toggle.
+    private static let kgKindToLozenge: [(kind: String, scope: String, label: String)] = [
+        ("person", "people", "People"),
+        ("location", "places", "Places"),
+        ("organization", "organizations", "Organizations"),
+        ("event", "events", "Events"),
+        ("concept", "keywords", "Keywords"),
+    ]
+
     /// Set of entity-type ids the user wants visible in list rows.
     /// Drives `MailStyleRow` → `ArtifactEntitiesView` filtering. (#519
-    /// follow-up)
+    /// follow-up; #887 now derives from shared @AppStorage.)
     var listVisibleEntityTypes: Set<String> {
         var set = Set<String>()
-        if showPeopleEntities { set.insert("people") }
-        if showPlacesEntities { set.insert("places") }
-        if showOrganizationsEntities { set.insert("organizations") }
+        let hidden = hiddenKgKinds
+        for entry in Self.kgKindToLozenge where !hidden.contains(entry.kind) {
+            set.insert(entry.scope)
+        }
         if showDatesEntities { set.insert("dates") }
-        if showEventsEntities { set.insert("events") }
-        if showKeywordsEntities { set.insert("keywords") }
         return set
     }
 
-    /// Top-right filter menu — toggles per-entity-type visibility for
-    /// the list-row lozenge rows. Lives as a `ToolbarItem` so it shows
-    /// in icon / list / table / map. Plain Menu styling — no custom
-    /// material/padding so NSToolbar lays it out like any other item.
-    /// (#883)
+    /// Per-kind binding into the shared `inspector.kg.hiddenKinds` CSV.
+    /// Mirrors what `OntologyBrowser` does so toggling a kind here also
+    /// toggles it in the KG browser + document-inspector KG tab. (#887)
+    private func bindingFor(kind: String) -> Binding<Bool> {
+        Binding(
+            get: { !hiddenKgKinds.contains(kind) },
+            set: { isOn in
+                var set = hiddenKgKinds
+                if isOn {
+                    set.remove(kind)
+                } else {
+                    set.insert(kind)
+                }
+                hiddenKindsCSV = set.sorted().joined(separator: ",")
+            }
+        )
+    }
+
+    /// Top-right filter menu — toggles per-entity-type visibility.
+    /// Lives as a `ToolbarItem` so it shows in icon / list / table / map.
+    /// People / Places / Organizations / Events / Keywords share state
+    /// with OntologyBrowser via @AppStorage; Dates stays Library-only.
+    /// (#883, #887)
     @ViewBuilder
     var entityFilterMenu: some View {
         Menu {
-            Toggle("People", isOn: $showPeopleEntities)
-            Toggle("Places", isOn: $showPlacesEntities)
-            Toggle("Organizations", isOn: $showOrganizationsEntities)
+            ForEach(Self.kgKindToLozenge, id: \.kind) { entry in
+                Toggle(entry.label, isOn: bindingFor(kind: entry.kind))
+            }
             Toggle("Dates", isOn: $showDatesEntities)
-            Toggle("Events", isOn: $showEventsEntities)
-            Toggle("Keywords", isOn: $showKeywordsEntities)
             Divider()
             Button("Show All") {
-                showPeopleEntities = true
-                showPlacesEntities = true
-                showOrganizationsEntities = true
+                hiddenKindsCSV = ""
                 showDatesEntities = true
-                showEventsEntities = true
-                showKeywordsEntities = true
             }
             Button("Hide All") {
-                showPeopleEntities = false
-                showPlacesEntities = false
-                showOrganizationsEntities = false
+                hiddenKindsCSV = Self.kgKindToLozenge.map(\.kind).sorted().joined(separator: ",")
                 showDatesEntities = false
-                showEventsEntities = false
-                showKeywordsEntities = false
             }
         } label: {
             Label("Filter Entities", systemImage: "line.3.horizontal.decrease.circle")
