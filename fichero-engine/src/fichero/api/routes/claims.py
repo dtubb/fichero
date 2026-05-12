@@ -190,6 +190,24 @@ async def get_claim(
     return claim
 
 
+@router.delete("/{claim_id}", status_code=204)
+async def delete_claim(
+    claim_id: str,
+    db: Database = Depends(get_library_database),
+) -> None:
+    """Hard-delete a single knowledge claim.
+
+    Entities referenced by the claim's ``entity_ids`` are not
+    touched — the entity is the bigger concept, the claim is one
+    piece of evidence about it. Use \`DELETE /api/entities/{id}\`
+    to remove the entity itself. (#901)
+    """
+    claim = db.get(KnowledgeClaim, claim_id)
+    if claim is None:
+        raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
+    db.delete(KnowledgeClaim, claim_id)
+
+
 # =============================================================================
 # Claim Listing and Filtering
 # =============================================================================

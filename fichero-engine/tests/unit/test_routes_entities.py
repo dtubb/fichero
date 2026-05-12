@@ -6,7 +6,6 @@ management, and entity resolution. Route ordering fix required: static paths
 /alias-map and /resolve/{v} must be registered before /{entity_id}.
 """
 
-import pytest
 from fichero.knowledge_models import EntityType, KnowledgeEntity
 
 
@@ -107,6 +106,87 @@ class TestGetEntity:
 
     def test_get_missing_returns_404(self, client):
         r = client.get("/api/entities/no-such-entity")
+        assert r.status_code == 404
+
+
+class TestPatchEntity:
+    """#901 — partial update for canonical_name / aliases / etc."""
+
+    def test_patch_canonical_name(self, client, db):
+        entity = _make_entity(db, "Alice")
+        r = client.patch(f"/api/entities/{entity.id}", json={"canonical_name": "Alice Smith"})
+        assert r.status_code == 200
+        assert r.json()["canonical_name"] == "Alice Smith"
+        # DB row reflects the update.
+        reloaded = db.get(KnowledgeEntity, entity.id)
+        assert reloaded.canonical_name == "Alice Smith"
+
+    def test_patch_aliases_replaces_existing(self, client, db):
+        entity = _make_entity(db, "Alice")
+        entity.aliases = ["A", "B"]
+        db.save(entity)
+        r = client.patch(f"/api/entities/{entity.id}", json={"aliases": ["Al", "Ally"]})
+        assert r.status_code == 200
+        assert set(r.json()["aliases"]) == {"Al", "Ally"}
+
+    def test_patch_only_supplied_fields(self, client, db):
+        """PATCH should not clobber fields absent from the request body."""
+        entity = _make_entity(db, "Alice")
+        entity.description = "original description"
+        db.save(entity)
+        r = client.patch(f"/api/entities/{entity.id}", json={"canonical_name": "Renamed"})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["canonical_name"] == "Renamed"
+        assert body["description"] == "original description"
+
+    def test_patch_missing_returns_404(self, client):
+        r = client.patch("/api/entities/no-such", json={"canonical_name": "X"})
+        assert r.status_code == 404
+
+
+class TestDeleteEntity:
+    """#901 — DELETE removes the entity and optionally cascades to claims."""
+
+    def test_delete_returns_204(self, client, db):
+        entity = _make_entity(db, "Alice")
+        r = client.delete(f"/api/entities/{entity.id}")
+        assert r.status_code == 204
+        assert db.get(KnowledgeEntity, entity.id) is None
+
+    def test_delete_strips_entity_from_claims_by_default(self, client, db):
+        """Without cascade, claims keep their text + provenance but
+        lose the deleted entity from their entity_ids list."""
+        from fichero.knowledge_models import KnowledgeClaim
+        entity = _make_entity(db, "Alice")
+        claim = KnowledgeClaim(
+            text="Alice signed the deed.",
+            source_document_id="doc-1",
+            entity_ids=[entity.id, "other-id"],
+        )
+        db.save(claim)
+        r = client.delete(f"/api/entities/{entity.id}")
+        assert r.status_code == 204
+        reloaded = db.get(KnowledgeClaim, claim.id)
+        assert reloaded is not None
+        assert entity.id not in reloaded.entity_ids
+        assert "other-id" in reloaded.entity_ids
+
+    def test_delete_with_cascade_removes_dependent_claims(self, client, db):
+        from fichero.knowledge_models import KnowledgeClaim
+        entity = _make_entity(db, "Alice")
+        claim = KnowledgeClaim(
+            text="Alice signed.",
+            source_document_id="doc-1",
+            entity_ids=[entity.id],
+        )
+        db.save(claim)
+        r = client.delete(f"/api/entities/{entity.id}?cascade_claims=true")
+        assert r.status_code == 204
+        assert db.get(KnowledgeClaim, claim.id) is None
+
+    def test_delete_missing_returns_404(self, client):
+        r = client.delete("/api/entities/no-such-id")
         assert r.status_code == 404
 
 

@@ -289,6 +289,125 @@ async def get_entity(
     return entity
 
 
+class EntityPatchRequest(BaseModel):
+    """Partial update — only fields present in the payload are written.
+
+    Every editable attribute is here as ``Optional`` so PATCH can
+    target a single field without losing the rest. (#901)
+    """
+    canonical_name: str | None = None
+    entity_type: EntityType | None = None
+    aliases: list[str] | None = None
+    description: str | None = None
+    language: str | None = None
+    metadata: dict | None = None
+
+
+@router.patch("/{entity_id}", response_model=KnowledgeEntity)
+async def patch_entity(
+    entity_id: str,
+    request: EntityPatchRequest,
+    db: Database = Depends(get_library_database),
+) -> KnowledgeEntity:
+    """Partial-update a knowledge entity.
+
+    Refreshes the entity's vector in LanceDB after the write so
+    semantic-dedup keeps working. (#899 Phase B + #901)
+    """
+    entity = db.get(KnowledgeEntity, entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+
+    if request.canonical_name is not None:
+        entity.canonical_name = request.canonical_name.strip()
+    if request.entity_type is not None:
+        entity.entity_type = request.entity_type
+    if request.aliases is not None:
+        entity.aliases = sorted(set(a.strip() for a in request.aliases if a.strip()))
+    if request.description is not None:
+        entity.description = request.description
+    if request.language is not None:
+        entity.language = request.language
+    if request.metadata is not None:
+        entity.metadata = request.metadata
+    entity.updated_at = datetime.now()
+    db.save(entity)
+
+    # Refresh the LanceDB vector so cosine search reflects the edit.
+    try:
+        from fichero.kg import entity_vectors
+        entity_vectors.index_entity(
+            db=db,
+            entity_id=entity.id,
+            entity_type=entity.entity_type,
+            canonical_name=entity.canonical_name,
+            description=entity.description,
+        )
+    except Exception as exc:
+        # Don't fail the API call if vector refresh fails — the
+        # DuckDB row is the canonical store.
+        import logging
+        logging.getLogger(__name__).warning(
+            "patch_entity: vector refresh failed for %s: %s", entity.id, exc
+        )
+
+    return entity
+
+
+@router.delete("/{entity_id}", status_code=204)
+async def delete_entity(
+    entity_id: str,
+    cascade_claims: bool = Query(
+        default=False,
+        description=(
+            "When true, also delete every claim that references this "
+            "entity. When false (default), claims keep their entity_ids "
+            "list intact but with this id stripped — preserves "
+            "provenance for claims that mention multiple entities."
+        ),
+    ),
+    db: Database = Depends(get_library_database),
+) -> None:
+    """Hard-delete a knowledge entity.
+
+    Side effects:
+    - Removes the entity's vector from LanceDB.
+    - Either cascades to dependent claims (``cascade_claims=true``)
+      or strips this id from each claim's ``entity_ids`` (default).
+    (#901)
+    """
+    entity = db.get(KnowledgeEntity, entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+
+    # Find dependent claims.
+    from fichero.knowledge_models import KnowledgeClaim
+    all_claims = db.query(KnowledgeClaim)
+    dependent = [c for c in all_claims if entity_id in (c.entity_ids or [])]
+
+    if cascade_claims:
+        for claim in dependent:
+            db.delete(KnowledgeClaim, claim.id)
+    else:
+        # Strip the id but keep the claim row.
+        for claim in dependent:
+            claim.entity_ids = [eid for eid in (claim.entity_ids or []) if eid != entity_id]
+            claim.updated_at = datetime.now()
+            db.save(claim)
+
+    # Drop the vector.
+    try:
+        from fichero.kg import entity_vectors
+        entity_vectors.remove(db=db, entity_id=entity_id)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            "delete_entity: vector remove failed for %s: %s", entity_id, exc
+        )
+
+    db.delete(KnowledgeEntity, entity_id)
+
+
 class TopEntityRow(BaseModel):
     """One row of /entities/top — most-claimed entity in the library
     with name, kind, alias list, and claim count.
