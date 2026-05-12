@@ -109,6 +109,43 @@ class TestSaveModelDedup:
         assert row.name == "Apple Vision (OCR)"
         assert set(row.capabilities) == {"vision", "ocr"}
 
+    def test_empty_caps_on_resave_preserves_existing_caps(
+        self, app_db, apple_provider,
+    ):
+        """#939 belt-and-braces: when the seeded row has caps and a
+        re-save (e.g. from the +Add Model button) comes through with
+        capabilities=[], the existing caps win. Prevents the
+        inspector's capability badges from disappearing after the
+        user deletes a built-in row and adds it back.
+
+        The providers route still does the canonical-caps lookup so
+        this rarely fires in practice — but it's the safety net for
+        any other caller that forgets to set capabilities.
+        """
+        seeded = Model(
+            id=str(uuid.uuid4()),
+            provider_id=apple_provider.id,
+            name="Apple Vision (OCR)",
+            model_id="apple-vision",
+            capabilities=["vision"],
+        )
+        app_db.save_model(seeded)
+
+        # User re-add via a UI that didn't set capabilities
+        readded = Model(
+            id=str(uuid.uuid4()),
+            provider_id=apple_provider.id,
+            name="Apple Vision (OCR)",
+            model_id="apple-vision",
+            capabilities=[],  # the bug case
+        )
+        app_db.save_model(readded)
+
+        rows = app_db.list_models(apple_provider.id)
+        assert len(rows) == 1
+        # Caps preserved from the original save
+        assert rows[0].capabilities == ["vision"]
+
     def test_different_model_ids_on_same_provider_coexist(
         self, app_db, apple_provider,
     ):

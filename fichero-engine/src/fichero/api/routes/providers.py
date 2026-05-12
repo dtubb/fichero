@@ -530,6 +530,30 @@ async def list_provider_models(
     ]
 
 
+# Canonical capability map for built-in Apple model_ids. Kept in
+# lockstep with the seed list in main.py — both write the same caps
+# so the seeded row and a re-added row carry identical metadata.
+# Adding a new built-in: extend here AND in main.py's builtins list.
+_CANONICAL_APPLE_CAPABILITIES: dict[str, list[str]] = {
+    "apple-intelligence": ["text"],
+    "apple-vision": ["vision"],
+    "apple-speech": ["audio", "transcription"],
+}
+
+
+def _canonical_capabilities_for_model_id(model_id: str) -> list[str]:
+    """Return the canonical capability list for a known built-in
+    model_id, or an empty list when the id is user-defined / unknown.
+
+    Used by the +Add Model endpoint to preserve capability badges
+    when a user deletes a built-in Apple model row and adds it back —
+    without this lookup, the re-added row had \\\`capabilities=[]\\\` so
+    inspector badges disappeared (#939) and Defaults capability
+    filtering (#940) had nothing to filter on.
+    """
+    return list(_CANONICAL_APPLE_CAPABILITIES.get(model_id, []))
+
+
 @router.post("/{provider_id}/models")
 async def add_model_to_provider(
     provider_id: str,
@@ -545,10 +569,21 @@ async def add_model_to_provider(
 
     cost_info = get_model_cost(f"{provider.provider_type.value}/{request.model_id}")
 
+    # Look up canonical capabilities for built-in model_ids (#939). When
+    # the user adds a known Apple model via the +Add Model button, the
+    # incoming request doesn't carry a capabilities list — but the model
+    # has fixed known capabilities ("apple-vision" is vision-only,
+    # "apple-speech" is audio/transcription, "apple-intelligence" is
+    # text). Without this lookup, the saved row had \\\`capabilities=[]\\\`
+    # so the inspector lost the capability badges and the Defaults
+    # picker couldn't filter (#940 hard-blocked).
+    capabilities = _canonical_capabilities_for_model_id(request.model_id)
+
     model = Model(
         provider_id=provider_id,
         name=request.name or request.model_id,
         model_id=request.model_id,
+        capabilities=capabilities,
         is_default=request.is_default,
         input_cost=cost_info.get("input_cost_per_token") * 1_000_000
         if cost_info

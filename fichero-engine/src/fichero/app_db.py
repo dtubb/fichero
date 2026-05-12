@@ -234,22 +234,44 @@ class AppDatabase:
         was only keyed on `id` (the row primary key, which is fresh
         per add). Daniel hit this in #937.
         """
-        capabilities_json = (
-            json.dumps(model.capabilities) if model.capabilities else "[]"
-        )
-
         # Check (provider_id, model_id) for an existing row. If found
         # and it's NOT the same id we're trying to write, redirect the
         # write to update that existing id — preserving its history
         # (created_at, sort_order, etc.) while accepting the caller's
         # name + capabilities + flags. (#937)
+        #
+        # When the caller's capabilities list is empty but the existing
+        # row has caps, preserve the existing caps. This guards against
+        # a UI that calls save_model without setting capabilities
+        # (e.g. the +Add Model button on Settings → Providers) wiping
+        # the badges that the seeded row or a prior save established.
+        # (#939 follow-up — the providers route now sets canonical caps
+        # for known model_ids; this is the belt-and-braces.)
         with self._lock:
             existing_row = self.conn.execute(
-                "SELECT id FROM models WHERE provider_id = ? AND model_id = ?",
+                "SELECT id, capabilities FROM models WHERE provider_id = ? AND model_id = ?",
                 [model.provider_id, model.model_id],
             ).fetchone()
             if existing_row and existing_row[0] != model.id:
                 model = model.model_copy(update={"id": existing_row[0]})
+            if existing_row and not (model.capabilities or []):
+                # Preserve the existing caps when the incoming model
+                # didn't carry any. \\\`capabilities\\\` is stored as a JSON
+                # text column; decode it back to a list for the model
+                # field. Falls back to [] on any decode error.
+                try:
+                    existing_caps = json.loads(existing_row[1] or "[]")
+                    if isinstance(existing_caps, list) and existing_caps:
+                        model = model.model_copy(update={"capabilities": existing_caps})
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            # Compute capabilities_json AFTER the preservation pass so
+            # the JSON reflects the final model.capabilities (which may
+            # have been re-hydrated from the existing row above).
+            capabilities_json = (
+                json.dumps(model.capabilities) if model.capabilities else "[]"
+            )
 
             self.conn.execute(
                 """
