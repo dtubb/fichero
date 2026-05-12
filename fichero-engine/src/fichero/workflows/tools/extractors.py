@@ -33,7 +33,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from fichero.db import db_manager
 from fichero.llm import LLMConfig, chat_structured_with_fallback
@@ -370,7 +370,7 @@ _SVO_OBJECT_FIELD = Field(
 # source text asserts the claim. Default "tentative" so an LLM that
 # omits the field still produces a safe (reviewable) claim. (#892)
 _EPISTEMIC_FIELD = Field(
-    default="tentative",
+    # REQUIRED — see _SOURCE_TEXT_FIELD comment. (#894 option 2)
     description=(
         "How firmly the source text asserts this claim. "
         "'confirmed' = the text states the fact directly without "
@@ -388,12 +388,13 @@ _EPISTEMIC_FIELD = Field(
 # concrete statements rather than analysis. (#892, peer to ClaimType
 # on KnowledgeClaim.)
 # Verbatim source excerpt — the exact sentence (or short paragraph)
-# from the input text that the LLM lifted this claim from. Required so
-# the UI can show provenance and search-highlight the span in the
-# source PDF / page preview. Empty string permitted but discouraged —
-# the prompt should always quote.
+# from the input text that the LLM lifted this claim from.
+#
+# REQUIRED in the JSON schema (no default) so grammar-constrained
+# decoding on Apple Intelligence / fm-bridge forces the LLM to emit
+# this field rather than skip it. A before-validator on each section
+# model fills in "" for legacy items missing the field. (#894 option 2)
 _SOURCE_TEXT_FIELD = Field(
-    default="",
     description=(
         "The exact sentence or short paragraph from the input text "
         "where this claim appears, copied verbatim (preserve original "
@@ -404,7 +405,7 @@ _SOURCE_TEXT_FIELD = Field(
     ),
 )
 _CLAIM_TYPE_FIELD = Field(
-    default="fact",
+    # REQUIRED — see _SOURCE_TEXT_FIELD comment. (#894 option 2)
     description=(
         "What kind of knowledge claim this is. "
         "'fact' = a concrete statement of what happened, who/what "
@@ -422,7 +423,27 @@ _CLAIM_TYPE_FIELD = Field(
 )
 
 
+def _fill_required_defaults(data):
+    """Before-validator factory: fill in defaults for the three
+    required-but-defaultable fields when the input dict is missing
+    them. Lets legacy artifacts (pre-#892 cache hits with the old
+    item shape) still parse cleanly, while the JSON schema marks
+    the fields ``required`` so Apple Intelligence's grammar forces
+    fresh emissions. (#894 option 2)
+    """
+    if isinstance(data, dict):
+        data.setdefault("epistemic_status", "tentative")
+        data.setdefault("claim_type", "fact")
+        data.setdefault("source_text", "")
+    return data
+
+
 class _SectionPerson(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_defaults(cls, data):
+        return _fill_required_defaults(data)
+
     name: str
     alternative_spellings: list[str] = Field(
         default_factory=list,
@@ -436,6 +457,11 @@ class _SectionPerson(BaseModel):
 
 
 class _SectionPlace(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_defaults(cls, data):
+        return _fill_required_defaults(data)
+
     name: str
     alternative_spellings: list[str] = Field(default_factory=list)
     verb: str = _SVO_VERB_FIELD
@@ -446,6 +472,11 @@ class _SectionPlace(BaseModel):
 
 
 class _SectionOrganization(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_defaults(cls, data):
+        return _fill_required_defaults(data)
+
     name: str
     alternative_spellings: list[str] = Field(default_factory=list)
     verb: str = _SVO_VERB_FIELD
@@ -456,6 +487,11 @@ class _SectionOrganization(BaseModel):
 
 
 class _SectionDate(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_defaults(cls, data):
+        return _fill_required_defaults(data)
+
     # Dates are claim-only (no canonical entity). The `verb` + `object`
     # describe what happened on that date, not the date itself —
     # composed as `"{normalized}: {verb} {object}."` by the KG writer.
@@ -471,6 +507,11 @@ class _SectionDate(BaseModel):
 
 
 class _SectionRiver(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_defaults(cls, data):
+        return _fill_required_defaults(data)
+
     name: str
     alternative_spellings: list[str] = Field(default_factory=list)
     verb: str = _SVO_VERB_FIELD
@@ -481,6 +522,11 @@ class _SectionRiver(BaseModel):
 
 
 class _SectionEvent(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_defaults(cls, data):
+        return _fill_required_defaults(data)
+
     event: str = Field(description="Title Case noun phrase naming the event")
     date: str | None = Field(default=None, description="YYYY-MM-DD when stated, else null")
     verb: str = _SVO_VERB_FIELD
@@ -491,6 +537,11 @@ class _SectionEvent(BaseModel):
 
 
 class _SectionMine(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_defaults(cls, data):
+        return _fill_required_defaults(data)
+
     name: str
     verb: str = _SVO_VERB_FIELD
     object: str = _SVO_OBJECT_FIELD
@@ -500,6 +551,11 @@ class _SectionMine(BaseModel):
 
 
 class _SectionProperty(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_defaults(cls, data):
+        return _fill_required_defaults(data)
+
     name: str
     verb: str = _SVO_VERB_FIELD
     object: str = _SVO_OBJECT_FIELD
@@ -509,6 +565,11 @@ class _SectionProperty(BaseModel):
 
 
 class _SectionLegalReference(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_defaults(cls, data):
+        return _fill_required_defaults(data)
+
     name: str
     verb: str = _SVO_VERB_FIELD
     object: str = _SVO_OBJECT_FIELD
