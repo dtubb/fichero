@@ -160,9 +160,12 @@ class TestAcceptRejectInProcess:
 
         # Two pairs — one accept, one reject. One still pending —
         # should NOT appear in labels.
-        s1 = _ent(db, "S1"); c1 = _ent(db, "C1")
-        s2 = _ent(db, "S2"); c2 = _ent(db, "C2")
-        s3 = _ent(db, "S3"); c3 = _ent(db, "C3")
+        s1 = _ent(db, "S1")
+        c1 = _ent(db, "C1")
+        s2 = _ent(db, "S2")
+        c2 = _ent(db, "C2")
+        s3 = _ent(db, "S3")
+        c3 = _ent(db, "C3")
 
         p_accept = EntityMatchCandidate(
             survivor_entity_id=s1.id, candidate_entity_id=c1.id, score=0.9
