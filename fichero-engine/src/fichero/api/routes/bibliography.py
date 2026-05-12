@@ -39,6 +39,84 @@ async def get_metadata(
     )
 
 
+class ImportRequest(BaseModel):
+    """Inline import — the file content as a string."""
+    text: str
+    format: str | None = None  # auto-detected when None
+
+
+class ImportResponse(BaseModel):
+    count: int
+    entries: list[dict[str, Any]]
+
+
+@router.post(
+    "/import",
+    response_model=ImportResponse,
+    summary="Parse BibTeX / RIS / CSL JSON into SourceMetadata dicts (#909)",
+    description=(
+        "Parses bibliography file content posted as the request body's "
+        "``text`` field. Returns the parsed entries WITHOUT writing "
+        "them to any document — the caller decides how to associate "
+        "each entry with an in-library document (auto-match by title "
+        "or manual pick)."
+    ),
+)
+async def import_bibliography(
+    request: ImportRequest,
+    db: Database = Depends(get_library_database),
+) -> ImportResponse:
+    from fichero.bibliography.importers import (
+        detect_format,
+        read_bibtex,
+        read_csl_json,
+        read_ris,
+    )
+
+    fmt = request.format or detect_format(request.text)
+    if fmt == "bibtex":
+        entries = read_bibtex(request.text)
+    elif fmt == "ris":
+        entries = read_ris(request.text)
+    elif fmt == "csl_json":
+        entries = read_csl_json(request.text)
+    else:
+        raise HTTPException(
+            400,
+            "Format not recognised — try 'bibtex', 'ris', or 'csl_json'",
+        )
+    return ImportResponse(count=len(entries), entries=entries)
+
+
+class ExportRequest(BaseModel):
+    document_ids: list[str]
+
+
+@router.post(
+    "/export.bib",
+    summary="Bulk export multiple documents as BibTeX",
+    description=(
+        "Returns a multi-entry .bib file built from each document's "
+        "source_metadata. Documents without metadata are skipped."
+    ),
+)
+async def export_bibtex(
+    request: ExportRequest,
+    db: Database = Depends(get_library_database),
+):
+    from fastapi.responses import PlainTextResponse
+
+    from fichero.bibliography.importers import write_bibtex
+
+    entries: list[dict[str, Any]] = []
+    for doc_id in request.document_ids:
+        doc = db.get(Document, doc_id)
+        if doc is None or not doc.source_metadata:
+            continue
+        entries.append(doc.source_metadata)
+    return PlainTextResponse(write_bibtex(entries))
+
+
 class ResolveRequest(BaseModel):
     doi: str | None = None
     isbn: str | None = None
