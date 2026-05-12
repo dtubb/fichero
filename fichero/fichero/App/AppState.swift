@@ -13,6 +13,12 @@ class AppState: ObservableObject {
     @Published var documentCount: Int = 0  // Note: Now tracks active libraries count in multi-library architecture
     @Published var indexedCount: Int = 0
     @Published var isCheckingBackend: Bool = true  // True while checking API
+    /// Count of consecutive heartbeat failures since the last successful
+    /// ping. Used to avoid UI thrash on transient blips — the offline
+    /// banner flips only after the count crosses `offlineFlipThreshold`.
+    private var heartbeatFailureCount: Int = 0
+    private let offlineFlipThreshold: Int = 2
+    private var heartbeatTask: Task<Void, Never>?
 
     // MARK: - Provider Management
 
@@ -51,9 +57,77 @@ class AppState: ObservableObject {
         self.modelService = ModelServiceGenerated(ficheroClient: ficheroClient)
         logger.info("⏱ AppState.init services ready — queuing health check")
 
-        // Check API health on launch
+        // Check API health on launch, then start the periodic heartbeat
+        // so the offline banner appears if the engine goes down mid-session
+        // (#967 — Daniel: "the app kept working, and failed silently").
         Task { @MainActor in
             await checkBackendHealth()
+            startBackendHeartbeat()
+        }
+    }
+
+    deinit {
+        heartbeatTask?.cancel()
+    }
+
+    // MARK: - Heartbeat
+
+    /// Start a background loop that pings `/api/health` every 5s and updates
+    /// `isBackendRunning` so the existing "Backend Not Running" UI surfaces
+    /// when the engine dies mid-session. Uses a separate quieter ping than
+    /// `checkBackendHealth()` so we don't flicker `isCheckingBackend` /
+    /// re-fetch providers on every tick. (#967)
+    func startBackendHeartbeat() {
+        guard heartbeatTask == nil else { return }
+        heartbeatTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                if Task.isCancelled { break }
+                await self?.pingBackendOnce()
+            }
+        }
+    }
+
+    private func pingBackendOnce() async {
+        guard let url = URL(string: "http://127.0.0.1:8765/api/health") else { return }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 3
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                noteHeartbeatFailure(reason: "API returned error status")
+                return
+            }
+            // Success — flip back online immediately so the offline banner
+            // clears the moment the engine comes back. Reset the failure
+            // streak.
+            heartbeatFailureCount = 0
+            if !isBackendRunning {
+                isBackendRunning = true
+                backendError = nil
+                logger.info("Backend heartbeat: recovered — back online")
+                // Reload providers now that the engine is back so list
+                // views aren't empty until next manual refresh.
+                await loadProviders()
+            }
+        } catch {
+            noteHeartbeatFailure(reason: error.localizedDescription)
+        }
+    }
+
+    private func noteHeartbeatFailure(reason: String) {
+        heartbeatFailureCount += 1
+        guard heartbeatFailureCount >= offlineFlipThreshold else { return }
+        if isBackendRunning {
+            logger.warning("Backend heartbeat: \(self.heartbeatFailureCount) consecutive failures — flipping offline (\(reason))")
+            isBackendRunning = false
+            backendError = """
+                Lost connection to the Fichero engine.
+
+                The backend stopped responding mid-session. Restart it with:
+
+                PYTHONPATH=src python -m fichero.api
+                """
         }
     }
 
