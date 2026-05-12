@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from fichero.api.main import get_library_database
@@ -34,6 +34,52 @@ from fichero.knowledge_models import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/kg/review", tags=["knowledge-graph"])
+
+
+# Auto-retrain trigger — every N new labelled decisions kicks off a
+# background PyKEEN retrain so predictions stay current as Daniel
+# curates. Set to 10 by default; tunable per library if needed.
+RETRAIN_EVERY_N_LABELS = 10
+
+
+def _maybe_trigger_retrain(db: Database, background_tasks: BackgroundTasks) -> None:
+    """If we've crossed the next RETRAIN_EVERY_N_LABELS multiple of
+    labelled pairs, enqueue a PyKEEN training run.
+
+    Runs as a FastAPI background task so the accept/reject HTTP
+    response doesn't block on a 30-second train. Failures are logged
+    inside the background task itself — the API endpoint always
+    returns the immediate decision result.
+    """
+    try:
+        decided = [
+            c for c in db.query(EntityMatchCandidate)
+            if c.state in (PendingMatchState.accepted, PendingMatchState.rejected)
+        ]
+        if decided and len(decided) % RETRAIN_EVERY_N_LABELS == 0:
+            logger.info(
+                "review queue: %d labels accumulated — triggering PyKEEN retrain",
+                len(decided),
+            )
+            background_tasks.add_task(_run_retrain, db)
+    except Exception as exc:
+        logger.warning("auto-retrain trigger failed: %s", exc)
+
+
+def _run_retrain(db: Database) -> None:
+    """Background-thread PyKEEN retrain. Logs only."""
+    try:
+        from fichero.kg.pykeen_predictor import train_model
+        stats = train_model(db)
+        logger.info(
+            "auto-retrain: %s — triples=%s, entities=%s, relations=%s",
+            "trained" if stats.get("trained") else "skipped",
+            stats.get("triples"),
+            stats.get("entities"),
+            stats.get("relations"),
+        )
+    except Exception as exc:
+        logger.error("auto-retrain failed: %s", exc)
 
 
 class ReviewPairResponse(BaseModel):
@@ -111,6 +157,7 @@ class AcceptResponse(BaseModel):
 )
 async def accept_pair(
     pair_id: str,
+    background_tasks: BackgroundTasks,
     db: Database = Depends(get_library_database),
 ) -> AcceptResponse:
     pair = db.get(EntityMatchCandidate, pair_id)
@@ -196,6 +243,8 @@ async def accept_pair(
     pair.decided_by = "human"
     db.save(pair)
 
+    _maybe_trigger_retrain(db, background_tasks)
+
     return AcceptResponse(
         survivor_entity_id=survivor.id,
         absorbed_entity_id=candidate.id,
@@ -222,6 +271,7 @@ class RejectResponse(BaseModel):
 )
 async def reject_pair(
     pair_id: str,
+    background_tasks: BackgroundTasks,
     db: Database = Depends(get_library_database),
 ) -> RejectResponse:
     pair = db.get(EntityMatchCandidate, pair_id)
@@ -236,6 +286,9 @@ async def reject_pair(
     pair.decided_at = datetime.now()
     pair.decided_by = "human"
     db.save(pair)
+
+    _maybe_trigger_retrain(db, background_tasks)
+
     return RejectResponse(
         pair_id=pair.id,
         state=pair.state.value,

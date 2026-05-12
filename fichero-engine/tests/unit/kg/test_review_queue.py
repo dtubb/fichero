@@ -86,7 +86,8 @@ class TestAcceptRejectInProcess:
         db.save(pair)
 
         import asyncio
-        result = asyncio.run(kg_review.accept_pair(pair.id, db=db))
+        from fastapi import BackgroundTasks
+        result = asyncio.run(kg_review.accept_pair(pair.id, BackgroundTasks(), db=db))
 
         # Survivor absorbed the candidate's name as alias.
         reloaded = db.get(KnowledgeEntity, survivor.id)
@@ -120,7 +121,8 @@ class TestAcceptRejectInProcess:
         db.save(pair)
 
         import asyncio
-        result = asyncio.run(kg_review.reject_pair(pair.id, db=db))
+        from fastapi import BackgroundTasks
+        result = asyncio.run(kg_review.reject_pair(pair.id, BackgroundTasks(), db=db))
 
         # No merge happened — both entities intact.
         assert db.get(KnowledgeEntity, survivor.id) is not None
@@ -145,11 +147,12 @@ class TestAcceptRejectInProcess:
         )
         db.save(pair)
         import asyncio
-        asyncio.run(kg_review.reject_pair(pair.id, db=db))
+        from fastapi import BackgroundTasks
+        asyncio.run(kg_review.reject_pair(pair.id, BackgroundTasks(), db=db))
 
         # Second reject on the same pair → 409.
         try:
-            asyncio.run(kg_review.reject_pair(pair.id, db=db))
+            asyncio.run(kg_review.reject_pair(pair.id, BackgroundTasks(), db=db))
             raise AssertionError("expected HTTPException")
         except HTTPException as exc:
             assert exc.status_code == 409
@@ -179,8 +182,9 @@ class TestAcceptRejectInProcess:
         for p in (p_accept, p_reject, p_pending):
             db.save(p)
 
-        asyncio.run(kg_review.accept_pair(p_accept.id, db=db))
-        asyncio.run(kg_review.reject_pair(p_reject.id, db=db))
+        from fastapi import BackgroundTasks
+        asyncio.run(kg_review.accept_pair(p_accept.id, BackgroundTasks(), db=db))
+        asyncio.run(kg_review.reject_pair(p_reject.id, BackgroundTasks(), db=db))
 
         labels = asyncio.run(kg_review.list_labels(db=db))
         labels_by_id = {row.pair_id: row.label for row in labels}
