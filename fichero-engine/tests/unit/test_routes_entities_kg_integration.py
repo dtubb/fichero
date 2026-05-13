@@ -116,7 +116,7 @@ class TestClaimsEndpointAfterExtractorWrite:
         )
 
         # Query claims for doc-1 only.
-        r = client.get("/api/knowledge-graph/claims?source_document_id=doc-1")
+        r = client.get("/api/claims?source_document_id=doc-1")
         if r.status_code == 200:
             claims = r.json()
             assert all(c["source_document_id"] == "doc-1" for c in claims)
@@ -124,7 +124,7 @@ class TestClaimsEndpointAfterExtractorWrite:
         else:
             # If the route doesn't expose source_document_id filter directly,
             # at minimum the unfiltered list should contain all three.
-            r = client.get("/api/knowledge-graph/claims")
+            r = client.get("/api/claims")
             assert r.status_code == 200
             claims = r.json()
             doc_ids = {c["source_document_id"] for c in claims}
@@ -138,7 +138,7 @@ class TestClaimsEndpointAfterExtractorWrite:
             entity_ids=[],
             metadata={"date_text": "12 de mayo de 1930", "date_normalized": "1930-05-12"},
         )
-        r = client.get("/api/knowledge-graph/claims")
+        r = client.get("/api/claims")
         assert r.status_code == 200
         claims = r.json()
         date_claims = [
@@ -155,7 +155,7 @@ class TestClaimsEndpointAfterExtractorWrite:
             source_document_id="doc-1",
             entity_ids=[person_id],
         )
-        r = client.get("/api/knowledge-graph/claims")
+        r = client.get("/api/claims")
         assert r.status_code == 200
         claims = r.json()
         linked = [c for c in claims if person_id in c.get("entity_ids", [])]
