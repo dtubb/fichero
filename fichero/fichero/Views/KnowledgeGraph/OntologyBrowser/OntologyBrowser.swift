@@ -184,12 +184,12 @@ struct OntologyBrowser: View {
     // MARK: - Top Toolbar (matches MiniToolbar pattern used elsewhere)
 
     private var toolbar: some View {
+        // The leading "circle.hexagongrid" icon + "Knowledge Graph" text
+        // were removed in #981 — the sidebar already labels this
+        // destination, and the icon was non-interactive (looked
+        // tappable, did nothing). Toolbar now leads straight with
+        // actions, ending in the View picker on the right.
         MiniToolbar {
-            Image(systemName: "circle.hexagongrid")
-                .foregroundStyle(.secondary)
-            Text("Knowledge Graph")
-                .font(.headline)
-                .foregroundStyle(.primary)
             Spacer(minLength: 0)
             if let status = toolStatus {
                 Text(status)
@@ -368,13 +368,25 @@ struct OntologyBrowser: View {
 
     // MARK: - Entity List Sidebar
 
+    /// Window-shared list-column width. Same key the Library /
+    /// Workflows / Activity destinations adopt so a resize in one
+    /// remembers across all four (#985). 280pt default matches the
+    /// `sidebarWidth` convention so the columns line up visually.
+    @SceneStorage("window.listColumnWidth")
+    private var listColumnWidth: Double = 280
+
     private var entityListSidebar: some View {
         VStack(spacing: 0) {
             searchBar
             Divider()
             entityList
+                .frame(maxWidth: .infinity)  // fill the column, don't anchor left (#981)
         }
-        .frame(minWidth: 220, maxWidth: 320)
+        .frame(
+            minWidth: 220,
+            idealWidth: listColumnWidth,
+            maxWidth: 420
+        )
     }
 
     private var searchBar: some View {
