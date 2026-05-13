@@ -443,6 +443,10 @@ extension ContentView {
         case .map: .map
         }
         saveDisplayMode(effectiveMode, for: selectedSidebarItemId)
+        // Promote to the global default so a fresh window / new folder
+        // / new launch all start in this mode. Per-folder overrides
+        // (saveDisplayMode above) still win when present. (#943)
+        defaultLibraryViewDisplayMode = effectiveMode
     }
 
     // MARK: - File Import

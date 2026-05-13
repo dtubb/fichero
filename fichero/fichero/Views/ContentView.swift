@@ -64,6 +64,15 @@ struct ContentView: View {
 
     // Main toolbar state (per-window persistence)
     @SceneStorage("viewDisplayMode") var viewDisplayMode: ViewDisplayMode = .icon
+
+    /// Global default — survives window close, fresh launches, even
+    /// when no per-folder override exists. Solves the "set List, switch
+    /// items, reverts to Icon" complaint in #943. Synced with
+    /// viewDisplayMode every time the user changes view mode via
+    /// updateViewDisplayMode; consulted as the fallback when neither
+    /// SceneStorage nor a per-folder save has a value.
+    @AppStorage("library.defaultViewDisplayMode")
+    var defaultLibraryViewDisplayMode: ViewDisplayMode = .icon
     @SceneStorage("currentLayoutMode") var currentLayoutMode: LayoutMode = .widescreen
     @SceneStorage("sidebarMode") var sidebarMode: SidebarMode = .library
 
@@ -559,9 +568,18 @@ struct ContentView: View {
             storedViewModeItemId = id
         }
         .onChange(of: selectedSidebarItemId) { _, newFolderId in
-            // Restore per-folder view mode when switching folders
+            // Restore per-folder view mode when switching folders.
+            // Priority: per-folder save > global default > current
+            // SceneStorage value. The global default protects against
+            // the "revert to Icon when no per-folder save exists"
+            // complaint in #943.
             if let saved = displayMode(for: newFolderId) {
                 viewDisplayMode = normalizedViewDisplayMode(saved)
+            } else {
+                let normalizedDefault = normalizedViewDisplayMode(defaultLibraryViewDisplayMode)
+                if viewDisplayMode != normalizedDefault {
+                    viewDisplayMode = normalizedDefault
+                }
             }
 
             // Clear grid selection on sidebar folder change so the folder
