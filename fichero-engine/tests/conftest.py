@@ -24,6 +24,19 @@ os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 # response shape, not auth.
 os.environ.setdefault("FICHERO_DISABLE_AUTH", "1")
 
+# Tests that create bare TestClient(app) (e.g. test_api_providers.py:16,
+# test_providers.py's per-class fixtures) bypass the conftest `client` /
+# `app_db` fixtures and hit `settings.app_db_path` directly — which is
+# ~/Library/Application Support/com.fichero.fichero/app.duckdb in prod
+# and fights the running uvicorn for the exclusive duckdb lock. Override
+# `FICHERO_BASE_PATH` (consumed by pydantic-settings env_prefix="FICHERO_")
+# so app_db_path resolves under a per-process tmp dir.
+import tempfile as _tempfile
+import pathlib as _pathlib
+_test_base = _pathlib.Path(_tempfile.gettempdir()) / "fichero-tests-base"
+_test_base.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("FICHERO_BASE_PATH", str(_test_base))
+
 from fichero.api.main import app
 from fichero.db import db_manager
 from fichero.app_db import AppDatabase
@@ -158,13 +171,25 @@ def app_db(tmp_path):
     Create a test app-wide database for provider storage.
 
     This is separate from package databases and stores app-wide providers.
+
+    Also swaps the module-level `_app_db` singleton used by routes that
+    call `get_app_db()` directly (settings.py, parts of providers.py and
+    chat.py) — without this swap those routes still open the prod
+    ~/Library/Application Support/com.fichero.fichero/app.duckdb and
+    fight the running uvicorn for the exclusive duckdb lock.
     """
     app_db_path = tmp_path / "test_app.duckdb"
     db = AppDatabase(path=app_db_path)
 
+    import fichero.app_db as _app_db_module
+    saved_singleton = _app_db_module._app_db
+    _app_db_module._app_db = db
+
     yield db
 
-    # Cleanup
+    # Restore the prior singleton (likely None) so test isolation is
+    # preserved across the session.
+    _app_db_module._app_db = saved_singleton
     db.close()
 
 
