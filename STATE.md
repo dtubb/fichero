@@ -2,10 +2,14 @@
 
 ## Next Session — Start Here (2026-05-13 late autonomous)
 
-**Latest commit on 0.0.2: `2e8ae135`.** Eleven commits today. Five GitHub
-issues closed: #902, #885, #927, #959, plus citation-graph wiring for
-#974. Test suite: **2392 passing, 14 failing** (was 1704 / 755 at start
-of day — `/.session-end-complete` is way out of date because of that).
+**Latest commit on 0.0.2: `929e1fce`.** 15 commits today. Four GitHub
+issues closed (#902, #885, #927, #959) plus citation-graph wiring for
+#974. Test suite: **2404 passing, 2 failing** (was 1704 / 755 at start
+of day — **+700 tests recovered**).
+
+The 2 remaining failures: `test_reset_clears_all_settings` (suite-only
+state pollution; passes when run alone) and `test_bridge_stderr_decoding`
+(Apple Intelligence env required).
 
 ### What landed today
 
