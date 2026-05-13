@@ -1,6 +1,62 @@
 # STATE.md — Fichero
 
-## Next Session — Start Here (2026-05-13 late autonomous)
+## Next Session — Start Here (2026-05-13 evening — KG rebuild complete)
+
+**Latest commit: `6b77310f`. ~40 commits since morning. 18 GitHub issues
+closed today** (#885, #902, #927, #959, #976, #977, #978, #979, #980,
+#981, #985, #986, #990, #991, #992, #993, #996, #997). Tests: 2404
+passing, 2 failing (Apple Intelligence + suite-state-pollution).
+
+### Today's KG rebuild — Phases 1, 2, 5 of master plan (#983) shipped
+
+**Phase 1 — backend Stage 1 endpoints:**
+- `GET /api/kg/graph/neighborhood/{entity_id}` (focus + k-hop + SVO edges)
+- `GET /api/kg/graph/{pagerank,communities,similar,components,triangles,clustering}`
+- `POST /api/kg/sparql` (read-only, Cypher equivalent)
+- 6 DuckDB indices on knowledgeclaims + knowledgeentitys
+- LRU cache on networkx + rdflib graphs (sub-100ms warm cache)
+- Rank-then-truncate on `/neighborhood` keeps most-connected neighbors
+- Hermeneutics promoted dev → release for 0.0.2
+
+**Phase 2 — claim card SPO + source navigation:**
+- Cards read `claim.metadata["subject"/"verb"/"object"]` → render `subject **verb** object`
+- Source-doc citation line on every card
+- Click → `ficheroOpenClaimSource` → ContentView selects doc → PDF scrolls to page
+- Verbatim excerpt collapsed into expand drawer
+- Alias case-folded dedup; empty-content claim cards suppressed via EmptyView
+
+**Phase 5 — focus-neighborhood viz:**
+- Graph mode rewritten to consume `/neighborhood` endpoint
+- Focus at center; ≤50 ranked neighbors on a ring
+- Edges labeled with SVO predicate (verb) in italic accent
+- Click an edge → opens the source claim (wireframe Path B end-to-end)
+- Old co-occurrence circle + label blob + crash all gone
+
+### Wireframe + plan docs in `agent-work/`
+
+- `2026-05-13-kg-architecture-review.md` — backend layer survey
+- `2026-05-13-kg-rebuild-plan.md` — staged plan
+- `2026-05-13-kg-ux-wireframes.md` — 9 views + components + interactions (738 lines)
+- `2026-05-13-scaling-review.md` — book/400-case/1M sanity + 5 bottleneck fixes
+
+### Remaining open 0.0.2 backlog (high-value)
+
+- **Phase 3** PaneThreeColumn canonical wrapper (partial; needs Library / Workflows / Activity to adopt the shared `@SceneStorage("window.listColumnWidth")` too)
+- **Phase 4** PDF highlight overlay on the claim's source span (#995) — natural next code piece
+- **Phase 6** DocumentInspector reorg into Entities/Claims/Source sections per wireframe View 1
+- **Phase 7** Chat KG-RAG with context-mode + footnote citations
+- **Phase 8** Unified search across docs/claims/entities
+
+### Don't break
+
+- `build_full_graph` LRU cache invalidates on `MAX(updated_at)` of claims/entities — don't rename those columns without updating `_cache_signature`.
+- `ficheroOpenClaimSource` userInfo schema (documentId required; pageLabel/charStart/charEnd/claimId optional) is consumed by ContentView + forwarded to `ficheroNavigateToPage`.
+- Hermeneutics is now in `_CORE_ROUTE_SPECS` — moving it back to dev breaks release builds that expect those endpoints.
+- The OpenAPI sync path is `./fichero-engine/scripts/sync_openapi_schema.sh` with `FICHERO_FEATURE_TIER=dev` — direct curl against a release-tier backend will produce a partial spec.
+
+---
+
+## Earlier today entry (2026-05-13 late autonomous)
 
 **Latest commit on 0.0.2: `2e049d9b`.** 19 commits today. Four GitHub
 issues closed (#902, #885, #927, #959) plus citation-graph + bibliography
