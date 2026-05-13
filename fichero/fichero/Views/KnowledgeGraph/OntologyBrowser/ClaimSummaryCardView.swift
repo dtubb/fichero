@@ -162,6 +162,13 @@ struct ClaimSummaryCard: View {
                 if let start = claim.sourceCharStart { info["charStart"] = start }
                 if let end = claim.sourceCharEnd { info["charEnd"] = end }
                 if let claimId = claim.id { info["claimId"] = claimId }
+                // Forward the verbatim excerpt so the PDF highlight
+                // overlay can findString it on the target page (#995).
+                if let excerpt = claim.sourceExcerpt?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                   !excerpt.isEmpty {
+                    info["excerpt"] = excerpt
+                }
                 NotificationCenter.default.post(
                     name: .ficheroOpenClaimSource,
                     object: nil,

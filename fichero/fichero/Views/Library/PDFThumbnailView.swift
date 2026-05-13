@@ -294,22 +294,86 @@ struct PDFPageView: NSViewRepresentable {
                   !pageLabel.isEmpty else { return }
             // PDFKit page labels — first try exact label match
             // (handles "iv", "12", "A-3", etc).
+            var matchedPage: PDFPage?
+            var matchedIndex: Int?
             for idx in 0..<doc.pageCount {
                 if let page = doc.page(at: idx),
                    page.label == pageLabel {
-                    view.go(to: page)
-                    owner.onPageIndexChange?(idx)
-                    return
+                    matchedPage = page
+                    matchedIndex = idx
+                    break
                 }
             }
             // Fallback: numeric page index, 1-based to match
             // human-readable labels.
-            if let numeric = Int(pageLabel),
-               numeric >= 1, numeric <= doc.pageCount,
-               let page = doc.page(at: numeric - 1) {
-                view.go(to: page)
-                owner.onPageIndexChange?(numeric - 1)
+            if matchedPage == nil,
+               let numeric = Int(pageLabel),
+               numeric >= 1, numeric <= doc.pageCount {
+                matchedPage = doc.page(at: numeric - 1)
+                matchedIndex = numeric - 1
             }
+            guard let page = matchedPage, let pageIdx = matchedIndex else { return }
+            view.go(to: page)
+            owner.onPageIndexChange?(pageIdx)
+
+            // Highlight overlay: if the caller passed sourceExcerpt
+            // (the verbatim quote) or charStart/charEnd, drop a yellow
+            // highlight on that span so the user immediately sees what
+            // the claim is anchored to. (#995 wireframe Phase 4)
+            highlightSpan(on: page, info: info)
+        }
+
+        /// Render a yellow highlight on a PDFPage for the claim's source
+        /// span. Strategy (in priority order):
+        ///   1. sourceExcerpt → PDFDocument.findString → highlight the
+        ///      first hit (most accurate when present).
+        ///   2. charStart/charEnd → page.selection(for:) → highlight.
+        /// Always clears any existing highlight first so re-navigation
+        /// doesn't stack overlays. Backed by PDFAnnotation so the
+        /// highlight prints with the doc when exported. (#995)
+        private func highlightSpan(on page: PDFPage, info: [AnyHashable: Any]) {
+            guard let view = pdfView,
+                  let doc = view.document else { return }
+            // Clear previous highlights we added.
+            for existing in page.annotations
+                where existing.userName == "fichero.claim-source" {
+                page.removeAnnotation(existing)
+            }
+            var selection: PDFSelection?
+            // Priority 1: verbatim excerpt.
+            if let excerpt = info["excerpt"] as? String,
+               !excerpt.isEmpty {
+                if let found = doc.findString(excerpt, withOptions: .caseInsensitive).first {
+                    selection = found
+                }
+            }
+            // Priority 2: char offsets.
+            if selection == nil,
+               let start = info["charStart"] as? Int,
+               let end = info["charEnd"] as? Int,
+               end > start,
+               let pageStr = page.string {
+                let range = NSRange(location: start, length: end - start)
+                if range.upperBound <= pageStr.utf16.count {
+                    selection = page.selection(for: range)
+                }
+            }
+            guard let sel = selection else { return }
+            // Build highlight annotations from the selection's per-line
+            // bounding rects (one annotation per line for clean wrap).
+            for rect in sel.selectionsByLine().map({ $0.bounds(for: page) }) {
+                let annotation = PDFAnnotation(
+                    bounds: rect,
+                    forType: .highlight,
+                    withProperties: nil
+                )
+                annotation.color = NSColor.systemYellow.withAlphaComponent(0.35)
+                annotation.userName = "fichero.claim-source"
+                page.addAnnotation(annotation)
+            }
+            // Scroll the selection into view so the highlighted span is
+            // visible without the user having to hunt.
+            view.go(to: sel)
         }
 
         /// Horizontal pan at fit-scale turns pages; at zoom-in PDFKit pans normally.
