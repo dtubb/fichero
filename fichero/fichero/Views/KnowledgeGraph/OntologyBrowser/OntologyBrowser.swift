@@ -1055,8 +1055,14 @@ struct ForceDirectedGraphView: View {
         )
     }
 
+    /// Re-fetch the neighborhood whenever the focus entity changes OR
+    /// the upstream entities list changes (i.e. user changed search /
+    /// filter). The neighborhood endpoint is bounded + cached on the
+    /// backend so this is cheap (sub-100ms on warm cache per #990).
     private var entitiesKey: String {
-        entities.compactMap(\.id).joined(separator: ",")
+        let focus = selectedEntityId ?? entities.compactMap(\.id).first ?? ""
+        let signature = entities.count
+        return "\(focus):\(signature)"
     }
 
     // MARK: - Data loading
@@ -1066,7 +1072,14 @@ struct ForceDirectedGraphView: View {
         isLoading = true
         loadError = nil
         defer { isLoading = false }
-        guard !entities.isEmpty else {
+
+        // Focus selection: use the bound selectedEntityId; fall back to
+        // the first entity in the filtered set so the view has something
+        // to render when nothing is selected. With the focus-neighborhood
+        // model the global "draw all entities in a circle" is gone —
+        // graph mode shows ONE focus + its k-hop neighbors. (#976/#977)
+        guard let focusId = selectedEntityId
+            ?? entities.compactMap(\.id).first else {
             nodes = []
             edges = []
             return
@@ -1076,52 +1089,63 @@ struct ForceDirectedGraphView: View {
             return
         }
         do {
-            // listClaims returns up to `limit` claims library-wide; each
-            // claim's entityIds gives us a clique of co-occurring entities.
-            // 200 covers the typical small KG without expensive paging.
-            let claims = try await library.entityService.listClaims(limit: 200)
-            buildGraph(from: claims)
+            let response = try await library.entityService.fetchNeighborhood(
+                entityId: focusId,
+                hops: 1,
+                limit: 50,
+                rank: "edge_weight"
+            )
+            buildGraph(from: response)
         } catch {
             loadError = error.localizedDescription
         }
     }
 
-    private func buildGraph(from claims: [Components.Schemas.KnowledgeClaim]) {
-        let entitySet = Set(entities.compactMap(\.id))
-        let radius: CGFloat = 180
-        let count = entities.count
+    /// Lay out the focus at the origin + neighbor entities on a circle
+    /// around it. Edges carry the predicate (verb) from the backend.
+    private func buildGraph(from response: Components.Schemas.NeighborhoodResponse) {
+        let focusId = response.focusEntityId
+        let focusName = response.focusCanonicalName
+        let focusKind = response.focusEntityType
         var newNodes: [GraphNode] = []
-        for (idx, entity) in entities.enumerated() {
-            guard let entityId = entity.id else { continue }
-            let angle = Double(idx) / Double(max(count, 1)) * 2.0 * .pi
-            newNodes.append(
-                GraphNode(
-                    id: entityId,
-                    name: entity.canonicalName,
-                    kind: entity.entityType,
-                    position: CGPoint(x: cos(angle) * radius, y: sin(angle) * radius),
-                    velocity: .zero
-                )
+        // Focus at the center.
+        newNodes.append(GraphNode(
+            id: focusId,
+            name: focusName,
+            kind: focusKind.flatMap { Components.Schemas.EntityTypeOutput(rawValue: $0) },
+            position: .zero,
+            velocity: .zero
+        ))
+        // Neighbors on a ring.
+        let neighbors = response.neighbors
+        let count = max(neighbors.count, 1)
+        let radius: CGFloat = 220
+        for (idx, neighbor) in neighbors.enumerated() {
+            let angle = Double(idx) / Double(count) * 2.0 * .pi
+            newNodes.append(GraphNode(
+                id: neighbor.id,
+                name: neighbor.canonicalName,
+                kind: neighbor.entityType.flatMap {
+                    Components.Schemas.EntityTypeOutput(rawValue: $0)
+                },
+                position: CGPoint(x: cos(angle) * radius, y: sin(angle) * radius),
+                velocity: .zero
+            ))
+        }
+        // Edges carry the predicate verb. We render `source → target`
+        // with the verb label mid-edge in the draw step.
+        edges = response.edges.map { edge in
+            GraphEdge(
+                source: edge.sourceId,
+                target: edge.targetId,
+                predicate: edge.predicate,
+                claimId: edge.claimId,
+                sourceDocumentId: edge.sourceDocumentId,
+                pageLabel: edge.sourcePageLabel,
+                weight: 1
             )
         }
-
-        var pairCounts: [EdgeKey: Int] = [:]
-        for claim in claims {
-            let ids = (claim.entityIds ?? []).filter(entitySet.contains)
-            guard ids.count >= 2 else { continue }
-            for source in ids where !source.isEmpty {
-                for target in ids where !target.isEmpty && source < target {
-                    let key = EdgeKey(source: source, target: target)
-                    pairCounts[key, default: 0] += 1
-                }
-            }
-        }
-        let newEdges = pairCounts.map {
-            GraphEdge(source: $0.key.source, target: $0.key.target, weight: $0.value)
-        }
-
         nodes = newNodes
-        edges = newEdges
         startTime = .now
         lastTick = .now
     }
@@ -1210,11 +1234,28 @@ struct ForceDirectedGraphView: View {
         for edge in edges {
             guard let source = nodes.first(where: { $0.id == edge.source }),
                   let target = nodes.first(where: { $0.id == edge.target }) else { continue }
+            let from = centered(source.position, in: ctx)
+            let dest = centered(target.position, in: ctx)
             var path = Path()
-            path.move(to: centered(source.position, in: ctx))
-            path.addLine(to: centered(target.position, in: ctx))
-            let alpha = min(0.15 + Double(edge.weight) * 0.15, 0.65)
-            ctx.stroke(path, with: .color(.gray.opacity(alpha)), lineWidth: 1)
+            path.move(to: from)
+            path.addLine(to: dest)
+            let alpha = min(0.25 + Double(edge.weight) * 0.15, 0.7)
+            ctx.stroke(path, with: .color(.secondary.opacity(alpha)), lineWidth: 1)
+            // Predicate label at the midpoint. Skip when the edge is so
+            // short that the label would overlap a node. Background-
+            // ribbon the label so it's readable across the line.
+            let dx = dest.x - from.x
+            let dy = dest.y - from.y
+            let lineLen = sqrt(dx * dx + dy * dy)
+            if lineLen > 60, !edge.predicate.isEmpty {
+                let midX = (from.x + dest.x) / 2
+                let midY = (from.y + dest.y) / 2
+                let label = Text(edge.predicate)
+                    .font(.caption2)
+                    .italic()
+                    .foregroundColor(.accentColor)
+                ctx.draw(label, at: CGPoint(x: midX, y: midY), anchor: .center)
+            }
         }
     }
 
@@ -1308,6 +1349,17 @@ private struct GraphNode: Identifiable {
 private struct GraphEdge {
     let source: String
     let target: String
+    /// SVO predicate verb from the backend (e.g. "served as", "founded").
+    /// Drawn mid-edge so the user sees the relationship type at a glance.
+    let predicate: String
+    /// Claim ID — so click-edge can navigate to the source.
+    let claimId: String
+    /// Source document ID + page label — forwarded into a
+    /// `ficheroOpenClaimSource` notification on click.
+    let sourceDocumentId: String
+    let pageLabel: String?
+    /// Aggregate weight (how many claims connect these two entities).
+    /// Used by the render to set line opacity / thickness.
     let weight: Int
 }
 

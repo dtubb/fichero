@@ -814,6 +814,38 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    // MARK: - KG-RAG: focus-neighborhood graph (#976/#977/#983 Phase 5)
+
+    /// Fetch the focus entity + k-hop neighbor entities + the SVO-labeled
+    /// claim edges connecting them. Backs the focus-neighborhood viz —
+    /// Tinderbox / Neo4j Explore style: pick one entity, see its
+    /// immediate context with predicate-labeled arrows, click an edge to
+    /// open the source. Bounded by `hops` (default 1, max 3) +
+    /// `limit` (default 50, max 500); the backend ranks by edge weight
+    /// before truncating so the most-connected neighbors survive.
+    /// Backed by `/api/kg/graph/neighborhood/{entity_id}`.
+    func fetchNeighborhood(
+        entityId: String,
+        hops: Int = 1,
+        limit: Int = 50,
+        rank: String = "edge_weight"
+    ) async throws -> Components.Schemas.NeighborhoodResponse {
+        let response = try await client.api.neighborhoodApiKgGraphNeighborhoodEntityIdGet(
+            path: .init(entityId: entityId),
+            query: .init(hops: hops, limit: limit, rank: rank),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     // MARK: - KG-RAG: similar-claim search (#959)
 
     /// A single similar-claim result decoded from the open-ended
