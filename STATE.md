@@ -2,14 +2,41 @@
 
 ## Next Session — Start Here (2026-05-13 late autonomous)
 
-**Latest commit on 0.0.2: `929e1fce`.** 15 commits today. Four GitHub
-issues closed (#902, #885, #927, #959) plus citation-graph wiring for
-#974. Test suite: **2404 passing, 2 failing** (was 1704 / 755 at start
-of day — **+700 tests recovered**).
+**Latest commit on 0.0.2: `2e049d9b`.** 19 commits today. Four GitHub
+issues closed (#902, #885, #927, #959) plus citation-graph + bibliography
+wiring for #974. Test suite: **2404 passing, 2 failing** (was 1704 / 755
+at start of day — **+700 tests recovered**).
 
-The 2 remaining failures: `test_reset_clears_all_settings` (suite-only
-state pollution; passes when run alone) and `test_bridge_stderr_decoding`
-(Apple Intelligence env required).
+### KG visualization — full state at session end
+
+The OntologyBrowser detail pane now has a three-way segmented picker
+(SceneStorage-persisted) in the toolbar:
+
+- **List mode** — existing entity → claims detail view.
+- **Graph mode** — SwiftUI Canvas force-directed graph (Coulomb/Hooke
+  physics, converges in ~4s then freezes). Pinch-zoom (0.4×–4×),
+  drag-to-pan, top-right zoom-in/out/reset cluster, top-left
+  kind→color legend. Click a node → updates `selectedEntityId`.
+  Edges derive from claim co-occurrence (entities sharing a claim).
+- **Chart mode** — SwiftUI Charts bar chart of entity counts by kind
+  for the filtered set. Updates live with the kind filter and search.
+
+### Inspector additions
+
+Info tab now has two new sections (both `.task(id: documentId)` keyed):
+
+- **Related Claims** — KG-RAG via `/api/kg/claim-search/{id}/similar`.
+- **Citations** — inbound + outbound via `/api/citations/graph/...`.
+
+Service additions on `EntityServiceGenerated`:
+- `findSimilarClaims(claimId:limit:)` (+ `SimilarClaim` value type)
+- `inboundCitations(forDocumentId:)`, `outboundCitations(forDocumentId:)`
+- `bibliographyMetadata(forDocumentId:)`, `patchBibliographyMetadata(...)`,
+  `runBibliographyExtractor(forDocumentId:)`
+
+The 2 remaining test failures: `test_reset_clears_all_settings`
+(suite-only state pollution; passes when run alone) and
+`test_bridge_stderr_decoding` (Apple Intelligence env required on host).
 
 ### What landed today
 
