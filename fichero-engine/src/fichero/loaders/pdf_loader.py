@@ -162,6 +162,21 @@ class PDFTextLoader(MediaLoader):
                 "extractor": "kreuzberg",
             }
 
+            # Preserve structured outputs (tables, annotations, image
+            # descriptions, keywords, …) so ingest can persist them as
+            # Artifact rows. Primary text save behaviour is unchanged.
+            # (#885)
+            try:
+                from fichero.loaders.kreuzberg_artifacts import (
+                    extract_artifact_payloads,
+                )
+
+                payloads = extract_artifact_payloads(result)
+                if payloads:
+                    metadata["_kreuzberg_artifacts"] = payloads
+            except Exception as exc:  # pragma: no cover — defensive
+                logger.debug("Kreuzberg artifact extraction failed: %s", exc)
+
             # If we got good text, no VLM needed
             needs_vlm = len(result.content.strip()) < 100
 

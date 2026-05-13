@@ -145,6 +145,21 @@ class DocumentLoader(MediaLoader):
             if hasattr(result, "tables") and result.tables:
                 metadata["table_count"] = len(result.tables)
 
+            # Capture structured outputs (tables, slide text, image
+            # descriptions, transcripts, …) so ingest can persist them as
+            # Artifact rows. Strictly additive — primary text save is
+            # unchanged. (#885)
+            try:
+                from fichero.loaders.kreuzberg_artifacts import (
+                    extract_artifact_payloads,
+                )
+
+                payloads = extract_artifact_payloads(result)
+                if payloads:
+                    metadata["_kreuzberg_artifacts"] = payloads
+            except Exception as exc:  # pragma: no cover — defensive
+                logger.debug("Kreuzberg artifact extraction failed: %s", exc)
+
             return MediaContent(
                 source=str(path),
                 text=result.content,

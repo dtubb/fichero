@@ -306,6 +306,11 @@ def ingest_file(
         db.save(doc)
         logger.info("Ingested: %s (%s)", path.name, mode.value)
 
+        # Persist any structured outputs Kreuzberg surfaced alongside the
+        # primary text (tables, slide text, image descriptions, transcripts).
+        # (#885)
+        _save_pending_artifacts(doc, db)
+
         # Create embedding for search
         if auto_embed and doc.page_content:
             db.embed(doc)
@@ -383,6 +388,10 @@ def _create_pdf_page_children(
             },
         )
         db.save(page_doc)
+
+        # Persist per-page structured outputs (tables, image OCR /
+        # descriptions) as artifacts on the page Document. (#885)
+        _save_pdf_page_artifacts(page_doc, page_dict, db)
 
         if auto_embed and page_doc.page_content:
             try:
@@ -554,11 +563,132 @@ def _extract_text_content(doc: Document, path: Path) -> None:
         else:
             doc.metadata["text_extracted"] = False
 
+        # Stash structured artifact payloads (Kreuzberg tables, slide text,
+        # transcripts, image descriptions) for post-save persistence; we
+        # need doc.id to exist before we can attach Artifact rows. (#885)
+        if content and content.metadata:
+            payloads = content.metadata.get("_kreuzberg_artifacts")
+            if payloads:
+                doc.metadata["_pending_artifacts"] = payloads
+
     except ImportError as e:
         logger.debug("Loader not available: %s", e)
     except Exception as e:
         logger.warning("Text extraction failed for %s: %s", path, e)
         doc.metadata["text_extracted"] = False
+
+
+def _save_pending_artifacts(doc: Document, db: Database) -> int:
+    """Persist any artifact payloads pinned to ``doc.metadata`` as Artifact rows.
+
+    Payloads come from Kreuzberg's structured outputs (tables, slide text,
+    transcripts, image descriptions, …) — see
+    :mod:`fichero.loaders.kreuzberg_artifacts`. Strictly additive: primary
+    text save behaviour is unchanged. (#885)
+    """
+    payloads = doc.metadata.pop("_pending_artifacts", None)
+    if not payloads:
+        return 0
+
+    from fichero.models import Artifact
+
+    saved = 0
+    for payload in payloads:
+        try:
+            db.save(
+                Artifact(
+                    document_id=doc.id,
+                    artifact_type=payload.get("artifact_type", "kreuzberg_unknown"),
+                    content=payload.get("content"),
+                    data=payload.get("data"),
+                    provider="kreuzberg",
+                )
+            )
+            saved += 1
+        except Exception as exc:
+            logger.warning(
+                "Failed to save kreuzberg artifact (%s) for %s: %s",
+                payload.get("artifact_type"),
+                doc.id,
+                exc,
+            )
+    if saved:
+        logger.debug("Saved %d kreuzberg artifacts for %s", saved, doc.name)
+    return saved
+
+
+def _save_pdf_page_artifacts(
+    page_doc: Document,
+    page_dict: dict[str, Any],
+    db: Database,
+) -> int:
+    """Persist per-page Kreuzberg structured outputs as Artifact rows.
+
+    ``page_dict`` is a Kreuzberg ``PageContent`` (TypedDict). Translates
+    its ``tables`` and ``images`` (OCR / description) into ``Artifact`` rows
+    on the page ``Document``. (#885)
+    """
+    from fichero.loaders.kreuzberg_artifacts import (
+        KREUZBERG_IMAGE_DESCRIPTION,
+        KREUZBERG_TABLE,
+    )
+    from fichero.models import Artifact
+
+    saved = 0
+    tables = page_dict.get("tables") or []
+    for idx, table in enumerate(tables):
+        cells = getattr(table, "cells", None)
+        markdown = getattr(table, "markdown", None)
+        page_number = getattr(table, "page_number", page_dict.get("page_number"))
+        if not cells and not markdown:
+            continue
+        try:
+            db.save(
+                Artifact(
+                    document_id=page_doc.id,
+                    artifact_type=KREUZBERG_TABLE,
+                    content=markdown if isinstance(markdown, str) else None,
+                    data={
+                        "table_index": idx,
+                        "page_number": page_number,
+                        "cells": cells,
+                        "markdown": markdown,
+                    },
+                    provider="kreuzberg",
+                )
+            )
+            saved += 1
+        except Exception as exc:
+            logger.warning("Failed to save page table artifact: %s", exc)
+
+    images = page_dict.get("images") or []
+    for idx, image in enumerate(images):
+        description = image.get("description") if isinstance(image, dict) else None
+        ocr_result = image.get("ocr_result") if isinstance(image, dict) else None
+        ocr_text = getattr(ocr_result, "content", None) if ocr_result else None
+        if not description and not ocr_text:
+            continue
+        parts = [p for p in (description, ocr_text) if p]
+        try:
+            db.save(
+                Artifact(
+                    document_id=page_doc.id,
+                    artifact_type=KREUZBERG_IMAGE_DESCRIPTION,
+                    content="\n\n".join(parts) if parts else None,
+                    data={
+                        "image_index": idx,
+                        "page_number": page_dict.get("page_number"),
+                        "description": description,
+                        "ocr_text": ocr_text,
+                    },
+                    provider="kreuzberg",
+                )
+            )
+            saved += 1
+        except Exception as exc:
+            logger.warning("Failed to save page image artifact: %s", exc)
+
+    return saved
 
 
 def _run_async(coro: Coroutine[Any, Any, Any]) -> Any:
