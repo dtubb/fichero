@@ -1230,6 +1230,56 @@ def _write_kg_rows(
     entity_type = section.get("entity_type")
     page_excerpt = source_excerpt  # rename for clarity below
 
+    # First-person → third-person rewrite (#963).
+    # When the container document carries source_metadata.authors, we
+    # substitute the first author's name (or surname) for first-person
+    # pronouns in extractor-emitted verbs / objects so claims read as
+    # attributed third-person prose. Without an author we leave the
+    # text alone (better than guessing). This is a stop-gap until the
+    # bibliography pipeline ships richer speaker-role tagging via #924.
+    from fichero.models import Document as DocumentModel
+    container_doc = db.get(DocumentModel, container_id)
+    author_label: str | None = None
+    if container_doc and container_doc.source_metadata:
+        authors = container_doc.source_metadata.get("authors") or []
+        if authors:
+            first = str(authors[0] or "").strip()
+            if first:
+                # Use surname when "Family, Given" or "Given Family"
+                # — both common citation styles. Last token is a safe
+                # surname guess for English/Spanish names; for compound
+                # surnames (de la Cruz, García Márquez) we accept the
+                # imperfect form. Better than nothing.
+                if "," in first:
+                    author_label = first.split(",", 1)[0].strip()
+                else:
+                    author_label = first.split()[-1] if first.split() else first
+
+    def _rewrite_first_person(text: str) -> str:
+        """Replace 'me' / 'my' / 'our' / 'us' / 'I' with the author's
+        label when known, else return the text unchanged. Case-
+        insensitive whole-word match so 'message' / 'imagine' don't
+        get clobbered. (#963)"""
+        if not text or not author_label:
+            return text
+        import re as _re
+        # Build replacements in length-descending order so "myself"
+        # matches before "my".
+        replacements = [
+            (r"\bmyself\b", author_label),
+            (r"\bourselves\b", f"{author_label} and colleagues"),
+            (r"\bmy\b", f"{author_label}'s"),
+            (r"\bour\b", f"{author_label}'s"),
+            (r"\bme\b", author_label),
+            (r"\bus\b", author_label),
+            (r"\bI\b", author_label),
+            (r"\bwe\b", f"{author_label} and colleagues"),
+        ]
+        out = text
+        for pattern, replacement in replacements:
+            out = _re.sub(pattern, replacement, out, flags=_re.IGNORECASE)
+        return out
+
     # Within-call dedup (#896): when a page gets sub-chunked at the
     # 3000-char boundary (#extract_chunk), each sub-chunk's LLM call
     # may independently emit the same entity, and a single LLM call
@@ -1346,6 +1396,14 @@ def _write_kg_rows(
         legacy_context = (
             item.get("context") or item.get("contexto") or ""
         ).strip()
+        # First-person rewrite — when the doc has a known author and the
+        # extractor surfaced "me / my / our" (typical for academic
+        # prefaces describing the author's own life), substitute the
+        # author's name so the claim reads as attributed third-person.
+        # No-op when author_label is None. (#963)
+        verb = _rewrite_first_person(verb)
+        obj = _rewrite_first_person(obj)
+        legacy_context = _rewrite_first_person(legacy_context)
         predicate = (
             f"{verb} {obj}".strip() if (verb or obj) else legacy_context
         )
