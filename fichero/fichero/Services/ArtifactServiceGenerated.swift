@@ -855,6 +855,82 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    // MARK: - Bibliography (per-document metadata)
+
+    /// Fetch bibliographic metadata for a document — title, authors,
+    /// year, container, identifiers, etc. The backend stores
+    /// extractor-emitted bib data alongside user edits and merges them.
+    /// Backed by `/api/bibliography/document/{document_id}`.
+    func bibliographyMetadata(
+        forDocumentId documentId: String
+    ) async throws -> Components.Schemas.MetadataResponse {
+        let response = try await client.api.getMetadataApiBibliographyDocumentDocumentIdGet(
+            path: .init(documentId: documentId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    /// Patch bibliographic metadata for a document. The backend merges
+    /// the patch into existing metadata (so unspecified keys are
+    /// preserved). Pass any key/value pairs the bibliography editor
+    /// supports — title, authors, year, container_title, etc.
+    /// Backed by `PATCH /api/bibliography/document/{document_id}`.
+    func patchBibliographyMetadata(
+        forDocumentId documentId: String,
+        metadata: [String: any Sendable]
+    ) async throws -> Components.Schemas.MetadataResponse {
+        let payload = Components.Schemas.MetadataPatchRequest.MetadataPayload(
+            additionalProperties: try .init(unvalidatedValue: metadata)
+        )
+        let body = Components.Schemas.MetadataPatchRequest(metadata: payload)
+        let response = try await client.api.patchMetadataApiBibliographyDocumentDocumentIdPatch(
+            path: .init(documentId: documentId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(body)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    /// Trigger the bibliography extractor on a document — re-runs the
+    /// LLM-backed metadata extraction and replaces extractor-emitted
+    /// fields (user-edited fields are preserved per the backend's merge
+    /// rule). Backed by
+    /// `POST /api/bibliography/document/{document_id}/extract`.
+    func runBibliographyExtractor(
+        forDocumentId documentId: String
+    ) async throws -> Components.Schemas.MetadataResponse {
+        let response = try await client.api.runExtractorApiBibliographyDocumentDocumentIdExtractPost(
+            path: .init(documentId: documentId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     private static func decodeSimilar(
         payload: Operations.FindSimilarClaimsApiKgClaimSearchClaimIdSimilarGet
             .Output.Ok.Body.JsonPayloadPayload
