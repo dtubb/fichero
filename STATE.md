@@ -1,5 +1,84 @@
 # STATE.md — Fichero
 
+## Next Session — Start Here (2026-05-13 mid-day autonomous)
+
+**Latest commit on 0.0.2: `df629970`.** Two streams shipped in a parallel
+agent run (KG force-directed graph + extractor-artifact preservation).
+Stream B (KG-RAG Related Claims inspector panel) drafted by an agent in
+worktree but not landed — see "Stream B port — finish next session" below.
+
+### What landed today
+1. **#902 (partial #889) — KG force-directed graph view.** Adds SwiftUI
+   Canvas-based force-directed layout as a second detail-pane mode in
+   OntologyBrowser. Nodes are entities (filtered by the existing
+   `hiddenKinds` set), edges derive from "appears together in a claim"
+   with weight = co-occurrence count. Coulomb/Hooke physics over ~4s
+   then freezes (no continued CPU). New segmented List/Graph picker
+   in the toolbar, persisted via @SceneStorage. Folded into
+   OntologyBrowser.swift because KnowledgeGraph is a plain PBXGroup
+   not a synchronized one (per MEMORY [[feedback_swift_file_sync]]).
+   Commit `a7aa8a33`.
+2. **#885 — Preserve Kreuzberg extractor outputs as artifacts.** Tables,
+   slide text, image OCR/descriptions, audio/video transcripts,
+   keywords, and PDF annotations are now persisted as Artifact rows
+   tied to the parent document (or, for PDF pages, to the page
+   Document). New artifact kinds: kreuzberg_table, kreuzberg_transcript,
+   kreuzberg_slide_text, kreuzberg_image_description, kreuzberg_keywords,
+   kreuzberg_annotations. 10 new tests pass. Strictly additive — no
+   schema or OpenAPI changes. Commit `df629970`.
+3. **Unwired-endpoint audit** at
+   `agent-work/2026-05-13-unwired-endpoint-audit.md` — 51 backend
+   endpoints across 9 unwired groups (annotations, bibliography,
+   citations, classifications, multilingual, notes, projects, tasks,
+   sources). Citations + Bibliography are highest leverage next.
+
+### Stream B port — finish next session
+
+A parallel agent drafted `RelatedClaimsPanel.swift` (KG-RAG "Related
+Claims" inspector section, #959 + claim-search hookup). It's preserved
+at `.claude/worktrees/agent-a2fb80b6decdb56e0/fichero-swiftui/fichero-swiftui/Views/Library/DocumentInspector/RelatedClaimsPanel.swift`.
+
+Port to current paths needs:
+- Update `listClaimsApiKnowledgeGraphClaimsGet` →
+  `library.entityService.listClaims(sourceDocumentId:limit:)`
+- Update `findSimilarClaimsApiKnowledgeGraphClaimsClaimIdSimilarGet` →
+  `client.api.findSimilarClaimsApiKgClaimSearchClaimIdSimilarGet(...)`
+- DocumentInspector subdir is a plain PBXGroup; either inline the panel
+  in DocumentInspector.swift (1005 lines, risky) or edit pbxproj.
+- The agent's structure (DisclosureGroup with count badge, per-row
+  claim text + italic source-doc + 0.00–1.00 score, tap → posts
+  NotificationCenter for cross-pane nav) is solid; just retarget
+  API surfaces.
+
+### Agent-worktree base mismatch — root cause
+
+All three agent worktrees were seeded off commit `5cebddf6` (PR #638
+merge state, 560 commits behind `0.0.2` HEAD). That predated the
+`fichero-swiftui/` → `fichero/` and `fichero-api/` → `fichero-engine/`
+rename. So agent diffs cannot be merged directly — they need porting.
+For future autonomous runs, either pin the worktree base explicitly
+to `origin/0.0.2` or do the work directly without isolation.
+See MEMORY note (to write): worktree-base-mismatch caveat.
+
+### Don't break
+
+- The graph view shares `selectedEntityId` with the entity list — both
+  modes update each other. Don't break that binding.
+- `_pending_artifacts` / `_kreuzberg_artifacts` metadata keys must be
+  popped (not just read) so they never persist into the Document row.
+- `_save_pending_artifacts` is called AFTER `db.save(doc)` so doc.id
+  exists; same for `_save_pdf_page_artifacts` after `db.save(page_doc)`.
+- Three agent worktrees still locked at `.claude/worktrees/agent-*` —
+  can be `git worktree remove --force` after Stream B is ported.
+
+### Pre-existing failures (not new)
+
+- `test_activity.py::test_list_activities` fails on origin/0.0.2 in
+  0.13s — unrelated to today's work.
+- `ruff` F823 in `workflows/tools/catalogue.py:481` — pre-existing.
+
+---
+
 ## Current Focus
 
 **Branch:** `0.0.2` — latest commit `23fdd6a3` (2026-05-11 evening
