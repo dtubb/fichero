@@ -257,12 +257,15 @@ class TestSearchRoutes:
         assert "count" in data
 
     def test_search_empty_query(self, client):
-        """Search with empty query returns 400."""
+        """Search with empty / whitespace query is a 'browse the index'
+        affordance and returns 200 with recent docs — see
+        enhanced_search docstring.
+        """
         response = client.post("/api/search", json={
             "query": "   ",
             "limit": 10,
         })
-        assert response.status_code == 400
+        assert response.status_code == 200
 
     def test_search_stats(self, client, db):
         """Search stats returns embedding info."""
