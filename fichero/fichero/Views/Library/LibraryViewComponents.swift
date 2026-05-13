@@ -201,6 +201,36 @@ struct MapCard: View {
     let isSelected: Bool
     let position: CGPoint
 
+    @EnvironmentObject private var documentStore: DocumentStore
+
+    /// See `MailStyleRow.resolvedParentPDFPath` — same fallback chain so
+    /// page children render the correct PDF page on map cards even when
+    /// the metadata path has gone stale or the parent PDF is only
+    /// reachable via `selectedCollection`. (#927)
+    private func resolvedParentPDFPath(for doc: Document) -> String? {
+        let metadataPath = doc.metadata["pdf_path"]?.value as? String
+        if let metadataPath, !metadataPath.isEmpty,
+           !metadataPath.contains("/fichero-drop-"),
+           FileManager.default.fileExists(atPath: metadataPath) {
+            return metadataPath
+        }
+        let parentId = doc.metadata["pdf_parent_id"]?.value as? String ?? doc.parentId
+        if let parentId {
+            if let selected = documentStore.selectedCollection,
+               selected.id == parentId,
+               let selectedPath = selected.path,
+               !selectedPath.isEmpty {
+                return selectedPath
+            }
+            if let parent = documentStore.currentDocuments.first(where: { $0.id == parentId }),
+               let parentPath = parent.path,
+               !parentPath.isEmpty {
+                return parentPath
+            }
+        }
+        return metadataPath
+    }
+
     var body: some View {
         VStack(spacing: 6) {
             // Thumbnail area
@@ -214,7 +244,7 @@ struct MapCard: View {
                     PDFThumbnailView(path: path, size: CGSize(width: 200, height: 280))
                         .clipped()
                 } else if document.docType == .page,
-                          let pdfPath = document.metadata["pdf_path"]?.value as? String,
+                          let pdfPath = resolvedParentPDFPath(for: document),
                           !pdfPath.isEmpty {
                     let pageIndex = max(0, (document.sequence ?? 1) - 1)
                     PDFThumbnailView(
@@ -365,7 +395,11 @@ struct DocumentThumbnailView: View {
     /// garbage-collects, leaving a dead path. (#703 — grid filled with
     /// placeholder icons.) Try the metadata path first; if it's gone or
     /// looks like a temp drop dir, fall back to the parent PDF doc's
-    /// current `path` resolved via `pdf_parent_id`.
+    /// current `path` resolved via `pdf_parent_id` — checking
+    /// `selectedCollection` first because that's where the parent PDF
+    /// lives when we're viewing its children (currentDocuments is the
+    /// children list, not a peer of the parent). (#927 mirrors the
+    /// MailStyleRow fix from #890.)
     fileprivate func resolvedParentPDFPath(for doc: Document) -> String? {
         let metadataPath = doc.metadata["pdf_path"]?.value as? String
         if let metadataPath, !metadataPath.isEmpty,
@@ -373,13 +407,21 @@ struct DocumentThumbnailView: View {
            FileManager.default.fileExists(atPath: metadataPath) {
             return metadataPath
         }
-        guard let parentId = doc.metadata["pdf_parent_id"]?.value as? String,
-              let parent = documentStore.currentDocuments.first(where: { $0.id == parentId }),
-              let parentPath = parent.path,
-              !parentPath.isEmpty else {
-            return metadataPath
+        let parentId = doc.metadata["pdf_parent_id"]?.value as? String ?? doc.parentId
+        if let parentId {
+            if let selected = documentStore.selectedCollection,
+               selected.id == parentId,
+               let selectedPath = selected.path,
+               !selectedPath.isEmpty {
+                return selectedPath
+            }
+            if let parent = documentStore.currentDocuments.first(where: { $0.id == parentId }),
+               let parentPath = parent.path,
+               !parentPath.isEmpty {
+                return parentPath
+            }
         }
-        return parentPath
+        return metadataPath
     }
 
     var body: some View {
