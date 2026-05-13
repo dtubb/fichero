@@ -813,4 +813,70 @@ final class EntityServiceGenerated: ObservableObject {
             throw ServiceError.unexpectedResponse(code)
         }
     }
+
+    // MARK: - KG-RAG: similar-claim search (#959)
+
+    /// A single similar-claim result decoded from the open-ended
+    /// `additionalProperties` payload that
+    /// `/api/kg/claim-search/{claim_id}/similar` returns. The endpoint's
+    /// generated response type is a `[JsonPayloadPayload]` with a free-form
+    /// `OpenAPIObjectContainer`, so we decode the well-known keys ourselves
+    /// (id, text, source_document_id, source_excerpt, similarity_score)
+    /// and ignore anything else the backend adds.
+    struct SimilarClaim: Identifiable, Hashable {
+        let id: String
+        let text: String
+        let sourceDocumentId: String?
+        let sourceExcerpt: String?
+        let similarityScore: Double
+    }
+
+    /// Find claims semantically similar to `claimId`. Requires claims to
+    /// have been embedded first (run "Embed claims" from the Ontology
+    /// Browser Tools menu). Backed by
+    /// `/api/kg/claim-search/{claim_id}/similar`.
+    func findSimilarClaims(
+        claimId: String,
+        limit: Int = 5
+    ) async throws -> [SimilarClaim] {
+        let response = try await client.api.findSimilarClaimsApiKgClaimSearchClaimIdSimilarGet(
+            path: .init(claimId: claimId),
+            query: .init(limit: limit),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.compactMap(Self.decodeSimilar(payload:))
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    private static func decodeSimilar(
+        payload: Operations.FindSimilarClaimsApiKgClaimSearchClaimIdSimilarGet
+            .Output.Ok.Body.JsonPayloadPayload
+    ) -> SimilarClaim? {
+        let dict = payload.additionalProperties.value
+        guard let id = dict["id"] as? String,
+              let text = dict["text"] as? String
+        else { return nil }
+        let score: Double
+        if let asDouble = dict["similarity_score"] as? Double {
+            score = asDouble
+        } else if let asInt = dict["similarity_score"] as? Int {
+            score = Double(asInt)
+        } else {
+            score = 0.0
+        }
+        return SimilarClaim(
+            id: id,
+            text: text,
+            sourceDocumentId: dict["source_document_id"] as? String,
+            sourceExcerpt: dict["source_excerpt"] as? String,
+            similarityScore: score
+        )
+    }
 }
