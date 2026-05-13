@@ -651,6 +651,41 @@ final class EntityServiceGenerated: ObservableObject {
     /// Delete a single KnowledgeClaim. Entities referenced by the
     /// claim are NOT cascaded — the entity is the bigger concept, the
     /// claim is one piece of evidence about it (#901).
+    /// Patch a claim's editable fields. All args are optional — only
+    /// non-nil keys are sent to the server so untouched fields stay
+    /// untouched. Returns the refreshed claim. (#901 — inline editing
+    /// in the claim card.)
+    @discardableResult
+    func patchClaim(
+        _ claimId: String,
+        text: String? = nil,
+        curationState: Components.Schemas.ClaimCurationState? = nil,
+        claimType: Components.Schemas.ClaimType? = nil,
+        epistemicStatus: Components.Schemas.EpistemicStatus? = nil,
+        confidence: Double? = nil
+    ) async throws -> Components.Schemas.KnowledgeClaim {
+        var body = Components.Schemas.ClaimPatchRequest()
+        body.text = text
+        body.curationState = curationState
+        body.claimType = claimType
+        body.epistemicStatus = epistemicStatus
+        body.confidence = confidence
+        let response = try await client.api.patchClaimApiClaimsClaimIdPatch(
+            path: .init(claimId: claimId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(body)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     func deleteClaim(_ claimId: String) async throws {
         let response = try await client.api.deleteClaimApiClaimsClaimIdDelete(
             path: .init(claimId: claimId),

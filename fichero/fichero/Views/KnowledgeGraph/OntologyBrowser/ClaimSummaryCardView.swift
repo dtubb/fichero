@@ -105,11 +105,78 @@ struct ClaimSummaryCard: View {
         .background(Color(.windowBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .contextMenu {
+            // Status sub-menu — set epistemic_status via PATCH.
+            // Confirmed / Tentative / Rejected are the three states the
+            // extractor emits; this lets the user override after review.
+            // (#901 inline editing.)
+            Menu("Set status") {
+                Button("Confirmed") { Task { await updateStatus(.confirmed) } }
+                Button("Tentative") { Task { await updateStatus(.tentative) } }
+                Button("Rejected") { Task { await updateStatus(.rejected) } }
+            }
+            // Curation state — independent of epistemic status (the
+            // extractor's confidence in the source) and tracks the
+            // human's review pass.
+            Menu("Set curation") {
+                Button("Unreviewed") { Task { await updateCuration(.unreviewed) } }
+                Button("Shortlisted") { Task { await updateCuration(.shortlisted) } }
+                Button("Curated") { Task { await updateCuration(.curated) } }
+                Button("Rejected") { Task { await updateCuration(.rejected) } }
+            }
+            Divider()
             Button("Delete claim…", role: .destructive) {
                 deleteClaim()
             }
         }
         }  // end else (isEmptyContent path)
+    }
+
+    /// PATCH the epistemic_status field on this claim. (#901)
+    private func updateStatus(_ status: Components.Schemas.EpistemicStatus) async {
+        guard let claimId = claim.id,
+              let library = LibraryManager.shared.globalLibrary else { return }
+        do {
+            _ = try await library.entityService.patchClaim(
+                claimId,
+                epistemicStatus: status
+            )
+            // Notify so EntityDetailView reloads claim list with new
+            // chip color. Same channel the delete action uses.
+            NotificationCenter.default.post(
+                name: .ficheroClaimDeleted,
+                object: claimId,
+                userInfo: ["action": "patched"]
+            )
+        } catch {
+            NotificationCenter.default.post(
+                name: .ficheroClaimDeleted,
+                object: nil,
+                userInfo: ["error": error.localizedDescription]
+            )
+        }
+    }
+
+    /// PATCH the curation_state field on this claim. (#901)
+    private func updateCuration(_ state: Components.Schemas.ClaimCurationState) async {
+        guard let claimId = claim.id,
+              let library = LibraryManager.shared.globalLibrary else { return }
+        do {
+            _ = try await library.entityService.patchClaim(
+                claimId,
+                curationState: state
+            )
+            NotificationCenter.default.post(
+                name: .ficheroClaimDeleted,
+                object: claimId,
+                userInfo: ["action": "patched"]
+            )
+        } catch {
+            NotificationCenter.default.post(
+                name: .ficheroClaimDeleted,
+                object: nil,
+                userInfo: ["error": error.localizedDescription]
+            )
+        }
     }
 
     /// The headline of the card. When SVO metadata is present, render
