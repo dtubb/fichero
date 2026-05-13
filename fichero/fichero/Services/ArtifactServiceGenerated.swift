@@ -769,4 +769,48 @@ final class EntityServiceGenerated: ObservableObject {
             throw ServiceError.unexpectedResponse(code)
         }
     }
+
+    // MARK: - Citation graph (#974 hook-up)
+
+    /// Get inbound citations for a document — i.e. other documents that
+    /// cite this one. Backed by
+    /// `/api/citations/graph/document/{document_id}/inbound`.
+    func inboundCitations(
+        forDocumentId documentId: String
+    ) async throws -> [Components.Schemas.DocumentCitation] {
+        let response = try await client.api.inboundApiCitationsGraphDocumentDocumentIdInboundGet(
+            path: .init(documentId: documentId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    /// Get outbound citations for a document — i.e. documents that this
+    /// document cites. Backed by
+    /// `/api/citations/graph/document/{document_id}/outbound`.
+    func outboundCitations(
+        forDocumentId documentId: String
+    ) async throws -> [Components.Schemas.DocumentCitation] {
+        let response = try await client.api.outboundApiCitationsGraphDocumentDocumentIdOutboundGet(
+            path: .init(documentId: documentId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
 }
