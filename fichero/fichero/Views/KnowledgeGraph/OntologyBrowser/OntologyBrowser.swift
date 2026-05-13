@@ -10,6 +10,25 @@ struct OntologyBrowser: View {
     @State private var searchText = ""
     @State private var isSearching = false
 
+    /// Swap the detail pane between entity-claims view (default) and a
+    /// force-directed graph over the filtered entity set. (#902, partial #889)
+    enum ViewMode: String, CaseIterable, Identifiable {
+        case list, graph
+        var id: String { rawValue }
+        var label: String { self == .list ? "List" : "Graph" }
+        var icon: String { self == .list ? "list.bullet" : "circle.grid.cross" }
+    }
+    @SceneStorage("ontology.viewMode") private var viewModeRaw: String = ViewMode.list.rawValue
+    private var viewMode: ViewMode {
+        ViewMode(rawValue: viewModeRaw) ?? .list
+    }
+    private var viewModeBinding: Binding<ViewMode> {
+        Binding(
+            get: { ViewMode(rawValue: viewModeRaw) ?? .list },
+            set: { viewModeRaw = $0.rawValue }
+        )
+    }
+
     /// Shared with the document-inspector KG tab (`inspector.kg.hiddenKinds`)
     /// so toggling a kind in one place updates the other. #887. Empty
     /// CSV = show every entity kind (default).
@@ -82,7 +101,7 @@ struct OntologyBrowser: View {
                 Divider()
                 entityListSidebar
             }
-            entityDetailPanel
+            detailPaneForMode
         }
         .frame(minWidth: 300, minHeight: 200)
         .sheet(item: Binding(
@@ -168,6 +187,14 @@ struct OntologyBrowser: View {
             .help("New entity (#916)")
             toolsMenu
             filterMenu
+            Picker("View", selection: viewModeBinding) {
+                ForEach(ViewMode.allCases) { mode in
+                    Image(systemName: mode.icon).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .fixedSize()
+            .help("Switch between list and graph views (#902)")
             Button {
                 Task { await loadEntities() }
             } label: {
@@ -175,6 +202,22 @@ struct OntologyBrowser: View {
             }
             .buttonStyle(.plain)
             .help("Reload entities")
+        }
+    }
+
+    /// Renders the detail-pane content based on `viewMode` — either the
+    /// existing entity-claims detail or the force-directed graph.
+    @ViewBuilder
+    private var detailPaneForMode: some View {
+        switch viewMode {
+        case .list:
+            entityDetailPanel
+        case .graph:
+            ForceDirectedGraphView(
+                entities: filteredEntities,
+                selectedEntityId: $selectedEntityId
+            )
+            .frame(minWidth: 300)
         }
     }
 
@@ -792,3 +835,310 @@ struct NewEntitySheet: View {
     }
     .listStyle(.sidebar)
 }
+import FicheroAPIClient
+import SwiftUI
+
+/// Force-directed graph over entities and their co-occurrence in claims.
+///
+/// Nodes = entities (filtered by `hiddenKinds` upstream), edges = "appear
+/// together in the same claim" with weight = co-occurrence count. Layout
+/// is a Coulomb/Hooke simulation that converges in ~4 seconds and then
+/// freezes — no continued CPU after that. Click within ~18pt of a node to
+/// select it; the binding flows back to OntologyBrowser so the detail
+/// pane updates. (#902, partial #889)
+struct ForceDirectedGraphView: View {
+    let entities: [Components.Schemas.KnowledgeEntity]
+    @Binding var selectedEntityId: String?
+
+    @State private var nodes: [GraphNode] = []
+    @State private var edges: [GraphEdge] = []
+    @State private var isLoading = false
+    @State private var loadError: String?
+    @State private var startTime: Date = .now
+    @State private var lastTick: Date = .now
+
+    var body: some View {
+        ZStack {
+            Color(.controlBackgroundColor)
+            if isLoading {
+                ProgressView("Loading graph…")
+            } else if let err = loadError {
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                    Text(err).font(.caption).foregroundStyle(.secondary)
+                }
+            } else if nodes.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "circle.grid.3x3")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.secondary)
+                    Text("No graph data").font(.subheadline)
+                    Text("Entities need shared claims to form edges")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            } else {
+                GeometryReader { geo in
+                    TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+                        Canvas { ctx, size in
+                            stepSimulation(in: size, now: timeline.date)
+                            drawEdges(ctx: ctx)
+                            drawNodes(ctx: ctx)
+                        }
+                        .onTapGesture { location in
+                            handleTap(at: location, in: geo.size)
+                        }
+                    }
+                }
+            }
+        }
+        .task(id: entitiesKey) { await load() }
+    }
+
+    private var entitiesKey: String {
+        entities.compactMap(\.id).joined(separator: ",")
+    }
+
+    // MARK: - Data loading
+
+    @MainActor
+    private func load() async {
+        isLoading = true
+        loadError = nil
+        defer { isLoading = false }
+        guard !entities.isEmpty else {
+            nodes = []
+            edges = []
+            return
+        }
+        guard let library = LibraryManager.shared.globalLibrary else {
+            loadError = "No library"
+            return
+        }
+        do {
+            // listClaims returns up to `limit` claims library-wide; each
+            // claim's entityIds gives us a clique of co-occurring entities.
+            // 200 covers the typical small KG without expensive paging.
+            let claims = try await library.entityService.listClaims(limit: 200)
+            buildGraph(from: claims)
+        } catch {
+            loadError = error.localizedDescription
+        }
+    }
+
+    private func buildGraph(from claims: [Components.Schemas.KnowledgeClaim]) {
+        let entitySet = Set(entities.compactMap(\.id))
+        let radius: CGFloat = 180
+        let count = entities.count
+        var newNodes: [GraphNode] = []
+        for (idx, entity) in entities.enumerated() {
+            guard let entityId = entity.id else { continue }
+            let angle = Double(idx) / Double(max(count, 1)) * 2.0 * .pi
+            newNodes.append(
+                GraphNode(
+                    id: entityId,
+                    name: entity.canonicalName,
+                    kind: entity.entityType,
+                    position: CGPoint(x: cos(angle) * radius, y: sin(angle) * radius),
+                    velocity: .zero
+                )
+            )
+        }
+
+        var pairCounts: [EdgeKey: Int] = [:]
+        for claim in claims {
+            let ids = (claim.entityIds ?? []).filter(entitySet.contains)
+            guard ids.count >= 2 else { continue }
+            for source in ids where !source.isEmpty {
+                for target in ids where !target.isEmpty && source < target {
+                    let key = EdgeKey(source: source, target: target)
+                    pairCounts[key, default: 0] += 1
+                }
+            }
+        }
+        let newEdges = pairCounts.map {
+            GraphEdge(source: $0.key.source, target: $0.key.target, weight: $0.value)
+        }
+
+        nodes = newNodes
+        edges = newEdges
+        startTime = .now
+        lastTick = .now
+    }
+
+    // MARK: - Simulation
+
+    private func stepSimulation(in size: CGSize, now: Date) {
+        let elapsed = now.timeIntervalSince(startTime)
+        guard elapsed < 4.0 else { return }
+        let dt = max(min(now.timeIntervalSince(lastTick), 1.0 / 30.0), 0.001)
+        lastTick = now
+
+        let positions = nodes.map(\.position)
+        var forces: [CGVector] = Array(repeating: .zero, count: nodes.count)
+        applyRepulsion(positions: positions, forces: &forces)
+        applySprings(positions: positions, forces: &forces)
+        integrate(forces: forces, dt: dt, size: size)
+    }
+
+    private func applyRepulsion(positions: [CGPoint], forces: inout [CGVector]) {
+        let repulsion: CGFloat = 6000
+        for i in 0..<nodes.count {
+            for j in (i + 1)..<nodes.count {
+                let dx = positions[i].x - positions[j].x
+                let dy = positions[i].y - positions[j].y
+                let distSq = max(dx * dx + dy * dy, 25)
+                let dist = sqrt(distSq)
+                let force = repulsion / distSq
+                let fx = (dx / dist) * force
+                let fy = (dy / dist) * force
+                forces[i].dx += fx; forces[i].dy += fy
+                forces[j].dx -= fx; forces[j].dy -= fy
+            }
+        }
+    }
+
+    private func applySprings(positions: [CGPoint], forces: inout [CGVector]) {
+        let springLength: CGFloat = 110
+        let springStiffness: CGFloat = 0.04
+        let idIndex: [String: Int] = Dictionary(
+            uniqueKeysWithValues: nodes.enumerated().map { ($1.id, $0) }
+        )
+        for edge in edges {
+            guard let aIdx = idIndex[edge.source],
+                  let bIdx = idIndex[edge.target] else { continue }
+            let dx = positions[bIdx].x - positions[aIdx].x
+            let dy = positions[bIdx].y - positions[aIdx].y
+            let dist = max(sqrt(dx * dx + dy * dy), 0.001)
+            let force = springStiffness * (dist - springLength)
+            let fx = (dx / dist) * force
+            let fy = (dy / dist) * force
+            forces[aIdx].dx += fx; forces[aIdx].dy += fy
+            forces[bIdx].dx -= fx; forces[bIdx].dy -= fy
+        }
+    }
+
+    private func integrate(forces: [CGVector], dt: TimeInterval, size: CGSize) {
+        let damping: CGFloat = 0.82
+        let centerPull: CGFloat = 0.012
+        let maxSpeed: CGFloat = 240
+        let halfW = size.width / 2 - 20
+        let halfH = size.height / 2 - 20
+        for i in 0..<nodes.count {
+            var node = nodes[i]
+            var force = forces[i]
+            force.dx += -(node.position.x) * centerPull
+            force.dy += -(node.position.y) * centerPull
+            node.velocity.dx = (node.velocity.dx + force.dx * CGFloat(dt)) * damping
+            node.velocity.dy = (node.velocity.dy + force.dy * CGFloat(dt)) * damping
+            let speed = sqrt(node.velocity.dx * node.velocity.dx + node.velocity.dy * node.velocity.dy)
+            if speed > maxSpeed {
+                node.velocity.dx = node.velocity.dx / speed * maxSpeed
+                node.velocity.dy = node.velocity.dy / speed * maxSpeed
+            }
+            node.position.x += node.velocity.dx * CGFloat(dt)
+            node.position.y += node.velocity.dy * CGFloat(dt)
+            node.position.x = min(max(node.position.x, -halfW), halfW)
+            node.position.y = min(max(node.position.y, -halfH), halfH)
+            nodes[i] = node
+        }
+    }
+
+    // MARK: - Drawing
+
+    private func drawEdges(ctx: GraphicsContext) {
+        for edge in edges {
+            guard let source = nodes.first(where: { $0.id == edge.source }),
+                  let target = nodes.first(where: { $0.id == edge.target }) else { continue }
+            var path = Path()
+            path.move(to: centered(source.position, in: ctx))
+            path.addLine(to: centered(target.position, in: ctx))
+            let alpha = min(0.15 + Double(edge.weight) * 0.15, 0.65)
+            ctx.stroke(path, with: .color(.gray.opacity(alpha)), lineWidth: 1)
+        }
+    }
+
+    private func drawNodes(ctx: GraphicsContext) {
+        for node in nodes {
+            let pos = centered(node.position, in: ctx)
+            let radius: CGFloat = node.id == selectedEntityId ? 9 : 6
+            let circle = Path(ellipseIn: CGRect(
+                x: pos.x - radius,
+                y: pos.y - radius,
+                width: radius * 2,
+                height: radius * 2
+            ))
+            ctx.fill(circle, with: .color(color(for: node.kind)))
+            if node.id == selectedEntityId {
+                ctx.stroke(circle, with: .color(.accentColor), lineWidth: 2)
+            } else {
+                ctx.stroke(circle, with: .color(.primary.opacity(0.3)), lineWidth: 0.5)
+            }
+            let label = Text(node.name).font(.caption2).foregroundColor(.primary)
+            ctx.draw(label, at: CGPoint(x: pos.x, y: pos.y + radius + 8), anchor: .top)
+        }
+    }
+
+    private func centered(_ point: CGPoint, in ctx: GraphicsContext) -> CGPoint {
+        let bounds = ctx.clipBoundingRect
+        return CGPoint(x: bounds.midX + point.x, y: bounds.midY + point.y)
+    }
+
+    // MARK: - Interaction
+
+    private func handleTap(at location: CGPoint, in size: CGSize) {
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let local = CGPoint(x: location.x - center.x, y: location.y - center.y)
+        var best: (id: String, dist: CGFloat)?
+        for node in nodes {
+            let dx = node.position.x - local.x
+            let dy = node.position.y - local.y
+            let dist = sqrt(dx * dx + dy * dy)
+            if dist < 18, dist < (best?.dist ?? .greatestFiniteMagnitude) {
+                best = (node.id, dist)
+            }
+        }
+        if let hit = best {
+            selectedEntityId = hit.id
+        }
+    }
+
+    // MARK: - Colors
+
+    private func color(
+        for kind: Components.Schemas.EntityTypeOutput?
+    ) -> Color {
+        guard let kind else { return .gray }
+        switch kind {
+        case .person: return .blue
+        case .organization: return .purple
+        case .location: return .green
+        case .event: return .orange
+        case .concept: return .yellow
+        case .other: return .gray
+        }
+    }
+}
+
+// MARK: - Model
+
+private struct GraphNode: Identifiable {
+    let id: String
+    let name: String
+    let kind: Components.Schemas.EntityTypeOutput?
+    var position: CGPoint
+    var velocity: CGVector
+}
+
+private struct GraphEdge {
+    let source: String
+    let target: String
+    let weight: Int
+}
+
+private struct EdgeKey: Hashable {
+    let source: String
+    let target: String
+}
+
+// swiftlint:enable identifier_name
