@@ -626,6 +626,7 @@ from fichero.api.routes import (  # noqa: E402
     kg_rebuild,
     kg_review,
     kg_search,
+    kg_sparql,
     kg_triangulation,
     local_models,
     mcp_servers,
@@ -708,6 +709,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (kg_claim_search.router, "/api", ["knowledge-graph"]),
     (kg_claim_analysis.router, "/api", ["knowledge-graph"]),
     (kg_entity_curation.router, "/api", ["knowledge-graph"]),
+    (kg_sparql.router, "/api", ["knowledge-graph"]),
     (kg_inclusion.router, "/api", ["knowledge-graph"]),
 ]
 
