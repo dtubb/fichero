@@ -1,11 +1,20 @@
 # STATE.md — Fichero
 
-## Next Session — Start Here (2026-05-13 evening — KG rebuild complete)
+## Next Session — Start Here (2026-05-13 evening — KG rebuild + bug sweep)
 
-**Latest commit: `6b77310f`. ~40 commits since morning. 18 GitHub issues
-closed today** (#885, #902, #927, #959, #976, #977, #978, #979, #980,
-#981, #985, #986, #990, #991, #992, #993, #996, #997). Tests: 2404
-passing, 2 failing (Apple Intelligence + suite-state-pollution).
+**Latest commit: `d309e8cf`. 45+ commits today. 21 GitHub issues closed**
+including the master plan #983 itself. Tests: 2404 passing, 2 failing.
+
+**Phases of #983 shipped:** 1 (backend endpoints) ✅, 2 (claim card + source nav) ✅,
+3 (canonical layout) PARTIAL, 4 (PDF highlight overlay) ✅, 5 (focus-neighborhood viz) ✅.
+**Remaining:** 6 (inspector reorg), 7 (chat KG-RAG), 8 (unified search) —
+file as fresh tickets when ready to land.
+
+**Other 0.0.2 fixes today:**
+- #886 search filename-match boost (+10 exact, +5 word, +2 substring)
+- #943 library view-mode global default (@AppStorage `library.defaultViewDisplayMode`)
+- #963 first-person → author-name rewrite in extractor (when source_metadata.authors populated)
+- 5 of 5 bottleneck fixes from scaling review (cache, indices, rank-then-truncate)
 
 ### Today's KG rebuild — Phases 1, 2, 5 of master plan (#983) shipped
 
