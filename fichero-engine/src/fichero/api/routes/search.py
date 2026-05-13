@@ -122,6 +122,69 @@ def _suggest_for_no_results(
     return [name for score, name in scored[:limit] if score >= 0.5]
 
 
+def _apply_filename_boost(results, query: str):
+    """Promote results whose document name matches the query.
+
+    Filename matches signal strong user intent — when the user types a
+    filename slug ('tubb2020shift') they want THAT doc first, not
+    whichever doc has the most semantically similar body. We re-score
+    in priority bands:
+
+      +10.0  exact match (case-insensitive, sans extension)
+       +5.0  whole-word match within the name
+       +2.0  substring match anywhere in the name
+
+    Highest boost wins per row; original score is preserved as a
+    secondary sort key so within a band the retriever's ranking still
+    matters. (#886)
+    """
+    import re as _re
+
+    query_lower = query.strip().lower()
+    if not query_lower:
+        return results
+    # Strip common file extensions for the exact-match comparison so
+    # 'tubb2020shift' matches 'tubb2020shift.pdf'.
+    def _stem(name: str) -> str:
+        out = name.lower()
+        for ext in (".pdf", ".docx", ".txt", ".md", ".html", ".epub"):
+            if out.endswith(ext):
+                return out[: -len(ext)]
+        return out
+
+    # Tokenise on whitespace + punctuation so "tubb 2020 shift" matches
+    # "tubb2020shift.pdf" via word-boundary checks.
+    query_words = [w for w in _re.findall(r"\w+", query_lower) if w]
+
+    def _boost(result_name: str) -> float:
+        if not result_name:
+            return 0.0
+        name_lower = result_name.lower()
+        name_stem = _stem(name_lower)
+        if name_stem == query_lower or name_lower == query_lower:
+            return 10.0
+        # Whole-word match: every query word appears as its own word in
+        # the name (split on non-alphanumerics).
+        name_words = set(_re.findall(r"\w+", name_lower))
+        if query_words and all(w in name_words for w in query_words):
+            return 5.0
+        # Substring fallback.
+        if query_lower in name_lower:
+            return 2.0
+        return 0.0
+
+    def _name_of(result) -> str:
+        meta = getattr(result, "metadata", None) or {}
+        return str(meta.get("name") or "")
+
+    decorated = [
+        (_boost(_name_of(r)), getattr(r, "score", 0.0) or 0.0, r)
+        for r in results
+    ]
+    decorated.sort(key=lambda t: (-t[0], -t[1]))
+    return [t[2] for t in decorated]
+
+
 def _apply_phrase_and_exclude_filters(
     db: Database,
     results: list[SearchResult],
@@ -470,6 +533,21 @@ async def enhanced_search(
     # L2-normalised and scores are real cosine similarities (see
     # db_embeddings._l2_normalize). The user-controllable min_score on
     # SearchRequest replaces it for callers who want to floor explicitly.
+
+    # Filename-match boost (#886). Docs whose name contains the query
+    # are promoted to the top of the result list regardless of their
+    # semantic / FTS score. Filename matches are the strongest signal
+    # of intent — when a user types "tubb2020shift" they want THAT doc
+    # first, not the doc with the most semantically similar body.
+    # Boost rules:
+    #  - exact filename match (case-insensitive, sans extension): +10.0
+    #  - whole-word match in filename: +5.0
+    #  - any substring match in filename: +2.0
+    # Applied to a fresh score column; original score preserved as
+    # tiebreaker. Skipped on pure-scope queries (skip_retriever=True)
+    # where filename relevance is meaningless.
+    if results and not skip_retriever and request.query.strip():
+        results = _apply_filename_boost(results, request.query)
 
     # Did-you-mean: only when the user got *zero* results, AND their
     # query looks substantive (>2 chars). Avoids spamming suggestions on
