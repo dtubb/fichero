@@ -297,6 +297,61 @@ def migrate_activity_tables(conn) -> None:
         logger.warning(f"Activity tables migration failed: {e}")
 
 
+def migrate_knowledge_indices(conn) -> None:
+    """Add indices on knowledgeentitys + knowledgeclaims for fast lookup.
+
+    Note the table names use the Pythonic ``_ensure_table`` convention
+    (model name lowercased + 's' → ``knowledgeclaims``, ``knowledgeentitys``).
+    Activities and provider_refs already had indices; the knowledge tables
+    didn't, which meant every ``WHERE source_document_id = ?`` ran a full
+    table scan. At 50K claims that's noticeable; at 1M claims it's
+    seconds per query.
+
+    These are the indices the wireframe (View 1 inspector, View 4 source
+    preview, claim-search) hits hardest. IF NOT EXISTS so safe to re-run.
+    Each statement is wrapped in its own try/except — a missing table
+    silently no-ops and the next call picks it up after the tables get
+    lazily created by ``_ensure_table``. (#991 — scaling-review bottleneck 2)
+    """
+    statements = [
+        # Claims by source document — drives every per-doc inspector
+        # section + the "open source" navigation path.
+        ("idx_claims_source_doc", "CREATE INDEX IF NOT EXISTS idx_claims_source_doc "
+            "ON knowledgeclaims(source_document_id)"),
+        # Claims by (doc, page) — drives the "On this page" sidecar on
+        # source preview (View 4).
+        ("idx_claims_page", "CREATE INDEX IF NOT EXISTS idx_claims_page "
+            "ON knowledgeclaims(source_document_id, source_page_label)"),
+        # Entity name lookup — alias resolution at object-phrase →
+        # entity-URI time (kg.graph.build_graph), entity-curation/
+        # semantic search, KG explorer search field.
+        ("idx_entities_name", "CREATE INDEX IF NOT EXISTS idx_entities_name "
+            "ON knowledgeentitys(canonical_name)"),
+        # Claim filtering by type / status — claim card status+kind
+        # filter bar in the inspector.
+        ("idx_claims_type", "CREATE INDEX IF NOT EXISTS idx_claims_type "
+            "ON knowledgeclaims(claim_type)"),
+        ("idx_claims_status", "CREATE INDEX IF NOT EXISTS idx_claims_status "
+            "ON knowledgeclaims(epistemic_status)"),
+        # Claim by creation time — recency sort + activity timeline.
+        ("idx_claims_created", "CREATE INDEX IF NOT EXISTS idx_claims_created "
+            "ON knowledgeclaims(created_at)"),
+    ]
+    created = 0
+    for name, ddl in statements:
+        try:
+            conn.execute(ddl)
+            created += 1
+        except Exception as exc:
+            # Most common cause: the table doesn't exist yet (no claims
+            # have been written, so _ensure_table hasn't run). Quietly
+            # skip — next call after the first write picks it up.
+            logger.debug("Knowledge index %s skipped: %s", name, exc)
+    if created:
+        logger.info("Knowledge indices migration: %d/%d indices ensured",
+                    created, len(statements))
+
+
 def migrate_checkpoint_tables(conn) -> None:
     """Ensure LangGraph checkpoint tables exist.
 

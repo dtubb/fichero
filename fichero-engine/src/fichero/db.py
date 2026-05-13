@@ -1108,6 +1108,14 @@ class Database(DatabaseEmbeddingMixin):
 
         self._tables_created.add(table)
 
+        # Apply knowledge-table indices once both knowledgeclaims AND
+        # knowledgeentitys exist. Cheap (each CREATE INDEX IF NOT EXISTS
+        # is a no-op when already present); critical for query latency
+        # at 50K+ claims. (#991 — scaling-review bottleneck 2)
+        if table in {"knowledgeclaims", "knowledgeentitys"}:
+            from fichero.db_migrations import migrate_knowledge_indices
+            migrate_knowledge_indices(self.conn)
+
     def _python_to_duckdb_type(self, python_type) -> str:
         """Map Python types to DuckDB types."""
         type_map = {
