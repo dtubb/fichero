@@ -1,6 +1,91 @@
 # STATE.md — Fichero
 
-## Next Session — Start Here (2026-05-13 mid-day autonomous)
+## Next Session — Start Here (2026-05-13 late autonomous)
+
+**Latest commit on 0.0.2: `2e8ae135`.** Eleven commits today. Five GitHub
+issues closed: #902, #885, #927, #959, plus citation-graph wiring for
+#974. Test suite: **2392 passing, 14 failing** (was 1704 / 755 at start
+of day — `/.session-end-complete` is way out of date because of that).
+
+### What landed today
+
+1. **`a7aa8a33` — #902 KG force-directed graph.** SwiftUI Canvas-based
+   graph as a List/Graph picker in OntologyBrowser. Closed.
+2. **`df629970` — #885 Kreuzberg extractor outputs.** Tables, slide
+   text, transcripts, image OCR, keywords, annotations all persist as
+   Artifact rows. 10 new tests. Closed.
+3. **`c7d30be7` — STATE.md mid-day update.**
+4. **`b967fa7d` — Citation graph service methods** (`inboundCitations` /
+   `outboundCitations` on `EntityServiceGenerated`) for #974.
+5. **`045460d5` — #927 PDF page-child thumbnails.** Aligned
+   `DocumentThumbnailView` + `MapCard` with `MailStyleRow.resolvedParentPDFPath`
+   so page children render the correct page when viewing a parent
+   PDF's children. Closed.
+6. **`a8f1aefd` — #959 KG-RAG Related Claims panel.** Inspector Info-tab
+   section: for each of the doc's claims (up to 20), fetch top-3
+   similar from `/api/kg/claim-search/{id}/similar`, dedup, rank, show.
+   Closed.
+7. **`ad053195` — Citations section on Info tab.** Renders inbound +
+   outbound citations using the methods from #5. UI for #974 prep.
+8. **`bf37e38d` — Test infra: disable auth in conftest + ruff F823.**
+   Set `FICHERO_DISABLE_AUTH=1` before app import — recovered ~688
+   previously-broken tests that the post-#742 loopback check was
+   silently rejecting. Also fixed the F823 shadow-import in
+   `workflows/tools/catalogue.py:481`.
+9. **`dd0f5a34` — Removed 3 stale KG test files.** `/api/knowledge-graph/*`
+   was deleted in 1587a1b6 (#832); test files for that namespace
+   couldn't be salvaged (~1238 LOC).
+10. **`4a5d0c22` — Updated `test_feature_tier_routing` +
+    `test_routes_graph_exploration`** for the post-consolidation `/api/kg/*`
+    shape: flat metrics response, `/path?source=&target=` not
+    `/paths/{a}/{b}`.
+11. **`8b97b80f` + `2e8ae135` — Empty/whitespace search query returns
+    200 ("browse the index"), not 400.** Two test files updated to
+    match the deliberate route behavior in `enhanced_search`.
+
+### Open candidates (next session)
+
+**Bounded:**
+- Citation graph UI is in but the **inspector still shows "Citations" as
+  an empty section** until citations are recorded for a doc. Nothing
+  to fix — just confirm by adding a citation via the workflow.
+- **#928** PDF loupe / magnifier — blocked on #783 (loupe fix first).
+- **14 remaining test failures** clustered in:
+  - `test_routes_settings` (6) — duckdb lock conflicts with running
+    backend (the test fixture doesn't isolate `app.duckdb`).
+  - `test_providers` + `test_api_providers` (4) — same duckdb lock.
+  - `test_routes_entities_kg_integration` (3) — post-consolidation
+    response shape drift (likely fixable in 20 min).
+  - `test_chat_structured` (1) — Apple Intelligence error-hierarchy
+    expectation; needs Apple Vision env.
+
+**Blocked / decision-dependent:**
+- **#963** first-person claims — blocked on #924 (author identity in
+  extractor).
+- **#886** search ranking — blocked on richer corpus.
+- **#961** console hygiene — needs running app to verify.
+- **#943** view stickiness — needs Daniel's call on scope.
+- **#958** structured artifact editors — multi-day rewrite.
+
+**Backend wiring follow-ups** (unwired-endpoint audit at
+`agent-work/2026-05-13-unwired-endpoint-audit.md`):
+- BibliographyService wrapper (5 endpoints).
+- AnnotationService wrapper (4 endpoints).
+- NotesService / TasksService / ProjectsService / SourcesService.
+
+### Don't break
+
+- `RelatedClaimsPanel` and `CitationGraphPanel` use `.task(id: documentId)`
+  to re-fetch on selection change. Don't switch the parent to a
+  value-copy view body that drops the task.
+- `FICHERO_DISABLE_AUTH=1` is set in conftest before app import —
+  moving the env-set after the import re-breaks ~688 tests.
+- `OntologyBrowser.viewMode` is persisted via `@SceneStorage` —
+  switching to `@AppStorage` would lose the per-window scope.
+
+---
+
+## Earlier next-session entry (2026-05-13 mid-day autonomous)
 
 **Latest commit on 0.0.2: `df629970`.** Two streams shipped in a parallel
 agent run (KG force-directed graph + extractor-artifact preservation).
