@@ -198,6 +198,60 @@ class TestNeighborhood:
         assert first["claim_id"] == "c-ab"
         assert first["source_document_id"] == "doc-1"
 
+    def test_neighborhood_rank_by_edge_weight_truncation(self, client, db):
+        # Focus connects to three neighbors. Top neighbor has 3 edges,
+        # middle has 2, bottom has 1. With limit=2 the bottom neighbor
+        # should be dropped, not the top. (#993 rank-then-truncate.)
+        db.save(_make_entity("e-focus", "Focus"))
+        db.save(_make_entity("e-top", "Top"))
+        db.save(_make_entity("e-mid", "Mid"))
+        db.save(_make_entity("e-bot", "Bot"))
+        # 3 edges Focus→Top
+        for i in range(3):
+            db.save(_make_svo_claim(
+                f"c-top-{i}", subject="Focus", verb="knows", obj="Top",
+                entity_ids=["e-focus", "e-top"],
+            ))
+        # 2 edges Focus→Mid
+        for i in range(2):
+            db.save(_make_svo_claim(
+                f"c-mid-{i}", subject="Focus", verb="knows", obj="Mid",
+                entity_ids=["e-focus", "e-mid"],
+            ))
+        # 1 edge Focus→Bot
+        db.save(_make_svo_claim(
+            "c-bot", subject="Focus", verb="knows", obj="Bot",
+            entity_ids=["e-focus", "e-bot"],
+        ))
+        r = client.get(f"{BASE}/neighborhood/e-focus?limit=2&rank=edge_weight")
+        assert r.status_code == 200
+        data = r.json()
+        kept_names = {n["canonical_name"] for n in data["neighbors"]}
+        # Top + Mid kept; Bot dropped.
+        assert "Top" in kept_names
+        assert "Mid" in kept_names
+        assert "Bot" not in kept_names
+        assert data["truncated"] is True
+
+    def test_neighborhood_rank_by_name_is_stable(self, client, db):
+        # Three neighbors with equal edge counts → name rank should sort
+        # alphabetically and pick the first two.
+        db.save(_make_entity("e-focus", "Focus"))
+        db.save(_make_entity("e-c", "Charlie"))
+        db.save(_make_entity("e-a", "Alpha"))
+        db.save(_make_entity("e-b", "Bravo"))
+        for nid, name in [("e-a", "Alpha"), ("e-b", "Bravo"), ("e-c", "Charlie")]:
+            db.save(_make_svo_claim(
+                f"c-{nid}", subject="Focus", verb="knows", obj=name,
+                entity_ids=["e-focus", nid],
+            ))
+        r = client.get(f"{BASE}/neighborhood/e-focus?limit=2&rank=name")
+        assert r.status_code == 200
+        data = r.json()
+        kept_names = sorted(n["canonical_name"] for n in data["neighbors"])
+        assert kept_names == ["Alpha", "Bravo"]
+        assert data["truncated"] is True
+
 
 class TestPageRank:
     def test_empty_returns_empty(self, client):

@@ -379,7 +379,11 @@ class NeighborhoodEdge(BaseModel):
 
 
 class NeighborhoodResponse(BaseModel):
-    """Focus entity + neighbors + SVO edges. Bounded by `hops` + `limit`."""
+    """Focus entity + neighbors + SVO edges. Bounded by `hops` + `limit`.
+
+    Neighbors are ranked-then-truncated when more than ``limit`` are
+    reachable — see the ``rank`` query param. (#993)
+    """
     focus_entity_id: str
     focus_canonical_name: str
     focus_entity_type: str | None = None
@@ -408,6 +412,16 @@ async def neighborhood(
     entity_id: str,
     hops: int = Query(default=1, ge=1, le=3),
     limit: int = Query(default=50, ge=1, le=500),
+    rank: str = Query(
+        default="edge_weight",
+        pattern="^(edge_weight|degree|name)$",
+        description=(
+            "How to rank neighbors when more than `limit` are reachable. "
+            "edge_weight (default): most edges to the focus first. "
+            "degree: highest total-degree neighbors first. "
+            "name: alphabetical (stable for tests + screenshots)."
+        ),
+    ),
     db: Database = Depends(get_library_database),
 ) -> NeighborhoodResponse:
     from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
@@ -430,16 +444,16 @@ async def neighborhood(
             name_to_id.setdefault(alias.lower(), ent.id)
 
     # BFS over entity IDs, recording which hop we reached each at, AND
-    # collecting the claim-edges that connect them. We re-walk the
-    # claims iterable per hop because the per-claim filter is the same
-    # query; for typical 0.0.2 corpora the cost is fine. At scale, this
-    # is the spot to swap in the cached networkx graph.
+    # collecting candidate edges. We DON'T truncate during traversal —
+    # arbitrary first-N hides the most-connected neighbors when the
+    # focus is a hub. Instead we collect everything in this hop budget,
+    # then rank + truncate at the end. (#993 — scaling-review
+    # bottleneck 5)
     claims_all = db.query(KnowledgeClaim)
-    edges: list[NeighborhoodEdge] = []
-    neighbor_ids: dict[str, int] = {}  # entity_id → hop
+    candidate_edges: list[NeighborhoodEdge] = []
+    candidate_neighbor_ids: dict[str, int] = {}  # entity_id → hop
     frontier: set[str] = {entity_id}
     visited: set[str] = {entity_id}
-    truncated = False
 
     for current_hop in range(1, hops + 1):
         next_frontier: set[str] = set()
@@ -459,13 +473,10 @@ async def neighborhood(
                 # resolves to a known entity).
                 if object_entity_id and object_entity_id != source_id:
                     if object_entity_id not in visited:
-                        if len(neighbor_ids) >= limit:
-                            truncated = True
-                            continue
-                        neighbor_ids[object_entity_id] = current_hop
+                        candidate_neighbor_ids[object_entity_id] = current_hop
                         visited.add(object_entity_id)
                         next_frontier.add(object_entity_id)
-                    edges.append(_make_edge(
+                    candidate_edges.append(_make_edge(
                         source_id=source_id,
                         target_id=object_entity_id,
                         target_label=by_id[object_entity_id].canonical_name
@@ -482,13 +493,10 @@ async def neighborhood(
                         if other == source_id or other not in by_id:
                             continue
                         if other not in visited:
-                            if len(neighbor_ids) >= limit:
-                                truncated = True
-                                continue
-                            neighbor_ids[other] = current_hop
+                            candidate_neighbor_ids[other] = current_hop
                             visited.add(other)
                             next_frontier.add(other)
-                        edges.append(_make_edge(
+                        candidate_edges.append(_make_edge(
                             source_id=source_id,
                             target_id=other,
                             target_label=by_id[other].canonical_name,
@@ -502,7 +510,7 @@ async def neighborhood(
                     if obj_text and not any(
                         o for o in cl_entities if o != source_id and o in by_id
                     ):
-                        edges.append(_make_edge(
+                        candidate_edges.append(_make_edge(
                             source_id=source_id,
                             target_id=f"literal:{obj_text}",
                             target_label=obj_text,
@@ -513,6 +521,67 @@ async def neighborhood(
         frontier = next_frontier
         if not frontier:
             break
+
+    # Rank + truncate. (#993)
+    #
+    # edge_weight (default): count how many edges touch each candidate
+    # neighbor in this neighborhood. Most-connected neighbors keep their
+    # context; least-connected drop off when the cap bites.
+    #
+    # degree: secondary tiebreaker / alternative ordering — total claim
+    # mentions for the neighbor across the whole library, so visually
+    # important "hub" entities are preserved.
+    #
+    # name: alphabetical, used by tests + screenshots that want stable
+    # output regardless of corpus state.
+    edge_count_by_neighbor: dict[str, int] = {}
+    for edge in candidate_edges:
+        # Count the endpoint that ISN'T the focus.
+        endpoint = edge.target_id if edge.source_id == entity_id else edge.source_id
+        if endpoint == entity_id:
+            continue
+        edge_count_by_neighbor[endpoint] = edge_count_by_neighbor.get(endpoint, 0) + 1
+
+    degree_by_entity: dict[str, int] = {}
+    if rank == "degree":
+        # Computed on-demand because it's the only rank mode that needs
+        # global state. Cheap: scan claims once, tally entity_ids.
+        for claim in claims_all:
+            for eid in (claim.entity_ids or []):
+                degree_by_entity[eid] = degree_by_entity.get(eid, 0) + 1
+
+    def neighbor_sort_key(nid: str) -> tuple:
+        if rank == "edge_weight":
+            # negate count so higher counts sort first under ascending sort
+            return (-edge_count_by_neighbor.get(nid, 0),
+                    by_id[nid].canonical_name if nid in by_id else nid)
+        if rank == "degree":
+            return (-degree_by_entity.get(nid, 0),
+                    by_id[nid].canonical_name if nid in by_id else nid)
+        # rank == "name"
+        return (by_id[nid].canonical_name if nid in by_id else nid,)
+
+    ordered_ids = sorted(candidate_neighbor_ids.keys(), key=neighbor_sort_key)
+    kept_ids = ordered_ids[:limit]
+    kept_set: set[str] = set(kept_ids)
+    truncated = len(ordered_ids) > limit
+
+    # Re-build neighbor_ids preserving the original hop annotation, and
+    # filter edges down to those that touch at least one kept neighbor
+    # (or the focus). Literal nodes survive — they're cheap and visually
+    # informative even when truncation bites.
+    neighbor_ids: dict[str, int] = {
+        nid: candidate_neighbor_ids[nid] for nid in kept_ids
+    }
+    edges: list[NeighborhoodEdge] = [
+        e for e in candidate_edges
+        if (
+            e.source_id == entity_id
+            or e.source_id in kept_set
+            or (e.target_is_entity and e.target_id in kept_set)
+            or not e.target_is_entity  # always keep literal-object edges
+        )
+    ]
 
     neighbors = [
         NeighborEntity(
