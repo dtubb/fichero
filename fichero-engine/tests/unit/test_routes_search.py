@@ -35,13 +35,16 @@ def _make_saved_search(db, query: str = "test query") -> SavedSearch:
 
 
 class TestEnhancedSearch:
-    def test_empty_query_returns_400(self, client):
+    def test_empty_query_returns_recent(self, client):
+        # The enhanced_search route deliberately treats an empty query as
+        # "browse the index" — returns the most-recently-updated docs
+        # instead of 400. (See enhanced_search docstring.)
         r = client.post("/api/search", json={"query": ""})
-        assert r.status_code == 400
+        assert r.status_code == 200
 
-    def test_whitespace_query_returns_400(self, client):
+    def test_whitespace_query_returns_recent(self, client):
         r = client.post("/api/search", json={"query": "   "})
-        assert r.status_code == 400
+        assert r.status_code == 200
 
     def test_invalid_search_type_returns_400(self, client):
         r = client.post("/api/search", json={"query": "hello", "search_type": "magic"})
