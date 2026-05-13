@@ -13,11 +13,21 @@ struct ActivityGraphView: View {
     @State private var error: String?
     @State private var selectedCheckpoint: CheckpointSnapshot?
 
+    /// Window-shared list-column width; matches OntologyBrowser entity
+    /// list + (future) Library / Workflows lists so resize sticks across
+    /// destinations. (#985)
+    @SceneStorage("window.listColumnWidth")
+    private var listColumnWidth: Double = 280
+
     var body: some View {
         HSplitView {
             // Left: Checkpoint list (timeline)
             checkpointList
-                .frame(minWidth: 200, maxWidth: 300)
+                .frame(
+                    minWidth: 200,
+                    idealWidth: listColumnWidth,
+                    maxWidth: 420
+                )
 
             // Right: Selected checkpoint details
             checkpointDetail

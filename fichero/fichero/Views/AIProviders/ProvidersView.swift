@@ -14,6 +14,9 @@ struct ProvidersView: View {
 
     @EnvironmentObject var providerService: ProviderServiceGenerated
 
+    @SceneStorage("window.listColumnWidth")
+    private var listColumnWidth: Double = 280
+
     var body: some View {
         HSplitView {
             VStack(alignment: .leading, spacing: 0) {
@@ -48,7 +51,7 @@ struct ProvidersView: View {
                 }
                 .padding(8)
             }
-            .frame(minWidth: 200, maxWidth: 250)
+            .frame(minWidth: 200, idealWidth: listColumnWidth, maxWidth: 420)
 
             if let provider = selectedProvider {
                 ProviderDetailView(

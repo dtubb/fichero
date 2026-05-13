@@ -11,6 +11,9 @@ struct MCPServersView: View {
     @State private var showAddServer = false
     @State private var selectedServer: MCPServerResponse?
 
+    @SceneStorage("window.listColumnWidth")
+    private var listColumnWidth: Double = 280
+
     var body: some View {
         HSplitView {
             // Server list (left)
@@ -55,7 +58,7 @@ struct MCPServersView: View {
                 }
                 .padding(8)
             }
-            .frame(minWidth: 200, maxWidth: 250)
+            .frame(minWidth: 200, idealWidth: listColumnWidth, maxWidth: 420)
 
             // Server details (right)
             if let server = selectedServer {
