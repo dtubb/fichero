@@ -9,8 +9,12 @@ import os
 class TestStorageSettings:
     """Tests for StorageSettings configuration."""
 
-    def test_default_paths(self):
-        """Default paths should be in Application Support."""
+    def test_default_paths(self, monkeypatch):
+        """Default paths should be in Application Support — when
+        FICHERO_BASE_PATH isn't set (conftest sets it for test isolation,
+        so clear it here to assert the actual default).
+        """
+        monkeypatch.delenv("FICHERO_BASE_PATH", raising=False)
         from fichero.storage import StorageSettings
 
         s = StorageSettings()

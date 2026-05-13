@@ -38,9 +38,18 @@ class TestDatabaseBasics:
         assert temp_db.conn is not None
         assert temp_db.path.exists()
 
-    def test_default_path(self):
-        """Test default database path."""
-        db = Database()
+    def test_default_path(self, monkeypatch):
+        """Default Database() path should be in Application Support — when
+        FICHERO_BASE_PATH isn't set. Conftest sets it for test isolation,
+        so clear it here and reload `fichero.storage` so its module-level
+        `settings = StorageSettings()` re-reads the (now-empty) env.
+        """
+        monkeypatch.delenv("FICHERO_BASE_PATH", raising=False)
+        import fichero.storage as _storage_mod
+        from importlib import reload as _reload
+        _reload(_storage_mod)
+        from fichero.db import Database as _Database
+        db = _Database()
         expected = Path.home() / "Library/Application Support/com.fichero.fichero/library.duckdb"
         assert db.path == expected
         db.close()
