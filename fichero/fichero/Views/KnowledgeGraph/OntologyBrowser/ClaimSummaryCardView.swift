@@ -6,20 +6,36 @@ import SwiftUI
 struct ClaimSummaryCard: View {
     let claim: Components.Schemas.KnowledgeClaim
 
-    /// Expanded → fetches contradictions + evidence-chain + similar
-    /// claims in parallel. Collapsed by default; this is one-of-many
-    /// in a list so the panel stays tight.
+    /// Expanded → reveals the verbatim source excerpt + fetches
+    /// contradictions + evidence-chain. Collapsed by default to keep
+    /// the card tight. Was previously rendering excerpt always +
+    /// duplicating claim.text — see #979.
     @State private var isExpanded: Bool = false
     @State private var contradictions: [Components.Schemas.ContradictionEvidence]?
     @State private var evidenceChain: Components.Schemas.EvidenceChain?
     @State private var isLoadingDetails: Bool = false
 
+    /// SVO triple extracted from `claim.metadata`. The backend extractor
+    /// already produces these (see #984; extractors.py:1375-1456 sets
+    /// `metadata["subject" / "verb" / "object"]`). When all three are
+    /// present, the card renders the S-V-O sentence with the verb
+    /// emphasised so the predicate structure is visible at a glance.
+    /// When absent, render a "no claim text — regenerate KG" notice
+    /// (Daniel's directive: "if KG is absent, we generate it"; don't
+    /// fall back to `claim.text`).
+    private var svo: (subject: String, verb: String, object: String)? {
+        guard let dict = claim.metadata?.additionalProperties.value else { return nil }
+        let subject = (dict["subject"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let verb = (dict["verb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let object = (dict["object"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !subject.isEmpty, !verb.isEmpty, !object.isEmpty else { return nil }
+        return (subject, verb, object)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top) {
-                Text(claim.text)
-                    .font(.caption)
-                    .lineLimit(isExpanded ? nil : 2)
+                claimSentence
                     .textSelection(.enabled)
                 Spacer(minLength: 0)
                 Button {
@@ -33,36 +49,13 @@ struct ClaimSummaryCard: View {
                         .font(.caption2)
                 }
                 .buttonStyle(.plain)
-                .help(isExpanded ? "Hide details" : "Show contradictions + evidence chain")
+                .help(isExpanded ? "Hide details" : "Show source, contradictions, evidence chain")
             }
 
-            // Verbatim source quote the LLM lifted the claim from
-            // (#892/#893). Italicised + smaller font so it reads as a
-            // citation underneath the composed claim sentence. Tap to
-            // run a library search for that exact text — same code
-            // path as the entity lozenges (ficheroEntitySearchRequested
-            // → ContentView → runToolbarSearch), with no entityType so
-            // it goes through the free-text branch.
-            if let excerpt = claim.sourceExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !excerpt.isEmpty,
-               excerpt != claim.text {
-                Button {
-                    NotificationCenter.default.post(
-                        name: .ficheroEntitySearchRequested,
-                        object: nil,
-                        userInfo: ["name": excerpt]
-                    )
-                } label: {
-                    Text("“\(excerpt)”")
-                        .font(.caption2)
-                        .italic()
-                        .foregroundStyle(.secondary)
-                        .lineLimit(3)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
-                .help("Search the library for this quote")
-            }
+            // Source-doc citation — italic doc name + page label,
+            // tappable to navigate. The whole point of the KG is to get
+            // back to source (#982). (#978/#979)
+            sourceLine
 
             HStack(spacing: 8) {
                 if let claimType = claim.claimType {
@@ -99,12 +92,115 @@ struct ClaimSummaryCard: View {
         }
     }
 
-    /// Inline detail panel — contradictions + evidence-chain summary.
+    /// The headline of the card. When SVO metadata is present, render
+    /// it as `subject **verb** object` so the predicate is visible at a
+    /// glance. When absent, surface a "KG not generated" hint instead
+    /// of falling back to `claim.text` — per Daniel's directive, we
+    /// want to show the KG, not the loose extractor text. (#978/#986)
+    @ViewBuilder
+    private var claimSentence: some View {
+        if let svo {
+            (
+                Text(svo.subject)
+                + Text(" \(svo.verb) ").italic().foregroundColor(.accentColor)
+                + Text(svo.object)
+            )
+            .font(.caption)
+            .lineLimit(isExpanded ? nil : 3)
+        } else {
+            HStack(spacing: 4) {
+                Image(systemName: "questionmark.circle")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                Text("No subject-verb-object — regenerate KG?")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .italic()
+            }
+        }
+    }
+
+    /// Italic source-doc name + optional page label, tappable to open
+    /// the source. Always renders when the doc exists in the in-memory
+    /// store; missing doc is silently hidden (claim was extracted from
+    /// a document no longer in the current scope). (#978/#979)
+    @ViewBuilder
+    private var sourceLine: some View {
+        let docId = claim.sourceDocumentId
+        let pageLabel = claim.sourcePageLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let docName = LibraryManager.shared.globalLibrary?
+            .documentStore
+            .currentDocuments
+            .first(where: { $0.id == docId })?
+            .name
+        if let docName, !docName.isEmpty {
+            Button {
+                var info: [String: Any] = ["documentId": docId]
+                if let pageLabel, !pageLabel.isEmpty {
+                    info["pageLabel"] = pageLabel
+                }
+                if let start = claim.sourceCharStart { info["charStart"] = start }
+                if let end = claim.sourceCharEnd { info["charEnd"] = end }
+                if let claimId = claim.id { info["claimId"] = claimId }
+                NotificationCenter.default.post(
+                    name: .ficheroOpenClaimSource,
+                    object: nil,
+                    userInfo: info
+                )
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "doc.text")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Text(docName)
+                        .font(.caption2)
+                        .italic()
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if let pageLabel, !pageLabel.isEmpty {
+                        Text("p. \(pageLabel)")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .help("Open the source document")
+        }
+    }
+
+    /// Inline detail panel — verbatim source excerpt (moved here from
+    /// always-on per #979) + contradictions + evidence-chain summary.
     /// Lights up the post-1587a1b6 claim-analysis surface inside the
     /// existing OntologyBrowser shell so the new backend has UI today.
     @ViewBuilder
     private var expandedDetailSection: some View {
         Divider()
+        // Verbatim source quote — moved into the expanded drawer so the
+        // collapsed card stays tight. Tapping the quote runs a library
+        // text-search via the existing entity-lozenge pathway. (#979)
+        if let excerpt = claim.sourceExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !excerpt.isEmpty,
+           excerpt != claim.text {
+            Button {
+                NotificationCenter.default.post(
+                    name: .ficheroEntitySearchRequested,
+                    object: nil,
+                    userInfo: ["name": excerpt]
+                )
+            } label: {
+                Text("“\(excerpt)”")
+                    .font(.caption2)
+                    .italic()
+                    .foregroundStyle(.secondary)
+                    .lineLimit(nil)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .help("Search the library for this quote")
+        }
         if isLoadingDetails {
             HStack {
                 ProgressView().scaleEffect(0.6)

@@ -605,6 +605,17 @@ extension Notification.Name {
     /// carries the message). EntityDetailView listens to refresh its
     /// claim list.
     static let ficheroClaimDeleted = Notification.Name("ficheroClaimDeleted")
+
+    /// Posted when the user taps a source-doc citation on a claim card
+    /// (or anywhere else that wants to navigate to a claim's source).
+    /// userInfo carries:
+    /// - "documentId": String (required)
+    /// - "pageLabel": String? (optional)
+    /// - "charStart": Int? / "charEnd": Int? (optional span)
+    /// - "claimId": String? (so the consumer can highlight downstream)
+    /// ContentView listens and selects the document + navigates the
+    /// preview to the span when populated. (#978/#979/#982)
+    static let ficheroOpenClaimSource = Notification.Name("ficheroOpenClaimSource")
 }
 import FicheroAPIClient
 
