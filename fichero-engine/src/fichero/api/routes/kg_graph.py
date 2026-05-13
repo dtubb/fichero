@@ -547,6 +547,323 @@ async def neighborhood(
     )
 
 
+# ---------------------------------------------------------------------------
+# Algorithm cluster — PageRank / communities / similarity / components /
+# triangles / clustering. All networkx-backed; each endpoint is small.
+# (#987 / #983 Stage 1)
+# ---------------------------------------------------------------------------
+
+
+class PageRankRow(BaseModel):
+    entity_id: str
+    canonical_name: str
+    entity_type: str | None = None
+    pagerank: float
+
+
+@router.get(
+    "/pagerank",
+    response_model=list[PageRankRow],
+    summary="Top-k entities by PageRank",
+    description=(
+        "PageRank over the directed claim graph (entity → entity via "
+        "SVO predicate edges). Returns the top-k entities by their PR "
+        "score — the heuristic 'most-cited' entities in the corpus. "
+        "(#987)"
+    ),
+)
+async def pagerank(
+    top_k: int = Query(default=20, ge=1, le=500),
+    entity_type: str | None = Query(default=None),
+    db: Database = Depends(get_library_database),
+) -> list[PageRankRow]:
+    import networkx as nx
+    from fichero.kg.graph import build_full_graph
+    from fichero.knowledge_models import KnowledgeEntity
+
+    g = build_full_graph(db)
+    if g.number_of_nodes() == 0:
+        return []
+    scores = nx.pagerank(g)
+    entities_by_id: dict[str, KnowledgeEntity] = {
+        ent.id: ent for ent in db.query(KnowledgeEntity)
+    }
+
+    rows: list[PageRankRow] = []
+    for node_id, score in scores.items():
+        ent = entities_by_id.get(node_id)
+        if ent is None:
+            continue  # skip literal / object nodes synthesized by build_graph
+        kind = (
+            ent.entity_type.value if ent.entity_type
+            and hasattr(ent.entity_type, "value") else None
+        )
+        if entity_type and kind != entity_type:
+            continue
+        rows.append(PageRankRow(
+            entity_id=ent.id,
+            canonical_name=ent.canonical_name,
+            entity_type=kind,
+            pagerank=float(score),
+        ))
+    rows.sort(key=lambda r: r.pagerank, reverse=True)
+    return rows[:top_k]
+
+
+class CommunityRow(BaseModel):
+    entity_id: str
+    canonical_name: str
+    entity_type: str | None = None
+    community_id: int
+
+
+@router.get(
+    "/communities",
+    response_model=list[CommunityRow],
+    summary="Cluster entities into communities (Louvain / label propagation)",
+    description=(
+        "Returns one row per entity with a stable community_id. "
+        "method=louvain (default) uses modularity-maximising Louvain; "
+        "method=label_propagation uses fast label propagation. "
+        "Both produce non-overlapping clusters. Backs the future "
+        "zoom-out cluster-map view. (#987)"
+    ),
+)
+async def communities(
+    method: str = Query(default="louvain", pattern="^(louvain|label_propagation)$"),
+    db: Database = Depends(get_library_database),
+) -> list[CommunityRow]:
+    import networkx as nx
+    from fichero.kg.graph import build_full_cooccurrence
+    from fichero.knowledge_models import KnowledgeEntity
+
+    # Use the undirected co-occurrence graph — community detection
+    # algorithms expect undirected input. The directed claim graph would
+    # need conversion anyway.
+    g = build_full_cooccurrence(db)
+    if g.number_of_nodes() == 0:
+        return []
+
+    if method == "louvain":
+        partition = nx.community.louvain_communities(g, seed=42)
+    else:
+        partition = list(nx.community.label_propagation_communities(g))
+
+    entity_to_cid: dict[str, int] = {}
+    for cid, members in enumerate(partition):
+        for node_id in members:
+            entity_to_cid[node_id] = cid
+
+    entities = db.query(KnowledgeEntity)
+    return [
+        CommunityRow(
+            entity_id=ent.id,
+            canonical_name=ent.canonical_name,
+            entity_type=(
+                ent.entity_type.value if ent.entity_type
+                and hasattr(ent.entity_type, "value") else None
+            ),
+            community_id=entity_to_cid.get(ent.id, -1),
+        )
+        for ent in entities
+        if ent.id in entity_to_cid
+    ]
+
+
+class SimilarEntityRow(BaseModel):
+    entity_id: str
+    canonical_name: str
+    entity_type: str | None = None
+    score: float
+
+
+@router.get(
+    "/similar/{entity_id}",
+    response_model=list[SimilarEntityRow],
+    summary="Structurally-similar entities (Jaccard / Adamic-Adar / preferential attachment)",
+    description=(
+        "Ranks other entities by neighborhood overlap with the focus "
+        "entity. method=jaccard (default) — |N(u) ∩ N(v)| / |N(u) ∪ N(v)|. "
+        "method=adamic_adar — sum of 1/log(degree) over common neighbors. "
+        "method=preferential_attachment — |N(u)| × |N(v)|. "
+        "Different from vector similarity (semantic) — this is *graph-"
+        "structural* similarity. (#987)"
+    ),
+)
+async def similar(
+    entity_id: str,
+    method: str = Query(
+        default="jaccard",
+        pattern="^(jaccard|adamic_adar|preferential_attachment)$",
+    ),
+    top_k: int = Query(default=20, ge=1, le=200),
+    db: Database = Depends(get_library_database),
+) -> list[SimilarEntityRow]:
+    import networkx as nx
+    from fichero.kg.graph import build_full_cooccurrence
+    from fichero.knowledge_models import KnowledgeEntity
+
+    focus = db.get(KnowledgeEntity, entity_id)
+    if focus is None:
+        raise HTTPException(404, f"Entity not found: {entity_id}")
+    g = build_full_cooccurrence(db)
+    if entity_id not in g:
+        return []
+
+    candidate_pairs = [(entity_id, other) for other in g.nodes() if other != entity_id]
+    if method == "jaccard":
+        scored = nx.jaccard_coefficient(g, candidate_pairs)
+    elif method == "adamic_adar":
+        scored = nx.adamic_adar_index(g, candidate_pairs)
+    else:
+        scored = nx.preferential_attachment(g, candidate_pairs)
+
+    entities_by_id: dict[str, KnowledgeEntity] = {
+        ent.id: ent for ent in db.query(KnowledgeEntity)
+    }
+    rows: list[SimilarEntityRow] = []
+    for _, other_id, score in scored:
+        if score <= 0:
+            continue
+        ent = entities_by_id.get(other_id)
+        if ent is None:
+            continue
+        rows.append(SimilarEntityRow(
+            entity_id=other_id,
+            canonical_name=ent.canonical_name,
+            entity_type=(
+                ent.entity_type.value if ent.entity_type
+                and hasattr(ent.entity_type, "value") else None
+            ),
+            score=float(score),
+        ))
+    rows.sort(key=lambda r: r.score, reverse=True)
+    return rows[:top_k]
+
+
+class ComponentRow(BaseModel):
+    component_id: int
+    size: int
+    entity_ids: list[str]
+
+
+@router.get(
+    "/components",
+    response_model=list[ComponentRow],
+    summary="Connected components of the entity graph",
+    description=(
+        "Returns one row per connected component over the undirected "
+        "co-occurrence graph. Useful for spotting isolated entity "
+        "clusters that aren't tied into the main KG. (#987)"
+    ),
+)
+async def components(
+    db: Database = Depends(get_library_database),
+) -> list[ComponentRow]:
+    import networkx as nx
+    from fichero.kg.graph import build_full_cooccurrence
+
+    g = build_full_cooccurrence(db)
+    if g.number_of_nodes() == 0:
+        return []
+    comps = sorted(nx.connected_components(g), key=len, reverse=True)
+    return [
+        ComponentRow(
+            component_id=cid,
+            size=len(members),
+            entity_ids=sorted(members),
+        )
+        for cid, members in enumerate(comps)
+    ]
+
+
+class TriangleRow(BaseModel):
+    entity_id: str
+    canonical_name: str
+    triangle_count: int
+
+
+@router.get(
+    "/triangles/{entity_id}",
+    response_model=TriangleRow,
+    summary="Triangle count for an entity",
+    description=(
+        "Number of triangles the entity participates in (tightly-coupled "
+        "triads in the co-occurrence graph). High triangle count = "
+        "this entity sits in a dense local cluster. (#987)"
+    ),
+)
+async def triangles(
+    entity_id: str,
+    db: Database = Depends(get_library_database),
+) -> TriangleRow:
+    import networkx as nx
+    from fichero.kg.graph import build_full_cooccurrence
+    from fichero.knowledge_models import KnowledgeEntity
+
+    focus = db.get(KnowledgeEntity, entity_id)
+    if focus is None:
+        raise HTTPException(404, f"Entity not found: {entity_id}")
+    g = build_full_cooccurrence(db)
+    if entity_id not in g:
+        return TriangleRow(
+            entity_id=entity_id,
+            canonical_name=focus.canonical_name,
+            triangle_count=0,
+        )
+    tri = nx.triangles(g, entity_id)
+    return TriangleRow(
+        entity_id=entity_id,
+        canonical_name=focus.canonical_name,
+        triangle_count=int(tri),
+    )
+
+
+class ClusteringRow(BaseModel):
+    entity_id: str
+    canonical_name: str
+    clustering_coefficient: float
+
+
+@router.get(
+    "/clustering",
+    response_model=list[ClusteringRow],
+    summary="Clustering coefficient per entity",
+    description=(
+        "Per-entity local clustering coefficient — fraction of an "
+        "entity's neighbors that are also connected to each other. "
+        "High coefficient = neighbors form a tight clique; low = "
+        "neighbors are independent. (#987)"
+    ),
+)
+async def clustering(
+    top_k: int = Query(default=50, ge=1, le=500),
+    db: Database = Depends(get_library_database),
+) -> list[ClusteringRow]:
+    import networkx as nx
+    from fichero.kg.graph import build_full_cooccurrence
+    from fichero.knowledge_models import KnowledgeEntity
+
+    g = build_full_cooccurrence(db)
+    if g.number_of_nodes() == 0:
+        return []
+    cc = nx.clustering(g)
+    entities_by_id: dict[str, KnowledgeEntity] = {
+        ent.id: ent for ent in db.query(KnowledgeEntity)
+    }
+    rows = [
+        ClusteringRow(
+            entity_id=node_id,
+            canonical_name=ent.canonical_name,
+            clustering_coefficient=float(score),
+        )
+        for node_id, score in cc.items()
+        if (ent := entities_by_id.get(node_id)) is not None
+    ]
+    rows.sort(key=lambda r: r.clustering_coefficient, reverse=True)
+    return rows[:top_k]
+
+
 def _make_edge(
     *,
     source_id: str,
