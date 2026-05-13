@@ -2,7 +2,7 @@
 
 Graph exploration traverses the knowledge graph — finding paths between
 entities, computing subgraphs, and returning graph metrics. Routes live at
-/api/graph/... (router prefix="/graph" mounted at "/api").
+/api/kg/graph/... (router prefix="/graph" mounted at "/api").
 """
 
 import pytest
@@ -18,7 +18,7 @@ from fichero.knowledge_models import (
 )
 
 
-BASE = "/api/graph"
+BASE = "/api/kg/graph"
 
 
 # ---------------------------------------------------------------------------
@@ -45,7 +45,7 @@ def _make_claim(cid: str = "c-1", entity_ids: list[str] | None = None) -> Knowle
 
 
 # ---------------------------------------------------------------------------
-# GET /api/graph/metrics
+# GET /api/kg/graph/metrics
 # ---------------------------------------------------------------------------
 
 
@@ -53,10 +53,11 @@ class TestGraphMetrics:
     def test_empty_graph_metrics(self, client):
         r = client.get(f"{BASE}/metrics")
         assert r.status_code == 200
+        # Post-consolidation the response is a flat dict, not wrapped
+        # under a "metrics" key. (#919 5c)
         data = r.json()
-        assert "metrics" in data
-        assert data["metrics"]["entity_count"] == 0
-        assert data["metrics"]["claim_count"] == 0
+        assert data["entity_count"] == 0
+        assert data["claim_count"] == 0
 
     def test_metrics_with_data(self, client, db):
         db.save(_make_entity("e-1", "Napoleon"))
@@ -65,13 +66,13 @@ class TestGraphMetrics:
 
         r = client.get(f"{BASE}/metrics")
         assert r.status_code == 200
-        metrics = r.json()["metrics"]
-        assert metrics["entity_count"] == 2
-        assert metrics["claim_count"] == 1
+        data = r.json()
+        assert data["entity_count"] == 2
+        assert data["claim_count"] == 1
 
 
 # ---------------------------------------------------------------------------
-# GET /api/graph/paths/{entity_id1}/{entity_id2}
+# GET /api/kg/graph/paths/{entity_id1}/{entity_id2}
 # ---------------------------------------------------------------------------
 
 
@@ -90,22 +91,31 @@ class TestEntityPaths:
         db.save(_make_entity("e-b", "Entity B"))
         db.save(_make_claim("c-ab", ["e-a", "e-b"]))
 
-        r = client.get(f"{BASE}/paths/e-a/e-b")
+        # Post-consolidation: GET /api/kg/graph/path?source=&target= (#919 5c)
+        # The endpoint shape is asserted here; whether a path is actually
+        # found depends on internal graph-build state (entities + claim
+        # links must be reflected in build_full_graph), which the route
+        # itself doesn't guarantee at unit-test scope. Smoke-only.
+        r = client.get(f"{BASE}/path", params={"source": "e-a", "target": "e-b"})
         assert r.status_code == 200
         data = r.json()
-        assert "paths" in data
+        assert "path" in data
+        assert "length" in data
 
     def test_no_paths_between_unconnected_entities(self, client, db):
         db.save(_make_entity("e-x", "X"))
         db.save(_make_entity("e-y", "Y"))
 
-        r = client.get(f"{BASE}/paths/e-x/e-y")
+        r = client.get(f"{BASE}/path", params={"source": "e-x", "target": "e-y"})
         assert r.status_code == 200
-        assert r.json()["paths"] == []
+        data = r.json()
+        # No path → empty list + length 0.
+        assert data["path"] == []
+        assert data["length"] == 0
 
 
 # ---------------------------------------------------------------------------
-# GET /api/graph/traverse/{entity_id}
+# GET /api/kg/graph/traverse/{entity_id}
 # ---------------------------------------------------------------------------
 
 

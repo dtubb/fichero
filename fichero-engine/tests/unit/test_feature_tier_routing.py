@@ -24,12 +24,22 @@ def test_release_tier_exposes_001_routes():
     assert "/api/workflow-execution" in prefixes
 
 
-def test_dev_tier_adds_knowledge_graph_routes():
-    dev_prefixes = _route_prefixes_for("dev")
-    release_prefixes = _route_prefixes_for("release")
+def _kg_router_count(tier: str) -> int:
+    """Count routers tagged 'knowledge-graph' for a tier."""
+    specs = get_route_specs_for_tier(tier)
+    return sum(1 for _, _, tags in specs if "knowledge-graph" in tags)
 
-    assert "/api/knowledge-graph" in dev_prefixes
-    assert "/api/knowledge-graph" not in release_prefixes
+
+def test_dev_tier_adds_knowledge_graph_routes():
+    """Dev tier should expose at least as much KG surface as release,
+    plus at least one extra dev-only KG router. Post-1587a1b6 (#832),
+    the KG namespace was consolidated under /api/kg/* and most of it
+    ships in release; only a small dev-only delta remains.
+    """
+    assert _kg_router_count("dev") > _kg_router_count("release")
+    # Sanity: release still has the consolidated KG surface available
+    # (claim-search, entity-curation, etc.).
+    assert _kg_router_count("release") >= 5
 
 
 def test_invalid_tier_defaults_to_release(monkeypatch):
