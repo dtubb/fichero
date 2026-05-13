@@ -32,8 +32,27 @@ struct ClaimSummaryCard: View {
         return (subject, verb, object)
     }
 
+    /// A claim card has no useful content when it has NO SVO triple AND
+    /// `claim.text` is just the bare canonical name (or a short noun
+    /// fragment that ends with no verb). #986 — Daniel saw concept
+    /// claims that surfaced as just the entity name + a garbled
+    /// source excerpt with no actual claim content. Render-suppress
+    /// these rather than poison the inspector.
+    private var isEmptyContent: Bool {
+        if svo != nil { return false }
+        let text = claim.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Bare canonical name (no punctuation = no composed sentence).
+        let lacksSentenceShape = !text.contains(" ") && !text.contains(":")
+        return text.isEmpty || lacksSentenceShape
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        // Suppress entirely when there's nothing meaningful to render —
+        // no SVO and the claim.text is just the entity name. (#986)
+        if isEmptyContent {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top) {
                 claimSentence
                     .textSelection(.enabled)
@@ -90,6 +109,7 @@ struct ClaimSummaryCard: View {
                 deleteClaim()
             }
         }
+        }  // end else (isEmptyContent path)
     }
 
     /// The headline of the card. When SVO metadata is present, render

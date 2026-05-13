@@ -178,11 +178,24 @@ def upsert_entity(
 
     if matched is not None:
         # Fold the new surface form + aliases into the existing entity.
-        existing_aliases = set(matched.aliases or [])
-        existing_aliases.add(canonical_name)
-        for alias in aliases or []:
-            existing_aliases.add(alias)
-        matched.aliases = sorted(existing_aliases - {matched.canonical_name})
+        # Case-fold for dedup so "Artisanal mining" and "artisanal mining"
+        # don't both end up in the aliases list (#986 — Daniel saw
+        # "Artisanal mining" + alias "artisanal mining" on the same
+        # entity). We keep the FIRST-seen surface form per case-folded
+        # key (typically the better-capitalised variant from the source
+        # text).
+        seen_folded: dict[str, str] = {}
+        for surface in list(matched.aliases or []) + [canonical_name] + list(aliases or []):
+            if not surface or not surface.strip():
+                continue
+            key = surface.strip().casefold()
+            if key not in seen_folded:
+                seen_folded[key] = surface.strip()
+        # Drop the canonical itself + any case variant of it.
+        canonical_key = matched.canonical_name.strip().casefold()
+        matched.aliases = sorted(
+            v for k, v in seen_folded.items() if k != canonical_key
+        )
         db.save(matched)
         # Refresh the vector to reflect the new alias set — the
         # encoded description grows with each merged occurrence so
