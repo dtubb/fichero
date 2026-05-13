@@ -30,16 +30,19 @@ def _kg_router_count(tier: str) -> int:
     return sum(1 for _, _, tags in specs if "knowledge-graph" in tags)
 
 
-def test_dev_tier_adds_knowledge_graph_routes():
-    """Dev tier should expose at least as much KG surface as release,
-    plus at least one extra dev-only KG router. Post-1587a1b6 (#832),
-    the KG namespace was consolidated under /api/kg/* and most of it
-    ships in release; only a small dev-only delta remains.
+def test_release_tier_includes_consolidated_kg_surface():
+    """Release tier exposes the full consolidated KG surface — the post-
+    1587a1b6 \"all KG ships in release\" decision (#832) + the #997
+    promotion that moved hermeneutics from dev to release too. Dev no
+    longer needs to add KG routers; the delta is research/mind-palace/
+    experimental.
     """
-    assert _kg_router_count("dev") > _kg_router_count("release")
-    # Sanity: release still has the consolidated KG surface available
-    # (claim-search, entity-curation, etc.).
-    assert _kg_router_count("release") >= 5
+    assert _kg_router_count("release") >= 15
+    # Dev tier should still have at least as much KG surface as release
+    # (no regression: dev == release for KG today, but the test reads
+    # as \"dev never has fewer\" so a future dev-only KG router slots in
+    # without test breakage).
+    assert _kg_router_count("dev") >= _kg_router_count("release")
 
 
 def test_invalid_tier_defaults_to_release(monkeypatch):
