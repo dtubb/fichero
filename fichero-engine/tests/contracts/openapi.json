@@ -15274,6 +15274,459 @@
         }
       }
     },
+    "/api/kg/graph/neighborhood/{entity_id}": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Focus entity + k-hop neighbors + SVO edges",
+        "description": "Returns the focus entity, its k-hop neighbor entities, and the SVO-labeled claim edges connecting them. Predicate = the claim's verb from metadata; target = an entity when the object resolves to a known canonical_name/alias, else the literal object phrase. Backs the SwiftUI focus-neighborhood viz (#976). Bounded \u2014 the focus + ~50 neighbors at the default settings, never the whole library.",
+        "operationId": "neighborhood_api_kg_graph_neighborhood__entity_id__get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "hops",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 3,
+              "minimum": 1,
+              "default": 1,
+              "title": "Hops"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "rank",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(edge_weight|degree|name)$",
+              "description": "How to rank neighbors when more than `limit` are reachable. edge_weight (default): most edges to the focus first. degree: highest total-degree neighbors first. name: alphabetical (stable for tests + screenshots).",
+              "default": "edge_weight",
+              "title": "Rank"
+            },
+            "description": "How to rank neighbors when more than `limit` are reachable. edge_weight (default): most edges to the focus first. degree: highest total-degree neighbors first. name: alphabetical (stable for tests + screenshots)."
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NeighborhoodResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/graph/pagerank": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Top-k entities by PageRank",
+        "description": "PageRank over the directed claim graph (entity \u2192 entity via SVO predicate edges). Returns the top-k entities by their PR score \u2014 the heuristic 'most-cited' entities in the corpus. (#987)",
+        "operationId": "pagerank_api_kg_graph_pagerank_get",
+        "parameters": [
+          {
+            "name": "top_k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 20,
+              "title": "Top K"
+            }
+          },
+          {
+            "name": "entity_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Entity Type"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PageRankRow"
+                  },
+                  "title": "Response Pagerank Api Kg Graph Pagerank Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/graph/communities": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Cluster entities into communities (Louvain / label propagation)",
+        "description": "Returns one row per entity with a stable community_id. method=louvain (default) uses modularity-maximising Louvain; method=label_propagation uses fast label propagation. Both produce non-overlapping clusters. Backs the future zoom-out cluster-map view. (#987)",
+        "operationId": "communities_api_kg_graph_communities_get",
+        "parameters": [
+          {
+            "name": "method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(louvain|label_propagation)$",
+              "default": "louvain",
+              "title": "Method"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CommunityRow"
+                  },
+                  "title": "Response Communities Api Kg Graph Communities Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/graph/similar/{entity_id}": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Structurally-similar entities (Jaccard / Adamic-Adar / preferential attachment)",
+        "description": "Ranks other entities by neighborhood overlap with the focus entity. method=jaccard (default) \u2014 |N(u) \u2229 N(v)| / |N(u) \u222a N(v)|. method=adamic_adar \u2014 sum of 1/log(degree) over common neighbors. method=preferential_attachment \u2014 |N(u)| \u00d7 |N(v)|. Different from vector similarity (semantic) \u2014 this is *graph-structural* similarity. (#987)",
+        "operationId": "similar_api_kg_graph_similar__entity_id__get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(jaccard|adamic_adar|preferential_attachment)$",
+              "default": "jaccard",
+              "title": "Method"
+            }
+          },
+          {
+            "name": "top_k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 20,
+              "title": "Top K"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SimilarEntityRow"
+                  },
+                  "title": "Response Similar Api Kg Graph Similar  Entity Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/graph/components": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Connected components of the entity graph",
+        "description": "Returns one row per connected component over the undirected co-occurrence graph. Useful for spotting isolated entity clusters that aren't tied into the main KG. (#987)",
+        "operationId": "components_api_kg_graph_components_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ComponentRow"
+                  },
+                  "title": "Response Components Api Kg Graph Components Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/graph/triangles/{entity_id}": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Triangle count for an entity",
+        "description": "Number of triangles the entity participates in (tightly-coupled triads in the co-occurrence graph). High triangle count = this entity sits in a dense local cluster. (#987)",
+        "operationId": "triangles_api_kg_graph_triangles__entity_id__get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriangleRow"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/graph/clustering": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Clustering coefficient per entity",
+        "description": "Per-entity local clustering coefficient \u2014 fraction of an entity's neighbors that are also connected to each other. High coefficient = neighbors form a tight clique; low = neighbors are independent. (#987)",
+        "operationId": "clustering_api_kg_graph_clustering_get",
+        "parameters": [
+          {
+            "name": "top_k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Top K"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClusteringRow"
+                  },
+                  "title": "Response Clustering Api Kg Graph Clustering Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kg/pykeen/train": {
       "post": {
         "tags": [
@@ -17402,6 +17855,59 @@
                     "additionalProperties": true
                   },
                   "title": "Response Search Entities Semantic Api Kg Entity Curation Semantic Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/sparql": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Run a SPARQL query against the library's RDF graph",
+        "description": "Materializes the entity + claim store as an rdflib Graph (using the standard W3C ontology \u2014 foaf/schema/skos plus the fichero: namespace for SVO predicates) and runs the SPARQL query. Read-only; mutating verbs are rejected.",
+        "operationId": "sparql_query_api_kg_sparql_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SparqlRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SparqlResponse"
                 }
               }
             }
@@ -31500,6 +32006,29 @@
         ],
         "title": "CleanupResponse"
       },
+      "ClusteringRow": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "clustering_coefficient": {
+            "type": "number",
+            "title": "Clustering Coefficient"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "canonical_name",
+          "clustering_coefficient"
+        ],
+        "title": "ClusteringRow"
+      },
       "CommunitiesRequest": {
         "properties": {
           "algorithm": {
@@ -31608,6 +32137,34 @@
         ],
         "title": "CommunityResult",
         "description": "Detected community."
+      },
+      "CommunityRow": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "entity_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "Entity Type"
+          },
+          "community_id": {
+            "type": "integer",
+            "title": "Community Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "canonical_name",
+          "community_id"
+        ],
+        "title": "CommunityRow"
       },
       "CompareRequest": {
         "properties": {
@@ -31794,6 +32351,32 @@
           "input_ports"
         ],
         "title": "ComparisonToolInfo"
+      },
+      "ComponentRow": {
+        "properties": {
+          "component_id": {
+            "type": "integer",
+            "title": "Component Id"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Entity Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "component_id",
+          "size",
+          "entity_ids"
+        ],
+        "title": "ComponentRow"
       },
       "ConnectionCreateRequest": {
         "properties": {
@@ -38581,6 +39164,190 @@
         "title": "NativeNote",
         "description": "First-class text note in Mind Palace workspace."
       },
+      "NeighborEntity": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "entity_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "Entity Type"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases",
+            "default": []
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description"
+          },
+          "hop": {
+            "type": "integer",
+            "title": "Hop"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "canonical_name",
+          "hop"
+        ],
+        "title": "NeighborEntity",
+        "description": "A neighbor entity surfaced in the focus-neighborhood view."
+      },
+      "NeighborhoodEdge": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "target_label": {
+            "type": "string",
+            "title": "Target Label"
+          },
+          "target_is_entity": {
+            "type": "boolean",
+            "title": "Target Is Entity"
+          },
+          "predicate": {
+            "type": "string",
+            "title": "Predicate"
+          },
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          },
+          "claim_text": {
+            "type": "string",
+            "title": "Claim Text"
+          },
+          "source_document_id": {
+            "type": "string",
+            "title": "Source Document Id"
+          },
+          "source_page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Page Label"
+          },
+          "source_char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Source Char Start"
+          },
+          "source_char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Source Char End"
+          },
+          "source_excerpt": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Excerpt"
+          },
+          "claim_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "Claim Type"
+          },
+          "epistemic_status": {
+            "type": "string",
+            "nullable": true,
+            "title": "Epistemic Status"
+          },
+          "confidence": {
+            "type": "number",
+            "nullable": true,
+            "title": "Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_id",
+          "target_id",
+          "target_label",
+          "target_is_entity",
+          "predicate",
+          "claim_id",
+          "claim_text",
+          "source_document_id"
+        ],
+        "title": "NeighborhoodEdge",
+        "description": "One SVO-labeled edge between two entities. Carries the predicate\n(verb) + the full source provenance so the UI can navigate to the\nexact span in the source document."
+      },
+      "NeighborhoodResponse": {
+        "properties": {
+          "focus_entity_id": {
+            "type": "string",
+            "title": "Focus Entity Id"
+          },
+          "focus_canonical_name": {
+            "type": "string",
+            "title": "Focus Canonical Name"
+          },
+          "focus_entity_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "Focus Entity Type"
+          },
+          "focus_description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Focus Description"
+          },
+          "focus_aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Focus Aliases",
+            "default": []
+          },
+          "neighbors": {
+            "items": {
+              "$ref": "#/components/schemas/NeighborEntity"
+            },
+            "type": "array",
+            "title": "Neighbors"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/NeighborhoodEdge"
+            },
+            "type": "array",
+            "title": "Edges"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "focus_entity_id",
+          "focus_canonical_name",
+          "neighbors",
+          "edges",
+          "truncated"
+        ],
+        "title": "NeighborhoodResponse",
+        "description": "Focus entity + neighbors + SVO edges. Bounded by `hops` + `limit`.\n\nNeighbors are ranked-then-truncated when more than ``limit`` are\nreachable \u2014 see the ``rank`` query param. (#993)"
+      },
       "NodeCreateRequest": {
         "properties": {
           "room_id": {
@@ -39351,6 +40118,34 @@
         ],
         "title": "OutputSchema",
         "description": "JSON Schema for structured output from LLM nodes.\n\nWhen specified, the LLM will be instructed to return\ndata matching this schema exactly (using structured output mode).\n\nExample for named entity extraction:\n{\n    \"type\": \"object\",\n    \"properties\": {\n        \"people\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"organizations\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"dates\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}\n    },\n    \"required\": [\"people\", \"organizations\", \"dates\"]\n}"
+      },
+      "PageRankRow": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "entity_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "Entity Type"
+          },
+          "pagerank": {
+            "type": "number",
+            "title": "Pagerank"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "canonical_name",
+          "pagerank"
+        ],
+        "title": "PageRankRow"
       },
       "PathResponse": {
         "properties": {
@@ -43104,6 +43899,34 @@
         ],
         "title": "SimilarEntity"
       },
+      "SimilarEntityRow": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "entity_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "Entity Type"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "canonical_name",
+          "score"
+        ],
+        "title": "SimilarEntityRow"
+      },
       "SnapshotDeleteResponse": {
         "properties": {
           "deleted": {
@@ -43479,6 +44302,74 @@
         ],
         "title": "SourceUpsertResponse",
         "description": "Response after upserting or reading a source document."
+      },
+      "SparqlRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query",
+            "description": "SPARQL 1.1 query. Read-only: SELECT / ASK / CONSTRUCT / DESCRIBE only \u2014 INSERT/DELETE/DROP/CLEAR/LOAD/CREATE rejected."
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "description": "Cap on result rows. Defaults to 1000.",
+            "default": 1000
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "SparqlRequest"
+      },
+      "SparqlResponse": {
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/SparqlResponseRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "row_count": {
+            "type": "integer",
+            "title": "Row Count"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated"
+          },
+          "elapsed_ms": {
+            "type": "integer",
+            "title": "Elapsed Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rows",
+          "row_count",
+          "truncated",
+          "elapsed_ms"
+        ],
+        "title": "SparqlResponse"
+      },
+      "SparqlResponseRow": {
+        "properties": {
+          "bindings": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Bindings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bindings"
+        ],
+        "title": "SparqlResponseRow",
+        "description": "One SPARQL result row. Bindings keyed by query variable name."
       },
       "SpatialConnection": {
         "properties": {
@@ -45167,6 +46058,29 @@
         ],
         "title": "TrendPoint",
         "description": "Single point in a trend series."
+      },
+      "TriangleRow": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "triangle_count": {
+            "type": "integer",
+            "title": "Triangle Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "canonical_name",
+          "triangle_count"
+        ],
+        "title": "TriangleRow"
       },
       "TriangulatedFact": {
         "properties": {
