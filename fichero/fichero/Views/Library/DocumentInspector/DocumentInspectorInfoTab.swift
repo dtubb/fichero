@@ -123,7 +123,9 @@ struct RelatedClaimsPanel: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(related) { row(for: $0) }
+                LazyVStack(alignment: .leading, spacing: 6) {
+                    ForEach(related) { row(for: $0) }
+                }
             }
         }
         .task(id: documentId) { await load() }
@@ -282,8 +284,10 @@ struct CitationGraphPanel: View {
         Text(title)
             .font(.caption.bold())
             .foregroundStyle(.secondary)
-        ForEach(items, id: \.id) { item in
-            citationRow(item)
+        LazyVStack(alignment: .leading, spacing: 4) {
+            ForEach(items, id: \.id) { item in
+                citationRow(item)
+            }
         }
     }
 

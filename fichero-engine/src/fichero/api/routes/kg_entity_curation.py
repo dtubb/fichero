@@ -327,3 +327,94 @@ async def search_entities_semantic(
         for eid in entity_ids
         if eid in entities and (entity_type is None or entities[eid].entity_type == entity_type)
     ]
+
+
+# ---------------------------------------------------------------------------
+# Entity-resolution candidate pairs via graph-context Jaccard (#988)
+# ---------------------------------------------------------------------------
+#
+# Neo4j's entity-resolution playbook calls out *graph-based methods* as the
+# missing link beyond name-similarity + deterministic rules: two entities
+# with overlapping neighborhoods are likely the same real-world entity.
+# We already had vector-similar (`/semantic`) which catches name + alias
+# overlap; this endpoint adds the structural-similarity signal.
+
+
+class CandidatePair(BaseModel):
+    """One candidate merge pair surfaced by graph-context similarity."""
+    entity_a_id: str
+    entity_a_name: str
+    entity_b_id: str
+    entity_b_name: str
+    jaccard: float = Field(ge=0.0, le=1.0)
+    shared_neighbors: int
+    entity_type: str | None = None
+
+
+@router.get(
+    "/candidates",
+    response_model=list[CandidatePair],
+    summary="Graph-context merge candidates (Jaccard over co-occurrence neighborhoods)",
+    description=(
+        "Surfaces entity pairs whose claim-neighborhoods overlap heavily — "
+        "the structural-similarity signal Neo4j calls out as the third leg "
+        "of entity resolution after rule-based (alias dedup) and "
+        "probabilistic / vector (the /semantic endpoint above). "
+        "Pairs are filtered to same entity_type by default — cross-type "
+        "merges (e.g. Person ↔ Place) are almost always wrong. (#988)"
+    ),
+)
+async def candidate_pairs(
+    min_jaccard: float = Query(default=0.5, ge=0.0, le=1.0),
+    top_k: int = Query(default=20, ge=1, le=200),
+    same_type_only: bool = Query(default=True),
+    db: Database = Depends(get_library_database),
+) -> list[CandidatePair]:
+    """Compute Jaccard similarity over the co-occurrence graph between
+    every pair of entities of the same type. O(E²) in the entity count
+    but bounded by the shared networkx graph cache (#990).
+    """
+    import networkx as nx
+    from fichero.kg.graph import build_full_cooccurrence
+
+    graph = build_full_cooccurrence(db)
+    if graph.number_of_nodes() < 2:
+        return []
+    by_id: dict[str, KnowledgeEntity] = {e.id: e for e in db.query(KnowledgeEntity)}
+    nodes = [n for n in graph.nodes() if n in by_id]
+    candidate_node_pairs = [
+        (a, b)
+        for i, a in enumerate(nodes)
+        for b in nodes[i + 1:]
+        if (not same_type_only)
+        or (by_id[a].entity_type == by_id[b].entity_type)
+    ]
+    if not candidate_node_pairs:
+        return []
+    scored = nx.jaccard_coefficient(graph, candidate_node_pairs)
+    rows: list[CandidatePair] = []
+    for u, v, coef in scored:
+        if coef < min_jaccard:
+            continue
+        # Count shared neighbors directly so the response carries an
+        # interpretable number alongside the score (helps reviewers
+        # decide: 8 shared > 0.6 → trust; 1 shared > 0.6 → barely).
+        shared = len(set(graph.neighbors(u)) & set(graph.neighbors(v)))
+        ent_a = by_id.get(u)
+        ent_b = by_id.get(v)
+        if ent_a is None or ent_b is None:
+            continue
+        rows.append(CandidatePair(
+            entity_a_id=u,
+            entity_a_name=ent_a.canonical_name,
+            entity_b_id=v,
+            entity_b_name=ent_b.canonical_name,
+            jaccard=float(coef),
+            shared_neighbors=shared,
+            entity_type=(
+                ent_a.entity_type.value if ent_a.entity_type
+                and hasattr(ent_a.entity_type, "value") else None
+            ),
+        ))
+    rows.sort(key=lambda r: r.jaccard, reverse=True)
+    return rows[:top_k]

@@ -1,3 +1,9 @@
+// swiftlint:disable file_length type_body_length
+// This file hosts both ArtifactServiceGenerated AND EntityServiceGenerated
+// because Services is a non-synchronized PBXGroup (per MEMORY note
+// [[feedback_swift_file_sync]]). Splitting would require pbxproj
+// surgery; suppressing here is the lower-risk path until we decide
+// to move the entity service into its own file.
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime

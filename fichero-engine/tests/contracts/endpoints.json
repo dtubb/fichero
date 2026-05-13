@@ -2288,6 +2288,132 @@
         "response_model": "PathResponse"
       },
       {
+        "method": "GET",
+        "path": "/kg/graph/neighborhood/{entity_id}",
+        "operation_id": "neighborhood_api_kg_graph_neighborhood__entity_id__get",
+        "summary": "Focus entity + k-hop neighbors + SVO edges",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [
+          {
+            "name": "hops",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "rank",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "NeighborhoodResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/graph/pagerank",
+        "operation_id": "pagerank_api_kg_graph_pagerank_get",
+        "summary": "Top-k entities by PageRank",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "top_k",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[PageRankRow]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/graph/communities",
+        "operation_id": "communities_api_kg_graph_communities_get",
+        "summary": "Cluster entities into communities (Louvain / label propagation)",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "method",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[CommunityRow]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/graph/similar/{entity_id}",
+        "operation_id": "similar_api_kg_graph_similar__entity_id__get",
+        "summary": "Structurally-similar entities (Jaccard / Adamic-Adar / preferential attachment)",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [
+          {
+            "name": "method",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "top_k",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[SimilarEntityRow]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/graph/components",
+        "operation_id": "components_api_kg_graph_components_get",
+        "summary": "Connected components of the entity graph",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ComponentRow]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/graph/triangles/{entity_id}",
+        "operation_id": "triangles_api_kg_graph_triangles__entity_id__get",
+        "summary": "Triangle count for an entity",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TriangleRow"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/graph/clustering",
+        "operation_id": "clustering_api_kg_graph_clustering_get",
+        "summary": "Clustering coefficient per entity",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "top_k",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[ClusteringRow]"
+      },
+      {
         "method": "POST",
         "path": "/kg/pykeen/train",
         "operation_id": "train_api_kg_pykeen_train_post",
@@ -2794,6 +2920,42 @@
         ],
         "request_model": null,
         "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/kg/entity-curation/candidates",
+        "operation_id": "candidate_pairs_api_kg_entity_curation_candidates_get",
+        "summary": "Graph-context merge candidates (Jaccard over co-occurrence neighborhoods)",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "min_jaccard",
+            "required": false,
+            "type": "number"
+          },
+          {
+            "name": "top_k",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "same_type_only",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[CandidatePair]"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/sparql",
+        "operation_id": "sparql_query_api_kg_sparql_post",
+        "summary": "Run a SPARQL query against the library's RDF graph",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SparqlRequest",
+        "response_model": "SparqlResponse"
       },
       {
         "method": "POST",
