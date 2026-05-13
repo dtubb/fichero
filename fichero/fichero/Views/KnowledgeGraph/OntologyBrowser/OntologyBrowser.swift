@@ -1305,17 +1305,50 @@ struct ForceDirectedGraphView: View {
         // Hit radius is in simulation space — divide by scale so the tap
         // target stays a constant ~18pt of screen space.
         let hitRadius: CGFloat = 18 / scale
-        var best: (id: String, dist: CGFloat)?
+        // Node hit-test first — clicking a node refocuses.
+        var bestNode: (id: String, dist: CGFloat)?
         for node in nodes {
             let dx = node.position.x - local.x
             let dy = node.position.y - local.y
             let dist = sqrt(dx * dx + dy * dy)
-            if dist < hitRadius, dist < (best?.dist ?? .greatestFiniteMagnitude) {
-                best = (node.id, dist)
+            if dist < hitRadius, dist < (bestNode?.dist ?? .greatestFiniteMagnitude) {
+                bestNode = (node.id, dist)
             }
         }
-        if let hit = best {
+        if let hit = bestNode {
             selectedEntityId = hit.id
+            return
+        }
+        // No node hit — check whether the tap landed near an edge's
+        // midpoint (where the predicate label sits). Clicking an edge
+        // opens the source claim. (#982 — wireframe Path B)
+        let edgeHitRadius: CGFloat = 22 / scale
+        var bestEdge: (edge: GraphEdge, dist: CGFloat)?
+        for edge in edges {
+            guard let source = nodes.first(where: { $0.id == edge.source }),
+                  let target = nodes.first(where: { $0.id == edge.target }) else { continue }
+            let midX = (source.position.x + target.position.x) / 2
+            let midY = (source.position.y + target.position.y) / 2
+            let dx = midX - local.x
+            let dy = midY - local.y
+            let dist = sqrt(dx * dx + dy * dy)
+            if dist < edgeHitRadius, dist < (bestEdge?.dist ?? .greatestFiniteMagnitude) {
+                bestEdge = (edge, dist)
+            }
+        }
+        if let hit = bestEdge {
+            var info: [String: Any] = [
+                "documentId": hit.edge.sourceDocumentId,
+                "claimId": hit.edge.claimId,
+            ]
+            if let pageLabel = hit.edge.pageLabel, !pageLabel.isEmpty {
+                info["pageLabel"] = pageLabel
+            }
+            NotificationCenter.default.post(
+                name: .ficheroOpenClaimSource,
+                object: nil,
+                userInfo: info
+            )
         }
     }
 
