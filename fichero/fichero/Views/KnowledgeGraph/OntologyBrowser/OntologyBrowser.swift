@@ -1,3 +1,10 @@
+// swiftlint:disable file_length
+// This file hosts both OntologyBrowser AND ForceDirectedGraphView
+// because the KnowledgeGraph PBXGroup isn't file-system synchronized,
+// so a separate .swift file would need pbxproj surgery. The 1000-line
+// limit is intentionally suppressed; the two View structs are
+// independently small and the type_body_length warning still applies
+// to each individually.
 import FicheroAPIClient
 import SwiftUI
 
@@ -846,6 +853,10 @@ import SwiftUI
 /// freezes — no continued CPU after that. Click within ~18pt of a node to
 /// select it; the binding flows back to OntologyBrowser so the detail
 /// pane updates. (#902, partial #889)
+// swiftlint:disable identifier_name
+// Force-directed physics uses standard short names (i, j, dx, dy, fx, fy)
+// for clarity in the math. Re-enabled after the private struct
+// definitions at the end of the file.
 struct ForceDirectedGraphView: View {
     let entities: [Components.Schemas.KnowledgeEntity]
     @Binding var selectedEntityId: String?
@@ -856,6 +867,19 @@ struct ForceDirectedGraphView: View {
     @State private var loadError: String?
     @State private var startTime: Date = .now
     @State private var lastTick: Date = .now
+
+    // Viewport state. The simulation runs in fixed centered coordinates;
+    // these transforms map sim-space → screen-space. Pinch updates
+    // `scale`; drag updates `panOffset`. Gestures use the
+    // `inProgress`-style accumulator pattern so updates remain smooth
+    // and the final value persists when the gesture ends.
+    @State private var scale: CGFloat = 1.0
+    @State private var scaleAtGestureStart: CGFloat = 1.0
+    @State private var panOffset: CGSize = .zero
+    @State private var panOffsetAtGestureStart: CGSize = .zero
+
+    private let minScale: CGFloat = 0.4
+    private let maxScale: CGFloat = 4.0
 
     var body: some View {
         ZStack {
@@ -879,20 +903,129 @@ struct ForceDirectedGraphView: View {
                 }
             } else {
                 GeometryReader { geo in
-                    TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
-                        Canvas { ctx, size in
-                            stepSimulation(in: size, now: timeline.date)
-                            drawEdges(ctx: ctx)
-                            drawNodes(ctx: ctx)
+                    ZStack(alignment: .topLeading) {
+                        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+                            Canvas { ctx, size in
+                                stepSimulation(in: size, now: timeline.date)
+                                drawEdges(ctx: ctx)
+                                drawNodes(ctx: ctx)
+                            }
                         }
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { value in
+                                    if value.translation == .zero {
+                                        panOffsetAtGestureStart = panOffset
+                                    }
+                                    panOffset = CGSize(
+                                        width: panOffsetAtGestureStart.width + value.translation.width,
+                                        height: panOffsetAtGestureStart.height + value.translation.height
+                                    )
+                                }
+                        )
+                        .simultaneousGesture(
+                            MagnificationGesture()
+                                .onChanged { mag in
+                                    scale = min(max(scaleAtGestureStart * mag, minScale), maxScale)
+                                }
+                                .onEnded { _ in scaleAtGestureStart = scale }
+                        )
                         .onTapGesture { location in
                             handleTap(at: location, in: geo.size)
                         }
+
+                        legend
+                            .padding(8)
+                        viewportControls
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
             }
         }
         .task(id: entitiesKey) { await load() }
+    }
+
+    // Small kind→color legend. Compact so it doesn't crowd the canvas
+    // but enough to decode the dots without guessing.
+    private var legend: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            legendRow(kind: .person, label: "Person")
+            legendRow(kind: .organization, label: "Org")
+            legendRow(kind: .location, label: "Place")
+            legendRow(kind: .event, label: "Event")
+            legendRow(kind: .concept, label: "Concept")
+            legendRow(kind: .other, label: "Other")
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color(.controlBackgroundColor).opacity(0.85))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 4)
+                .stroke(Color.secondary.opacity(0.3), lineWidth: 0.5)
+        )
+    }
+
+    private func legendRow(
+        kind: Components.Schemas.EntityTypeOutput,
+        label: String
+    ) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(color(for: kind))
+                .frame(width: 7, height: 7)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    // Compact zoom/reset controls. Mirrors the PDF zoom toolbar style.
+    private var viewportControls: some View {
+        HStack(spacing: 4) {
+            Button {
+                let next = min(scale * 1.25, maxScale)
+                scale = next
+                scaleAtGestureStart = next
+            } label: {
+                Image(systemName: "plus.magnifyingglass")
+            }
+            .buttonStyle(.plain)
+            .help("Zoom in")
+            Button {
+                let next = max(scale / 1.25, minScale)
+                scale = next
+                scaleAtGestureStart = next
+            } label: {
+                Image(systemName: "minus.magnifyingglass")
+            }
+            .buttonStyle(.plain)
+            .help("Zoom out")
+            Button {
+                scale = 1.0
+                scaleAtGestureStart = 1.0
+                panOffset = .zero
+                panOffsetAtGestureStart = .zero
+            } label: {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+            }
+            .buttonStyle(.plain)
+            .help("Reset view")
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color(.controlBackgroundColor).opacity(0.85))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 4)
+                .stroke(Color.secondary.opacity(0.3), lineWidth: 0.5)
+        )
     }
 
     private var entitiesKey: String {
@@ -1080,21 +1213,36 @@ struct ForceDirectedGraphView: View {
     }
 
     private func centered(_ point: CGPoint, in ctx: GraphicsContext) -> CGPoint {
+        // Apply viewport scale + pan around the canvas center, so pinch
+        // zooms toward the center and drag moves the whole graph
+        // together. Edge widths and node radii intentionally don't scale
+        // — keeps the graph readable at any zoom level.
         let bounds = ctx.clipBoundingRect
-        return CGPoint(x: bounds.midX + point.x, y: bounds.midY + point.y)
+        return CGPoint(
+            x: bounds.midX + point.x * scale + panOffset.width,
+            y: bounds.midY + point.y * scale + panOffset.height
+        )
     }
 
     // MARK: - Interaction
 
     private func handleTap(at location: CGPoint, in size: CGSize) {
+        // Inverse of `centered`: back out scale + panOffset to get
+        // simulation-space coordinates for hit-testing.
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        let local = CGPoint(x: location.x - center.x, y: location.y - center.y)
+        let local = CGPoint(
+            x: (location.x - center.x - panOffset.width) / scale,
+            y: (location.y - center.y - panOffset.height) / scale
+        )
+        // Hit radius is in simulation space — divide by scale so the tap
+        // target stays a constant ~18pt of screen space.
+        let hitRadius: CGFloat = 18 / scale
         var best: (id: String, dist: CGFloat)?
         for node in nodes {
             let dx = node.position.x - local.x
             let dy = node.position.y - local.y
             let dist = sqrt(dx * dx + dy * dy)
-            if dist < 18, dist < (best?.dist ?? .greatestFiniteMagnitude) {
+            if dist < hitRadius, dist < (best?.dist ?? .greatestFiniteMagnitude) {
                 best = (node.id, dist)
             }
         }
