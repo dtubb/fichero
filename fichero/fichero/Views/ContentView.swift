@@ -718,6 +718,41 @@ struct ContentView: View {
             toolbarSearchText = query
             runToolbarSearch(query)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .ficheroOpenClaimSource)) { note in
+            // Claim card source-doc link → navigate to the document
+            // with the page scrolled into view. userInfo carries
+            // documentId (required) + pageLabel / charStart / charEnd /
+            // claimId (all optional). For now this lights up doc
+            // selection + posts an internal navigation event the
+            // PDF preview will consume to scroll to pageLabel. The
+            // highlight-span overlay lands in a later phase (#995). (#978/#979/#982)
+            guard let info = note.userInfo,
+                  let docId = info["documentId"] as? String else { return }
+            // Switch to library view if we're in another mode (KG /
+            // Activity / Workflow) — the source preview lives there.
+            if sidebarMode != .library {
+                sidebarMode = .library
+            }
+            // Select the doc so the center pane swaps to its preview.
+            // If the doc isn't in the currently-loaded set (different
+            // library / folder scope), we still post the navigate event
+            // — the PDF preview will be a no-op until the user manually
+            // navigates to the library containing it. Cross-library
+            // open-source is a future enhancement.
+            if let doc = documentStore.currentDocuments.first(where: { $0.id == docId }) {
+                documentStore.selectedDocument = doc
+                detailDocument = doc
+            }
+            // Forward a page-navigation request that the PDF preview
+            // listens for via PDFPageView's coordinator. Posting
+            // userInfo verbatim so future highlight overlays can use
+            // charStart/charEnd without another wire-up.
+            NotificationCenter.default.post(
+                name: .ficheroNavigateToPage,
+                object: nil,
+                userInfo: info
+            )
+        }
         .modifier(
             MainContentModifiers(
                 documentStore: documentStore,

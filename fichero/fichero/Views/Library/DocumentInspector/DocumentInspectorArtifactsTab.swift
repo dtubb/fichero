@@ -616,6 +616,15 @@ extension Notification.Name {
     /// ContentView listens and selects the document + navigates the
     /// preview to the span when populated. (#978/#979/#982)
     static let ficheroOpenClaimSource = Notification.Name("ficheroOpenClaimSource")
+
+    /// Forwarded from `ficheroOpenClaimSource` after ContentView
+    /// selects the target document. The PDF preview view listens for
+    /// this to scroll to the requested page + position. userInfo is
+    /// the same dict as `ficheroOpenClaimSource` (documentId,
+    /// pageLabel, charStart, charEnd, claimId). Separate name so the
+    /// listener split is explicit — ContentView owns the doc-select
+    /// path, the preview owns the page-scroll path.
+    static let ficheroNavigateToPage = Notification.Name("ficheroNavigateToPage")
 }
 import FicheroAPIClient
 

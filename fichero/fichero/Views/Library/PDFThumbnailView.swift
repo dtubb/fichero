@@ -172,6 +172,17 @@ struct PDFPageView: NSViewRepresentable {
             name: .PDFViewScaleChanged,
             object: view
         )
+        // Listen for claim-card source navigations forwarded by
+        // ContentView. We don't filter by `object:` because the
+        // userInfo carries the documentId that should match the
+        // currently-loaded PDF; the coordinator double-checks that
+        // before scrolling. (#978/#979/#982 Phase 2)
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(Coordinator.handleNavigateToPage(_:)),
+            name: .ficheroNavigateToPage,
+            object: nil
+        )
         // Horizontal pan at fit-scale = page turn (#595).
         let pan = NSPanGestureRecognizer(
             target: context.coordinator,
@@ -258,6 +269,46 @@ struct PDFPageView: NSViewRepresentable {
             let newScale = view.scaleFactor
             Task { @MainActor [weak self] in
                 self?.zoomController?.scale = newScale
+            }
+        }
+
+        /// Scroll to a specific page on a `ficheroNavigateToPage`
+        /// notification. userInfo carries the page label (extractor
+        /// emits the same `source_page_label` string the PDF uses for
+        /// its labels — Roman numerals, prefixed numbers, etc.). When
+        /// the label is numeric we fall back to numeric page-index
+        /// matching. (#978/#979/#982)
+        @objc
+        func handleNavigateToPage(_ notification: Notification) {
+            guard let view = pdfView,
+                  let doc = view.document,
+                  let info = notification.userInfo else { return }
+            // Optional doc-id filter — when present, only respond if
+            // this PDF view is showing the doc the caller asked for.
+            // owner.path doesn't have an id directly; we rely on
+            // ContentView having already selected the target doc, so
+            // this listener fires across PDF views but only the
+            // currently-visible one has anything to scroll. Cheap.
+            let pageLabel = info["pageLabel"] as? String
+            guard let pageLabel,
+                  !pageLabel.isEmpty else { return }
+            // PDFKit page labels — first try exact label match
+            // (handles "iv", "12", "A-3", etc).
+            for idx in 0..<doc.pageCount {
+                if let page = doc.page(at: idx),
+                   page.label == pageLabel {
+                    view.go(to: page)
+                    owner.onPageIndexChange?(idx)
+                    return
+                }
+            }
+            // Fallback: numeric page index, 1-based to match
+            // human-readable labels.
+            if let numeric = Int(pageLabel),
+               numeric >= 1, numeric <= doc.pageCount,
+               let page = doc.page(at: numeric - 1) {
+                view.go(to: page)
+                owner.onPageIndexChange?(numeric - 1)
             }
         }
 
