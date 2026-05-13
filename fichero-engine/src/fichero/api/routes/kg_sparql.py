@@ -98,12 +98,9 @@ async def sparql_query(
         )
 
     from fichero.kg import triples as triples_module
-    from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 
     started = time.monotonic()
-    entities = db.query(KnowledgeEntity)
-    claims = db.query(KnowledgeClaim)
-    graph = triples_module.build_graph(entities, claims)
+    graph = _cached_rdf_graph(db)
 
     try:
         raw_rows = triples_module.sparql(graph, request.query)
@@ -170,3 +167,35 @@ def _term_to_json(term: Any) -> Any:
     if term is None:
         return None
     return str(term)
+
+
+# Library-scoped rdflib graph cache. Same key shape as the networkx
+# graph cache in fichero.kg.graph (count + max(updated_at) on claims
+# and entities) so both caches invalidate on the same write events.
+# Cuts SPARQL latency from ~3-4s to ~50ms on warm cache at 200K triples.
+# (#992 — scaling-review bottleneck 3)
+_RDF_CACHE: dict[str, tuple[tuple, Any]] = {}
+
+
+def _cached_rdf_graph(db: Database) -> Any:
+    """Return the materialized rdflib graph for ``db``, caching across requests.
+
+    Re-uses the existing graph when the knowledge tables haven't changed.
+    Imports rdflib + the triple builder lazily because rdflib pulls in
+    pyparsing and pulls hard.
+    """
+    from fichero.kg import graph as graph_module
+    from fichero.kg import triples as triples_module
+    from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+
+    key = str(db.path)
+    signature = graph_module._cache_signature(db)
+    cached = _RDF_CACHE.get(key)
+    if cached is not None and cached[0] == signature:
+        return cached[1]
+    graph = triples_module.build_graph(
+        db.query(KnowledgeEntity),
+        db.query(KnowledgeClaim),
+    )
+    _RDF_CACHE[key] = (signature, graph)
+    return graph
