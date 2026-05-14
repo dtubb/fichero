@@ -1571,3 +1571,37 @@ Closed: #948, #960, #967. Filed: #975 (structured transcript ingest, no mileston
 - #886 search filename-match boost; #943 library view-mode global default; #963 first-person → author-name extractor rewrite
 - 5 of 5 scaling-review bottleneck fixes
 - 2 new bugs filed: #998 graph view crash (brk #0x1), #999 diagram.png Invalid HTTP header value
+
+## 2026-05-13 — Evening testing pass (post-rebuild, one-file library)
+
+Daniel ran the rebuilt app against a fresh single-file library (preface PDF). 19 bugs filed in ~1 hour:
+
+| # | Cluster | Title |
+|---|---|---|
+| #998 | UI crash | Graph view brk #0x1 — root cause is SwiftUI/AppKit constraint-update infinite loop on AppKitProgressView with min==max==32.142857 (probably 225/7 chip-width); NOT the simulation race I first guessed |
+| #999 | Backend | diagram.png 500s with 'Invalid HTTP header value' — base64 the mermaid header |
+| #1000 | Backend block | Backend stops responding during activity → UI freezes (umbrella ticket; #1004 + #1008 are siblings) |
+| #1001 | Extraction | Apple Intelligence GuardrailViolationError → silent OpenRouter fallback |
+| #1002 | Backend noise | LangChain internal nodes leak into SSE stream (RunnableSequence/Lambda/Parallel/WithFallbacks) |
+| #1003 | Extraction | Pages 2-5, 9, 12, 14, 15 silently produce zero entities |
+| #1004 | Backend block | /semantic/embed blocks the loop after 200 OK |
+| #1005 | UI | Filter chips show all 9 options even when entity has claims of only 1-2 types |
+| #1006 | UI | Claim card with no SVO is mostly empty (just source link + redundant Fact tag) |
+| #1007 | UI | Refresh button shouldn't be needed; data should auto-refresh |
+| #1008 | UI | Tools menu (Embed/Generate links) should run automatically |
+| #1009 | Extraction | 'agricultural zones', 'accident' misclassified as Concept |
+| #1010 | UI | Library view duplicates PDF zoom toolbars |
+| #1011 | Backend | Catalogue workflow completed but no catalogue artifact appeared |
+| #1012 | UI | Workflow palette confusingly lists 'Workflow Catalogue' and 'Catalogue' as separate items |
+| #1013 | UI | Source-link in claim card looks unclickable |
+| #1014 | UI | Right inspector pane wastes space in KG view |
+| #1015 | UI noise | Invalid SF Symbol names: 'pickaxe' + empty string ('') x12 |
+| #1016 | Extraction | Entity descriptions are degenerate single words ('called', 'noted') |
+
+Cluster summary (4 root causes underlying all 19 bugs):
+- Sync work in async handlers blocks the event loop (#1000/1004/1008)
+- OpenRouter fallback degrades extraction quality (#1001/1003/1006/1009/1011/1016 + the no-SVO-anywhere pattern)
+- UI surface accreted without cleanup pass (#1005/1007/1008/1010/1012/1013/1014)
+- SwiftUI/AppKit layout edge cases (#998/1015)
+
+Earlier today: 45 commits + 21 issues closed (KG rebuild Phases 1+2+4+5, #984 SVO promotion, #886/#943/#963 fixes); see prior HISTORY entry from this date.
