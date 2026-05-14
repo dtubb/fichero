@@ -50,6 +50,10 @@ Four phases. **Each phase ships working, testable software on its own.** Phase 1
 
 **Approach:** a **DB-writer task** that owns the library's DuckDB connection and consumes a write queue. Tool nodes stop calling `db.save(...)` directly; they enqueue write requests (`{kind, payload}`) and `await` an ack. The writer applies them in order, batched.
 
+**Status — 2026-05-14:**
+- ✅ **Infrastructure built** — `fichero/db_writer.py` `DBWriter`: dedicated writer thread + connection, `save`/`delete` enqueue API returning `Future`s, `flush`, lifecycle (`start`/`stop`/context-manager), per-op error surfacing, concurrent-producer safe. Fully unit-tested (`tests/unit/test_db_writer.py`). Self-contained — nothing uses it yet, so no behaviour change.
+- ⏭️ **Next increment (separately reviewable):** wire a `DBWriter` into `_run_workflow_in_background` (one per run, exposed via workflow `state`, stopped in the `finally`), then migrate the hot write paths — `_entity_writer.save_claim` / `upsert_entity` (called from `_write_kg_rows`) and `extract_all`'s artifact saves — to enqueue through it when a writer is present, falling back to direct `db.save()` otherwise. The fallback keeps the migration incremental and safe. This touches the KG write path, so it wants Daniel's review before landing.
+
 **DECISION NEEDED #2:** scope of "all writes." Workflow tool writes clearly route through it. Do interactive API writes (user edits an entity, deletes a doc) also route through it, or keep their current direct path? Recommendation: **start with workflow-execution writes only** — that's where the fan-out concurrency is — and leave interactive single-writes direct for now, since within one process DuckDB serialises them and they're low-volume.
 
 **Acceptance:** a workflow fanning out N parallel extractions produces correct, complete rows with no lock errors; writer is the only thing holding the write connection.
