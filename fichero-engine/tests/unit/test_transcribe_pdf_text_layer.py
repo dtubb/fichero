@@ -12,7 +12,7 @@ overrides it.
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -118,3 +118,55 @@ def test_force_ocr_in_vision_config_schema() -> None:
 
     assert "force_ocr" in VISION_CONFIG_SCHEMA
     assert VISION_CONFIG_SCHEMA["force_ocr"]["default"] is False
+
+
+@pytest.mark.asyncio
+async def test_born_digital_pdf_beats_stale_cached_artifact(tmp_path: Path) -> None:
+    """#1064: a born-digital PDF must use its fresh text layer even when a
+    stale (garbage) transcription artifact is already cached.
+
+    Pre-fix, the skip-if-artifact cache check ran *before* the #1033
+    text-layer short-circuit, so a pre-#1033 Apple Vision artifact full of
+    OCR garbage shielded the short-circuit and got served on every run.
+    The cache check is now gated on `not pdf_layer_used` — for a
+    born-digital PDF it must be bypassed entirely.
+    """
+    pdf = tmp_path / "born_digital.pdf"
+    _make_pdf_with_text(pdf, [
+        "Davidson signed the deed on the third of March nineteen thirty one.",
+    ])
+
+    # A stale, garbage cached artifact — what a pre-#1033 OCR run left behind.
+    stale = Mock(content="xvi ⍰⍰,⍰⍰⍰ -1— 0— +1—", id="stale-artifact-1")
+    find_existing_mock = Mock(return_value=stale)
+    vision_mock = AsyncMock(side_effect=AssertionError("vision OCR must not run"))
+
+    with (
+        patch(
+            "fichero.workflows.tools.vision_base.save_artifact",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "fichero.workflows.tools.vision_base.find_existing_artifact",
+            new=find_existing_mock,
+        ),
+        patch("fichero.llm.vision", new=vision_mock),
+    ):
+        result = await process_vision(
+            files=[str(pdf)],
+            documents=[],
+            prompt="Transcribe.",
+            llm_config=_llm_config(),
+            library_path="/tmp/fichero-test-lib-1064",
+            task_id=None,
+            tool_config=_tool_config(),
+            vision_mode="llm",
+        )
+
+    # The fresh text layer wins — not the stale garbage artifact.
+    assert "Davidson" in result["text"]
+    assert "⍰" not in result["text"]
+    # The skip-if-artifact cache must be bypassed entirely for a born-digital
+    # PDF — find_existing_artifact should never even be consulted.
+    find_existing_mock.assert_not_called()
+    vision_mock.assert_not_awaited()

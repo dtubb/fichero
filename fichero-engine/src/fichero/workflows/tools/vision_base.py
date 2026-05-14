@@ -997,11 +997,53 @@ async def process_vision(
                         artifact_ids.append(artifact_id)
                 continue
 
+            per_page_texts: list[str] | None = None
+
+            # PDF text-layer short-circuit (#957, #1033, #1064). A born-digital
+            # PDF (InDesign export, LaTeX, Word→PDF) already carries a
+            # selectable text layer; re-deriving it with vision OCR is wasted
+            # compute and usually noisier than the native text. Computed UP
+            # FRONT — before the skip-if-artifact cache — because the embedded
+            # text layer is the authoritative source and must beat a stale
+            # cached OCR artifact (#1064: a pre-#1033 Apple Vision artifact was
+            # shielding this short-circuit and serving garbage on every run).
+            # `force_ocr` overrides it for a PDF whose own text layer is garbage.
+            pdf_layer_used = False
+            if (
+                not force_ocr
+                and tool_config.supports_apple_vision
+                and file_path.lower().endswith(".pdf")
+            ):
+                layer = _try_pdf_text_layer(file_path)
+                if layer is not None:
+                    per_page_texts = layer
+                    pdf_layer_used = True
+                    logger.info(
+                        "PDF text layer present — skipped vision OCR "
+                        "for %s (%d pages)",
+                        Path(file_path).name, len(per_page_texts),
+                    )
+                    parts = []
+                    for i, t in enumerate(per_page_texts):
+                        if t:
+                            if len(per_page_texts) > 1:
+                                parts.append(f"--- Page {i + 1} ---")
+                            parts.append(t)
+                    text = "\n\n".join(parts)
+                    parsed = text
+
             # Skip-if-done: use the existing artifact if one already exists
             # for this (document, artifact_type) and the tool config allows it.
             # Avoids re-OCRing files already processed by a previous workflow
             # run, making Catalogue idempotent when composed with Transcribe.
-            if tool_config.skip_if_artifact_exists and save_to_db and library_path:
+            # Skipped for a born-digital PDF (pdf_layer_used) — its fresh text
+            # layer beats any cached artifact, including stale OCR garbage (#1064).
+            if (
+                not pdf_layer_used
+                and tool_config.skip_if_artifact_exists
+                and save_to_db
+                and library_path
+            ):
                 # Key the cache on provider+model so a re-run with a different
                 # model (e.g. qwen-vl-3.5 → qwen-vl-3.6v) produces a new
                 # artifact instead of silently reusing the old model's output.
@@ -1039,41 +1081,8 @@ async def process_vision(
                     )
                     continue
 
-            # Process with Apple Vision or LLM
-            per_page_texts: list[str] | None = None
-
-            # PDF text-layer short-circuit (#957, #1033). A born-digital
-            # PDF (InDesign export, LaTeX, Word→PDF) already carries a
-            # selectable text layer; re-deriving it with vision OCR is
-            # wasted compute (~1.5s/page) and usually noisier than the
-            # native text. This runs regardless of vision_mode — it used
-            # to be nested inside the apple-only branch, so LLM-vision
-            # runs re-OCR'd every digital PDF (#1033). `force_ocr`
-            # overrides it for a PDF whose own text layer is garbage.
-            pdf_layer_used = False
-            if (
-                not force_ocr
-                and tool_config.supports_apple_vision
-                and file_path.lower().endswith(".pdf")
-            ):
-                layer = _try_pdf_text_layer(file_path)
-                if layer is not None:
-                    per_page_texts = layer
-                    pdf_layer_used = True
-                    logger.info(
-                        "PDF text layer present — skipped vision OCR "
-                        "for %s (%d pages)",
-                        Path(file_path).name, len(per_page_texts),
-                    )
-                    parts = []
-                    for i, t in enumerate(per_page_texts):
-                        if t:
-                            if len(per_page_texts) > 1:
-                                parts.append(f"--- Page {i + 1} ---")
-                            parts.append(t)
-                    text = "\n\n".join(parts)
-                    parsed = text
-
+            # Process with Apple Vision or LLM (the PDF text-layer
+            # short-circuit ran above, before the skip-if-artifact cache).
             if pdf_layer_used:
                 # text / parsed / per_page_texts already set above.
                 pass
