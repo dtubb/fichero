@@ -477,3 +477,90 @@ class TestEntityDescription:
 
         entity = db.query(KnowledgeEntity, canonical_name="Juan")[0]
         assert entity.description == "signed the deed in the 1930 sale"
+
+    @pytest.mark.asyncio
+    async def test_degenerate_predicate_yields_none_description(
+        self, db, test_package, container_doc, llm_config
+    ):
+        """Single-word predicates like 'called' or 'noted' must NOT
+        end up as the entity description. Empty is a better signal
+        than misleading content. (#1016)"""
+        from fichero.workflows.tools.extractors import _run_extractor, _SECTIONS
+
+        people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
+        fake_response = (
+            '{"people": ['
+            '{"name": "Elisabet", "verb": "called", "object": ""},'
+            '{"name": "Davidson", "verb": "noted", "object": ""},'
+            '{"name": "Marta", "verb": "is", "object": "the"}'
+            ']}'
+        )
+
+        with patch(
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(return_value=_pydantic_from_json_response(fake_response)),
+        ):
+            await _run_extractor(
+                people_section,
+                {"text": "..."},
+                {
+                    "library_path": str(test_package),
+                    "selected_doc_ids": [container_doc.id],
+                },
+                llm_config,
+            )
+
+        for name in ("Elisabet", "Davidson", "Marta"):
+            rows = db.query(KnowledgeEntity, canonical_name=name)
+            assert rows, f"{name} should still be created as an entity"
+            assert rows[0].description is None, (
+                f"{name}: degenerate predicate should yield None, got "
+                f"{rows[0].description!r}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Description sanitiser — unit-level (no DB)
+# ---------------------------------------------------------------------------
+
+
+class TestSanitizeEntityDescription:
+    """Direct unit tests for ``_sanitize_entity_description`` so the
+    rejection rules are pinned independently of the extractor pipeline.
+    (#1016)
+    """
+
+    def test_none_and_empty(self):
+        from fichero.workflows.tools.extractors import _sanitize_entity_description
+        assert _sanitize_entity_description(None, "Foo") is None
+        assert _sanitize_entity_description("", "Foo") is None
+        assert _sanitize_entity_description("   ", "Foo") is None
+
+    def test_single_word_rejected(self):
+        from fichero.workflows.tools.extractors import _sanitize_entity_description
+        assert _sanitize_entity_description("called", "Elisabet") is None
+        assert _sanitize_entity_description("noted", "Davidson") is None
+
+    def test_two_words_rejected(self):
+        from fichero.workflows.tools.extractors import _sanitize_entity_description
+        assert _sanitize_entity_description("was published", "Foo") is None
+
+    def test_all_function_words_rejected(self):
+        from fichero.workflows.tools.extractors import _sanitize_entity_description
+        assert _sanitize_entity_description("is the of", "Foo") is None
+        assert _sanitize_entity_description("called as the", "Foo") is None
+
+    def test_substring_of_canonical_rejected(self):
+        from fichero.workflows.tools.extractors import _sanitize_entity_description
+        assert _sanitize_entity_description(
+            "Don Alfonso Garcia", "Don Alfonso Garcia Lopez"
+        ) is None
+
+    def test_real_description_kept(self):
+        from fichero.workflows.tools.extractors import _sanitize_entity_description
+        assert _sanitize_entity_description(
+            "a neighbor and twenty-first-century artisanal miner", "Don Alfonso"
+        ) == "a neighbor and twenty-first-century artisanal miner"
+        assert _sanitize_entity_description(
+            "served as the alcalde of Popayán", "Eugenio Córdoba"
+        ) == "served as the alcalde of Popayán"

@@ -820,6 +820,65 @@ def _strip_fences(raw: str) -> str:
     return stripped
 
 
+# Function-word / connector tokens the LLM sometimes leaks as a
+# stand-alone "description" when it can't compose a proper predicate
+# (e.g. verb="called", object="" → predicate="called"). Compared
+# against the case-folded predicate, AFTER splitting on whitespace —
+# matching any token here is fine since a 1-word predicate of one of
+# these is by definition degenerate. (#1016)
+_DEGENERATE_DESCRIPTION_TOKENS: frozenset[str] = frozenset(
+    {
+        "a", "an", "the",
+        "of", "in", "at", "on", "to", "for", "from", "with", "by",
+        "as", "is", "was", "be", "been", "being", "are", "were",
+        "and", "or", "but",
+        "called", "named", "noted", "known", "said", "mentioned",
+    }
+)
+
+
+def _sanitize_entity_description(
+    text: str | None, canonical_name: str
+) -> str | None:
+    """Return a clean entity description or ``None`` when degenerate.
+
+    The catalogue/extract path stores the SVO predicate as the entity's
+    description so the inspector shows a useful blurb. When the LLM
+    can't compose a real predicate it sometimes leaks adjacent function
+    words ("called", "noted", "a neighbor's") which then surface as the
+    entity description. Empty is a better signal than misleading
+    content — reject those at write time. (#1016)
+
+    Rejected cases:
+    - empty / whitespace-only
+    - shorter than 3 words
+    - all tokens are function/connector words from
+      ``_DEGENERATE_DESCRIPTION_TOKENS``
+    - the description is a substring of the canonical name itself
+      (case-insensitive, after stripping punctuation), which means
+      we're storing the name as the description — not informative
+    """
+    if not text:
+        return None
+    cleaned = text.strip()
+    if not cleaned:
+        return None
+
+    tokens = cleaned.split()
+    if len(tokens) < 3:
+        return None
+
+    folded = [t.casefold().strip(".,;:!?'\"()[]") for t in tokens]
+    if all(t in _DEGENERATE_DESCRIPTION_TOKENS or not t for t in folded):
+        return None
+
+    canonical_folded = (canonical_name or "").casefold().strip()
+    if canonical_folded and cleaned.casefold() in canonical_folded:
+        return None
+
+    return cleaned
+
+
 def _render_section_markdown(section: dict[str, Any], items: list[Any]) -> str:
     """Render a section's items as the artifact `content` field.
 
@@ -1522,6 +1581,9 @@ def _write_kg_rows(
             claim_text = f"{canonical}: {legacy_context}"
         else:
             claim_text = canonical
+        entity_description = _sanitize_entity_description(
+            predicate or None, canonical
+        )
         entity_id = upsert_entity(
             db,
             canonical_name=canonical,
@@ -1529,8 +1591,10 @@ def _write_kg_rows(
             aliases=aliases if isinstance(aliases, list) else [],
             # The entity's curated description used to be the raw
             # context; with SVO it's the full predicate so users still
-            # see a useful blurb in the inspector.
-            description=predicate or None,
+            # see a useful blurb in the inspector. Sanitised first to
+            # reject degenerate fragments ("called", "noted") that
+            # leak when the LLM can't compose a real predicate. (#1016)
+            description=entity_description,
         )
         save_claim(
             db,
