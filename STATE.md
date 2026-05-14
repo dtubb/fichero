@@ -2,7 +2,7 @@
 
 ## Next Session — Start Here
 
-**Latest commit: `7ef16274`. Branch: 0.0.2.** Backend pipeline-trust cluster sweep — 6 fixes shipped (committed + pushed, pytest-green, **NOT yet verified by a real-app run**). Process change this session: build/lint/test runs offloaded to `test-runner` subagents so the lead's context stays clear; see `docs/agent-workflow/parallel-execution.md`.
+**Latest commit: `c8ba417f`. Branch: 0.0.2.** Backend pipeline-trust cluster sweep — 7 fixes shipped (committed + pushed, pytest-green, **NOT yet verified by a real-app run**). Process change this session: build/lint/test runs offloaded to `test-runner` subagents so the lead's context stays clear; see `docs/agent-workflow/parallel-execution.md`.
 
 ### Shipped this session (pushed to 0.0.2, subagent-verified, pending on-device check)
 
@@ -11,16 +11,17 @@
 - **#1029** `10939bc1` + `0efb995b` — generic quality gate (`output_quality.py` + builder check + `quality_gate` in `BASE_CONFIG_SCHEMA`). Stops the run only when **all** pages are garbage; some-garbage continues.
 - **#1051** `5b0d1362` — keyword extractor salience bar (5-8 most salient) + `_KeywordsResult` runaway cap.
 - **#1033** `7ef16274` — transcribe re-OCR'd born-digital PDFs in LLM vision mode; `_try_pdf_text_layer` hoisted out of the apple-only branch + `force_ocr` override.
+- **#1027** `c8ba417f` — `StructuredDecodeError` carries `.kind`; `chat_structured_with_fallback` retries `decoding`/`generation` once on-device before the paid `$large` fallback (the doable half — chunk-smaller / simplify-schema need real-data tuning, deferred).
 
 ### What to do first
 
-1. **Verify the pushed backend work** — none of this session's commits (nor the prior session's #1000 Phase 1/2) is confirmed by a real run. Build + run a real catalogue workflow on a born-digital PDF: confirm transcribe uses the text layer (#1033), the quality gate stops an all-garbage run (#1029), and `extract_all` timing logs appear (#1037).
+1. **Verify the pushed backend work** — none of this session's commits (nor the prior session's #1000 Phase 1/2) is confirmed by a real run. Build + run a real catalogue workflow on a born-digital PDF: confirm transcribe uses the text layer (#1033), the quality gate stops an all-garbage run (#1029), `extract_all` timing logs appear (#1037), and Apple decode failures retry before paying (#1027).
 2. **#1054 needs Daniel's input** — the `min_score` threshold already exists and works (`db.py:664`); the marginal 42-50% results are above the 0.3 default. It's a tuning decision (what floor?) + possible UX work, not a bug. See the analysis comment on the issue.
-3. **Remaining backend cluster** — #1027 (Apple decode → paid fallback), #1025 (local mermaid rendering). #1027 is tightly coupled to #1057 (`$large`=None).
+3. **#1025 is a Swift task** — the mermaid *source* endpoint already exists (`visualization.py:84`); only the `.png` endpoint hits mermaid.ink. The fix is app-side: render `mermaid_code` in a WKWebView with bundled mermaid.js. Do it in the Xcode session.
 
 ### Other open 0.0.2 work
 
-- Swift UI cluster (#1041/#1044/#1055, #1046/#1053, #1058/#1059, #1048/#1050, #1034-#1036, #1042/#1049) — needs an Xcode session for the 3-leg check. The `quality_gate` toggle (#1029) should be eyeballed in the node editor here.
+- Swift UI cluster (#1041/#1044/#1055, #1046/#1053, #1058/#1059, #1048/#1050, #1034-#1036, #1042/#1049, #1025) — needs an Xcode session for the 3-leg check. The `quality_gate` toggle (#1029) and `force_ocr` (#1033) should be eyeballed in the node editor here.
 - #1057 model-defaults — backend + Swift; the systemic error #1060 now aborts on, so worth pairing.
 - #1056 — Stop button for workflow runs (cleanly implementable on the #1000 worker-thread seam).
 - #1043 — dependency/langchain update sweep, deferred post-0.0.2.
