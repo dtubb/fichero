@@ -1494,6 +1494,12 @@ def _write_kg_rows(
                 epistemic_status=epistemic,
                 time_start=t_start,
                 time_end=t_end,
+                # SVO promotion (#984): also write to the typed
+                # top-level fields. Date-style claims have an implicit
+                # subject = the normalised date string.
+                subject_canonical=stem,
+                predicate_verb=verb or None,
+                object_phrase=obj or None,
             )
             continue
 
@@ -1538,6 +1544,13 @@ def _write_kg_rows(
             claim_type=ctype or ClaimType.fact,
             metadata=meta,
             epistemic_status=epistemic,
+            # SVO promotion (#984): typed top-level fields. The
+            # subject IS the entity, so subject_entity_id resolves
+            # the lookup at write time.
+            subject_canonical=canonical,
+            subject_entity_id=entity_id,
+            predicate_verb=verb or None,
+            object_phrase=obj or None,
         )
 
 

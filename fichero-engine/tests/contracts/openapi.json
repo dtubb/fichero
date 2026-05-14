@@ -37276,6 +37276,30 @@
             "$ref": "#/components/schemas/EpistemicStatus",
             "nullable": true
           },
+          "subject_canonical": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subject Canonical",
+            "description": "Canonical name of the subject entity in this claim's S-V-O triple. For entity-bearing claims this matches the entity's canonical_name and (when present) subject_entity_id resolves to the entity row. For date-style claims the subject is the normalised date string."
+          },
+          "subject_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subject Entity Id",
+            "description": "Resolved KnowledgeEntity.id when the subject canonical name matches a known entity. Lets the graph view do an O(1) lookup instead of name matching at render time."
+          },
+          "predicate_verb": {
+            "type": "string",
+            "nullable": true,
+            "title": "Predicate Verb",
+            "description": "Verb / verb phrase of the SVO triple. Examples: 'served as', 'wrote', 'is located in'. Composed with object_phrase to form the human-readable claim text."
+          },
+          "object_phrase": {
+            "type": "string",
+            "nullable": true,
+            "title": "Object Phrase",
+            "description": "Object phrase of the SVO triple \u2014 the rest of the predicate after the verb. Example: 'the alcalde of Popay\u00e1n'."
+          },
           "entity_ids": {
             "items": {
               "type": "string"

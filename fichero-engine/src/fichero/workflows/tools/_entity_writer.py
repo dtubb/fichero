@@ -282,6 +282,10 @@ def save_claim(
     time_start: Optional[str] = None,
     time_end: Optional[str] = None,
     time_precision: Optional[str] = None,
+    subject_canonical: Optional[str] = None,
+    subject_entity_id: Optional[str] = None,
+    predicate_verb: Optional[str] = None,
+    object_phrase: Optional[str] = None,
 ) -> str:
     """Save a `KnowledgeClaim` row. Returns the claim ID.
 
@@ -322,6 +326,14 @@ def save_claim(
             if ratio >= 0.9:
                 return prior.id
 
+    # Promoted SVO fields (#984): also accept subject/verb/object via
+    # the kwargs above; fall back to metadata['subject'/'verb'/'object']
+    # for one release of backwards compat so existing callers keep
+    # working before they migrate.
+    meta = dict(metadata or {})
+    sc = subject_canonical or (meta.get("subject") if isinstance(meta.get("subject"), str) else None)
+    sv = predicate_verb or (meta.get("verb") if isinstance(meta.get("verb"), str) else None)
+    so = object_phrase or (meta.get("object") if isinstance(meta.get("object"), str) else None)
     claim = KnowledgeClaim(
         text=text,
         source_document_id=source_document_id,
@@ -336,8 +348,12 @@ def save_claim(
         time_precision=time_precision,
         claim_type=claim_type,
         confidence=confidence,
-        metadata=metadata or {},
+        metadata=meta,
         epistemic_status=epistemic_status,
+        subject_canonical=sc,
+        subject_entity_id=subject_entity_id,
+        predicate_verb=sv,
+        object_phrase=so,
     )
     db.save(claim)
     return claim.id

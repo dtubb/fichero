@@ -69,3 +69,4 @@ dump.rdb
 .claude/settings.local.json
 
 default.profraw
+.claude/worktrees/

@@ -819,6 +819,44 @@ class KnowledgeClaim(BaseModel):
     # --- claim classification ---
     claim_type: ClaimType | None = None
     epistemic_status: EpistemicStatus | None = None
+    # --- SVO triple (#984) — promoted to top-level fields from
+    # metadata so OpenAPI codegen, DuckDB queries, and Pydantic
+    # validation all see them as first-class.  The extractor (see
+    # extractors.py:1375-1456) populates these alongside the legacy
+    # metadata["subject"/"verb"/"object"] keys for one release of
+    # backwards compat.  All nullable so legacy claims survive.
+    subject_canonical: str | None = Field(
+        default=None,
+        description=(
+            "Canonical name of the subject entity in this claim's S-V-O triple. "
+            "For entity-bearing claims this matches the entity's canonical_name "
+            "and (when present) subject_entity_id resolves to the entity row. "
+            "For date-style claims the subject is the normalised date string."
+        ),
+    )
+    subject_entity_id: str | None = Field(
+        default=None,
+        description=(
+            "Resolved KnowledgeEntity.id when the subject canonical name "
+            "matches a known entity. Lets the graph view do an O(1) lookup "
+            "instead of name matching at render time."
+        ),
+    )
+    predicate_verb: str | None = Field(
+        default=None,
+        description=(
+            "Verb / verb phrase of the SVO triple. Examples: 'served as', "
+            "'wrote', 'is located in'. Composed with object_phrase to form "
+            "the human-readable claim text."
+        ),
+    )
+    object_phrase: str | None = Field(
+        default=None,
+        description=(
+            "Object phrase of the SVO triple — the rest of the predicate "
+            "after the verb. Example: 'the alcalde of Popayán'."
+        ),
+    )
     # --- provenance & confidence ---
     entity_ids: list[str] = Field(default_factory=list)
     curation_state: ClaimCurationState = ClaimCurationState.unreviewed

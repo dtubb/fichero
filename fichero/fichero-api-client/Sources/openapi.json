@@ -17872,6 +17872,87 @@
         }
       }
     },
+    "/api/kg/entity-curation/candidates": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Graph-context merge candidates (Jaccard over co-occurrence neighborhoods)",
+        "description": "Surfaces entity pairs whose claim-neighborhoods overlap heavily \u2014 the structural-similarity signal Neo4j calls out as the third leg of entity resolution after rule-based (alias dedup) and probabilistic / vector (the /semantic endpoint above). Pairs are filtered to same entity_type by default \u2014 cross-type merges (e.g. Person \u2194 Place) are almost always wrong. (#988)",
+        "operationId": "candidate_pairs_api_kg_entity_curation_candidates_get",
+        "parameters": [
+          {
+            "name": "min_jaccard",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "default": 0.5,
+              "title": "Min Jaccard"
+            }
+          },
+          {
+            "name": "top_k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 20,
+              "title": "Top K"
+            }
+          },
+          {
+            "name": "same_type_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Same Type Only"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CandidatePair"
+                  },
+                  "title": "Response Candidate Pairs Api Kg Entity Curation Candidates Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kg/sparql": {
       "post": {
         "tags": [
@@ -18026,210 +18107,6 @@
                     "$ref": "#/components/schemas/KnowledgeGraphInclusion"
                   },
                   "title": "Response List Inclusion Api Kg Inclusion Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/search/explain": {
-      "post": {
-        "tags": [
-          "search-explanation",
-          "search-explain"
-        ],
-        "summary": "Explain a search query",
-        "description": "Returns detailed explanation of why results were matched, with source attribution.",
-        "operationId": "explain_search_api_search_explain_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SearchExplainRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SearchExplanation"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/search/explain/{query}": {
-      "get": {
-        "tags": [
-          "search-explanation",
-          "search-explain"
-        ],
-        "summary": "Explain search by path",
-        "description": "Get search explanation using URL path (GET alternative to POST /explain).",
-        "operationId": "explain_search_path_api_search_explain__query__get",
-        "parameters": [
-          {
-            "name": "query",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Query"
-            }
-          },
-          {
-            "name": "search_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/SearchType",
-              "default": "hybrid"
-            }
-          },
-          {
-            "name": "rag_mode",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/RAGMode",
-              "default": "balanced"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "default": 10,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SearchExplanation"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/search/modes": {
-      "get": {
-        "tags": [
-          "search-explanation",
-          "search-explain"
-        ],
-        "summary": "List RAG modes",
-        "description": "Get available RAG modes with their configurations.",
-        "operationId": "list_rag_modes_api_search_modes_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RAGModesResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/search/metrics": {
-      "get": {
-        "tags": [
-          "search-explanation",
-          "search-explain"
-        ],
-        "summary": "Get search metrics",
-        "description": "Returns aggregated search metrics and usage statistics.",
-        "operationId": "get_search_metrics_api_search_metrics_get",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SearchMetricsSummary"
                 }
               }
             }
@@ -19373,6 +19250,210 @@
                     "$ref": "#/components/schemas/HermesSuggestion"
                   },
                   "title": "Response Suggest Interpretations Api Hermeneutics Suggestions Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search/explain": {
+      "post": {
+        "tags": [
+          "search-explanation",
+          "search-explain"
+        ],
+        "summary": "Explain a search query",
+        "description": "Returns detailed explanation of why results were matched, with source attribution.",
+        "operationId": "explain_search_api_search_explain_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchExplainRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchExplanation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search/explain/{query}": {
+      "get": {
+        "tags": [
+          "search-explanation",
+          "search-explain"
+        ],
+        "summary": "Explain search by path",
+        "description": "Get search explanation using URL path (GET alternative to POST /explain).",
+        "operationId": "explain_search_path_api_search_explain__query__get",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Query"
+            }
+          },
+          {
+            "name": "search_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SearchType",
+              "default": "hybrid"
+            }
+          },
+          {
+            "name": "rag_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/RAGMode",
+              "default": "balanced"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchExplanation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search/modes": {
+      "get": {
+        "tags": [
+          "search-explanation",
+          "search-explain"
+        ],
+        "summary": "List RAG modes",
+        "description": "Get available RAG modes with their configurations.",
+        "operationId": "list_rag_modes_api_search_modes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RAGModesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search/metrics": {
+      "get": {
+        "tags": [
+          "search-explanation",
+          "search-explain"
+        ],
+        "summary": "Get search metrics",
+        "description": "Returns aggregated search metrics and usage statistics.",
+        "operationId": "get_search_metrics_api_search_metrics_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchMetricsSummary"
                 }
               }
             }
@@ -30294,6 +30375,52 @@
         "title": "CacheStatsResponse",
         "description": "Response with cache statistics."
       },
+      "CandidatePair": {
+        "properties": {
+          "entity_a_id": {
+            "type": "string",
+            "title": "Entity A Id"
+          },
+          "entity_a_name": {
+            "type": "string",
+            "title": "Entity A Name"
+          },
+          "entity_b_id": {
+            "type": "string",
+            "title": "Entity B Id"
+          },
+          "entity_b_name": {
+            "type": "string",
+            "title": "Entity B Name"
+          },
+          "jaccard": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Jaccard"
+          },
+          "shared_neighbors": {
+            "type": "integer",
+            "title": "Shared Neighbors"
+          },
+          "entity_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "Entity Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_a_id",
+          "entity_a_name",
+          "entity_b_id",
+          "entity_b_name",
+          "jaccard",
+          "shared_neighbors"
+        ],
+        "title": "CandidatePair",
+        "description": "One candidate merge pair surfaced by graph-context similarity."
+      },
       "CaptureRegion": {
         "type": "string",
         "enum": [
@@ -37148,6 +37275,30 @@
           "epistemic_status": {
             "$ref": "#/components/schemas/EpistemicStatus",
             "nullable": true
+          },
+          "subject_canonical": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subject Canonical",
+            "description": "Canonical name of the subject entity in this claim's S-V-O triple. For entity-bearing claims this matches the entity's canonical_name and (when present) subject_entity_id resolves to the entity row. For date-style claims the subject is the normalised date string."
+          },
+          "subject_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subject Entity Id",
+            "description": "Resolved KnowledgeEntity.id when the subject canonical name matches a known entity. Lets the graph view do an O(1) lookup instead of name matching at render time."
+          },
+          "predicate_verb": {
+            "type": "string",
+            "nullable": true,
+            "title": "Predicate Verb",
+            "description": "Verb / verb phrase of the SVO triple. Examples: 'served as', 'wrote', 'is located in'. Composed with object_phrase to form the human-readable claim text."
+          },
+          "object_phrase": {
+            "type": "string",
+            "nullable": true,
+            "title": "Object Phrase",
+            "description": "Object phrase of the SVO triple \u2014 the rest of the predicate after the verb. Example: 'the alcalde of Popay\u00e1n'."
           },
           "entity_ids": {
             "items": {

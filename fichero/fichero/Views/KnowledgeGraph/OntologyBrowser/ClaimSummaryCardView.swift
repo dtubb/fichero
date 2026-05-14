@@ -24,12 +24,22 @@ struct ClaimSummaryCard: View {
     /// (Daniel's directive: "if KG is absent, we generate it"; don't
     /// fall back to `claim.text`).
     private var svo: (subject: String, verb: String, object: String)? {
+        // Prefer the typed top-level fields (#984). Fall back to
+        // claim.metadata for one release while existing claim rows
+        // get backfilled.
+        let subject = (claim.subjectCanonical ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let verb = (claim.predicateVerb ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let object = (claim.objectPhrase ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !subject.isEmpty, !verb.isEmpty, !object.isEmpty {
+            return (subject, verb, object)
+        }
+        // Legacy metadata fallback.
         guard let dict = claim.metadata?.additionalProperties.value else { return nil }
-        let subject = (dict["subject"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let verb = (dict["verb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let object = (dict["object"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !subject.isEmpty, !verb.isEmpty, !object.isEmpty else { return nil }
-        return (subject, verb, object)
+        let s = (dict["subject"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let v = (dict["verb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let o = (dict["object"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !s.isEmpty, !v.isEmpty, !o.isEmpty else { return nil }
+        return (s, v, o)
     }
 
     /// A claim card has no useful content when it has NO SVO triple AND
