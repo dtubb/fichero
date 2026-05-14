@@ -1605,3 +1605,11 @@ Cluster summary (4 root causes underlying all 19 bugs):
 - SwiftUI/AppKit layout edge cases (#998/1015)
 
 Earlier today: 45 commits + 21 issues closed (KG rebuild Phases 1+2+4+5, #984 SVO promotion, #886/#943/#963 fixes); see prior HISTORY entry from this date.
+
+## 2026-05-13 — Late evening (final ledger + tooling pivot)
+
+Two more bugs filed past the prior session-end boundary: #1018 (thumbnail invalid response from storage service), #1019 (SwiftUI 'Modifying state during view update'). Plus more evidence comments on #961, #1000, #1011, #1015.
+
+Final bug ledger for the day: 21 issues filed (#998–#1019); 4 issues commented with new evidence (#961, #1000, #1011, #1015); 1 meta-issue filed (#1017 test-coverage gap). Combined with morning building phase (45 commits + 21 issues closed), today's net was **66 commits and 22 issues filed against 21 closed**.
+
+Daniel's pivot for next session: tooling + testing FIRST, then bug fixes. The bug-find rate is outpacing the fix rate because we don't have the tests that would catch silent failures.
