@@ -25,6 +25,7 @@ from fichero.workflows.types import State, WorkflowDef, NodeDef
 from fichero.workflows.registry import get_tool, get_tool_def
 from fichero.workflows.resolver import resolve_inputs, evaluate_condition
 from fichero.workflows.cache import get_node_cache, compute_cache_key, CACHEABLE_TOOLS
+from fichero.workflows.tools.output_quality import assess_text_quality
 from fichero.llm import LLMConfig
 
 logger = logging.getLogger(__name__)
@@ -526,6 +527,34 @@ def _make_node_function(
                     total_count=1,
                     errors=[{"node": node_id, "error": error_msg}],
                 )
+
+            # Quality gate (#1029): a node can return without raising yet
+            # produce garbage — a page that OCR'd to box glyphs, a
+            # transcription that is mostly [ilegible]. Advancing the
+            # pipeline on that noise yields a "successful" but empty run
+            # the user can't diagnose. When the node's quality_gate config
+            # is on (default), abort so the failure is visible and the
+            # cached re-run is cheap. Gates on garbage, NOT on empty
+            # output — emptiness is each tool's own concern.
+            if isinstance(result, dict) and node_def.config.get(
+                "quality_gate", True
+            ):
+                is_low, reason = assess_text_quality(result.get("text") or "")
+                if is_low:
+                    print(f"[STEP] ✗ QUALITY GATE: {node_label}")
+                    print(f"[STEP]   {reason}")
+                    logger.error(
+                        f"Node {node_id} failed quality gate: {reason}"
+                    )
+                    raise SystemicErrorDetected(
+                        message=(
+                            f"Step '{node_label}' produced unreadable "
+                            f"output — {reason}"
+                        ),
+                        error_count=1,
+                        total_count=1,
+                        errors=[{"node": node_id, "error": reason}],
+                    )
 
             # Update outputs
             outputs = dict(state.get("outputs", {}))

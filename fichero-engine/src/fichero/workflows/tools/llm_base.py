@@ -230,6 +230,16 @@ BASE_CONFIG_SCHEMA = {
         "description": "Export to file",
         "x-group": "advanced",
     },
+    # Quality gate (#1029) — when on, the builder aborts the run if this
+    # node's text output is garbage (box glyphs / mostly [ilegible]),
+    # instead of advancing the pipeline on unusable output. Stops on
+    # *failure*, not on empty output. Inherited by every node.
+    "quality_gate": {
+        "type": "boolean",
+        "default": True,
+        "description": "Stop the run if output is unreadable",
+        "x-group": "advanced",
+    },
     # Thinking mode
     "thinking_mode": {
         "type": "string",
