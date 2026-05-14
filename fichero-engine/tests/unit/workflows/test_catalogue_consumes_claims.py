@@ -135,3 +135,45 @@ class TestCatalogueWithExistingClaims:
         # generated programmatically from claim-derived dates, no LLM
         # call needed (small models hallucinate dates; sorting is free).
         assert mock_chat.call_count == 2
+
+
+class TestCatalogueSurfacesSilentFailures:
+    """When the LLM call inside _generate_resumen fails (Apple Intelligence
+    guardrail, quota, etc.), Path 2 (no claims) previously dropped the
+    failure on the floor — empty narrative was returned, no artifact
+    saved, but result["error"] stayed empty so the workflow looked
+    successful. (#1011)
+    """
+
+    @pytest.mark.asyncio
+    async def test_path2_llm_failure_surfaces_error(
+        self, db, test_package, container_doc, llm_config
+    ):
+        from fichero.workflows.tools.catalogue import catalogue
+
+        def _raise(*args, **kwargs):
+            raise RuntimeError("Apple Intelligence guardrail")
+
+        with patch(
+            "fichero.workflows.tools.catalogue.chat_with_fallback",
+            new=AsyncMock(side_effect=_raise),
+        ):
+            state = {
+                "library_path": str(test_package),
+                "selected_doc_ids": [container_doc.id],
+            }
+            result = await catalogue(
+                {"text": "Source transcript text"},
+                state,
+                llm_config,
+            )
+
+        # The catch in catalogue.py's Path 2 try/except converts the raw
+        # exception into result["error"] before _generate_resumen's
+        # internal handler can hit; either way the result must surface
+        # a non-empty error string and produce no artifacts.
+        assert result.get("artifacts") in (None, [])
+        assert result.get("error"), (
+            f"expected error message, got: {result!r}"
+        )
+        assert "guardrail" in result["error"].lower() or "Catalogue" in result["error"]

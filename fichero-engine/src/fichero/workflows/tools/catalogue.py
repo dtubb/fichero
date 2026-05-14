@@ -436,9 +436,13 @@ async def catalogue(
         # by Path 1 when claims exist. Without entity context, the LLM
         # works from raw transcripts only, but still survives Apple
         # Intelligence's small context window via chunking.
+        # Pass error_sink so any LLM failure surfaces as result["error"]
+        # rather than silently producing an empty narrative + no
+        # artifact. (#1011)
         try:
             paragraph = await _generate_resumen(
-                text, output_language, llm_config, claim_context=""
+                text, output_language, llm_config, claim_context="",
+                error_sink=catalogue_errors,
             )
         except Exception as exc:
             logger.error(f"Catalogue LLM call failed: {exc}")
@@ -570,6 +574,16 @@ async def catalogue(
         result["error"] = (
             f"Catalogue: {len(catalogue_errors)} LLM call(s) failed — "
             f"{actionable}"
+        )
+    elif not markdown and not saved_artifact_ids:
+        # #1011: catch the "ran successfully but produced nothing"
+        # case. Without an explicit error, the workflow appears to
+        # succeed but the inspector finds no catalogue artifact —
+        # the most confusing failure mode.
+        result["error"] = (
+            "Catalogue: LLM produced no narrative — no catalogue "
+            "artifact was saved. Check provider/model availability "
+            "and retry."
         )
 
     # Auto-refresh derived KG stores after a successful catalogue run
