@@ -16179,6 +16179,88 @@
         }
       }
     },
+    "/api/kg/review/graph-candidates": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Propose entity-merge candidates from co-occurrence overlap",
+        "description": "Runs the graph-context heuristic (#988) over the full co-occurrence graph: entities that are never directly co-mentioned but share a high-Jaccard neighbourhood are likely the same entity under different surface forms. Read-only \u2014 proposals are not persisted; promote one into the review queue via POST /api/kg/review/pairs.",
+        "operationId": "graph_candidates_api_kg_review_graph_candidates_get",
+        "parameters": [
+          {
+            "name": "threshold",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "default": 0.5,
+              "title": "Threshold"
+            }
+          },
+          {
+            "name": "min_shared",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2,
+              "title": "Min Shared"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GraphCandidateResponse"
+                  },
+                  "title": "Response Graph Candidates Api Kg Review Graph Candidates Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kg/review/pairs/{pair_id}/accept": {
       "post": {
         "tags": [
@@ -35678,6 +35760,50 @@
         },
         "type": "object",
         "title": "FrameworkUpdateRequest"
+      },
+      "GraphCandidateResponse": {
+        "properties": {
+          "entity_a_id": {
+            "type": "string",
+            "title": "Entity A Id"
+          },
+          "entity_b_id": {
+            "type": "string",
+            "title": "Entity B Id"
+          },
+          "name_a": {
+            "type": "string",
+            "title": "Name A"
+          },
+          "name_b": {
+            "type": "string",
+            "title": "Name B"
+          },
+          "shared_neighbours": {
+            "type": "integer",
+            "title": "Shared Neighbours"
+          },
+          "jaccard": {
+            "type": "number",
+            "title": "Jaccard"
+          },
+          "already_queued": {
+            "type": "boolean",
+            "title": "Already Queued"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_a_id",
+          "entity_b_id",
+          "name_a",
+          "name_b",
+          "shared_neighbours",
+          "jaccard",
+          "already_queued"
+        ],
+        "title": "GraphCandidateResponse",
+        "description": "One graph-context merge proposal \u2014 surfaced, not yet queued.\n\nComes from co-occurrence neighbourhood overlap (#988): the two\nentities are never directly co-mentioned but share neighbours, so\nthey may be the same entity under different surface forms. A human\npromotes a proposal into the review queue via POST /pairs."
       },
       "GraphMetrics": {
         "properties": {

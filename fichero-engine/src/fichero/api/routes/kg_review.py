@@ -135,6 +135,84 @@ async def list_pairs(
     return out
 
 
+class GraphCandidateResponse(BaseModel):
+    """One graph-context merge proposal — surfaced, not yet queued.
+
+    Comes from co-occurrence neighbourhood overlap (#988): the two
+    entities are never directly co-mentioned but share neighbours, so
+    they may be the same entity under different surface forms. A human
+    promotes a proposal into the review queue via POST /pairs.
+    """
+    entity_a_id: str
+    entity_b_id: str
+    name_a: str
+    name_b: str
+    shared_neighbours: int
+    jaccard: float
+    already_queued: bool
+
+
+@router.get(
+    "/graph-candidates",
+    response_model=list[GraphCandidateResponse],
+    summary="Propose entity-merge candidates from co-occurrence overlap",
+    description=(
+        "Runs the graph-context heuristic (#988) over the full "
+        "co-occurrence graph: entities that are never directly "
+        "co-mentioned but share a high-Jaccard neighbourhood are "
+        "likely the same entity under different surface forms. "
+        "Read-only — proposals are not persisted; promote one into "
+        "the review queue via POST /api/kg/review/pairs."
+    ),
+)
+async def graph_candidates(
+    threshold: float = Query(default=0.5, ge=0.0, le=1.0),
+    min_shared: int = Query(default=2, ge=1),
+    limit: int = Query(default=50, ge=1, le=500),
+    db: Database = Depends(get_library_database),
+) -> list[GraphCandidateResponse]:
+    from fichero.kg.graph import (
+        build_full_cooccurrence,
+        graph_context_merge_candidates,
+    )
+
+    g = build_full_cooccurrence(db)
+    candidates = graph_context_merge_candidates(
+        g, threshold=threshold, min_shared=min_shared, top_k=limit,
+    )
+    if not candidates:
+        return []
+
+    # Soft-deleted entities still appear as graph nodes — drop any
+    # candidate touching one (it was already merged away).
+    soft_deleted = {
+        e.id for e in db.query(KnowledgeEntity) if e.merged_into_id
+    }
+    # An unordered-pair lookup so already-decided/pending pairs get
+    # flagged regardless of which side is survivor vs candidate.
+    queued = {
+        frozenset((c.survivor_entity_id, c.candidate_entity_id))
+        for c in db.query(EntityMatchCandidate)
+    }
+
+    out: list[GraphCandidateResponse] = []
+    for cand in candidates:
+        if cand.entity_a_id in soft_deleted or cand.entity_b_id in soft_deleted:
+            continue
+        out.append(GraphCandidateResponse(
+            entity_a_id=cand.entity_a_id,
+            entity_b_id=cand.entity_b_id,
+            name_a=cand.name_a,
+            name_b=cand.name_b,
+            shared_neighbours=cand.shared_neighbours,
+            jaccard=cand.jaccard,
+            already_queued=frozenset(
+                (cand.entity_a_id, cand.entity_b_id)
+            ) in queued,
+        ))
+    return out
+
+
 class AcceptResponse(BaseModel):
     survivor_entity_id: str
     absorbed_entity_id: str

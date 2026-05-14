@@ -646,6 +646,7 @@ class PendingMatchMethod(str, Enum):
     embedding_cosine = "embedding_cosine"
     splink = "splink"
     manual = "manual"
+    graph_context = "graph_context"
 
 
 class EntityMatchCandidate(BaseModel):

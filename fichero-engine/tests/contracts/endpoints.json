@@ -2538,6 +2538,32 @@
         "response_model": "ReviewPairResponse"
       },
       {
+        "method": "GET",
+        "path": "/kg/review/graph-candidates",
+        "operation_id": "graph_candidates_api_kg_review_graph_candidates_get",
+        "summary": "Propose entity-merge candidates from co-occurrence overlap",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "threshold",
+            "required": false,
+            "type": "number"
+          },
+          {
+            "name": "min_shared",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[GraphCandidateResponse]"
+      },
+      {
         "method": "POST",
         "path": "/kg/review/pairs/{pair_id}/accept",
         "operation_id": "accept_pair_api_kg_review_pairs__pair_id__accept_post",
