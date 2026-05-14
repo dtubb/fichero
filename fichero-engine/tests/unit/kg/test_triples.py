@@ -289,3 +289,21 @@ class TestPersist:
         # File should contain the canonical_name as a literal.
         text = out.read_text(encoding="utf-8")
         assert "Eugenio C" in text  # accent encoded
+
+    def test_persist_emits_no_encoding_warning(self, tmp_path):
+        """rdflib's NTSerializer warns "always uses UTF-8 encoding. Given
+        encoding was: None" when persist() doesn't pass an explicit
+        encoding. Treat that warning as a failure. (#1026)"""
+        import warnings
+
+        ent = KnowledgeEntity(
+            id="e-1",
+            canonical_name="Eugenio Córdoba",
+            entity_type=EntityType.person,
+        )
+        g = triples.build_graph([ent], claims=[])
+        out = tmp_path / "kg.nt"
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            triples.persist(g, out, format="nt")
+        assert out.exists()

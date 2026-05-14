@@ -252,7 +252,10 @@ def persist(graph: Graph, path: Path | str, format: str = "nt") -> None:
     """
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    graph.serialize(destination=str(p), format=format)
+    # Pass encoding explicitly: rdflib's NTSerializer warns when encoding
+    # is None (it always uses UTF-8 anyway), and UTF-8 is the right
+    # choice for turtle / json-ld too. (#1026)
+    graph.serialize(destination=str(p), format=format, encoding="utf-8")
 
 
 def sparql(graph: Graph, query: str):
