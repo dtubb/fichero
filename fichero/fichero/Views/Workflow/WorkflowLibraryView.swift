@@ -66,6 +66,9 @@ struct WorkflowListView: View {
     @State private var workflowToRename: WorkflowSidebarItem?
     @State private var renameDraft: String = ""
     @ObservedObject var featureManager = FeatureManager.shared
+    /// Canonical "a run changed things" staleness tick — drives auto-refresh
+    /// in place of the removed manual Refresh button (#1022).
+    @Environment(WorkflowExecutionObserver.self) private var executionObserver
 
     /// View display mode from toolbar
     let displayMode: ViewDisplayMode
@@ -79,6 +82,9 @@ struct WorkflowListView: View {
             .task {
                 guard !Task.isCancelled else { return }
                 await loadWorkflows()
+            }
+            .onChange(of: executionObserver.workflowCompletedCount) { _, _ in
+                Task { await loadWorkflows() }
             }
             .sheet(isPresented: $showNewWorkflowSheet) {
                 NewWorkflowSheet { name, description in
@@ -207,16 +213,6 @@ struct WorkflowListView: View {
                     .disabled(isImporting)
                     .help("Import workflow from JSON file")
                 }
-            }
-
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    Task { await loadWorkflows() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .disabled(isLoading)
-                .help("Refresh workflow list")
             }
         }
     }
