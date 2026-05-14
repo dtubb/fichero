@@ -158,9 +158,14 @@ _SECTIONS: list[dict[str, Any]] = [
             '"verb": "...", "object": "..."}'
         ),
         "instruction": (
-            "List every named place — cities, towns, regions, countries, "
-            "neighbourhoods, addresses, rivers, mines, estates. 'name' "
-            "in Title Case (preserve original spelling and accents). "
+            "List every place — cities, towns, regions, countries, "
+            "neighbourhoods, addresses, rivers, mines, estates. This "
+            "includes geographic and land-use CATEGORIES, not just "
+            "proper names: 'agricultural zones', 'mining districts', "
+            "'territories', 'the highlands' all belong here. If a term "
+            "denotes a location or land area — even a generic one — it "
+            "is a place, NOT a keyword/concept. 'name' in Title Case "
+            "(preserve original spelling and accents). "
             "'alternative_spellings' = spelling variants in the text. "
             "Predicate split into 'verb' + 'object' so the claim text "
             "composes as 'f'{name} {verb} {object}.' — name is the "
@@ -248,12 +253,17 @@ _SECTIONS: list[dict[str, Any]] = [
             '"verb": "...", "object": "..."}'
         ),
         "instruction": (
-            "List significant events (incidents, decisions, hearings, "
-            "deaths, transactions, petitions, rulings, transfers). "
-            "'event' is a Title Case noun phrase naming the event "
-            "(e.g. 'Mining Boom', 'Petition to the Court'). 'date' is "
-            "YYYY-MM-DD (or YYYY-MM / YYYY) when stated, else null. "
-            "Predicate split into 'verb' + 'object' (past tense). "
+            "List significant events — any OCCURRENCE the text records. "
+            "This includes unnamed/generic occurrences: 'accident', "
+            "'flood', 'death', 'fire', 'strike' are events, NOT "
+            "keywords/concepts. If a term denotes something that "
+            "happened (an incident, decision, hearing, death, "
+            "transaction, petition, ruling, transfer), it is an event. "
+            "'event' is a noun phrase naming the occurrence — Title Case "
+            "for named events ('Mining Boom', 'Petition to the Court'), "
+            "or the bare noun for generic ones ('Accident', 'Flood'). "
+            "'date' is YYYY-MM-DD (or YYYY-MM / YYYY) when stated, else "
+            "null. Predicate split into 'verb' + 'object' (past tense). "
             "Example: event='Filing of the Petition', verb='was', "
             "object='submitted to the Constitutional Court by the heirs'."
         ),
@@ -314,10 +324,17 @@ _SECTIONS: list[dict[str, Any]] = [
         "schema_key": "keywords",
         "item_shape": '"keyword"',  # flat array of strings
         "instruction": (
-            "List descriptive keywords capturing themes, subjects, time "
-            "periods, and concepts present in the text. Include only what the "
-            "text actually discusses — no minimum count, no padding. Return as "
-            "a flat array of short strings (no objects)."
+            "List descriptive keywords for ABSTRACT ideas only — themes, "
+            "subjects, time periods, ideologies, theoretical constructs "
+            "(e.g. 'gender', 'food insecurity', 'land reform'). "
+            "Do NOT put places, events, people, or organizations here: "
+            "if a term names a location (even a land-use category like "
+            "'agricultural zones') it belongs in places; if it names an "
+            "occurrence (like 'accident' or 'flood') it belongs in "
+            "events. Keywords are concepts, not concrete entities. "
+            "Include only what the text actually discusses — no minimum "
+            "count, no padding. Return as a flat array of short strings "
+            "(no objects)."
         ),
     },
 ]

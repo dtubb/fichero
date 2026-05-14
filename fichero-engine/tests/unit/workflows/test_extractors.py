@@ -65,6 +65,44 @@ class TestPromptBuilding:
         assert '"keywords": ["keyword"]' in prompt
 
 
+class TestEntityTypeDisambiguation:
+    """#1009: 'agricultural zones' was typed Concept (should be Location)
+    and 'accident' Concept (should be Event). Root cause: extract_all gives
+    the LLM six parallel lists with no per-item type field, and `keywords`
+    (→ concept) was a catch-all with no exclusion rule. These tests guard
+    the disambiguation guidance in the shared instruction strings."""
+
+    def test_places_instruction_covers_land_use_categories(self):
+        section = next(s for s in _SECTIONS if s["name"] == "places_extract")
+        instr = section["instruction"].lower()
+        assert "agricultural zones" in instr
+        assert "categor" in instr  # categories / category
+
+    def test_events_instruction_covers_unnamed_occurrences(self):
+        section = next(s for s in _SECTIONS if s["name"] == "events_extract")
+        instr = section["instruction"].lower()
+        assert "accident" in instr
+        assert "occurrence" in instr
+
+    def test_keywords_instruction_excludes_concrete_entities(self):
+        section = next(s for s in _SECTIONS if s["name"] == "keywords_extract")
+        instr = section["instruction"].lower()
+        # Must explicitly steer places/events away from the concept bucket.
+        assert "do not put places, events" in instr
+        assert "agricultural zones" in instr
+        assert "accident" in instr
+
+    def test_extract_all_propagates_disambiguation_guidance(self):
+        """extract_all builds its system prompt from the same _SECTIONS
+        instruction strings — the fix must reach the combined call too."""
+        from fichero.workflows.tools.extract_all import _build_instructions
+
+        instructions = _build_instructions("English").lower()
+        assert "agricultural zones" in instructions
+        assert "accident" in instructions
+        assert "do not put places, events" in instructions
+
+
 class TestStripFences:
     def test_plain_json_untouched(self):
         assert _strip_fences('{"x": 1}') == '{"x": 1}'
