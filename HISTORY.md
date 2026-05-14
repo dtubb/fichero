@@ -1698,3 +1698,23 @@ Discovered along the way:
 - PR: N/A
 - Branch: 0.0.2
 - Task completed in session
+
+## 2026-05-14 — Session Summary (interactive testing + backend fixes)
+
+Long interactive 0.0.2 testing session with Daniel. Two halves: a backend fix sweep, then an extended catalogue/KG/search bug-triage pass.
+
+**Shipped (committed + pushed to 0.0.2, full pytest suite green ~2511, NOT yet verified by a real-app run):**
+- #1026 rdflib NTSerializer encoding warning — explicit `encoding="utf-8"` in `triples.persist`
+- #1020 collapsed `catalogue_mixed.json` into one Catalogue workflow
+- #1030 SVO repr-leak sanitizer — `_normalize_kwarg_repr_fields` in extractors.py
+- #1021 cascade-delete orphaned KG claims/entities on document delete (logged to MutationLog, reversible)
+- #1028 suppress lancedb spurious fork-safety warning (`_install_warning_filters` in main.py)
+- #1000 Phase 1 — workflow execution off the main event loop (worker thread + thread-safe queue + per-thread `db_manager` connections)
+- #1000 Phase 2 — `DBWriter` single-writer queue infra + wired into `db_manager` + `extract_all` artifact writes migrated; worker-thread connection-leak fixed
+- Architecture proposal: `agent-work/proposals/2026-05-14-workflow-execution-architecture.md`
+- docs/CLAUDE.md + memory: build the Swift app properly (Xcode MCP / shared DerivedData)
+- Housekeeping: removed 3 stale agent worktrees + the dead 0.0.3 branch/worktree; synced `.claude/CLAUDE.md` paths; nuked the dev library at Daniel's request
+
+**Bug inventory filed: #1020–#1060** (~21 new GitHub issues) + ~12 existing sharpened. Headline finding from live testing: the catalogue pipeline largely *works* — it had been running on a broken model config (`$large` = None, Vision/Audio misconfigured, #1057) → Apple Intelligence decode failures have no fallback → empty pages → no fail-fast (#1060) → no quality gate (#1029) → "successful" 30-min runs that are half-empty. Root cause confirmed by code reading.
+
+**Verification gap:** all backend commits are pushed but unverified by a real-app run — Daniel's build+test is the gate. Engine bundled-app needs a briefcase rebuild to pick up source changes; dev backend reads live source.
