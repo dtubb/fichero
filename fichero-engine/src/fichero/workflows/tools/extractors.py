@@ -30,6 +30,7 @@ from fichero.knowledge_models import EntityType
 import asyncio
 import json
 import logging
+import re
 from datetime import datetime
 from typing import Any
 
@@ -1289,6 +1290,71 @@ async def _run_extractor(
     return result
 
 
+# Keys the extractor prompt uses in its kwarg-style examples
+# ("name='X', verb='Y', object='Z'"). Weaker / fallback models
+# sometimes echo that whole literal string back into a *single*
+# field instead of returning structured keys — see #1030.
+_KWARG_REPR_KEYS = ("name", "verb", "object")
+_KWARG_REPR_SEGMENT = re.compile(
+    r"(name|verb|object)\s*=\s*(['\"])(.*?)\2"
+    r"(?=\s*,\s*(?:name|verb|object)\s*=|\s*$)",
+    re.DOTALL,
+)
+
+
+def _parse_kwarg_repr(text: str) -> dict[str, str] | None:
+    """Parse a Python-kwarg-style repr like ``verb='is', object='a mine'``
+    into ``{"verb": "is", "object": "a mine"}``.
+
+    Returns None when ``text`` doesn't *start* with one of the known
+    extractor keys followed by ``=`` and a quote — i.e. it's ordinary
+    prose, not a leaked repr. (#1030)
+    """
+    s = (text or "").strip()
+    if not re.match(r"^(name|verb|object)\s*=\s*['\"]", s):
+        return None
+    out: dict[str, str] = {}
+    for m in _KWARG_REPR_SEGMENT.finditer(s):
+        out[m.group(1)] = m.group(3).strip()
+    return out or None
+
+
+def _normalize_kwarg_repr_fields(item: dict) -> dict:
+    """Repair extractor items where the LLM dumped the prompt's
+    kwarg-example format ("verb='X', object='Y'") into one field
+    instead of returning structured keys.
+
+    Without this, ``verb`` / ``object`` carry the literal repr string,
+    which then composes into ``claim.text`` and the entity description
+    as raw ``verb='...', object='...'`` text in the UI. (#1030)
+
+    Returns the item unchanged when no field looks like a repr.
+    """
+    if not isinstance(item, dict):
+        return item
+    for field in ("object", "verb", "source_text", "context"):
+        val = item.get(field)
+        if not isinstance(val, str):
+            continue
+        parsed = _parse_kwarg_repr(val)
+        if not parsed:
+            continue
+        fixed = dict(item)
+        if parsed.get("verb"):
+            fixed["verb"] = parsed["verb"]
+        if parsed.get("object"):
+            fixed["object"] = parsed["object"]
+        # Only adopt a parsed name when the item has no real name.
+        if parsed.get("name") and not str(item.get("name") or "").strip():
+            fixed["name"] = parsed["name"]
+        # The repr lived in source_text/context — that's not a real
+        # verbatim quote, drop it so excerpt fallback stays clean.
+        if field in ("source_text", "context"):
+            fixed[field] = ""
+        return fixed
+    return item
+
+
 def _write_kg_rows(
     db,
     section: dict[str, Any],
@@ -1475,6 +1541,10 @@ def _write_kg_rows(
         if not isinstance(item, dict):
             # Keywords come through as bare strings — wrap minimally.
             item = {"name": str(item)}
+
+        # Repair items where the LLM echoed the prompt's kwarg example
+        # ("verb='X', object='Y'") into a single field. (#1030)
+        item = _normalize_kwarg_repr_fields(item)
 
         invariant_violations.extend(
             claim_item_violations(item, is_date_section=entity_type is None)

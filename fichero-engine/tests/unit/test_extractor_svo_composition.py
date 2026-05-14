@@ -17,6 +17,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from fichero.workflows.tools.extractors import (
+    _normalize_kwarg_repr_fields,
+    _parse_kwarg_repr,
     _SectionDate,
     _SectionEvent,
     _SectionPerson,
@@ -382,3 +384,98 @@ def test_every_section_prompt_mentions_svo(section_name: str, artifact: str) -> 
     # one section's prompt.
     assert "verb" in instruction.lower()
     assert "object" in instruction.lower()
+
+
+# =============================================================================
+# #1030 — kwarg-repr leak sanitizer
+# =============================================================================
+
+
+class TestParseKwargRepr:
+    def test_parses_verb_object_repr(self) -> None:
+        parsed = _parse_kwarg_repr("verb='is', object='a long-abandoned mine'")
+        assert parsed == {"verb": "is", "object": "a long-abandoned mine"}
+
+    def test_parses_name_verb_object_repr(self) -> None:
+        parsed = _parse_kwarg_repr(
+            "name='Eldorado', verb='is', object='a mine in Ontario, Canada'"
+        )
+        assert parsed == {
+            "name": "Eldorado",
+            "verb": "is",
+            "object": "a mine in Ontario, Canada",
+        }
+
+    def test_object_value_may_contain_commas_and_periods(self) -> None:
+        parsed = _parse_kwarg_repr(
+            "verb='welcomed', object='my attempts to learn their craft.'"
+        )
+        assert parsed == {
+            "verb": "welcomed",
+            "object": "my attempts to learn their craft.",
+        }
+
+    def test_double_quotes_also_parse(self) -> None:
+        parsed = _parse_kwarg_repr('verb="served as", object="the alcalde"')
+        assert parsed == {"verb": "served as", "object": "the alcalde"}
+
+    def test_ordinary_prose_returns_none(self) -> None:
+        assert _parse_kwarg_repr("served as the alcalde of Popayán") is None
+        assert _parse_kwarg_repr("") is None
+        assert _parse_kwarg_repr("a region where mining occurs") is None
+
+
+class TestNormalizeKwargReprFields:
+    def test_repr_in_object_field_is_redistributed(self) -> None:
+        item = {"name": "Eldorado", "verb": "", "object": "verb='is', object='a mine'"}
+        fixed = _normalize_kwarg_repr_fields(item)
+        assert fixed["verb"] == "is"
+        assert fixed["object"] == "a mine"
+        assert fixed["name"] == "Eldorado"
+
+    def test_repr_in_source_text_is_redistributed_and_cleared(self) -> None:
+        item = {
+            "name": "Leidy",
+            "source_text": "verb='cleared', object='gravel from a sluice'",
+        }
+        fixed = _normalize_kwarg_repr_fields(item)
+        assert fixed["verb"] == "cleared"
+        assert fixed["object"] == "gravel from a sluice"
+        assert fixed["source_text"] == ""
+
+    def test_clean_item_passes_through_unchanged(self) -> None:
+        item = {"name": "Chocó", "verb": "is", "object": "a region in Colombia"}
+        assert _normalize_kwarg_repr_fields(item) == item
+
+    def test_parsed_name_only_adopted_when_item_has_none(self) -> None:
+        item = {"name": "RealName", "object": "name='Wrong', verb='is', object='x'"}
+        fixed = _normalize_kwarg_repr_fields(item)
+        assert fixed["name"] == "RealName"
+        assert fixed["verb"] == "is"
+        assert fixed["object"] == "x"
+
+
+def test_write_kg_rows_sanitizes_kwarg_repr_in_object(_capture_save_claim) -> None:
+    """An item whose `object` field carries the leaked kwarg repr must
+    still compose a clean claim sentence — no raw verb='...' in the
+    output. (#1030)"""
+    db, captured = _capture_save_claim
+    _write_kg_rows(
+        db,
+        _people_section(),
+        items=[{
+            "name": "Louise Livingstone",
+            "verb": "",
+            "object": "verb='worked as', object='a journalist at a local paper'",
+        }],
+        container_id="doc-1",
+    )
+    assert len(captured) == 1
+    claim = captured[0]
+    assert "verb=" not in claim["text"]
+    assert "object=" not in claim["text"]
+    assert claim["text"] == (
+        "Louise Livingstone worked as a journalist at a local paper."
+    )
+    assert claim["metadata"]["verb"] == "worked as"
+    assert claim["metadata"]["object"] == "a journalist at a local paper"
