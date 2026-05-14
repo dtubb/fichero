@@ -6,6 +6,8 @@ Execute, stream, resume, and status-check workflows.
 
 import asyncio
 import logging
+import queue
+import threading
 from typing import AsyncGenerator
 from uuid import uuid4
 
@@ -111,13 +113,22 @@ async def stream_workflow_events(thread_id: str) -> StreamingResponse:
         )
 
     async def event_generator() -> AsyncGenerator[str, None]:
-        """Generate SSE events from the workflow's event queue."""
-        event_queue: asyncio.Queue = state["events"]
+        """Generate SSE events from the workflow's event queue.
+
+        The queue is a thread-safe ``queue.Queue`` — the workflow runs
+        on a dedicated worker thread (#1000), so the blocking ``.get()``
+        is offloaded to a thread-pool worker via ``run_in_executor`` to
+        keep the API event loop free.
+        """
+        event_queue: queue.Queue = state["events"]
+        loop = asyncio.get_running_loop()
 
         while True:
             try:
-                # Wait for next event with timeout
-                event = await asyncio.wait_for(event_queue.get(), timeout=60.0)
+                # Wait for next event with timeout, off the event loop.
+                event = await loop.run_in_executor(
+                    None, event_queue.get, True, 60.0
+                )
 
                 if event is None:
                     # Sentinel value - stream is complete
@@ -125,7 +136,7 @@ async def stream_workflow_events(thread_id: str) -> StreamingResponse:
 
                 yield format_sse(event)
 
-            except asyncio.TimeoutError:
+            except queue.Empty:
                 # Send keepalive comment to prevent connection timeout
                 yield ": keepalive\n\n"
 
@@ -195,8 +206,11 @@ async def execute_workflow(
         else:
             thread_id = request.thread_id
 
-        # Create event queue for this workflow
-        event_queue: asyncio.Queue = asyncio.Queue()
+        # Create event queue for this workflow. A thread-safe queue.Queue
+        # (not asyncio.Queue) because the workflow runs on a dedicated
+        # worker thread (#1000) and pushes events across the thread
+        # boundary; the SSE endpoint drains it via run_in_executor.
+        event_queue: queue.Queue = queue.Queue()
 
         # Register workflow state
         _set_workflow_state(
@@ -211,18 +225,30 @@ async def execute_workflow(
             },
         )
 
-        # Start background execution
-        # Note: We use asyncio.create_task instead of background_tasks.add_task
-        # because background_tasks runs after the response is sent, but we need
-        # the task to start immediately so events can begin flowing
-        asyncio.create_task(
-            _run_workflow_in_background(
-                thread_id=thread_id,
-                workflow=workflow,
-                request=request,
-                db=db,
+        # Start background execution on a DEDICATED WORKER THREAD with
+        # its own event loop (#1000). Previously this was
+        # asyncio.create_task on the FastAPI main loop — any tool node
+        # that did synchronous blocking work (a long DuckDB query, a
+        # sync embedding call, an fm-bridge subprocess wait) froze the
+        # whole loop, so /api/health stopped responding and the app
+        # blanked. Running on its own thread keeps the API loop free no
+        # matter what a tool node does. Cross-thread event delivery goes
+        # through the thread-safe queue.Queue created above.
+        def _run_workflow_thread() -> None:
+            asyncio.run(
+                _run_workflow_in_background(
+                    thread_id=thread_id,
+                    workflow=workflow,
+                    request=request,
+                    db=db,
+                )
             )
-        )
+
+        threading.Thread(
+            target=_run_workflow_thread,
+            name=f"workflow-{thread_id}",
+            daemon=True,
+        ).start()
 
         # Build stream URL
         base_url = str(http_request.base_url).rstrip("/")

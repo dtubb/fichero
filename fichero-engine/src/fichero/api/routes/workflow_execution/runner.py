@@ -6,8 +6,8 @@ Contains:
 - Background runner that streams SSE events
 """
 
-import asyncio
 import logging
+import queue
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -30,7 +30,8 @@ logger = logging.getLogger(__name__)
 # Background Task State
 # =============================================================================
 
-# Key: thread_id, Value: dict with workflow state and asyncio.Queue for events
+# Key: thread_id, Value: dict with workflow state and a thread-safe
+# queue.Queue for events (the workflow runs on a worker thread — #1000)
 _running_workflows: dict[str, dict[str, Any]] = {}
 
 
@@ -277,16 +278,27 @@ async def _run_workflow_in_background(
     """
     Run a workflow in the background, publishing events to a queue.
 
-    This function is spawned as a background task when the user calls /execute.
-    Events are stored in _running_workflows[thread_id]["events"] queue.
+    Runs on a dedicated worker thread with its own event loop (#1000),
+    spawned from the /execute route. Events go into
+    ``_running_workflows[thread_id]["events"]`` — a thread-safe
+    ``queue.Queue`` the SSE endpoint drains from the API loop.
     """
+    # Re-acquire the Database on THIS worker thread. The `db` passed in
+    # belongs to the API thread, and a DuckDB Connection is not
+    # thread-safe — db_manager keys connections by thread, so this
+    # returns a fresh connection to the same file for the worker. Tool
+    # nodes likewise get their own connection via db_manager. (#1000)
+    if hasattr(db, "path"):
+        from fichero.db_manager import db_manager
+        db = db_manager.get_database(db.path.parent)
+
     # Get the queue for this thread
     state = _get_workflow_state(thread_id)
     if not state:
         logger.error(f"No workflow state found for thread {thread_id}")
         return
 
-    event_queue: asyncio.Queue = state["events"]
+    event_queue: "queue.Queue" = state["events"]
     workflow_id = request.workflow_id
 
     # Activity tracking
@@ -306,7 +318,7 @@ async def _run_workflow_in_background(
         execution_log_lines.append(log_line)
         print(log_line)
         # Stream log line to frontend
-        await event_queue.put(
+        event_queue.put(
             SSEEvent(
                 event="log",
                 thread_id=thread_id,
@@ -330,7 +342,7 @@ async def _run_workflow_in_background(
         )
 
         # Send start event
-        await event_queue.put(
+        event_queue.put(
             SSEEvent(
                 event="start",
                 thread_id=thread_id,
@@ -408,7 +420,7 @@ async def _run_workflow_in_background(
         async def emit_parallel_event(event_type: str, data: dict) -> None:
             """Callback to emit SSE events from parallel node processing."""
             # Emit SSE event (existing behavior)
-            await event_queue.put(
+            event_queue.put(
                 SSEEvent(
                     event=event_type,
                     thread_id=thread_id,
@@ -596,7 +608,7 @@ async def _run_workflow_in_background(
                         }
                     )
 
-                    await event_queue.put(
+                    event_queue.put(
                         SSEEvent(
                             event="node_begin",
                             thread_id=thread_id,
@@ -645,7 +657,7 @@ async def _run_workflow_in_background(
                                 1 for r in file_results if r.get("success")
                             )
                             error_count = len(file_results) - success_count
-                            await event_queue.put(
+                            event_queue.put(
                                 SSEEvent(
                                     event="parallel_complete",
                                     thread_id=thread_id,
@@ -730,7 +742,7 @@ async def _run_workflow_in_background(
                                 ]
                             break
 
-                    await event_queue.put(
+                    event_queue.put(
                         SSEEvent(
                             event="node_end",
                             thread_id=thread_id,
@@ -819,7 +831,7 @@ async def _run_workflow_in_background(
         )
 
         # Send complete event
-        await event_queue.put(
+        event_queue.put(
             SSEEvent(
                 event="complete",
                 thread_id=thread_id,
@@ -870,7 +882,7 @@ async def _run_workflow_in_background(
             completed_at=datetime.now(timezone.utc),
         )
 
-        await event_queue.put(
+        event_queue.put(
             SSEEvent(
                 event="systemic_error",
                 thread_id=thread_id,
@@ -917,7 +929,7 @@ async def _run_workflow_in_background(
             completed_at=datetime.now(timezone.utc),
         )
 
-        await event_queue.put(
+        event_queue.put(
             SSEEvent(
                 event="error",
                 thread_id=thread_id,
@@ -928,4 +940,4 @@ async def _run_workflow_in_background(
 
     finally:
         # Signal end of stream
-        await event_queue.put(None)  # Sentinel to signal stream end
+        event_queue.put(None)  # Sentinel to signal stream end

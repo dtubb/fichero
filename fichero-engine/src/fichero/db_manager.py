@@ -18,29 +18,39 @@ logger = logging.getLogger(__name__)
 
 
 class DatabaseManager:
-    """Manages multiple Database instances for package documents.
+    """Manages Database instances for package documents — one per
+    (package, thread).
 
     Each .fichero package contains its own database files:
     - MyLibrary.fichero/fichero.duckdb
     - MyLibrary.fichero/lance/
 
-    The manager maintains a pool of open Database connections.
+    A DuckDB ``Connection`` is not safe to share across threads. Since
+    workflow execution now runs on a dedicated worker thread (#1000),
+    the manager keys its connection pool by ``(package_path, thread_id)``
+    so the API thread and a workflow worker thread each get their own
+    connection to the same file. DuckDB allows multiple in-process
+    connections to one database and serialises writes internally, so
+    cross-thread visibility still works — the threads just don't share
+    a ``Connection`` object.
     """
 
     def __init__(self):
-        self._databases: dict[str, Database] = {}
+        # Key: (package_str, thread_ident) -> Database
+        self._databases: dict[tuple[str, int], Database] = {}
         self._lock = threading.Lock()
         logger.info("DatabaseManager initialized")
 
     def get_database(self, package_path: str | Path) -> "Database":
-        """Get or create Database instance for a package.
+        """Get or create the Database instance for a package, scoped to
+        the calling thread.
 
         Args:
             package_path: Path to the .fichero package directory
                          (e.g., /Users/name/Documents/MyLibrary.fichero)
 
         Returns:
-            Database instance for this package
+            Database instance for this package, owned by the current thread.
         """
         from fichero.db import Database
         from fichero.db_migrations import (
@@ -54,11 +64,15 @@ class DatabaseManager:
 
         package_path = Path(package_path)
         package_str = str(package_path)
+        cache_key = (package_str, threading.get_ident())
 
         with self._lock:
-            if package_str not in self._databases:
+            if cache_key not in self._databases:
                 db_path = package_path / "fichero.duckdb"
-                logger.info(f"Creating database connection for package: {package_str}")
+                logger.info(
+                    f"Creating database connection for package: {package_str} "
+                    f"(thread {cache_key[1]})"
+                )
 
                 db = Database(path=db_path)
 
@@ -82,33 +96,35 @@ class DatabaseManager:
                     except Exception as exc:
                         logger.warning(f"Default workflow seeding skipped: {exc}")
 
-                self._databases[package_str] = db
+                self._databases[cache_key] = db
                 logger.info(f"Database connection created: {db_path}")
 
-            return self._databases[package_str]
+            return self._databases[cache_key]
 
     def close_database(self, package_path: str | Path):
-        """Close database connection for a package."""
+        """Close every thread's connection for a package."""
         package_str = str(Path(package_path))
 
         with self._lock:
-            if package_str in self._databases:
-                db = self._databases[package_str]
-                db.conn.close()
-                del self._databases[package_str]
-                logger.info(f"Closed database connection: {package_str}")
+            for key in [k for k in self._databases if k[0] == package_str]:
+                self._databases.pop(key).conn.close()
+                logger.info(
+                    f"Closed database connection: {package_str} (thread {key[1]})"
+                )
 
     @property
     def active_count(self) -> int:
-        """Return the number of currently open database connections."""
-        return len(self._databases)
+        """Number of distinct packages with at least one open connection."""
+        return len({key[0] for key in self._databases})
 
     def close_all(self):
-        """Close all database connections."""
+        """Close all database connections across every thread."""
         with self._lock:
-            for package_path, db in list(self._databases.items()):
+            for cache_key, db in list(self._databases.items()):
                 db.conn.close()
-                logger.info(f"Closed database: {package_path}")
+                logger.info(
+                    f"Closed database: {cache_key[0]} (thread {cache_key[1]})"
+                )
             self._databases.clear()
             logger.info("All database connections closed")
 
