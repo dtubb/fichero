@@ -7,7 +7,13 @@ clean text, empty output, or the legitimate no-text sentinels.
 
 from __future__ import annotations
 
-from fichero.workflows.tools.output_quality import assess_text_quality
+from fichero.workflows.tools.output_quality import (
+    assess_result_quality,
+    assess_text_quality,
+)
+
+_GARBAGE = "xvi ⍰⍰,⍰⍰ ⍰⍰,⍰⍰⍰"
+_CLEAN = "A genuine paragraph of archival text recorded by the clerk."
 
 
 class TestEmptyAndSentinels:
@@ -77,3 +83,77 @@ class TestGarbageText:
     def test_control_char_heavy_output_is_low_quality(self):
         is_low, _ = assess_text_quality("\x00\x01\x02\x03 \x04\x05 ab")
         assert is_low is True
+
+
+class TestAssessResultQuality:
+    """The all-or-nothing rule: some garbage pages = fine, all = stop."""
+
+    def test_single_garbage_text_stops(self):
+        should_stop, reason = assess_result_quality({"text": _GARBAGE})
+        assert should_stop is True and reason is not None
+
+    def test_single_clean_text_continues(self):
+        should_stop, _ = assess_result_quality({"text": _CLEAN})
+        assert should_stop is False
+
+    def test_some_garbage_pages_continue(self):
+        # 2 of 5 pages garbage — the document is still mostly usable.
+        records = [
+            {"doc_id": "1", "text": _CLEAN},
+            {"doc_id": "2", "text": _GARBAGE},
+            {"doc_id": "3", "text": _CLEAN},
+            {"doc_id": "4", "text": _GARBAGE},
+            {"doc_id": "5", "text": _CLEAN},
+        ]
+        should_stop, _ = assess_result_quality({"page_records": records})
+        assert should_stop is False
+
+    def test_all_garbage_pages_stop(self):
+        records = [{"doc_id": str(i), "text": _GARBAGE} for i in range(5)]
+        should_stop, reason = assess_result_quality({"page_records": records})
+        assert should_stop is True
+        assert reason and "all 5 pages" in reason
+
+    def test_garbage_and_empty_pages_stop(self):
+        # Garbage + blank pages, zero usable output — still stops.
+        records = [
+            {"doc_id": "1", "text": _GARBAGE},
+            {"doc_id": "2", "text": "   "},
+            {"doc_id": "3", "text": _GARBAGE},
+        ]
+        should_stop, _ = assess_result_quality({"page_records": records})
+        assert should_stop is True
+
+    def test_one_good_page_among_garbage_continues(self):
+        records = [{"doc_id": str(i), "text": _GARBAGE} for i in range(9)]
+        records.append({"doc_id": "9", "text": _CLEAN})
+        should_stop, _ = assess_result_quality({"page_records": records})
+        assert should_stop is False
+
+    def test_all_empty_pages_do_not_stop(self):
+        # No output at all is not this gate's job.
+        records = [{"doc_id": "1", "text": ""}, {"doc_id": "2", "text": "  "}]
+        should_stop, _ = assess_result_quality({"page_records": records})
+        assert should_stop is False
+
+    def test_page_records_preferred_over_joined_text(self):
+        # A node returns both: the joined text reads as garbage-heavy, but
+        # per-page granularity shows most pages are fine — continue.
+        result = {
+            "text": _GARBAGE + "\n\n" + _GARBAGE + "\n\n" + _CLEAN,
+            "page_records": [
+                {"doc_id": "1", "text": _CLEAN},
+                {"doc_id": "2", "text": _CLEAN},
+                {"doc_id": "3", "text": _GARBAGE},
+            ],
+        }
+        should_stop, _ = assess_result_quality(result)
+        assert should_stop is False
+
+    def test_texts_list_all_garbage_stops(self):
+        should_stop, _ = assess_result_quality({"texts": [_GARBAGE, _GARBAGE]})
+        assert should_stop is True
+
+    def test_empty_result_does_not_stop(self):
+        should_stop, _ = assess_result_quality({})
+        assert should_stop is False

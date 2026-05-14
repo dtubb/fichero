@@ -97,3 +97,58 @@ def assess_text_quality(text: str) -> tuple[bool, str | None]:
             )
 
     return (False, None)
+
+
+def _select_gate_texts(result: dict) -> list[str]:
+    """Pick the text outputs to quality-gate from a node result.
+
+    Prefers the finest granularity the result exposes so the all-or-
+    nothing rule is applied at the right level:
+    - ``page_records`` — per-page text for a multi-page document;
+    - ``texts`` — per-file text for a multi-file node;
+    - ``text`` — the single joined output (non-vision nodes).
+    """
+    page_records = result.get("page_records")
+    if isinstance(page_records, list) and page_records:
+        texts = [
+            str(r.get("text") or "")
+            for r in page_records
+            if isinstance(r, dict)
+        ]
+        if texts:
+            return texts
+
+    texts = result.get("texts")
+    if isinstance(texts, list) and texts:
+        return [str(t or "") for t in texts]
+
+    single = result.get("text")
+    if isinstance(single, str):
+        return [single]
+    return []
+
+
+def assess_result_quality(result: dict) -> tuple[bool, str | None]:
+    """Quality-gate a node's full result dict (#1029).
+
+    Returns ``(should_stop, reason)``. Stops only when **every** text
+    output the node produced is garbage — a few bad pages in an
+    otherwise-fine multi-page document do not abort the run; an
+    all-garbage result does.
+
+    Empty outputs are ignored, not counted as "good": a document of
+    garbage-and-blank pages still stops. A document with no output at
+    all does not — emptiness is each tool's own concern.
+    """
+    assessed: list[tuple[bool, str | None]] = []
+    for text in _select_gate_texts(result):
+        if not text.strip():
+            continue
+        assessed.append(assess_text_quality(text))
+
+    if assessed and all(is_low for is_low, _ in assessed):
+        reason = next((r for _, r in assessed if r), "unreadable output")
+        n = len(assessed)
+        prefix = f"all {n} pages" if n > 1 else "output"
+        return (True, f"{prefix} unreadable — {reason}")
+    return (False, None)
