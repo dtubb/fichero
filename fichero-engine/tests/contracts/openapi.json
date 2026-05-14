@@ -5780,7 +5780,7 @@
           "documents"
         ],
         "summary": "Delete Document",
-        "description": "Delete a document and all descendants.\n\nCleanup includes:\n- Descendant documents in the hierarchy\n- Artifacts attached to any deleted document\n- Vector embeddings for deleted documents",
+        "description": "Delete a document and all descendants.\n\nCleanup includes:\n- Descendant documents in the hierarchy\n- Artifacts attached to any deleted document\n- Vector embeddings for deleted documents\n- KG claims sourced from any deleted document + now-orphaned entities\n  (logged to MutationLog so the cascade is reversible \u2014 #1021)",
         "operationId": "delete_document_api_documents__doc_id__delete",
         "parameters": [
           {
