@@ -65,6 +65,39 @@ def _install_warning_filters() -> None:
 _install_warning_filters()
 
 
+class _HealthAccessLogFilter(logging.Filter):
+    """Drop uvicorn access-log lines for ``/api/health`` polls.
+
+    The SwiftUI app polls ``/api/health`` continuously; logging every
+    poll floods the backend log and buries the lines that matter when
+    diagnosing a real problem (#1000). The health endpoint still runs —
+    only its access-log noise is suppressed.
+
+    uvicorn's ``uvicorn.access`` records carry the request line in
+    ``record.args`` as ``(client, method, path, http_version, status)``.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if isinstance(args, tuple) and len(args) >= 3:
+            path = str(args[2])
+            if path == "/api/health" or path.startswith("/api/health?"):
+                return False
+        return True
+
+
+def _install_access_log_filter() -> None:
+    """Attach the health-poll filter to uvicorn's access logger.
+
+    Called from the FastAPI lifespan startup so it runs *after* uvicorn
+    has configured ``uvicorn.access`` — the filter is added to the logger
+    itself, so it survives regardless of which handlers are attached.
+    """
+    access_logger = logging.getLogger("uvicorn.access")
+    if not any(isinstance(f, _HealthAccessLogFilter) for f in access_logger.filters):
+        access_logger.addFilter(_HealthAccessLogFilter())
+
+
 def _validate_model_sync() -> bool:
     """Validate that Python and Swift models are in sync.
 
@@ -390,6 +423,10 @@ async def lifespan(app: FastAPI):
     # Startup: initialize database manager
     logger.info("Fichero API starting up...")
     logger.info("DatabaseManager initialized")
+
+    # Quiet the /api/health access-log spam now that uvicorn has
+    # configured its access logger (#1000).
+    _install_access_log_filter()
 
     # Seed built-in providers (Apple Vision/Transcribe) on first run
     _seed_builtin_providers()

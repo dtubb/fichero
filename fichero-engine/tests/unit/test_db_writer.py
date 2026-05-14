@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 
 import pytest
 
 os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 
 from fichero.db import Database  # noqa: E402
-from fichero.db_writer import DBWriter  # noqa: E402
+from fichero.db_writer import DBWriter, DBWriterError  # noqa: E402
 from fichero.models import Document, DocType  # noqa: E402
 
 
@@ -96,3 +97,67 @@ def test_stop_is_idempotent(db):
     writer.start()
     writer.stop()
     writer.stop()  # second stop is a no-op, not an error
+
+
+# -- #1000: bounded drain — flush()/stop() must fail loud, never hang ------
+
+def test_flush_returns_when_queue_drains(db):
+    writer = DBWriter(db)
+    writer.start()
+    try:
+        for i in range(5):
+            writer.save(_doc(f"drain-{i}"))
+        writer.flush(timeout=10)  # must not raise
+        assert writer.pending == 0
+    finally:
+        writer.stop()
+
+
+def test_flush_raises_when_writer_thread_dead(db):
+    """A dead writer thread with a write still queued must raise
+    DBWriterError, not block forever on queue.join() (#1000)."""
+    writer = DBWriter(db)
+    dead = threading.Thread(target=lambda: None)
+    dead.start()
+    dead.join()  # thread is now dead
+    writer._thread = dead
+    writer._started = True
+    writer._queue.put(object())  # unfinished_tasks == 1, never drained
+    with pytest.raises(DBWriterError, match="thread died"):
+        writer.flush(timeout=5)
+
+
+def test_flush_times_out_when_queue_never_drains(db):
+    """A live-but-stuck writer must make flush() time out and raise,
+    not hang the caller forever (#1000)."""
+    writer = DBWriter(db)
+    alive = threading.Thread(target=lambda: time.sleep(30), daemon=True)
+    alive.start()
+    writer._thread = alive
+    writer._started = True
+    writer._queue.put(object())  # never processed
+    started = time.monotonic()
+    with pytest.raises(DBWriterError, match="exceeded"):
+        writer.flush(timeout=1)
+    assert time.monotonic() - started < 5  # bounded, not hung
+
+
+def test_stop_returns_even_when_writer_wedged(db):
+    """stop() is called under the db_manager lock — it must always
+    return, logging loud rather than hanging on a wedged writer (#1000)."""
+    writer = DBWriter(db)
+    alive = threading.Thread(target=lambda: time.sleep(30), daemon=True)
+    alive.start()
+    writer._thread = alive
+    writer._started = True
+    writer._queue.put(object())  # never drained
+    started = time.monotonic()
+    writer.stop(timeout=1)  # must not raise, must not hang
+    assert time.monotonic() - started < 15
+    assert writer._started is False
+
+
+def test_flush_on_unstarted_writer_raises(db):
+    writer = DBWriter(db)
+    with pytest.raises(DBWriterError, match="not running"):
+        writer.flush(timeout=1)
