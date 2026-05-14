@@ -1718,3 +1718,12 @@ Long interactive 0.0.2 testing session with Daniel. Two halves: a backend fix sw
 **Bug inventory filed: #1020–#1060** (~21 new GitHub issues) + ~12 existing sharpened. Headline finding from live testing: the catalogue pipeline largely *works* — it had been running on a broken model config (`$large` = None, Vision/Audio misconfigured, #1057) → Apple Intelligence decode failures have no fallback → empty pages → no fail-fast (#1060) → no quality gate (#1029) → "successful" 30-min runs that are half-empty. Root cause confirmed by code reading.
 
 **Verification gap:** all backend commits are pushed but unverified by a real-app run — Daniel's build+test is the gate. Engine bundled-app needs a briefcase rebuild to pick up source changes; dev backend reads live source.
+
+## 2026-05-14 (PM) — Session Summary
+
+- Wrote `docs/agent-workflow/parallel-execution.md` (#1061) — when to use single session / subagents / agent teams + the QA review gate; wired into both CLAUDE.md files.
+- Shipped 8 fixes to `0.0.2` (pytest-green, subagent-verified, NOT yet real-run verified): #1060 (extract_all fail-fast on systemic errors), #1037 (extract_all per-chunk timing instrumentation), #1029 (generic quality gate — all-or-nothing), #1051 (keyword over-extraction), #1033 (transcribe re-OCR of digital PDFs), #1027 (Apple decode-error on-device retry), #1022 (remove workflow Refresh button), #1023 (remove library filter/zoom toolbar controls).
+- Filed 11 new bugs from Daniel's live testing: #1062–#1071. Reconfirmed + commented #1030, #1047, #1050, #1055.
+- Diagnosed #1000: a real catalogue run hung at 80% — backend main thread deadlocked in `__semwait_signal` (DBWriter Future/queue). #1000 Phase 1 did not fully fix the freeze.
+- Confirmed the Xcode MCP works for the agent end-to-end (BuildProject + RunAllTests, 683 Swift tests green).
+- Triaged the 64-issue 0.0.2 milestone into ~6 root-cause clusters; set up a phased overnight autonomous-loop plan (backend release-blockers → SwiftUI-logic audit → SwiftUI rendering/polish).

@@ -2,33 +2,25 @@
 
 ## Next Session — Start Here
 
-**Latest commit: `c8ba417f`. Branch: 0.0.2.** Backend pipeline-trust cluster sweep — 7 fixes shipped (committed + pushed, pytest-green, **NOT yet verified by a real-app run**). Process change this session: build/lint/test runs offloaded to `test-runner` subagents so the lead's context stays clear; see `docs/agent-workflow/parallel-execution.md`.
-
-### Shipped this session (pushed to 0.0.2, subagent-verified, pending on-device check)
-
-- **#1061** `f14346b9` — parallel-execution process docs (when to use single session / subagents / agent teams + QA review gate).
-- **#1060 + #1037** `d17b5fb8` — `extract_all` fails-fast on systemic errors (`_classify_systemic_error`); per-LLM-call timing instrumentation.
-- **#1029** `10939bc1` + `0efb995b` — generic quality gate (`output_quality.py` + builder check + `quality_gate` in `BASE_CONFIG_SCHEMA`). Stops the run only when **all** pages are garbage; some-garbage continues.
-- **#1051** `5b0d1362` — keyword extractor salience bar (5-8 most salient) + `_KeywordsResult` runaway cap.
-- **#1033** `7ef16274` — transcribe re-OCR'd born-digital PDFs in LLM vision mode; `_try_pdf_text_layer` hoisted out of the apple-only branch + `force_ocr` override.
-- **#1027** `c8ba417f` — `StructuredDecodeError` carries `.kind`; `chat_structured_with_fallback` retries `decoding`/`generation` once on-device before the paid `$large` fallback (the doable half — chunk-smaller / simplify-schema need real-data tuning, deferred).
+**Latest commit: `4127c2ca`. Branch: 0.0.2.** An overnight autonomous loop was launched at session end (`agent-autonomous-loop.py`, 3-phase scope: backend release-blockers → SwiftUI-logic audit → SwiftUI rendering/polish). **Check its output FIRST.**
 
 ### What to do first
 
-1. **Verify the pushed backend work** — none of this session's commits (nor the prior session's #1000 Phase 1/2) is confirmed by a real run. Build + run a real catalogue workflow on a born-digital PDF: confirm transcribe uses the text layer (#1033), the quality gate stops an all-garbage run (#1029), `extract_all` timing logs appear (#1037), and Apple decode failures retry before paying (#1027).
-2. **#1054 needs Daniel's input** — the `min_score` threshold already exists and works (`db.py:664`); the marginal 42-50% results are above the 0.3 default. It's a tuning decision (what floor?) + possible UX work, not a bug. See the analysis comment on the issue.
-3. **#1025 is a Swift task** — the mermaid *source* endpoint already exists (`visualization.py:84`); only the `.png` endpoint hits mermaid.ink. The fix is app-side: render `mermaid_code` in a WKWebView with bundled mermaid.js. Do it in the Xcode session.
+1. **Review what the overnight loop did** — `git log --oneline 0.0.2` since `4127c2ca`; read `agent-work/proposals/swiftui-logic-audit.md` if Phase B ran; check for `BLOCK.md` (loop stopped itself) + iteration logs noting skipped issues. The loop commits directly to `0.0.2`, gated (pytest / 3-leg check) per commit.
+2. **Verify on a real run** — build + run a real catalogue workflow on a born-digital PDF. Nothing the loop (or the prior sessions) shipped is confirmed by a real-app run. Restart the dev backend first — it gets cache-polluted by Swift test runs (see MEMORY `feedback_runalltests_pollutes_dev_backend`).
+3. **#1000 is the live release-blocker** — a real run hung at 80% with the backend main thread deadlocked in `__semwait_signal` (DBWriter Future/queue). #1000 Phase 1 did NOT fully fix the freeze. If the loop's Phase A fixed it, verify; if not, top priority. Diagnosis on issue #1037.
 
-### Other open 0.0.2 work
+### State of the 0.0.2 milestone
 
-- Swift UI cluster (#1041/#1044/#1055, #1046/#1053, #1058/#1059, #1048/#1050, #1034-#1036, #1042/#1049, #1025) — needs an Xcode session for the 3-leg check. The `quality_gate` toggle (#1029) and `force_ocr` (#1033) should be eyeballed in the node editor here.
-- #1057 model-defaults — backend + Swift; the systemic error #1060 now aborts on, so worth pairing.
-- #1056 — Stop button for workflow runs (cleanly implementable on the #1000 worker-thread seam).
-- #1043 — dependency/langchain update sweep, deferred post-0.0.2.
+- **64 open issues** — triaged into ~6 root-cause clusters (backend-freeze, re-run-not-idempotent, inspector-doesn't-show-KG, search, workflow/activity UI, viewer polish). Needs ruthless triage: move non-crash/freeze/data-loss issues to 0.0.3.
+- **Shipped this session, unverified:** #1060, #1037, #1029, #1051, #1033, #1027, #1022, #1023, + docs #1061.
+- **Filed this session:** #1062–#1071 (Daniel's testing pass); reconfirmed/commented #1030, #1047, #1050, #1055.
+- **Needs Daniel's input:** #1054 (search threshold value), #1057 (model-defaults UI decision).
 
 ### Don't break
 
-- `db_manager` is per-`(path, thread)`; workflow execution runs on a worker thread; `DBWriter` exists. Read `agent-work/proposals/2026-05-14-workflow-execution-architecture.md` before touching workflow execution or the DB write path.
-- `extract_all._classify_systemic_error` (#1060), `output_quality.py` + builder quality gate (#1029), `_try_pdf_text_layer` is now hoisted above the vision-mode branch in `process_vision` (#1033) — all new this session.
-- `builder._execute_node` converts any tool's `result["error"]` into a `SystemicErrorDetected` abort, and now also gates on garbage output (#1029). Tools surfacing partial success must NOT set `error`.
+- `builder._execute_node` converts any tool's `result["error"]` into a `SystemicErrorDetected` abort, AND gates on garbage output (#1029, `output_quality.assess_result_quality`). Tools surfacing partial success must NOT set `error`.
+- `extract_all._classify_systemic_error` (#1060); `_try_pdf_text_layer` hoisted above the vision-mode branch in `process_vision` (#1033) + `force_ocr`; `StructuredDecodeError.kind` + `RETRYABLE_KINDS` (#1027).
+- `#1000` worker-thread move did **not** fully fix the freeze — the DBWriter can still deadlock the backend. Read `agent-work/proposals/2026-05-14-workflow-execution-architecture.md` + the updated `project_workflow_execution_threading` memory before touching the DB write path.
+- KG/entity *logic* belongs in the backend, not SwiftUI — see `feedback_kg_logic_in_backend` memory; scope the KG cluster as backend endpoints + thin rendering.
 - `StructuredDecodeError` IS an `AppleUnavailableError` subclass by design (#949/#962) — don't revert.
