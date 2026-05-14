@@ -40,15 +40,25 @@ The backend must be running on port 8765 before launching the Swift app.
 
 ### Frontend (Swift/SwiftUI)
 
-```bash
-# Build the Swift app
-xcodebuild -project fichero/fichero.xcodeproj -scheme Fichero -configuration Debug
+**Build the app properly — keep the cache warm and shared.** The goal: an agent build should leave the user's ⌘R in Xcode *incremental*, never a cold rebuild.
 
+1. **Preferred — build through the Xcode MCP** (`mcp__xcode__BuildProject`, with a `tabIdentifier` from `mcp__xcode__XcodeListWindows`). This drives Xcode.app's own build system, so there is **no `build.db` lock contention** and the cache is *inherently* shared with the user's ⌘R. Use this whenever the Xcode MCP server is connected and the project is open in Xcode.
+
+2. **Fallback — CLI `xcodebuild` into the shared/default DerivedData** (when Xcode/MCP isn't available):
+   ```bash
+   xcodebuild -project fichero/fichero.xcodeproj -scheme Fichero \
+     -configuration Debug -skipPackagePluginValidation build
+   ```
+   - **No `-derivedDataPath`** — build into the default location so the build warms Xcode.app's cache. An isolated `-derivedDataPath /tmp/...` gives the user a cold rebuild every time.
+   - Always pass `-skipPackagePluginValidation` — the OpenAPIGenerator SPM plugin fails the build without it.
+   - **Lock caveat:** Xcode.app holds an exclusive lock on `build.db` whenever the project is *open* (not just while building). A CLI build into the same DerivedData then fails with `database is locked`. If that happens: prefer option 1 (the MCP), or ask the user to quit Xcode; only fall back to `-derivedDataPath /tmp/fichero-cli-dd` as a last resort (cold-cache cost).
+
+```bash
 # Run SwiftLint (code quality)
 swiftlint lint fichero/fichero/
 ```
 
-**Preferred method**: Open `fichero/fichero.xcodeproj` in Xcode and run (⌘R).
+**Preferred method (for the user):** open `fichero/fichero.xcodeproj` in Xcode and run (⌘R).
 
 ### Testing
 
