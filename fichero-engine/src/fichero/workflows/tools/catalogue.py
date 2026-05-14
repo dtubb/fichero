@@ -322,8 +322,8 @@ def _resolve_container_doc(
 
 @register_tool(
     name="catalogue",
-    display_name="Catalogue",
-    description="Generate nine-section archival catalogue entry for a folder",
+    display_name="Archival Summary",
+    description="Compose nine-section archival summary for a folder (leaf node of the Catalogue workflow)",
     category="llm",
     icon="books.vertical",
     color="brown",
