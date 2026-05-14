@@ -2,26 +2,32 @@
 
 ## Next Session — Start Here
 
-**Latest commit: `0fe95d7e`. Branch: 0.0.2.** Long interactive testing session — 7 backend fixes + #1000 Phase 1/2 shipped (committed + pushed, pytest-green ~2511, **NOT yet verified by a real-app run**), and ~21 new issues filed (#1020–#1060) from live catalogue/KG/search testing.
+**Latest commit: `7ef16274`. Branch: 0.0.2.** Backend pipeline-trust cluster sweep — 6 fixes shipped (committed + pushed, pytest-green, **NOT yet verified by a real-app run**). Process change this session: build/lint/test runs offloaded to `test-runner` subagents so the lead's context stays clear; see `docs/agent-workflow/parallel-execution.md`.
+
+### Shipped this session (pushed to 0.0.2, subagent-verified, pending on-device check)
+
+- **#1061** `f14346b9` — parallel-execution process docs (when to use single session / subagents / agent teams + QA review gate).
+- **#1060 + #1037** `d17b5fb8` — `extract_all` fails-fast on systemic errors (`_classify_systemic_error`); per-LLM-call timing instrumentation.
+- **#1029** `10939bc1` + `0efb995b` — generic quality gate (`output_quality.py` + builder check + `quality_gate` in `BASE_CONFIG_SCHEMA`). Stops the run only when **all** pages are garbage; some-garbage continues.
+- **#1051** `5b0d1362` — keyword extractor salience bar (5-8 most salient) + `_KeywordsResult` runaway cap.
+- **#1033** `7ef16274` — transcribe re-OCR'd born-digital PDFs in LLM vision mode; `_try_pdf_text_layer` hoisted out of the apple-only branch + `force_ocr` override.
 
 ### What to do first
 
-1. **Verify the pushed backend work** — none of this session's commits (#1026/#1020/#1030/#1021/#1028, #1000 Phase 1+2) is confirmed by a real run. Build + run a real workflow. Engine bundled-app needs a briefcase rebuild; the dev backend reads live source.
-2. **Fix the pipeline-trust cluster** — headline finding: catalogue runs "succeed" but come back half-empty because the model config is broken. Chain: **#1057** (`$large`=None / Vision+Audio misconfigured, UI can't fix it) → no fallback → **#1027** decode failures → **#1060** (`extract_all` never fails-fast, returns "success" at 100% chunk failure) → **#1029** (no quality gate, failed pages marked "Completed"). Fix #1060 + #1029 + #1037 (NER per-chunk logging) backend-first — all pytest-verifiable. #1057's UI half needs Xcode.
-3. **#1000 Phase 2 next increment** — migrate KG entity/claim writes onto `DBWriter` (`upsert_entity` is read-modify-write — block on the writer Future; `save_claim` stays async). Wants review — see the proposal.
+1. **Verify the pushed backend work** — none of this session's commits (nor the prior session's #1000 Phase 1/2) is confirmed by a real run. Build + run a real catalogue workflow on a born-digital PDF: confirm transcribe uses the text layer (#1033), the quality gate stops an all-garbage run (#1029), and `extract_all` timing logs appear (#1037).
+2. **#1054 needs Daniel's input** — the `min_score` threshold already exists and works (`db.py:664`); the marginal 42-50% results are above the 0.3 default. It's a tuning decision (what floor?) + possible UX work, not a bug. See the analysis comment on the issue.
+3. **Remaining backend cluster** — #1027 (Apple decode → paid fallback), #1025 (local mermaid rendering). #1027 is tightly coupled to #1057 (`$large`=None).
 
 ### Other open 0.0.2 work
 
-- ~21 new issues #1020–#1060 — theme clusters: views-don't-re-read-live-data (#1041/#1044/#1055), search (#1032/#1046/#1053/#1054), model-selection (#1057/#1058/#1059), NER-black-box (#1037/#1048), entity-description-is-one-claim (#1050). The Swift UI cluster needs an Xcode session for the 3-leg check.
+- Swift UI cluster (#1041/#1044/#1055, #1046/#1053, #1058/#1059, #1048/#1050, #1034-#1036, #1042/#1049) — needs an Xcode session for the 3-leg check. The `quality_gate` toggle (#1029) should be eyeballed in the node editor here.
+- #1057 model-defaults — backend + Swift; the systemic error #1060 now aborts on, so worth pairing.
 - #1056 — Stop button for workflow runs (cleanly implementable on the #1000 worker-thread seam).
 - #1043 — dependency/langchain update sweep, deferred post-0.0.2.
 
-### Process (Daniel's ask — see the QA-process issue)
-
-Daniel wants a QA-review process — frontend/backend/security review agents — and to offload build/lint/test to subagents / agent-teams so the main agent's context stays clear, possibly run as an autonomous loop. The recurring bug patterns (see MEMORY.md) slipped through because there's no review gate on direct-to-0.0.2 commits. Filed as a GitHub issue.
-
 ### Don't break
 
-- `db_manager` is now per-`(path, thread)`; workflow execution runs on a worker thread; `DBWriter` exists. Read `agent-work/proposals/2026-05-14-workflow-execution-architecture.md` before touching workflow execution or the DB write path.
-- `extractors.py` `_normalize_kwarg_repr_fields` (#1030), `documents.py` `_cascade_delete_kg_rows` (#1021), `main.py` `_install_warning_filters` (#1028) — all new this session.
+- `db_manager` is per-`(path, thread)`; workflow execution runs on a worker thread; `DBWriter` exists. Read `agent-work/proposals/2026-05-14-workflow-execution-architecture.md` before touching workflow execution or the DB write path.
+- `extract_all._classify_systemic_error` (#1060), `output_quality.py` + builder quality gate (#1029), `_try_pdf_text_layer` is now hoisted above the vision-mode branch in `process_vision` (#1033) — all new this session.
+- `builder._execute_node` converts any tool's `result["error"]` into a `SystemicErrorDetected` abort, and now also gates on garbage output (#1029). Tools surfacing partial success must NOT set `error`.
 - `StructuredDecodeError` IS an `AppleUnavailableError` subclass by design (#949/#962) — don't revert.
