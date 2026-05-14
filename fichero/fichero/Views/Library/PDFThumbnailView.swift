@@ -417,7 +417,12 @@ struct PDFPageView: NSViewRepresentable {
 
 // MARK: - PDFPageWithToolbar
 
-/// PDFPageView with a zoom toolbar matching the ZoomableImagePreview toolbar (#656).
+/// PDFPageView previously bundled its own zoom toolbar (#656). The
+/// embedded toolbar duplicated the document inspector's zoom controls
+/// + the LibraryView icon-zoom strip, producing two stacked sets of
+/// magnifier pills (#1010). The toolbar is now removed; PDFKit's
+/// native ⌘+ / ⌘- still work, and the inspector toolbar remains the
+/// canonical zoom surface.
 struct PDFPageWithToolbar: View {
     let path: String
     let pageIndex: Int
@@ -426,56 +431,11 @@ struct PDFPageWithToolbar: View {
     @StateObject private var zoom = PDFZoomController()
 
     var body: some View {
-        VStack(spacing: 0) {
-            pdfZoomToolbar
-            Divider()
-            PDFPageView(
-                path: path,
-                pageIndex: pageIndex,
-                onPageIndexChange: onPageIndexChange,
-                zoomController: zoom
-            )
-        }
-    }
-
-    @ViewBuilder
-    private var pdfZoomToolbar: some View {
-        HStack(spacing: 12) {
-            Button(action: zoom.zoomOut) {
-                Image(systemName: "minus.magnifyingglass")
-            }
-            .buttonStyle(.plain)
-            .help("Zoom Out")
-
-            Text("\(Int(zoom.scale * 100))%")
-                .font(.caption)
-                .monospacedDigit()
-                .frame(width: 50)
-
-            Button(action: zoom.zoomIn) {
-                Image(systemName: "plus.magnifyingglass")
-            }
-            .buttonStyle(.plain)
-            .help("Zoom In")
-
-            Divider().frame(height: 16)
-
-            Button(action: zoom.fitToWindow) {
-                Image(systemName: "arrow.up.left.and.arrow.down.right")
-            }
-            .buttonStyle(.plain)
-            .help("Fit to Window")
-
-            Button(action: zoom.actualSize) {
-                Image(systemName: "1.square")
-            }
-            .buttonStyle(.plain)
-            .help("Actual Size (100%)")
-
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color(.windowBackgroundColor))
+        PDFPageView(
+            path: path,
+            pageIndex: pageIndex,
+            onPageIndexChange: onPageIndexChange,
+            zoomController: zoom
+        )
     }
 }
