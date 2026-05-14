@@ -287,6 +287,78 @@ async def update_document(
     return doc
 
 
+def _cascade_delete_kg_rows(db: Database, doc_ids: set[str]) -> tuple[int, int]:
+    """Delete KG claims sourced from any of ``doc_ids`` and prune entities
+    left with no remaining claims.
+
+    Without this, deleting a source document leaves orphaned
+    ``KnowledgeClaim`` rows pointing at a ``source_document_id`` that
+    404s, and ``KnowledgeEntity`` rows with nothing behind them (#1021).
+
+    Every deletion is recorded as a ``MutationLog`` ``delete`` entry
+    (``before_state`` = the full row), so it's reversible via the
+    existing ``POST /api/kg/mutations/{id}/undo`` path.
+
+    Returns ``(claims_deleted, entities_pruned)``.
+    """
+    from fichero.knowledge_models import (
+        KnowledgeClaim,
+        KnowledgeEntity,
+        MutationLog,
+        MutationOperationType,
+    )
+
+    all_claims = db.query(KnowledgeClaim)
+    orphaned = [
+        c for c in all_claims
+        if c.source_document_id in doc_ids
+        or any(sid in doc_ids for sid in (c.source_ids or []))
+    ]
+    if not orphaned:
+        return (0, 0)
+
+    orphaned_ids = {c.id for c in orphaned}
+    touched_entity_ids: set[str] = set()
+    for claim in orphaned:
+        touched_entity_ids.update(claim.entity_ids or [])
+        db.save(MutationLog(
+            entity_type="KnowledgeClaim",
+            entity_id=claim.id,
+            operation=MutationOperationType.delete,
+            before_state=claim.model_dump(mode="json"),
+            after_state=None,
+            created_by="cascade_delete_document",
+        ))
+        db.delete(claim)
+
+    # Prune entities whose only claims were the ones we just deleted.
+    # An entity referenced by a claim sourced from a *different* document
+    # survives — we only drop the genuinely-orphaned ones.
+    remaining_entity_ids: set[str] = set()
+    for claim in all_claims:
+        if claim.id in orphaned_ids:
+            continue
+        remaining_entity_ids.update(claim.entity_ids or [])
+
+    entities_pruned = 0
+    for entity_id in touched_entity_ids - remaining_entity_ids:
+        entity = db.get(KnowledgeEntity, entity_id)
+        if entity is None:
+            continue
+        db.save(MutationLog(
+            entity_type="KnowledgeEntity",
+            entity_id=entity.id,
+            operation=MutationOperationType.delete,
+            before_state=entity.model_dump(mode="json"),
+            after_state=None,
+            created_by="cascade_delete_document",
+        ))
+        db.delete(entity)
+        entities_pruned += 1
+
+    return (len(orphaned), entities_pruned)
+
+
 @router.delete("/{doc_id}", status_code=204)
 async def delete_document(doc_id: str, db: Database = Depends(get_library_database)):
     """Delete a document and all descendants.
@@ -295,6 +367,8 @@ async def delete_document(doc_id: str, db: Database = Depends(get_library_databa
     - Descendant documents in the hierarchy
     - Artifacts attached to any deleted document
     - Vector embeddings for deleted documents
+    - KG claims sourced from any deleted document + now-orphaned entities
+      (logged to MutationLog so the cascade is reversible — #1021)
     """
     doc = db.get(Document, doc_id)
     if not doc:
@@ -317,13 +391,23 @@ async def delete_document(doc_id: str, db: Database = Depends(get_library_databa
             db.delete(artifact)
         db.delete_embedding(current_id)
 
+    # Cascade KG cleanup before the documents go — claims reference docs
+    # by id string, so order doesn't matter, but doing it here keeps the
+    # teardown in one place.
+    claims_deleted, entities_pruned = _cascade_delete_kg_rows(
+        db, set(to_delete_ids)
+    )
+
     # Delete children first for clean hierarchical teardown.
     for current_id in reversed(to_delete_ids):
         current_doc = db.get(Document, current_id)
         if current_doc:
             db.delete(current_doc)
 
-    logger.info(f"Deleted document subtree: root={doc_id}, total={len(to_delete_ids)}")
+    logger.info(
+        f"Deleted document subtree: root={doc_id}, total={len(to_delete_ids)}, "
+        f"kg_claims_deleted={claims_deleted}, kg_entities_pruned={entities_pruned}"
+    )
 
 
 @router.get("/{doc_id}/related", response_model=list[RelatedDocumentsResponse])

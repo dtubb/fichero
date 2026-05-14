@@ -5,7 +5,6 @@ hierarchical collections. Tests cover CRUD, hierarchy traversal, and
 pagination. No external dependencies; uses real in-memory DB fixture.
 """
 
-import pytest
 from fichero.models import Document, DocType
 
 
@@ -204,3 +203,72 @@ class TestDeleteDocument:
         client.delete(f"/api/documents/{parent.id}")
         r = client.get(f"/api/documents/{child.id}")
         assert r.status_code == 404
+
+    def test_delete_cascades_to_kg_claims_and_orphan_entities(self, client, db):
+        """Deleting a source document removes the claims it sourced and
+        prunes entities left with no remaining claims — logged to
+        MutationLog so the cascade is reversible. (#1021)"""
+        from fichero.knowledge_models import (
+            KnowledgeClaim,
+            KnowledgeEntity,
+            MutationLog,
+        )
+
+        doc = _make_doc(db, "Source Doc")
+        entity = KnowledgeEntity(canonical_name="Eldorado")
+        db.save(entity)
+        claim = KnowledgeClaim(
+            text="Eldorado is a mine.",
+            source_document_id=doc.id,
+            entity_ids=[entity.id],
+        )
+        db.save(claim)
+
+        r = client.delete(f"/api/documents/{doc.id}")
+        assert r.status_code == 204
+
+        # Claim sourced from the deleted doc is gone.
+        assert db.get(KnowledgeClaim, claim.id) is None
+        # Entity had no other claims → pruned.
+        assert db.get(KnowledgeEntity, entity.id) is None
+        # Both deletions are logged and reversible.
+        logs = {
+            (m.entity_type, m.entity_id): m
+            for m in db.query(MutationLog)
+        }
+        claim_log = logs[("KnowledgeClaim", claim.id)]
+        assert claim_log.operation.value == "delete"
+        assert claim_log.before_state is not None
+        assert claim_log.after_state is None
+        entity_log = logs[("KnowledgeEntity", entity.id)]
+        assert entity_log.operation.value == "delete"
+        assert entity_log.before_state is not None
+
+    def test_delete_keeps_entities_still_referenced_by_other_docs(self, client, db):
+        """An entity referenced by a claim sourced from a *different*
+        document survives — only genuinely-orphaned entities are pruned.
+        (#1021)"""
+        from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+
+        doc_a = _make_doc(db, "Doc A")
+        doc_b = _make_doc(db, "Doc B")
+        shared = KnowledgeEntity(canonical_name="Chocó")
+        db.save(shared)
+        db.save(KnowledgeClaim(
+            text="Chocó claim from A.",
+            source_document_id=doc_a.id,
+            entity_ids=[shared.id],
+        ))
+        claim_b = KnowledgeClaim(
+            text="Chocó claim from B.",
+            source_document_id=doc_b.id,
+            entity_ids=[shared.id],
+        )
+        db.save(claim_b)
+
+        r = client.delete(f"/api/documents/{doc_a.id}")
+        assert r.status_code == 204
+
+        # Claim B and the shared entity both survive.
+        assert db.get(KnowledgeClaim, claim_b.id) is not None
+        assert db.get(KnowledgeEntity, shared.id) is not None
