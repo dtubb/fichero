@@ -1739,3 +1739,15 @@ Long interactive 0.0.2 testing session with Daniel. Two halves: a backend fix sw
 - #1064 FIXED (`1231444d`) — born-digital PDF text-layer short-circuit hoisted above the skip-if-artifact cache in `process_vision`; cache gated on `not pdf_layer_used` so a stale OCR artifact no longer shields the #1033 fix. Regression test added; 490 tests + ruff green.
 - #1021, #1028, #1026 — verified already implemented + tested by prior sessions ("fixed but not closed" pattern), closed as hygiene. Phase A (backend release-blockers) now fully complete.
 - Phase B audit written (`976296d3`) — `agent-work/proposals/swiftui-logic-audit.md`: ~6 SwiftUI files / ~1500 lines of client-side KG logic mapped to backend endpoints, headlined by one canonical `GET /api/documents/{id}/knowledge-graph` endpoint, with a backend-first implementation sequence for #1068/#1069/#1047/#1050/#1030.
+
+## 2026-05-14 — #1068 Canonical document knowledge-graph endpoint
+
+- PR: N/A
+- Branch: 0.0.2
+- Task completed in session
+
+## 2026-05-14 — #1069 include_children parent-PDF KG aggregation
+
+- PR: N/A
+- Branch: 0.0.2
+- Task completed in session
