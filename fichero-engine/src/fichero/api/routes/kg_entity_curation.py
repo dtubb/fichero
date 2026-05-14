@@ -8,6 +8,7 @@ what the Swift curation UI shows when displaying "Davidson absorbed
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from typing import Any
 
@@ -269,20 +270,11 @@ async def list_entity_audits(
     return [_audit_response(a) for a in audits[:limit]]
 
 
-@router.post("/semantic/embed", response_model=EmbedEntitiesResponse)
-async def embed_entities(
-    request: _EmbedEntityRequest | None = None,
-    db: Database = Depends(get_library_database),
-) -> EmbedEntitiesResponse:
-    """Embed entities into LanceDB for semantic search."""
-    if request and request.entity_ids:
-        entities = [db.get(KnowledgeEntity, eid) for eid in request.entity_ids]
-        entities = [e for e in entities if e is not None]
-    else:
-        entities = db.all(KnowledgeEntity)
-    if not entities:
-        return EmbedEntitiesResponse(embedded=0, table=KG_ENTITY_EMBEDDINGS_TABLE)
-
+def _embed_entities_sync(
+    db: Database,
+    entities: list[KnowledgeEntity],
+) -> int:
+    """CPU-bound work for embed_entities. Runs off the event loop."""
     texts = [
         e.canonical_name + (" " + " ".join(e.aliases) if e.aliases else "")
         for e in entities
@@ -296,7 +288,31 @@ async def embed_entities(
         for e, v in zip(entities, vectors)
     ]
     db.save_vectors(KG_ENTITY_EMBEDDINGS_TABLE, records)
-    return EmbedEntitiesResponse(embedded=len(records), table=KG_ENTITY_EMBEDDINGS_TABLE)
+    return len(records)
+
+
+@router.post("/semantic/embed", response_model=EmbedEntitiesResponse)
+async def embed_entities(
+    request: _EmbedEntityRequest | None = None,
+    db: Database = Depends(get_library_database),
+) -> EmbedEntitiesResponse:
+    """Embed entities into LanceDB for semantic search.
+
+    The FastEmbed call is CPU-bound and (for a real corpus) runs hundreds
+    of synchronous invocations. Off-load to a worker thread so the FastAPI
+    event loop can keep serving other endpoints (e.g. /api/health) while
+    embedding is in flight (#1004).
+    """
+    if request and request.entity_ids:
+        entities = [db.get(KnowledgeEntity, eid) for eid in request.entity_ids]
+        entities = [e for e in entities if e is not None]
+    else:
+        entities = db.all(KnowledgeEntity)
+    if not entities:
+        return EmbedEntitiesResponse(embedded=0, table=KG_ENTITY_EMBEDDINGS_TABLE)
+
+    embedded = await asyncio.to_thread(_embed_entities_sync, db, entities)
+    return EmbedEntitiesResponse(embedded=embedded, table=KG_ENTITY_EMBEDDINGS_TABLE)
 
 
 @router.get("/semantic")

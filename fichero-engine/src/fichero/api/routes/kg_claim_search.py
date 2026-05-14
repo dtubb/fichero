@@ -8,6 +8,7 @@ in OpenAPI codegen.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -35,24 +36,10 @@ class _EmbedClaimRequest(BaseModel):
     claim_ids: list[str] | None = None
 
 
-@router.post("/embed", response_model=EmbedClaimsResponse)
-async def embed_claims(
-    request: _EmbedClaimRequest | None = None,
-    db: Database = Depends(get_library_database),
-) -> EmbedClaimsResponse:
-    """Embed claims into LanceDB for semantic search."""
-    if request and request.claim_ids:
-        claims = [db.get(KnowledgeClaim, cid) for cid in request.claim_ids]
-        claims = [c for c in claims if c is not None]
-    else:
-        claims = db.all(KnowledgeClaim)
-
-    if not claims:
-        return EmbedClaimsResponse(embedded=0, table=KG_CLAIM_EMBEDDINGS_TABLE)
-
+def _embed_claims_sync(db: Database, claims: list[KnowledgeClaim]) -> int:
+    """CPU-bound work for embed_claims. Runs off the event loop."""
     texts = [c.text for c in claims]
     vectors = db._embed_texts(texts)  # type: ignore[attr-defined]
-
     records = [
         {
             "id": c.id,
@@ -63,7 +50,30 @@ async def embed_claims(
         for c, v in zip(claims, vectors)
     ]
     db.save_vectors(KG_CLAIM_EMBEDDINGS_TABLE, records)
-    return EmbedClaimsResponse(embedded=len(records), table=KG_CLAIM_EMBEDDINGS_TABLE)
+    return len(records)
+
+
+@router.post("/embed", response_model=EmbedClaimsResponse)
+async def embed_claims(
+    request: _EmbedClaimRequest | None = None,
+    db: Database = Depends(get_library_database),
+) -> EmbedClaimsResponse:
+    """Embed claims into LanceDB for semantic search.
+
+    Runs the synchronous FastEmbed batch in a worker thread so the FastAPI
+    event loop stays responsive — same fix as the entity-curation peer (#1004).
+    """
+    if request and request.claim_ids:
+        claims = [db.get(KnowledgeClaim, cid) for cid in request.claim_ids]
+        claims = [c for c in claims if c is not None]
+    else:
+        claims = db.all(KnowledgeClaim)
+
+    if not claims:
+        return EmbedClaimsResponse(embedded=0, table=KG_CLAIM_EMBEDDINGS_TABLE)
+
+    embedded = await asyncio.to_thread(_embed_claims_sync, db, claims)
+    return EmbedClaimsResponse(embedded=embedded, table=KG_CLAIM_EMBEDDINGS_TABLE)
 
 
 @router.get("")
