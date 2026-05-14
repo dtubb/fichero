@@ -297,7 +297,22 @@ class StructuredDecodeError(AppleUnavailableError):
     escape to $large for the chunk, which is what we want — extract_all
     was losing ~10% of chunks (#949 / #962) because these errors became
     plain RuntimeError and the fallback path skipped them.
+
+    `kind` carries which of the four fm-bridge kinds this was (#1027).
+    They want different handling: `decoding` / `generation` are often
+    transient (the stochastic sampler missed a valid path) and worth one
+    on-device retry; `context_overflow` / `schema` will fail identically
+    on a retry of the same chunk + schema, so they go straight to the
+    paid fallback.
     """
+
+    # fm-bridge kinds worth retrying once on-device before paying for
+    # the cloud fallback — see chat_structured_with_fallback.
+    RETRYABLE_KINDS = frozenset({"decoding", "generation"})
+
+    def __init__(self, message: str = "", kind: str | None = None):
+        super().__init__(message)
+        self.kind = kind
 
 
 def resolve_model_alias(provider: str, model: str) -> tuple[str, str]:
@@ -772,7 +787,8 @@ def _raise_from_bridge_stderr(stderr_bytes: bytes, returncode: int) -> None:
         # Promote them so the cloud $large model gets a retry per
         # chunk (matching the guardrail / locale paths).
         raise StructuredDecodeError(
-            f"Apple Intelligence ({kind}): {message}"
+            f"Apple Intelligence ({kind}): {message}",
+            kind=kind,
         )
 
     raise RuntimeError(f"Apple Intelligence ({kind}): {message}")
@@ -1417,6 +1433,33 @@ async def chat_structured_with_fallback(
     except AppleUnavailableError as apple_exc:
         # Catches GuardrailViolationError, UnsupportedLocaleError, and
         # any future "Apple can't proceed" subclass uniformly.
+
+        # #1027: a `decoding` / `generation` decode failure is often
+        # transient — the grammar-constrained sampler missed a valid
+        # path this time, but a single on-device retry frequently lands
+        # one. Retry once before paying for the $large cloud model.
+        # `context_overflow` / `schema` are NOT retried: the same chunk
+        # and schema fail identically, so they go straight to fallback.
+        if (
+            isinstance(apple_exc, StructuredDecodeError)
+            and apple_exc.kind in StructuredDecodeError.RETRYABLE_KINDS
+        ):
+            logger.warning(
+                "Apple Intelligence structured decode failed (%s) — "
+                "retrying once on-device before paid fallback.",
+                apple_exc.kind,
+            )
+            try:
+                return await chat_structured(
+                    prompt, schema, config, system=system,
+                    include_schema_in_prompt=include_schema_in_prompt,
+                    use_case=use_case,
+                )
+            except AppleUnavailableError as retry_exc:
+                # Retry also failed — fall through to $large with the
+                # retry's error as the operative cause.
+                apple_exc = retry_exc
+
         try:
             large_provider, large_model = resolve_model_alias("$large", "")
         except ValueError:

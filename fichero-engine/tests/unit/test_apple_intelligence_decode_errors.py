@@ -16,15 +16,19 @@ $large cloud retry kicks in just like guardrail / locale failures.
 from __future__ import annotations
 
 import json
+from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic import BaseModel
 
 from fichero.llm import (
     AppleUnavailableError,
     GuardrailViolationError,
+    LLMConfig,
     StructuredDecodeError,
     UnsupportedLocaleError,
     _raise_from_bridge_stderr,
+    chat_structured_with_fallback,
 )
 
 
@@ -122,3 +126,95 @@ class TestStructuredDecodeErrorInheritance:
         import inspect
         source = inspect.getsource(chat_structured_with_fallback)
         assert "except AppleUnavailableError" in source
+
+
+class _MiniSchema(BaseModel):
+    value: str = ""
+
+
+def _apple_config() -> LLMConfig:
+    return LLMConfig(provider="apple", model="apple-intelligence")
+
+
+class TestStructuredDecodeKind:
+    """#1027 — the four fm-bridge decode kinds must be distinguishable so
+    the transient ones (decoding/generation) get an on-device retry
+    before the paid $large fallback, while context_overflow/schema —
+    which fail identically on retry — go straight to fallback."""
+
+    def test_bridge_error_carries_kind(self):
+        for kind in ("decoding", "generation", "context_overflow", "schema"):
+            with pytest.raises(StructuredDecodeError) as exc:
+                _raise_from_bridge_stderr(_stderr_for(kind, "boom"), 1)
+            assert exc.value.kind == kind
+
+    def test_retryable_kinds_membership(self):
+        assert "decoding" in StructuredDecodeError.RETRYABLE_KINDS
+        assert "generation" in StructuredDecodeError.RETRYABLE_KINDS
+        assert "context_overflow" not in StructuredDecodeError.RETRYABLE_KINDS
+        assert "schema" not in StructuredDecodeError.RETRYABLE_KINDS
+
+    @pytest.mark.asyncio
+    async def test_decoding_failure_retries_once_on_device(self):
+        # First call fails with a transient `decoding` error; the retry
+        # succeeds — no paid fallback should be resolved.
+        good = _MiniSchema(value="ok")
+        mock_structured = AsyncMock(
+            side_effect=[StructuredDecodeError("(decoding): x", kind="decoding"), good]
+        )
+        mock_resolve = AsyncMock()
+        with (
+            patch("fichero.llm.chat_structured", new=mock_structured),
+            patch("fichero.llm.resolve_model_alias", new=mock_resolve),
+        ):
+            result = await chat_structured_with_fallback(
+                prompt="p", schema=_MiniSchema, config=_apple_config(),
+            )
+        assert result is good
+        assert mock_structured.await_count == 2  # original + one retry
+        mock_resolve.assert_not_called()  # never reached the paid path
+
+    @pytest.mark.asyncio
+    async def test_context_overflow_does_not_retry_on_device(self):
+        # context_overflow fails identically on retry — must go straight
+        # to the fallback path (here: no $large configured → re-raise).
+        mock_structured = AsyncMock(
+            side_effect=StructuredDecodeError(
+                "(context_overflow): too long", kind="context_overflow"
+            )
+        )
+        with (
+            patch("fichero.llm.chat_structured", new=mock_structured),
+            patch(
+                "fichero.llm.resolve_model_alias",
+                side_effect=ValueError("no $large configured"),
+            ),
+        ):
+            with pytest.raises(StructuredDecodeError):
+                await chat_structured_with_fallback(
+                    prompt="p", schema=_MiniSchema, config=_apple_config(),
+                )
+        assert mock_structured.await_count == 1  # no on-device retry
+
+    @pytest.mark.asyncio
+    async def test_retry_failure_falls_through_to_paid_fallback(self):
+        # decoding fails, the retry also fails — must then fall through
+        # to the $large path (re-raise here, no $large configured).
+        mock_structured = AsyncMock(
+            side_effect=[
+                StructuredDecodeError("(decoding): x", kind="decoding"),
+                StructuredDecodeError("(decoding): x again", kind="decoding"),
+            ]
+        )
+        with (
+            patch("fichero.llm.chat_structured", new=mock_structured),
+            patch(
+                "fichero.llm.resolve_model_alias",
+                side_effect=ValueError("no $large configured"),
+            ),
+        ):
+            with pytest.raises(StructuredDecodeError):
+                await chat_structured_with_fallback(
+                    prompt="p", schema=_MiniSchema, config=_apple_config(),
+                )
+        assert mock_structured.await_count == 2  # original + one retry
