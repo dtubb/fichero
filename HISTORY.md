@@ -1733,3 +1733,9 @@ Long interactive 0.0.2 testing session with Daniel. Two halves: a backend fix sw
 - #1000 (`fc2c55c9`) — DBWriter fails loud instead of deadlocking the backend. `flush()`/`stop()` now use a bounded `_drain()` (timeout + dead-thread detection) instead of an unbounded `queue.join()`; new `DBWriterError`; `_run()` worker logs loud on crash; dropped `/api/health` from uvicorn access logs. Verified workflow execution is off the main event-loop thread. Issue closed.
 - #1065 (`7a72bd29`) — added `extract_all` to `CACHEABLE_TOOLS` so the default Catalogue preset stops re-extracting every page on every re-run. Issue closed.
 - Both backend-only, pytest-verified via test-runner subagents (491 / 513 tests green), committed direct to 0.0.2.
+
+## 2026-05-14 (autonomous loop, iteration 2) — Session Summary
+
+- #1064 FIXED (`1231444d`) — born-digital PDF text-layer short-circuit hoisted above the skip-if-artifact cache in `process_vision`; cache gated on `not pdf_layer_used` so a stale OCR artifact no longer shields the #1033 fix. Regression test added; 490 tests + ruff green.
+- #1021, #1028, #1026 — verified already implemented + tested by prior sessions ("fixed but not closed" pattern), closed as hygiene. Phase A (backend release-blockers) now fully complete.
+- Phase B audit written (`976296d3`) — `agent-work/proposals/swiftui-logic-audit.md`: ~6 SwiftUI files / ~1500 lines of client-side KG logic mapped to backend endpoints, headlined by one canonical `GET /api/documents/{id}/knowledge-graph` endpoint, with a backend-first implementation sequence for #1068/#1069/#1047/#1050/#1030.

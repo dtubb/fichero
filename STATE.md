@@ -2,30 +2,29 @@
 
 ## Next Session — Start Here
 
-**Latest commit: `7a72bd29`. Branch: 0.0.2.** Overnight autonomous loop running (`agent-autonomous-loop.py`, 3-phase scope). Iteration 1 done: #1000 + #1065 fixed, committed, closed.
+**Latest commit: `976296d3`. Branch: 0.0.2.** Autonomous loop iteration 2 done. **Phase A (backend release-blockers) is complete** — all 4 issues closed. **Phase B started** — the SwiftUI-logic audit is written.
 
 ### What to do first
 
-1. **Review what the overnight loop did** — `git log --oneline 0.0.2` since `4127c2ca`; read `agent-work/proposals/swiftui-logic-audit.md` if Phase B ran; check for `BLOCK.md` (an actual `BLOCKED` line, not the old status file) + iteration logs. The loop commits directly to `0.0.2`, gated (pytest / 3-leg check) per commit.
-2. **Verify on a real run** — build + run a real catalogue workflow on a born-digital PDF. Nothing the loop or prior sessions shipped is confirmed by a real-app run. Restart the dev backend first — Swift test runs cache-pollute it (MEMORY `feedback_runalltests_pollutes_dev_backend`).
-3. **#1000 is FIXED (`fc2c55c9`)** — DBWriter now fails loud (bounded `_drain()` + dead-thread detection) instead of deadlocking the backend. Verify the catalogue run no longer hangs at 80%.
+1. **Phase B implementation — start with #1068.** Read `agent-work/proposals/swiftui-logic-audit.md`. The keystone is one canonical backend endpoint `GET /api/documents/{id}/knowledge-graph` (with `include_children` covering #1069). Both the library list view and the KG inspector currently consume *different* endpoints with their own client-side dedup/grouping — that split is the root of #1068. Backend-first, pytest-verifiable; SwiftUI rewiring is a thin Phase C follow-up.
+2. **Then #1047 → #1050 → #1030/#1071** per the proposal's sequence.
+3. **Verify on a real run** — nothing the loop/prior sessions shipped is confirmed by a real-app run. Restart the dev backend first (Swift test runs cache-pollute it — MEMORY `feedback_runalltests_pollutes_dev_backend`).
 
-### Phase A remaining (backend release-blockers)
+### This iteration
 
-- **#1064** — born-digital PDF stale-transcription: text-layer short-circuit shielded by the skip-if-artifact cache.
-- **#1021** orphaned KG rows on delete; **#1028** lancedb fork-safety warning (NOTE: `main.py:_install_warning_filters` may already cover this — verify before working); **#1026** rdflib NTSerializer encoding warning.
-- Then Phase B (SwiftUI-logic audit → backend endpoints) and Phase C (SwiftUI, needs Xcode MCP).
+- **#1064 FIXED** (`1231444d`) — born-digital PDF text-layer short-circuit hoisted above the skip-if-artifact cache; a stale OCR artifact no longer shields it. Tested, closed.
+- **#1021, #1028, #1026** — verified already implemented + tested by prior sessions (the "fixed but not closed" pattern); closed as hygiene, no code change needed.
+- **Phase B audit** (`976296d3`) — `agent-work/proposals/swiftui-logic-audit.md`: ~6 SwiftUI files / ~1500 lines of client-side KG logic, mapped to backend endpoints + a sequence.
 
 ### State of the 0.0.2 milestone
 
-- **62 open issues** (#1000, #1065 now closed) — triaged into ~6 root-cause clusters. Needs ruthless triage: move non-crash/freeze/data-loss issues to 0.0.3.
-- **Shipped, unverified:** #1060, #1037, #1029, #1051, #1033, #1027, #1022, #1023, #1000, #1065, + docs #1061.
+- ~58 open issues — Phase A cluster fully closed. Still needs ruthless triage: move non-crash/freeze/data-loss issues to 0.0.3.
 - **Needs Daniel's input:** #1054 (search threshold value), #1057 (model-defaults UI decision).
 
 ### Don't break
 
 - `builder._execute_node` converts any tool's `result["error"]` into a `SystemicErrorDetected` abort, AND gates on garbage output (#1029, `output_quality.assess_result_quality`). Tools surfacing partial success must NOT set `error`.
-- `extract_all._classify_systemic_error` (#1060); `_try_pdf_text_layer` hoisted above the vision-mode branch in `process_vision` (#1033) + `force_ocr`; `StructuredDecodeError.kind` + `RETRYABLE_KINDS` (#1027).
-- `#1000` worker-thread move did **not** fully fix the freeze — the DBWriter can still deadlock the backend. Read `agent-work/proposals/2026-05-14-workflow-execution-architecture.md` + the updated `project_workflow_execution_threading` memory before touching the DB write path.
-- KG/entity *logic* belongs in the backend, not SwiftUI — see `feedback_kg_logic_in_backend` memory; scope the KG cluster as backend endpoints + thin rendering.
+- `process_vision`: the PDF text-layer short-circuit now runs **before** the skip-if-artifact cache check; the cache check is gated on `not pdf_layer_used` (#1064). Don't reorder them back.
+- `extract_all._classify_systemic_error` (#1060); `StructuredDecodeError.kind` + `RETRYABLE_KINDS` (#1027); `DBWriter` fails loud via bounded `_drain()` (#1000).
+- KG/entity *logic* belongs in the backend, not SwiftUI — see `feedback_kg_logic_in_backend` memory + `agent-work/proposals/swiftui-logic-audit.md`.
 - `StructuredDecodeError` IS an `AppleUnavailableError` subclass by design (#949/#962) — don't revert.
