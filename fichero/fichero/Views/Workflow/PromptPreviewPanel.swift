@@ -31,7 +31,7 @@ struct PromptPreviewPanel: View {
                                 .foregroundColor(.secondary)
                         }
                     } else if let error = loadError {
-                        Label(error, systemImage: "exclamation.triangle")
+                        Label(error, systemImage: "exclamationmark.triangle")
                             .font(.caption)
                             .foregroundColor(.orange)
                     } else if let prompt = assembledPrompt {
