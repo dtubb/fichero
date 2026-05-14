@@ -896,12 +896,15 @@ struct ForceDirectedGraphView: View {
     let entities: [Components.Schemas.KnowledgeEntity]
     @Binding var selectedEntityId: String?
 
-    @State private var nodes: [GraphNode] = []
-    @State private var edges: [GraphEdge] = []
+    // Simulation state lives in a plain (non-observed) reference type so
+    // the per-frame physics writes inside the Canvas render closure don't
+    // count as "Modifying state during view update" (#1019, related #998).
+    // TimelineView still drives the redraw cadence; `graphRevision` is the
+    // observed @State that flips the empty-state branch when a load lands.
+    @State private var sim = GraphSimulation()
+    @State private var graphRevision = 0
     @State private var isLoading = false
     @State private var loadError: String?
-    @State private var startTime: Date = .now
-    @State private var lastTick: Date = .now
 
     // Viewport state. The simulation runs in fixed centered coordinates;
     // these transforms map sim-space → screen-space. Pinch updates
@@ -918,6 +921,13 @@ struct ForceDirectedGraphView: View {
 
     var body: some View {
         ZStack {
+            // Read the observed revision so body re-evaluates when a load
+            // completes — `sim` itself is a plain class and doesn't notify.
+            // `let _ =` (not `_ =`) is required: a bare discard expression
+            // isn't a View, but a discard *declaration* is a valid no-op
+            // statement inside the @ViewBuilder.
+            // swiftlint:disable:next redundant_discardable_let
+            let _ = graphRevision
             Color(.controlBackgroundColor)
             if isLoading {
                 ProgressView("Loading graph…")
@@ -927,7 +937,7 @@ struct ForceDirectedGraphView: View {
                         .foregroundStyle(.orange)
                     Text(err).font(.caption).foregroundStyle(.secondary)
                 }
-            } else if nodes.isEmpty {
+            } else if sim.nodes.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "circle.grid.3x3")
                         .font(.system(size: 28))
@@ -941,7 +951,7 @@ struct ForceDirectedGraphView: View {
                     ZStack(alignment: .topLeading) {
                         TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
                             Canvas { ctx, size in
-                                stepSimulation(in: size, now: timeline.date)
+                                sim.step(in: size, now: timeline.date)
                                 drawEdges(ctx: ctx)
                                 drawNodes(ctx: ctx)
                             }
@@ -1088,8 +1098,9 @@ struct ForceDirectedGraphView: View {
         // graph mode shows ONE focus + its k-hop neighbors. (#976/#977)
         guard let focusId = selectedEntityId
             ?? entities.compactMap(\.id).first else {
-            nodes = []
-            edges = []
+            sim.nodes = []
+            sim.edges = []
+            graphRevision += 1
             return
         }
         guard let library = LibraryManager.shared.globalLibrary else {
@@ -1103,28 +1114,210 @@ struct ForceDirectedGraphView: View {
                 limit: 50,
                 rank: "edge_weight"
             )
-            buildGraph(from: response)
+            sim.rebuild(from: response)
+            graphRevision += 1
         } catch {
             loadError = error.localizedDescription
         }
     }
 
+    // MARK: - Drawing
+
+    private func drawEdges(ctx: GraphicsContext) {
+        for edge in sim.edges {
+            guard let source = sim.nodes.first(where: { $0.id == edge.source }),
+                  let target = sim.nodes.first(where: { $0.id == edge.target }) else { continue }
+            let from = centered(source.position, in: ctx)
+            let dest = centered(target.position, in: ctx)
+            var path = Path()
+            path.move(to: from)
+            path.addLine(to: dest)
+            let alpha = min(0.25 + Double(edge.weight) * 0.15, 0.7)
+            ctx.stroke(path, with: .color(.secondary.opacity(alpha)), lineWidth: 1)
+            // Predicate label at the midpoint. Skip when the edge is so
+            // short that the label would overlap a node. Background-
+            // ribbon the label so it's readable across the line.
+            let dx = dest.x - from.x
+            let dy = dest.y - from.y
+            let lineLen = sqrt(dx * dx + dy * dy)
+            if lineLen > 60, !edge.predicate.isEmpty {
+                let midX = (from.x + dest.x) / 2
+                let midY = (from.y + dest.y) / 2
+                let label = Text(edge.predicate)
+                    .font(.caption2)
+                    .italic()
+                    .foregroundColor(.accentColor)
+                ctx.draw(label, at: CGPoint(x: midX, y: midY), anchor: .center)
+            }
+        }
+    }
+
+    private func drawNodes(ctx: GraphicsContext) {
+        for node in sim.nodes {
+            let pos = centered(node.position, in: ctx)
+            let radius: CGFloat = node.id == selectedEntityId ? 9 : 6
+            let circle = Path(ellipseIn: CGRect(
+                x: pos.x - radius,
+                y: pos.y - radius,
+                width: radius * 2,
+                height: radius * 2
+            ))
+            ctx.fill(circle, with: .color(color(for: node.kind)))
+            if node.id == selectedEntityId {
+                ctx.stroke(circle, with: .color(.accentColor), lineWidth: 2)
+            } else {
+                ctx.stroke(circle, with: .color(.primary.opacity(0.3)), lineWidth: 0.5)
+            }
+            let label = Text(node.name).font(.caption2).foregroundColor(.primary)
+            ctx.draw(label, at: CGPoint(x: pos.x, y: pos.y + radius + 8), anchor: .top)
+        }
+    }
+
+    private func centered(_ point: CGPoint, in ctx: GraphicsContext) -> CGPoint {
+        // Apply viewport scale + pan around the canvas center, so pinch
+        // zooms toward the center and drag moves the whole graph
+        // together. Edge widths and node radii intentionally don't scale
+        // — keeps the graph readable at any zoom level.
+        let bounds = ctx.clipBoundingRect
+        return CGPoint(
+            x: bounds.midX + point.x * scale + panOffset.width,
+            y: bounds.midY + point.y * scale + panOffset.height
+        )
+    }
+
+    // MARK: - Interaction
+
+    private func handleTap(at location: CGPoint, in size: CGSize) {
+        // Inverse of `centered`: back out scale + panOffset to get
+        // simulation-space coordinates for hit-testing.
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let local = CGPoint(
+            x: (location.x - center.x - panOffset.width) / scale,
+            y: (location.y - center.y - panOffset.height) / scale
+        )
+        // Hit radius is in simulation space — divide by scale so the tap
+        // target stays a constant ~18pt of screen space.
+        let hitRadius: CGFloat = 18 / scale
+        // Node hit-test first — clicking a node refocuses.
+        var bestNode: (id: String, dist: CGFloat)?
+        for node in sim.nodes {
+            let dx = node.position.x - local.x
+            let dy = node.position.y - local.y
+            let dist = sqrt(dx * dx + dy * dy)
+            if dist < hitRadius, dist < (bestNode?.dist ?? .greatestFiniteMagnitude) {
+                bestNode = (node.id, dist)
+            }
+        }
+        if let hit = bestNode {
+            selectedEntityId = hit.id
+            return
+        }
+        // No node hit — check whether the tap landed near an edge's
+        // midpoint (where the predicate label sits). Clicking an edge
+        // opens the source claim. (#982 — wireframe Path B)
+        let edgeHitRadius: CGFloat = 22 / scale
+        var bestEdge: (edge: GraphEdge, dist: CGFloat)?
+        for edge in sim.edges {
+            guard let source = sim.nodes.first(where: { $0.id == edge.source }),
+                  let target = sim.nodes.first(where: { $0.id == edge.target }) else { continue }
+            let midX = (source.position.x + target.position.x) / 2
+            let midY = (source.position.y + target.position.y) / 2
+            let dx = midX - local.x
+            let dy = midY - local.y
+            let dist = sqrt(dx * dx + dy * dy)
+            if dist < edgeHitRadius, dist < (bestEdge?.dist ?? .greatestFiniteMagnitude) {
+                bestEdge = (edge, dist)
+            }
+        }
+        if let hit = bestEdge {
+            var info: [String: Any] = [
+                "documentId": hit.edge.sourceDocumentId,
+                "claimId": hit.edge.claimId,
+            ]
+            if let pageLabel = hit.edge.pageLabel, !pageLabel.isEmpty {
+                info["pageLabel"] = pageLabel
+            }
+            NotificationCenter.default.post(
+                name: .ficheroOpenClaimSource,
+                object: nil,
+                userInfo: info
+            )
+        }
+    }
+
+    // MARK: - Colors
+
+    private func color(
+        for kind: Components.Schemas.EntityTypeOutput?
+    ) -> Color {
+        guard let kind else { return .gray }
+        switch kind {
+        case .person: return .blue
+        case .organization: return .purple
+        case .location: return .green
+        case .event: return .orange
+        case .concept: return .yellow
+        case .other: return .gray
+        }
+    }
+}
+
+// MARK: - Model
+
+private struct GraphNode: Identifiable {
+    let id: String
+    let name: String
+    let kind: Components.Schemas.EntityTypeOutput?
+    var position: CGPoint
+    var velocity: CGVector
+}
+
+private struct GraphEdge {
+    let source: String
+    let target: String
+    /// SVO predicate verb from the backend (e.g. "served as", "founded").
+    /// Drawn mid-edge so the user sees the relationship type at a glance.
+    let predicate: String
+    /// Claim ID — so click-edge can navigate to the source.
+    let claimId: String
+    /// Source document ID + page label — forwarded into a
+    /// `ficheroOpenClaimSource` notification on click.
+    let sourceDocumentId: String
+    let pageLabel: String?
+    /// Aggregate weight (how many claims connect these two entities).
+    /// Used by the render to set line opacity / thickness.
+    let weight: Int
+}
+
+private struct EdgeKey: Hashable {
+    let source: String
+    let target: String
+}
+
+/// Mutable force-directed simulation state, held as a plain reference type
+/// so the per-frame physics writes from inside the `Canvas` render closure
+/// don't trip SwiftUI's "Modifying state during view update" check (#1019).
+/// The view keeps this in `@State` purely for a stable instance; redraws
+/// are driven by `TimelineView`, and the empty-state branch is flipped by
+/// a separate observed `graphRevision` counter after each load.
+private final class GraphSimulation {
+    var nodes: [GraphNode] = []
+    var edges: [GraphEdge] = []
+    private var startTime: Date = .now
+    private var lastTick: Date = .now
+
     /// Lay out the focus at the origin + neighbor entities on a circle
     /// around it. Edges carry the predicate (verb) from the backend.
-    private func buildGraph(from response: Components.Schemas.NeighborhoodResponse) {
-        let focusId = response.focusEntityId
-        let focusName = response.focusCanonicalName
+    func rebuild(from response: Components.Schemas.NeighborhoodResponse) {
         let focusKind = response.focusEntityType
         var newNodes: [GraphNode] = []
-        // Focus at the center.
         newNodes.append(GraphNode(
-            id: focusId,
-            name: focusName,
+            id: response.focusEntityId,
+            name: response.focusCanonicalName,
             kind: focusKind.flatMap { Components.Schemas.EntityTypeOutput(rawValue: $0) },
             position: .zero,
             velocity: .zero
         ))
-        // Neighbors on a ring.
         let neighbors = response.neighbors
         let count = max(neighbors.count, 1)
         let radius: CGFloat = 220
@@ -1140,8 +1333,6 @@ struct ForceDirectedGraphView: View {
                 velocity: .zero
             ))
         }
-        // Edges carry the predicate verb. We render `source → target`
-        // with the verb label mid-edge in the draw step.
         edges = response.edges.map { edge in
             GraphEdge(
                 source: edge.sourceId,
@@ -1158,9 +1349,7 @@ struct ForceDirectedGraphView: View {
         lastTick = .now
     }
 
-    // MARK: - Simulation
-
-    private func stepSimulation(in size: CGSize, now: Date) {
+    func step(in size: CGSize, now: Date) {
         let elapsed = now.timeIntervalSince(startTime)
         guard elapsed < 4.0 else { return }
         let dt = max(min(now.timeIntervalSince(lastTick), 1.0 / 30.0), 0.001)
@@ -1235,178 +1424,6 @@ struct ForceDirectedGraphView: View {
             nodes[i] = node
         }
     }
-
-    // MARK: - Drawing
-
-    private func drawEdges(ctx: GraphicsContext) {
-        for edge in edges {
-            guard let source = nodes.first(where: { $0.id == edge.source }),
-                  let target = nodes.first(where: { $0.id == edge.target }) else { continue }
-            let from = centered(source.position, in: ctx)
-            let dest = centered(target.position, in: ctx)
-            var path = Path()
-            path.move(to: from)
-            path.addLine(to: dest)
-            let alpha = min(0.25 + Double(edge.weight) * 0.15, 0.7)
-            ctx.stroke(path, with: .color(.secondary.opacity(alpha)), lineWidth: 1)
-            // Predicate label at the midpoint. Skip when the edge is so
-            // short that the label would overlap a node. Background-
-            // ribbon the label so it's readable across the line.
-            let dx = dest.x - from.x
-            let dy = dest.y - from.y
-            let lineLen = sqrt(dx * dx + dy * dy)
-            if lineLen > 60, !edge.predicate.isEmpty {
-                let midX = (from.x + dest.x) / 2
-                let midY = (from.y + dest.y) / 2
-                let label = Text(edge.predicate)
-                    .font(.caption2)
-                    .italic()
-                    .foregroundColor(.accentColor)
-                ctx.draw(label, at: CGPoint(x: midX, y: midY), anchor: .center)
-            }
-        }
-    }
-
-    private func drawNodes(ctx: GraphicsContext) {
-        for node in nodes {
-            let pos = centered(node.position, in: ctx)
-            let radius: CGFloat = node.id == selectedEntityId ? 9 : 6
-            let circle = Path(ellipseIn: CGRect(
-                x: pos.x - radius,
-                y: pos.y - radius,
-                width: radius * 2,
-                height: radius * 2
-            ))
-            ctx.fill(circle, with: .color(color(for: node.kind)))
-            if node.id == selectedEntityId {
-                ctx.stroke(circle, with: .color(.accentColor), lineWidth: 2)
-            } else {
-                ctx.stroke(circle, with: .color(.primary.opacity(0.3)), lineWidth: 0.5)
-            }
-            let label = Text(node.name).font(.caption2).foregroundColor(.primary)
-            ctx.draw(label, at: CGPoint(x: pos.x, y: pos.y + radius + 8), anchor: .top)
-        }
-    }
-
-    private func centered(_ point: CGPoint, in ctx: GraphicsContext) -> CGPoint {
-        // Apply viewport scale + pan around the canvas center, so pinch
-        // zooms toward the center and drag moves the whole graph
-        // together. Edge widths and node radii intentionally don't scale
-        // — keeps the graph readable at any zoom level.
-        let bounds = ctx.clipBoundingRect
-        return CGPoint(
-            x: bounds.midX + point.x * scale + panOffset.width,
-            y: bounds.midY + point.y * scale + panOffset.height
-        )
-    }
-
-    // MARK: - Interaction
-
-    private func handleTap(at location: CGPoint, in size: CGSize) {
-        // Inverse of `centered`: back out scale + panOffset to get
-        // simulation-space coordinates for hit-testing.
-        let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        let local = CGPoint(
-            x: (location.x - center.x - panOffset.width) / scale,
-            y: (location.y - center.y - panOffset.height) / scale
-        )
-        // Hit radius is in simulation space — divide by scale so the tap
-        // target stays a constant ~18pt of screen space.
-        let hitRadius: CGFloat = 18 / scale
-        // Node hit-test first — clicking a node refocuses.
-        var bestNode: (id: String, dist: CGFloat)?
-        for node in nodes {
-            let dx = node.position.x - local.x
-            let dy = node.position.y - local.y
-            let dist = sqrt(dx * dx + dy * dy)
-            if dist < hitRadius, dist < (bestNode?.dist ?? .greatestFiniteMagnitude) {
-                bestNode = (node.id, dist)
-            }
-        }
-        if let hit = bestNode {
-            selectedEntityId = hit.id
-            return
-        }
-        // No node hit — check whether the tap landed near an edge's
-        // midpoint (where the predicate label sits). Clicking an edge
-        // opens the source claim. (#982 — wireframe Path B)
-        let edgeHitRadius: CGFloat = 22 / scale
-        var bestEdge: (edge: GraphEdge, dist: CGFloat)?
-        for edge in edges {
-            guard let source = nodes.first(where: { $0.id == edge.source }),
-                  let target = nodes.first(where: { $0.id == edge.target }) else { continue }
-            let midX = (source.position.x + target.position.x) / 2
-            let midY = (source.position.y + target.position.y) / 2
-            let dx = midX - local.x
-            let dy = midY - local.y
-            let dist = sqrt(dx * dx + dy * dy)
-            if dist < edgeHitRadius, dist < (bestEdge?.dist ?? .greatestFiniteMagnitude) {
-                bestEdge = (edge, dist)
-            }
-        }
-        if let hit = bestEdge {
-            var info: [String: Any] = [
-                "documentId": hit.edge.sourceDocumentId,
-                "claimId": hit.edge.claimId,
-            ]
-            if let pageLabel = hit.edge.pageLabel, !pageLabel.isEmpty {
-                info["pageLabel"] = pageLabel
-            }
-            NotificationCenter.default.post(
-                name: .ficheroOpenClaimSource,
-                object: nil,
-                userInfo: info
-            )
-        }
-    }
-
-    // MARK: - Colors
-
-    private func color(
-        for kind: Components.Schemas.EntityTypeOutput?
-    ) -> Color {
-        guard let kind else { return .gray }
-        switch kind {
-        case .person: return .blue
-        case .organization: return .purple
-        case .location: return .green
-        case .event: return .orange
-        case .concept: return .yellow
-        case .other: return .gray
-        }
-    }
-}
-
-// MARK: - Model
-
-private struct GraphNode: Identifiable {
-    let id: String
-    let name: String
-    let kind: Components.Schemas.EntityTypeOutput?
-    var position: CGPoint
-    var velocity: CGVector
-}
-
-private struct GraphEdge {
-    let source: String
-    let target: String
-    /// SVO predicate verb from the backend (e.g. "served as", "founded").
-    /// Drawn mid-edge so the user sees the relationship type at a glance.
-    let predicate: String
-    /// Claim ID — so click-edge can navigate to the source.
-    let claimId: String
-    /// Source document ID + page label — forwarded into a
-    /// `ficheroOpenClaimSource` notification on click.
-    let sourceDocumentId: String
-    let pageLabel: String?
-    /// Aggregate weight (how many claims connect these two entities).
-    /// Used by the render to set line opacity / thickness.
-    let weight: Int
-}
-
-private struct EdgeKey: Hashable {
-    let source: String
-    let target: String
 }
 
 // swiftlint:enable identifier_name
