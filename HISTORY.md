@@ -1,4 +1,13 @@
 
+## 2026-05-13 — Autonomous Loop (Late, 4 KG/Catalogue bugs)
+
+- **#1016**: `_sanitize_entity_description` rejects empty/<3-word/function-word-only/canonical-substring predicates before they land on `KnowledgeEntity.description`. Fixes "called" / "noted" / "a neighbor" leaking from a degenerate LLM SVO.
+- **#1007**: OntologyBrowser auto-refreshes on `WorkflowExecutionObserver.workflowCompletedCount` (same pattern as `DocumentInspectorArtifactsTab`); manual refresh button removed from the toolbar.
+- **#1002**: Module-level `_is_internal_langchain_node()` filter in the workflow runner drops `Runnable*` LCEL framework nodes from the SSE stream at `on_chain_start` / `on_chain_end`. Cuts SSE event volume per real user node by ~10x.
+- **#1011**: Path 2 of `catalogue` now wires `error_sink=catalogue_errors` through `_generate_resumen`; added a fallback error message for the "no markdown + no errors + no artifacts" case so silent successes can't happen.
+
+Pre-existing 2 test failures (`test_chat_structured` + `test_routes_settings`) confirmed unrelated via stash test.
+
 ## 2026-04-14 — Backend File-Splitting Pass
 
 - **#460 Backend cleanup**: Split all files exceeding the 1000-line hard limit
@@ -1643,3 +1652,9 @@ Discovered along the way:
 - Repo paths in CLAUDE.md are stale (`fichero-api`/`fichero-swiftui` → now `fichero-engine`/`fichero`); recorded in [[project-repo-path-divergence]].
 - SourceKit LSP emits phantom "Cannot find type/module" errors for SPM-linked symbols; only `xcodebuild` is authoritative. Recorded in [[sourcekit-lsp-false-positives]].
 - Pre-existing test failure on `main`: `test_chat_structured.py::TestAppleUnavailableHierarchy::test_bridge_stderr_decoding_stays_runtime_error` — `StructuredDecodeError` no longer subclasses `AppleUnavailableError`. Not filed yet; noted in STATE.md.
+
+## 2026-05-13 — #1016 #1007 #1002 #1011 autonomous loop closed 4 KG/catalogue bugs
+
+- PR: N/A
+- Branch: 0.0.2
+- Task completed in session
