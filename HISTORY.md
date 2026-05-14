@@ -1658,3 +1658,16 @@ Discovered along the way:
 - PR: N/A
 - Branch: 0.0.2
 - Task completed in session
+
+## 2026-05-13 — kg-consolidation Consolidate duplicated kg helpers into _common module
+
+- Commit: `6e9e0a59` on branch `0.0.2`
+- New module: `fichero-engine/src/fichero/kg/_common.py` — three shared primitives: `enum_value(x)`, `slug_verb(verb)`, `extract_svo(claim)`.
+- Collapsed near-twins in `graph.py` (`build_full_graph` / `build_full_cooccurrence` → shared `_build_cached`) and `entity_vectors.py` (L2-normalize duplicated between `index_entity` and `find_similar` → `_l2_normalized`).
+- Eliminated explicit lockstep coupling between `triples._predicate_uri` and `triangulation._predicate_slug` — both now delegate to `_common.slug_verb`.
+- `pykeen_predictor._gather_triples` no longer post-processes `URIRef` to recover the slug — it calls `slug_verb` directly.
+- 9 inline copies of `x.value if hasattr(x, "value") else str(x)` replaced with `enum_value(x)` across four files.
+- Net diff: +136 / -85 (-19 LOC in the 5 pre-existing files; +70 for the new `_common.py`, mostly docstring).
+- Validation: all 70 KG unit tests pass; ruff clean; 2 pre-existing test failures on `main` confirmed unrelated via stash test.
+- Public API preserved: `_predicate_uri`, `build_full_graph`, `build_full_cooccurrence`, `invalidate_graph_cache`, `_predicate_slug`.
+- Future candidate (not done): `api/routes/kg_graph.py` imports `build_full_cooccurrence` 24 times — possible adapter, borders on redesign, skip without explicit scope.

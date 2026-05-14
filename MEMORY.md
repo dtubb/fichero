@@ -793,3 +793,15 @@ First pass made entity rows clickable buttons that copied to pasteboard, with a 
 
 ### Apple model dedup: collapse by model_id at startup
 `_seed_builtin_providers` now dedupes Apple models by `model_id` BEFORE seeding (keeps the row with the richest capabilities, deletes the rest). Earlier code only checked `model_id not in existing` before inserting — which prevented NEW duplicates but never cleaned up rows that were inserted by a previous code version. Same pattern (one-shot dedup at boot, then guard the insert) applies to any future built-in seed.
+
+## kg/_common.py — shared helpers across KG submodules — 2026-05-13
+
+`fichero/kg/_common.py` is the consolidation point for three primitives reused across `triples.py`, `graph.py`, `triangulation.py`, `entity_vectors.py`, and `pykeen_predictor.py`:
+
+- `enum_value(x)` — `x.value if hasattr(x, "value") else str(x)`. Use this everywhere KG code stringifies an `EntityType` / `EpistemicStatus` / `ClaimType` / `SourceAuthority`. The inline pattern existed in 9 places before consolidation.
+- `slug_verb(verb)` — canonical predicate slug. `triples._predicate_uri` wraps it with the FICHERO namespace; `triangulation` and `pykeen_predictor` use the bare slug. Adding any new module that needs the predicate slug MUST call `slug_verb` directly — never re-implement the slugifier, or SPARQL queries over the RDF graph will silently disagree with the in-Python aggregation in triangulation.
+- `extract_svo(claim)` — returns `(verb, object_text)` tuple from `claim.metadata`. Standard SVO pull; replaced 4 inline copies.
+
+`graph._build_cached(db, builder, cache)` and `entity_vectors._l2_normalized(vec)` are local helpers in the same spirit — collapsed near-twin functions in those files.
+
+**Lesson**: when a docstring explicitly warns that two functions "must stay in lockstep" (this was the case for `triples._predicate_uri` ↔ `triangulation._predicate_slug`), treat it as a strong signal to consolidate immediately. The warning meant the prior author already knew it was wrong but didn't have time to fix it.
