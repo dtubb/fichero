@@ -137,6 +137,124 @@ class TestDocumentInspector:
 
 
 # -----------------------------------------------------------------------------
+# Document knowledge-graph (canonical grouping endpoint, #1068)
+# -----------------------------------------------------------------------------
+
+
+class TestDocumentKnowledgeGraph:
+    def test_unknown_document_404s(self, db):
+        from fastapi import HTTPException
+        from fichero.api.routes import document_inspector
+
+        try:
+            asyncio.run(document_inspector.knowledge_graph("no-such-id", db=db))
+            raise AssertionError("expected 404")
+        except HTTPException as exc:
+            assert exc.status_code == 404
+
+    def test_empty_document_returns_no_groups(self, db):
+        from fichero.api.routes import document_inspector
+
+        doc = Document(name="empty.pdf", doc_type=DocType.file)
+        db.save(doc)
+        result = asyncio.run(document_inspector.knowledge_graph(doc.id, db=db))
+        assert result.document_id == doc.id
+        assert result.groups == []
+        assert result.entity_count == 0
+        assert result.claim_count == 0
+
+    def test_groups_all_kinds_including_dates(self, db):
+        """The Dates section must be present — its omission was #1068."""
+        from fichero.api.routes import document_inspector
+
+        doc = Document(name="page12.pdf", doc_type=DocType.file)
+        db.save(doc)
+
+        person = KnowledgeEntity(canonical_name="Louise Livingstone", entity_type=EntityType.person)
+        place = KnowledgeEntity(canonical_name="Deloro", entity_type=EntityType.location)
+        event = KnowledgeEntity(canonical_name="Filing of the Petition", entity_type=EntityType.event)
+        keyword = KnowledgeEntity(canonical_name="mining", entity_type=EntityType.concept)
+        for e in (person, place, event, keyword):
+            db.save(e)
+
+        db.save(KnowledgeClaim(text="Louise Livingstone signed.", source_document_id=doc.id, entity_ids=[person.id]))
+        db.save(KnowledgeClaim(text="Deloro is in Ontario.", source_document_id=doc.id, entity_ids=[place.id]))
+        db.save(KnowledgeClaim(text="The petition was filed.", source_document_id=doc.id, entity_ids=[event.id]))
+        db.save(KnowledgeClaim(text="Mining was the industry.", source_document_id=doc.id, entity_ids=[keyword.id]))
+        # Date-style claim — no entity, normalized date in metadata.
+        db.save(KnowledgeClaim(
+            text="1923-1945",
+            source_document_id=doc.id,
+            entity_ids=[],
+            metadata={"date_normalized": "1923/1945"},
+        ))
+
+        result = asyncio.run(document_inspector.knowledge_graph(doc.id, db=db))
+        kinds = [g.kind for g in result.groups]
+        assert "date" in kinds, "Dates group must be surfaced (#1068)"
+        assert set(kinds) == {"concept", "person", "location", "event", "date"}
+        # Display order: concept first, date after event.
+        assert kinds == ["concept", "person", "location", "event", "date"]
+        assert result.entity_count == 5
+        assert result.claim_count == 5
+        date_group = next(g for g in result.groups if g.kind == "date")
+        assert date_group.items[0].canonical_name == "1923-1945"
+        assert date_group.items[0].entity_id is None
+
+    def test_dedups_within_kind_and_keeps_all_claim_ids(self, db):
+        """Multiple claims for the same canonical entity collapse to one row."""
+        from fichero.api.routes import document_inspector
+
+        doc = Document(name="dupes.pdf", doc_type=DocType.file)
+        db.save(doc)
+        entity = KnowledgeEntity(canonical_name="Davidson", entity_type=EntityType.person)
+        db.save(entity)
+        c1 = KnowledgeClaim(text="Davidson arrived.", source_document_id=doc.id, entity_ids=[entity.id])
+        c2 = KnowledgeClaim(text="Davidson left.", source_document_id=doc.id, entity_ids=[entity.id])
+        db.save(c1)
+        db.save(c2)
+
+        result = asyncio.run(document_inspector.knowledge_graph(doc.id, db=db))
+        people = next(g for g in result.groups if g.kind == "person")
+        assert len(people.items) == 1, "same canonical entity must dedup to one row"
+        assert set(people.items[0].claim_ids) == {c1.id, c2.id}
+        assert result.entity_count == 1
+        assert result.claim_count == 2
+
+    def test_merged_entity_claims_resolve_to_canonical_not_dropped(self, db):
+        """Absorbed entities' claims attribute to the canonical entity.
+
+        The old SwiftUI code skipped merged entities outright, silently
+        dropping their claims — a cause of the #1068 under-counting.
+        """
+        from fichero.api.routes import document_inspector
+
+        doc = Document(name="merged.pdf", doc_type=DocType.file)
+        db.save(doc)
+        canonical = KnowledgeEntity(canonical_name="J. Davidson", entity_type=EntityType.person)
+        db.save(canonical)
+        absorbed = KnowledgeEntity(
+            canonical_name="Davidson",
+            entity_type=EntityType.person,
+            merged_into_id=canonical.id,
+        )
+        db.save(absorbed)
+
+        # A claim still points at the absorbed entity.
+        db.save(KnowledgeClaim(text="Davidson signed.", source_document_id=doc.id, entity_ids=[absorbed.id]))
+        # And one points at the canonical directly.
+        db.save(KnowledgeClaim(text="J. Davidson arrived.", source_document_id=doc.id, entity_ids=[canonical.id]))
+
+        result = asyncio.run(document_inspector.knowledge_graph(doc.id, db=db))
+        people = next(g for g in result.groups if g.kind == "person")
+        # Both claims collapse onto the canonical entity — none dropped.
+        assert len(people.items) == 1
+        assert people.items[0].canonical_name == "J. Davidson"
+        assert people.items[0].entity_id == canonical.id
+        assert len(people.items[0].claim_ids) == 2
+
+
+# -----------------------------------------------------------------------------
 # Entity inspector
 # -----------------------------------------------------------------------------
 
