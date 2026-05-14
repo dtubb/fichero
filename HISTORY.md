@@ -1679,3 +1679,10 @@ Discovered along the way:
 - **#1001** (partial) — Apple Intelligence → paid-cloud fallback now logs at WARNING with explicit "PAID … incurs cost" wording on both fallback paths. Refreshed 3 stale tests encoding pre-#949/#962 contract. Opt-in UI toggle left for follow-up (needs Daniel's product decision); issue left open.
 - **#1009** — sharpened shared `_SECTIONS` instruction strings: places covers land-use categories, events covers unnamed occurrences, keywords has explicit exclusion rule. Fixes both per-section extractors and `extract_all`.
 - Commits: e1315444, 50be9f77, dceeb95a, 1d6e8118. All pushed to 0.0.2.
+
+## 2026-05-14 — Session Summary (autonomous, backend)
+
+- **#1017 layer 2** — extractor → KG invariant validation. New `fichero/workflows/tools/extraction_invariants.py` (pure, DB-free: `claim_item_violations`, `entity_description_violation`, `summarize_violations`) wired into `_write_kg_rows`, logging anchorless-item / degenerate-description violations at WARNING so silent drops surface in the activity log. 17 tests. Issue left open (layers 1/3/4/5 remain).
+- **#988 step 1** — graph-context similarity merge-candidate generator. `graph_context_merge_candidates()` + `MergeCandidate` in `kg/graph.py`: Jaccard-over-neighbourhood entity-resolution candidate generator built on `nx.jaccard_coefficient`, advisory-only (feeds review queue, never auto-merge). 11 tests. Issue left open (review-queue wiring + probabilistic scoring remain).
+- **#1000** — investigated, not fixed. Root cause is architectural: workflow execution runs as a `create_task` on the FastAPI main event loop, so a sync-blocking tool node freezes `/api/health`. Needs a live repro; recorded in MEMORY.md.
+- Commits: 9b7abd5a, 55fe58f5, 66dd2c2b. All pushed to 0.0.2.
