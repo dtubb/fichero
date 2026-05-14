@@ -49,6 +49,31 @@ def _remove_workflow_state(thread_id: str) -> None:
     _running_workflows.pop(thread_id, None)
 
 
+# Internal LangChain LCEL runnables whose on_chain_start / on_chain_end
+# events should NOT surface to the SSE workflow stream. (#1002)
+#
+# LangChain composes a single user-authored "Catalogue / Extract All"
+# node out of ~10 internal Runnable nodes (RunnableSequence,
+# RunnableLambda, RunnableParallel<…>, RunnableAssign<…>,
+# RunnableWithFallbacks). Each fires its own start/end event ~doubling
+# (with the paired log SSE) the wire volume per user node. The frontend
+# already filters them out via ``activityHumanNodeName()``; we drop
+# them at the source so we're not paying for the round trip.
+_INTERNAL_LANGCHAIN_NAME_PREFIXES: tuple[str, ...] = ("Runnable",)
+
+
+def _is_internal_langchain_node(name: str) -> bool:
+    """Return True for framework-internal LCEL runnables.
+
+    Catches ``RunnableSequence``, ``RunnableLambda``,
+    ``RunnableParallel<parsed,parsing_error>``,
+    ``RunnableAssign<parsed,parsing_error>``, and
+    ``RunnableWithFallbacks`` — every Runnable subclass LangChain
+    composes inside a single user-authored workflow node. (#1002)
+    """
+    return name.startswith(_INTERNAL_LANGCHAIN_NAME_PREFIXES)
+
+
 # =============================================================================
 # Python Code Generation
 # =============================================================================
@@ -512,6 +537,7 @@ async def _run_workflow_in_background(
                 return name[: -len("_process")]
             return name
 
+
         logger.debug(f"Exit nodes for completion: {exit_node_ids}")
         completed_exit_nodes = set()
 
@@ -525,7 +551,10 @@ async def _run_workflow_in_background(
 
             if event_kind == "on_chain_start" and event.get("name"):
                 node_name = event.get("name", "")
-                if node_name not in ("__start__", "LangGraph"):
+                if (
+                    node_name not in ("__start__", "LangGraph")
+                    and not _is_internal_langchain_node(node_name)
+                ):
                     node_start_times[node_name] = datetime.now(timezone.utc)
                     original_id = _normalize_node_name(node_name)
 
@@ -581,7 +610,10 @@ async def _run_workflow_in_background(
                 node_name = event.get("name", "")
                 output = event.get("data", {}).get("output", {})
 
-                if node_name not in ("__start__", "LangGraph"):
+                if (
+                    node_name not in ("__start__", "LangGraph")
+                    and not _is_internal_langchain_node(node_name)
+                ):
                     original_id = _normalize_node_name(node_name)
 
                     # Skip node_end for _process (node isn't done until _aggregate finishes)

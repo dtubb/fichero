@@ -214,3 +214,44 @@ class TestExecuteWorkflow:
         ):
             r = client.post("/api/workflow-execution/execute", json=payload)
         assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Internal LangChain node filter — #1002
+# ---------------------------------------------------------------------------
+
+
+class TestIsInternalLangchainNode:
+    """``_is_internal_langchain_node`` drops LCEL framework-internal
+    Runnables from the SSE stream so the frontend doesn't see them.
+    (#1002)"""
+
+    def test_runnable_variants_filtered(self):
+        from fichero.api.routes.workflow_execution.runner import (
+            _is_internal_langchain_node,
+        )
+        for name in (
+            "RunnableSequence",
+            "RunnableLambda",
+            "RunnableParallel<parsed,parsing_error>",
+            "RunnableAssign<parsed,parsing_error>",
+            "RunnableWithFallbacks",
+        ):
+            assert _is_internal_langchain_node(name), name
+
+    def test_user_node_names_kept(self):
+        from fichero.api.routes.workflow_execution.runner import (
+            _is_internal_langchain_node,
+        )
+        # Real user-authored node names (snake_case from catalogue.json)
+        for name in (
+            "extract_all",
+            "extract_all_process",
+            "extract_all_aggregate",
+            "transcribe_each_file",
+            "catalogue",
+            "Catalogue",  # display name
+            "__start__",  # handled separately by caller, not by this fn
+            "LangGraph",  # handled separately by caller
+        ):
+            assert not _is_internal_langchain_node(name), name
