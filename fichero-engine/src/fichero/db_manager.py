@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fichero.db import Database
+    from fichero.db_writer import DBWriter
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,9 @@ class DatabaseManager:
     def __init__(self):
         # Key: (package_str, thread_ident) -> Database
         self._databases: dict[tuple[str, int], Database] = {}
+        # Key: (package_str, thread_ident) -> DBWriter (lazily created;
+        # see get_db_writer). Single-writer queue for #1000 Phase 2.
+        self._db_writers: dict[tuple[str, int], "DBWriter"] = {}
         self._lock = threading.Lock()
         logger.info("DatabaseManager initialized")
 
@@ -101,15 +105,71 @@ class DatabaseManager:
 
             return self._databases[cache_key]
 
+    def get_db_writer(self, package_path: str | Path) -> "DBWriter":
+        """Get or create the single-writer queue for a package, scoped
+        to the calling thread (#1000 Phase 2).
+
+        Lazily created on first use and bound to this thread's
+        ``Database`` connection — so the writer owns that connection's
+        write path exclusively. Lifecycle is tied to the connection:
+        ``close_database`` / ``close_all`` / ``close_current_thread``
+        stop it.
+        """
+        from fichero.db_writer import DBWriter
+
+        package_path = Path(package_path)
+        package_str = str(package_path)
+        cache_key = (package_str, threading.get_ident())
+
+        # get_database is itself locked; call it before taking the lock.
+        db = self.get_database(package_path)
+        with self._lock:
+            if cache_key not in self._db_writers:
+                writer = DBWriter(db, name=f"db-writer-{cache_key[1]}")
+                writer.start()
+                self._db_writers[cache_key] = writer
+                logger.info(
+                    f"DBWriter created: {package_str} (thread {cache_key[1]})"
+                )
+            return self._db_writers[cache_key]
+
+    def _stop_writers(self, keys: list[tuple[str, int]]) -> None:
+        """Stop and drop the DBWriters for the given cache keys.
+        Caller must hold ``self._lock``."""
+        for key in keys:
+            writer = self._db_writers.pop(key, None)
+            if writer is not None:
+                writer.stop()
+
     def close_database(self, package_path: str | Path):
-        """Close every thread's connection for a package."""
+        """Close every thread's connection (and writer) for a package."""
         package_str = str(Path(package_path))
 
         with self._lock:
-            for key in [k for k in self._databases if k[0] == package_str]:
+            keys = [k for k in self._databases if k[0] == package_str]
+            self._stop_writers(
+                [k for k in self._db_writers if k[0] == package_str]
+            )
+            for key in keys:
                 self._databases.pop(key).conn.close()
                 logger.info(
                     f"Closed database connection: {package_str} (thread {key[1]})"
+                )
+
+    def close_current_thread(self) -> None:
+        """Close this thread's connection + writer for every package.
+
+        Called by the workflow worker thread in its ``finally`` so a
+        finished run doesn't leak its DuckDB connection / writer thread
+        (#1000). The API thread's connections are untouched.
+        """
+        tid = threading.get_ident()
+        with self._lock:
+            self._stop_writers([k for k in self._db_writers if k[1] == tid])
+            for key in [k for k in self._databases if k[1] == tid]:
+                self._databases.pop(key).conn.close()
+                logger.debug(
+                    f"Closed database connection: {key[0]} (thread {tid})"
                 )
 
     @property
@@ -118,8 +178,9 @@ class DatabaseManager:
         return len({key[0] for key in self._databases})
 
     def close_all(self):
-        """Close all database connections across every thread."""
+        """Close all database connections + writers across every thread."""
         with self._lock:
+            self._stop_writers(list(self._db_writers))
             for cache_key, db in list(self._databases.items()):
                 db.conn.close()
                 logger.info(

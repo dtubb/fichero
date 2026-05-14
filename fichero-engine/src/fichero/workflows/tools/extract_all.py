@@ -313,6 +313,12 @@ async def extract_all(
     if container and library_path:
         try:
             db = db_manager.get_database(library_path)
+            # Append-only artifact writes funnel through the
+            # single-writer queue (#1000 Phase 2). KG entity/claim
+            # writes (_write_kg_rows) stay direct — they're
+            # read-modify-write and need immediate consistency for the
+            # upsert dedup, so they can't be queued async.
+            db_writer = db_manager.get_db_writer(library_path)
             for section in _SECTIONS:
                 key = section["schema_key"]
                 # Skip sections that aren't in the default preset's
@@ -348,7 +354,7 @@ async def extract_all(
                         if not page_doc_id or not items:
                             continue
                         page_md = _render_section_markdown(section, items)
-                        db.save(Artifact(
+                        db_writer.save(Artifact(
                             document_id=page_doc_id,
                             artifact_type=section["artifact"],
                             content=page_md,
@@ -361,7 +367,7 @@ async def extract_all(
                     # Container-level fallback.
                     flat = [item for ic in section_chunks for item in ic]
                     if flat:
-                        db.save(Artifact(
+                        db_writer.save(Artifact(
                             document_id=container.id,
                             artifact_type=section["artifact"],
                             content=_render_section_markdown(section, flat),
@@ -398,6 +404,9 @@ async def extract_all(
                         model=getattr(llm_config, "model", None),
                         run_id=state.get("task_id"),
                     ))
+            # Drain the queued artifact writes before this node returns
+            # — downstream folder-cleanup nodes read these artifacts.
+            db_writer.flush()
             container.updated_at = datetime.now()
             db.save(container)
         except Exception as exc:
