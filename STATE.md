@@ -2,34 +2,24 @@
 
 ## Next Session — Start Here
 
-**Latest commit: `6e9e0a59`. Branch: 0.0.2.** This session: kg-module refactor consolidating duplicated helpers into new `fichero/kg/_common.py` (`enum_value`, `slug_verb`, `extract_svo`) plus collapses for `build_full_*` and L2-normalize. Open 0.0.2 issue count: 0 (milestone empty when this session ran).
+**Latest commit: `1d6e8118`. Branch: 0.0.2.** This session: autonomous backend bug sweep — closed #1004, #1003, #1009; partially addressed #1001 (loud-log half done, opt-in UI toggle left open).
 
 ### What to do first
 
-1. **Check the 0.0.2 issue queue first** — it was empty when this session ran but Daniel may have filed new bugs during testing.
-2. **#998 graph crash** — still needs Xcode debugger session to pinpoint the ProgressView with `min == max == 32.142857`. Set a symbolic breakpoint on the AppKit constraint-warning emitter.
-3. **#1000 / #1004 / #1008 backend lock-up cluster** — `asyncio.to_thread` sweep across long-running async handlers; one fix template closes all three. **#1008 is blocked on #1004** (deferred earlier for that reason).
-4. **Tooling pass**: build the test layers from #1017 in order — SF Symbol static lint (~2h), extractor schema round-trip (~½d), backend integration smoke (~1d).
-5. **Future kg consolidation candidate**: `fichero-engine/src/fichero/api/routes/kg_graph.py` imports `build_full_cooccurrence` 24 times — could lift a small adapter, but borders on redesign. Don't do it without explicit scope.
+1. **#1008 is now unblocked** — it was blocked on #1004 (`asyncio.to_thread` pattern), which shipped this session. Apply the same off-load template to the KG Tools menu auto-run work.
+2. **#1000 backend lock-up** — same `asyncio.to_thread` template; one fix shape. Lowest-numbered open backend bug.
+3. **#961 console hygiene** — deferred this session (SwiftUI/AppKit domain, needs full Xcode build + 3-leg Swift check, three separate diagnostic passes). Lower priority than functional bugs per the issue.
+4. **#998 graph crash** — needs Xcode debugger session; symbolic breakpoint on the AppKit constraint-warning emitter.
 
 ### Other open 0.0.2 work
 
-- Extraction quality: #1001 / #1003 / #1009 (Apple Intelligence guardrail + OpenRouter fallback degrades typing & coverage; #1011 partially mitigated tonight by surfacing silent failures, but the underlying LLM-call quality is unchanged.)
-- UI: #1019 SwiftUI 'modifying state during view update' (needs Main Thread Checker runtime diagnostics — Daniel to reproduce.)
-- Pre-existing: #928 PDF loupe (blocked on #783), #958 structured artifact editors, #961 console hygiene
-- Meta: #1017 test-coverage gap
-- Release chain (out of autonomous scope): #659–#665
-
-### Pre-existing test failures (not blocking)
-
-- `fichero-engine/tests/unit/test_chat_structured.py::TestAppleUnavailableHierarchy::test_bridge_stderr_decoding_stays_runtime_error` — `StructuredDecodeError` is no longer subclass of `AppleUnavailableError`. Either the test or the class hierarchy drifted.
-- `fichero-engine/tests/unit/test_routes_settings.py::TestResetAIDefaults::test_reset_clears_all_settings` — assertion failure on settings reset (pre-existing).
-
-Both confirmed unrelated to this session via stash test.
+- #1001 — loud-log done; **opt-in UI toggle still open, needs Daniel's product decision** (default behaviour: block vs. warn?).
+- #1019 SwiftUI 'modifying state during view update' — needs Main Thread Checker; Daniel to reproduce.
+- #958 structured artifact editors, #1017 test-coverage gap, #928 PDF loupe (blocked on #783).
+- Release chain (out of autonomous scope): #659–#665.
 
 ### Don't break
 
-- KG consolidation (this session): public API preserved — `_predicate_uri`, `build_full_graph`, `build_full_cooccurrence`, `invalidate_graph_cache`, `_predicate_slug` (now an alias of `slug_verb`). Any new KG module must call `_common.slug_verb` rather than re-implementing the slugifier.
-- Earlier four fixes: degenerate entity description sanitiser, KG auto-refresh, LangChain SSE filter, catalogue silent-failure surfacing.
-- Recent fixes: 503-JSON-body diagram fallback, Catalogue→Archival Summary tool rename, hidden KG inspector column, richer storage error diagnostics.
-- MEMORY notes: TimelineView snapshot count, HTTP header arbitrary text, catalogue → KG flow, "Pydantic field must be declared" (relevant to extractor work), new "kg/_common.py — shared helpers" entry.
+- This session's four fixes: `asyncio.to_thread` off-load on both embed endpoints (#1004); zero-entity-page observability logs in `_write_kg_rows` (#1003); WARNING-level paid-fallback notices in `llm.py` (#1001); sharpened `_SECTIONS` instruction strings (#1009).
+- `StructuredDecodeError` IS an `AppleUnavailableError` subclass by design (#949/#962) — three tests were refreshed this session to match the current contract; don't revert them.
+- KG consolidation: new KG modules must call `_common.slug_verb` rather than re-implementing the slugifier. Public API preserved: `_predicate_uri`, `build_full_graph`, `build_full_cooccurrence`, `invalidate_graph_cache`, `_predicate_slug`.

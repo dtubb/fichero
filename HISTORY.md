@@ -1671,3 +1671,11 @@ Discovered along the way:
 - Validation: all 70 KG unit tests pass; ruff clean; 2 pre-existing test failures on `main` confirmed unrelated via stash test.
 - Public API preserved: `_predicate_uri`, `build_full_graph`, `build_full_cooccurrence`, `invalidate_graph_cache`, `_predicate_slug`.
 - Future candidate (not done): `api/routes/kg_graph.py` imports `build_full_cooccurrence` 24 times — possible adapter, borders on redesign, skip without explicit scope.
+
+## 2026-05-14 — Session Summary (autonomous, backend bug sweep)
+
+- **#1004** — `POST /kg/entity-curation/semantic/embed` + peer `/kg/claim-search/embed` off-loaded synchronous FastEmbed batch to `asyncio.to_thread`; event loop stays responsive. Regression test `test_embed_endpoints_nonblocking.py`.
+- **#1003** — extractor zero-entity pages now visible: empty pages log explicit "produced 0 items"; `_write_kg_rows` emits structured per-page summary (items_in / entities_written / claims_written). Observability only.
+- **#1001** (partial) — Apple Intelligence → paid-cloud fallback now logs at WARNING with explicit "PAID … incurs cost" wording on both fallback paths. Refreshed 3 stale tests encoding pre-#949/#962 contract. Opt-in UI toggle left for follow-up (needs Daniel's product decision); issue left open.
+- **#1009** — sharpened shared `_SECTIONS` instruction strings: places covers land-use categories, events covers unnamed occurrences, keywords has explicit exclusion rule. Fixes both per-section extractors and `extract_all`.
+- Commits: e1315444, 50be9f77, dceeb95a, 1d6e8118. All pushed to 0.0.2.
