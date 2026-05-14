@@ -439,6 +439,12 @@ class TestCacheableTools:
         for tool in cheap_tools:
             assert tool not in CACHEABLE_TOOLS, f"{tool} should not be cacheable"
 
+    def test_extract_all_is_cacheable(self):
+        """extract_all is the combined extractor the default Catalogue
+        preset uses — it MUST be cacheable, or every re-run pays the full
+        extraction cost again while transcribe cache-hits (#1065)."""
+        assert "extract_all" in CACHEABLE_TOOLS
+
 
 # =============================================================================
 # Integration-like Tests

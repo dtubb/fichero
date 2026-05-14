@@ -41,6 +41,17 @@ CACHEABLE_TOOLS = {
     "sentiment",
     "questions",
     "extract",
+    # extract_all is the combined six-in-one extractor the default
+    # Catalogue preset uses. It was missing here, so every Catalogue
+    # re-run paid the full extraction cost again while transcribe
+    # cache-hit (#1065). compute_cache_key already captures everything
+    # that changes its output (provider, model, the whole config dict —
+    # incl. output_language — and document_id for per-page fan-out).
+    # A cache hit safely skips re-execution: extract_all's KG side
+    # effects (entities/claims/artifacts) were persisted by the original
+    # run, same as transcribe's artifact — and _result_worth_caching
+    # guards against caching an empty/garbage extraction.
+    "extract_all",
     "analyze",
 }
 
