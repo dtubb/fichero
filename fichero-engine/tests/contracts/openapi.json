@@ -17170,7 +17170,7 @@
           "knowledge-graph"
         ],
         "summary": "Embed Claims",
-        "description": "Embed claims into LanceDB for semantic search.",
+        "description": "Embed claims into LanceDB for semantic search.\n\nRuns the synchronous FastEmbed batch in a worker thread so the FastAPI\nevent loop stays responsive \u2014 same fix as the entity-curation peer (#1004).",
         "operationId": "embed_claims_api_kg_claim_search_embed_post",
         "parameters": [
           {
@@ -17743,7 +17743,7 @@
           "knowledge-graph"
         ],
         "summary": "Embed Entities",
-        "description": "Embed entities into LanceDB for semantic search.",
+        "description": "Embed entities into LanceDB for semantic search.\n\nThe FastEmbed call is CPU-bound and (for a real corpus) runs hundreds\nof synchronous invocations. Off-load to a worker thread so the FastAPI\nevent loop can keep serving other endpoints (e.g. /api/health) while\nembedding is in flight (#1004).",
         "operationId": "embed_entities_api_kg_entity_curation_semantic_embed_post",
         "parameters": [
           {

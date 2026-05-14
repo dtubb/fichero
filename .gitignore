@@ -70,3 +70,4 @@ dump.rdb
 
 default.profraw
 .claude/worktrees/
+.session-end-complete

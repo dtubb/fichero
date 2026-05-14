@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Fichero is a macOS document management system with LangChain-powered AI toolchains. Two-part architecture: SwiftUI frontend (`fichero-swiftui/`) + Python FastAPI backend (`fichero-api/`). Current phase: active development on milestone issues.
+Fichero is a macOS document management system with LangChain-powered AI toolchains. Two-part architecture: SwiftUI frontend (`fichero/fichero/`, Xcode project at `fichero/fichero.xcodeproj`) + Python FastAPI backend (`fichero-engine/src/fichero/`). Current phase: active development on milestone issues.
 
 ## Session Configuration
 
@@ -35,16 +35,16 @@ Convention: `~/code/fichero-<version>` (e.g. `~/code/fichero-0.0.3`, `~/code/fic
 
 ```bash
 # Backend server
-PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 
 # Python tests
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
 
 # Python lint
-ruff check fichero-api/src/
+ruff check fichero-engine/src/
 
 # Swift lint
-swiftlint lint fichero-swiftui/fichero-swiftui/
+swiftlint lint fichero/fichero/
 ```
 
 ## Xcode MCP Tools
@@ -104,17 +104,19 @@ Full architecture: `docs/CLAUDE.md`, `docs/architecture/`
 | `MEMORY.md` | Persistent lessons and decisions |
 | `docs/CLAUDE.md` | Full agent guidance (canonical, detailed) |
 | `docs/architecture/` | Architecture docs |
-| `fichero-swiftui/` | Swift/SwiftUI frontend |
-| `fichero-api/src/fichero/` | Python FastAPI backend |
+| `fichero/fichero/` | Swift/SwiftUI frontend (Xcode project: `fichero/fichero.xcodeproj`) |
+| `fichero/fichero-api-client/` | Generated Swift OpenAPI client package |
+| `fichero-engine/src/fichero/` | Python FastAPI backend |
+| `fichero-engine/tests/` | Python tests (`unit/`, `integration/`, `contracts/`) |
 
 ## Rules I Don't Break
 
 1. Never push directly to `main` — always go through a PR (create it and merge it yourself).
 2. Never skip build, test, lint before marking work complete.
-3. Never modify genuinely auto-generated files: `openapi.json`, anything under `fichero-swiftui/fichero-api-client/.build/`, anything under `fichero-swiftui/fichero-api-client/Sources/FicheroAPIClient/` that's produced by the OpenAPI generator. **Note:** `fichero-swiftui/fichero-swiftui/Services/*Generated.swift` files are *hand-written service wrappers* (despite the confusing suffix) and CAN be edited.
+3. Never modify genuinely auto-generated files: `openapi.json`, anything under `fichero/fichero-api-client/.build/`, anything under `fichero/fichero-api-client/Sources/FicheroAPIClient/` that's produced by the OpenAPI generator. **Note:** `fichero/fichero/Services/*Generated.swift` files are *hand-written service wrappers* (despite the confusing suffix) and CAN be edited. The `openapi.json` files ARE regenerated from the backend (via `fichero-engine/scripts/sync_openapi_schema.sh`) and that regen output should be committed — what's forbidden is hand-editing them.
 4. When editing a service wrapper that builds a request body, **always use the OpenAPI-typed fields** on `Components.Schemas.*`, not `additionalProperties`, for any field that's declared in `openapi.json`. Dumping declared fields into `additionalProperties` silently loses writes under Pydantic `extra="allow"` — see commit 31fc4141 for the pattern and `docs/architecture/swiftui/api_client.md` for context.
 5. Never start coding before a plan exists for non-trivial work.
-6. `PYTHONPATH` must be set to `fichero-api/src` for all Python commands.
+6. `PYTHONPATH` must be set to `fichero-engine/src` for all Python commands.
 7. Never create per-task branches — commit all work to the milestone branch directly.
 8. Never start a milestone more than one ahead of what Daniel is currently testing.
 
