@@ -16,9 +16,11 @@ Environment Variables:
 """
 
 import os
+import warnings
 
-# Disable tokenizers parallelism to avoid fork() warnings when using multiprocessing
-# This must be set before any imports that use transformers/tokenizers
+# Disable tokenizers parallelism so the Rust tokenizer's thread pool
+# doesn't deadlock across a fork (subprocess spawns count). Must be set
+# before any import that pulls in transformers / tokenizers.
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 # Route the kreuzberg extraction cache to ~/Library/Caches/ and run the
@@ -38,6 +40,29 @@ from fastapi.middleware.cors import CORSMiddleware
 from fichero.db import Database, db_manager
 
 logger = logging.getLogger(__name__)
+
+def _install_warning_filters() -> None:
+    """Suppress lancedb's over-broad fork-safety advisory.
+
+    lancedb registers an ``os.register_at_fork(before=...)`` hook that
+    warns "lance is not fork-safe" on EVERY fork. That matters for
+    multiprocessing (fork + keep running Python with inherited lancedb
+    state) — but the engine uses none: all concurrency is
+    ``ThreadPoolExecutor``, and the only forks are subprocess fork+exec
+    (fm-bridge, pandoc, etc.) where the child immediately ``exec()``s
+    and never touches inherited lancedb state. Without this the
+    advisory floods the workflow log on every subprocess spawn. (#1028)
+    """
+    warnings.filterwarnings(
+        "ignore",
+        message="lance is not fork-safe",
+        category=UserWarning,
+    )
+
+
+# Registered after imports — the filter only needs to be in place
+# before a fork, not before lancedb's import.
+_install_warning_filters()
 
 
 def _validate_model_sync() -> bool:
