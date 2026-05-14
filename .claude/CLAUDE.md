@@ -31,6 +31,12 @@ Convention: `~/code/fichero-<version>` (e.g. `~/code/fichero-0.0.3`, `~/code/fic
 2. One concern per commit. Small, complete increments.
 3. Verify everything: build, test, lint — then mark complete.
 
+**Parallel execution & context hygiene** (full guide: `docs/agent-workflow/parallel-execution.md`):
+- Offload build/lint/test and bug investigation to **subagents** — the lead reads a verdict, not a log.
+- Use a **single session** for the 0.0.2 backend fix cluster (overlapping files) and SwiftUI fixes (one Xcode).
+- Use an **agent team** for the QA review gate (#1061), competing-hypothesis debugging, and 0.0.3+ cross-layer features.
+- Before committing a bug-fix sweep to `0.0.2`, run the QA review gate: stage the diff, spawn 3 review-only teammates (`backend-reviewer`, `silent-failure-hunter`, `code-reviewer`), synthesize, then commit.
+
 ## Build + Test + Lint
 
 ```bash
@@ -103,6 +109,7 @@ Full architecture: `docs/CLAUDE.md`, `docs/architecture/`
 | `STATE.md` | Current branch, focus, next session |
 | `MEMORY.md` | Persistent lessons and decisions |
 | `docs/CLAUDE.md` | Full agent guidance (canonical, detailed) |
+| `docs/agent-workflow/parallel-execution.md` | When to use single session / subagents / agent teams + QA review gate |
 | `docs/architecture/` | Architecture docs |
 | `fichero/fichero/` | Swift/SwiftUI frontend (Xcode project: `fichero/fichero.xcodeproj`) |
 | `fichero/fichero-api-client/` | Generated Swift OpenAPI client package |

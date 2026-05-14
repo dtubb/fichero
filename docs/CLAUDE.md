@@ -389,6 +389,23 @@ PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/
 - [ ] No debug code or commented-out blocks
 - [ ] File sizes within guidelines (< 400 lines recommended)
 
+## Parallel Execution & Review Process
+
+See `docs/agent-workflow/parallel-execution.md` for the full guide. Summary:
+
+- **Single session** — sequential edits, same-file changes, the 0.0.2 backend
+  fix cluster (overlapping files), SwiftUI fixes (serialized on one Xcode).
+- **Subagent** — build/lint/test runs and bug investigation. Keep these *off*
+  the lead's context: the lead reads a verdict, not a log.
+- **Agent team** — the QA review gate (#1061), competing-hypothesis debugging,
+  and 0.0.3+ cross-layer features with disjoint file ownership.
+
+**QA review gate:** before committing a bug-fix sweep to `0.0.2`, stage the diff
+and spawn a 3-teammate review team (`backend-reviewer`, `silent-failure-hunter`,
+`code-reviewer`) rather than self-certifying. This is the gate that catches the
+recurring bug patterns in `MEMORY.md`. Agent teams are enabled in
+`~/.claude/settings.json`.
+
 ## Current Development Focus
 
 **Branch `0.0.2`** consolidates all milestone work from 0.0.3–0.1.0 backend issues and SwiftUI bug fixes. See `STATE.md` for next session entry point and `HISTORY.md` for completed work log.
