@@ -261,56 +261,11 @@ struct LibraryView: View {
                 // Dates/Events/Keywords lozenges show in list-row UI.
                 // Always present so the top-right control survives across
                 // icon / list / table / map modes (#883).
+                // Entity-type filter is the only top-toolbar control —
+                // the icon list uses trackpad pinch-to-zoom (#604), not
+                // toolbar zoom buttons, and the filter strip isn't driven
+                // from here (#1023).
                 entityFilterMenu
-
-                // Filter button — opens inline filter bar (like Finder's filter strip)
-                if featureManager.isLibraryFilterToolbarEnabled {
-                    Button {
-                        showFilterBar = true
-                        filterFieldFocused = true
-                    } label: {
-                        Image(systemName: showFilterBar ? "line.3.horizontal.decrease.circle.fill"
-                                : "line.3.horizontal.decrease.circle")
-                    }
-                    .help("Filter (⌘F)")
-                }
-
-                // Zoom controls — icon and map views only
-                if featureManager.isLibraryIconZoomControlsEnabled && (displayMode == .icon || displayMode == .map) {
-                    Button {
-                        if displayMode == .icon {
-                            iconViewScale = max(0.5, iconViewScale - 0.25)
-                        } else {
-                            mapCanvasScale = max(0.25, mapCanvasScale - 0.25)
-                        }
-                    } label: {
-                        Image(systemName: "minus.magnifyingglass")
-                    }
-                    .help("Zoom Out (⌘-)")
-                    .keyboardShortcut("-", modifiers: .command)
-
-                    Button {
-                        if displayMode == .icon { iconViewScale = 1.0 } else { mapCanvasScale = 1.0 }
-                    } label: {
-                        Image(systemName: "1.magnifyingglass")
-                    }
-                    .help("Reset Zoom")
-
-                    Button {
-                        // Raised from 3.0 → 5.0 so users can inspect
-                        // fine detail (stamps, handwriting) without the
-                        // zoom pegging too early (#604).
-                        if displayMode == .icon {
-                            iconViewScale = min(5.0, iconViewScale + 0.25)
-                        } else {
-                            mapCanvasScale = min(5.0, mapCanvasScale + 0.25)
-                        }
-                    } label: {
-                        Image(systemName: "plus.magnifyingglass")
-                    }
-                    .help("Zoom In (⌘=)")
-                    .keyboardShortcut("=", modifiers: .command)
-                }
             }
         }
     }
