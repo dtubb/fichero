@@ -1558,3 +1558,16 @@ Daniel left to pack/sleep; I worked through the deferred concept queue.
 - d41b178c — fix(app): #967 5s backend heartbeat surfaces offline state mid-session; flips after 2 consecutive failures (offlineFlipThreshold), recovers + reloads providers on next success
 
 Closed: #948, #960, #967. Filed: #975 (structured transcript ingest, no milestone — future).
+
+## 2026-05-13 — KG rebuild + bug sweep (extended evening session)
+
+- 45+ commits to origin/0.0.2; 21 GitHub issues closed (#885, #889, #901, #902, #927, #943, #959, #963, #976-#993, #995-#997)
+- KG rebuild master plan #983 closed: Phases 1+2+4+5 shipped; Phase 3 partial; Phases 6-8 deferred to fresh tickets
+- Phase 1: backend Stage 1 endpoints — neighborhood + 6 algorithm endpoints + SPARQL + 6 DuckDB indices + LRU cache + rank-then-truncate
+- Phase 2: claim card SVO rendering, source-doc citation line, click-to-source navigation
+- Phase 4: PDF highlight overlay (yellow PDFAnnotation on the source span via findString or page.selection)
+- Phase 5: focus-neighborhood graph view (rewrite of force-directed graph; click-edge → opens source claim)
+- #984 SVO promotion: added subject_canonical / subject_entity_id / predicate_verb / object_phrase as top-level KnowledgeClaim fields with metadata fallback
+- #886 search filename-match boost; #943 library view-mode global default; #963 first-person → author-name extractor rewrite
+- 5 of 5 scaling-review bottleneck fixes
+- 2 new bugs filed: #998 graph view crash (brk #0x1), #999 diagram.png Invalid HTTP header value
