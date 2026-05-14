@@ -34,7 +34,7 @@ import re
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from fichero.db import db_manager
 from fichero.llm import LLMConfig, chat_structured_with_fallback
@@ -325,17 +325,20 @@ _SECTIONS: list[dict[str, Any]] = [
         "schema_key": "keywords",
         "item_shape": '"keyword"',  # flat array of strings
         "instruction": (
-            "List descriptive keywords for ABSTRACT ideas only — themes, "
-            "subjects, time periods, ideologies, theoretical constructs "
-            "(e.g. 'gender', 'food insecurity', 'land reform'). "
+            "List the 5-8 MOST SALIENT, distinctive keywords for "
+            "ABSTRACT ideas only — themes, subjects, time periods, "
+            "ideologies, theoretical constructs (e.g. 'gender', 'food "
+            "insecurity', 'land reform'). "
             "Do NOT put places, events, people, or organizations here: "
             "if a term names a location (even a land-use category like "
             "'agricultural zones') it belongs in places; if it names an "
             "occurrence (like 'accident' or 'flood') it belongs in "
             "events. Keywords are concepts, not concrete entities. "
-            "Include only what the text actually discusses — no minimum "
-            "count, no padding. Return as a flat array of short strings "
-            "(no objects)."
+            "Pick the concepts a reader would TAG this passage with — "
+            "skip generic words ('work', 'cash', 'children', "
+            "'education') that merely appear but don't characterise it. "
+            "Prefer specific over generic. Order most salient first. "
+            "Return a flat array of short strings (no objects)."
         ),
     },
 ]
@@ -709,10 +712,22 @@ _SECTION_SCHEMAS: dict[str, type[BaseModel]] = {
 }
 
 
+# Runaway-cap backstop (#1051). The instruction asks for 5-8 salient
+# keywords; this trims a model that ignores the ceiling and dumps every
+# abstract noun. Keeps the first N — the instruction asks for
+# most-salient-first ordering.
+_KEYWORDS_MAX = 12
+
+
 class _KeywordsResult(BaseModel):
     """Keywords are flat strings, not objects."""
 
     items: list[str] = Field(default_factory=list)
+
+    @field_validator("items")
+    @classmethod
+    def _cap_runaway(cls, v: list[str]) -> list[str]:
+        return v[:_KEYWORDS_MAX]
 
 
 _SECTION_SCHEMAS["keywords"] = _KeywordsResult

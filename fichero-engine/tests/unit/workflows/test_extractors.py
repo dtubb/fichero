@@ -103,6 +103,46 @@ class TestEntityTypeDisambiguation:
         assert "do not put places, events" in instructions
 
 
+class TestKeywordOverExtraction:
+    """#1051: keyword extractor dumped 18 generic keywords for one
+    paragraph. The instruction must carry a salience bar + count
+    guidance, and the schema must cap a runaway model."""
+
+    def test_keywords_instruction_has_salience_bar(self):
+        section = next(s for s in _SECTIONS if s["name"] == "keywords_extract")
+        instr = section["instruction"].lower()
+        assert "salient" in instr
+        assert "5-8" in instr
+        # The old "no minimum count, no padding" phrasing imposed no ceiling.
+        assert "no minimum" not in instr
+
+    def test_keyword_salience_bar_reaches_extract_all(self):
+        from fichero.workflows.tools.extract_all import _build_instructions
+
+        instructions = _build_instructions("English").lower()
+        assert "salient" in instructions
+        assert "5-8" in instructions
+
+    def test_runaway_keyword_list_is_capped(self):
+        from fichero.workflows.tools.extractors import (
+            _KEYWORDS_MAX,
+            _KeywordsResult,
+        )
+
+        runaway = [f"kw{i}" for i in range(40)]
+        result = _KeywordsResult(items=runaway)
+        assert len(result.items) == _KEYWORDS_MAX
+        # Keeps the first N — instruction asks for most-salient-first.
+        assert result.items == runaway[:_KEYWORDS_MAX]
+
+    def test_normal_keyword_list_untouched(self):
+        from fichero.workflows.tools.extractors import _KeywordsResult
+
+        normal = ["artisanal mining", "subsistence livelihood", "the good life"]
+        result = _KeywordsResult(items=normal)
+        assert result.items == normal
+
+
 class TestStripFences:
     def test_plain_json_untouched(self):
         assert _strip_fences('{"x": 1}') == '{"x": 1}'
