@@ -13,6 +13,7 @@ import SwiftUI
 /// and Activity. Uses `EntityServiceGenerated` (\`/api/entities\` +
 /// \`/api/claims\`).
 struct OntologyBrowser: View {
+    @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @State private var selectedEntityId: String?
     @State private var searchText = ""
     @State private var isSearching = false
@@ -214,13 +215,11 @@ struct OntologyBrowser: View {
             .pickerStyle(.segmented)
             .fixedSize()
             .help("Switch between list and graph views (#902)")
-            Button {
-                Task { await loadEntities() }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-            }
-            .buttonStyle(.plain)
-            .help("Reload entities")
+            // The manual refresh button was removed in #1007 — the
+            // entity list now auto-refreshes when a workflow completes
+            // (see `.onChange(of: executionObserver.workflowCompletedCount)`
+            // on the list .task below). A visible refresh button signals
+            // "the data shown might be stale" — better to keep it fresh.
         }
     }
 
@@ -468,6 +467,14 @@ struct OntologyBrowser: View {
         .listStyle(.sidebar)
         .task {
             await loadEntities()
+        }
+        // #1007: auto-refresh entity list when any workflow finishes.
+        // Catalogue / Extract All write KG rows in reduce-phase nodes
+        // after all parallel files settle, so this is the right signal
+        // — the user no longer needs to click a manual refresh button
+        // to see newly-extracted entities appear.
+        .onChange(of: executionObserver.workflowCompletedCount) { _, _ in
+            Task { await loadEntities() }
         }
     }
 
@@ -852,6 +859,7 @@ struct NewEntitySheet: View {
 #Preview("Browser") {
     OntologyBrowser()
         .frame(width: 600, height: 500)
+        .environment(WorkflowExecutionObserver())
 }
 
 #Preview("Entity Row") {
