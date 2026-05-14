@@ -1727,3 +1727,9 @@ Long interactive 0.0.2 testing session with Daniel. Two halves: a backend fix sw
 - Diagnosed #1000: a real catalogue run hung at 80% — backend main thread deadlocked in `__semwait_signal` (DBWriter Future/queue). #1000 Phase 1 did not fully fix the freeze.
 - Confirmed the Xcode MCP works for the agent end-to-end (BuildProject + RunAllTests, 683 Swift tests green).
 - Triaged the 64-issue 0.0.2 milestone into ~6 root-cause clusters; set up a phased overnight autonomous-loop plan (backend release-blockers → SwiftUI-logic audit → SwiftUI rendering/polish).
+
+## 2026-05-14 (overnight loop, iteration 1) — Session Summary
+
+- #1000 (`fc2c55c9`) — DBWriter fails loud instead of deadlocking the backend. `flush()`/`stop()` now use a bounded `_drain()` (timeout + dead-thread detection) instead of an unbounded `queue.join()`; new `DBWriterError`; `_run()` worker logs loud on crash; dropped `/api/health` from uvicorn access logs. Verified workflow execution is off the main event-loop thread. Issue closed.
+- #1065 (`7a72bd29`) — added `extract_all` to `CACHEABLE_TOOLS` so the default Catalogue preset stops re-extracting every page on every re-run. Issue closed.
+- Both backend-only, pytest-verified via test-runner subagents (491 / 513 tests green), committed direct to 0.0.2.

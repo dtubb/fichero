@@ -2,19 +2,24 @@
 
 ## Next Session — Start Here
 
-**Latest commit: `4127c2ca`. Branch: 0.0.2.** An overnight autonomous loop was launched at session end (`agent-autonomous-loop.py`, 3-phase scope: backend release-blockers → SwiftUI-logic audit → SwiftUI rendering/polish). **Check its output FIRST.**
+**Latest commit: `7a72bd29`. Branch: 0.0.2.** Overnight autonomous loop running (`agent-autonomous-loop.py`, 3-phase scope). Iteration 1 done: #1000 + #1065 fixed, committed, closed.
 
 ### What to do first
 
-1. **Review what the overnight loop did** — `git log --oneline 0.0.2` since `4127c2ca`; read `agent-work/proposals/swiftui-logic-audit.md` if Phase B ran; check for `BLOCK.md` (loop stopped itself) + iteration logs noting skipped issues. The loop commits directly to `0.0.2`, gated (pytest / 3-leg check) per commit.
-2. **Verify on a real run** — build + run a real catalogue workflow on a born-digital PDF. Nothing the loop (or the prior sessions) shipped is confirmed by a real-app run. Restart the dev backend first — it gets cache-polluted by Swift test runs (see MEMORY `feedback_runalltests_pollutes_dev_backend`).
-3. **#1000 is the live release-blocker** — a real run hung at 80% with the backend main thread deadlocked in `__semwait_signal` (DBWriter Future/queue). #1000 Phase 1 did NOT fully fix the freeze. If the loop's Phase A fixed it, verify; if not, top priority. Diagnosis on issue #1037.
+1. **Review what the overnight loop did** — `git log --oneline 0.0.2` since `4127c2ca`; read `agent-work/proposals/swiftui-logic-audit.md` if Phase B ran; check for `BLOCK.md` (an actual `BLOCKED` line, not the old status file) + iteration logs. The loop commits directly to `0.0.2`, gated (pytest / 3-leg check) per commit.
+2. **Verify on a real run** — build + run a real catalogue workflow on a born-digital PDF. Nothing the loop or prior sessions shipped is confirmed by a real-app run. Restart the dev backend first — Swift test runs cache-pollute it (MEMORY `feedback_runalltests_pollutes_dev_backend`).
+3. **#1000 is FIXED (`fc2c55c9`)** — DBWriter now fails loud (bounded `_drain()` + dead-thread detection) instead of deadlocking the backend. Verify the catalogue run no longer hangs at 80%.
+
+### Phase A remaining (backend release-blockers)
+
+- **#1064** — born-digital PDF stale-transcription: text-layer short-circuit shielded by the skip-if-artifact cache.
+- **#1021** orphaned KG rows on delete; **#1028** lancedb fork-safety warning (NOTE: `main.py:_install_warning_filters` may already cover this — verify before working); **#1026** rdflib NTSerializer encoding warning.
+- Then Phase B (SwiftUI-logic audit → backend endpoints) and Phase C (SwiftUI, needs Xcode MCP).
 
 ### State of the 0.0.2 milestone
 
-- **64 open issues** — triaged into ~6 root-cause clusters (backend-freeze, re-run-not-idempotent, inspector-doesn't-show-KG, search, workflow/activity UI, viewer polish). Needs ruthless triage: move non-crash/freeze/data-loss issues to 0.0.3.
-- **Shipped this session, unverified:** #1060, #1037, #1029, #1051, #1033, #1027, #1022, #1023, + docs #1061.
-- **Filed this session:** #1062–#1071 (Daniel's testing pass); reconfirmed/commented #1030, #1047, #1050, #1055.
+- **62 open issues** (#1000, #1065 now closed) — triaged into ~6 root-cause clusters. Needs ruthless triage: move non-crash/freeze/data-loss issues to 0.0.3.
+- **Shipped, unverified:** #1060, #1037, #1029, #1051, #1033, #1027, #1022, #1023, #1000, #1065, + docs #1061.
 - **Needs Daniel's input:** #1054 (search threshold value), #1057 (model-defaults UI decision).
 
 ### Don't break
