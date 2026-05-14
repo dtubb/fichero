@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from collections import Counter
 from datetime import datetime
 from typing import Any
 
@@ -168,6 +170,63 @@ def _build_instructions(output_language: str) -> str:
     )
 
 
+# Error-message fragments that mark a failure as systemic — it won't
+# resolve by continuing, so every remaining chunk fails identically.
+# Covers the canonical 0.0.2 case (no $large configured → the
+# Apple-Intelligence fallback re-raises the same guardrail/decode error
+# on every page) plus billing/network failures.
+_SYSTEMIC_SIGNATURES = (
+    "401", "403", "402",
+    "quota", "rate limit", "rate_limit",
+    "not configured", "no $large", "$large",
+    "connection", "unreachable", "timed out", "timeout",
+    "api key", "unauthorized", "forbidden",
+)
+
+# Fraction of chunks that must fail before we treat the run as systemically
+# broken rather than partially degraded.
+_SYSTEMIC_FAIL_FRACTION = 0.8
+
+
+def _classify_systemic_error(
+    errors: list[str], n_chunks: int
+) -> str | None:
+    """Decide whether a batch of chunk errors is *systemic* (#1060).
+
+    Returns the representative cause string when the failure won't resolve
+    by continuing — caller should set result["error"] so the builder
+    raises SystemicErrorDetected and aborts the run. Returns None for
+    genuinely-partial failures (a minority of sparse pages), which stay
+    warn-and-continue.
+
+    Two systemic signals:
+    - an explicit infra signature (401/403, quota, "$large not configured",
+      connection) present in any error, once at least half the chunks failed;
+    - a high fraction of chunks failing, or nearly all chunks failing with
+      the *same* message (the $large-unconfigured / provider-down pattern,
+      where every page re-raises an identical error).
+    """
+    if not errors or n_chunks <= 0:
+        return None
+
+    fail_fraction = len(errors) / n_chunks
+    infra_hit = next(
+        (e for e in errors
+         if any(sig in e.lower() for sig in _SYSTEMIC_SIGNATURES)),
+        None,
+    )
+    most_common, count = Counter(errors).most_common(1)[0]
+    repetitive = count / n_chunks >= _SYSTEMIC_FAIL_FRACTION
+
+    if (
+        fail_fraction >= _SYSTEMIC_FAIL_FRACTION
+        or repetitive
+        or (infra_hit and fail_fraction >= 0.5)
+    ):
+        return infra_hit or most_common
+    return None
+
+
 async def extract_all(
     inputs: dict[str, Any],
     state: State,
@@ -212,6 +271,10 @@ async def extract_all(
     # `extraction_error` artifact on the page doc so the user can see
     # WHY a page came back empty (#800, #829).
     page_errors: list[str | None] = [None] * len(chunks)
+    # Per-LLM-call wall-clock timings (#1037) — extract_all on a 15-page
+    # PDF can run 20+ minutes; without per-call timing a slow run is
+    # indistinguishable from a stuck one. Includes sub-chunk calls.
+    chunk_timings: list[float] = []
 
     # Concurrency throttle for Apple Intelligence calls (#962 follow-up).
     # Apple Intelligence is a single-instance on-device model; firing
@@ -257,6 +320,7 @@ async def extract_all(
         # before/after the object) is gone (#799/#819 / #838 follow-up).
         # chat_structured_with_fallback escapes to $large on Apple's
         # on-device guardrail refusal, keeping the local-first default.
+        call_start = time.monotonic()
         try:
             async with extraction_sem:
                 extraction = await chat_structured_with_fallback(
@@ -272,12 +336,24 @@ async def extract_all(
                     include_schema_in_prompt=False,
                 )
         except Exception as exc:
+            elapsed = time.monotonic() - call_start
+            chunk_timings.append(elapsed)
             msg = f"structured LLM call failed: {exc}"
-            logger.error(f"extract_all {msg}")
+            logger.error(
+                f"extract_all chunk {idx} failed after {elapsed:.1f}s "
+                f"({len(chunk_text)} chars) — {msg}"
+            )
             chunk_errors.append(str(exc))
             if idx >= 0:
                 page_errors[idx] = msg
             return {}
+
+        elapsed = time.monotonic() - call_start
+        chunk_timings.append(elapsed)
+        logger.info(
+            f"extract_all chunk {idx} extracted in {elapsed:.1f}s "
+            f"({len(chunk_text)} chars)"
+        )
 
         # Pydantic instance → dict for the existing per-section pipeline
         # (KG writer, markdown renderer). Use mode="json" so URL-ish
@@ -296,6 +372,17 @@ async def extract_all(
     chunk_results: list[dict[str, list]] = await asyncio.gather(
         *[_extract_one(i, c) for i, c in enumerate(chunks)]
     )
+
+    # Per-run timing summary (#1037) — tells slow-but-working apart from
+    # stuck, and points at the slowest chunk for follow-up profiling.
+    if chunk_timings:
+        total_s = sum(chunk_timings)
+        logger.info(
+            f"extract_all: {len(chunk_timings)} LLM calls over "
+            f"{len(chunks)} chunks — total {total_s:.1f}s, "
+            f"slowest {max(chunk_timings):.1f}s, "
+            f"avg {total_s / len(chunk_timings):.1f}s"
+        )
 
     # Build per-section per-chunk lists for downstream save / markdown.
     per_section_chunks: dict[str, list[list[Any]]] = {
@@ -432,29 +519,28 @@ async def extract_all(
     markdown = "\n\n".join(text_parts)
 
     result: dict[str, Any] = {"text": markdown, "value": value, "cached": False}
-    # Only abort the workflow when EVERY chunk raised — partial errors
-    # are normal (Apple Intelligence on small chunks sometimes produces
-    # empty Pydantic from a valid-but-sparse page) and shouldn't kill
-    # downstream cleanup + catalogue. Per-page extraction_error
-    # artifacts (written above) tell the user which pages failed; the
-    # workflow proceeds with whatever the successful pages produced.
-    if chunk_errors and len(chunk_errors) >= len(chunks):
-        actionable = next(
-            (e for e in chunk_errors
-             if any(k in e.lower() for k in ("quota", "limit", "401", "403", "402"))),
-            chunk_errors[0],
-        )
-        result["error"] = (
-            f"Extract All: {len(chunk_errors)}/{len(chunks)} "
-            f"LLM calls failed — {actionable}"
-        )
-    elif chunk_errors:
-        # Soft signal — log but don't fail the node. Surfaces in
-        # logs / per-page extraction_error artifacts.
-        logger.warning(
-            f"extract_all: {len(chunk_errors)}/{len(chunks)} chunks failed "
-            f"(partial extraction continued)"
-        )
+    # Fail-fast on systemic errors (#1060). When a high fraction of
+    # chunks fail — or they all fail with the same signature ($large
+    # unconfigured, 401/403, quota, provider unreachable) — continuing is
+    # pointless: every remaining page fails identically and the run
+    # grinds out an empty "successful" catalogue. Setting result["error"]
+    # makes the builder raise SystemicErrorDetected and abort the run
+    # with the real cause (builder.py converts a tool's "error" key into
+    # a hard abort). Genuinely-partial failures (a minority of sparse
+    # pages) stay warn-and-continue — the per-page extraction_error
+    # artifacts written above tell the user which pages to re-run.
+    if chunk_errors:
+        systemic_cause = _classify_systemic_error(chunk_errors, len(chunks))
+        if systemic_cause:
+            result["error"] = (
+                f"Extract All: {len(chunk_errors)}/{len(chunks)} LLM calls "
+                f"failed with a systemic error — {systemic_cause}"
+            )
+        else:
+            logger.warning(
+                f"extract_all: {len(chunk_errors)}/{len(chunks)} chunks "
+                f"failed (partial extraction continued)"
+            )
     return result
 
 
