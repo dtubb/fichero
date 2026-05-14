@@ -69,17 +69,15 @@ def _gather_triples(db: "Database") -> list[tuple[str, str, str]]:
     node. Future improvement: resolve object text to entity URIs
     where possible so the model learns over entities, not literals.
     """
-    from fichero.kg.triples import _predicate_uri
+    from fichero.kg._common import extract_svo, slug_verb
     from fichero.knowledge_models import KnowledgeClaim
 
     triples: list[tuple[str, str, str]] = []
     for claim in db.query(KnowledgeClaim):
-        meta = claim.metadata or {}
-        verb = (meta.get("verb") or "").strip()
-        object_text = (meta.get("object") or "").strip()
+        verb, object_text = extract_svo(claim)
         if not object_text:
             continue
-        predicate = str(_predicate_uri(verb)).split("#")[-1]
+        predicate = slug_verb(verb)
         for entity_id in (claim.entity_ids or []):
             triples.append((entity_id, predicate, object_text))
     return triples

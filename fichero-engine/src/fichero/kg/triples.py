@@ -46,6 +46,8 @@ from urllib.parse import quote
 from rdflib import Graph, Literal, Namespace, URIRef
 from rdflib.namespace import FOAF, RDF, RDFS, SKOS, XSD
 
+from fichero.kg._common import enum_value, extract_svo, slug_verb
+
 if TYPE_CHECKING:  # pragma: no cover
     from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 
@@ -78,7 +80,7 @@ def _doc_uri(document_id: str) -> URIRef:
 
 def _entity_type_class(entity_type) -> URIRef:
     """Map ``EntityType`` enum to its preferred ontology class."""
-    name = entity_type.value if hasattr(entity_type, "value") else str(entity_type)
+    name = enum_value(entity_type)
     return {
         "person": FOAF.Person,
         "location": SCHEMA.Place,
@@ -142,15 +144,11 @@ def _predicate_uri(verb: str) -> URIRef:
 
     Slug rules: lowercase, alphanumerics + dashes, no leading digits.
     Empty verbs map to a generic ``fichero:assertedAbout`` so we never
-    drop a claim from the graph.
+    drop a claim from the graph. Slug rules live in
+    ``fichero.kg._common.slug_verb`` so SPARQL queries over this graph
+    agree with the in-Python aggregation in ``triangulation``.
     """
-    if not verb or not verb.strip():
-        return FICHERO.assertedAbout
-    slug = "".join(c if c.isalnum() else "-" for c in verb.lower().strip())
-    slug = "-".join(p for p in slug.split("-") if p)
-    if not slug or slug[0].isdigit():
-        slug = "v-" + slug
-    return URIRef(str(FICHERO) + slug)
+    return URIRef(str(FICHERO) + slug_verb(verb))
 
 
 def claim_to_triples(
@@ -182,9 +180,7 @@ def claim_to_triples(
     """
     c_uri = _claim_uri(claim.id)
     doc_uri = _doc_uri(claim.source_document_id)
-    meta = claim.metadata or {}
-    verb = (meta.get("verb") or "").strip()
-    obj_text = (meta.get("object") or "").strip()
+    verb, obj_text = extract_svo(claim)
     predicate = _predicate_uri(verb)
 
     # Reified statement: carries claim-level metadata that doesn't fit
@@ -196,13 +192,9 @@ def claim_to_triples(
     if claim.source_excerpt:
         graph.add((c_uri, FICHERO.sourceExcerpt, Literal(claim.source_excerpt)))
     if claim.epistemic_status:
-        graph.add((c_uri, FICHERO.epistemicStatus, Literal(
-            claim.epistemic_status.value if hasattr(claim.epistemic_status, "value") else str(claim.epistemic_status)
-        )))
+        graph.add((c_uri, FICHERO.epistemicStatus, Literal(enum_value(claim.epistemic_status))))
     if claim.claim_type:
-        graph.add((c_uri, FICHERO.claimType, Literal(
-            claim.claim_type.value if hasattr(claim.claim_type, "value") else str(claim.claim_type)
-        )))
+        graph.add((c_uri, FICHERO.claimType, Literal(enum_value(claim.claim_type))))
     if claim.confidence is not None:
         graph.add((c_uri, FICHERO.confidence, Literal(float(claim.confidence), datatype=XSD.float)))
 

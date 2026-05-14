@@ -34,6 +34,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from fichero.kg._common import enum_value, extract_svo, slug_verb
+
 if TYPE_CHECKING:  # pragma: no cover
     from fichero.db import Database
 
@@ -113,17 +115,10 @@ def _normalize_object(text: str) -> str:
     return " ".join(text.lower().split())
 
 
-def _predicate_slug(verb: str) -> str:
-    """Predicate slug — must match fichero.kg.triples._predicate_uri's
-    URI slug exactly so SPARQL queries over the RDF graph agree with
-    the in-Python aggregation below."""
-    if not verb or not verb.strip():
-        return "assertedAbout"
-    slug = "".join(c if c.isalnum() else "-" for c in verb.lower().strip())
-    slug = "-".join(p for p in slug.split("-") if p)
-    if not slug or slug[0].isdigit():
-        slug = "v-" + slug
-    return slug
+# Predicate slug — shared with fichero.kg.triples._predicate_uri via
+# fichero.kg._common.slug_verb so SPARQL queries over the RDF graph
+# agree with the in-Python aggregation below.
+_predicate_slug = slug_verb
 
 
 def compute_support_counts(db: "Database") -> dict[TripleKey, TripleSupport]:
@@ -143,10 +138,9 @@ def compute_support_counts(db: "Database") -> dict[TripleKey, TripleSupport]:
     )
 
     for claim in db.query(KnowledgeClaim):
-        meta = claim.metadata or {}
-        verb = (meta.get("verb") or "").strip()
-        object_text = _normalize_object(meta.get("object") or "")
-        predicate = _predicate_slug(verb)
+        verb, raw_object = extract_svo(claim)
+        object_text = _normalize_object(raw_object)
+        predicate = slug_verb(verb)
 
         # Each claim can link to multiple entities (rare). Emit a
         # separate triple for each (subject, predicate, object).
@@ -174,11 +168,7 @@ def compute_support_counts(db: "Database") -> dict[TripleKey, TripleSupport]:
             doc = db.get(Document, doc_id)
             if doc is None:
                 continue
-            authority = (
-                doc.source_authority.value
-                if hasattr(doc.source_authority, "value")
-                else str(doc.source_authority or "unknown")
-            )
+            authority = enum_value(doc.source_authority) if doc.source_authority else "unknown"
             authority_by_doc[doc_id] = AUTHORITY_WEIGHTS.get(authority, 1.0)
     except Exception as exc:
         logger.warning("triangulation: authority lookup failed, weights default to 1.0: %s", exc)

@@ -31,6 +31,8 @@ from typing import TYPE_CHECKING, Iterable, Optional
 
 import networkx as nx
 
+from fichero.kg._common import enum_value, extract_svo
+
 if TYPE_CHECKING:  # pragma: no cover
     from fichero.db import Database
     from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
@@ -91,7 +93,7 @@ def build_graph(
             ent.id,
             **{
                 NODE_NAME: ent.canonical_name,
-                NODE_TYPE: ent.entity_type.value if hasattr(ent.entity_type, "value") else str(ent.entity_type),
+                NODE_TYPE: enum_value(ent.entity_type),
                 NODE_ALIASES: list(ent.aliases or []),
             },
         )
@@ -100,9 +102,7 @@ def build_graph(
             name_to_id.setdefault(alias.lower(), ent.id)
 
     for claim in claims:
-        meta = claim.metadata or {}
-        verb = (meta.get("verb") or "").strip()
-        obj_text = (meta.get("object") or "").strip()
+        verb, obj_text = extract_svo(claim)
         predicate = verb or "mentions"
 
         for subject_id in (claim.entity_ids or []):
@@ -127,9 +127,7 @@ def build_graph(
                         EDGE_PREDICATE: predicate,
                         EDGE_SOURCE_DOC: claim.source_document_id,
                         EDGE_PAGE_LABEL: claim.source_page_label or "",
-                        EDGE_EPISTEMIC: claim.epistemic_status.value
-                        if hasattr(claim.epistemic_status, "value")
-                        else str(claim.epistemic_status or ""),
+                        EDGE_EPISTEMIC: enum_value(claim.epistemic_status) if claim.epistemic_status else "",
                     },
                 )
 
@@ -153,7 +151,7 @@ def cooccurrence_graph(
             ent.id,
             **{
                 NODE_NAME: ent.canonical_name,
-                NODE_TYPE: ent.entity_type.value if hasattr(ent.entity_type, "value") else str(ent.entity_type),
+                NODE_TYPE: enum_value(ent.entity_type),
             },
         )
 
@@ -359,6 +357,28 @@ def _cache_signature(db: "Database") -> tuple:
     )
 
 
+def _build_cached(db: "Database", builder, cache: dict):
+    """Shared cache lookup + build path for the full-library graphs.
+
+    Both ``build_full_graph`` and ``build_full_cooccurrence`` follow
+    the exact same lookup / rebuild / store sequence — only the
+    builder function and which cache dict they write to differs.
+    """
+    from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+
+    key = str(db.path)
+    signature = _cache_signature(db)
+    cached = cache.get(key)
+    if cached is not None and cached[0] == signature:
+        return cached[1]
+    graph = builder(
+        entities=db.query(KnowledgeEntity),
+        claims=db.query(KnowledgeClaim),
+    )
+    cache[key] = (signature, graph)
+    return graph
+
+
 def build_full_graph(db: "Database") -> nx.MultiDiGraph:
     """Convenience: build the directed claim graph from the whole library.
 
@@ -367,19 +387,7 @@ def build_full_graph(db: "Database") -> nx.MultiDiGraph:
     last call. Cuts hot-path latency from 3-5s to ~1ms (signature query)
     on warm cache at 50K claims.
     """
-    from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
-
-    key = str(db.path)
-    signature = _cache_signature(db)
-    cached = _DIRECTED_CACHE.get(key)
-    if cached is not None and cached[0] == signature:
-        return cached[1]
-    graph = build_graph(
-        entities=db.query(KnowledgeEntity),
-        claims=db.query(KnowledgeClaim),
-    )
-    _DIRECTED_CACHE[key] = (signature, graph)
-    return graph
+    return _build_cached(db, build_graph, _DIRECTED_CACHE)
 
 
 def build_full_cooccurrence(db: "Database") -> nx.Graph:
@@ -387,19 +395,7 @@ def build_full_cooccurrence(db: "Database") -> nx.Graph:
 
     Library-scoped LRU cache (#990) — see ``build_full_graph``.
     """
-    from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
-
-    key = str(db.path)
-    signature = _cache_signature(db)
-    cached = _COOC_CACHE.get(key)
-    if cached is not None and cached[0] == signature:
-        return cached[1]
-    graph = cooccurrence_graph(
-        entities=db.query(KnowledgeEntity),
-        claims=db.query(KnowledgeClaim),
-    )
-    _COOC_CACHE[key] = (signature, graph)
-    return graph
+    return _build_cached(db, cooccurrence_graph, _COOC_CACHE)
 
 
 def invalidate_graph_cache(db: "Database" | None = None) -> None:

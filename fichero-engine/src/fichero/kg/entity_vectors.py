@@ -31,6 +31,8 @@ from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 
+from fichero.kg._common import enum_value
+
 if TYPE_CHECKING:  # pragma: no cover
     from fichero.db import Database
     from fichero.knowledge_models import EntityType
@@ -86,6 +88,17 @@ def encode(text: str) -> np.ndarray:
     model = _get_model()
     vec = next(iter(model.embed([text])))
     return np.asarray(vec, dtype=np.float32)
+
+
+def _l2_normalized(vec: np.ndarray) -> np.ndarray:
+    """L2-normalize so cosine similarity == 1 - cosine distance.
+
+    Both ``index_entity`` (write) and ``find_similar`` (query) must
+    normalize identically — otherwise LanceDB's cosine distance won't
+    land in ``[0, 2]`` for the ``1 - d`` score conversion to work.
+    """
+    norm = float(np.linalg.norm(vec))
+    return vec / norm if norm > 0 else vec
 
 
 def _entity_text(canonical_name: str, description: Optional[str]) -> str:
@@ -157,12 +170,7 @@ def index_entity(
     """
     try:
         table = _ensure_table(db)
-        vec = encode(_entity_text(canonical_name, description))
-        # L2-normalize so cosine similarity equals 1 - cosine distance
-        # when LanceDB does the search side.
-        norm = float(np.linalg.norm(vec))
-        if norm > 0:
-            vec = vec / norm
+        vec = _l2_normalized(encode(_entity_text(canonical_name, description)))
 
         # Delete any prior vector for this id to keep the table 1:1
         # with KnowledgeEntity rows.
@@ -170,7 +178,7 @@ def index_entity(
 
         table.add([{
             "id": entity_id,
-            "entity_type": entity_type.value if hasattr(entity_type, "value") else str(entity_type),
+            "entity_type": enum_value(entity_type),
             "canonical_name": canonical_name,
             "description": description or "",
             "vector": vec.tolist(),
@@ -201,7 +209,7 @@ def find_similar(
     """
     try:
         table = _ensure_table(db)
-        type_value = entity_type.value if hasattr(entity_type, "value") else str(entity_type)
+        type_value = enum_value(entity_type)
 
         # No rows in this library yet → nothing to match.
         try:
@@ -211,14 +219,11 @@ def find_similar(
         if row_count == 0:
             return []
 
-        vec = encode(_entity_text(canonical_name, description))
         # Explicitly request cosine — LanceDB defaults to L2, which is
         # unbounded and won't map to a 0–1 confidence band. We also
         # L2-normalize the query vector so `1 - distance` is true
         # cosine similarity rather than an approximation.
-        norm = float(np.linalg.norm(vec))
-        if norm > 0:
-            vec = vec / norm
+        vec = _l2_normalized(encode(_entity_text(canonical_name, description)))
         results = (
             table.search(vec.tolist())
             .distance_type("cosine")
