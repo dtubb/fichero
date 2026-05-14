@@ -1686,3 +1686,15 @@ Discovered along the way:
 - **#988 step 1** — graph-context similarity merge-candidate generator. `graph_context_merge_candidates()` + `MergeCandidate` in `kg/graph.py`: Jaccard-over-neighbourhood entity-resolution candidate generator built on `nx.jaccard_coefficient`, advisory-only (feeds review queue, never auto-merge). 11 tests. Issue left open (review-queue wiring + probabilistic scoring remain).
 - **#1000** — investigated, not fixed. Root cause is architectural: workflow execution runs as a `create_task` on the FastAPI main event loop, so a sync-blocking tool node freezes `/api/health`. Needs a live repro; recorded in MEMORY.md.
 - Commits: 9b7abd5a, 55fe58f5, 66dd2c2b. All pushed to 0.0.2.
+
+## 2026-05-14 — #1019 Stop mutating @State inside graph Canvas render closure
+
+- PR: N/A
+- Branch: 0.0.2
+- Task completed in session
+
+## 2026-05-14 — #1017 SF Symbol static lint (layer 3)
+
+- PR: N/A
+- Branch: 0.0.2
+- Task completed in session
