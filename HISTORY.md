@@ -1613,3 +1613,17 @@ Two more bugs filed past the prior session-end boundary: #1018 (thumbnail invali
 Final bug ledger for the day: 21 issues filed (#998–#1019); 4 issues commented with new evidence (#961, #1000, #1011, #1015); 1 meta-issue filed (#1017 test-coverage gap). Combined with morning building phase (45 commits + 21 issues closed), today's net was **66 commits and 22 issues filed against 21 closed**.
 
 Daniel's pivot for next session: tooling + testing FIRST, then bug fixes. The bug-find rate is outpacing the fix rate because we don't have the tests that would catch silent failures.
+
+## 2026-05-13 — Autonomous loop run (5 UI bugs closed)
+
+Triggered after the testing pass via `/session-start-auto --max-tasks 5`. Closed five bugs in one batch (single build, single push):
+
+| # | Title | Commit |
+|---|---|---|
+| #1015 | 'pickaxe' + empty SF Symbol names | c6b710da |
+| #1013 | Source-link affordance (link styling + cursor + chevron) | a198b43d |
+| #1006 | Empty SVO card — surface excerpt + drop redundant tags | a198b43d |
+| #1005 | Filter chips show only present claim values | 641fa4d3 |
+| #1010 | Drop duplicate PDF zoom toolbar from PDFPageWithToolbar | 9867eb28 |
+
+#998 explicitly skipped — root cause filed (#998) but the exact ProgressView source needs an Xcode debugger session, not a guessed fix.

@@ -1,42 +1,24 @@
 # STATE.md — Fichero
 
-## Next Session — Start Here (tooling-and-testing pivot)
+## Next Session — Start Here
 
-**Latest commit: `71b19062`. Branch: 0.0.2.** Tonight's testing pass filed
-**21 bugs (#998–#1019) + comments on #961, #1000, #1011, #1015**. Full ledger in HISTORY.md (entry: 2026-05-13 evening). Daniel's directive for the next session:
+**Latest commit: `9867eb28`. Branch: 0.0.2.** Tonight's autonomous loop closed 5 UI bugs (#1005, #1006, #1010, #1013, #1015). Total open 0.0.2 bug count down from 21 to 16.
 
-> "focus on code quality and testing the workflows. work on tooling and approaches so it can run autonomously overnight. you're building too often + swiftlinting too much, and you're not catching things — workflows aren't completing properly and the build/test cycle is too slow to know."
+### What to do first
 
-### Priority 1 — Tooling pass (do this BEFORE any bug fixes)
+1. **Tooling pass** (still the highest-leverage work): build the test layers from #1017 in this order — SF Symbol static lint (~2h), extractor schema round-trip (~½d), backend integration smoke (~1d). Specifics in #1017's body.
+2. **#998 graph crash** — needs Xcode debugger session to pinpoint the ProgressView with `min == max == 32.142857`. Set a symbolic breakpoint on the AppKit constraint-warning emitter; the float source is one Xcode session away.
+3. **#1000 / #1004 / #1008 backend lock-up cluster** — `asyncio.to_thread` sweep across long-running async handlers; one fix template closes all three.
 
-The bug-fix loop is currently slow and noisy:
-- Every Swift change runs `xcodebuild` end-to-end (~30+ s).
-- Swiftlint runs on every commit but doesn't catch the *real* bugs (constraint loops, silent failures, schema drift).
-- Backend changes don't have an integration smoke that would catch loop-blocking regressions.
-- Workflows complete with success status but produce missing/wrong outputs (#1003, #1006, #1011, #1016) — and we don't know until a human notices in the UI.
+### Other open 0.0.2 work
 
-Build the missing test layers from #1017 in this order:
-
-1. **SF Symbol static lint** (~2 hours) — closes #1015, prevents recurrence. Regex over `Image(systemName: "x")` against the SF Symbols catalog. Run as a pre-commit + CI step.
-2. **Extractor schema round-trip** (~half day) — closes #1006, #1016, partial #1003. Post-write assertion at `_write_kg_rows`: every claim has populated SVO OR explicit None; every entity description ≥3 words OR None; per-page log of `(page_label, entities_written, claims_written)`. Loud failure on silent miss.
-3. **Backend integration smoke** (~1 day) — closes #1000, #1004, #1002, #1011. pytest-asyncio: start uvicorn, run a small workflow on a fixture file, hammer `/api/health` during the run (assert <100ms), parse SSE stream (assert no `Runnable*` events leak), assert promised artifacts exist in DB after completion.
-4. **Build acceleration** (~half day) — investigate incremental xcodebuild + a minimal `swift build` shortcut for non-UI changes. Cuts the iteration loop.
-5. View snapshots + golden-set extraction quality come later (1-2 days each).
-
-### Priority 2 — Highest-leverage single bug fix
-
-**#998 graph constraint loop** — one-file change, unblocks Graph view entirely. Find the `ProgressView` whose width comes from float division (`32.142857 ≈ 225/7`) and round to int. Likely in the OntologyBrowser entity-kind chip strip.
-
-### Priority 3 — Backend lock-up cluster
-
-**#1000 / #1004 / #1008** — sweep `asyncio.to_thread` across long-running async handlers. Same fix template; closes 3 bugs at once. Verify with the new integration smoke (Priority 1.3).
+- Extraction quality: #1001 / #1003 / #1009 / #1011 / #1016 (likely all caused by the OpenRouter fallback path after Apple Intelligence guardrail trip)
+- Backend noise: #999 (mermaid header), #1002 (LangChain SSE leak), #1018 (thumbnail invalid response)
+- UI: #1007 manual refresh button, #1008 manual housekeeping, #1012 catalogue naming collision, #1014 empty inspector pane, #1019 SwiftUI 'modifying state during view update'
+- Pre-existing: #928 PDF loupe (blocked on #783), #958 structured artifact editors, #961 console hygiene
+- Release chain (out of autonomous scope): #659–#665
 
 ### Don't break
 
-- The rebuilt one-file library lives at `~/Library/Application Support/com.fichero.fichero/global.fichero/`.
-- `.claude/worktrees/` is in `.gitignore`.
-- `feedback_timelineview_snapshot_count`, `feedback_http_header_arbitrary_text`, `project_catalogue_writes_kg` MEMORY notes from earlier today inform the bug fixes.
-
-### Open backlog beyond tonight's filings
-
-12 pre-existing 0.0.2 issues remain (#928 PDF loupe, #958 structured artifact editors, #961 console hygiene now expanded with tonight's evidence, plus the release chain #659–#665).
+- The 5 fixes shipped tonight: empty-SF-Symbol guards, filter-chip presence-filtering, claim-card excerpt-fallback, source-link styling, PDFPageWithToolbar minus its toolbar.
+- MEMORY notes from yesterday: TimelineView snapshot count, HTTP header arbitrary text, catalogue → KG flow.
