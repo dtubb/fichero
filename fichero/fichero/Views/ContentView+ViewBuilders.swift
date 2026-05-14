@@ -11,9 +11,13 @@ extension ContentView {
 
     /// Inspector only applies for modes that have inspectable content.
     /// Activity, batch, and automation views manage their own detail pane.
+    /// Ontology (KG) has no inspector content wired yet (#1014) — empty
+    /// "No inspector content" placeholder is worse than no panel, so hide
+    /// the column entirely until Phase 6 plumbs the entity → source-doc
+    /// inspector through.
     var showInspectorForCurrentMode: Bool {
         switch viewMode {
-        case .activity, .batches, .batch, .automation, .schedule, .trigger:
+        case .activity, .batches, .batch, .automation, .schedule, .trigger, .ontology:
             return false
         default:
             return true
