@@ -175,6 +175,88 @@ def cooccurrence_graph(
     return g
 
 
+@dataclass(frozen=True)
+class MergeCandidate:
+    """A pair of entities a graph-context heuristic thinks are the same.
+
+    Surfaced into the review queue (#988) so a human accepts/rejects —
+    never auto-merged. ``jaccard`` is the neighbour-set Jaccard index;
+    ``shared_neighbours`` is the raw overlap count so the reviewer can
+    distinguish "2 of 3 neighbours shared" from "20 of 40 shared".
+    """
+    entity_a_id: str
+    entity_b_id: str
+    name_a: str
+    name_b: str
+    shared_neighbours: int
+    jaccard: float
+
+
+def graph_context_merge_candidates(
+    g: nx.Graph,
+    *,
+    threshold: float = 0.5,
+    min_shared: int = 2,
+    same_type_only: bool = True,
+    top_k: Optional[int] = None,
+) -> list[MergeCandidate]:
+    """Propose entity-merge candidates from co-occurrence neighbourhood overlap.
+
+    The entity-resolution gap (#988): name/alias matching misses
+    duplicates that never share a surface form — "Andrés" and "Andrés
+    Restrepo" extracted as two entities. But if they're the same
+    person, they tend to be co-mentioned with the *same other people*.
+    High Jaccard overlap of their co-occurrence neighbourhoods is that
+    signal.
+
+    Built on ``nx.jaccard_coefficient``, which by design scores only
+    *non-adjacent* pairs — two entities co-mentioned in the same doc
+    already have an edge and aren't candidates here; we want the pair
+    that shares a neighbourhood but was never co-mentioned directly.
+
+    Args:
+        g: an undirected co-occurrence graph from ``cooccurrence_graph``.
+        threshold: minimum Jaccard index to propose a merge.
+        min_shared: minimum raw count of shared neighbours — guards
+            against a 1.0 Jaccard from two entities that each have a
+            single, shared neighbour (degenerate, not evidence).
+        same_type_only: when True, only pair entities of the same
+            ``entity_type`` — a person and a place sharing neighbours
+            is graph noise, not a duplicate.
+        top_k: cap the result; None returns every candidate over
+            threshold. Results are always sorted strongest-first.
+
+    Returns:
+        ``MergeCandidate`` rows sorted by descending Jaccard, then by
+        descending shared-neighbour count.
+    """
+    if g.number_of_nodes() < 2:
+        return []
+
+    candidates: list[MergeCandidate] = []
+    for a, b, score in nx.jaccard_coefficient(g):
+        if score < threshold:
+            continue
+        if same_type_only and (
+            g.nodes[a].get(NODE_TYPE) != g.nodes[b].get(NODE_TYPE)
+        ):
+            continue
+        shared = len(set(g.neighbors(a)) & set(g.neighbors(b)))
+        if shared < min_shared:
+            continue
+        candidates.append(MergeCandidate(
+            entity_a_id=a,
+            entity_b_id=b,
+            name_a=g.nodes[a].get(NODE_NAME, ""),
+            name_b=g.nodes[b].get(NODE_NAME, ""),
+            shared_neighbours=shared,
+            jaccard=score,
+        ))
+
+    candidates.sort(key=lambda c: (-c.jaccard, -c.shared_neighbours))
+    return candidates[:top_k] if top_k is not None else candidates
+
+
 def centrality(
     g: nx.Graph,
     top_k: int = 20,
