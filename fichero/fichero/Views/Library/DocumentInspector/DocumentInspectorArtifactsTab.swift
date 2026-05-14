@@ -328,7 +328,7 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
         "legal_references": "scale.3d",
         "rivers": "water.waves",
         "events": "star",
-        "mines": "pickaxe",
+        "mines": "hammer",     // 'pickaxe' doesn't exist as an SF Symbol on macOS 15 (#1015)
         "properties": "building.columns",
         "description": "eye"
     ]

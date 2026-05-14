@@ -85,8 +85,12 @@ extension SidebarItemRow {
             // exposed in 8eb002cf. LINK shows a Finder-style alias arrow,
             // MOVE shows an arrow-into-box, COPY shows no badge (default).
             ZStack(alignment: .bottomTrailing) {
-                Image(systemName: item.icon)
-                Image(systemName: badge.symbol)
+                // Defensive: empty icon strings spam the SF Symbols
+                // log ("No symbol named '' found in system symbol set")
+                // every render. Fall back to a generic doc icon when an
+                // upstream factory forgets to set one. (#1015)
+                Image(systemName: item.icon.isEmpty ? "doc" : item.icon)
+                Image(systemName: badge.symbol.isEmpty ? "questionmark.circle" : badge.symbol)
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.white, badge.color)
                     .background(
@@ -98,7 +102,8 @@ extension SidebarItemRow {
             }
             .frame(width: 16, alignment: .center)
         } else {
-            Image(systemName: item.icon)
+            // Defensive empty-icon guard — see comment above. (#1015)
+            Image(systemName: item.icon.isEmpty ? "doc" : item.icon)
                 .frame(width: 16, alignment: .center)
         }
     }
