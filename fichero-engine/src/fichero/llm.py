@@ -526,8 +526,12 @@ async def chat_with_fallback(
             timeout=config.timeout,
             extra=dict(config.extra),
         )
-        logger.info(
-            "Apple Intelligence unavailable (%s); retrying with $large = %s/%s",
+        # #1001: warning, not info — falling back to a cloud provider is a
+        # billing event + an offline-mode regression. Make it loud and
+        # greppable so it isn't a silent surprise on every run.
+        logger.warning(
+            "Apple Intelligence unavailable (%s); falling back to PAID "
+            "remote model $large = %s/%s — this request now incurs cost.",
             type(apple_exc).__name__, large_provider, large_model,
         )
         # Permissive guardrails is Apple-only and has no effect here.
@@ -1438,9 +1442,13 @@ async def chat_structured_with_fallback(
             timeout=config.timeout,
             extra=dict(config.extra),
         )
+        # #1001: flag the cost explicitly — the structured extractor path
+        # (Extract All Entities, catalogue) hits this on guardrail refusals,
+        # and a silent swap to a paid provider is a billing surprise.
         logger.warning(
             "Apple Intelligence unavailable for structured call (%s); "
-            "retrying with $large = %s/%s",
+            "falling back to PAID remote model $large = %s/%s — this "
+            "request now incurs cost.",
             type(apple_exc).__name__, large_provider, large_model,
         )
         # The fallback provider is LangChain-based, so the Apple-only

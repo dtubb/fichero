@@ -23,6 +23,7 @@ from fichero.llm import (
     AppleUnavailableError,
     GuardrailViolationError,
     LLMConfig,
+    StructuredDecodeError,
     UnsupportedLocaleError,
     _compute_timeout,
     _pydantic_to_apple_schema,
@@ -730,20 +731,21 @@ class TestAppleUnavailableHierarchy:
             _raise_from_bridge_stderr(payload, returncode=1)
         assert isinstance(excinfo.value, AppleUnavailableError)
 
-    def test_bridge_stderr_decoding_stays_runtime_error(self):
-        """Non-Apple-unavailable kinds (decoding, context_overflow,
-        rate_limited, etc.) remain bare RuntimeError so chat_with_fallback
-        does NOT route them through $large — they're transient and the
-        caller should retry/chunk in place."""
+    def test_bridge_stderr_decoding_raises_structured_decode_error(self):
+        """Grammar-decode failures map to StructuredDecodeError, which IS
+        an AppleUnavailableError subclass since #949/#962 — so
+        chat_structured_with_fallback escapes the chunk to $large instead
+        of letting extract_all silently drop it. (Pre-#962 these were bare
+        RuntimeError and the fallback skipped them.)"""
         import json
         payload = json.dumps({
             "kind": "decoding",
             "error": "Failed to decode generated content",
         }).encode("utf-8")
-        with pytest.raises(RuntimeError) as excinfo:
+        with pytest.raises(StructuredDecodeError) as excinfo:
             _raise_from_bridge_stderr(payload, returncode=1)
-        # Specifically NOT AppleUnavailableError → fallback skips it.
-        assert not isinstance(excinfo.value, AppleUnavailableError)
+        # StructuredDecodeError is fallback-eligible by design.
+        assert isinstance(excinfo.value, AppleUnavailableError)
 
 
 # =============================================================================

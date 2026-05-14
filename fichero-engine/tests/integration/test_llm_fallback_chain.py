@@ -19,6 +19,7 @@ asyncio.create_subprocess_exec patching.
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -26,11 +27,9 @@ from pydantic import BaseModel
 
 from fichero.llm import (
     AppleUnavailableError,
-    GuardrailViolationError,
     LLMConfig,
     UnsupportedLocaleError,
     chat,
-    chat_structured,
     chat_structured_with_fallback,
     chat_with_fallback,
     collect_usage,
@@ -157,19 +156,61 @@ class TestChatWithFallbackChain:
         assert result == "completed via cloud"
 
     @pytest.mark.asyncio
-    async def test_decoding_error_does_not_fallback(self, apple_cfg):
-        """Transient decoding error (truncation, etc.) is NOT
-        AppleUnavailableError — caller's chunked-retry handles it.
-        Fallback skipping this branch is the contract."""
+    async def test_guardrail_fallback_logs_loud_cost_warning(self, apple_cfg, caplog):
+        """#1001: the silent swap to a paid cloud provider must be loud —
+        WARNING level + explicit cost language so it isn't a billing
+        surprise on every catalogue run."""
+        proc = _fake_subprocess(
+            stdout=b"", stderr=_bridge_guardrail_err(), returncode=1,
+        )
+        cloud = MagicMock()
+        cloud_response = MagicMock()
+        cloud_response.content = "ok"
+        cloud_response.usage_metadata = None
+        cloud.ainvoke = AsyncMock(return_value=cloud_response)
+
+        with patch("asyncio.create_subprocess_exec",
+                   new=AsyncMock(return_value=proc)), \
+             patch("fichero.llm.resolve_model_alias",
+                   return_value=("openai", "gpt-5")), \
+             patch("fichero.llm.get_langchain_model", return_value=cloud), \
+             caplog.at_level(logging.WARNING, logger="fichero.llm"):
+            await chat_with_fallback("text", config=apple_cfg)
+
+        fallback_warnings = [
+            r for r in caplog.records
+            if r.levelno >= logging.WARNING and "PAID" in r.message
+        ]
+        assert fallback_warnings, (
+            "expected a loud WARNING-level cost notice, got: "
+            f"{[(r.levelname, r.message) for r in caplog.records]}"
+        )
+        assert "incurs cost" in fallback_warnings[0].message
+
+    @pytest.mark.asyncio
+    async def test_decoding_error_routes_to_large(self, apple_cfg):
+        """Grammar-decode failures ARE fallback-eligible since #949/#962:
+        StructuredDecodeError is an AppleUnavailableError subclass so the
+        chunk escapes to $large instead of being lost. (Pre-#962 these were
+        plain RuntimeError and skipped the fallback — extract_all dropped
+        ~10% of chunks. This test guards the corrected contract.)"""
         proc = _fake_subprocess(
             stdout=b"", stderr=_bridge_decoding_err(), returncode=1,
         )
+        cloud = MagicMock()
+        cloud_response = MagicMock()
+        cloud_response.content = "completed via cloud"
+        cloud_response.usage_metadata = None
+        cloud.ainvoke = AsyncMock(return_value=cloud_response)
 
         with patch("asyncio.create_subprocess_exec",
-                   new=AsyncMock(return_value=proc)):
-            # No fallback resolver patched — would crash if we tried.
-            with pytest.raises(RuntimeError, match="decoding"):
-                await chat_with_fallback("text", config=apple_cfg)
+                   new=AsyncMock(return_value=proc)), \
+             patch("fichero.llm.resolve_model_alias",
+                   return_value=("openai", "gpt-5")), \
+             patch("fichero.llm.get_langchain_model", return_value=cloud):
+            result = await chat_with_fallback("text", config=apple_cfg)
+
+        assert result == "completed via cloud"
 
     @pytest.mark.asyncio
     async def test_no_large_configured_surfaces_original(self, apple_cfg):
@@ -291,23 +332,36 @@ class TestChatStructuredWithFallbackChain:
         assert isinstance(result, _Result)
 
     @pytest.mark.asyncio
-    async def test_decoding_error_propagates_for_chunked_retry(self, apple_cfg):
-        """Decoding errors are intentionally NOT fallback-eligible —
-        cleanup's chunked-retry handles them by splitting the input.
-        Fallback skipping this is the contract; the test guards against
-        regressions that would route them through $large unnecessarily."""
+    async def test_decoding_error_routes_to_large_structured(self, apple_cfg):
+        """Grammar-decode failures route through $large on the structured
+        path too (#949/#962). StructuredDecodeError is an
+        AppleUnavailableError subclass precisely so extract_all's chunks
+        escape to the cloud model instead of being silently dropped."""
         proc = _fake_subprocess(
             stdout=b"", stderr=_bridge_decoding_err(), returncode=1,
         )
+        cloud_raw = MagicMock(usage_metadata=None)
+        cloud_invoke_result = {
+            "raw": cloud_raw,
+            "parsed": _Result(answer="recovered via cloud"),
+            "parsing_error": None,
+        }
+        structured_model = MagicMock()
+        structured_model.ainvoke = AsyncMock(return_value=cloud_invoke_result)
+        base_model = MagicMock()
+        base_model.profile = {"structured_output": True}
+        base_model.with_structured_output = MagicMock(return_value=structured_model)
 
         with patch("asyncio.create_subprocess_exec",
-                   new=AsyncMock(return_value=proc)):
-            with pytest.raises(RuntimeError) as exc:
-                await chat_structured_with_fallback(
-                    prompt="x", schema=_Result, config=apple_cfg,
-                )
-            # Specifically NOT AppleUnavailableError — caller distinguishes.
-            assert not isinstance(exc.value, AppleUnavailableError)
+                   new=AsyncMock(return_value=proc)), \
+             patch("fichero.llm.resolve_model_alias",
+                   return_value=("anthropic", "claude-sonnet-4-6")), \
+             patch("fichero.llm.get_langchain_model", return_value=base_model):
+            result = await chat_structured_with_fallback(
+                prompt="x", schema=_Result, config=apple_cfg,
+            )
+
+        assert result == _Result(answer="recovered via cloud")
 
     @pytest.mark.asyncio
     async def test_apple_success_path_returns_parsed(self, apple_cfg):
