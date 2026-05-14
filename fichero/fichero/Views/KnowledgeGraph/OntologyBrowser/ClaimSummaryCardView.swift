@@ -35,11 +35,11 @@ struct ClaimSummaryCard: View {
         }
         // Legacy metadata fallback.
         guard let dict = claim.metadata?.additionalProperties.value else { return nil }
-        let s = (dict["subject"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let v = (dict["verb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let o = (dict["object"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !s.isEmpty, !v.isEmpty, !o.isEmpty else { return nil }
-        return (s, v, o)
+        let metaSubject = (dict["subject"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let metaVerb = (dict["verb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let metaObject = (dict["object"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !metaSubject.isEmpty, !metaVerb.isEmpty, !metaObject.isEmpty else { return nil }
+        return (metaSubject, metaVerb, metaObject)
     }
 
     /// A claim card has no useful content when it has NO SVO triple AND
@@ -86,26 +86,8 @@ struct ClaimSummaryCard: View {
             // back to source (#982). (#978/#979)
             sourceLine
 
-            HStack(spacing: 8) {
-                if let claimType = claim.claimType {
-                    Text(claimType.rawValue.capitalized)
-                        .font(.caption2)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
-                        .background(Color.gray.opacity(0.2))
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
-                }
-
-                if let epistemicStatus = claim.epistemicStatus {
-                    Text(epistemicStatus.rawValue.capitalized)
-                        .font(.caption2)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
-                        .background(statusColor.opacity(0.2))
-                        .foregroundStyle(statusColor)
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
-                }
-            }
+            // Per-card status / kind tags removed — they duplicated the
+            // section-header chip strip in EntityDetailView. (#1006)
 
             if isExpanded {
                 expandedDetailSection
@@ -204,6 +186,28 @@ struct ClaimSummaryCard: View {
             )
             .font(.caption)
             .lineLimit(isExpanded ? nil : 3)
+        } else if let excerpt = claim.sourceExcerpt?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !excerpt.isEmpty {
+            // SVO missing → surface the verbatim source excerpt as the
+            // card body so it isn't content-empty. The "regenerate KG"
+            // hint moves to a small footer line so the user still
+            // knows the SVO is absent. (#1006)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(excerpt)
+                    .font(.caption)
+                    .lineLimit(isExpanded ? nil : 3)
+                    .foregroundStyle(.primary)
+                HStack(spacing: 4) {
+                    Image(systemName: "questionmark.circle")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Text("No subject-verb-object — regenerate KG?")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .italic()
+                }
+            }
         } else {
             HStack(spacing: 4) {
                 Image(systemName: "questionmark.circle")
@@ -252,26 +256,41 @@ struct ClaimSummaryCard: View {
                     userInfo: info
                 )
             } label: {
+                // Render as a link, not a label: accent color + underline
+                // + pointing-hand cursor + trailing chevron all advertise
+                // tappability. Daniel: "we only have one source, can't
+                // see it and can't click on it." (#1013)
                 HStack(spacing: 4) {
                     Image(systemName: "doc.text")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Color.accentColor)
                     Text(docName)
                         .font(.caption2)
-                        .italic()
-                        .foregroundStyle(.secondary)
+                        .underline()
+                        .foregroundStyle(Color.accentColor)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     if let pageLabel, !pageLabel.isEmpty {
                         Text("p. \(pageLabel)")
                             .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(.secondary)
                     }
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.tertiary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Open the source document")
+            .onHover { isHovering in
+                if isHovering {
+                    NSCursor.pointingHand.set()
+                } else {
+                    NSCursor.arrow.set()
+                }
+            }
+            .help("Open the source document — \(docName)\(pageLabel.map { ", page \($0)" } ?? "")")
         }
     }
 
@@ -374,12 +393,7 @@ struct ClaimSummaryCard: View {
         }
     }
 
-    private var statusColor: Color {
-        guard let status = claim.epistemicStatus else { return .gray }
-        switch status {
-        case .confirmed: return .green
-        case .rejected: return .red
-        case .tentative: return .orange
-        }
-    }
+    // statusColor helper removed alongside the per-card status/kind tags
+    // (#1006). The section-header chip strip in EntityDetailView covers
+    // status colouring; per-card duplication was redundant noise.
 }
