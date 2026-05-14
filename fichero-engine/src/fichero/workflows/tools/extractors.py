@@ -1461,11 +1461,24 @@ def _write_kg_rows(
     items_in = len(items)
     entities_written = 0
     claims_written = 0
+    # #1017 layer 2: collect boundary-invariant violations so silent
+    # drops (anchorless items, degenerate descriptions) surface in the
+    # activity log instead of just shrinking the items_in→written gap.
+    from fichero.workflows.tools.extraction_invariants import (
+        claim_item_violations,
+        entity_description_violation,
+        summarize_violations,
+    )
+    invariant_violations: list[str] = []
 
     for item in items:
         if not isinstance(item, dict):
             # Keywords come through as bare strings — wrap minimally.
             item = {"name": str(item)}
+
+        invariant_violations.extend(
+            claim_item_violations(item, is_date_section=entity_type is None)
+        )
 
         # Field names vary per section: name (most), event (events),
         # date (dates). Try English first, then legacy Spanish keys, so
@@ -1618,6 +1631,10 @@ def _write_kg_rows(
         entity_description = _sanitize_entity_description(
             predicate or None, canonical
         )
+        if (desc_violation := entity_description_violation(
+            predicate or None, canonical
+        )):
+            invariant_violations.append(desc_violation)
         entity_id = upsert_entity(
             db,
             canonical_name=canonical,
@@ -1663,6 +1680,15 @@ def _write_kg_rows(
         f"items_in={items_in} entities_written={entities_written} "
         f"claims_written={claims_written}"
     )
+    # #1017 layer 2: when items were lost or degraded on the way in,
+    # name the reasons at WARNING so the activity log shows WHY a page
+    # is thin instead of leaving it as an unexplained items_in gap.
+    if invariant_violations:
+        logger.warning(
+            f"_write_kg_rows: {section.get('name')} "
+            f"{page_label or 'whole-doc'} on {container_id} — "
+            f"invariant violations: {summarize_violations(invariant_violations)}"
+        )
 
 
 # =============================================================================
