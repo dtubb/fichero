@@ -540,35 +540,23 @@ async def get_thread_diagram_png(
             ],
         )
 
-        # Build graph and generate PNG. The default \`draw_mermaid_png\`
-        # path POSTs to https://mermaid.ink which (a) leaks workflow
-        # structure to a third party and (b) 400s on complex graphs
-        # whose URL-encoded mermaid source exceeds the upstream limit
-        # (#952). Catch the upstream failure and degrade gracefully:
-        # return 204 No Content with the mermaid source in a custom
-        # header, so the Swift side can choose between rendering it
-        # locally or showing a placeholder. Avoids a 500 cascading
-        # into the Activity view's error state.
+        # Build graph and generate PNG. The default `draw_mermaid_png`
+        # path POSTs to https://mermaid.ink, which 400s on complex
+        # graphs whose URL-encoded mermaid source exceeds the upstream
+        # limit (#952). Surface that as a 503 so the client can show a
+        # real error message instead of cascading into a 500.
         try:
             app = build_graph(workflow_def, enable_parallel=True, checkpointer=None)
             png_bytes = app.get_graph().draw_mermaid_png()
         except Exception as render_exc:
             logger.warning(
                 "Mermaid PNG render failed for thread %s (likely upstream "
-                "mermaid.ink 400 on a complex graph). Returning 204 + "
-                "mermaid source header so the client can fall back. %s",
+                "mermaid.ink 400 on a complex graph): %s",
                 thread_id, render_exc,
             )
-            try:
-                mermaid_source = app.get_graph().draw_mermaid()
-            except Exception:
-                mermaid_source = ""
-            return Response(
-                status_code=204,
-                headers={
-                    "X-Fichero-Mermaid-Source": mermaid_source[:8192],
-                    "X-Fichero-Render-Error": str(render_exc)[:512],
-                },
+            raise HTTPException(
+                status_code=503,
+                detail="Diagram renderer unavailable (upstream mermaid.ink failed).",
             )
 
         return Response(
