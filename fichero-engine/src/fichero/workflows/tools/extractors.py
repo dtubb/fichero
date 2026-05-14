@@ -1169,9 +1169,18 @@ async def _run_extractor(
             for page_idx, (chunk_text, chunk_items, page_doc_id) in enumerate(
                 zip(chunks, chunk_results, page_doc_ids)
             ):
-                if not chunk_items:
-                    continue
                 page_label = f"Page {page_idx + 1}" if len(chunks) > 1 else None
+                if not chunk_items:
+                    # #1003: a page producing zero items used to be skipped
+                    # silently — indistinguishable from "extraction failed".
+                    # Log it explicitly so missing pages surface in the
+                    # activity log.
+                    logger.info(
+                        f"_write_kg_rows: {section.get('name')} "
+                        f"{page_label or 'whole-doc'} produced 0 items "
+                        f"(extraction ran, found nothing) on {container.id}"
+                    )
+                    continue
                 excerpt = chunk_text[:500] if chunk_text else None
                 # Save to PAGE doc when we have its id (0.0.2: per-page KG
                 # search). Fall back to container only when records flow
@@ -1429,6 +1438,13 @@ def _write_kg_rows(
         except ValueError:
             return None
 
+    # #1003: count what actually lands so a structured log at the end
+    # exposes per-page (items_in → entities, claims) — missing pages
+    # then surface in the activity log instead of failing silently.
+    items_in = len(items)
+    entities_written = 0
+    claims_written = 0
+
     for item in items:
         if not isinstance(item, dict):
             # Keywords come through as bare strings — wrap minimally.
@@ -1560,6 +1576,7 @@ def _write_kg_rows(
                 predicate_verb=verb or None,
                 object_phrase=obj or None,
             )
+            claims_written += 1
             continue
 
         # Entity-bearing section.
@@ -1616,6 +1633,19 @@ def _write_kg_rows(
             predicate_verb=verb or None,
             object_phrase=obj or None,
         )
+        entities_written += 1
+        claims_written += 1
+
+    # #1003: structured per-page summary. If items_in > 0 but
+    # entities_written + claims_written == 0, a page's items were all
+    # dropped (no canonical name, all deduped, etc.) — that's the
+    # silent-failure signature the issue describes.
+    logger.info(
+        f"_write_kg_rows: {section.get('name')} "
+        f"{page_label or 'whole-doc'} on {container_id} — "
+        f"items_in={items_in} entities_written={entities_written} "
+        f"claims_written={claims_written}"
+    )
 
 
 # =============================================================================

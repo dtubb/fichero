@@ -322,6 +322,98 @@ class TestMalformedItems:
 
 
 # ---------------------------------------------------------------------------
+# #1003 — silent zero-entity pages must surface in the activity log
+# ---------------------------------------------------------------------------
+
+
+class TestSilentZeroEntityLogging:
+    """#1003: a page producing zero entities used to be skipped without a
+    trace, indistinguishable from a silent extraction failure. Every page
+    must now emit a structured log line — populated or empty."""
+
+    @pytest.mark.asyncio
+    async def test_populated_page_logs_structured_counts(
+        self, db, test_package, container_doc, llm_config, caplog
+    ):
+        from fichero.workflows.tools.extractors import _run_extractor, _SECTIONS
+
+        people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
+        fake_response = '{"people": [{"name": "Juan", "context": "valid"}]}'
+
+        with patch(
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(return_value=_pydantic_from_json_response(fake_response)),
+        ), caplog.at_level("INFO", logger="fichero.workflows.tools.extractors"):
+            await _run_extractor(
+                people_section,
+                {"text": "..."},
+                {
+                    "library_path": str(test_package),
+                    "selected_doc_ids": [container_doc.id],
+                },
+                llm_config,
+            )
+
+        assert any(
+            "items_in=1" in r.message
+            and "entities_written=1" in r.message
+            and "claims_written=1" in r.message
+            for r in caplog.records
+        ), f"expected structured _write_kg_rows summary, got: {[r.message for r in caplog.records]}"
+
+    @pytest.mark.asyncio
+    async def test_empty_page_in_multipage_doc_logs_zero_items_explicitly(
+        self, db, test_package, container_doc, llm_config, caplog
+    ):
+        """The #1003 bug scenario: a multi-page doc where SOME pages return
+        zero entities. The populated pages keep ``any(chunk_results)`` true
+        so the KG-write loop still runs — and the empty page must emit an
+        explicit 'produced 0 items' line instead of being skipped silently.
+        """
+        from fichero.workflows.tools.extractors import _run_extractor, _SECTIONS
+
+        people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
+
+        # Page 1 yields a person; page 2 yields nothing.
+        aggregated = (
+            "On page one, María Angel signed the deed.\n\n---\n\n"
+            "Page two is boilerplate with no named people."
+        )
+        responses = iter([
+            _pydantic_from_json_response(
+                '{"people": [{"name": "María Angel", "context": "deed signer"}]}'
+            ),
+            _pydantic_from_json_response('{"people": []}'),
+        ])
+
+        async def fake_chat(*args, **kwargs):
+            return next(responses)
+
+        with patch(
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(side_effect=fake_chat),
+        ), caplog.at_level("INFO", logger="fichero.workflows.tools.extractors"):
+            await _run_extractor(
+                people_section,
+                {"text": aggregated},
+                {
+                    "library_path": str(test_package),
+                    "selected_doc_ids": [container_doc.id],
+                },
+                llm_config,
+            )
+
+        assert any(
+            "Page 2 produced 0 items" in r.message for r in caplog.records
+        ), f"expected explicit zero-items log for Page 2, got: {[r.message for r in caplog.records]}"
+        # Page 1 still gets its structured summary.
+        assert any(
+            "Page 1" in r.message and "items_in=1" in r.message
+            for r in caplog.records
+        ), f"expected structured summary for Page 1, got: {[r.message for r in caplog.records]}"
+
+
+# ---------------------------------------------------------------------------
 # Date claim metadata fidelity
 # ---------------------------------------------------------------------------
 
