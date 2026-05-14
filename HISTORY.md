@@ -1627,3 +1627,19 @@ Triggered after the testing pass via `/session-start-auto --max-tasks 5`. Closed
 | #1010 | Drop duplicate PDF zoom toolbar from PDFPageWithToolbar | 9867eb28 |
 
 #998 explicitly skipped — root cause filed (#998) but the exact ProgressView source needs an Xcode debugger session, not a guessed fix.
+
+## 2026-05-13 — Autonomous Session
+
+Closed 4 more 0.0.2 bugs (16 → 12 open). All committed direct to the milestone branch (no per-task PR per CLAUDE.md branch discipline).
+
+| Issue | Title | Commit |
+|---|---|---|
+| #999 | Replace mermaid-source-in-HTTP-header fallback with 503 + JSON body | b7706392 |
+| #1012 | Rename leaf "Catalogue" tool to "Archival Summary" to disambiguate from the workflow | 83473084 |
+| #1018 | Surface actual HTTP status + content-type + body peek on storage fetch failure | 7ca21556 |
+| #1014 | Hide inspector column in Knowledge Graph view (until Phase 6 plumbs source-doc inspector) | aa2f7402 |
+
+Discovered along the way:
+- Repo paths in CLAUDE.md are stale (`fichero-api`/`fichero-swiftui` → now `fichero-engine`/`fichero`); recorded in [[project-repo-path-divergence]].
+- SourceKit LSP emits phantom "Cannot find type/module" errors for SPM-linked symbols; only `xcodebuild` is authoritative. Recorded in [[sourcekit-lsp-false-positives]].
+- Pre-existing test failure on `main`: `test_chat_structured.py::TestAppleUnavailableHierarchy::test_bridge_stderr_decoding_stays_runtime_error` — `StructuredDecodeError` no longer subclasses `AppleUnavailableError`. Not filed yet; noted in STATE.md.
