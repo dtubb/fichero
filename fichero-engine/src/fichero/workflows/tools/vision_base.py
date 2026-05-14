@@ -124,6 +124,16 @@ VISION_CONFIG_SCHEMA = merge_config_schema(
             "description": "Max image size",
             "x-group": "primary",
         },
+        # #1033 — born-digital PDFs already carry a selectable text
+        # layer; the transcribe path uses it and skips vision OCR. Set
+        # this when a PDF's own text layer is itself garbage and OCR is
+        # genuinely needed.
+        "force_ocr": {
+            "type": "boolean",
+            "default": False,
+            "description": "Force OCR even when a PDF has a text layer",
+            "x-group": "advanced",
+        },
     },
 )
 
@@ -744,6 +754,7 @@ async def process_vision(
     vision_mode: str = "llm",
     language: str = "en",
     max_image_dimension: int = 2048,
+    force_ocr: bool = False,
     # LLM parameters (from BASE_CONFIG_SCHEMA)
     temperature: float | None = None,
     max_tokens: int | None = None,
@@ -1030,27 +1041,49 @@ async def process_vision(
 
             # Process with Apple Vision or LLM
             per_page_texts: list[str] | None = None
-            if vision_mode == "apple" and tool_config.supports_apple_vision:
+
+            # PDF text-layer short-circuit (#957, #1033). A born-digital
+            # PDF (InDesign export, LaTeX, Word→PDF) already carries a
+            # selectable text layer; re-deriving it with vision OCR is
+            # wasted compute (~1.5s/page) and usually noisier than the
+            # native text. This runs regardless of vision_mode — it used
+            # to be nested inside the apple-only branch, so LLM-vision
+            # runs re-OCR'd every digital PDF (#1033). `force_ocr`
+            # overrides it for a PDF whose own text layer is garbage.
+            pdf_layer_used = False
+            if (
+                not force_ocr
+                and tool_config.supports_apple_vision
+                and file_path.lower().endswith(".pdf")
+            ):
+                layer = _try_pdf_text_layer(file_path)
+                if layer is not None:
+                    per_page_texts = layer
+                    pdf_layer_used = True
+                    logger.info(
+                        "PDF text layer present — skipped vision OCR "
+                        "for %s (%d pages)",
+                        Path(file_path).name, len(per_page_texts),
+                    )
+                    parts = []
+                    for i, t in enumerate(per_page_texts):
+                        if t:
+                            if len(per_page_texts) > 1:
+                                parts.append(f"--- Page {i + 1} ---")
+                            parts.append(t)
+                    text = "\n\n".join(parts)
+                    parsed = text
+
+            if pdf_layer_used:
+                # text / parsed / per_page_texts already set above.
+                pass
+            elif vision_mode == "apple" and tool_config.supports_apple_vision:
                 logger.info(f"Apple Vision: {Path(file_path).name}")
                 if file_path.lower().endswith(".pdf"):
-                    # #957 — Short-circuit Apple Vision OCR when the PDF
-                    # already has an embedded text layer. Born-digital
-                    # PDFs (InDesign exports, LaTeX, Word→PDF) all have
-                    # selectable text; running Vision on them is wasted
-                    # compute (~1.5s/page) and produces noisier output
-                    # than the native text. Only fall through to OCR
-                    # when extraction yields nothing meaningful.
-                    per_page_texts = _try_pdf_text_layer(file_path)
-                    if per_page_texts is None:
-                        # OCR page-by-page so we can propagate per-page content
-                        # to page child documents after saving the parent artifact.
-                        per_page_texts = await apple_vision_ocr_pages_async(file_path, language)
-                    else:
-                        logger.info(
-                            "PDF text layer present — skipped Apple Vision "
-                            "OCR for %s (%d pages)",
-                            Path(file_path).name, len(per_page_texts),
-                        )
+                    # No usable text layer (checked above) → OCR
+                    # page-by-page so we can propagate per-page content
+                    # to page child documents after saving the parent.
+                    per_page_texts = await apple_vision_ocr_pages_async(file_path, language)
                     parts = []
                     for i, t in enumerate(per_page_texts):
                         if t:

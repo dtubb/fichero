@@ -191,6 +191,7 @@ async def transcribe(
         vision_mode=vision_mode,
         language=language,
         max_image_dimension=inputs.get("max_image_dimension", 2048),
+        force_ocr=inputs.get("force_ocr", False),
         # Inherited from BASE_CONFIG
         temperature=inputs.get("temperature"),
         max_tokens=inputs.get("max_tokens"),
