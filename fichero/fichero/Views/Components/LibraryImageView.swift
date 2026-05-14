@@ -62,7 +62,11 @@ struct LibraryImageView: View {
             }
         } catch {
             loadError = error
-            Self.logger.error("Failed to load image for \(self.documentId): \(error.localizedDescription)")
+            if case StorageServiceError.notFound = error {
+                Self.logger.info("No \(imageTypeLabel) yet for \(self.documentId): \(error.localizedDescription)")
+            } else {
+                Self.logger.error("Failed to load image for \(self.documentId): \(error.localizedDescription)")
+            }
             // Will show placeholder icon
         }
 

@@ -78,15 +78,30 @@ class StorageServiceGenerated: ObservableObject {
 
     /// Fetch raw image bytes from the backend. Suspends during the
     /// network call; doesn't block main thread.
+    ///
+    /// On non-200, surfaces the actual status code + content-type instead
+    /// of a generic "invalid response" so #1018-style failures can be
+    /// diagnosed from logs without re-instrumenting the backend.
     private func fetchImageData(from url: URL) async throws -> Data {
         var request = URLRequest(url: url)
         request.addEngineAuth(libraryPath: client.currentLibraryPath)
         let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse else {
             throw StorageServiceError.invalidResponse
         }
-        return data
+        if httpResponse.statusCode == 200 {
+            return data
+        }
+        let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? "unknown"
+        if httpResponse.statusCode == 404 {
+            throw StorageServiceError.notFound(url: url, contentType: contentType)
+        }
+        let bodyPeek = String(data: data.prefix(200), encoding: .utf8) ?? "<binary>"
+        throw StorageServiceError.unexpectedStatus(
+            status: httpResponse.statusCode,
+            contentType: contentType,
+            bodyPeek: bodyPeek
+        )
     }
 
     /// Decode image bytes into a SwiftUI `Image` off the main thread.
@@ -203,6 +218,8 @@ enum StorageServiceError: Error, LocalizedError {
     case invalidImageData
     case downloadFailed
     case unexpectedResponse
+    case notFound(url: URL, contentType: String)
+    case unexpectedStatus(status: Int, contentType: String, bodyPeek: String)
 
     var errorDescription: String? {
         switch self {
@@ -214,6 +231,10 @@ enum StorageServiceError: Error, LocalizedError {
             return "File download failed"
         case .unexpectedResponse:
             return "Unexpected response from storage service"
+        case .notFound(let url, _):
+            return "Storage 404 for \(url.lastPathComponent) (no thumbnail/display image generated yet)"
+        case let .unexpectedStatus(status, contentType, bodyPeek):
+            return "Storage HTTP \(status) (content-type=\(contentType)): \(bodyPeek)"
         }
     }
 }
