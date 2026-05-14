@@ -186,7 +186,7 @@ class TestLoadPresetFiles:
         aggregate, catalogue / extract_all / merge_extracts all land
         in the correct super-step with real data."""
         presets = {p["name"]: p for p in _load_preset_files()}
-        for preset_name in ("Catalogue", "Catalogue (Mixed)"):
+        for preset_name in ("Catalogue",):
             preset = presets[preset_name]
 
             # No user-defined aggregate node should exist (only the
@@ -258,28 +258,6 @@ class TestLoadPresetFiles:
                 f"(per-page records for page-level KG) — got {ext_records_sources}"
             )
 
-    def test_catalogue_mixed_promotes_narrative_to_dollar_large(self):
-        """Catalogue (Mixed) keeps $small for extract/cleanup but promotes
-        the catalogue narrative node to $large so users get frontier-
-        quality writing on the one synthesis call per folder."""
-        presets = {p["name"]: p for p in _load_preset_files()}
-        assert "Catalogue (Mixed)" in presets, (
-            "Catalogue (Mixed) preset should ship alongside Catalogue"
-        )
-        nodes_by_tool: dict[str, dict] = {}
-        for node in presets["Catalogue (Mixed)"]["nodes"]:
-            nodes_by_tool.setdefault(node["tool"], node)
-        # Narrative step uses $large.
-        assert nodes_by_tool["catalogue"]["config"].get("provider_name") == "$large"
-        # Everything else stays $small (excluding transcribe — see above).
-        for tool in (
-            "extract_all",
-            "people_folder_cleanup", "keywords_folder_cleanup",
-        ):
-            assert nodes_by_tool[tool]["config"].get("provider_name") == "$small", (
-                f"{tool} should stay on $small in the Mixed preset"
-            )
-
 
 def _node_id(preset: dict, tool: str) -> str:
     for node in preset["nodes"]:
@@ -324,7 +302,6 @@ class TestSeedDefaultWorkflows:
             "Transcribe",
             "Transcribe (Apple Vision)",
             "Catalogue",
-            "Catalogue (Mixed)",
             "Catalogue (composable)",
             "Catalogue (Apple Intelligence)",
             "Spanish Paleography (18th–19th C.)",
