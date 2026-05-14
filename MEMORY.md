@@ -805,3 +805,11 @@ First pass made entity rows clickable buttons that copied to pasteboard, with a 
 `graph._build_cached(db, builder, cache)` and `entity_vectors._l2_normalized(vec)` are local helpers in the same spirit — collapsed near-twin functions in those files.
 
 **Lesson**: when a docstring explicitly warns that two functions "must stay in lockstep" (this was the case for `triples._predicate_uri` ↔ `triangulation._predicate_slug`), treat it as a strong signal to consolidate immediately. The warning meant the prior author already knew it was wrong but didn't have time to fix it.
+
+## SF Symbol lint + Canvas @State — 2026-05-14
+
+### SF Symbols catalog lives in the OS, not a package
+The authoritative SF Symbol name list is `/System/Library/CoreServices/CoreGlyphs.bundle/Contents/Resources/name_availability.plist` (`symbols` dict, ~9,184 names) plus `name_aliases.strings` (legacy → current, a binary plist). `fichero-engine/tests/unit/test_sf_symbol_names.py` reads it directly so the lint stays accurate as macOS ships new symbols, and `pytest.skip`s where the bundle is absent (non-mac CI). When validating SF Symbol names anywhere, read this — don't hard-code or hand-maintain a list.
+
+### Never mutate @State inside a Canvas / TimelineView render closure
+`ForceDirectedGraphView` (OntologyBrowser.swift) wrote `@State` (`nodes`, `lastTick`) from inside its `Canvas` draw closure — the textbook trigger for "Modifying state during view update" (#1019, same view-switch path as #998). Fix pattern: hold the per-frame-mutated state in a **plain (non-`@Observable`) reference type** kept in `@State` only for instance stability — mutating the object's properties doesn't notify SwiftUI. `TimelineView` still drives the redraw cadence; use a separate observed counter (`graphRevision`) to flip any branch (`isEmpty` checks) that genuinely needs a re-render after async loads. Note: inside a `@ViewBuilder`, `let _ = x` works as a no-op statement but bare `_ = x` does not (`Type '()' cannot conform to 'View'`).
