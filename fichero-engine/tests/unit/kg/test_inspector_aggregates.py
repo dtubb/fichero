@@ -253,6 +253,54 @@ class TestDocumentKnowledgeGraph:
         assert people.items[0].entity_id == canonical.id
         assert len(people.items[0].claim_ids) == 2
 
+    def test_parent_pdf_empty_without_include_children(self, db):
+        """extract_all writes claims to page docs — the parent looks empty (#1069)."""
+        from fichero.api.routes import document_inspector
+
+        parent = Document(name="Preface.pdf", doc_type=DocType.file)
+        db.save(parent)
+        page = Document(name="Preface.pdf — page 1", doc_type=DocType.file, parent_id=parent.id)
+        db.save(page)
+        entity = KnowledgeEntity(canonical_name="Louise Livingstone", entity_type=EntityType.person)
+        db.save(entity)
+        db.save(KnowledgeClaim(text="Livingstone signed.", source_document_id=page.id, entity_ids=[entity.id]))
+
+        result = asyncio.run(document_inspector.knowledge_graph(parent.id, db=db))
+        assert result.include_children is False
+        assert result.groups == []
+        assert result.claim_count == 0
+
+    def test_include_children_aggregates_page_claims_onto_parent(self, db):
+        """include_children walks the doc tree and surfaces page-child KG (#1069)."""
+        from fichero.api.routes import document_inspector
+
+        parent = Document(name="Preface.pdf", doc_type=DocType.file)
+        db.save(parent)
+        page1 = Document(name="page 1", doc_type=DocType.file, parent_id=parent.id)
+        page2 = Document(name="page 2", doc_type=DocType.file, parent_id=parent.id)
+        db.save(page1)
+        db.save(page2)
+
+        person = KnowledgeEntity(canonical_name="Louise Livingstone", entity_type=EntityType.person)
+        place = KnowledgeEntity(canonical_name="Deloro", entity_type=EntityType.location)
+        db.save(person)
+        db.save(place)
+        # Same entity mentioned on both pages — must dedup to one row.
+        db.save(KnowledgeClaim(text="Livingstone arrived.", source_document_id=page1.id, entity_ids=[person.id]))
+        db.save(KnowledgeClaim(text="Livingstone departed.", source_document_id=page2.id, entity_ids=[person.id]))
+        db.save(KnowledgeClaim(text="Deloro is north.", source_document_id=page2.id, entity_ids=[place.id]))
+
+        result = asyncio.run(
+            document_inspector.knowledge_graph(parent.id, include_children=True, db=db)
+        )
+        assert result.include_children is True
+        assert result.claim_count == 3
+        kinds = {g.kind for g in result.groups}
+        assert kinds == {"person", "location"}
+        people = next(g for g in result.groups if g.kind == "person")
+        assert len(people.items) == 1, "cross-page same entity must dedup"
+        assert len(people.items[0].claim_ids) == 2
+
 
 # -----------------------------------------------------------------------------
 # Entity inspector

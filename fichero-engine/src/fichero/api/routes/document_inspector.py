@@ -10,9 +10,9 @@ SwiftUI inspector would make.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from fichero.api.main import get_library_database
@@ -204,6 +204,7 @@ class KGEntityGroup(BaseModel):
 
 class DocumentKnowledgeGraphResponse(BaseModel):
     document_id: str
+    include_children: bool
     groups: list[KGEntityGroup]
     claims: list[KnowledgeClaim]
     entity_count: int
@@ -231,12 +232,15 @@ def _resolve_canonical(
 
 
 def _build_knowledge_graph(
-    db: Database, document_id: str, doc_claims: list[KnowledgeClaim]
+    db: Database,
+    document_id: str,
+    doc_claims: list[KnowledgeClaim],
+    include_children: bool,
 ) -> DocumentKnowledgeGraphResponse:
     """Group/dedup/merge-resolve a claim set into kind buckets.
 
-    Shared by the leaf-document endpoint and (later) the
-    include_children parent-PDF aggregation path.
+    Shared by the leaf-document path and the include_children
+    parent-PDF aggregation path.
     """
     # entity-id -> resolved canonical entity (cache: merge chains repeat).
     canonical_cache: dict[str, KnowledgeEntity | None] = {}
@@ -306,6 +310,7 @@ def _build_knowledge_graph(
 
     return DocumentKnowledgeGraphResponse(
         document_id=document_id,
+        include_children=include_children,
         groups=groups,
         claims=doc_claims,
         entity_count=entity_count,
@@ -325,19 +330,32 @@ def _build_knowledge_graph(
         "date claims — dedups within each kind, and returns the "
         "groups in display order. The list-view row and the KG "
         "inspector tab both render this verbatim so they can no "
-        "longer disagree (#1068)."
+        "longer disagree (#1068).\n\n"
+        "With ``include_children=true`` the query walks the document "
+        "tree (BFS) and aggregates every descendant's claims onto the "
+        "parent. extract_all writes claims to PAGE doc ids, never the "
+        "parent PDF — so a parent PDF queried without this flag looks "
+        "empty even though its pages are full of entities (#1069)."
     ),
 )
 async def knowledge_graph(
     document_id: str,
+    include_children: Annotated[bool, Query()] = False,
     db: Database = Depends(get_library_database),
 ) -> DocumentKnowledgeGraphResponse:
     doc = db.get(Document, document_id)
     if doc is None:
         raise HTTPException(404, f"Document not found: {document_id}")
 
+    if include_children:
+        from fichero.api.routes.claims import _descendant_doc_ids
+
+        doc_ids = _descendant_doc_ids(db, document_id)
+    else:
+        doc_ids = {document_id}
+
     doc_claims = [
         c for c in db.query(KnowledgeClaim)
-        if c.source_document_id == document_id
+        if c.source_document_id in doc_ids
     ]
-    return _build_knowledge_graph(db, document_id, doc_claims)
+    return _build_knowledge_graph(db, document_id, doc_claims, include_children)
