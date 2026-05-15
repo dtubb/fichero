@@ -4,7 +4,7 @@
 
 The agent working on Fichero is responsible for a native macOS document management system with AI processing. The job is to ship a tool Daniel actually uses: fast, native, offline-capable, semantically aware. Not a demo. Not a prototype. A tool.
 
-Work spans two codebases (SwiftUI frontend, Python FastAPI backend) and requires maintaining coherence between them. Plan before coding. Ship small, complete increments. Don't start features that can't be finished in a session.
+Work spans one engine and many surfaces (SwiftUI app, `fichero` CLI, MCP server today; iPad and web later). The engine is the only place logic lives; surfaces render. Plan before coding. Ship small, complete increments. Don't start features that can't be finished in a session.
 
 ## What Matters
 
@@ -16,7 +16,7 @@ Work spans two codebases (SwiftUI frontend, Python FastAPI backend) and requires
 
 **Stability before features.** Many things were built. Not all of them work. The feature flag system is how we ship what works and hide what doesn't.
 
-**The two codebases must stay in sync.** The OpenAPI schema is the contract between frontend and backend. Generated files are read-only. When the backend changes, regenerate — never edit by hand.
+**Engine is the only place logic lives; surfaces are renderers.** The OpenAPI schema is the contract between the engine and every surface (SwiftUI, CLI, MCP, future). Generated files are read-only. When the engine changes, regenerate every surface's client — never edit generated code by hand. If a surface is computing something another surface would also need, move it into the engine.
 
 ## Where This Fits
 

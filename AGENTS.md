@@ -115,30 +115,30 @@ If tasks are independent, spawn subagents **in a single message with multiple Ag
 **Python backend:**
 ```bash
 # Start backend
-PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 
 # Run tests
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ \
-  --ignore=fichero-api/tests/unit/_archived
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ \
+  --ignore=fichero-engine/tests/unit/_archived
 
 # Lint
-PYTHONPATH=fichero-api/src .venv/bin/ruff check fichero-api/src/
-PYTHONPATH=fichero-api/src .venv/bin/ruff format fichero-api/src/
+PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/
+PYTHONPATH=fichero-engine/src .venv/bin/ruff format fichero-engine/src/
 ```
 
 **Swift frontend — the three-leg check is MANDATORY. Run ALL three, every time, in this order. Skipping any leg is a hard-rule violation (see Hard Rule #4). "Build passed" is not evidence of "done" without a test run; "tests passed" is not evidence of "done" without SwiftLint clean.**
 
 ```bash
 # 1. SwiftLint (must pass — zero warnings/errors before anything else)
-swiftlint lint fichero-swiftui/fichero-swiftui/
+swiftlint lint fichero/fichero/
 
 # 2. Xcode build
-xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj \
-  -scheme fichero-swiftui -configuration Debug -sdk macosx build
+xcodebuild -project fichero/fichero.xcodeproj \
+  -scheme fichero -configuration Debug -sdk macosx build
 
 # 3. Xcode unit tests (FicheroTests, 220 tests as of 0.0.2) — REQUIRED, not optional
-xcodebuild -project fichero-swiftui/fichero-swiftui.xcodeproj \
-  -scheme fichero-swiftui -configuration Debug -sdk macosx test
+xcodebuild -project fichero/fichero.xcodeproj \
+  -scheme fichero -configuration Debug -sdk macosx test
 ```
 
 When the Xcode MCP is available, prefer these (faster, no Xcode.app build-db lock) — same mandatory order:
@@ -146,7 +146,7 @@ When the Xcode MCP is available, prefer these (faster, no Xcode.app build-db loc
 2. `mcp__xcode__RunAllTests` — run the full FicheroTests suite (never skip; if the suite is slow use `RunSomeTests` for iteration, but `RunAllTests` must pass before commit)
 3. `mcp__xcode__GetBuildLog` / `XcodeListNavigatorIssues` — only on failure, to diagnose errors/warnings
 
-SwiftLint still runs from the shell (`swiftlint lint fichero-swiftui/fichero-swiftui/`) — the Xcode MCP does not substitute for it.
+SwiftLint still runs from the shell (`swiftlint lint fichero/fichero/`) — the Xcode MCP does not substitute for it.
 
 **Xcode.app build-db lock workaround** — if the CLI fails with "database is locked" while Xcode.app is open (see MEMORY.md):
 ```bash
@@ -206,7 +206,7 @@ Unit tests catch logic regressions but not UI regressions. After a SwiftUI chang
 - `#556` settings `.formStyle(.grouped)` — open Settings, screenshot each tab.
 - PDF ↔ grid selection sync (commit `413b6614`) — select a page, screenshot, confirm thumbnail highlights match.
 
-**CRITICAL:** `PYTHONPATH=fichero-api/src` must be set for ALL Python commands.
+**CRITICAL:** `PYTHONPATH=fichero-engine/src` must be set for ALL Python commands.
 
 **Generated files (NEVER edit manually):**
 - `*Generated.swift`
@@ -215,6 +215,51 @@ Unit tests catch logic regressions but not UI regressions. After a SwiftUI chang
 - Regenerate via `scripts/sync_openapi_schema.sh`
 
 ---
+
+## Per-Commit Gates
+
+Every commit must pass these gates before push. They are MANDATORY, not advisory.
+
+| Gate | When | Tool |
+|---|---|---|
+| **pytest** | Always (any backend touch) | `pytest fichero-engine/tests/unit/` |
+| **ruff** | Always (any backend touch) | `ruff check fichero-engine/src/` |
+| **SwiftLint + xcodebuild build + xcodebuild test** | Any SwiftUI touch | three-leg check above |
+| **`code-reviewer` subagent** | Always | independent QA pass on the staged diff |
+| **`silent-failure-hunter` subagent** | When the diff touches error handling, fallback chains, optional inputs, or anywhere a failure could be swallowed | dedicated hunt for caught-and-ignored exceptions, unchecked Optionals, defaults that hide drift |
+| **Security review** | When the diff touches auth, file I/O, network calls, secrets, keychain | `/security-review` |
+
+If any gate fails, fix and re-stage — do NOT amend a previous commit; create a new one.
+
+## Manager Pattern
+
+The lead session is a **manager**, not an editor. The manager's job is to preserve orchestration context (user intent, prior corrections, the plan) and delegate targeted edits to subagents.
+
+- Lead reads the plan, dispatches edits to subagents, reviews returned diffs, decides what to commit.
+- Subagents read what they need into their own context, return a concise diff or summary.
+- The lead never burns context on test logs, build output, or large file reads — those go to subagents.
+- Spawn parallel subagents in a single message when work is independent (e.g. backend reviewer + silent-failure hunter + code reviewer for the QA review gate).
+
+See `docs/agent-workflow/parallel-execution.md` for the full pattern.
+
+## Autonomous Loop
+
+The pattern Daniel uses to run Claude unattended:
+
+1. **tmux** session on the dev machine (a bare SSH shell hits "Not logged in" — see MEMORY.md).
+2. **`agent-autonomous-loop.py`** drives a `claude` CLI loop.
+3. **ScheduleWakeup** reschedules the loop on a cadence.
+4. **BLOCK.md** is the human-in-the-loop gate — the loop checks it each cycle and halts if there is anything for Daniel to decide.
+
+Workflow execution runs on a worker thread (post-#1000); per-thread `db_manager` and `DBWriter` are required.
+
+## CLI as Verification Surface
+
+The typed `fichero` CLI (`fichero/cli/`) mirrors the engine's HTTP surface. Use it as the engine-quality comparison loop:
+
+- Every endpoint reachable from the SwiftUI app should be reachable from the CLI.
+- Endpoint parity (CLI ↔ SwiftUI) is a per-session check item.
+- When investigating "is this an engine bug or a SwiftUI rendering bug?", reproduce against the CLI first. If the CLI fails the same way, the engine owns the bug.
 
 ## Commit and Branch Discipline
 
@@ -269,7 +314,7 @@ Two failure modes have bitten us repeatedly. Both fail *silently* — no excepti
 
 **1. Declare every field on the Pydantic model.** `extra="allow"` lets unknown fields *write* to the DB at runtime, but `model_dump()` only serializes declared fields, so the next read drops them. Symptom: write succeeds, value silently disappears on next load. Fix: when adding a column, add (a) the DB migration, (b) the Pydantic model field, (c) the OpenAPI-typed field on the request/response schemas — in the same commit. See `commit 31fc4141` and `feedback_pydantic_field_must_be_declared.md`.
 
-**2. Use OpenAPI-typed fields, not `additionalProperties`, in Swift service wrappers.** When building a request body in `fichero-swiftui/.../Services/*Generated.swift`, every field declared in `openapi.json` must be set via the typed `Components.Schemas.*` field. Dumping declared fields into `additionalProperties` works at compile time and round-trips through `extra="allow"` on the wire, but the backend Pydantic model ignores them and the write is lost. See `docs/architecture/swiftui/api_client.md` for the contract.
+**2. Use OpenAPI-typed fields, not `additionalProperties`, in Swift service wrappers.** When building a request body in `fichero/fichero/Services/*Generated.swift`, every field declared in `openapi.json` must be set via the typed `Components.Schemas.*` field. Dumping declared fields into `additionalProperties` works at compile time and round-trips through `extra="allow"` on the wire, but the backend Pydantic model ignores them and the write is lost. See `docs/architecture/swiftui/api_client.md` for the contract.
 
 **3. Endpoint defaults that match against seed data are foot-guns.** When you set a query-param default that is then matched by strict equality against rows (e.g. `folder_path: str = "/"`), the route quietly stops returning data the moment the seed JSONs change shape. Same failure shape as #1: schema and data drift apart, no error fires. Default to `Optional[T] = None` and only filter when the caller passes a value. Add a regression test that seeds a row outside the old default and asserts the unfiltered list returns it. See #722 → #723 (`commit 968602e7`).
 
@@ -295,6 +340,6 @@ GitHub Issues + Milestones are authoritative for scope and status.
 4. **Three-leg Swift check is mandatory** — for any SwiftUI change, run ALL three before marking work complete, in this exact order: (1) `swiftlint lint fichero-swiftui/fichero-swiftui/`, (2) Xcode build (`xcodebuild … build` or `mcp__xcode__BuildProject`), (3) Xcode unit tests (`xcodebuild … test` or `mcp__xcode__RunAllTests`). None of these are optional. "Build passed" alone is not evidence of done. Python work requires the equivalent two-leg check (ruff + pytest). Add peekaboo visual verification for any SwiftUI change that has a rendered UI surface.
 5. **Every SwiftUI bug fix or feature must land with new/updated unit tests in the same commit** — no "tests in a follow-up." This is how we stop UI regressions from recurring.
 6. Never start coding on unapproved scope (GitHub milestone/issues are the approval boundary)
-7. `PYTHONPATH=fichero-api/src` on all Python commands
+7. `PYTHONPATH=fichero-engine/src` on all Python commands
 8. One concern per commit, conventional commit format
 9. `trash` over `rm`

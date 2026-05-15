@@ -1,41 +1,45 @@
 # Fichero
 
-Document management and AI processing for macOS. Organize, search, chat, and run AI workflows on documents.
+Document management and AI processing for macOS. One engine, many surfaces.
 
 ## Architecture
 
+Fichero is a single backend engine ("engine is logic; clients are display surfaces") with multiple thin clients on top of it.
+
 ```
-┌─────────────────┐         ┌─────────────────┐        ┌─────────────────┐
-│  Swift UI App   │────────▶│  Python API     │        │    LiteLLM      │
-│  library/browser│         │  (FastAPI)      │        │(prices/models/  │
-│  metadata/search│         └────────┬────────┘        │ provider info)  │
-│  chat/workflows │                  │                 └─────────────────┘
-│  activity/compare│                 │
-└─────────────────┘                  │
-        ┌────────────────────────────┼────────────────────────────┐
-        │                            │                            │
-        ▼                            ▼                            ▼
-┌───────────────┐          ┌─────────────────┐          ┌─────────────────┐
-│ DuckDB+Lance  │          │    LangGraph    │          │    LangChain    │
-│ (storage)     │          │   (workflows)   │          │  (llm calls)    │
-│               │          │  visual node    │          │                 │
-│               │          │    editor       │          │                 │
-└───────┬───────┘          └────────┬────────┘          └────────┬────────┘
-        │                           │                            │
-        ▼                           ▼                            ▼
-┌───────────────┐          ┌─────────────────┐          ┌─────────────────┐
-│  FastEmbed    │          │  Tool Registry  │          │  LLM Providers  │
-│ (embeddings)  │          │ vision/transform│          ├─────────────────┤
-└───────────────┘          │ llm/convert     │          │ Local:          │
-                           │ logic/conditions│          │  Apple Vision   │
-                           └─────────────────┘          │  Ollama/LMStudio│
-                                                        │  Hugging Face   │
-                                                        ├─────────────────┤
-                                                        │ Commercial:     │
-                                                        │  OpenAI/Anthropic│
-                                                        │  Google/Groq/etc│
-                                                        └─────────────────┘
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│  SwiftUI app     │  │  fichero CLI     │  │  MCP server      │
+│  (fichero/)      │  │  (fichero/cli/)  │  │  (planned)       │
+└────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘
+         │                     │                     │
+         └─────────────────────┴─────────────────────┘
+                              │
+                  HTTP localhost:8765
+                              │
+                              ▼
+              ┌──────────────────────────────┐
+              │  FastAPI engine              │
+              │  (fichero-engine/src/fichero)│
+              └──┬─────────┬─────────┬───────┘
+                 │         │         │
+                 ▼         ▼         ▼
+           ┌─────────┐ ┌────────┐ ┌─────────┐
+           │ DuckDB  │ │LangGr. │ │ LiteLLM │
+           │+Lance   │ │workflw │ │100+ LLMs│
+           └─────────┘ └────────┘ └─────────┘
 ```
+
+### Surfaces
+
+All surfaces are thin clients on the engine. They render and accept input; they do not contain logic.
+
+| Surface | Path | Status |
+|---|---|---|
+| SwiftUI app | `fichero/` (Xcode project: `fichero/fichero.xcodeproj`) | Live |
+| `fichero` CLI | `fichero/cli/` | Live (typed, end-to-end verified) |
+| MCP server | `fichero-engine/` (planned / in flight) | Coming |
+| iPad app | future | Planned |
+| Web client | future | Planned |
 
 ### Example Workflow: Catalogue
 
@@ -61,15 +65,21 @@ Document management and AI processing for macOS. Organize, search, chat, and run
 
 **Start the backend:**
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 ```
 
-**Run the Swift app:**
-Open `fichero-swiftui/fichero-swiftui.xcodeproj` in Xcode and run.
+**Run the SwiftUI app:**
+Open `fichero/fichero.xcodeproj` in Xcode and run.
 
-**Lint the Swift app:**
+**Use the CLI (against a running backend):**
 ```bash
-swiftlint lint fichero-swiftui/fichero-swiftui/
+fichero --help
+fichero workflow list
+```
+
+**Lint the SwiftUI app:**
+```bash
+swiftlint lint fichero/fichero/
 ```
 
 ## Features
@@ -77,8 +87,10 @@ swiftlint lint fichero-swiftui/fichero-swiftui/
 - **Library**: Hierarchical document storage with collections
 - **Search**: Semantic search via LanceDB embeddings
 - **Chat**: RAG-based document Q&A
-- **Workflows**: Visual node editor for document processing pipelines
+- **Workflows**: Visual node editor for document processing pipelines (LangGraph)
+- **Knowledge Graph**: Entities, claims, and relationships extracted from documents (backend-owned; surfaces render)
 - **Ingest**: Comprehensive file ingestion with 37+ supported formats
+- **CLI / MCP**: Engine endpoints driven from terminal and (soon) MCP-aware agents
 
 ## Ingest Module
 
@@ -115,22 +127,22 @@ docs = ingest_folder(
 
 ## Project Structure
 
-- `fichero-api/` - Backend package and Briefcase config ([README](fichero-api/README.md))
-- `fichero-swiftui/` - SwiftUI app and Xcode project ([README](fichero-swiftui/README.md))
-- `docs/agent-workflow/` - Agent workflow docs, task list, and templates
+- `fichero-engine/` — FastAPI backend, workflow runner, KG, ingest ([README](fichero-engine/README.md))
+- `fichero/` — SwiftUI app, Xcode project, and `fichero` CLI under `fichero/cli/`
+- `docs/agent-workflow/` — Agent workflow docs, task list, and templates
 
 ### Top-level folder ownership
 
-- `runtime`: `fichero-api/`, `fichero-swiftui/`
-- `generated/local`: `.build/`, `build/`, `dist/`, `logs/`, `fichero-swiftui/derived_data/`
+- `runtime`: `fichero-engine/`, `fichero/`
+- `generated/local`: `.build/`, `build/`, `dist/`, `logs/`, `fichero/derived_data/`
 - `reference`: `docs/`
-- `archive/delete-candidate`: moved under `/Users/danieltubb/code/fichero_main/to-delete/`
 
-### Python Backend (`fichero-api/src/fichero/`)
+### Python Backend (`fichero-engine/src/fichero/`)
 
 ```
-api/               # FastAPI routes (documents, search, chat, workflows, providers)
+api/               # FastAPI routes (documents, search, chat, workflows, kg, providers)
 workflows/         # LangGraph engine, tool registry, builder
+kg/                # Knowledge graph: entities, claims, aggregation
 loaders/           # Text extraction (pdf, docx, images, etc.)
 db.py              # DuckDB + LanceDB storage
 models.py          # Pydantic models
@@ -143,7 +155,7 @@ bookmarks.py       # macOS security-scoped bookmarks
 resources/         # Config defaults, locales
 ```
 
-### Swift App (`fichero-swiftui/fichero-swiftui/`)
+### SwiftUI App (`fichero/fichero/`)
 
 ```
 Views/
@@ -159,22 +171,27 @@ Models/            # Swift data models
 Resources/         # Assets, config
 ```
 
+### CLI (`fichero/cli/`)
+
+Typed Python CLI mirroring the engine's HTTP surface. Used as the engine-quality comparison loop against the SwiftUI app — every endpoint reachable from the app should be reachable from the CLI.
+
 ## Tests
 
 ```bash
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ \
+  --ignore=fichero-engine/tests/unit/_archived
 ```
 
 ## Local cleanup
 
 ```bash
-./fichero-api/scripts/clean_local_artifacts.sh
+./fichero-engine/scripts/clean_local_artifacts.sh
 ```
 
 ## Validation
 
 ```bash
-./fichero-api/scripts/validate_repo.sh
+./fichero-engine/scripts/validate_repo.sh
 ```
 
 See `docs/VALIDATION.md` for details and current known blockers.

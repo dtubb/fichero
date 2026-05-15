@@ -17,17 +17,30 @@ Fichero gives documents a home with semantic understanding — you can ask a que
 ```
 Documents (PDF, DOCX, audio, video, images, 37+ types)
     ↓ import + extract + embed
-Fichero (THIS PROJECT)
+Fichero engine (fichero-engine/)
     ├── DuckDB (structured metadata)
-    └── LanceDB (vector embeddings, semantic search)
-    ↓ query + workflow
-SwiftUI macOS App (native, fast, three-column layout)
-    ↔ FastAPI backend (localhost:8765)
-    ↔ LangGraph (visual workflow editor)
-    ↔ LiteLLM (100+ providers: Ollama, Anthropic, OpenAI, Groq...)
+    ├── LanceDB (vector embeddings, semantic search)
+    ├── LangGraph (workflow execution, visual editor)
+    ├── KG (entities, claims, relationships)
+    └── LiteLLM (100+ providers: Ollama, Anthropic, OpenAI, Groq...)
+    ↑ HTTP localhost:8765
+Display surfaces (thin clients on the engine)
+    ├── SwiftUI app (fichero/ — three-column native macOS)
+    ├── fichero CLI (fichero/cli/ — typed, mirrors the HTTP surface)
+    ├── MCP server (planned / in flight — for agent tooling)
+    └── future: iPad app, web client
     ↓ future integration
 Tinderbox Router → Tinderbox (link documents to manuscript notes)
 ```
+
+### Display Surfaces
+
+The engine is the only place logic lives. Surfaces render and accept input; they do not compute.
+
+- **SwiftUI app** — Daniel's daily driver on the Mac.
+- **`fichero` CLI** — typed command-line surface; Daniel uses it directly, agents use it for verification.
+- **MCP server** — exposes engine endpoints to MCP-aware agents (Escribano and others).
+- **iPad / web** — future surfaces; same engine, different renderers.
 
 ## How It Fits Daniel's Research System
 
@@ -62,16 +75,11 @@ A macOS app that:
 6. Integrates with Bookends (import references), DevonThink (archive bridge), Tinderbox Router (link to manuscript)
 7. Runs reliably on macOS with native performance — not Electron, not web
 
-## Current State (Phase 0 — Feb 2026)
-
-Major restructure complete (codex branch merged). The app exists and has many features in various states. Phase 0 is about understanding what works, what's broken, and designing a clear path to v1.0.
-
-30 feature flags have been designed. Milestones M0–M4 are planned. No coding until the plan is approved.
-
 ## Versioning Philosophy
 
-- **M0 (v0.0.1)** — Core stable: document management works reliably, advanced features safely disabled
-- **M1 (v0.1.0)** — Stability: data integrity, 100% test coverage of core
-- **M2** — Feature completeness: all planned features working and tested
-- **M3** — Distribution: packaged, signable, ready for others
-- **M4 / v1.0** — Full vision realized: integrated with Tinderbox, polished, documented
+GitHub Milestones are the source of truth. Branch and worktree per milestone (`~/code/fichero-<version>/`); two-ahead rule (never work more than one milestone ahead of what Daniel is testing).
+
+Milestone arc:
+- **0.0.x** — Core stable: workflows, KG endpoints, CLI, autonomous loops live
+- **0.1.x** — Stability: data integrity, broader test coverage of core paths
+- **0.x → 1.0** — Feature completeness, distribution, Tinderbox integration

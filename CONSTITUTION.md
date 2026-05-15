@@ -54,21 +54,28 @@ A macOS app a researcher actually uses daily:
 
 ## How It Works
 
+One engine, many surfaces.
+
 ```
-SwiftUI macOS App (native UI)
-    ↕ HTTP on localhost:8765
-Python FastAPI Backend
-    ├── DuckDB (structured metadata)
-    ├── LanceDB (vector embeddings for semantic search)
-    ├── LangGraph (visual workflow execution)
-    └── LiteLLM (100+ LLM providers: Ollama, Anthropic, OpenAI, Groq...)
+SwiftUI app    fichero CLI    MCP server    (iPad / web — future)
+       ↘           ↓            ↙
+        HTTP on localhost:8765
+                 ↓
+         FastAPI engine
+         (fichero-engine/src/fichero)
+            ├── DuckDB (structured metadata)
+            ├── LanceDB (vector embeddings)
+            ├── LangGraph (workflow execution)
+            ├── KG (entities, claims, relationships)
+            └── LiteLLM (100+ LLM providers)
 ```
 
-Two codebases, one contract:
+- **`fichero-engine/`** — Python FastAPI engine. All logic lives here: storage, AI processing, search, workflow execution, knowledge graph, LLM orchestration.
+- **`fichero/`** — SwiftUI macOS app (Xcode project at `fichero/fichero.xcodeproj`) plus the typed `fichero` CLI under `fichero/cli/`.
+- **MCP server** — planned / in flight; another thin client on the engine.
+- **OpenAPI schema** — the contract between the engine and every surface. The Swift client is auto-generated from the engine's schema; the CLI is typed against it. When the engine changes, regenerate — never edit generated code by hand.
 
-- **`fichero-swiftui/`** — Pure SwiftUI frontend. Three-column layout (sidebar, content, inspector). The UI layer — all business logic lives in the backend.
-- **`fichero-api/`** — Python FastAPI backend. Document storage, AI processing, search, workflow execution, LLM orchestration.
-- **OpenAPI schema** — The contract between frontend and backend. Swift client is auto-generated from the Python API's schema. When the backend changes, regenerate — never edit generated code by hand.
+There are 3+ surfaces today and more coming. Surfaces render and accept input; the engine owns logic.
 
 ## Hard Constraints
 
@@ -80,6 +87,7 @@ These don't change:
 4. **No data leaves the machine by default.** Cloud LLM providers are opt-in, clearly labeled.
 5. **Stability before features.** What works must keep working. New features don't break existing ones.
 6. **Data must be portable across Macs via Dropbox — no hardcoded paths.**
+7. **All logic lives in the engine; clients render only.** Aggregation, dedup, scoping, summarization, KG/entity logic, validation — all backend. A surface (SwiftUI, CLI, MCP, future iPad/web) calls an endpoint and displays the result. If a surface needs to compute something that another surface would also need, it belongs in the engine.
 
 ## Execution Governance
 
@@ -91,11 +99,12 @@ Execution tracking and planning are governed in GitHub:
 
 ## Versioning
 
-- **M0 (v0.0.1)** — Core stable: document management works reliably, advanced features safely disabled behind feature flags
-- **M1 (v0.1.0)** — Data integrity, test coverage of core paths
-- **M2** — Feature completeness: all planned features working and tested
-- **M3** — Distribution: packaged, signed, ready to share
-- **M4 / v1.0** — Full vision: Tinderbox integration, polished, documented
+GitHub Milestones are the source of truth. Each milestone gets its own branch and worktree at `~/code/fichero-<version>/`. The two-ahead rule: never work more than one milestone ahead of what Daniel is currently testing.
+
+Milestone arc (high level):
+- **0.0.x** — Core stable: document management, workflows, KG, CLI, autonomous loops
+- **0.1.x** — Data integrity and broader test coverage
+- **0.x → 1.0** — Feature completeness, distribution, Tinderbox integration
 
 ## What Success Looks Like
 

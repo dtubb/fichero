@@ -27,6 +27,10 @@ He communicates in short messages, often mid-task. Typos are normal. "Go ahead" 
 
 **Runs the app himself.** UI testing requires a running macOS app on his machine. Some QA only he can do.
 
+**Drives the CLI and MCP directly.** Daniel doesn't only use the SwiftUI app — he runs the typed `fichero` CLI from the terminal and (soon) the MCP server from agent contexts. Surfaces are interchangeable to him.
+
+**Multiple surfaces, one engine.** Daniel thinks of Fichero as the engine; the SwiftUI app, CLI, and MCP server are different ways into the same data. Treat them as peers, not as primary-vs-secondary.
+
 **Values native Mac quality.** He chose SwiftUI specifically. Electron or web wrappers are not acceptable. The app should feel like a Mac app.
 
 **Offline first.** He travels for fieldwork. Cloud dependency is a liability. Local models (Ollama) are a priority.
