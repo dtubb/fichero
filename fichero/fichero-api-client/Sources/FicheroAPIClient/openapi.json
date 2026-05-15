@@ -39018,7 +39018,8 @@
         "enum": [
           "migrate_claims_to_multi_source",
           "backfill_claim_source_metadata",
-          "repair_orphaned_claim_links"
+          "repair_orphaned_claim_links",
+          "repair_kg_svo_repr_leak"
         ],
         "title": "MigrationCommand",
         "description": "Available migration commands."

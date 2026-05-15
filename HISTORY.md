@@ -1763,3 +1763,10 @@ Long interactive 0.0.2 testing session with Daniel. Two halves: a backend fix sw
 - PR: N/A
 - Branch: 0.0.2
 - Task completed in session
+
+## 2026-05-14 — Session: Phase B audit + #1030 backend cleanup
+
+- **#1072 shipped** — whole-app SwiftUI-logic audit (commit 4d06754c). Three parallel general-purpose agents swept Library/Search/Components, Workflow/Activity/Toolbars/Menu, and Services/Models/Settings/AIProviders. Synthesized into `agent-work/proposals/swiftui-logic-audit-whole-app.md` — three clusters: artifacts (HIGH), workflow runs (HIGH), model/provider capability (HIGH, ties #1057/#1059). Citations independently verified by code-reviewer subagent. Issue stays OPEN as umbrella for the implementation moves.
+- **#1030 backend shipped** — `MigrationRunner.repair_kg_svo_repr_leak` (commit 70cf965b). Scrubs existing KG rows with leaked `verb='X', object='Y'` reprs in `KnowledgeClaim.text`/SVO fields/`source_excerpt` and `KnowledgeEntity.description`. Detector consolidated into `kg/_common.parse_kwarg_repr` so the forward-path guard and backfill share one source of truth. Per-row try/except keeps a single bad row from aborting the cleanup; "no recoverable SVO" guard on BOTH claim and entity helpers. +10 pytest cases, registered in CLI script + API route. Independently reviewed by code-reviewer (REQUEST CHANGES on missing entity guard → fixed) + silent-failure-hunter (HIGH on per-row resilience → fixed). Issue stays OPEN for the SwiftUI render-time guard half.
+- **Branch:** 0.0.2
+- **PRs:** none — committed direct per CLAUDE.md rule 7
