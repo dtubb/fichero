@@ -1225,6 +1225,8 @@ async def _run_extractor(
                 _write_kg_rows(
                     db, section, chunk_items, target_doc_id,
                     page_label=page_label, source_excerpt=excerpt,
+                    provider=getattr(llm_config, "provider", None),
+                    model=getattr(llm_config, "model", None),
                 )
         except Exception as exc:
             logger.error(f"{section['name']}: KG write failed: {exc}")
@@ -1343,6 +1345,59 @@ def _normalize_kwarg_repr_fields(item: dict) -> dict:
     return item
 
 
+def _synthesize_svo_fallback(
+    canonical: str,
+    verb: str,
+    obj: str,
+    legacy_context: str,
+) -> tuple[str, str]:
+    """Last-resort SVO synthesis for items where the LLM didn't return
+    a verb / object split. (#1113)
+
+    Strategy:
+    - If both verb and object are present → return as-is.
+    - If only verb is present → object becomes the verb; verb defaults to "is".
+    - If only object is present → verb defaults to "is".
+    - If neither, but a legacy_context string exists, parse it:
+        - "X: Y" or "X — Y" form (subject-leading description) → verb="is",
+          object=Y (drop the leading subject).
+        - Otherwise → verb="is", object=legacy_context.
+    - If everything is empty → ("", "") — caller decides whether to skip.
+
+    The synthesized verb is "is" because every fallback case observed in
+    the wild (#1113 mining-doc test) is a descriptive noun phrase
+    ("Chocó: the region where artisanal mining occurs"). A heuristic
+    smarter than "is" would mis-tense event items and over-fit; "is" is
+    grammatical for descriptive items and at worst awkward (never
+    wrong) for predicate items.
+    """
+    v = (verb or "").strip()
+    o = (obj or "").strip()
+    if v and o:
+        return v, o
+    if v and not o:
+        # Verb without object — promote verb text to object so we don't
+        # emit naked "X verbs ." sentences.
+        return "is", v
+    if o and not v:
+        return "is", o
+    ctx = (legacy_context or "").strip()
+    if not ctx:
+        return "", ""
+    # "X: Y" or "X — Y" — strip the subject when it matches canonical.
+    for sep in (": ", " — ", " - ", "—", "-"):
+        if sep in ctx:
+            head, _, tail = ctx.partition(sep)
+            head_norm = head.strip().lower()
+            canon_norm = (canonical or "").strip().lower()
+            if head_norm and (head_norm == canon_norm or head_norm in canon_norm or canon_norm in head_norm):
+                tail = tail.strip()
+                if tail:
+                    return "is", tail
+            break  # only try the first separator we hit
+    return "is", ctx
+
+
 def _write_kg_rows(
     db,
     section: dict[str, Any],
@@ -1350,6 +1405,8 @@ def _write_kg_rows(
     container_id: str,
     page_label: str | None = None,
     source_excerpt: str | None = None,
+    provider: str | None = None,
+    model: str | None = None,
 ) -> None:
     """Persist extractor items as KnowledgeEntity + KnowledgeClaim rows.
 
@@ -1509,6 +1566,31 @@ def _write_kg_rows(
         except ValueError:
             return None
 
+    # Language detection (#1113): detect from page_excerpt once per
+    # call rather than per-item. The lang_detect helper is stdlib-only
+    # (no langdetect/fasttext dep) and returns canonical names like
+    # "English" / "Spanish"; we lower+truncate to a 2-3 letter code so
+    # the field stays compact for SPARQL filters.
+    detected_language: str | None = None
+    if page_excerpt:
+        try:
+            from fichero.lang_detect import detect_language as _detect
+            full = _detect(page_excerpt[:2000], default="")
+            if full:
+                detected_language = full[:2].lower()  # "English"→"en", "Spanish"→"sp"
+                # Map our canonical names to stable ISO-ish codes.
+                _ISO = {"en": "en", "sp": "es", "fr": "fr", "de": "de", "po": "pt", "it": "it"}
+                detected_language = _ISO.get(detected_language, detected_language)
+        except Exception:
+            detected_language = None
+
+    # Provider/model attribution (#1113): combine the LLM provider/model
+    # with the static "+heuristic-svo" suffix when our local SVO synthesis
+    # filled in verb/object that the LLM didn't return. Honest about the
+    # hybrid pipeline so users can audit which model produced what.
+    base_model_label = (model or "").strip() or None
+    base_provider_label = (provider or "").strip() or None
+
     # #1003: count what actually lands so a structured log at the end
     # exposes per-page (items_in → entities, claims) — missing pages
     # then surface in the activity log instead of failing silently.
@@ -1567,6 +1649,40 @@ def _write_kg_rows(
         verb = _rewrite_first_person(verb)
         obj = _rewrite_first_person(obj)
         legacy_context = _rewrite_first_person(legacy_context)
+        # SVO synthesis fallback (#1113): when extract_all's combined
+        # call (or a legacy-cached item) didn't return verb/object,
+        # synthesize them deterministically from any predicate text we
+        # have. Without this, claim.predicate_verb / object_phrase end
+        # up NULL on every row from the combined call, blocking #1111
+        # paragraph-composition with citation arrows.
+        raw_verb_present = bool((item.get("verb") or "").strip())
+        raw_obj_present = bool((item.get("object") or "").strip())
+        verb, obj = _synthesize_svo_fallback(
+            canonical or item.get("date") or item.get("fecha") or "",
+            verb,
+            obj,
+            legacy_context,
+        )
+        # Section-typed default when nothing whatsoever was extractable:
+        # keywords-style sections (bare strings — no description, no
+        # context) leave verb/obj empty after the heuristic. Without a
+        # default, claim.predicate_verb stays None and the #1113 invariant
+        # is violated. Use the section label so the claim still composes
+        # as a real (if minimal) sentence: "X is a concept." / "X is a
+        # location." Honest about being a typed default rather than an
+        # extraction.
+        if not verb and not obj and entity_type is not None:
+            verb = "is"
+            type_label = entity_type.value if hasattr(entity_type, "value") else str(entity_type)
+            obj = f"a {type_label}"
+        # Honest hybrid label: when our heuristic filled in the SVO,
+        # tag the model so users can tell direct-LLM SVO from
+        # synthesised SVO at audit time.
+        svo_synthesised = (verb or obj) and not (raw_verb_present and raw_obj_present)
+        claim_model_label = base_model_label
+        if claim_model_label and svo_synthesised:
+            claim_model_label = f"{claim_model_label}+heuristic-svo"
+
         predicate = (
             f"{verb} {obj}".strip() if (verb or obj) else legacy_context
         )
@@ -1612,6 +1728,16 @@ def _write_kg_rows(
         epistemic = _coerce_enum(item.get("epistemic_status"), EpistemicStatus)
         ctype = _coerce_enum(item.get("claim_type"), ClaimType)
 
+        # Per-claim confidence (#1113): explicit LLM-extracted SVO is
+        # more reliable than synthesised; rejected claims get a floor
+        # so they sort low without disappearing.
+        if epistemic and getattr(epistemic, "value", "") == "rejected":
+            claim_confidence = 0.3
+        elif raw_verb_present and raw_obj_present:
+            claim_confidence = 0.7
+        else:
+            claim_confidence = 0.5
+
         # Temporal scope (#904) — empty strings become None so the
         # KnowledgeClaim field stays NULL when the LLM doesn't date it.
         t_start = (item.get("time_start") or "").strip() or None
@@ -1638,9 +1764,14 @@ def _write_kg_rows(
                 or ""
             )
             stem = normalized or date_text
-            claim_text = (
-                f"{stem}: {predicate}." if predicate else stem
-            )
+            # Avoid double-period when predicate already ends in
+            # terminal punctuation (#1113 polish).
+            if predicate:
+                _pred = predicate.rstrip()
+                _suffix = "" if _pred.endswith((".", "!", "?")) else "."
+                claim_text = f"{stem}: {_pred}{_suffix}"
+            else:
+                claim_text = stem
             meta["date_text"] = date_text
             meta["date_normalized"] = normalized
             meta["subject"] = stem
@@ -1663,6 +1794,11 @@ def _write_kg_rows(
                 subject_canonical=stem,
                 predicate_verb=verb or None,
                 object_phrase=obj or None,
+                # Provider attribution + confidence + language (#1113).
+                provider=base_provider_label,
+                model=claim_model_label,
+                language=detected_language,
+                confidence=claim_confidence,
             )
             claims_written += 1
             continue
@@ -1681,7 +1817,11 @@ def _write_kg_rows(
         # older "{name}: {context}" shape rather than producing a noun
         # fragment.
         if verb or obj:
-            claim_text = f"{canonical} {predicate}.".strip()
+            # Avoid double-period when the LLM-emitted object already
+            # ends in terminal punctuation (#1113 polish).
+            _pred = predicate.rstrip()
+            _suffix = "" if _pred.endswith((".", "!", "?")) else "."
+            claim_text = f"{canonical} {_pred}{_suffix}".strip()
         elif legacy_context:
             claim_text = f"{canonical}: {legacy_context}"
         else:
@@ -1724,6 +1864,11 @@ def _write_kg_rows(
             subject_entity_id=entity_id,
             predicate_verb=verb or None,
             object_phrase=obj or None,
+            # Provider attribution + confidence + language (#1113).
+            provider=base_provider_label,
+            model=claim_model_label,
+            language=detected_language,
+            confidence=claim_confidence,
         )
         entities_written += 1
         claims_written += 1

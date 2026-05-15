@@ -169,10 +169,13 @@ def test_date_svo_composes_with_normalized_subject(_capture_save_claim) -> None:
     assert meta["object"] == "the filing of the original mining petition"
 
 
-def test_legacy_context_still_writes_claim_with_colon_shape(_capture_save_claim) -> None:
-    """If an in-flight cache or human-authored item still has the old
-    `context` field (no verb/object), the writer falls back to the
-    pre-SVO shape so we don't lose data during the transition."""
+def test_legacy_context_synthesises_svo_via_fallback(_capture_save_claim) -> None:
+    """Legacy items (no verb/object) now go through _synthesize_svo_fallback
+    so claim.predicate_verb / object_phrase land non-NULL — the #1113
+    invariant. The composed text is a real sentence ("Subject is
+    description.") rather than the legacy "Subject: description" colon
+    shape; full SVO is required for #1111 paragraph composition.
+    """
     db, captured = _capture_save_claim
     _write_kg_rows(
         db,
@@ -185,18 +188,28 @@ def test_legacy_context_still_writes_claim_with_colon_shape(_capture_save_claim)
     )
     assert len(captured) == 1
     claim = captured[0]
-    assert claim["text"] == (
-        "Eugenio Córdoba: is described as the alcalde of Popayán."
-    )
+    # Synthesised SVO — verb defaults to "is", object is the legacy
+    # context (no leading-subject prefix to strip).
+    assert claim["predicate_verb"] == "is"
+    assert claim["object_phrase"] == "is described as the alcalde of Popayán."
+    assert claim["subject_canonical"] == "Eugenio Córdoba"
+    # Composed text is a sentence using the synthesised SVO.
+    assert claim["text"].startswith("Eugenio Córdoba is")
     meta = claim["metadata"]
-    # Legacy items have no structured verb/object — metadata only
-    # carries the subject.
     assert meta["subject"] == "Eugenio Córdoba"
-    assert "verb" not in meta
-    assert "object" not in meta
+    # Synthesised SVO writes verb/object into metadata too (alongside
+    # the typed top-level fields) so downstream consumers reading from
+    # metadata still see them.
+    assert meta.get("verb") == "is"
 
 
-def test_empty_predicate_falls_back_to_bare_name(_capture_save_claim) -> None:
+def test_empty_predicate_synthesises_typed_default(_capture_save_claim) -> None:
+    """When the item has no verb/object/context at all (the
+    keywords-style bare-name case), the section's entity_type drives a
+    typed default so the claim still has full SVO. Without this, the
+    #1113 invariant would still be violated for keywords-extract output
+    (bare strings) — leaving claim.predicate_verb NULL and breaking the
+    #1111 paragraph composer for those rows."""
     db, captured = _capture_save_claim
     _write_kg_rows(
         db,
@@ -205,13 +218,18 @@ def test_empty_predicate_falls_back_to_bare_name(_capture_save_claim) -> None:
         container_id="doc-1",
     )
     claim = captured[0]
-    # No predicate → just the name (no trailing punctuation).
-    assert claim["text"] == "Eugenio Córdoba"
+    # Typed default — "is a person" for an EntityType.person section.
+    assert claim["predicate_verb"] == "is"
+    assert claim["object_phrase"] == "a person"
+    assert claim["text"] == "Eugenio Córdoba is a person."
 
 
 def test_verb_only_or_object_only_still_composes(_capture_save_claim) -> None:
     """If the LLM emits only one of verb/object (e.g. a one-word
-    predicate), still produce a sentence — the join handles either."""
+    predicate), the synth fallback (#1113) promotes it so a sentence
+    still results. Verb-only → verb becomes the object and "is" is
+    the synthesised verb, so the rendered text reads as a complete
+    sentence ("Juan Pérez is signed.") rather than a fragment."""
     db, captured = _capture_save_claim
     _write_kg_rows(
         db,
@@ -219,7 +237,10 @@ def test_verb_only_or_object_only_still_composes(_capture_save_claim) -> None:
         items=[{"name": "Juan Pérez", "verb": "signed", "object": ""}],
         container_id="doc-1",
     )
-    assert captured[0]["text"] == "Juan Pérez signed."
+    # After the #1113 SVO synth: verb-only promotes to ("is", "signed").
+    assert captured[0]["predicate_verb"] == "is"
+    assert captured[0]["object_phrase"] == "signed"
+    assert captured[0]["text"] == "Juan Pérez is signed."
 
 
 def test_within_call_dedup_collapses_identical_svo_claims(_capture_save_claim) -> None:

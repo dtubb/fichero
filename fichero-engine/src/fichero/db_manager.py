@@ -60,6 +60,7 @@ class DatabaseManager:
         from fichero.db_migrations import (
             migrate_activity_tables,
             migrate_checkpoint_tables,
+            migrate_knowledge_claims_provider_model,
             migrate_provider_refs_table,
             migrate_saved_search_table,
             migrate_workflow_table,
@@ -85,6 +86,7 @@ class DatabaseManager:
                 migrate_provider_refs_table(db.conn)
                 migrate_activity_tables(db.conn)
                 migrate_checkpoint_tables(db.conn)
+                migrate_knowledge_claims_provider_model(db.conn)
 
                 # Seed default workflow presets (Transcribe, Catalogue). Idempotent
                 # by workflow name — a user who deleted a preset doesn't get it back.

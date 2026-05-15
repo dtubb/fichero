@@ -352,3 +352,117 @@ class TestSingleFileSelectionWritesKG:
             Artifact, document_id=file_doc.id, artifact_type="people"
         )
         assert len(artifacts) == 1
+
+
+class TestClaimAttribution1113:
+    """#1113: every claim must carry full SVO + provider/model attribution
+    so #1111 (paragraph composition with citation arrows) has the data
+    it needs and users can audit per-model claim quality.
+    """
+
+    @pytest.mark.asyncio
+    async def test_llm_svo_passes_through_with_provider_model(
+        self, db, test_package, container_doc, llm_config
+    ):
+        from fichero.workflows.tools.extractors import _run_extractor, _SECTIONS
+
+        people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
+        # The new extractor schema has verb/object — explicit LLM SVO.
+        fake_response = (
+            '{"people": [{"name": "Eugenio Córdoba", '
+            '"verb": "served as", "object": "the alcalde of Popayán"}]}'
+        )
+        with patch(
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(return_value=_pydantic_from_json_response(fake_response)),
+        ):
+            state = {
+                "library_path": str(test_package),
+                "selected_doc_ids": [container_doc.id],
+            }
+            await _run_extractor(
+                people_section, {"text": "..."}, state, llm_config,
+            )
+        claims = db.query(KnowledgeClaim, source_document_id=container_doc.id)
+        assert len(claims) == 1
+        c = claims[0]
+        # Full SVO promoted to top-level fields (#984/#1113).
+        assert c.subject_canonical == "Eugenio Córdoba"
+        assert c.predicate_verb == "served as"
+        assert c.object_phrase == "the alcalde of Popayán"
+        # Composed sentence (no citation interpolation here).
+        assert c.text == "Eugenio Córdoba served as the alcalde of Popayán."
+        # Provider attribution from the LLMConfig.
+        assert c.provider == "openai"
+        # No "+heuristic-svo" suffix when the LLM gave us the SVO.
+        assert c.model == "gpt-4o-mini"
+        # Higher confidence for explicit-LLM SVO.
+        assert c.confidence == 0.7
+
+    def test_write_kg_rows_synthesises_svo_for_legacy_context_items(
+        self, db, container_doc
+    ):
+        """When a cached legacy item arrives with only `context` (no
+        verb/object), _write_kg_rows must synthesise SVO via the
+        fallback so claim.predicate_verb / object_phrase land non-NULL.
+        This is the critical #1113 invariant — claims with NULL SVO
+        can't be rendered by the #1111 paragraph composer."""
+        from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
+
+        places_section = next(s for s in _SECTIONS if s["name"] == "places_extract")
+        legacy_items = [
+            {
+                "name": "Chocó",
+                "context": "Chocó: the region where artisanal mining occurs",
+            }
+        ]
+        _write_kg_rows(
+            db, places_section, legacy_items, container_doc.id,
+            page_label="Page 1",
+            source_excerpt="some page text",
+            provider="openai",
+            model="gpt-4o-mini",
+        )
+        claims = db.query(KnowledgeClaim, source_document_id=container_doc.id)
+        assert len(claims) == 1
+        c = claims[0]
+        assert c.subject_canonical == "Chocó"
+        assert c.predicate_verb == "is"
+        assert c.object_phrase == "the region where artisanal mining occurs"
+        # Honest hybrid label for synthesised SVO.
+        assert c.provider == "openai"
+        assert c.model == "gpt-4o-mini+heuristic-svo"
+        # Lower confidence for synthesised SVO.
+        assert c.confidence == 0.5
+
+    def test_full_svo_invariant_holds_for_every_written_claim(
+        self, db, container_doc
+    ):
+        """The #1113 acceptance gate: every claim written has non-None
+        subject_canonical, predicate_verb, object_phrase. Mix of LLM-SVO
+        items and legacy-context items in the same write call (the
+        realistic extract_all output where some items have full SVO and
+        some don't)."""
+        from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
+
+        places_section = next(s for s in _SECTIONS if s["name"] == "places_extract")
+        items = [
+            {"name": "Chocó", "verb": "is", "object": "a Pacific region"},
+            {"name": "Atrato", "context": "drains westward"},
+            {"name": "San Juan", "context": "San Juan: a tributary"},
+        ]
+        _write_kg_rows(
+            db, places_section, items, container_doc.id,
+            page_label="Page 1",
+            source_excerpt="some page text",
+            provider="openai",
+            model="gpt-4o-mini",
+        )
+        claims = db.query(KnowledgeClaim, source_document_id=container_doc.id)
+        assert len(claims) == 3
+        for c in claims:
+            assert c.subject_canonical, f"missing subject on {c.text!r}"
+            assert c.predicate_verb, f"missing verb on {c.text!r}"
+            assert c.object_phrase, f"missing object on {c.text!r}"
+            assert c.provider == "openai"
+            assert c.model and c.model.startswith("gpt-4o-mini")

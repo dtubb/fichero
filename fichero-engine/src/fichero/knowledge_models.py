@@ -866,6 +866,30 @@ class KnowledgeClaim(BaseModel):
     predicted_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     predicted_by: list[str] = Field(default_factory=list)
     prediction: PredictionMetadata | None = None
+    # --- provenance: which LLM (+ optional post-processor) produced this ---
+    # (#1113) — populated by the extractor write path with the LLM
+    # provider/model that proposed the item, plus a "+heuristic-svo"
+    # suffix on `model` when our local SVO splitter filled in fields
+    # the LLM didn't return. Honest about hybrid pipelines so users
+    # can audit per-model claim quality at the inspector layer.
+    # Both nullable so legacy claims and human-authored claims survive.
+    provider: str | None = Field(
+        default=None,
+        description=(
+            "LLM provider that proposed this claim (e.g. 'openai', "
+            "'anthropic', 'apple'). None for human-authored claims and "
+            "legacy rows written before #1113."
+        ),
+    )
+    model: str | None = Field(
+        default=None,
+        description=(
+            "Model that produced this claim, optionally suffixed with "
+            "'+heuristic-svo' when local SVO synthesis filled in verb/"
+            "object the LLM didn't return. Examples: 'gpt-4o-mini', "
+            "'apple-intelligence+heuristic-svo'."
+        ),
+    )
     # --- metadata ---
     language: str | None = None
     metadata: dict = Field(default_factory=dict)

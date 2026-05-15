@@ -286,6 +286,9 @@ def save_claim(
     subject_entity_id: Optional[str] = None,
     predicate_verb: Optional[str] = None,
     object_phrase: Optional[str] = None,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
+    language: Optional[str] = None,
 ) -> str:
     """Save a `KnowledgeClaim` row. Returns the claim ID.
 
@@ -354,6 +357,12 @@ def save_claim(
         subject_entity_id=subject_entity_id,
         predicate_verb=sv,
         object_phrase=so,
+        # Provider attribution (#1113) — which LLM (and any heuristic
+        # post-processing) produced this claim. Surface in the inspector
+        # so users can audit per-model claim quality.
+        provider=provider,
+        model=model,
+        language=language,
     )
     db.save(claim)
     return claim.id

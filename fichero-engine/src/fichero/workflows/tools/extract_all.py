@@ -92,21 +92,48 @@ _LANGUAGE_CONFIG = {
 }
 
 
+# SVO predicate fields shared across every entity-bearing section in
+# the combined extract_all call. Mirrors the per-section schemas in
+# extractors.py (`_SVO_VERB_FIELD` / `_SVO_OBJECT_FIELD`) so the
+# combined call now produces structurally-identical output to the
+# single-section path. (#1113 — without this the combined call left
+# claim.predicate_verb / object_phrase NULL on every row.)
+_VERB = Field(
+    default="",
+    description=(
+        "Predicate verb or verb phrase. The entity name is the implicit "
+        "subject — do NOT repeat it. Examples: 'is', 'was', 'served as', "
+        "'wrote', 'founded', 'is located in'."
+    ),
+)
+_OBJ = Field(
+    default="",
+    description=(
+        "Rest of the predicate after the verb — a noun phrase or "
+        "clause. Examples: 'the alcalde of Popayán', 'a gold-mining "
+        "region in the Chocó', 'the deed of sale'."
+    ),
+)
+
+
 class _Person(BaseModel):
     name: str
-    context: str = Field(description="role and importance")
+    verb: str = _VERB
+    object: str = _OBJ
 
 
 class _Place(BaseModel):
     name: str
     alternative_spellings: list[str] = Field(default_factory=list)
-    context: str
+    verb: str = _VERB
+    object: str = _OBJ
 
 
 class _Organization(BaseModel):
     name: str
     alternative_spellings: list[str] = Field(default_factory=list)
-    context: str
+    verb: str = _VERB
+    object: str = _OBJ
 
 
 class _DateItem(BaseModel):
@@ -114,13 +141,15 @@ class _DateItem(BaseModel):
     date_normalized: str = Field(
         description="YYYY-MM-DD (range YYYY-MM-DD/YYYY-MM-DD; month-only YYYY-MM; year-only YYYY)"
     )
-    context: str = Field(description="complete sentence describing what the document records")
+    verb: str = _VERB
+    object: str = _OBJ
 
 
 class _Event(BaseModel):
     event: str = Field(description="Title Case noun phrase naming the event")
     date: str | None = Field(default=None, description="YYYY-MM-DD when stated, else null")
-    context: str = Field(description="complete past-tense sentence describing what happened")
+    verb: str = _VERB
+    object: str = _OBJ
 
 
 class _Extraction(BaseModel):
@@ -433,6 +462,8 @@ async def extract_all(
                     _write_kg_rows(
                         db, section, items, target_doc_id,
                         page_label=page_label, source_excerpt=excerpt,
+                        provider=getattr(llm_config, "provider", None),
+                        model=getattr(llm_config, "model", None),
                     )
 
                 # Per-page artifact saves so the inspector + cache see
