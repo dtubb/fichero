@@ -1751,3 +1751,15 @@ Long interactive 0.0.2 testing session with Daniel. Two halves: a backend fix sw
 - PR: N/A
 - Branch: 0.0.2
 - Task completed in session
+
+## 2026-05-14 — #1047 Folder KG tab catalogue narrative — backend endpoint
+
+- PR: N/A
+- Branch: 0.0.2
+- Task completed in session
+
+## 2026-05-14 — #1050 Entity detail header server-composed summary
+
+- PR: N/A
+- Branch: 0.0.2
+- Task completed in session
