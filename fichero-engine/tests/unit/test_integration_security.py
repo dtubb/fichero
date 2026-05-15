@@ -77,60 +77,58 @@ class TestCORSSecurity:
 
 
 class TestMCPAuthorization:
-    """Test MCP server authorization controls."""
+    """Test MCP server authorization controls.
 
-    def test_mcp_includes_api_key_header(self):
-        """HIGH-2: MCP client should include API key authentication.
-        
-        FIXED: API key is now included in headers when configured.
-        """
-        from fichero.mcp_server import FicheroAPIClient
-        
-        # Create client with API key
-        client = FicheroAPIClient(
-            api_url="http://localhost:8765",
-            api_key="test-api-key-12345"
-        )
-        headers = client._get_headers()
-        
-        # Should include X-API-Key header
-        assert "X-API-Key" in headers, \
-            "MCP client does not include X-API-Key header"
-        assert headers["X-API-Key"] == "test-api-key-12345", \
-            "API key not correctly set in headers"
+    The MCP server is a thin wrapper over ``fichero.cli.FicheroClient``; it
+    authenticates with an ``Authorization: Bearer <token>`` header, the same
+    scheme the engine and SwiftUI app use. The token is discovered from
+    ``FICHERO_API_KEY`` or the engine's key file.
+    """
+
+    def test_mcp_sends_bearer_token(self):
+        """HIGH-2: MCP client should authenticate with a Bearer token."""
+        from fichero import mcp_server
+
+        with patch.dict(os.environ, {"FICHERO_API_KEY": "test-api-key-12345"}):
+            client = mcp_server._client()
+            try:
+                headers = client._headers()
+            finally:
+                client.close()
+
+        assert headers.get("Authorization") == "Bearer test-api-key-12345", \
+            "MCP client does not send a Bearer token"
 
     def test_mcp_reads_api_key_from_environment(self):
-        """HIGH-2: MCP client should read API key from environment."""
-        from fichero.mcp_server import FicheroAPIClient
-        
-        with patch.dict(os.environ, {"FICHERO_API_KEY": "env-api-key"}):
-            client = FicheroAPIClient(api_url="http://localhost:8765")
-            headers = client._get_headers()
-            
-            assert "X-API-Key" in headers, \
-                "API key from environment not included"
-            assert headers["X-API-Key"] == "env-api-key", \
-                "API key from environment not correctly set"
+        """HIGH-2: MCP client should read the token from the environment."""
+        from fichero import mcp_server
 
-    def test_mcp_warns_without_api_key(self):
-        """HIGH-2: MCP client should warn when API key not configured."""
-        from fichero.mcp_server import FicheroAPIClient
-        import logging
-        
-        # Clear any existing API key from environment
+        with patch.dict(os.environ, {"FICHERO_API_KEY": "env-api-key"}):
+            client = mcp_server._client()
+            try:
+                assert client.token == "env-api-key", \
+                    "Token from environment not picked up"
+                assert client._headers().get("Authorization") == "Bearer env-api-key", \
+                    "Token from environment not sent as a Bearer header"
+            finally:
+                client.close()
+
+    def test_mcp_warns_without_token(self, tmp_path):
+        """HIGH-2: MCP server should warn at startup when no token is configured."""
+        from fichero import mcp_server
+        from fichero.cli import client as client_module
+
         with patch.dict(os.environ, {}, clear=True):
-            with patch("fichero.mcp_server.logger") as mock_logger:
-                client = FicheroAPIClient(api_url="http://localhost:8765")
-                headers = client._get_headers()
-                
-                # Should warn about missing API key
-                assert any("FICHERO_API_KEY" in str(call) 
-                          for call in mock_logger.warning.call_args_list), \
-                    "Missing API key should trigger warning"
-                
-                # Should not include X-API-Key header
-                assert "X-API-Key" not in headers, \
-                    "X-API-Key should not be present when not configured"
+            with patch.object(client_module, "_TOKEN_PATH", tmp_path / "absent"):
+                with patch.object(mcp_server, "logger") as mock_logger:
+                    with patch.object(mcp_server.mcp, "run"):
+                        with patch("sys.argv", ["fichero-mcp"]):
+                            mcp_server.main()
+
+        assert any(
+            "no fichero auth token found" in str(call).lower()
+            for call in mock_logger.warning.call_args_list
+        ), "Missing token should trigger a startup warning"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

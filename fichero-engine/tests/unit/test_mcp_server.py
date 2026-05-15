@@ -1,369 +1,244 @@
-"""Unit tests for Fichero MCP Server."""
+"""Unit tests for the Fichero MCP server.
 
+The MCP server is a thin wrapper over ``FicheroClient``; these tests cover tool
+registration and argument passthrough with the HTTP layer mocked
+(``httpx.MockTransport``) — no live backend required.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from contextlib import contextmanager
+
+import httpx
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
-from fichero.mcp_server import FicheroAPIClient, DEFAULT_API_URL, _route_tool, TOOLS
+from fichero import mcp_server
+from fichero.cli import FicheroClient, FicheroError
 
-
-class TestFicheroAPIClient:
-    """Tests for FicheroAPIClient."""
-
-    def test_init_default_url(self):
-        """Test initialization with default URL."""
-        client = FicheroAPIClient()
-        assert client.api_url == DEFAULT_API_URL
-        assert client.library_path is None
-
-    def test_init_custom_url(self):
-        """Test initialization with custom URL."""
-        client = FicheroAPIClient(api_url="http://custom:9000")
-        assert client.api_url == "http://custom:9000"
-
-    def test_init_url_trailing_slash_removed(self):
-        """Test trailing slash is removed from URL."""
-        client = FicheroAPIClient(api_url="http://custom:9000/")
-        assert client.api_url == "http://custom:9000"
-
-    def test_init_with_library_path(self):
-        """Test initialization with library path."""
-        client = FicheroAPIClient(library_path="/path/to/library.fichero")
-        assert client.library_path == "/path/to/library.fichero"
-
-    def test_get_headers_without_library(self):
-        """Test headers without library path."""
-        client = FicheroAPIClient()
-        headers = client._get_headers()
-        assert "Content-Type" in headers
-        assert headers["Content-Type"] == "application/json"
-        assert "X-Fichero-Library-Path" not in headers
-
-    def test_get_headers_with_library(self):
-        """Test headers with library path."""
-        client = FicheroAPIClient(library_path="/test/lib.fichero")
-        headers = client._get_headers()
-        assert headers["X-Fichero-Library-Path"] == "/test/lib.fichero"
+# Every tool the server is expected to expose — one per `fichero` CLI command.
+EXPECTED_TOOLS = {
+    "fichero_health",
+    "fichero_import",
+    "fichero_docs_list",
+    "fichero_docs_get",
+    "fichero_workflow_list",
+    "fichero_workflow_run",
+    "fichero_workflow_status",
+    "fichero_artifacts",
+    "fichero_kg_entities",
+    "fichero_kg_claims",
+    "fichero_kg_search",
+    "fichero_document_inspector",
+    "fichero_search",
+    "fichero_activity",
+}
 
 
-class TestAPIRequests:
-    """Tests for API request handling."""
-
-    @pytest.fixture
-    def client(self):
-        return FicheroAPIClient()
-
-    @pytest.mark.asyncio
-    async def test_api_request_get(self, client):
-        """Test GET API request."""
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"documents": []}
-
-        with patch("httpx.AsyncClient") as mock_client:
-            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-                return_value=mock_response
-            )
-            result = await client.request("GET", "/documents")
-            assert "documents" in result
-
-    @pytest.mark.asyncio
-    async def test_api_request_post(self, client):
-        """Test POST API request."""
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"id": "test-123"}
-
-        with patch("httpx.AsyncClient") as mock_client:
-            mock_client.return_value.__aenter__.return_value.post = AsyncMock(
-                return_value=mock_response
-            )
-            result = await client.request("POST", "/workflows", data={"name": "Test"})
-            assert result["id"] == "test-123"
-
-    @pytest.mark.asyncio
-    async def test_api_request_put(self, client):
-        """Test PUT API request."""
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"updated": True}
-
-        with patch("httpx.AsyncClient") as mock_client:
-            mock_client.return_value.__aenter__.return_value.put = AsyncMock(
-                return_value=mock_response
-            )
-            result = await client.request("PUT", "/workflows/123", data={"name": "Updated"})
-            assert result["updated"] is True
-
-    @pytest.mark.asyncio
-    async def test_api_request_delete(self, client):
-        """Test DELETE API request."""
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"deleted": True}
-
-        with patch("httpx.AsyncClient") as mock_client:
-            mock_client.return_value.__aenter__.return_value.delete = AsyncMock(
-                return_value=mock_response
-            )
-            result = await client.request("DELETE", "/workflows/123")
-            assert result["deleted"] is True
-
-    @pytest.mark.asyncio
-    async def test_api_request_error_status(self, client):
-        """Test API request error handling for non-2xx status."""
-        mock_response = MagicMock()
-        mock_response.status_code = 500
-        mock_response.text = "Internal Server Error"
-
-        with patch("httpx.AsyncClient") as mock_client:
-            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-                return_value=mock_response
-            )
-            result = await client.request("GET", "/documents")
-            assert "error" in result
-            assert "500" in result["error"]
-
-    @pytest.mark.asyncio
-    async def test_api_request_connection_error(self, client):
-        """Test API request connection error handling."""
-        import httpx
-
-        with patch("httpx.AsyncClient") as mock_client:
-            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-                side_effect=httpx.ConnectError("Connection refused")
-            )
-            result = await client.request("GET", "/documents")
-            assert "error" in result
-            assert "Cannot connect" in result["error"]
-
-    @pytest.mark.asyncio
-    async def test_api_request_unknown_method(self, client):
-        """Test API request with unknown HTTP method."""
-        result = await client.request("OPTIONS", "/documents")
-        assert "error" in result
-        assert "Unknown method" in result["error"]
+def _list_tools() -> list:
+    return asyncio.run(mcp_server.mcp.list_tools())
 
 
-class TestToolRouting:
-    """Tests for tool routing."""
+@contextmanager
+def _mock_client(monkeypatch, *, handler=None, status=200, body=None):
+    """Patch mcp_server._client to return a MockTransport-backed FicheroClient.
 
-    @pytest.fixture
-    def mock_api_client(self):
-        """Create a mock API client."""
-        mock = AsyncMock()
-        mock.request = AsyncMock(return_value={"status": "ok"})
-        return mock
+    Yields the list of seen httpx.Request objects.
+    """
+    seen: list[httpx.Request] = []
 
-    @pytest.mark.asyncio
-    async def test_route_health_tool(self, mock_api_client):
-        """Test health check tool routing."""
-        with patch("fichero.mcp_server.api_client", mock_api_client):
-            result = await _route_tool("fichero_health", {})
-            mock_api_client.request.assert_called_once_with("GET", "/health")
+    def _default_handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(status, json={"ok": True} if body is None else body)
 
-    @pytest.mark.asyncio
-    async def test_route_list_documents(self, mock_api_client):
-        """Test list documents tool routing."""
-        with patch("fichero.mcp_server.api_client", mock_api_client):
-            await _route_tool("fichero_list_documents", {"limit": 10, "folder_id": None})
-            mock_api_client.request.assert_called_once_with(
-                "GET", "/documents", params={"limit": 10}
-            )
+    transport = httpx.MockTransport(handler or _default_handler)
 
-    @pytest.mark.asyncio
-    async def test_route_search_documents(self, mock_api_client):
-        """Test search documents tool routing."""
-        with patch("fichero.mcp_server.api_client", mock_api_client):
-            await _route_tool("fichero_search_documents", {"query": "test", "limit": 20})
-            mock_api_client.request.assert_called_once_with(
-                "GET", "/search", params={"query": "test", "limit": 20}
-            )
+    def _build() -> FicheroClient:
+        return FicheroClient(
+            base_url="http://test",
+            library_path="/tmp/Lib.fichero",
+            token="test-token",
+            transport=transport,
+        )
 
-    @pytest.mark.asyncio
-    async def test_route_get_document(self, mock_api_client):
-        """Test get document tool routing."""
-        with patch("fichero.mcp_server.api_client", mock_api_client):
-            await _route_tool("fichero_get_document", {"document_id": "doc-123"})
-            mock_api_client.request.assert_called_once_with("GET", "/documents/doc-123")
-
-    @pytest.mark.asyncio
-    async def test_route_list_workflows(self, mock_api_client):
-        """Test list workflows tool routing."""
-        with patch("fichero.mcp_server.api_client", mock_api_client):
-            await _route_tool("fichero_list_workflows", {"limit": 50})
-            mock_api_client.request.assert_called_once_with(
-                "GET", "/workflows", params={"limit": 50}
-            )
-
-    @pytest.mark.asyncio
-    async def test_route_get_workflow(self, mock_api_client):
-        """Test get workflow tool routing."""
-        with patch("fichero.mcp_server.api_client", mock_api_client):
-            await _route_tool("fichero_get_workflow", {"workflow_id": "wf-123"})
-            mock_api_client.request.assert_called_once_with("GET", "/workflows/wf-123")
-
-    @pytest.mark.asyncio
-    async def test_route_create_workflow(self, mock_api_client):
-        """Test create workflow tool routing."""
-        with patch("fichero.mcp_server.api_client", mock_api_client):
-            await _route_tool("fichero_create_workflow", {
-                "name": "Test Workflow",
-                "description": "A test",
-                "nodes": [],
-                "edges": [],
-            })
-            mock_api_client.request.assert_called_once_with(
-                "POST", "/workflows", data={
-                    "name": "Test Workflow",
-                    "description": "A test",
-                    "nodes": [],
-                    "edges": [],
-                }
-            )
-
-    @pytest.mark.asyncio
-    async def test_route_run_workflow(self, mock_api_client):
-        """Test run workflow tool routing."""
-        with patch("fichero.mcp_server.api_client", mock_api_client):
-            await _route_tool("fichero_run_workflow", {
-                "workflow_id": "wf-1",
-                "input_files": ["/path/to/file.pdf"],
-                "inputs": {"key": "value"},
-            })
-            mock_api_client.request.assert_called_once_with(
-                "POST", "/workflow-execution/execute", data={
-                    "workflow_id": "wf-1",
-                    "input_files": ["/path/to/file.pdf"],
-                    "inputs": {"key": "value"},
-                }
-            )
-
-    @pytest.mark.asyncio
-    async def test_route_workflow_status(self, mock_api_client):
-        """Test workflow status tool routing."""
-        with patch("fichero.mcp_server.api_client", mock_api_client):
-            await _route_tool("fichero_workflow_status", {"thread_id": "thread-123"})
-            mock_api_client.request.assert_called_once_with(
-                "GET", "/workflow-execution/status/thread-123"
-            )
-
-    @pytest.mark.asyncio
-    async def test_route_create_batch(self, mock_api_client):
-        """Test create batch tool routing."""
-        with patch("fichero.mcp_server.api_client", mock_api_client):
-            await _route_tool("fichero_create_batch", {
-                "workflow_id": "wf-1",
-                "file_paths": ["/a.pdf", "/b.pdf"],
-                "concurrency": 2,
-            })
-            mock_api_client.request.assert_called_once_with(
-                "POST", "/batches", data={
-                    "workflow_id": "wf-1",
-                    "file_paths": ["/a.pdf", "/b.pdf"],
-                    "concurrency": 2,
-                }
-            )
-
-    @pytest.mark.asyncio
-    async def test_route_batch_status(self, mock_api_client):
-        """Test batch status tool routing."""
-        with patch("fichero.mcp_server.api_client", mock_api_client):
-            await _route_tool("fichero_batch_status", {"batch_id": "batch-123"})
-            mock_api_client.request.assert_called_once_with("GET", "/batches/batch-123")
-
-    @pytest.mark.asyncio
-    async def test_route_list_activities(self, mock_api_client):
-        """Test list activities tool routing."""
-        with patch("fichero.mcp_server.api_client", mock_api_client):
-            await _route_tool("fichero_list_activities", {"status": "running", "limit": 20})
-            mock_api_client.request.assert_called_once_with(
-                "GET", "/activities", params={"status": "running", "limit": 20}
-            )
-
-    @pytest.mark.asyncio
-    async def test_route_list_actions(self, mock_api_client):
-        """Test list actions tool routing."""
-        with patch("fichero.mcp_server.api_client", mock_api_client):
-            await _route_tool("fichero_list_actions", {"category": "ai"})
-            mock_api_client.request.assert_called_once_with(
-                "GET", "/actions", params={"category": "ai"}
-            )
-
-    @pytest.mark.asyncio
-    async def test_route_compare_models(self, mock_api_client):
-        """Test model comparison tool routing."""
-        with patch("fichero.mcp_server.api_client", mock_api_client):
-            await _route_tool("fichero_compare_models", {
-                "prompt": "What is AI?",
-                "system_prompt": "Be concise",
-            })
-            mock_api_client.request.assert_called_once()
-            call_args = mock_api_client.request.call_args
-            assert call_args[0][0] == "POST"
-            assert call_args[0][1] == "/model-comparison/compare"
-            assert call_args[1]["data"]["prompt"] == "What is AI?"
-            assert call_args[1]["data"]["system_prompt"] == "Be concise"
-
-    @pytest.mark.asyncio
-    async def test_route_list_tools(self, mock_api_client):
-        """Test list tools routing."""
-        mock_api_client.request.return_value = {"tools": [
-            {"name": "llm", "category": "llm"},
-            {"name": "transform", "category": "transform"},
-        ]}
-        with patch("fichero.mcp_server.api_client", mock_api_client):
-            result = await _route_tool("fichero_list_tools", {"category": "llm"})
-            mock_api_client.request.assert_called_once_with("GET", "/workflows/tools")
-            # Should filter by category
-            assert len(result["tools"]) == 1
-            assert result["tools"][0]["category"] == "llm"
-
-    @pytest.mark.asyncio
-    async def test_route_unknown_tool(self, mock_api_client):
-        """Test unknown tool returns error."""
-        result = await _route_tool("unknown_tool", {})
-        assert "error" in result
-        assert "Unknown tool" in result["error"]
+    monkeypatch.setattr(mcp_server, "_client", _build)
+    yield seen
 
 
-class TestToolDefinitions:
-    """Tests for tool definitions."""
+# -- tool registration -----------------------------------------------------
+def test_all_expected_tools_are_registered():
+    names = {tool.name for tool in _list_tools()}
+    assert names == EXPECTED_TOOLS
 
-    def test_tools_list_not_empty(self):
-        """Test that tools list is not empty."""
-        assert len(TOOLS) > 0
 
-    def test_all_tools_have_required_fields(self):
-        """Test all tools have name, description, and inputSchema."""
-        for tool in TOOLS:
-            assert tool.name is not None
-            assert tool.description is not None
-            assert tool.inputSchema is not None
+def test_no_stale_tools_remain():
+    """The old divergent surface (mind-palace, hermeneutics, research...) is gone."""
+    names = {tool.name for tool in _list_tools()}
+    for stale in (
+        "fichero_mp_create_room",
+        "fichero_hm_list_frameworks",
+        "fichero_run_chain",
+    ):
+        assert stale not in names
 
-    def test_tool_names_are_prefixed(self):
-        """Test all tool names have fichero_ prefix."""
-        for tool in TOOLS:
-            assert tool.name.startswith("fichero_"), f"{tool.name} missing fichero_ prefix"
 
-    def test_expected_tools_exist(self):
-        """Test expected tools are defined."""
-        tool_names = [t.name for t in TOOLS]
-        expected_tools = [
-            "fichero_list_documents",
-            "fichero_search_documents",
-            "fichero_get_document",
-            "fichero_list_workflows",
-            "fichero_get_workflow",
-            "fichero_create_workflow",
-            "fichero_run_workflow",
-            "fichero_workflow_status",
-            "fichero_create_batch",
-            "fichero_batch_status",
-            "fichero_list_activities",
-            "fichero_list_actions",
-            "fichero_compare_models",
-            "fichero_list_tools",
-            "fichero_health",
-        ]
-        for expected in expected_tools:
-            assert expected in tool_names, f"Missing tool: {expected}"
+def test_tools_have_descriptions_and_schemas():
+    for tool in _list_tools():
+        assert tool.description, f"{tool.name} has no description"
+        assert tool.inputSchema is not None
+
+
+# -- argument passthrough --------------------------------------------------
+def test_health_hits_health_endpoint(monkeypatch):
+    with _mock_client(monkeypatch) as seen:
+        mcp_server.fichero_health()
+    assert seen[0].method == "GET"
+    assert seen[0].url.path == "/api/health"
+
+
+def test_workflow_list_hits_workflows_endpoint(monkeypatch):
+    with _mock_client(monkeypatch) as seen:
+        mcp_server.fichero_workflow_list()
+    assert seen[0].method == "GET"
+    assert seen[0].url.path == "/api/workflows"
+
+
+def test_docs_get_builds_path(monkeypatch):
+    with _mock_client(monkeypatch) as seen:
+        mcp_server.fichero_docs_get("doc-42")
+    assert seen[0].url.path == "/api/documents/doc-42"
+
+
+def test_docs_list_passes_filters(monkeypatch):
+    with _mock_client(monkeypatch) as seen:
+        mcp_server.fichero_docs_list(doc_type="pdf", limit=5)
+    params = dict(seen[0].url.params)
+    assert params == {"doc_type": "pdf", "limit": "5", "offset": "0"}
+
+
+def test_workflow_run_builds_execute_body(monkeypatch):
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(202, json={"thread_id": "t1"})
+
+    with _mock_client(monkeypatch, handler=handler):
+        mcp_server.fichero_workflow_run("wf-1", "doc-9", skip_cache=True)
+    assert seen[0] == {
+        "workflow_id": "wf-1",
+        "inputs": {"files": ["doc-9"]},
+        "force_new": False,
+        "skip_cache": True,
+    }
+
+
+def test_workflow_status_builds_path(monkeypatch):
+    with _mock_client(monkeypatch) as seen:
+        mcp_server.fichero_workflow_status("thread-7")
+    assert seen[0].url.path == "/api/workflow-execution/threads/thread-7/status"
+
+
+def test_artifacts_builds_path_and_params(monkeypatch):
+    with _mock_client(monkeypatch) as seen:
+        mcp_server.fichero_artifacts("doc-3", artifact_type="catalogue", limit=10)
+    assert seen[0].url.path == "/api/artifacts/document/doc-3"
+    assert dict(seen[0].url.params)["artifact_type"] == "catalogue"
+
+
+def test_kg_search_passes_query_param(monkeypatch):
+    with _mock_client(monkeypatch) as seen:
+        mcp_server.fichero_kg_search("migration", limit=10)
+    assert dict(seen[0].url.params) == {"q": "migration", "limit": "10"}
+
+
+def test_search_builds_post_body(monkeypatch):
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"results": []})
+
+    with _mock_client(monkeypatch, handler=handler):
+        mcp_server.fichero_search("ledgers", limit=3)
+    assert seen[0]["query"] == "ledgers"
+    assert seen[0]["limit"] == 3
+    assert seen[0]["search_type"] == "hybrid"
+    assert seen[0]["min_score"] == 0.3
+
+
+def test_import_sends_multipart(monkeypatch, tmp_path):
+    sample = tmp_path / "note.txt"
+    sample.write_text("hello")
+    with _mock_client(monkeypatch) as seen:
+        mcp_server.fichero_import(str(sample), parent_id="folder-1")
+    assert seen[0].url.path == "/api/documents/import"
+    assert dict(seen[0].url.params) == {"parent_id": "folder-1"}
+    assert "multipart/form-data" in seen[0].headers["content-type"]
+
+
+def test_auth_and_library_headers_are_set(monkeypatch):
+    with _mock_client(monkeypatch) as seen:
+        mcp_server.fichero_activity()
+    assert seen[0].headers["authorization"] == "Bearer test-token"
+    assert seen[0].headers["x-fichero-library-path"] == "/tmp/Lib.fichero"
+
+
+# -- error propagation -----------------------------------------------------
+def test_backend_error_propagates_not_swallowed(monkeypatch):
+    """A non-2xx response must raise, not return a silent {"error": ...} dict."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, text="boom")
+
+    with _mock_client(monkeypatch, handler=handler):
+        with pytest.raises(FicheroError, match="500"):
+            mcp_server.fichero_health()
+
+
+def test_connect_failure_propagates(monkeypatch):
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused")
+
+    with _mock_client(monkeypatch, handler=handler):
+        with pytest.raises(FicheroError, match="Is the engine running"):
+            mcp_server.fichero_health()
+
+
+# -- config wiring ---------------------------------------------------------
+def test_client_uses_config_base_url(monkeypatch):
+    monkeypatch.setitem(mcp_server._CONFIG, "base_url", "http://configured:9000")
+    monkeypatch.setitem(mcp_server._CONFIG, "library_path", "/cfg/Lib.fichero")
+    client = mcp_server._client()
+    try:
+        assert client.base_url == "http://configured:9000"
+        assert client.library_path == "/cfg/Lib.fichero"
+    finally:
+        client.close()
+
+
+def test_main_populates_config_from_args(monkeypatch):
+    # This test only checks arg -> _CONFIG wiring. main() also runs a no-token
+    # startup probe; a test asserting that warning must patch _TOKEN_PATH and
+    # FICHERO_API_KEY (see test_mcp_warns_without_token in test_integration_security).
+    captured: dict = {}
+    monkeypatch.setattr(
+        mcp_server.mcp, "run", lambda *a, **k: captured.setdefault("ran", True)
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "fichero-mcp",
+            "--api-url",
+            "http://cli:1234",
+            "--library-path",
+            "/cli/L.fichero",
+        ],
+    )
+    monkeypatch.setitem(mcp_server._CONFIG, "base_url", None)
+    monkeypatch.setitem(mcp_server._CONFIG, "library_path", None)
+    mcp_server.main()
+    assert captured["ran"] is True
+    assert mcp_server._CONFIG["base_url"] == "http://cli:1234"
+    assert mcp_server._CONFIG["library_path"] == "/cli/L.fichero"
