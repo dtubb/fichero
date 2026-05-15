@@ -176,7 +176,7 @@ def test_workflow_run_resolves_name_to_id():
     assert result.exit_code == 0
     run_call = next(c for c in _last_client().calls if c[0] == "run_workflow")
     assert run_call[1] == "wf-1"
-    assert run_call[2] == {"files": ["doc-7"]}
+    assert run_call[2] == {"selected_doc_ids": ["doc-7"]}
 
 
 def test_workflow_run_unknown_name_errors():

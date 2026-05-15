@@ -253,7 +253,14 @@ def workflow_run(
     try:
         with _client(ctx) as client:
             workflow_id = _resolve_workflow(client, name)
-            result = client.run_workflow(workflow_id, {"files": [doc_id]})
+            # SwiftUI passes the selection as `selected_doc_ids` (see
+            # `Views/Workflow/WorkflowEditor+Actions.swift` and the comment
+            # in `workflows/tools/sources.py::files_tool`). The execute API
+            # drops `inputs` straight into the workflow state — `inputs.files`
+            # only fires Priority 1 when an upstream node is mapped, which
+            # CLI runs don't have. `selected_doc_ids` is the Priority 2 path
+            # the Files-source node reads from state.
+            result = client.run_workflow(workflow_id, {"selected_doc_ids": [doc_id]})
             thread_id = result.get("thread_id") if isinstance(result, dict) else None
             if wait and thread_id:
                 result = _poll_until_terminal(client, thread_id)
