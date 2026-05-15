@@ -2,7 +2,14 @@
 
 ## Next Session — Start Here
 
-**Branch: 0.0.2.** Latest: `29c61fbd`. The `fichero-cli` worktree was merged back to `0.0.2` (PR #1073) and then *typed* against `fichero.models` so it's a real verification tool, not a JSON-guesser. Using it surfaced two real backend bugs in minutes — **the CLI is now the engine-quality-comparison loop Daniel asked for.**
+**Branch: 0.0.2.** Latest: `94add97a`. The CLI test loop is **operational end-to-end**: `library create` → bulk `import --recursive` → `workflow run --wait` (now actually waits) → `search` (semantic + fulltext + hybrid all return real results in <50ms) → `kg entities/claims/search` → `artifacts get`. Run on a fresh `~/Documents/fichero-loop-test.fichero` library with 20 staged md files from `~/code/slipbox/coded` (9.4k words). Vector search confirmed real (LanceDB embeddings auto-generated at import; "gold extraction" — not in any doc — finds the mining doc at 0.910 similarity).
+
+**One architectural fix in flight (subagent a3791449)** — `extract_all` / `extractors` / `catalogue` all gate writes on `if container and library_path:` where `_resolve_container_doc` returns None for non-folder selections. Closes #1087 + #1105 in one shared-helper change. Live verification on the loop library will prove KG entities populate after extraction.
+
+**Bugs filed today (10 new):** #1077 dup transcription · #1078 provider/model normalisation · #1079 workflow_name unknown · #1081 LangGraph internals leak · #1082 page-2 missing artifact · #1083 LangChain deprecation warning · #1085 maps importer · #1086 vector search verification · #1087 catalogue wastes LLM call · #1088 --wait early return (FIXED) · #1080 artifacts get gap (FIXED) · #1096–#1098 catalogue case-grouping/HITL/fan-out · #1104 import loses filename · #1105 KG never persisted · #1106 search render placeholders · #1107 --type keyword vs fulltext · #1108 MCP server.
+
+**Loop status today:** Library bootstrap ✅ · Bulk import ✅ · Doc viewing ✅ · Vector search ✅ · Fulltext search ✅ · Hybrid search ✅ · Workflow run + wait ✅ · Entity extraction (compute) ✅ · KG persistence ❌ (subagent fixing) · Catalogue artifact save ❌ (same fix) · Original filenames ❌ (#1104, separate).
+
 
 ### The vision (Daniel's framing)
 
