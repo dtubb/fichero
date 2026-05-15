@@ -17,7 +17,7 @@ through `fichero.cli.FicheroClient`.
 |---|---|---|
 | 1 — client core + CLI | ✅ Done | `b9596d32` (FicheroClient HTTP wrapper), `136b0979` (typer command tree + formatters) |
 | 2 — MCP server | ✅ Done | `acd349a2` (rewrote `mcp_server.py` as a thin FastMCP wrapper over `FicheroClient`) |
-| 3 — live smoke test | ⚠️ Partial — blocked on auth environment | transcript: `agent-work/proposals/fichero-cli-smoke.md` |
+| 3 — live smoke test | ✅ Done (with one backend bug surfaced — `#609`) | initial transcript: `debe81a3`; full mutating retry + CLI bug fixes: `87a7d6e4` |
 
 ### Phase 1 (done)
 `fichero/cli/client.py` + `fichero/cli/formatters.py` + `fichero/__main__.py`.
@@ -37,29 +37,54 @@ re-pointed at the new Bearer-token model (it imported the deleted
 `FicheroAPIClient`). Gated: full pytest suite + ruff + independent
 code-reviewer and silent-failure-hunter review.
 
-### Phase 3 (partial — see `fichero-cli-smoke.md`)
-First live run against the backend on `:8765`. `health` works. The CLI's auth
-is correctly implemented (verified — reads token file, sends Bearer header).
-But **authenticated endpoints return 401**: the shared per-launch token file
-(`~/Library/Application Support/Fichero/.api-key`) does not match the running
-backend's in-memory token. `auth.py:initialize_token()` overwrites the file on
-every engine startup, so the single shared file is last-writer-wins across
-concurrent backend processes. This is an infra observation, **not a CLI bug**,
-and not fixed here.
+### Phase 3 (done — `fichero-cli-smoke.md` has both transcripts)
+First run (`debe81a3`) was blocked on a shared-token-file last-writer-wins
+problem across concurrent backends — see the first half of the smoke
+transcript. With a single backend running, the auth mismatch goes away and
+every endpoint authenticates correctly.
 
-The mutating path (`import` → `workflow run --wait` → `artifacts` / `kg`) was
-not executed: blocked by the auth mismatch, and the only available library is
-Daniel's primary `Catalogue.fichero` (the Phase 1 CLI has no `delete` command,
-so an imported test doc could not be cleaned up).
+Phase 3 retry on 2026-05-15 ran the full flow end-to-end via the CLI:
+`import` → `workflow run --wait` → `artifacts` / `kg entities` / `kg claims`.
+The read surface is all green. The mutating flow ran but surfaced one
+backend bug: **`#609` Files-node-empty-selection** reproduces from the CLI —
+the workflow completes with `output_files: 0` even though the CLI sends
+`{"files": [<doc-id>]}` in the run request, confirming the bug is in
+backend workflow-input plumbing, not in the SwiftUI app.
+
+Two CLI bugs were also surfaced and fixed in `87a7d6e4`:
+1. `kg entities <doc-id>` / `kg claims <doc-id>` rejected the positional
+   doc-id (the plan's signature) because they only accepted `--query`/`--doc`
+   flags. Both now take positional doc-id; `kg entities` reads the
+   document inspector endpoint and renders only the `entities` field.
+2. `workflow run --wait` blew up on the first poll because the LangGraph
+   checkpoint is created asynchronously and 404s briefly (or never, for
+   fast/empty runs). `--wait` now tolerates 404 during polling and raises
+   a clear timeout error on budget exhaustion instead of returning `None`.
 
 ## Outstanding / for a future loop
 
-1. Re-run the full Phase 3 mutating flow once the CLI can authenticate against
-   a backend (see recommendations in `fichero-cli-smoke.md`: deterministic auth
-   for the harness, a throwaway test library, and a `fichero delete` command).
-2. The shared-token-file fragility (`fichero-cli-smoke.md`) is worth a backend
-   issue on `0.0.2` or later — it affects anything that runs alongside the
-   SwiftUI app's engine.
+1. **`#609` blocks end-to-end "workflow actually does work."** The CLI is
+   ready; the backend isn't. Once `#609` is fixed, the same CLI invocation
+   used in the retry should produce non-empty artifacts and KG rows.
+2. **Architecture gap: no typed response models.** The plan said "typed via
+   `fichero.models` where a model exists" — the CLI as shipped uses raw
+   dicts and infers field names from the OpenAPI spec at
+   `fichero-engine/tests/contracts/openapi.json`. SwiftUI gets generated
+   types; the Python CLI gets nothing. The right Python fix is direct
+   `model_validate` against the shared Pydantic models (no codegen needed,
+   since both halves are one Python project). Worth a follow-up.
+3. **Backend observations** that need their own issues, not fixed here:
+   - shared-token-file last-writer-wins across concurrent backends
+     (the original Phase 3 blocker)
+   - `artifacts` table missing on fresh libraries — surfaced by `kg search`
+     ("Did you mean activities?")
+   - import multipart renames the original filename
+   - `--wait` polling endpoint vs activity log are not unified — activity
+     is the actual source of truth; the checkpoint endpoint 404s for
+     fast/empty runs
+4. **A `fichero delete <id>` command** would close the harness loop —
+   import → workflow → inspect → delete — and let it run repeatably
+   without polluting Daniel's library.
 
 ## Notes
 

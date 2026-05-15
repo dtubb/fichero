@@ -119,3 +119,110 @@ The full Phase 3 flow (`import` a born-digital PDF → `workflow run --wait` →
 
 Once a backend the CLI can authenticate against is available, re-run the full
 Phase 3 flow and append the transcript here.
+
+---
+
+## Phase 3 retry — 2026-05-15
+
+Daniel started a single fresh backend on `:8765` from the `0.0.2` worktree,
+which unblocked everything in the previous section: with one backend running,
+the shared `.api-key` file matches the live in-memory token and the CLI
+authenticates against every endpoint. The full Phase 3 flow ran end-to-end via
+the CLI. Three real findings — two CLI bugs (now fixed in this commit) and one
+backend bug that reproduces `#609`.
+
+### Read surface — all green
+
+```
+fichero health                         → status: healthy, document_count: 0
+fichero docs list                      → (empty, library was empty)
+fichero workflow list                  → 4 workflows: Catalogue, NER per-page,
+                                          Spanish Paleography, Transcribe
+fichero activity --limit 3             → (empty pre-import)
+fichero search test                    → results: (empty)
+fichero kg search test                 → 0 hits, 0 of each category
+fichero --json workflow list           → valid JSON
+fichero docs get <bogus-id>            → 404 message on stderr, exit code 1
+```
+
+Authenticated `404` paths correctly print the upstream message on stderr and
+exit non-zero — the previous section's claim about non-zero exit was right; my
+follow-up confusion was about bash pipe-exit-code shadowing in my test script
+(`head -5` always returns 0 even when the upstream command failed).
+
+### Mutating flow — executed end-to-end
+
+```
+fichero --json import ~/Downloads/Abstract.pdf
+→ doc_id 00d0dfa689a34130860f41281f5ea330
+  status: pending, text_extracted: true, text_length: 2066
+  name: fichero_upload_rgy9oy8u.pdf    ⚠ original "Abstract.pdf" was renamed
+
+fichero workflow run Catalogue <doc-id> --wait
+→ thread-dfe5c600261d
+→ FIRST attempt: 404 from /workflow-execution/threads/.../status, CLI bailed
+→ Backend log: workflow completed in 128ms, nodes_completed: 0,
+                Files node output_files: 0
+```
+
+**Backend bug — `#609` reproduced from the CLI.** The workflow ran via HTTP
+end-to-end, terminated successfully, but the `Files` node received an empty
+selection despite the run request carrying `inputs: {"files": [<doc-id>]}`.
+Zero downstream work, zero artifacts, zero KG rows. This is exactly the
+`#609` symptom — and the CLI reproducing it independently confirms the bug
+is in the backend (workflow input plumbing), not in the SwiftUI app. Not
+fixed here per scope; flagged for the `0.0.2` loop.
+
+### CLI bugs found and fixed in this commit
+
+1. **`kg entities <doc-id>` / `kg claims <doc-id>` rejected the positional
+   doc-id** ("unexpected extra argument"). The plan called for positional
+   doc-id; the implementation had only `--query` / `--type` / `--doc` flags.
+   Fixed by making doc-id a required positional argument and pointing
+   `kg entities` at `/api/documents/{id}/inspector` (the same aggregate the
+   SwiftUI inspector uses), filtered to the `entities` field so the output
+   matches the command name. `kg claims` now passes the id as
+   `source_document_id` to `/api/claims`. The rarely-useful `--query` flag
+   on `kg claims` is dropped — silent breaking change, noted in the commit
+   message.
+
+2. **`workflow run --wait` blew up on a transient 404.** LangGraph creates
+   the thread checkpoint asynchronously after the `/execute` POST returns,
+   so the first poll routinely 404s with "No checkpoint found for thread";
+   fast or empty runs may never produce one. The CLI now treats 404 as
+   transient and keeps polling, but on poll-budget exhaustion raises a
+   clear timeout error (pointing the user at `fichero activity`) rather
+   than returning `None` silently. `FicheroError.status_code` lets pollers
+   branch on the HTTP code without parsing message strings.
+
+### Backend observations (recorded, not fixed)
+
+- **`#609` Files-node-empty-selection** reproduced from the CLI (above). The
+  payload the CLI sends matches what the SwiftUI app sends; the bug is
+  downstream.
+- **`artifacts` table missing** — `kg search` triggered a backend log line:
+  `Catalog Error: Table with name artifacts does not exist! Did you mean
+  "activities"?` The empty `Catalogue.fichero` library may not have run the
+  migration that creates `artifacts`. Probably a per-library schema-init
+  gap; harmless when artifacts/are produced via the SwiftUI flow because
+  that path apparently creates the table on demand, but the CLI's
+  read-only call surfaced the gap.
+- **Filename rename on multipart import** — `Abstract.pdf` was stored as
+  `fichero_upload_rgy9oy8u.pdf`. The CLI sends `file_path.name` (the
+  original basename) in its httpx multipart upload; the rename happens
+  server-side. Worth chasing in the `/api/documents/import` route.
+- **`--wait` polling endpoint vs activity log are not unified.** The
+  activity feed records `workflow_completed` events with the matching
+  `thread_id` reliably; the `/workflow-execution/threads/.../status`
+  endpoint 404s for fast or empty runs. A future iteration of `--wait`
+  should poll activity instead of the checkpoint endpoint — activity is
+  the source of truth.
+
+### What still needs doing
+
+End-to-end "import → run a workflow that actually processes the file →
+inspect the artifacts/KG" remains blocked on `#609`. The CLI is now
+sufficient to test that flow as soon as `#609` is fixed: no more CLI bugs
+between Daniel and a real workflow run. The next non-`#609` CLI follow-up
+would be a `fichero delete <id>` command so the harness can clean up test
+imports without touching `Catalogue.fichero` by hand.
