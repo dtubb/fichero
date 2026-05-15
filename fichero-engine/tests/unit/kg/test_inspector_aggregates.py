@@ -22,7 +22,7 @@ from fichero.knowledge_models import (
     Project,
     ProjectInclusion,
 )
-from fichero.models import Document, DocType
+from fichero.models import Artifact, Document, DocType
 
 
 # -----------------------------------------------------------------------------
@@ -269,6 +269,63 @@ class TestDocumentKnowledgeGraph:
         assert result.include_children is False
         assert result.groups == []
         assert result.claim_count == 0
+
+    def test_leaf_document_has_empty_catalogue(self, db):
+        """A plain document carries no catalogue artifacts (#1047)."""
+        from fichero.api.routes import document_inspector
+
+        doc = Document(name="leaf.pdf", doc_type=DocType.file)
+        db.save(doc)
+        result = asyncio.run(document_inspector.knowledge_graph(doc.id, db=db))
+        assert result.catalogue == []
+
+    def test_catalogue_artifacts_surface_narrative_first(self, db):
+        """A catalogued folder surfaces its catalogue artifacts, narrative-first (#1047)."""
+        from fichero.api.routes import document_inspector
+
+        folder = Document(name="Letters", doc_type=DocType.folder)
+        db.save(folder)
+        # Saved out of display order — narrative must still come back first.
+        db.save(Artifact(
+            document_id=folder.id,
+            artifact_type="catalogue.keywords",
+            content="mining, water rights",
+        ))
+        db.save(Artifact(
+            document_id=folder.id,
+            artifact_type="catalogue.timeline",
+            content="1923 — petition filed",
+        ))
+        db.save(Artifact(
+            document_id=folder.id,
+            artifact_type="catalogue.narrative",
+            content="A folder of letters concerning a mining dispute.",
+        ))
+        # An unrelated artifact on the same folder must NOT be included.
+        db.save(Artifact(
+            document_id=folder.id,
+            artifact_type="transcription",
+            content="raw text",
+        ))
+
+        result = asyncio.run(document_inspector.knowledge_graph(folder.id, db=db))
+        types = [a.artifact_type for a in result.catalogue]
+        assert types == ["catalogue.narrative", "catalogue.timeline", "catalogue.keywords"]
+        assert result.catalogue[0].content.startswith("A folder of letters")
+
+    def test_legacy_catalogue_artifact_included(self, db):
+        """The legacy single-output 'catalogue' type still surfaces (#1047)."""
+        from fichero.api.routes import document_inspector
+
+        folder = Document(name="Old Letters", doc_type=DocType.folder)
+        db.save(folder)
+        db.save(Artifact(
+            document_id=folder.id,
+            artifact_type="catalogue",
+            content="Legacy catalogue narrative.",
+        ))
+        result = asyncio.run(document_inspector.knowledge_graph(folder.id, db=db))
+        assert [a.artifact_type for a in result.catalogue] == ["catalogue"]
 
     def test_include_children_aggregates_page_claims_onto_parent(self, db):
         """include_children walks the doc tree and surfaces page-child KG (#1069)."""

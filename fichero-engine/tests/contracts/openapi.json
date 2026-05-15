@@ -6346,7 +6346,7 @@
           "knowledge-graph"
         ],
         "summary": "Canonical KG grouping for a document \u2014 deduped, merge-resolved",
-        "description": "The single source of truth for a document's knowledge graph. Resolves entities, follows merge chains to the canonical entity (absorbed entities' claims are kept, not dropped), groups by kind \u2014 including a Dates group for entity-less date claims \u2014 dedups within each kind, and returns the groups in display order. The list-view row and the KG inspector tab both render this verbatim so they can no longer disagree (#1068).\n\nWith ``include_children=true`` the query walks the document tree (BFS) and aggregates every descendant's claims onto the parent. extract_all writes claims to PAGE doc ids, never the parent PDF \u2014 so a parent PDF queried without this flag looks empty even though its pages are full of entities (#1069).",
+        "description": "The single source of truth for a document's knowledge graph. Resolves entities, follows merge chains to the canonical entity (absorbed entities' claims are kept, not dropped), groups by kind \u2014 including a Dates group for entity-less date claims \u2014 dedups within each kind, and returns the groups in display order. The list-view row and the KG inspector tab both render this verbatim so they can no longer disagree (#1068).\n\nWith ``include_children=true`` the query walks the document tree (BFS) and aggregates every descendant's claims onto the parent. extract_all writes claims to PAGE doc ids, never the parent PDF \u2014 so a parent PDF queried without this flag looks empty even though its pages are full of entities (#1069).\n\nThe ``catalogue`` field carries any catalogue artifacts on the document (narrative / timeline / keywords), narrative-first, so a catalogued folder can render its readable synthesis above the entity-kind sections (#1047). Empty for leaf documents.",
         "operationId": "knowledge_graph_api_documents__document_id__knowledge_graph_get",
         "parameters": [
           {
@@ -29991,6 +29991,85 @@
         ],
         "title": "ArrangementType"
       },
+      "Artifact": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "source_artifact_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Artifact Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "default": 1
+          },
+          "artifact_type": {
+            "type": "string",
+            "title": "Artifact Type"
+          },
+          "content": {
+            "type": "string",
+            "nullable": true,
+            "title": "Content"
+          },
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Data"
+          },
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "step_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Step Name"
+          },
+          "confidence": {
+            "type": "number",
+            "nullable": true,
+            "title": "Confidence"
+          },
+          "reviewed": {
+            "type": "boolean",
+            "title": "Reviewed",
+            "default": false
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "artifact_type"
+        ],
+        "title": "Artifact",
+        "description": "Output from any processing step - versioned and chainable.\n\nArtifacts are results from AI/ML processing:\n- Transcription (OCR text)\n- Entities (people, places, dates)\n- Summary\n- Translation\n- Grouping suggestions (which pages belong together)\n- Segmentation suggestions (regions within a page)\n\nVersioning: Multiple versions can exist for the same document.\nChaining: One artifact can be derived from another (OCR \u2192 cleaned text).\n\nStructural artifacts (grouping, segmentation) suggest changes that\nbecome Document structure when user approves."
+      },
       "ArtifactListResponse": {
         "properties": {
           "artifacts": {
@@ -34279,6 +34358,13 @@
           "claim_count": {
             "type": "integer",
             "title": "Claim Count"
+          },
+          "catalogue": {
+            "items": {
+              "$ref": "#/components/schemas/Artifact"
+            },
+            "type": "array",
+            "title": "Catalogue"
           }
         },
         "type": "object",
@@ -34288,7 +34374,8 @@
           "groups",
           "claims",
           "entity_count",
-          "claim_count"
+          "claim_count",
+          "catalogue"
         ],
         "title": "DocumentKnowledgeGraphResponse"
       },

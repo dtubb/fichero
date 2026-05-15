@@ -28,7 +28,7 @@ from fichero.knowledge_models import (
     Project,
     ProjectInclusion,
 )
-from fichero.models import Document
+from fichero.models import Artifact, Document
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents")
@@ -209,6 +209,12 @@ class DocumentKnowledgeGraphResponse(BaseModel):
     claims: list[KnowledgeClaim]
     entity_count: int
     claim_count: int
+    # Catalogue artifacts on this document (#1047). Empty for leaf docs;
+    # a folder/container that has been catalogued carries its narrative /
+    # timeline / keywords artifacts here so the KG tab can render the
+    # readable synthesis as a header above the entity-kind sections.
+    # Ordered narrative-first so the UI can take catalogue[0] as the headline.
+    catalogue: list[Artifact]
 
 
 def _resolve_canonical(
@@ -231,11 +237,53 @@ def _resolve_canonical(
     return entity
 
 
+# Catalogue artifact types, in the order the UI should surface them.
+# The narrative is the headline; timeline and keywords follow. Legacy
+# single-output "catalogue" shares slot 0 with the narrative — the
+# catalogue tool deletes prior catalogue.* on rerun so the two only
+# coexist transiently; if they do, the created_at tie-break wins.
+_CATALOGUE_TYPE_ORDER: dict[str, int] = {
+    "catalogue.narrative": 0,
+    "catalogue": 0,
+    "catalogue.timeline": 1,
+    "catalogue.keywords": 2,
+}
+
+
+def _is_catalogue_artifact(artifact_type: str | None) -> bool:
+    at = artifact_type or ""
+    return at == "catalogue" or at.startswith("catalogue.")
+
+
+def _catalogue_artifacts(db: Database, document_id: str) -> list[Artifact]:
+    """Catalogue artifacts on this document, narrative-first (#1047).
+
+    The catalogue workflow writes its synthesis (narrative / timeline /
+    keywords — multi-output, #805) onto the container/folder document.
+    Leaf documents have none, so this returns an empty list for them.
+    """
+    catalogue = [
+        a for a in db.query(Artifact, document_id=document_id)
+        if _is_catalogue_artifact(a.artifact_type)
+    ]
+    catalogue.sort(
+        key=lambda a: (
+            _CATALOGUE_TYPE_ORDER.get(a.artifact_type or "", 99),
+            # created_at has a default_factory but unmigrated rows could
+            # be null — don't let a missing timestamp 500 the whole KG
+            # response and mask a catalogue that genuinely exists.
+            -(a.created_at.timestamp() if a.created_at else 0.0),
+        )
+    )
+    return catalogue
+
+
 def _build_knowledge_graph(
     db: Database,
     document_id: str,
     doc_claims: list[KnowledgeClaim],
     include_children: bool,
+    catalogue: list[Artifact],
 ) -> DocumentKnowledgeGraphResponse:
     """Group/dedup/merge-resolve a claim set into kind buckets.
 
@@ -315,6 +363,7 @@ def _build_knowledge_graph(
         claims=doc_claims,
         entity_count=entity_count,
         claim_count=len(doc_claims),
+        catalogue=catalogue,
     )
 
 
@@ -335,7 +384,11 @@ def _build_knowledge_graph(
         "tree (BFS) and aggregates every descendant's claims onto the "
         "parent. extract_all writes claims to PAGE doc ids, never the "
         "parent PDF — so a parent PDF queried without this flag looks "
-        "empty even though its pages are full of entities (#1069)."
+        "empty even though its pages are full of entities (#1069).\n\n"
+        "The ``catalogue`` field carries any catalogue artifacts on the "
+        "document (narrative / timeline / keywords), narrative-first, so "
+        "a catalogued folder can render its readable synthesis above the "
+        "entity-kind sections (#1047). Empty for leaf documents."
     ),
 )
 async def knowledge_graph(
@@ -358,4 +411,10 @@ async def knowledge_graph(
         c for c in db.query(KnowledgeClaim)
         if c.source_document_id in doc_ids
     ]
-    return _build_knowledge_graph(db, document_id, doc_claims, include_children)
+    # Catalogue artifacts live on the inspected document itself (the
+    # container), never its page children — so this is queried on
+    # document_id directly, independent of include_children.
+    catalogue = _catalogue_artifacts(db, document_id)
+    return _build_knowledge_graph(
+        db, document_id, doc_claims, include_children, catalogue
+    )
