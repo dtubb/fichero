@@ -8,7 +8,40 @@
 
 **Bugs filed today (10 new):** #1077 dup transcription · #1078 provider/model normalisation · #1079 workflow_name unknown · #1081 LangGraph internals leak · #1082 page-2 missing artifact · #1083 LangChain deprecation warning · #1085 maps importer · #1086 vector search verification · #1087 catalogue wastes LLM call · #1088 --wait early return (FIXED) · #1080 artifacts get gap (FIXED) · #1096–#1098 catalogue case-grouping/HITL/fan-out · #1104 import loses filename · #1105 KG never persisted · #1106 search render placeholders · #1107 --type keyword vs fulltext · #1108 MCP server.
 
-**Loop status today:** Library bootstrap ✅ · Bulk import ✅ · Doc viewing ✅ · Vector search ✅ · Fulltext search ✅ · Hybrid search ✅ · Workflow run + wait ✅ · Entity extraction (compute) ✅ · KG persistence ❌ (subagent fixing) · Catalogue artifact save ❌ (same fix) · Original filenames ❌ (#1104, separate).
+**Loop status today (live, CLI-verified):**
+
+| Feature | Status | Notes |
+|---|---|---|
+| Library bootstrap (`library create/list`) | ✅ | `~/Documents/fichero-loop-test.fichero` |
+| Bulk import (`import --recursive`) | ✅ | 20 md files, 9.4k words |
+| Doc viewing (`docs get/list`) | ✅ | metadata + page_content rendered |
+| Vector search (LanceDB) | ✅ | embeddings auto-generated; "gold extraction" → mining doc 0.910 |
+| Fulltext search (FTS) | ✅ | exact-match scoring works |
+| Hybrid search | ✅ | semantic + FTS rank-fused |
+| Workflow run + wait | ✅ | activity-log polled, terminal-aware (#1088 fixed) |
+| Entity extraction (compute) | ✅ | 32 entities surfaced for the test mining doc |
+| KG persistence (single-file selections) | ✅ | #1087+#1105 fixed — `_resolve_write_target` falls back to selected doc |
+| Catalogue artifact save (single-file) | ✅ | same fix; LLM call short-circuits if no target |
+| Auth idempotent across processes | ✅ | #1110 fixed — `initialize_token` reuses existing key |
+| 8 CLI methods typed | ✅ | #1084 Wave 1 — DocumentInspector / KG / activity / workflow status |
+| Claims have full SVO (verb + object) | ❌ | #1113 — 0/40 today, subagent in flight |
+| Original filenames preserved on import | ❌ | #1104 — subagent in flight |
+| CLI search results render properly | ❌ | #1106/#1107/#1081 — subagent in flight |
+| Entity dedup + grounding | ❌ | #1114 — Atrató = concept AND location; hallucinated events |
+| Duplicate transcription (parent+page) | ❌ | #1077 |
+| Provider/model normalisation | ❌ | #1078 — "Apple"/"Vision" vs "apple"/"apple-vision" |
+| LangChain deprecation warning | ❌ | #1083 — subagent in flight |
+| MCP server | ❌ | #1108 — same client.py + Pydantic models, MCP transport |
+| Multi-provider NER (spaCy + LLM + transformers) | ❌ | #1118 — architecture issue |
+| KG-write as explicit workflow node | ❌ | #1115 — architecture issue |
+
+**Subagents in flight (3):**
+- `ac81290b` — #1113 SVO + claim richness (extract_all/extractors/knowledge_models + spaCy hybrid + provider/model attribution)
+- `a1a4e6c8` — #1104 import filename + #1083 LangChain warning
+- `a0770d41` — #1106/#1107/#1081 CLI display fixes
+
+**Issues filed today:** #1077-#1078 (engine), #1079/#1081 (CLI polish), #1080 (artifacts get — FIXED), #1082 (page-2 verify), #1083 (langchain), #1084 (parity wave 1 — FIXED), #1085 (maps importer), #1086 (vector verify — DONE), #1087 (catalogue waste — FIXED), #1088 (--wait — FIXED), #1096-#1098 (catalogue case grouping/HITL/fan-out), #1104 (filename), #1105 (KG never persisted — FIXED), #1106-#1109 (CLI/UI polish), #1110 (auth — FIXED), #1111 (paragraph rendering with citations), #1113 (SVO populate), #1114 (entity quality), #1115 (kg-writer node), #1118 (multi-NER).
+
 
 
 ### The vision (Daniel's framing)
