@@ -164,6 +164,36 @@ class TestCreateDocument:
 
 
 # ---------------------------------------------------------------------------
+# POST /api/documents/import
+# ---------------------------------------------------------------------------
+
+
+class TestImportDocument:
+    """Regression: #1104 — original filename must survive multipart upload.
+
+    Before the fix, ``save_uploaded_file`` wrote the body to a tempfile
+    named ``fichero_upload_<random><ext>`` and ``ingest_file`` set
+    ``Document.name = path.name``, so every imported doc displayed as
+    ``fichero_upload_*`` instead of the user's filename.
+    """
+
+    def test_import_preserves_original_filename(self, client):
+        original = "analysis-mining-terms.md"
+        body = b"# Analysis\n\nMining terms used in the corpus.\n"
+        r = client.post(
+            "/api/documents/import",
+            files={"file": (original, body, "text/markdown")},
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["name"] == original, (
+            f"Document.name = {data['name']!r}, expected {original!r} "
+            "(import endpoint must use multipart filename, not temp path)"
+        )
+        assert not data["name"].startswith("fichero_upload_")
+
+
+# ---------------------------------------------------------------------------
 # PUT /api/documents/{doc_id}
 # ---------------------------------------------------------------------------
 

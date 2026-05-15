@@ -23,6 +23,26 @@ import warnings
 # before any import that pulls in transformers / tokenizers.
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
+# Suppress LangChain's `allowed_objects` PendingDeprecationWarning (#1083).
+# It fires at module-import time from langgraph.checkpoint.serde.encrypted's
+# `LC_REVIVER = Reviver()` call (no `allowed_objects` argument). The
+# JsonPlusSerializer constructor doesn't expose this option, so we cannot
+# pass an explicit value through — the only fix is to suppress the warning
+# *before* langgraph's checkpoint serde module is first imported. Must run
+# before any fichero.* import that transitively pulls in langgraph
+# (e.g. fichero.db -> workflows -> langgraph).
+try:
+    from langchain_core._api.deprecation import LangChainPendingDeprecationWarning
+
+    warnings.filterwarnings(
+        "ignore",
+        message=r".*allowed_objects.*",
+        category=LangChainPendingDeprecationWarning,
+    )
+except ImportError:
+    # langchain_core not installed in some test/lint environments — skip.
+    pass
+
 # Route the kreuzberg extraction cache to ~/Library/Caches/ and run the
 # one-time legacy-location migration. Imported here (not lazily via loaders)
 # so the side effect fires at engine startup regardless of whether the

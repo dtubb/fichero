@@ -627,6 +627,17 @@ async def import_file(
             package_path=package_path,  # Library package path
         )
 
+        # Preserve the user's original filename (#1104). save_uploaded_file
+        # writes to a temp file named ``fichero_upload_<random><ext>`` and
+        # ingest_file derives Document.name from ``path.name`` — without
+        # this fixup every imported document shows up as
+        # ``fichero_upload_*`` in docs list / sidebar. The hashed storage
+        # filename stays on Document.path; only the display name is
+        # corrected to the upload's multipart filename.
+        if file.filename and doc.name != file.filename:
+            doc.name = file.filename
+            db.save(doc)
+
         logger.info(f"Imported document: {doc.id} ({doc.name})")
         return doc
 
