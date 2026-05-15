@@ -24,6 +24,10 @@ Backend = logic; CLI / SwiftUI / future iPad / web = display surfaces only. Ever
 
 The #1072 audit identified three HIGH clusters of misplaced SwiftUI logic: **artifacts**, **workflow runs**, **model/provider capability**. Phase B shipped the canonical KG endpoint (#1068/#1069/#1047/#1050). Remaining picks that are pytest-verifiable: **#1075** (list-endpoint envelope standardization), the audit clusters' remaining backend endpoints. Swift wiring (Phase C) stays deferred per Daniel.
 
+### Manager pattern (apply to ALL future work)
+
+Per Daniel 2026-05-15: as manager, **delegate targeted edits to subagents** rather than doing every keystroke myself — preserve context for orchestration, decisions, and review. A subagent can write/edit a focused chunk and return a diff; I review the diff (small) rather than holding the whole file (large). Use `Agent` (general-purpose) for multi-step edits, the `pr-review-toolkit` agents for reviews, `test-runner` for the gate. Only do direct edits when the change is genuinely a one-liner or needs my judgment inline.
+
 ### Per-commit gates (apply to ALL commits going forward)
 
 - **pytest + ruff** via a `test-runner` subagent — no commit unless green.
