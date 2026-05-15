@@ -40,7 +40,7 @@ from fichero.kg._common import parse_kwarg_repr
 from fichero.llm import LLMConfig, chat_structured_with_fallback
 from fichero.models import Artifact
 from fichero.workflows.registry import register_tool
-from fichero.workflows.tools.catalogue import _resolve_container_doc
+from fichero.workflows.tools.catalogue import _resolve_write_target
 from fichero.workflows.tools.llm_base import (
     BASE_CONFIG_SCHEMA,
     BASE_OUTPUT_PORTS,
@@ -954,7 +954,9 @@ async def _run_extractor(
     )
     library_path = state.get("library_path", "")
     selected_doc_ids = state.get("selected_doc_ids") or []
-    container = _resolve_container_doc(selected_doc_ids, library_path)
+    # Use the write-target helper so single-file selections still get
+    # KG entities/claims persisted on the file itself (#1105).
+    container = _resolve_write_target(selected_doc_ids, library_path)
 
     # Per-page extraction. Two paths:
     #   (a) records present (aggregate node passed [{doc_id, text}, ...])

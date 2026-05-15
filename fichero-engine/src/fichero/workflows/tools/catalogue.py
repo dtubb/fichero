@@ -315,6 +315,31 @@ def _resolve_container_doc(
     return None
 
 
+def _resolve_write_target(
+    selected_doc_ids: list[str], library_path: str
+) -> Document | None:
+    """Where to attach catalogue / KG writes.
+
+    Prefers a folder/group container (today's behaviour). If no container
+    resolves, falls back to the selected document(s) — for single-file
+    selections (md / txt / jpg, etc) writes attach to the file itself, so
+    extract_all and catalogue work end-to-end on a one-file selection
+    instead of silently discarding their output (#1087, #1105).
+
+    Returns None only when neither a container nor any valid selected
+    document can be loaded — callers should warn-and-skip in that case.
+    """
+    container = _resolve_container_doc(selected_doc_ids, library_path)
+    if container is not None:
+        return container
+    if not selected_doc_ids or not library_path:
+        return None
+    db = db_manager.get_database(library_path)
+    docs = [db.get(Document, did) for did in selected_doc_ids]
+    docs = [d for d in docs if d is not None]
+    return docs[0] if docs else None
+
+
 # =============================================================================
 # Tool Registration
 # =============================================================================
@@ -385,7 +410,31 @@ async def catalogue(
     )
     library_path = state.get("library_path", "")
     selected_doc_ids = state.get("selected_doc_ids") or []
-    container = _resolve_container_doc(selected_doc_ids, library_path)
+    # Prefer a folder/group container, but fall back to the selected
+    # document(s) so single-file selections still get a catalogue saved
+    # on the file itself (#1087). Variable name kept as `container` for
+    # diff-friendliness — semantically it's the write target now.
+    container = _resolve_write_target(selected_doc_ids, library_path)
+
+    # Short-circuit before the (~5s) LLM work when there's nowhere to
+    # write the result — without a target we'd discard the narrative
+    # immediately after generating it (#1087). The "no container
+    # resolved" warning still fires below so the user sees why nothing
+    # was saved.
+    if not container or not library_path:
+        logger.warning(
+            "Catalogue: no write target resolved (selected_doc_ids=%s); "
+            "skipping LLM call and artifact save",
+            selected_doc_ids,
+        )
+        return {
+            "text": "",
+            "value": None,
+            "error": (
+                "Catalogue: no write target resolved from selection — "
+                "no artifact saved."
+            ),
+        }
 
     # Bubbleable LLM-error messages from any of the catalogue's nested
     # chat() calls. Surfaced in the result["error"] when nothing got
@@ -549,11 +598,6 @@ async def catalogue(
             )
         except Exception as exc:
             logger.error(f"Catalogue: failed to save artifacts: {exc}")
-    elif not container:
-        logger.warning(
-            "Catalogue: no container doc resolved (selected_doc_ids=%s); artifacts not saved",
-            selected_doc_ids,
-        )
 
     result: dict[str, Any] = {
         "text": markdown,

@@ -43,7 +43,7 @@ from fichero.llm import (
 )
 from fichero.models import Artifact
 from fichero.workflows.registry import register_tool
-from fichero.workflows.tools.catalogue import _resolve_container_doc
+from fichero.workflows.tools.catalogue import _resolve_write_target
 from fichero.workflows.tools.llm_base import (
     BASE_CONFIG_SCHEMA,
     BASE_OUTPUT_PORTS,
@@ -461,7 +461,9 @@ async def _run_page_cleanup(
 
     library_path = state.get("library_path", "")
     selected_doc_ids = state.get("selected_doc_ids") or []
-    container = _resolve_container_doc(selected_doc_ids, library_path)
+    # Use the write-target helper so single-file selections (incl. a
+    # single PDF with page descendants) still get cleaned up (#1105).
+    container = _resolve_write_target(selected_doc_ids, library_path)
     if not container or not library_path:
         return {"text": text, "records": records, "value": 0}
 
@@ -542,7 +544,9 @@ async def _run_folder_cleanup(
 
     library_path = state.get("library_path", "")
     selected_doc_ids = state.get("selected_doc_ids") or []
-    container = _resolve_container_doc(selected_doc_ids, library_path)
+    # Use the write-target helper so single-file selections (incl. a
+    # single PDF with page descendants) still get cleaned up (#1105).
+    container = _resolve_write_target(selected_doc_ids, library_path)
     if not container or not library_path:
         return {"text": text, "value": []}
 

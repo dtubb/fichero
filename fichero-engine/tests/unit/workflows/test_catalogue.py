@@ -18,6 +18,7 @@ from fichero.workflows.tools.catalogue import (
     _iter_section_artifacts,
     _render_markdown,
     _resolve_container_doc,
+    _resolve_write_target,
     _strip_narrative_header,
 )
 
@@ -293,3 +294,49 @@ class TestResolveContainerDoc:
         with self._patch_db({"pdf": pdf, "p1": page1, "p2": page2}):
             result = _resolve_container_doc(["p1", "p2"], "/tmp")
         assert result is None
+
+
+class TestResolveWriteTarget:
+    """`_resolve_write_target` adds a fallback over `_resolve_container_doc`
+    so single-file selections (md/txt/jpg etc) still get a write target —
+    catalogue + KG writes attach to the file itself instead of being
+    silently discarded (#1087, #1105)."""
+
+    def _patch_db(self, docs_by_id: dict):
+        db = MagicMock()
+        db.get.side_effect = lambda _cls, did: docs_by_id.get(did)
+        return patch(
+            "fichero.workflows.tools.catalogue.db_manager.get_database",
+            return_value=db,
+        )
+
+    def test_prefers_container_when_resolvable(self):
+        from fichero.models import DocType
+        folder = _FakeDoc("F", DocType.folder)
+        with self._patch_db({"F": folder}):
+            assert _resolve_write_target(["F"], "/tmp") is folder
+
+    def test_falls_back_to_single_file_when_no_container(self):
+        from fichero.models import DocType
+        f1 = _FakeDoc("f1", DocType.file, parent_id=None)
+        with self._patch_db({"f1": f1}):
+            assert _resolve_write_target(["f1"], "/tmp") is f1
+
+    def test_falls_back_to_first_doc_for_multi_file_no_container(self):
+        from fichero.models import DocType
+        f1 = _FakeDoc("f1", DocType.file, parent_id=None)
+        f2 = _FakeDoc("f2", DocType.file, parent_id=None)
+        with self._patch_db({"f1": f1, "f2": f2}):
+            # _resolve_container_doc returns None (no shared folder); the
+            # write target falls back to the first valid selected doc.
+            assert _resolve_write_target(["f1", "f2"], "/tmp") is f1
+
+    def test_returns_none_without_library_or_selection(self):
+        assert _resolve_write_target([], "") is None
+        assert _resolve_write_target([], "/tmp") is None
+        assert _resolve_write_target(["x"], "") is None
+
+    def test_returns_none_when_no_doc_loads(self):
+        with self._patch_db({}):
+            # selection refers to a doc id we can't load; nothing to write to.
+            assert _resolve_write_target(["missing"], "/tmp") is None

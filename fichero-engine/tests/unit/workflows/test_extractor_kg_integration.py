@@ -298,3 +298,57 @@ class TestPerPageProvenance:
         assert len(claims) == 1
         # No page label when there was no separator (single chunk path)
         assert claims[0].source_page_label is None
+
+
+class TestSingleFileSelectionWritesKG:
+    """When the user selects a single file (md/txt/jpg etc) — not a folder
+    or shared-parent group — KG entities/claims must still be persisted on
+    the selected file (#1087, #1105). Pre-fix the extractor short-circuited
+    because `_resolve_container_doc` returned None and the KG-write block
+    was guarded by `if container and library_path:`."""
+
+    @pytest.fixture
+    def file_doc(self, db):
+        from fichero.models import Document, DocType
+        doc = Document(
+            name="single.md",
+            path="/test/single.md",
+            doc_type=DocType.file,
+        )
+        db.save(doc)
+        return doc
+
+    @pytest.mark.asyncio
+    async def test_extractor_writes_kg_on_selected_file(
+        self, db, test_package, file_doc, llm_config
+    ):
+        from fichero.workflows.tools.extractors import _run_extractor, _SECTIONS
+
+        people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
+        fake_response = (
+            '{"people": [{"name": "Juan Pérez", "context": "deed signer"}]}'
+        )
+
+        with patch(
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(return_value=_pydantic_from_json_response(fake_response)),
+        ):
+            state = {
+                "library_path": str(test_package),
+                "selected_doc_ids": [file_doc.id],
+            }
+            await _run_extractor(
+                people_section, {"text": "..."}, state, llm_config,
+            )
+
+        # KnowledgeEntity rows persist regardless of where they're attached.
+        people = db.query(KnowledgeEntity, entity_type=EntityType.person)
+        assert len(people) == 1, "single-file selection must still write entities"
+        # Provenance attaches to the selected file (the resolved write target).
+        claims = db.query(KnowledgeClaim, source_document_id=file_doc.id)
+        assert len(claims) == 1
+        # And the dual-write artifact lives on the selected file too.
+        artifacts = db.query(
+            Artifact, document_id=file_doc.id, artifact_type="people"
+        )
+        assert len(artifacts) == 1
