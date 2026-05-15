@@ -464,6 +464,98 @@ class TestParentCheckpoint:
         assert result.parent_config is None
 
 
+class TestDeleteThread:
+    """Test adelete_thread routes through the typed public API (#1116)."""
+
+    @pytest.mark.asyncio
+    async def test_adelete_thread_removes_all_state(
+        self, checkpointer, sample_checkpoint, sample_metadata
+    ):
+        """adelete_thread clears both checkpoints and checkpoint_writes."""
+        thread_id = "thread-to-delete"
+        config = {
+            "configurable": {
+                "thread_id": thread_id,
+                "checkpoint_ns": "",
+                "checkpoint_id": sample_checkpoint["id"],
+            }
+        }
+
+        # Seed checkpoint + pending writes
+        await checkpointer.aput(config, sample_checkpoint, sample_metadata, {})
+        await checkpointer.aput_writes(
+            config,
+            [("messages", "pending-1"), ("messages", "pending-2")],
+            task_id="task-1",
+        )
+
+        # Sanity: rows exist before delete
+        cp_before = checkpointer.conn.execute(
+            "SELECT COUNT(*) FROM checkpoints WHERE thread_id = ?", [thread_id]
+        ).fetchone()[0]
+        wr_before = checkpointer.conn.execute(
+            "SELECT COUNT(*) FROM checkpoint_writes WHERE thread_id = ?",
+            [thread_id],
+        ).fetchone()[0]
+        assert cp_before == 1
+        assert wr_before == 2
+
+        deleted = await checkpointer.adelete_thread(thread_id)
+        assert deleted == cp_before + wr_before  # 3
+
+        # Both tables empty for this thread
+        cp_after = checkpointer.conn.execute(
+            "SELECT COUNT(*) FROM checkpoints WHERE thread_id = ?", [thread_id]
+        ).fetchone()[0]
+        wr_after = checkpointer.conn.execute(
+            "SELECT COUNT(*) FROM checkpoint_writes WHERE thread_id = ?",
+            [thread_id],
+        ).fetchone()[0]
+        assert cp_after == 0
+        assert wr_after == 0
+
+    @pytest.mark.asyncio
+    async def test_adelete_thread_only_targets_named_thread(
+        self, checkpointer, sample_checkpoint, sample_metadata
+    ):
+        """Other threads' state must survive the delete."""
+        keep_id = "keep-thread"
+        drop_id = "drop-thread"
+
+        for tid in (keep_id, drop_id):
+            cp = sample_checkpoint.copy()
+            cp["id"] = str(uuid4())
+            cfg = {
+                "configurable": {
+                    "thread_id": tid,
+                    "checkpoint_ns": "",
+                    "checkpoint_id": cp["id"],
+                }
+            }
+            await checkpointer.aput(cfg, cp, sample_metadata, {})
+            await checkpointer.aput_writes(
+                cfg, [("messages", f"w-{tid}")], task_id="t"
+            )
+
+        await checkpointer.adelete_thread(drop_id)
+
+        keep_cp = checkpointer.conn.execute(
+            "SELECT COUNT(*) FROM checkpoints WHERE thread_id = ?", [keep_id]
+        ).fetchone()[0]
+        keep_wr = checkpointer.conn.execute(
+            "SELECT COUNT(*) FROM checkpoint_writes WHERE thread_id = ?",
+            [keep_id],
+        ).fetchone()[0]
+        assert keep_cp == 1
+        assert keep_wr == 1
+
+    @pytest.mark.asyncio
+    async def test_adelete_thread_missing_returns_zero(self, checkpointer):
+        """Deleting an unknown thread is a no-op that returns 0."""
+        deleted = await checkpointer.adelete_thread("does-not-exist")
+        assert deleted == 0
+
+
 class TestContextManagers:
     """Test context manager support."""
 

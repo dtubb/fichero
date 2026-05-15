@@ -425,6 +425,48 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
             f"checkpoint_id={checkpoint_id}, task_id={task_id}"
         )
 
+    async def adelete_thread(self, thread_id: str) -> int:
+        """
+        Delete all checkpointer state for a thread.
+
+        Removes rows from every table this checkpointer owns:
+          - checkpoints (declared in _setup)
+          - checkpoint_writes (declared in _setup)
+
+        Wrapped in a single transaction so a partial delete cannot orphan
+        rows across the linked tables. If a future LangGraph schema change
+        adds another linked table, add it here.
+
+        Args:
+            thread_id: Thread ID whose state should be removed.
+
+        Returns:
+            Total rows deleted across all checkpointer-owned tables.
+        """
+
+        def _delete() -> int:
+            total = 0
+            self.conn.execute("BEGIN TRANSACTION")
+            try:
+                for table in ("checkpoints", "checkpoint_writes"):
+                    result = self.conn.execute(
+                        f"DELETE FROM {table} WHERE thread_id = ? RETURNING 1",
+                        [thread_id],
+                    )
+                    rows = result.fetchall()
+                    total += len(rows)
+                self.conn.execute("COMMIT")
+            except Exception:
+                self.conn.execute("ROLLBACK")
+                raise
+            return total
+
+        deleted = await asyncio.to_thread(_delete)
+        logger.info(
+            f"Deleted checkpointer state: thread_id={thread_id}, rows={deleted}"
+        )
+        return deleted
+
     def __enter__(self):
         return self
 

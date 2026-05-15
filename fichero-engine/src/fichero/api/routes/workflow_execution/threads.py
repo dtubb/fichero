@@ -402,17 +402,12 @@ async def delete_thread(
                 status_code=404, detail=f"No checkpoint found for thread: {thread_id}"
             )
 
-        # Delete all checkpoints for this thread
-        checkpointer.conn.execute(
-            "DELETE FROM checkpoints WHERE thread_id = ?", [thread_id]
-        )
+        # Delete all checkpointer-owned state for this thread via the
+        # typed public API. The Checkpointer wraps the multi-table delete
+        # in a transaction so a partial delete cannot orphan rows. See #1116.
+        deleted = await checkpointer.adelete_thread(thread_id)
 
-        # Delete all checkpoint writes for this thread
-        checkpointer.conn.execute(
-            "DELETE FROM checkpoint_writes WHERE thread_id = ?", [thread_id]
-        )
-
-        logger.info(f"Deleted thread: {thread_id}")
+        logger.info(f"Deleted thread: {thread_id} (rows={deleted})")
         return ThreadDeletedResponse(message=f"Thread deleted: {thread_id}")
 
     except HTTPException:
