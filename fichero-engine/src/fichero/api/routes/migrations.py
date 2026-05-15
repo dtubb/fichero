@@ -34,6 +34,7 @@ class MigrationCommand(str, Enum):
     migrate_claims_to_multi_source = "migrate_claims_to_multi_source"
     backfill_claim_source_metadata = "backfill_claim_source_metadata"
     repair_orphaned_claim_links = "repair_orphaned_claim_links"
+    repair_kg_svo_repr_leak = "repair_kg_svo_repr_leak"
 
 
 class MigrationRunRequest(BaseModel):
@@ -151,6 +152,15 @@ AVAILABLE_MIGRATIONS = [
         type="repair",
         idempotent=True,
     ),
+    MigrationInfo(
+        name="repair_kg_svo_repr_leak",
+        description=(
+            "Repair claims/entities where a leaked kwarg-repr "
+            "(verb='X', object='Y') was stored verbatim (#1030)"
+        ),
+        type="repair",
+        idempotent=True,
+    ),
 ]
 
 
@@ -230,6 +240,10 @@ async def run_migration(
             )
         elif request.command == MigrationCommand.repair_orphaned_claim_links:
             result = runner.repair_orphaned_claim_links(
+                dry_run=request.dry_run,
+            )
+        elif request.command == MigrationCommand.repair_kg_svo_repr_leak:
+            result = runner.repair_kg_svo_repr_leak(
                 dry_run=request.dry_run,
             )
         else:

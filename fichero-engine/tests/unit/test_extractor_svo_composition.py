@@ -16,9 +16,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from fichero.kg._common import parse_kwarg_repr
 from fichero.workflows.tools.extractors import (
     _normalize_kwarg_repr_fields,
-    _parse_kwarg_repr,
     _SectionDate,
     _SectionEvent,
     _SectionPerson,
@@ -393,11 +393,11 @@ def test_every_section_prompt_mentions_svo(section_name: str, artifact: str) -> 
 
 class TestParseKwargRepr:
     def test_parses_verb_object_repr(self) -> None:
-        parsed = _parse_kwarg_repr("verb='is', object='a long-abandoned mine'")
+        parsed = parse_kwarg_repr("verb='is', object='a long-abandoned mine'")
         assert parsed == {"verb": "is", "object": "a long-abandoned mine"}
 
     def test_parses_name_verb_object_repr(self) -> None:
-        parsed = _parse_kwarg_repr(
+        parsed = parse_kwarg_repr(
             "name='Eldorado', verb='is', object='a mine in Ontario, Canada'"
         )
         assert parsed == {
@@ -407,7 +407,7 @@ class TestParseKwargRepr:
         }
 
     def test_object_value_may_contain_commas_and_periods(self) -> None:
-        parsed = _parse_kwarg_repr(
+        parsed = parse_kwarg_repr(
             "verb='welcomed', object='my attempts to learn their craft.'"
         )
         assert parsed == {
@@ -416,13 +416,13 @@ class TestParseKwargRepr:
         }
 
     def test_double_quotes_also_parse(self) -> None:
-        parsed = _parse_kwarg_repr('verb="served as", object="the alcalde"')
+        parsed = parse_kwarg_repr('verb="served as", object="the alcalde"')
         assert parsed == {"verb": "served as", "object": "the alcalde"}
 
     def test_ordinary_prose_returns_none(self) -> None:
-        assert _parse_kwarg_repr("served as the alcalde of Popayán") is None
-        assert _parse_kwarg_repr("") is None
-        assert _parse_kwarg_repr("a region where mining occurs") is None
+        assert parse_kwarg_repr("served as the alcalde of Popayán") is None
+        assert parse_kwarg_repr("") is None
+        assert parse_kwarg_repr("a region where mining occurs") is None
 
 
 class TestNormalizeKwargReprFields:

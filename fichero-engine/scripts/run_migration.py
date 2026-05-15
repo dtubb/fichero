@@ -74,6 +74,7 @@ Examples:
             "list",
             "migrate_claims_to_multi_source",
             "repair_orphaned_claim_links",
+            "repair_kg_svo_repr_leak",
             "backfill_claim_source_metadata",
             "status",
             "rollback",
@@ -159,6 +160,15 @@ def list_migrations():
             "type": "repair",
             "idempotent": True,
         },
+        {
+            "name": "repair_kg_svo_repr_leak",
+            "description": (
+                "Repair claims/entities where a leaked kwarg-repr "
+                "(verb='X', object='Y') was stored verbatim (#1030)"
+            ),
+            "type": "repair",
+            "idempotent": True,
+        },
     ]
 
     print("\nAvailable migrations:")
@@ -202,6 +212,8 @@ def run_migration(
         )
     elif command == "repair_orphaned_claim_links":
         return runner.repair_orphaned_claim_links(dry_run=dry_run)
+    elif command == "repair_kg_svo_repr_leak":
+        return runner.repair_kg_svo_repr_leak(dry_run=dry_run)
     elif command == "backfill_claim_source_metadata":
         return runner.backfill_claim_source_metadata(
             dry_run=dry_run, batch_size=batch_size

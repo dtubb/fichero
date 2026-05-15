@@ -30,13 +30,13 @@ from fichero.knowledge_models import EntityType
 import asyncio
 import json
 import logging
-import re
 from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from fichero.db import db_manager
+from fichero.kg._common import parse_kwarg_repr
 from fichero.llm import LLMConfig, chat_structured_with_fallback
 from fichero.models import Artifact
 from fichero.workflows.registry import register_tool
@@ -1305,35 +1305,6 @@ async def _run_extractor(
     return result
 
 
-# Keys the extractor prompt uses in its kwarg-style examples
-# ("name='X', verb='Y', object='Z'"). Weaker / fallback models
-# sometimes echo that whole literal string back into a *single*
-# field instead of returning structured keys — see #1030.
-_KWARG_REPR_KEYS = ("name", "verb", "object")
-_KWARG_REPR_SEGMENT = re.compile(
-    r"(name|verb|object)\s*=\s*(['\"])(.*?)\2"
-    r"(?=\s*,\s*(?:name|verb|object)\s*=|\s*$)",
-    re.DOTALL,
-)
-
-
-def _parse_kwarg_repr(text: str) -> dict[str, str] | None:
-    """Parse a Python-kwarg-style repr like ``verb='is', object='a mine'``
-    into ``{"verb": "is", "object": "a mine"}``.
-
-    Returns None when ``text`` doesn't *start* with one of the known
-    extractor keys followed by ``=`` and a quote — i.e. it's ordinary
-    prose, not a leaked repr. (#1030)
-    """
-    s = (text or "").strip()
-    if not re.match(r"^(name|verb|object)\s*=\s*['\"]", s):
-        return None
-    out: dict[str, str] = {}
-    for m in _KWARG_REPR_SEGMENT.finditer(s):
-        out[m.group(1)] = m.group(3).strip()
-    return out or None
-
-
 def _normalize_kwarg_repr_fields(item: dict) -> dict:
     """Repair extractor items where the LLM dumped the prompt's
     kwarg-example format ("verb='X', object='Y'") into one field
@@ -1351,7 +1322,7 @@ def _normalize_kwarg_repr_fields(item: dict) -> dict:
         val = item.get(field)
         if not isinstance(val, str):
             continue
-        parsed = _parse_kwarg_repr(val)
+        parsed = parse_kwarg_repr(val)
         if not parsed:
             continue
         fixed = dict(item)

@@ -39,6 +39,7 @@ from typing import Callable, TypeVar
 from uuid import uuid4
 
 from fichero.db import Database
+from fichero.kg._common import parse_kwarg_repr
 from fichero.knowledge_models import (
     KnowledgeClaim,
     KnowledgeEntity,
@@ -447,6 +448,287 @@ class MigrationRunner:
             raise
 
         return result
+
+    def repair_kg_svo_repr_leak(
+        self,
+        dry_run: bool = False,
+    ) -> MigrationResult:
+        """Repair KG rows where a leaked kwarg-repr was stored verbatim.
+
+        Weaker / fallback LLMs sometimes echoed the prompt's kwarg example
+        ("verb='X', object='Y'") back into a single field. Before
+        ``extractors._normalize_kwarg_repr_fields`` caught it at write
+        time (#1030), the literal repr composed into
+        ``KnowledgeClaim.text``, ``predicate_verb``/``object_phrase``,
+        ``metadata['verb'/'object']``, ``source_excerpt``, and
+        ``KnowledgeEntity.description`` — rendering raw
+        ``verb='...', object='...'`` in the inspector and KG viewer.
+
+        For each polluted row this re-parses the repr, restores the
+        structured SVO fields, recomposes a readable text/description,
+        and clears the repr from ``source_excerpt`` (it was never a real
+        verbatim quote). Detection uses ``kg._common.parse_kwarg_repr``,
+        the same primitive the forward write-time guard uses.
+
+        Idempotent: rows that no longer parse as a repr are skipped.
+
+        Args:
+            dry_run: If True, only count what would be repaired.
+
+        Returns:
+            MigrationResult with counts and audit trail ID.
+        """
+        result = MigrationResult(
+            migration_name="repair_kg_svo_repr_leak",
+            status=MigrationStatus.running,
+            dry_run=dry_run,
+        )
+        try:
+            run_id = f"repair_{uuid4().hex[:8]}"
+            claims = self.db.all(KnowledgeClaim)
+            entities = self.db.all(KnowledgeEntity)
+
+            # Per-row try/except: a single bad row must not abort the
+            # whole cleanup — the migration may persist a row mutation
+            # *before* its audit-log row writes, so an abort on row N+1
+            # would leave N's mutation un-audited and unrecoverable.
+            # The failed counter + the logged id give operators what
+            # they need to recover.
+            claims_repaired = 0
+            for claim in claims:
+                try:
+                    if self._repair_claim_svo_repr(claim, dry_run, run_id):
+                        claims_repaired += 1
+                        result.migrated += 1
+                    else:
+                        result.skipped += 1
+                except Exception as row_err:
+                    logger.error(
+                        "SVO repr repair: claim %s failed — mutation may be "
+                        "saved without an audit row: %s",
+                        claim.id,
+                        row_err,
+                    )
+                    result.failed += 1
+
+            entities_repaired = 0
+            for entity in entities:
+                try:
+                    if self._repair_entity_svo_repr(entity, dry_run, run_id):
+                        entities_repaired += 1
+                        result.migrated += 1
+                    else:
+                        result.skipped += 1
+                except Exception as row_err:
+                    logger.error(
+                        "SVO repr repair: entity %s failed — mutation may be "
+                        "saved without an audit row: %s",
+                        entity.id,
+                        row_err,
+                    )
+                    result.failed += 1
+
+            result.status = MigrationStatus.completed
+            result.completed_at = datetime.now()
+            if result.migrated and not dry_run:
+                result.audit_id = run_id
+            result.details = {
+                "run_id": run_id,
+                "total_claims": len(claims),
+                "total_entities": len(entities),
+                "claims_repaired": claims_repaired,
+                "entities_repaired": entities_repaired,
+            }
+
+            logger.info(
+                f"SVO repr repair complete: {claims_repaired} claims, "
+                f"{entities_repaired} entities repaired, "
+                f"{result.skipped} skipped"
+            )
+
+        except Exception as e:
+            result.status = MigrationStatus.failed
+            result.error_message = str(e)
+            result.completed_at = datetime.now()
+            logger.error(f"SVO repr repair failed: {e}")
+            raise
+
+        return result
+
+    def _repair_claim_svo_repr(
+        self,
+        claim: KnowledgeClaim,
+        dry_run: bool,
+        run_id: str,
+    ) -> list[str]:
+        """Repair leaked SVO repr in a single claim. Returns the list of
+        changed field names (empty when nothing needs repair)."""
+        meta = claim.metadata or {}
+        parsed = (
+            parse_kwarg_repr(claim.text)
+            or parse_kwarg_repr(claim.predicate_verb or "")
+            or parse_kwarg_repr(claim.object_phrase or "")
+            or parse_kwarg_repr(str(meta.get("verb") or ""))
+            or parse_kwarg_repr(str(meta.get("object") or ""))
+            or parse_kwarg_repr(claim.source_excerpt or "")
+        )
+        if not parsed:
+            return []
+
+        verb = (parsed.get("verb") or "").strip()
+        obj = (parsed.get("object") or "").strip()
+        # A repr that yielded neither verb nor object carries no
+        # recoverable SVO — leave the row for manual review rather than
+        # blanking it.
+        if not verb and not obj:
+            return []
+
+        new_predicate_verb = claim.predicate_verb
+        if verb and (
+            not claim.predicate_verb or parse_kwarg_repr(claim.predicate_verb)
+        ):
+            new_predicate_verb = verb
+
+        new_object_phrase = claim.object_phrase
+        if obj and (
+            not claim.object_phrase or parse_kwarg_repr(claim.object_phrase)
+        ):
+            new_object_phrase = obj
+
+        new_meta = dict(meta)
+        if verb and (
+            not new_meta.get("verb")
+            or parse_kwarg_repr(str(new_meta.get("verb")))
+        ):
+            new_meta["verb"] = verb
+        if obj and (
+            not new_meta.get("object")
+            or parse_kwarg_repr(str(new_meta.get("object")))
+        ):
+            new_meta["object"] = obj
+
+        new_excerpt = claim.source_excerpt
+        if claim.source_excerpt and parse_kwarg_repr(claim.source_excerpt):
+            new_excerpt = None
+
+        new_text = claim.text
+        if parse_kwarg_repr(claim.text):
+            predicate = f"{verb} {obj}".strip()
+            # Date-style claims have no entity_ids and were composed
+            # as "{stem}: {verb} {obj}." — mirror that shape on repair.
+            is_date_claim = not claim.entity_ids and bool(
+                new_meta.get("date_text") or new_meta.get("date_normalized")
+            )
+            if is_date_claim:
+                stem = str(
+                    new_meta.get("subject")
+                    or new_meta.get("date_normalized")
+                    or new_meta.get("date_text")
+                    or ""
+                ).strip()
+                if stem and predicate:
+                    new_text = f"{stem}: {predicate}."
+                else:
+                    new_text = stem or predicate
+            else:
+                subject = str(
+                    claim.subject_canonical or new_meta.get("subject") or ""
+                ).strip()
+                if subject and predicate:
+                    new_text = f"{subject} {predicate}."
+                else:
+                    new_text = subject or predicate
+
+        changed: list[str] = []
+        if new_text != claim.text:
+            changed.append("text")
+        if new_predicate_verb != claim.predicate_verb:
+            changed.append("predicate_verb")
+        if new_object_phrase != claim.object_phrase:
+            changed.append("object_phrase")
+        if new_meta != meta:
+            changed.append("metadata")
+        if new_excerpt != claim.source_excerpt:
+            changed.append("source_excerpt")
+
+        if not changed or dry_run:
+            return changed
+
+        before_state = {
+            "text": claim.text,
+            "predicate_verb": claim.predicate_verb,
+            "object_phrase": claim.object_phrase,
+            "source_excerpt": claim.source_excerpt,
+            "metadata": dict(meta),
+        }
+        claim.text = new_text
+        claim.predicate_verb = new_predicate_verb
+        claim.object_phrase = new_object_phrase
+        claim.metadata = new_meta
+        claim.source_excerpt = new_excerpt
+        self.db.save(claim)
+        logger.info(
+            "SVO repr repair: claim %s fields %s rewritten",
+            claim.id,
+            ",".join(changed),
+        )
+        self._log_mutation(
+            entity_type="KnowledgeClaim",
+            entity_id=claim.id,
+            operation=MutationOperationType.update,
+            before_state=before_state,
+            after_state={
+                "text": claim.text,
+                "predicate_verb": claim.predicate_verb,
+                "object_phrase": claim.object_phrase,
+                "source_excerpt": claim.source_excerpt,
+                "metadata": dict(claim.metadata or {}),
+            },
+            changed_fields=changed,
+            run_id=run_id,
+        )
+        return changed
+
+    def _repair_entity_svo_repr(
+        self,
+        entity: KnowledgeEntity,
+        dry_run: bool,
+        run_id: str,
+    ) -> list[str]:
+        """Repair leaked SVO repr in a single entity's description."""
+        if not entity.description:
+            return []
+        parsed = parse_kwarg_repr(entity.description)
+        if not parsed:
+            return []
+        verb = (parsed.get("verb") or "").strip()
+        obj = (parsed.get("object") or "").strip()
+        # Mirror the claim-side guard: a repr that parsed but yielded
+        # neither verb nor object has no recoverable SVO. Leave the row
+        # for manual review rather than blanking the description.
+        if not verb and not obj:
+            return []
+        new_description = f"{verb} {obj}".strip()
+        if not new_description or new_description == entity.description:
+            return []
+        if dry_run:
+            return ["description"]
+        before_state = {"description": entity.description}
+        entity.description = new_description
+        self.db.save(entity)
+        self._log_mutation(
+            entity_type="KnowledgeEntity",
+            entity_id=entity.id,
+            operation=MutationOperationType.update,
+            before_state=before_state,
+            after_state={"description": entity.description},
+            changed_fields=["description"],
+            run_id=run_id,
+        )
+        logger.info(
+            "SVO repr repair: entity %s description rewritten", entity.id
+        )
+        return ["description"]
 
     def rollback(self, run_id: str) -> RollbackResult:
         """Rollback mutations from a migration run.

@@ -519,3 +519,247 @@ class TestDataIntegrityChecks:
 
         assert len(orphaned) == 1
         assert orphaned[0].id == "ent2"
+
+
+class TestRepairKgSvoReprLeak:
+    """Tests for repair_kg_svo_repr_leak — the #1030 cleanup of rows where
+    a leaked kwarg-repr ("verb='X', object='Y'") was stored verbatim."""
+
+    def test_dry_run_counts_polluted_rows_without_mutation(
+        self, migration_runner, mock_db
+    ):
+        polluted_claim = KnowledgeClaim(
+            id="c-polluted",
+            text="verb='worked as', object='a journalist at a local paper.'",
+            source_document_id="doc1",
+            subject_canonical="Louise Livingstone",
+            entity_ids=["e-louise"],
+        )
+        clean_claim = KnowledgeClaim(
+            id="c-clean",
+            text="Leidy cleared gravel from a wooden sluice.",
+            source_document_id="doc1",
+        )
+        polluted_entity = KnowledgeEntity(
+            id="e-eldorado",
+            canonical_name="Eldorado",
+            description="verb='is', object='a long-abandoned mine.'",
+        )
+        clean_entity = KnowledgeEntity(
+            id="e-louise",
+            canonical_name="Louise Livingstone",
+            description="worked as a journalist",
+        )
+        mock_db.all.side_effect = [
+            [polluted_claim, clean_claim],
+            [polluted_entity, clean_entity],
+        ]
+
+        result = migration_runner.repair_kg_svo_repr_leak(dry_run=True)
+
+        assert result.status == MigrationStatus.completed
+        assert result.migrated == 2  # one claim + one entity
+        assert result.skipped == 2
+        assert result.audit_id is None  # dry-run does not allocate audit
+        mock_db.save.assert_not_called()
+
+    def test_repairs_entity_bearing_claim_text(self, migration_runner, mock_db):
+        polluted = KnowledgeClaim(
+            id="c1",
+            text="verb='worked as', object='a journalist at a local paper.'",
+            source_document_id="doc1",
+            subject_canonical="Louise Livingstone",
+            entity_ids=["e-louise"],
+        )
+        mock_db.all.side_effect = [[polluted], []]
+
+        result = migration_runner.repair_kg_svo_repr_leak(dry_run=False)
+
+        assert result.migrated == 1
+        assert result.audit_id is not None
+        assert polluted.predicate_verb == "worked as"
+        assert polluted.object_phrase == "a journalist at a local paper."
+        assert polluted.text == (
+            "Louise Livingstone worked as a journalist at a local paper.."
+        )
+        assert polluted.metadata.get("verb") == "worked as"
+        # Claim saved once, mutation logged once.
+        save_calls = [c for c in mock_db.save.call_args_list if c.args]
+        assert any(c.args[0] is polluted for c in save_calls)
+
+    def test_repairs_date_style_claim_with_stem_prefix(
+        self, migration_runner, mock_db
+    ):
+        polluted = KnowledgeClaim(
+            id="c-date",
+            text="verb='occurred in', object='Eastern Ontario.'",
+            source_document_id="doc1",
+            entity_ids=[],  # date-style claims have no entity_ids
+            metadata={"date_normalized": "1933-01-01", "subject": "1933-01-01"},
+        )
+        mock_db.all.side_effect = [[polluted], []]
+
+        result = migration_runner.repair_kg_svo_repr_leak(dry_run=False)
+
+        assert result.migrated == 1
+        # Date claims use "{stem}: {verb} {obj}." per extractors._write_kg_rows.
+        assert polluted.text == "1933-01-01: occurred in Eastern Ontario.."
+        assert polluted.predicate_verb == "occurred in"
+
+    def test_repairs_entity_description(self, migration_runner, mock_db):
+        polluted = KnowledgeEntity(
+            id="e-eldorado",
+            canonical_name="Eldorado",
+            description=(
+                "verb='is', object='a long-abandoned mine in Eastern Ontario.'"
+            ),
+        )
+        mock_db.all.side_effect = [[], [polluted]]
+
+        result = migration_runner.repair_kg_svo_repr_leak(dry_run=False)
+
+        assert result.migrated == 1
+        assert polluted.description == (
+            "is a long-abandoned mine in Eastern Ontario."
+        )
+
+    def test_clears_repr_from_source_excerpt(self, migration_runner, mock_db):
+        polluted = KnowledgeClaim(
+            id="c-excerpt",
+            text="Leidy cleared gravel.",
+            source_document_id="doc1",
+            source_excerpt="verb='cleared', object='gravel from a sluice.'",
+            subject_canonical="Leidy",
+            entity_ids=["e-leidy"],
+        )
+        mock_db.all.side_effect = [[polluted], []]
+
+        result = migration_runner.repair_kg_svo_repr_leak(dry_run=False)
+
+        assert result.migrated == 1
+        # source_excerpt holding a repr was never a real verbatim quote.
+        assert polluted.source_excerpt is None
+        # text was already clean — leave it alone.
+        assert polluted.text == "Leidy cleared gravel."
+
+    def test_idempotent_second_run_is_noop(self, migration_runner, mock_db):
+        """A claim repaired on the first run is skipped on the second."""
+        polluted = KnowledgeClaim(
+            id="c-once",
+            text="verb='worked as', object='a journalist.'",
+            source_document_id="doc1",
+            subject_canonical="Louise",
+            entity_ids=["e-louise"],
+        )
+        mock_db.all.side_effect = [[polluted], []]
+        first = migration_runner.repair_kg_svo_repr_leak(dry_run=False)
+        assert first.migrated == 1
+
+        # Second pass: same (now-repaired) row. Should be skipped.
+        mock_db.all.side_effect = [[polluted], []]
+        second = migration_runner.repair_kg_svo_repr_leak(dry_run=False)
+        assert second.migrated == 0
+        assert second.skipped == 1
+        assert second.audit_id is None  # no mutations → no audit id
+
+    def test_repr_with_no_recoverable_svo_is_skipped(
+        self, migration_runner, mock_db
+    ):
+        """A repr that yielded neither verb nor object is left for review,
+        not blanked."""
+        # Whitespace-only values inside the quotes.
+        polluted = KnowledgeClaim(
+            id="c-empty-svo",
+            text="verb='', object=''",
+            source_document_id="doc1",
+            subject_canonical="X",
+            entity_ids=["e-x"],
+        )
+        mock_db.all.side_effect = [[polluted], []]
+
+        result = migration_runner.repair_kg_svo_repr_leak(dry_run=False)
+
+        assert result.migrated == 0
+        assert result.skipped == 1
+        assert polluted.text == "verb='', object=''"  # unchanged
+        mock_db.save.assert_not_called()
+
+    def test_entity_repr_with_empty_svo_preserves_description(
+        self, migration_runner, mock_db
+    ):
+        """Entity-side mirror of the claim guard: an empty-SVO repr in
+        entity.description must not null the field."""
+        polluted = KnowledgeEntity(
+            id="e-empty-svo",
+            canonical_name="Empty",
+            description="verb='', object=''",
+        )
+        mock_db.all.side_effect = [[], [polluted]]
+
+        result = migration_runner.repair_kg_svo_repr_leak(dry_run=False)
+
+        assert result.migrated == 0
+        assert result.skipped == 1
+        assert polluted.description == "verb='', object=''"  # unchanged
+        mock_db.save.assert_not_called()
+
+    def test_continues_past_single_row_failure(self, migration_runner, mock_db):
+        """A bad row (e.g. db.save raises) must not abort the whole run —
+        increments result.failed, logs the id, continues."""
+        first = KnowledgeClaim(
+            id="c-explodes",
+            text="verb='broke', object='things.'",
+            source_document_id="doc1",
+            subject_canonical="X",
+            entity_ids=["e-x"],
+        )
+        second = KnowledgeClaim(
+            id="c-survives",
+            text="verb='kept', object='going.'",
+            source_document_id="doc1",
+            subject_canonical="Y",
+            entity_ids=["e-y"],
+        )
+        mock_db.all.side_effect = [[first, second], []]
+        # First save raises; second succeeds. The mutation-log save also
+        # uses db.save, so structure the side_effect to fail only on the
+        # first claim.save and succeed thereafter.
+        calls: list = []
+
+        def save_side_effect(obj):
+            calls.append(obj)
+            if obj is first:
+                raise RuntimeError("db error on first row")
+            return None
+
+        mock_db.save.side_effect = save_side_effect
+
+        result = migration_runner.repair_kg_svo_repr_leak(dry_run=False)
+
+        # Run completed (did not abort), failed counter recorded the bad
+        # row, the second row was still repaired.
+        assert result.status == MigrationStatus.completed
+        assert result.failed == 1
+        assert result.migrated == 1
+        assert second.text == "Y kept going.."
+
+    def test_clean_corpus_is_no_op(self, migration_runner, mock_db):
+        """A corpus with no polluted rows results in 0 migrated, no saves."""
+        clean_claim = KnowledgeClaim(
+            id="c1",
+            text="The miner worked the sluice.",
+            source_document_id="doc1",
+        )
+        clean_entity = KnowledgeEntity(
+            id="e1",
+            canonical_name="Miner",
+            description="a person who works a mine",
+        )
+        mock_db.all.side_effect = [[clean_claim], [clean_entity]]
+
+        result = migration_runner.repair_kg_svo_repr_leak(dry_run=False)
+
+        assert result.status == MigrationStatus.completed
+        assert result.migrated == 0
+        assert result.skipped == 2
+        mock_db.save.assert_not_called()
