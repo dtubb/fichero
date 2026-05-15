@@ -275,15 +275,86 @@ def artifacts_get(
     typer.echo(artifact.content if artifact.content is not None else "(no content)")
 
 
+# Backend accepts only these search types (#1107). `keyword` is a friendly
+# alias for `fulltext` so users with that mental model don't get a 400.
+_SEARCH_TYPE_CHOICES = ("semantic", "fulltext", "hybrid", "keyword")
+_SEARCH_TYPE_ALIASES = {"keyword": "fulltext"}
+
+
+def _validate_search_type(value: str) -> str:
+    """Typer callback — accept the four choices, normalize aliases."""
+    normalized = (value or "").lower()
+    if normalized not in _SEARCH_TYPE_CHOICES:
+        raise typer.BadParameter(
+            f"'{value}' is not one of {list(_SEARCH_TYPE_CHOICES)}."
+        )
+    return _SEARCH_TYPE_ALIASES.get(normalized, normalized)
+
+
 @app.command()
 def search(
     ctx: typer.Context,
     query: str = typer.Argument(..., help="Search query."),
     limit: int = typer.Option(10, "--limit"),
-    search_type: str = typer.Option("hybrid", "--type", help="Search mode."),
+    search_type: str = typer.Option(
+        "hybrid",
+        "--type",
+        help="Search mode: [semantic | fulltext (alias: keyword) | hybrid].",
+        callback=_validate_search_type,
+    ),
 ) -> None:
     """Search documents."""
-    _invoke(ctx, lambda c: c.search(query, limit=limit, search_type=search_type))
+    if ctx.obj["json"]:
+        _invoke(ctx, lambda c: c.search(query, limit=limit, search_type=search_type))
+        return
+    try:
+        with _client(ctx) as client:
+            data = client.search(query, limit=limit, search_type=search_type)
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(_render_search_results(data))
+
+
+def _render_search_results(data: Any) -> str:
+    """Pretty-print a search response — score, doc id, name, preview, highlights.
+
+    The default renderer would print ``- (item)`` for each result because the
+    backend ``SearchResult`` shape uses ``document_id``/``content_preview`` and
+    nests the human label under ``metadata.name`` — neither matches the
+    renderer's ID/LABEL key lists. This bespoke formatter keeps ``--json``
+    untouched (handled in ``search()``) and only changes human output. (#1106)
+    """
+    results = data.get("results") if isinstance(data, dict) else data
+    if not isinstance(results, list) or not results:
+        return "results: (empty)"
+    lines = [f"results ({len(results)}):"]
+    for r in results:
+        if not isinstance(r, dict):
+            lines.append(f"  - {r}")
+            continue
+        score = r.get("score")
+        score_str = f"{score:.3f}" if isinstance(score, (int, float)) else "  -  "
+        doc_id = str(r.get("document_id") or r.get("id") or "?")
+        doc_id_short = doc_id[:8]
+        meta = r.get("metadata") if isinstance(r.get("metadata"), dict) else {}
+        name = meta.get("name") or meta.get("title") or meta.get("filename")
+        if not name:
+            path = meta.get("path") or ""
+            name = path.rsplit("/", 1)[-1] if path else "(unnamed)"
+        preview = (r.get("content_preview") or "").strip().replace("\n", " ")
+        if len(preview) > 80:
+            preview = preview[:80] + "…"
+        lines.append(f"  {score_str}  {doc_id_short}  {name}")
+        if preview:
+            lines.append(f"              {preview}")
+        highlights = r.get("highlights") or []
+        if isinstance(highlights, list) and highlights:
+            joined = " / ".join(str(h).strip().replace("\n", " ") for h in highlights[:2])
+            if len(joined) > 120:
+                joined = joined[:120] + "…"
+            lines.append(f"              highlights: {joined}")
+    return "\n".join(lines)
 
 
 @app.command()
@@ -553,7 +624,57 @@ def workflow_run(
     except FicheroError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
-    typer.echo(render(result, as_json=ctx.obj["json"]))
+    if ctx.obj["json"]:
+        typer.echo(render(result, as_json=True))
+    else:
+        # Strip LangGraph implementation details from human output (#1081).
+        # `--json` keeps the raw payload for diagnostics.
+        typer.echo(render(_scrub_langgraph_internals(result)))
+
+
+# Keys the executor exposes that aren't user-facing — see backend
+# ``_is_internal_langchain_node`` in workflow runner; we filter the same set
+# here on the CLI render side. (#1081, MEMORY: langgraph_node_display)
+_LANGGRAPH_INTERNAL_KEYS = frozenset(
+    {
+        "__pregel_tasks",
+        "parallel_results",
+        "__interrupt__",
+        "__metadata__",
+    }
+)
+
+
+def _is_internal_langgraph_key(key: Any) -> bool:
+    if not isinstance(key, str):
+        return False
+    if key.startswith("__"):
+        return True
+    if key.startswith("branch:to:"):
+        return True
+    return key in _LANGGRAPH_INTERNAL_KEYS
+
+
+def _scrub_langgraph_internals(data: Any) -> Any:
+    """Recursively drop LangGraph-internal keys from a payload.
+
+    Operates on the typed model dump (or raw dict) returned by ``workflow run``
+    and walks ``current_state`` plus any nested dicts/lists. Returns a new
+    structure — the input is not mutated.
+    """
+    from pydantic import BaseModel
+
+    if isinstance(data, BaseModel):
+        data = data.model_dump(mode="json")
+    if isinstance(data, dict):
+        return {
+            k: _scrub_langgraph_internals(v)
+            for k, v in data.items()
+            if not _is_internal_langgraph_key(k)
+        }
+    if isinstance(data, list):
+        return [_scrub_langgraph_internals(item) for item in data]
+    return data
 
 
 # -- knowledge graph -------------------------------------------------------
