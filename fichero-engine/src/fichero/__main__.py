@@ -182,13 +182,18 @@ def workflow_list(ctx: typer.Context) -> None:
 
 
 def _resolve_workflow(client: FicheroClient, name: str) -> str:
-    """Resolve a workflow name (or ID) to its ID."""
-    workflows = client.list_workflows() or []
+    """Resolve a workflow name (or ID) to its ID.
+
+    ``list_workflows()`` now returns ``list[Workflow]`` (typed Pydantic
+    instances), so this matches by attribute access — not dict access.
+    """
+    workflows = client.list_workflows()
+    needle = name.lower()
     for workflow in workflows:
-        if str(workflow.get("name", "")).lower() == name.lower():
-            return str(workflow["id"])
+        if (workflow.name or "").lower() == needle:
+            return workflow.id
     for workflow in workflows:
-        if str(workflow.get("id")) == name:
+        if workflow.id == name:
             return name
     raise FicheroError(
         f"No workflow named '{name}'. Run 'fichero workflow list' to see options."

@@ -14,6 +14,7 @@ from typer.testing import CliRunner
 from fichero import __main__ as cli
 from fichero.cli import FicheroError
 from fichero.cli.formatters import render
+from fichero.models import Workflow
 
 runner = CliRunner()
 
@@ -55,10 +56,13 @@ class FakeClient:
         return {"id": "d99", "filename": str(path)}
 
     def list_workflows(self):
+        # Real FicheroClient.list_workflows() returns list[Workflow]; the fake
+        # must match the typed contract or _resolve_workflow's attribute access
+        # fails.
         self.calls.append(("list_workflows",))
         return [
-            {"id": "wf-1", "name": "Catalogue"},
-            {"id": "wf-2", "name": "Transcribe"},
+            Workflow.model_validate({"id": "wf-1", "name": "Catalogue"}),
+            Workflow.model_validate({"id": "wf-2", "name": "Transcribe"}),
         ]
 
     def run_workflow(self, workflow_id, inputs=None, **kw):
