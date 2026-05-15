@@ -26,7 +26,7 @@ from typing import Any
 
 import httpx
 
-from fichero.models import Artifact, Document, Workflow
+from fichero.models import Artifact, Document, LibraryCreateResponse, Workflow
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8765"
 
@@ -171,6 +171,17 @@ class FicheroClient:
     def health(self) -> Any:
         return self.request("GET", "/api/health")
 
+    # -- library bootstrap ------------------------------------------------
+    def create_library(self, path: str) -> LibraryCreateResponse:
+        """Create a fresh ``.fichero`` package and initialize its tables.
+
+        The library-create endpoint does NOT require an
+        ``X-Fichero-Library-Path`` header — the path goes in the body —
+        so this works before any library exists.
+        """
+        raw = self.request("POST", "/api/library", json={"path": path})
+        return LibraryCreateResponse.model_validate(raw)
+
     # -- documents ---------------------------------------------------------
     def list_documents(
         self,
@@ -246,6 +257,19 @@ class FicheroClient:
         )
 
     # -- artifacts ---------------------------------------------------------
+    def get_artifact(self, artifact_id: str) -> Artifact:
+        """Fetch a single artifact by ID.
+
+        Backed by ``GET /api/artifacts/{artifact_id}`` (see
+        ``fichero/api/routes/artifacts.py::get_artifact``). The route returns
+        the same shape as items in the document-scoped list, so we validate
+        into the existing ``Artifact`` model — same drift-loud contract as
+        ``list_artifacts``.
+        """
+        return Artifact.model_validate(
+            self.request("GET", f"/api/artifacts/{artifact_id}")
+        )
+
     def list_artifacts(
         self,
         doc_id: str,
@@ -345,3 +369,25 @@ class FicheroClient:
     # -- activity ----------------------------------------------------------
     def recent_activity(self, *, limit: int = 50) -> Any:
         return self.request("GET", "/api/activity/recent", params={"limit": limit})
+
+    def list_activities(
+        self,
+        *,
+        thread_id: str | None = None,
+        types: str | None = None,
+        limit: int = 100,
+    ) -> Any:
+        """Query the durable activity log.
+
+        Used by ``workflow run --wait`` because the checkpoint-based status
+        endpoint reports ``completed`` whenever there are no pending writes —
+        which is also true between nodes mid-run (see
+        MEMORY: workflow_checkpoint_races_activity, #1088). The activity log,
+        in contrast, only emits ``workflow_completed`` / ``workflow_failed`` /
+        ``workflow_cancelled`` once the executor itself has finished.
+        """
+        return self.request(
+            "GET",
+            "/api/activity",
+            params={"thread_id": thread_id, "types": types, "limit": limit},
+        )

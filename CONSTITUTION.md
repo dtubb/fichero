@@ -71,7 +71,8 @@ SwiftUI app    fichero CLI    MCP server    (iPad / web — future)
 ```
 
 - **`fichero-engine/`** — Python FastAPI engine. All logic lives here: storage, AI processing, search, workflow execution, knowledge graph, LLM orchestration.
-- **`fichero/`** — SwiftUI macOS app (Xcode project at `fichero/fichero.xcodeproj`) plus the typed `fichero` CLI under `fichero/cli/`.
+- **`fichero/`** — SwiftUI macOS app (Xcode project at `fichero/fichero.xcodeproj`).
+- **`fichero` CLI** — typed Python CLI at `fichero-engine/src/fichero/cli/` (ships inside the engine package; invoked as `python -m fichero`).
 - **MCP server** — planned / in flight; another thin client on the engine.
 - **OpenAPI schema** — the contract between the engine and every surface. The Swift client is auto-generated from the engine's schema; the CLI is typed against it. When the engine changes, regenerate — never edit generated code by hand.
 

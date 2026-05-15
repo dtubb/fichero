@@ -262,8 +262,8 @@ def _seed_builtin_providers() -> None:
 def _ensure_default_ai_defaults(app_db, apple_provider_id: str) -> None:
     """Populate AI Defaults if missing — Apple Intelligence everywhere.
 
-    On a fresh install the \`default_*_provider\` / \`default_*_model\`
-    settings are unset, so workflows using \$small / \$medium / \$large
+    On a fresh install the `default_*_provider` / `default_*_model`
+    settings are unset, so workflows using $small / $medium / $large
     placeholders fail immediately with "no default model configured"
     (#932 first-run blocker).
 
@@ -690,6 +690,7 @@ from fichero.api.routes import (  # noqa: E402
     kg_search,
     kg_sparql,
     kg_triangulation,
+    library,
     local_models,
     mcp_servers,
     mcp_tools,
@@ -739,6 +740,9 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (entities.router, "/api", ["entities"]),
     (folders.router, "/api/folders", ["folders"]),
     (ingest.router, "/api/ingest", ["ingest"]),
+    # /api/library — bootstrap a fresh .fichero package from the CLI
+    # without going through SwiftUI's NSDocument flow (#1075 follow-up).
+    (library.router, "/api", ["library"]),
     (migrations.router, "/api/migrations", ["migrations"]),
     (mcp_tools.router, "/api/mcp/tools", ["mcp"]),
     (multilingual.router, "/api", ["multilingual"]),

@@ -9,7 +9,7 @@ Fichero is a single backend engine ("engine is logic; clients are display surfac
 ```
 ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
 │  SwiftUI app     │  │  fichero CLI     │  │  MCP server      │
-│  (fichero/)      │  │  (fichero/cli/)  │  │  (planned)       │
+│  (fichero/)      │  │  (fichero-engine/src/fichero/cli/)  │  │  (planned)       │
 └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘
          │                     │                     │
          └─────────────────────┴─────────────────────┘
@@ -36,7 +36,7 @@ All surfaces are thin clients on the engine. They render and accept input; they 
 | Surface | Path | Status |
 |---|---|---|
 | SwiftUI app | `fichero/` (Xcode project: `fichero/fichero.xcodeproj`) | Live |
-| `fichero` CLI | `fichero/cli/` | Live (typed, end-to-end verified) |
+| `fichero` CLI | `fichero-engine/src/fichero/cli/` | Live (typed, end-to-end verified) |
 | MCP server | `fichero-engine/` (planned / in flight) | Coming |
 | iPad app | future | Planned |
 | Web client | future | Planned |
@@ -128,7 +128,7 @@ docs = ingest_folder(
 ## Project Structure
 
 - `fichero-engine/` — FastAPI backend, workflow runner, KG, ingest ([README](fichero-engine/README.md))
-- `fichero/` — SwiftUI app, Xcode project, and `fichero` CLI under `fichero/cli/`
+- `fichero/` — SwiftUI app, Xcode project, and `fichero` CLI under `fichero-engine/src/fichero/cli/`
 - `docs/agent-workflow/` — Agent workflow docs, task list, and templates
 
 ### Top-level folder ownership
@@ -171,7 +171,7 @@ Models/            # Swift data models
 Resources/         # Assets, config
 ```
 
-### CLI (`fichero/cli/`)
+### CLI (`fichero-engine/src/fichero/cli/`)
 
 Typed Python CLI mirroring the engine's HTTP surface. Used as the engine-quality comparison loop against the SwiftUI app — every endpoint reachable from the app should be reachable from the CLI.
 

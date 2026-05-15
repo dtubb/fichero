@@ -255,7 +255,7 @@ Workflow execution runs on a worker thread (post-#1000); per-thread `db_manager`
 
 ## CLI as Verification Surface
 
-The typed `fichero` CLI (`fichero/cli/`) mirrors the engine's HTTP surface. Use it as the engine-quality comparison loop:
+The typed `fichero` CLI (`fichero-engine/src/fichero/cli/`; ships inside the engine package, invoked via `python -m fichero`) mirrors the engine's HTTP surface. Use it as the engine-quality comparison loop:
 
 - Every endpoint reachable from the SwiftUI app should be reachable from the CLI.
 - Endpoint parity (CLI ↔ SwiftUI) is a per-session check item.

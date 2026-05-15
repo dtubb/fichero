@@ -26,7 +26,7 @@ Fichero engine (fichero-engine/)
     ↑ HTTP localhost:8765
 Display surfaces (thin clients on the engine)
     ├── SwiftUI app (fichero/ — three-column native macOS)
-    ├── fichero CLI (fichero/cli/ — typed, mirrors the HTTP surface)
+    ├── fichero CLI (fichero-engine/src/fichero/cli/ — typed, mirrors the HTTP surface; `python -m fichero`)
     ├── MCP server (planned / in flight — for agent tooling)
     └── future: iPad app, web client
     ↓ future integration

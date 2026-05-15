@@ -20,6 +20,19 @@ Backend = logic; CLI / SwiftUI / future iPad / web = display surfaces only. Ever
 2. **First end-to-end comparison run.** Once #1074's fixed: `fichero workflow run Catalogue <preface-pdf-id> --wait`. Pull `artifacts <id>` and `kg entities <id>`. Read the Preface PDF directly. Compare. Write findings to `agent-work/proposals/engine-quality-2026-05-15.md` and file specific bugs for each gap.
 3. **CLI ↔ SwiftUI endpoint parity** (Daniel 2026-05-15): for every endpoint the SwiftUI app uses across workflows / activity / search / library / KG, the CLI must have a corresponding typed command. Audit `fichero/fichero/Services/*Generated.swift` against `fichero/cli/client.py` — every endpoint SwiftUI calls should be reachable from the CLI, typed against the same Pydantic response model the backend declares. This is the "two surfaces, one ground truth" principle: any drift between what the CLI sees and what SwiftUI sees is a bug. Type these next: `document_inspector` → `DocumentInspectorResponse`; new `document_knowledge_graph` method for the #1068 endpoint (`DocumentKnowledgeGraphResponse` — endpoint shipped, CLI doesn't expose it); `search`, `recent_activity`, KG-search/entities/claims; activity (recent + filtered); workflow execution stream / status. Each typed method unlocks a comparison surface.
 
+### Constitution / governance docs drift (audit 2026-05-15)
+
+`CLAUDE.md` / `.claude/CLAUDE.md` / `docs/CLAUDE.md` are current (May 14). Everything else lags this week's work — the CLI merge, "engine is logic; clients display", autonomous loops, per-commit gates, manager pattern. Priority order:
+
+1. **README.md — HIGH.** Still references `fichero-api/` and `fichero-swiftui/` paths from before the repo split — actively misleads. Replace with `fichero-engine/` and `fichero/` throughout. Add a **Surfaces** section (SwiftUI app / `fichero` CLI / MCP server, all thin clients on the engine). Add Knowledge Graph + CLI/MCP to Features.
+2. **AGENTS.md — MEDIUM.** Wrong paths in build commands. Missing: Per-Commit Gates section (pytest+ruff+code-reviewer+silent-failure-hunter+security), Manager Pattern section (delegate to subagents), Autonomous Loop section (tmux + `agent-autonomous-loop.py` + ScheduleWakeup + BLOCK.md), CLI as Verification Surface.
+3. **CONSTITUTION.md — MEDIUM.** "Two codebases" framing wrong (3+ surfaces). Add Hard Constraint: *all logic in the engine; clients render only*. Refresh diagram for one-engine / many-surfaces.
+4. **VISION.md — MEDIUM.** "Phase 0 Feb 2026" stale; mid-0.0.2 with workflows, KG endpoints, CLI, autonomous loops live. Add Display Surfaces subsection naming CLI/MCP/SwiftUI + iPad/web as future. Point versioning at GitHub Milestones.
+5. **SOUL.md — LOW.** Rename "two codebases must stay in sync" to "engine is the only place logic lives".
+6. **USER.md — LOW.** One line that Daniel drives CLI/MCP directly; "multiple surfaces, one engine" bullet.
+
+Approach: delegate the edits to one subagent per file (or one subagent for all six) with the audit findings as the spec. Review each diff, gate as usual.
+
 ### Parallel 0.0.2 track (no CLI/workflow dependency)
 
 The #1072 audit identified three HIGH clusters of misplaced SwiftUI logic: **artifacts**, **workflow runs**, **model/provider capability**. Phase B shipped the canonical KG endpoint (#1068/#1069/#1047/#1050). Remaining picks that are pytest-verifiable: **#1075** (list-endpoint envelope standardization), the audit clusters' remaining backend endpoints. Swift wiring (Phase C) stays deferred per Daniel.

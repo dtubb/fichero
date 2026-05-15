@@ -964,6 +964,37 @@ class LibrarySnapshot(BaseModel):
 
 
 # =============================================================================
+# Library bootstrap (CLI / API)
+# =============================================================================
+
+
+class LibraryCreateRequest(BaseModel):
+    """Request body for ``POST /api/library`` — bootstrap a fresh library.
+
+    The path must end in ``.fichero`` and be inside one of the allowlist
+    roots enforced by ``fichero.api.main._is_allowed_library_path``. The
+    server expands ``~`` and validates before touching the filesystem.
+    """
+
+    path: str
+
+
+class LibraryCreateResponse(BaseModel):
+    """Response from ``POST /api/library``.
+
+    ``created`` is False when the package already existed (idempotent
+    re-creation is a no-op). ``tables_initialized`` is True when the
+    DuckDB schema is in place — for both the freshly-created and the
+    pre-existing case — so a CLI caller can immediately issue queries.
+    ``path`` is the absolute, expanded path that was operated on.
+    """
+
+    path: str
+    created: bool
+    tables_initialized: bool
+
+
+# =============================================================================
 # Convenience exports
 # =============================================================================
 
@@ -990,4 +1021,7 @@ __all__ = [
     "SavedSearch",
     "Conversation",
     "MCPServer",
+    # Library bootstrap
+    "LibraryCreateRequest",
+    "LibraryCreateResponse",
 ]
