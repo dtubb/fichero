@@ -84,6 +84,14 @@ class FakeClient:
         self.calls.append(("list_claims", kw))
         return [{"id": "c1", "subject": "X", "claim_type": "fact"}]
 
+    def document_inspector(self, doc_id):
+        self.calls.append(("document_inspector", doc_id))
+        return {
+            "entities": [{"id": "e1", "name": "Bogotá"}],
+            "claims": [{"id": "c-other", "subject": "should not appear"}],
+            "artifacts": [{"id": "a-other"}],
+        }
+
     def kg_search(self, query, **kw):
         self.calls.append(("kg_search", query, kw))
         return {"results": [{"id": "r1", "title": "hit"}]}
@@ -188,12 +196,94 @@ def test_workflow_run_accepts_id_directly():
     assert run_call[1] == "wf-2"
 
 
-# -- kg / search / activity ------------------------------------------------
-def test_kg_claims_filters_by_doc():
-    result = runner.invoke(cli.app, ["kg", "claims", "--doc", "d5"])
+def test_workflow_run_wait_tolerates_404_then_completes(monkeypatch):
+    """The backend may 404 the status endpoint before its checkpoint exists.
+
+    Treat 404 as "not yet" — keep polling until a real status appears or a
+    non-404 error is raised. Without this, fast-completing runs blow up.
+    """
+    calls = {"count": 0}
+
+    def flaky_status(self, thread_id):
+        self.calls.append(("execution_status", thread_id))
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise FicheroError("not ready", status_code=404)
+        return {"thread_id": thread_id, "status": "completed"}
+
+    monkeypatch.setattr(FakeClient, "execution_status", flaky_status)
+    result = runner.invoke(cli.app, ["workflow", "run", "Catalogue", "doc-7", "--wait"])
     assert result.exit_code == 0
-    _, kw = _last_client().calls[0]
-    assert kw["source_document_id"] == "d5"
+    # Both polls must have happened — proves the 404 didn't bail us out and the
+    # subsequent success was observed.
+    assert calls["count"] >= 2
+    polls = [c for c in _last_client().calls if c[0] == "execution_status"]
+    assert len(polls) >= 2
+    assert "status: completed" in result.output
+
+
+def test_workflow_run_wait_propagates_non_404_errors(monkeypatch):
+    """A 500 (or any non-404) during polling should bail out, not loop."""
+
+    def boom(self, thread_id):
+        self.calls.append(("execution_status", thread_id))
+        raise FicheroError("kaboom", status_code=500)
+
+    monkeypatch.setattr(FakeClient, "execution_status", boom)
+    result = runner.invoke(cli.app, ["workflow", "run", "Catalogue", "doc-7", "--wait"])
+    assert result.exit_code == 1
+    assert "kaboom" in result.output
+
+
+def test_workflow_run_wait_raises_on_all_404_exhaustion(monkeypatch):
+    """If the poll budget is exhausted on nothing but 404s, surface a timeout —
+    do NOT return silently with empty output, which would mask the failure."""
+
+    def perma_404(self, thread_id):
+        self.calls.append(("execution_status", thread_id))
+        raise FicheroError("not ready", status_code=404)
+
+    monkeypatch.setattr(FakeClient, "execution_status", perma_404)
+    # Shrink the poll budget so the test is fast.
+    monkeypatch.setattr(cli, "_POLL_MAX_ATTEMPTS", 3)
+    result = runner.invoke(cli.app, ["workflow", "run", "Catalogue", "doc-7", "--wait"])
+    assert result.exit_code == 1
+    assert "Timed out" in result.output
+    assert "fichero activity" in result.output
+
+
+# -- kg / search / activity ------------------------------------------------
+def test_kg_entities_uses_inspector():
+    """`kg entities <doc-id>` hits the doc-scoped inspector endpoint."""
+    result = runner.invoke(cli.app, ["kg", "entities", "d5"])
+    assert result.exit_code == 0
+    assert ("document_inspector", "d5") in _last_client().calls
+
+
+def test_kg_entities_filters_to_entities_only():
+    """Output must show entities only, not the full inspector blob."""
+    result = runner.invoke(cli.app, ["--json", "kg", "entities", "d5"])
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert isinstance(payload, list)
+    assert payload == [{"id": "e1", "name": "Bogotá"}]
+    # Sibling fields from the inspector must not leak through.
+    assert "should not appear" not in result.output
+    assert "a-other" not in result.output
+
+
+def test_kg_claims_positional_doc_id():
+    """`kg claims <doc-id>` passes doc-id as source_document_id."""
+    result = runner.invoke(cli.app, ["kg", "claims", "d5"])
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "list_claims")
+    assert call[1]["source_document_id"] == "d5"
+
+
+def test_kg_entities_requires_doc_id():
+    """The doc-id is required — bare `kg entities` should exit non-zero."""
+    result = runner.invoke(cli.app, ["kg", "entities"])
+    assert result.exit_code != 0
 
 
 def test_kg_search_passes_query():

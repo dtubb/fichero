@@ -117,16 +117,42 @@ def test_error_status_raises_ficheroerror():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(401, text="missing or invalid Authorization header")
 
-    with pytest.raises(FicheroError, match="401"):
+    with pytest.raises(FicheroError, match="401") as excinfo:
         _client(handler).health()
+    assert excinfo.value.status_code == 401
+
+
+def test_error_404_carries_status_code():
+    """404 from a polling endpoint needs to be distinguishable from 5xx errors."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, text="No checkpoint found")
+
+    with pytest.raises(FicheroError) as excinfo:
+        _client(handler).execution_status("thread-x")
+    assert excinfo.value.status_code == 404
 
 
 def test_connect_failure_raises_friendly_error():
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("refused")
 
-    with pytest.raises(FicheroError, match="Is the engine running"):
+    with pytest.raises(FicheroError, match="Is the engine running") as excinfo:
         _client(handler).health()
+    # Transport-level failures have no status code.
+    assert excinfo.value.status_code is None
+
+
+def test_document_inspector_hits_expected_path():
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"entities": [], "claims": []})
+
+    result = _client(handler).document_inspector("doc-42")
+    assert result == {"entities": [], "claims": []}
+    assert seen[0].url.path == "/api/documents/doc-42/inspector"
 
 
 def test_empty_response_body_returns_none():

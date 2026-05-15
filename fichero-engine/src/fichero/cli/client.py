@@ -29,7 +29,17 @@ _TOKEN_PATH = Path.home() / "Library" / "Application Support" / "Fichero" / ".ap
 
 
 class FicheroError(RuntimeError):
-    """The backend was unreachable or returned a non-2xx response."""
+    """The backend was unreachable or returned a non-2xx response.
+
+    ``status_code`` is the HTTP status when the failure came from a response;
+    ``None`` for transport errors (connection refused, DNS, etc.). Callers that
+    want to differentiate "not ready yet" (404) from "real error" should check
+    this rather than parsing the message string.
+    """
+
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 def _read_token() -> str | None:
@@ -127,7 +137,8 @@ class FicheroClient:
 
         if response.status_code >= 400:
             raise FicheroError(
-                f"{method} {path} -> {response.status_code}: {response.text}"
+                f"{method} {path} -> {response.status_code}: {response.text}",
+                status_code=response.status_code,
             )
         if response.status_code == 204 or not response.content:
             return None
@@ -163,6 +174,10 @@ class FicheroClient:
 
     def get_document(self, doc_id: str) -> Any:
         return self.request("GET", f"/api/documents/{doc_id}")
+
+    def document_inspector(self, doc_id: str) -> Any:
+        """Aggregate view of a document's entities, claims, and artifacts."""
+        return self.request("GET", f"/api/documents/{doc_id}/inspector")
 
     def import_file(self, path: str | Path, parent_id: str | None = None) -> Any:
         """Upload a single file to the library (multipart/form-data)."""

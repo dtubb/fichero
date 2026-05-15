@@ -30,6 +30,7 @@ EXPECTED_TOOLS = {
     "fichero_kg_entities",
     "fichero_kg_claims",
     "fichero_kg_search",
+    "fichero_document_inspector",
     "fichero_search",
     "fichero_activity",
 }

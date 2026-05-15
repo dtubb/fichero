@@ -196,17 +196,43 @@ def _resolve_workflow(client: FicheroClient, name: str) -> str:
 
 
 def _poll_until_terminal(client: FicheroClient, thread_id: str) -> Any:
-    """Poll execution status until the run reaches a terminal state."""
+    """Poll execution status until the run reaches a terminal state.
+
+    The backend creates the LangGraph checkpoint asynchronously after
+    ``execute`` returns, and fast or no-op runs may finish before any
+    checkpoint is written — so a 404 from the status endpoint is "not ready
+    yet", not a fatal error. Keep polling on 404; bail out only when something
+    real goes wrong. If the poll budget is exhausted, raise a FicheroError
+    rather than returning ``None`` silently — a `--wait` that ends with no
+    information must surface as a failure.
+    """
     status: Any = None
+    only_saw_404 = True
     for _ in range(_POLL_MAX_ATTEMPTS):
-        status = client.execution_status(thread_id)
+        try:
+            status = client.execution_status(thread_id)
+            only_saw_404 = False
+        except FicheroError as exc:
+            if exc.status_code == 404:
+                time.sleep(_POLL_INTERVAL_SECONDS)
+                continue
+            raise
         state = ""
         if isinstance(status, dict):
             state = str(status.get("status", "")).lower()
         if state in _TERMINAL_STATUSES:
             return status
         time.sleep(_POLL_INTERVAL_SECONDS)
-    return status
+    if only_saw_404:
+        raise FicheroError(
+            f"Timed out waiting for workflow thread {thread_id}: status endpoint "
+            f"returned 404 for the entire poll window. The workflow may have "
+            f"completed without producing a checkpoint — check `fichero activity`."
+        )
+    raise FicheroError(
+        f"Timed out waiting for workflow thread {thread_id} to reach a terminal "
+        f"state. Last seen status: {status!r}"
+    )
 
 
 @workflow_app.command("run")
@@ -233,33 +259,47 @@ def workflow_run(
 
 
 # -- knowledge graph -------------------------------------------------------
+def _entities_from_inspector(payload: Any) -> Any:
+    """Pull just the ``entities`` array out of the inspector response.
+
+    The inspector endpoint returns ``{entities, claims, artifacts, ...}``;
+    a command named ``entities`` should show only entities. If the payload
+    isn't a dict we trust the backend and return it untouched.
+    """
+    if isinstance(payload, dict):
+        # `or []` handles both missing key and explicit None — the inspector
+        # may serialize sections as null when empty.
+        return payload.get("entities") or []
+    return payload
+
+
 @kg_app.command("entities")
 def kg_entities(
     ctx: typer.Context,
-    query: Optional[str] = typer.Option(None, "--query", "-q", help="Name filter."),
-    entity_type: Optional[str] = typer.Option(None, "--type"),
-    limit: int = typer.Option(50, "--limit"),
+    doc_id: str = typer.Argument(
+        ..., help="Document ID — entities are scoped to this document."
+    ),
 ) -> None:
-    """List knowledge-graph entities."""
-    _invoke(
-        ctx,
-        lambda c: c.list_entities(query=query, entity_type=entity_type, limit=limit),
-    )
+    """Show knowledge-graph entities for a document.
+
+    Backed by ``GET /api/documents/{doc_id}/inspector`` — the same aggregate
+    view the SwiftUI inspector pane uses.
+    """
+    _invoke(ctx, lambda c: _entities_from_inspector(c.document_inspector(doc_id)))
 
 
 @kg_app.command("claims")
 def kg_claims(
     ctx: typer.Context,
-    doc_id: Optional[str] = typer.Option(
-        None, "--doc", help="Filter to claims sourced from this document."
+    doc_id: str = typer.Argument(
+        ..., help="Document ID — claims are filtered to this document."
     ),
-    query: Optional[str] = typer.Option(None, "--query", "-q"),
     limit: int = typer.Option(50, "--limit"),
 ) -> None:
-    """List knowledge-graph claims."""
+    """List knowledge-graph claims sourced from a document."""
     _invoke(
         ctx,
-        lambda c: c.list_claims(query=query, source_document_id=doc_id, limit=limit),
+        lambda c: c.list_claims(source_document_id=doc_id, limit=limit),
     )
 
 

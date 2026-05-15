@@ -207,6 +207,13 @@ def fichero_kg_search(query: str, limit: int = 50) -> Any:
         return client.kg_search(query, limit=limit)
 
 
+@mcp.tool()
+def fichero_document_inspector(doc_id: str) -> Any:
+    """Return the document inspector view (entities, claims, artifacts) for a doc."""
+    with _client() as client:
+        return client.document_inspector(doc_id)
+
+
 # -- search ----------------------------------------------------------------
 @mcp.tool()
 def fichero_search(
