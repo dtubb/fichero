@@ -34908,6 +34908,10 @@
           "entity": {
             "$ref": "#/components/schemas/KnowledgeEntity"
           },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
           "claim_count": {
             "type": "integer",
             "title": "Claim Count"
@@ -34966,6 +34970,7 @@
         "required": [
           "entity_id",
           "entity",
+          "summary",
           "claim_count",
           "claims",
           "documents",

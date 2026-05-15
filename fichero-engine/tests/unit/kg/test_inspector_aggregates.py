@@ -408,3 +408,58 @@ class TestEntityInspector:
         assert isinstance(result.triangulated_facts, list)
         # similar_entities best-effort — depends on LanceDB availability.
         assert isinstance(result.similar_entities, list)
+        # Summary is entity-level facts, not a claim echo (#1050).
+        assert result.summary == "Person · 2 claims across 2 documents"
+
+    def test_summary_is_not_a_claim_duplicate(self, db):
+        """The header summary must never echo claim #1 (#1050)."""
+        from fichero.api.routes import entity_inspector
+
+        # Extractor overloads description with one claim's predicate —
+        # the exact bug #1050 describes.
+        entity = KnowledgeEntity(
+            canonical_name="Leidy",
+            entity_type=EntityType.person,
+            description="cleared gravel and stones from a wooden sluice",
+        )
+        db.save(entity)
+        doc = Document(name="page3.pdf", doc_type=DocType.file)
+        db.save(doc)
+        db.save(KnowledgeClaim(
+            text="cleared gravel and stones from a wooden sluice",
+            source_document_id=doc.id,
+            entity_ids=[entity.id],
+        ))
+
+        result = asyncio.run(entity_inspector.inspector(entity.id, db=db))
+        assert result.summary != entity.description
+        assert result.summary != result.claims[0].text
+        assert result.summary == "Person · 1 claim"
+
+    def test_summary_handles_no_claims_and_aliases(self, db):
+        """Zero-claim entity and alias rendering (#1050)."""
+        from fichero.api.routes import entity_inspector
+
+        bare = KnowledgeEntity(canonical_name="Deloro", entity_type=EntityType.location)
+        db.save(bare)
+        result = asyncio.run(entity_inspector.inspector(bare.id, db=db))
+        assert result.summary == "Place · no claims yet"
+
+        aliased = KnowledgeEntity(
+            canonical_name="J. Davidson",
+            entity_type=EntityType.person,
+            aliases=["Davidson", "John Davidson"],
+        )
+        db.save(aliased)
+        result = asyncio.run(entity_inspector.inspector(aliased.id, db=db))
+        assert result.summary == "Person · no claims yet · also known as Davidson, John Davidson"
+
+        # More than 3 aliases — cap at 3 with an ellipsis, never silent truncation.
+        many = KnowledgeEntity(
+            canonical_name="Robert",
+            entity_type=EntityType.person,
+            aliases=["Bob", "Rob", "Bobby", "Roberto"],
+        )
+        db.save(many)
+        result = asyncio.run(entity_inspector.inspector(many.id, db=db))
+        assert result.summary == "Person · no claims yet · also known as Bob, Rob, Bobby…"

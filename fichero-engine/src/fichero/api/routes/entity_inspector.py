@@ -17,6 +17,7 @@ from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.knowledge_models import (
     Annotation,
+    EntityType,
     KnowledgeClaim,
     KnowledgeEntity,
     Note,
@@ -27,6 +28,62 @@ from fichero.models import Document
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/entities")
+
+# Singular type labels for the entity header line. The KG grouping uses
+# plurals ("People", "Places"); the entity-detail header wants the
+# singular noun for one entity. Must cover every EntityType member —
+# an unmapped kind falls back to the generic "Entity" label.
+_ENTITY_TYPE_LABELS: dict[str, str] = {
+    "person": "Person",
+    "location": "Place",
+    "organization": "Organization",
+    "event": "Event",
+    "concept": "Keyword",
+    "other": "Entity",
+}
+
+
+def _compose_entity_summary(
+    entity: KnowledgeEntity,
+    claims: list[KnowledgeClaim],
+    documents: list[Document],
+) -> str:
+    """A deterministic, entity-level header line (#1050).
+
+    The extractor overloads ``entity.description`` with a single claim's
+    predicate, so rendering ``description`` as the header silently
+    duplicates claim #1. This composes genuine entity-level facts
+    instead — type, claim count, document span, aliases — none of which
+    is a claim echo. No LLM call: deterministic and pytest-verifiable.
+    """
+    kind = (
+        entity.entity_type.value
+        if isinstance(entity.entity_type, EntityType)
+        else str(entity.entity_type or "other")
+    )
+    type_label = _ENTITY_TYPE_LABELS.get(kind, "Entity")
+
+    parts: list[str] = [type_label]
+
+    n_claims = len(claims)
+    if n_claims == 0:
+        parts.append("no claims yet")
+    else:
+        claim_str = "1 claim" if n_claims == 1 else f"{n_claims} claims"
+        n_docs = len(documents)
+        if n_docs <= 1:
+            parts.append(claim_str)
+        else:
+            parts.append(f"{claim_str} across {n_docs} documents")
+
+    aliases = [a.strip() for a in (entity.aliases or []) if a.strip()]
+    if aliases:
+        shown = ", ".join(aliases[:3])
+        if len(aliases) > 3:
+            shown += "…"
+        parts.append(f"also known as {shown}")
+
+    return " · ".join(parts)
 
 
 class SimilarEntity(BaseModel):
@@ -48,6 +105,12 @@ class EntityInspectorResponse(BaseModel):
     """Everything the entity-detail view needs in one shot."""
     entity_id: str
     entity: KnowledgeEntity
+    # Server-composed entity-level header line (#1050). Use this for the
+    # detail header instead of ``entity.description`` — the extractor
+    # overloads ``description`` with one claim's predicate, so rendering
+    # it duplicates claim #1. This is a deterministic synthesis of
+    # entity-level facts, never a claim echo.
+    summary: str
     claim_count: int
     claims: list[KnowledgeClaim]
     documents: list[Document]
@@ -149,6 +212,7 @@ async def inspector(
     return EntityInspectorResponse(
         entity_id=entity_id,
         entity=entity,
+        summary=_compose_entity_summary(entity, claims, documents),
         claim_count=len(claims),
         claims=claims,
         documents=documents,
