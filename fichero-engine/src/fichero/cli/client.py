@@ -7,10 +7,15 @@ The backend binds to 127.0.0.1:8765 and requires two things on most requests:
   See ``fichero/api/auth.py`` for the writer side.
 * ``X-Fichero-Library-Path`` — the ``.fichero`` package the request operates on.
 
-This client discovers the token automatically and attaches both headers. It
-returns parsed JSON (plain dicts/lists) — rendering is the formatters' job, and
-keeping responses untyped means the unit tests never need the backend's full
-dependency tree.
+This client discovers the token automatically and attaches both headers. Where
+a backend response shape is captured by an existing Pydantic model in
+``fichero.models``, the method imports it and returns the validated typed
+instance — so callers see ``Document`` / ``Workflow`` / ``Artifact`` rather
+than ``Any``, and shape drift becomes a loud ``ValidationError`` at the
+boundary instead of a silent ``KeyError`` deep in the formatter. The CLI and
+the backend share the source-of-truth Pydantic types by direct import (no
+codegen, no possibility of drift). Endpoints that return custom shapes still
+return ``Any`` for now — they'll get typed in follow-up commits.
 """
 
 from __future__ import annotations
@@ -20,6 +25,8 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+
+from fichero.models import Artifact, Document, Workflow
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8765"
 
@@ -59,6 +66,22 @@ def _clean(params: dict[str, Any] | None) -> dict[str, Any] | None:
         return None
     cleaned = {k: v for k, v in params.items() if v is not None}
     return cleaned or None
+
+
+def _expect_list(raw: Any, path: str) -> list[Any]:
+    """Assert a typed-list method's response really is a list.
+
+    The whole point of typing at the boundary is to make a wrong-shape
+    response loud, not silent. Without this guard, ``raw or []`` would swallow
+    ``None`` (204 / empty body) as "zero results" and treat ``{"error": ...}``
+    as a dict to iterate (yielding string keys that then fail Pydantic
+    validation with a confusing message). This raises a clear error instead.
+    """
+    if not isinstance(raw, list):
+        raise FicheroError(
+            f"GET {path} returned {type(raw).__name__}, expected a list"
+        )
+    return raw
 
 
 class FicheroClient:
@@ -158,8 +181,8 @@ class FicheroClient:
         status: str | None = None,
         limit: int | None = None,
         offset: int = 0,
-    ) -> Any:
-        return self.request(
+    ) -> list[Document]:
+        raw = self.request(
             "GET",
             "/api/documents",
             params={
@@ -171,9 +194,12 @@ class FicheroClient:
                 "offset": offset,
             },
         )
+        return [Document.model_validate(d) for d in _expect_list(raw, "/api/documents")]
 
-    def get_document(self, doc_id: str) -> Any:
-        return self.request("GET", f"/api/documents/{doc_id}")
+    def get_document(self, doc_id: str) -> Document:
+        return Document.model_validate(
+            self.request("GET", f"/api/documents/{doc_id}")
+        )
 
     def document_inspector(self, doc_id: str) -> Any:
         """Aggregate view of a document's entities, claims, and artifacts."""
@@ -191,8 +217,9 @@ class FicheroClient:
             )
 
     # -- workflows ---------------------------------------------------------
-    def list_workflows(self) -> Any:
-        return self.request("GET", "/api/workflows")
+    def list_workflows(self) -> list[Workflow]:
+        raw = self.request("GET", "/api/workflows")
+        return [Workflow.model_validate(w) for w in _expect_list(raw, "/api/workflows")]
 
     def run_workflow(
         self,
@@ -227,10 +254,11 @@ class FicheroClient:
         limit: int = 50,
         offset: int = 0,
         include_descendants: bool = True,
-    ) -> Any:
-        return self.request(
+    ) -> list[Artifact]:
+        path = f"/api/artifacts/document/{doc_id}"
+        raw = self.request(
             "GET",
-            f"/api/artifacts/document/{doc_id}",
+            path,
             params={
                 "artifact_type": artifact_type,
                 "limit": limit,
@@ -238,6 +266,7 @@ class FicheroClient:
                 "include_descendants": include_descendants,
             },
         )
+        return [Artifact.model_validate(a) for a in _expect_list(raw, path)]
 
     # -- knowledge graph ---------------------------------------------------
     def list_entities(

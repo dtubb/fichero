@@ -98,20 +98,23 @@ def test_health_hits_health_endpoint(monkeypatch):
 
 
 def test_workflow_list_hits_workflows_endpoint(monkeypatch):
-    with _mock_client(monkeypatch) as seen:
+    # list_workflows() returns list[Workflow]; mock serves a list shape.
+    with _mock_client(monkeypatch, body=[]) as seen:
         mcp_server.fichero_workflow_list()
     assert seen[0].method == "GET"
     assert seen[0].url.path == "/api/workflows"
 
 
 def test_docs_get_builds_path(monkeypatch):
-    with _mock_client(monkeypatch) as seen:
+    # get_document() returns Document; mock serves a dict that validates.
+    with _mock_client(monkeypatch, body={"id": "doc-42", "name": "doc-42"}) as seen:
         mcp_server.fichero_docs_get("doc-42")
     assert seen[0].url.path == "/api/documents/doc-42"
 
 
 def test_docs_list_passes_filters(monkeypatch):
-    with _mock_client(monkeypatch) as seen:
+    # list_documents() returns list[Document]; mock serves a list shape.
+    with _mock_client(monkeypatch, body=[]) as seen:
         mcp_server.fichero_docs_list(doc_type="pdf", limit=5)
     params = dict(seen[0].url.params)
     assert params == {"doc_type": "pdf", "limit": "5", "offset": "0"}
@@ -141,7 +144,8 @@ def test_workflow_status_builds_path(monkeypatch):
 
 
 def test_artifacts_builds_path_and_params(monkeypatch):
-    with _mock_client(monkeypatch) as seen:
+    # list_artifacts() returns list[Artifact]; mock serves a list shape.
+    with _mock_client(monkeypatch, body=[]) as seen:
         mcp_server.fichero_artifacts("doc-3", artifact_type="catalogue", limit=10)
     assert seen[0].url.path == "/api/artifacts/document/doc-3"
     assert dict(seen[0].url.params)["artifact_type"] == "catalogue"

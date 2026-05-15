@@ -21,13 +21,22 @@ def _client(handler, **kwargs) -> FicheroClient:
     )
 
 
-def _capture():
-    """Return (handler, requests) where requests accumulates seen requests."""
+def _capture(response: object = None):
+    """Return (handler, requests) where requests accumulates seen requests.
+
+    ``response`` overrides what the mock returns. Default is a generic ``{"ok":
+    True}`` — fine for tests of untyped methods that only check request
+    construction. Tests that exercise typed methods (``list_documents``,
+    ``list_workflows`` …) should pass ``response=[]`` (or a realistic shape)
+    so Pydantic validation succeeds at the boundary.
+    """
+    if response is None:
+        response = {"ok": True}
     seen: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request)
-        return httpx.Response(200, json={"ok": True})
+        return httpx.Response(200, json=response)
 
     return handler, seen
 
@@ -40,7 +49,7 @@ def test_auth_header_is_set():
 
 
 def test_library_path_header_is_set():
-    handler, seen = _capture()
+    handler, seen = _capture(response=[])
     _client(handler, library_path="/tmp/My.fichero").list_documents()
     assert seen[0].headers["x-fichero-library-path"] == "/tmp/My.fichero"
 
@@ -59,7 +68,7 @@ def test_missing_library_path_omits_header():
 
 # -- request construction --------------------------------------------------
 def test_none_query_params_are_dropped():
-    handler, seen = _capture()
+    handler, seen = _capture(response=[])
     _client(handler).list_documents(limit=5)
     # Only the non-None filters survive: limit + the offset default.
     assert dict(seen[0].url.params) == {"limit": "5", "offset": "0"}
@@ -141,6 +150,36 @@ def test_connect_failure_raises_friendly_error():
         _client(handler).health()
     # Transport-level failures have no status code.
     assert excinfo.value.status_code is None
+
+
+def test_list_documents_loud_on_wrong_shape():
+    """Typed methods must fail loudly when the backend returns a non-list —
+    the whole point of the typing is to surface shape drift at the boundary,
+    not let it slip through as "zero results" via a falsy-coercion shortcut.
+    """
+    handler, _ = _capture(response={"error": "library not found"})
+    with pytest.raises(FicheroError, match="expected a list"):
+        _client(handler).list_documents()
+
+
+def test_list_documents_returns_typed_documents():
+    """Validate the typing-at-the-boundary contract: list_documents returns
+    list[Document], so callers see attribute access, and a wrong-shape response
+    surfaces as a loud ValidationError rather than a deferred KeyError."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=[
+            {"id": "doc-1", "name": "Test PDF", "doc_type": "file"},
+            {"id": "doc-2", "name": "Page 1", "doc_type": "page",
+             "parent_id": "doc-1"},
+        ])
+
+    docs = _client(handler).list_documents()
+    assert len(docs) == 2
+    # Attribute access, not dict access — the typing is real.
+    assert docs[0].id == "doc-1"
+    assert docs[0].name == "Test PDF"
+    assert docs[1].parent_id == "doc-1"
 
 
 def test_document_inspector_hits_expected_path():
