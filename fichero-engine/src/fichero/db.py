@@ -249,15 +249,57 @@ class Database(DatabaseEmbeddingMixin):
             elif isinstance(value, datetime):
                 data[key] = value.isoformat()
 
-        # Build upsert query
+        # Build a native DuckDB UPSERT (#1120).
+        #
+        # Earlier versions of this method used `INSERT OR REPLACE INTO`,
+        # which DuckDB documents but implements as a column-store append
+        # path that is NOT a reliable PK upsert. Under sustained load
+        # against tables that gained columns mid-flight via inline
+        # ADD COLUMN migrations (`migrate_knowledge_claims_provider_model`
+        # for #1113), the append path raises:
+        #
+        #   Constraint Error: PRIMARY KEY or UNIQUE constraint violation:
+        #     duplicate key "<id>"
+        #
+        # which then escalates to:
+        #
+        #   INTERNAL Error: Failed to append to PRIMARY_<table>_0
+        #
+        # — a `FatalException` that tears down the whole connection and,
+        # with FastAPI in front, the whole uvicorn process. (#1120
+        # crash signature.)
+        #
+        # `INSERT ... ON CONFLICT (id) DO UPDATE SET ... = EXCLUDED.*`
+        # is DuckDB's first-class UPSERT and goes through the proper
+        # update path on conflict — no append-side PK collision. The
+        # typed save contract ("give me a Pydantic instance and I'll
+        # persist it; idempotent on id") is unchanged; callers see no
+        # SQL state.
         cols = list(data.keys())
         col_names = ", ".join(cols)
         placeholders = ", ".join(f"${c}" for c in cols)
+        # ON CONFLICT requires that the target table actually has `id` as
+        # the conflict key, which is true for every model in this layer
+        # (PRIMARY KEY (id) is set in `_ensure_table`). The
+        # SET <c> = EXCLUDED.<c> clause covers every non-key column;
+        # without it, ON CONFLICT degenerates to DO NOTHING and we'd
+        # silently drop updates.
+        update_cols = [c for c in cols if c != "id"]
+        if update_cols:
+            set_clause = ", ".join(f"{c} = EXCLUDED.{c}" for c in update_cols)
+            sql = (
+                f"INSERT INTO {table} ({col_names}) VALUES ({placeholders}) "
+                f"ON CONFLICT (id) DO UPDATE SET {set_clause}"
+            )
+        else:
+            # Edge case: a table whose only column is `id` — ON CONFLICT
+            # has nothing to update, so DO NOTHING is the right semantics.
+            sql = (
+                f"INSERT INTO {table} ({col_names}) VALUES ({placeholders}) "
+                f"ON CONFLICT (id) DO NOTHING"
+            )
 
-        self.conn.execute(
-            f"INSERT OR REPLACE INTO {table} ({col_names}) VALUES ({placeholders})",
-            data,
-        )
+        self.conn.execute(sql, data)
 
         # Auto-embed if requested and has content
         if auto_embed and hasattr(obj, "page_content") and obj.page_content:

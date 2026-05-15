@@ -466,3 +466,139 @@ class TestClaimAttribution1113:
             assert c.object_phrase, f"missing object on {c.text!r}"
             assert c.provider == "openai"
             assert c.model and c.model.startswith("gpt-4o-mini")
+
+
+class TestRerunIdempotence1120:
+    """Regression for #1120: re-running extraction on a doc with existing
+    KnowledgeEntity rows must not crash the backend with a duplicate-key
+    PRIMARY KEY constraint error.
+
+    The crash signature was an unrecoverable
+    ``duckdb.FatalException: INTERNAL Error: Failed to append to
+    PRIMARY_knowledgeentitys_0`` thrown out of ``Database.save`` when
+    re-saving an existing entity row. The typed save layer is now
+    defended via DELETE+INSERT fallback so the process survives even if
+    the underlying ``INSERT OR REPLACE`` ever fails to resolve a PK
+    conflict.
+    """
+
+    def test_write_kg_rows_is_idempotent_across_reruns(self, db, container_doc):
+        """Two consecutive _write_kg_rows calls on the same doc with the
+        same items must (a) not crash, (b) leave entity count unchanged,
+        (c) not duplicate page-scoped claims (the in-writer dedup at
+        save_claim catches identical (doc, page, entities, text>=90%)
+        repeats)."""
+        from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
+
+        places_section = next(s for s in _SECTIONS if s["name"] == "places_extract")
+        items = [
+            {"name": "Chocó", "verb": "is", "object": "a Pacific region"},
+            {"name": "Atrato", "verb": "drains", "object": "westward"},
+        ]
+
+        _write_kg_rows(
+            db, places_section, items, container_doc.id,
+            page_label="Page 1",
+            source_excerpt="some page text",
+            provider="openai",
+            model="gpt-4o-mini",
+        )
+        entities_after_first = db.query(KnowledgeEntity, entity_type=EntityType.location)
+        claims_after_first = db.query(
+            KnowledgeClaim, source_document_id=container_doc.id
+        )
+        assert len(entities_after_first) == 2
+        assert len(claims_after_first) == 2
+
+        # Same items again — must not crash, must not create duplicate
+        # entity rows, must not duplicate page-scoped claims.
+        _write_kg_rows(
+            db, places_section, items, container_doc.id,
+            page_label="Page 1",
+            source_excerpt="some page text",
+            provider="openai",
+            model="gpt-4o-mini",
+        )
+        entities_after_second = db.query(KnowledgeEntity, entity_type=EntityType.location)
+        claims_after_second = db.query(
+            KnowledgeClaim, source_document_id=container_doc.id
+        )
+        assert len(entities_after_second) == len(entities_after_first), (
+            "rerun must not duplicate KnowledgeEntity rows"
+        )
+        assert len(claims_after_second) == len(claims_after_first), (
+            "rerun on same (doc, page, entities, text) must hit the "
+            "save_claim defense-in-depth dedup"
+        )
+
+    def test_db_save_recovers_from_duplicate_pk_on_entity(self, db):
+        """Direct test of the typed-save defense (#1120 layer 1): even
+        if a caller mistakenly tries to INSERT a fresh entity instance
+        carrying the same id as an existing row, ``db.save`` must NOT
+        raise a FatalException — it must transparently overwrite via
+        the DELETE+INSERT fallback. This locks the contract that
+        ``save`` is idempotent on id."""
+        first = KnowledgeEntity(
+            canonical_name="Atrato",
+            entity_type=EntityType.location,
+            description="first description",
+        )
+        db.save(first)
+
+        # New instance, SAME id, different description — simulates the
+        # pathological "save again with same id" path that surfaced in
+        # the live crash. Must succeed (overwrite), not raise.
+        same_id_again = KnowledgeEntity(
+            id=first.id,
+            canonical_name="Atrato",
+            entity_type=EntityType.location,
+            description="second description",
+        )
+        db.save(same_id_again)
+
+        rows = db.query(KnowledgeEntity, entity_type=EntityType.location)
+        assert len(rows) == 1
+        assert rows[0].id == first.id
+        assert rows[0].description == "second description"
+
+    def test_db_save_uses_native_on_conflict_upsert(self, db):
+        """The #1120 root-cause fix: ``Database.save`` must use DuckDB's
+        native ``INSERT ... ON CONFLICT (id) DO UPDATE SET ...`` UPSERT
+        rather than ``INSERT OR REPLACE``. Round-trip save → modify →
+        save → assert the row is updated, not duplicated, and no crash
+        occurs. This locks the contract that ``save`` is genuinely
+        idempotent on id (the contract its docstring promises)."""
+        from fichero.knowledge_models import KnowledgeEntity, EntityType
+
+        first = KnowledgeEntity(
+            canonical_name="Quibdó",
+            entity_type=EntityType.location,
+            description="initial",
+        )
+        db.save(first)
+
+        # Modify in place and re-save with the same id — must update,
+        # not crash with a PK violation, not duplicate.
+        first.description = "updated description"
+        first.aliases = ["Kibdo"]
+        db.save(first)
+
+        rows = db.query(KnowledgeEntity, entity_type=EntityType.location)
+        assert len(rows) == 1, "save with same id must update, not duplicate"
+        assert rows[0].id == first.id
+        assert rows[0].description == "updated description"
+        assert rows[0].aliases == ["Kibdo"]
+
+        # A fresh instance with the SAME id (the live #1120 crash path)
+        # must also succeed via the ON CONFLICT update path.
+        same_id_new_instance = KnowledgeEntity(
+            id=first.id,
+            canonical_name="Quibdó",
+            entity_type=EntityType.location,
+            description="re-created with same id",
+        )
+        db.save(same_id_new_instance)
+
+        rows = db.query(KnowledgeEntity, entity_type=EntityType.location)
+        assert len(rows) == 1
+        assert rows[0].description == "re-created with same id"
