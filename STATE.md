@@ -35,10 +35,16 @@
 | Multi-provider NER (spaCy + LLM + transformers) | ❌ | #1118 — architecture issue |
 | KG-write as explicit workflow node | ❌ | #1115 — architecture issue |
 
-**Subagents in flight (3):**
-- `ac81290b` — #1113 SVO + claim richness (extract_all/extractors/knowledge_models + spaCy hybrid + provider/model attribution)
-- `a1a4e6c8` — #1104 import filename + #1083 LangChain warning
-- `a0770d41` — #1106/#1107/#1081 CLI display fixes
+**Subagent results (3, all landed):**
+- `ec6865f8` — #1113 SVO + claim richness CLOSED. Subagent verified 11/11 claims with full SVO + provider + model + confidence + language using `openai/gpt-4o-mini` in-process. Live verification on the running uvicorn (which uses Apple Intelligence by default) returned 0 entities — needs a clean backend restart + a re-run on a fresh doc to confirm Apple Intelligence's structured-output decoder honours the new `verb`/`object` schema fields. Migration `migrate_knowledge_claims_provider_model` is wired into both bootstrap paths.
+- `19bcccd8` — #1104 filename + #1083 LangChain warning CLOSED. Both live-verified.
+- `fe5c3f8f` — #1106/#1107/#1081 CLI display fixes CLOSED. All live-verified.
+
+**12 issues closed today (0.0.2):** #1080, #1081, #1083, #1084, #1087, #1088, #1104, #1105, #1106, #1107, #1110, #1113.
+
+**Open follow-up filed:** #1119 — claim.entity_ids[] should include every entity referenced (not just subject); deferred from #1113.
+
+**Live-verification caveat:** the running backend (PID 96872, started 10:38) wrote to `/tmp/fichero-backend.log` originally but later cycles aren't visible there — the kill at line 47 of `start_backend.sh` broke the redirect. Subsequent runs probably write to the tmux pane only. To verify SVO works against Apple Intelligence: (a) hard restart the backend (`tmux send-keys -t fichero-backend C-c; ... ./scripts/start_backend.sh`), (b) re-import a fresh md file, (c) `workflow run "NER per-page (local)" <doc> --wait`, (d) `kg claims <doc> --json | jq '.claims[] | [.subject_canonical, .predicate_verb, .object_phrase]'`. If 0/N have full SVO, the Apple Intelligence decoder isn't producing verb/object — that's a model-compatibility issue distinct from #1113 (which is fixed for OpenAI / structured-output-capable models).
 
 **Issues filed today:** #1077-#1078 (engine), #1079/#1081 (CLI polish), #1080 (artifacts get — FIXED), #1082 (page-2 verify), #1083 (langchain), #1084 (parity wave 1 — FIXED), #1085 (maps importer), #1086 (vector verify — DONE), #1087 (catalogue waste — FIXED), #1088 (--wait — FIXED), #1096-#1098 (catalogue case grouping/HITL/fan-out), #1104 (filename), #1105 (KG never persisted — FIXED), #1106-#1109 (CLI/UI polish), #1110 (auth — FIXED), #1111 (paragraph rendering with citations), #1113 (SVO populate), #1114 (entity quality), #1115 (kg-writer node), #1118 (multi-NER).
 
