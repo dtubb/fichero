@@ -88,7 +88,16 @@ def test_run_workflow_builds_execute_body():
         import json
 
         seen.append(json.loads(request.content))
-        return httpx.Response(202, json={"thread_id": "t1"})
+        return httpx.Response(
+            202,
+            json={
+                "thread_id": "t1",
+                "workflow_id": "wf-1",
+                "workflow_name": "Test",
+                "status": "accepted",
+                "stream_url": "/api/workflow-execution/stream/t1",
+            },
+        )
 
     _client(handler).run_workflow("wf-1", {"files": ["doc-9"]}, skip_cache=True)
     assert seen[0] == {
@@ -100,7 +109,9 @@ def test_run_workflow_builds_execute_body():
 
 
 def test_kg_search_passes_query_param():
-    handler, seen = _capture()
+    handler, seen = _capture(
+        response={"query": "migration", "hits": [], "counts": {}}
+    )
     _client(handler).kg_search("migration", limit=10)
     assert dict(seen[0].url.params) == {"q": "migration", "limit": "10"}
 
@@ -185,12 +196,28 @@ def test_list_documents_returns_typed_documents():
 def test_document_inspector_hits_expected_path():
     seen: list[httpx.Request] = []
 
+    inspector_payload = {
+        "document_id": "doc-42",
+        "document": None,
+        "source_metadata": None,
+        "claim_count": 0,
+        "claims": [],
+        "entities": [],
+        "annotations": [],
+        "notes": [],
+        "citations_outbound": [],
+        "citations_inbound": [],
+        "interpretations": [],
+        "projects": [],
+    }
+
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request)
-        return httpx.Response(200, json={"entities": [], "claims": []})
+        return httpx.Response(200, json=inspector_payload)
 
     result = _client(handler).document_inspector("doc-42")
-    assert result == {"entities": [], "claims": []}
+    assert result.document_id == "doc-42"
+    assert result.entities == []
     assert seen[0].url.path == "/api/documents/doc-42/inspector"
 
 

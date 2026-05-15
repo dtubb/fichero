@@ -14,6 +14,14 @@ from typer.testing import CliRunner
 from fichero import __main__ as cli
 from fichero.cli import FicheroError
 from fichero.cli.formatters import render
+from fichero.api.routes.activity import ActivityResponse
+from fichero.api.routes.document_inspector import DocumentInspectorResponse
+from fichero.api.routes.kg_search import KGSearchResponse
+from fichero.api.routes.workflow_execution.schemas import (
+    ExecuteAcceptedResponse,
+    ExecutionStatusResponse,
+)
+from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 from fichero.models import LibraryCreateResponse, Workflow
 
 runner = CliRunner()
@@ -67,7 +75,13 @@ class FakeClient:
 
     def run_workflow(self, workflow_id, inputs=None, **kw):
         self.calls.append(("run_workflow", workflow_id, inputs, kw))
-        return {"thread_id": "t-1", "workflow_id": workflow_id, "status": "accepted"}
+        return ExecuteAcceptedResponse(
+            thread_id="t-1",
+            workflow_id=workflow_id,
+            workflow_name="Catalogue",
+            status="accepted",
+            stream_url=f"/api/workflow-execution/stream/t-1",
+        )
 
     def execution_status(self, thread_id):
         self.calls.append(("execution_status", thread_id))
@@ -75,13 +89,13 @@ class FakeClient:
         # "completed" whenever a checkpoint has no pending writes. The fake
         # mirrors that flakiness — it always says "completed" so the wait
         # loop is forced to consult the activity log to know the truth.
-        return {
-            "thread_id": thread_id,
-            "workflow_id": "wf-1",
-            "workflow_name": "Catalogue",
-            "status": "completed",
-            "current_state": {"final": True},
-        }
+        return ExecutionStatusResponse(
+            thread_id=thread_id,
+            workflow_id="wf-1",
+            workflow_name="Catalogue",
+            status="completed",
+            current_state={"final": True},
+        )
 
     def list_activities(self, *, thread_id=None, types=None, limit=100):
         self.calls.append(("list_activities", thread_id, types, limit))
@@ -122,23 +136,38 @@ class FakeClient:
 
     def list_entities(self, **kw):
         self.calls.append(("list_entities", kw))
-        return [{"id": "e1", "name": "Bogotá", "entity_type": "place"}]
+        return [
+            KnowledgeEntity(id="e1", canonical_name="Bogotá", entity_type="place")
+        ]
 
     def list_claims(self, **kw):
         self.calls.append(("list_claims", kw))
-        return [{"id": "c1", "subject": "X", "claim_type": "fact"}]
+        return [KnowledgeClaim(id="c1", text="X", source_document_id="d5")]
 
     def document_inspector(self, doc_id):
         self.calls.append(("document_inspector", doc_id))
-        return {
-            "entities": [{"id": "e1", "name": "Bogotá"}],
-            "claims": [{"id": "c-other", "subject": "should not appear"}],
-            "artifacts": [{"id": "a-other"}],
-        }
+        return DocumentInspectorResponse(
+            document_id=doc_id,
+            document=None,
+            source_metadata=None,
+            claim_count=1,
+            claims=[
+                KnowledgeClaim(
+                    id="c-other", text="should not appear", source_document_id=doc_id
+                )
+            ],
+            entities=[KnowledgeEntity(id="e1", canonical_name="Bogotá")],
+            annotations=[],
+            notes=[],
+            citations_outbound=[],
+            citations_inbound=[],
+            interpretations=[],
+            projects=[],
+        )
 
     def kg_search(self, query, **kw):
         self.calls.append(("kg_search", query, kw))
-        return {"results": [{"id": "r1", "title": "hit"}]}
+        return KGSearchResponse(query=query, hits=[], counts={})
 
     def search(self, query, **kw):
         self.calls.append(("search", query, kw))
@@ -146,7 +175,15 @@ class FakeClient:
 
     def recent_activity(self, **kw):
         self.calls.append(("recent_activity", kw))
-        return [{"id": "act1", "status": "completed"}]
+        return [
+            ActivityResponse(
+                id="act1",
+                type="workflow_completed",
+                level="info",
+                timestamp="2026-05-15T00:00:00Z",
+                message="completed",
+            )
+        ]
 
     def create_library(self, path):
         # Real client returns LibraryCreateResponse — keep the typed
@@ -510,7 +547,9 @@ def test_kg_entities_filters_to_entities_only():
     assert result.exit_code == 0
     payload = json.loads(result.output)
     assert isinstance(payload, list)
-    assert payload == [{"id": "e1", "name": "Bogotá"}]
+    assert len(payload) == 1
+    assert payload[0]["id"] == "e1"
+    assert payload[0]["canonical_name"] == "Bogotá"
     # Sibling fields from the inspector must not leak through.
     assert "should not appear" not in result.output
     assert "a-other" not in result.output

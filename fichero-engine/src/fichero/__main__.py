@@ -479,7 +479,13 @@ def _merge_terminal_payload(
     derived_status = event_type.removeprefix("workflow_") or "completed"
 
     base: dict[str, Any] = {}
-    if isinstance(status, dict):
+    # status may be a typed ExecutionStatusResponse, a raw dict (FakeClient),
+    # or None (404).
+    from pydantic import BaseModel as _BaseModel
+
+    if isinstance(status, _BaseModel):
+        base.update(status.model_dump(mode="json"))
+    elif isinstance(status, dict):
         base.update(status)
 
     base.setdefault("thread_id", thread_id)
@@ -529,7 +535,14 @@ def workflow_run(
             # CLI runs don't have. `selected_doc_ids` is the Priority 2 path
             # the Files-source node reads from state.
             result = client.run_workflow(workflow_id, {"selected_doc_ids": [doc_id]})
-            thread_id = result.get("thread_id") if isinstance(result, dict) else None
+            # run_workflow now returns a typed ExecuteAcceptedResponse; the
+            # FakeClient still hands back a raw dict, so handle both.
+            if hasattr(result, "thread_id"):
+                thread_id = result.thread_id
+            elif isinstance(result, dict):
+                thread_id = result.get("thread_id")
+            else:
+                thread_id = None
             if wait and thread_id:
                 result = _poll_until_terminal(
                     client,
@@ -551,6 +564,13 @@ def _entities_from_inspector(payload: Any) -> Any:
     a command named ``entities`` should show only entities. If the payload
     isn't a dict we trust the backend and return it untouched.
     """
+    # The inspector now returns a typed DocumentInspectorResponse. Coerce to
+    # dict via model_dump so this helper still works for both the typed and
+    # raw-dict shapes (FakeClient in tests still returns a dict).
+    from pydantic import BaseModel
+
+    if isinstance(payload, BaseModel):
+        payload = payload.model_dump(mode="json")
     if isinstance(payload, dict):
         # `or []` handles both missing key and explicit None — the inspector
         # may serialize sections as null when empty.

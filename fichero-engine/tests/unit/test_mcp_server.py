@@ -125,7 +125,16 @@ def test_workflow_run_builds_execute_body(monkeypatch):
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(json.loads(request.content))
-        return httpx.Response(202, json={"thread_id": "t1"})
+        return httpx.Response(
+            202,
+            json={
+                "thread_id": "t1",
+                "workflow_id": "wf-1",
+                "workflow_name": "Test",
+                "status": "accepted",
+                "stream_url": "/api/workflow-execution/stream/t1",
+            },
+        )
 
     with _mock_client(monkeypatch, handler=handler):
         mcp_server.fichero_workflow_run("wf-1", "doc-9", skip_cache=True)
@@ -138,7 +147,13 @@ def test_workflow_run_builds_execute_body(monkeypatch):
 
 
 def test_workflow_status_builds_path(monkeypatch):
-    with _mock_client(monkeypatch) as seen:
+    status_body = {
+        "thread_id": "thread-7",
+        "workflow_id": "wf-1",
+        "workflow_name": "Test",
+        "status": "completed",
+    }
+    with _mock_client(monkeypatch, body=status_body) as seen:
         mcp_server.fichero_workflow_status("thread-7")
     assert seen[0].url.path == "/api/workflow-execution/threads/thread-7/status"
 
@@ -152,7 +167,8 @@ def test_artifacts_builds_path_and_params(monkeypatch):
 
 
 def test_kg_search_passes_query_param(monkeypatch):
-    with _mock_client(monkeypatch) as seen:
+    body = {"query": "migration", "hits": [], "counts": {}}
+    with _mock_client(monkeypatch, body=body) as seen:
         mcp_server.fichero_kg_search("migration", limit=10)
     assert dict(seen[0].url.params) == {"q": "migration", "limit": "10"}
 
@@ -183,7 +199,8 @@ def test_import_sends_multipart(monkeypatch, tmp_path):
 
 
 def test_auth_and_library_headers_are_set(monkeypatch):
-    with _mock_client(monkeypatch) as seen:
+    # recent_activity returns list[ActivityResponse]; mock serves a list shape.
+    with _mock_client(monkeypatch, body=[]) as seen:
         mcp_server.fichero_activity()
     assert seen[0].headers["authorization"] == "Bearer test-token"
     assert seen[0].headers["x-fichero-library-path"] == "/tmp/Lib.fichero"

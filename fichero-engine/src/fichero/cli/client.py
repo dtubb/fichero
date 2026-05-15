@@ -26,6 +26,17 @@ from typing import Any
 
 import httpx
 
+from fichero.api.routes.activity import ActivityResponse
+from fichero.api.routes.document_inspector import (
+    DocumentInspectorResponse,
+    DocumentKnowledgeGraphResponse,
+)
+from fichero.api.routes.kg_search import KGSearchResponse
+from fichero.api.routes.workflow_execution.schemas import (
+    ExecuteAcceptedResponse,
+    ExecutionStatusResponse,
+)
+from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 from fichero.models import Artifact, Document, LibraryCreateResponse, Workflow
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8765"
@@ -212,9 +223,23 @@ class FicheroClient:
             self.request("GET", f"/api/documents/{doc_id}")
         )
 
-    def document_inspector(self, doc_id: str) -> Any:
+    def document_inspector(self, doc_id: str) -> DocumentInspectorResponse:
         """Aggregate view of a document's entities, claims, and artifacts."""
-        return self.request("GET", f"/api/documents/{doc_id}/inspector")
+        return DocumentInspectorResponse.model_validate(
+            self.request("GET", f"/api/documents/{doc_id}/inspector")
+        )
+
+    def document_knowledge_graph(
+        self, doc_id: str, *, include_children: bool = False
+    ) -> DocumentKnowledgeGraphResponse:
+        """Canonical KG grouping for a document — deduped, merge-resolved (#1068)."""
+        return DocumentKnowledgeGraphResponse.model_validate(
+            self.request(
+                "GET",
+                f"/api/documents/{doc_id}/knowledge-graph",
+                params={"include_children": include_children},
+            )
+        )
 
     def import_file(self, path: str | Path, parent_id: str | None = None) -> Any:
         """Upload a single file to the library (multipart/form-data)."""
@@ -239,21 +264,25 @@ class FicheroClient:
         *,
         force_new: bool = False,
         skip_cache: bool = False,
-    ) -> Any:
-        return self.request(
-            "POST",
-            "/api/workflow-execution/execute",
-            json={
-                "workflow_id": workflow_id,
-                "inputs": inputs or {},
-                "force_new": force_new,
-                "skip_cache": skip_cache,
-            },
+    ) -> ExecuteAcceptedResponse:
+        return ExecuteAcceptedResponse.model_validate(
+            self.request(
+                "POST",
+                "/api/workflow-execution/execute",
+                json={
+                    "workflow_id": workflow_id,
+                    "inputs": inputs or {},
+                    "force_new": force_new,
+                    "skip_cache": skip_cache,
+                },
+            )
         )
 
-    def execution_status(self, thread_id: str) -> Any:
-        return self.request(
-            "GET", f"/api/workflow-execution/threads/{thread_id}/status"
+    def execution_status(self, thread_id: str) -> ExecutionStatusResponse:
+        return ExecutionStatusResponse.model_validate(
+            self.request(
+                "GET", f"/api/workflow-execution/threads/{thread_id}/status"
+            )
         )
 
     # -- artifacts ---------------------------------------------------------
@@ -311,12 +340,16 @@ class FicheroClient:
         query: str | None = None,
         entity_type: str | None = None,
         limit: int = 50,
-    ) -> Any:
-        return self.request(
+    ) -> list[KnowledgeEntity]:
+        raw = self.request(
             "GET",
             "/api/entities",
             params={"q": query, "entity_type": entity_type, "limit": limit},
         )
+        return [
+            KnowledgeEntity.model_validate(e)
+            for e in _expect_list(raw, "/api/entities")
+        ]
 
     def list_claims(
         self,
@@ -327,8 +360,8 @@ class FicheroClient:
         claim_type: str | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> Any:
-        return self.request(
+    ) -> list[KnowledgeClaim]:
+        raw = self.request(
             "GET",
             "/api/claims",
             params={
@@ -340,10 +373,16 @@ class FicheroClient:
                 "offset": offset,
             },
         )
+        return [
+            KnowledgeClaim.model_validate(c)
+            for c in _expect_list(raw, "/api/claims")
+        ]
 
-    def kg_search(self, query: str, *, limit: int = 50) -> Any:
-        return self.request(
-            "GET", "/api/kg/search", params={"q": query, "limit": limit}
+    def kg_search(self, query: str, *, limit: int = 50) -> KGSearchResponse:
+        return KGSearchResponse.model_validate(
+            self.request(
+                "GET", "/api/kg/search", params={"q": query, "limit": limit}
+            )
         )
 
     # -- search ------------------------------------------------------------
@@ -367,8 +406,12 @@ class FicheroClient:
         )
 
     # -- activity ----------------------------------------------------------
-    def recent_activity(self, *, limit: int = 50) -> Any:
-        return self.request("GET", "/api/activity/recent", params={"limit": limit})
+    def recent_activity(self, *, limit: int = 50) -> list[ActivityResponse]:
+        raw = self.request("GET", "/api/activity/recent", params={"limit": limit})
+        return [
+            ActivityResponse.model_validate(a)
+            for a in _expect_list(raw, "/api/activity/recent")
+        ]
 
     def list_activities(
         self,
