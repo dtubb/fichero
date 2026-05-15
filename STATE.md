@@ -43,8 +43,19 @@ The #1072 audit identified three HIGH clusters of misplaced SwiftUI logic: **art
 
 ### Don't break
 
+**CLI / this session:**
 - `client.py`: `_expect_list(raw, path)` is the contract — typed list methods must raise on wrong-shape responses, never silently coerce. `list_artifacts` unwraps the `{"artifacts": [...]}` envelope locally.
-- `__main__.py` `_resolve_workflow` uses attribute access on `Workflow` objects — don't revert to `.get()`/`["..."]`.
-- Loop #1's invariants still hold: `builder._execute_node` aborts on garbage output / `result["error"]` (#1029/#1060); DBWriter fails loud (#1000); PDF text-layer short-circuit runs before skip-if-artifact cache (#1033/#1064); `_classify_systemic_error` (#1060); `StructuredDecodeError.kind` (#1027).
-- KG/entity logic in the **backend** (see `feedback_kg_logic_in_backend` memory).
+- `__main__.py` `_resolve_workflow` uses attribute access on `Workflow` objects — don't revert to `.get()` / `["..."]`.
+
+**Backend invariants (from loop #1, all load-bearing):**
+- `builder._execute_node` converts any tool's `result["error"]` into a `SystemicErrorDetected` abort AND gates on garbage output via `output_quality.assess_result_quality` (#1029). Tools surfacing partial success must NOT set `error`.
+- `extract_all._classify_systemic_error` (#1060), `DBWriter` fails loud via bounded `_drain()` (#1000), `StructuredDecodeError.kind` + `RETRYABLE_KINDS` (#1027).
+- `process_vision`: PDF text-layer short-circuit runs **before** the skip-if-artifact cache check; the cache check is gated on `not pdf_layer_used` (#1064). Don't reorder.
+- `document_inspector._build_knowledge_graph` *follows* `merged_into_id` to the canonical entity — does NOT skip merged entities (skipping silently drops absorbed entities' claims; that was a #1068 under-count cause). Don't revert to skipping.
+- `entity_inspector._compose_entity_summary` builds `summary` as a deterministic entity-level line — must NEVER echo a claim's text/predicate (the #1050 bug).
+- #1030 migration drift: `MigrationRunner.repair_kg_svo_repr_leak` recomposes `claim.text` mirroring `extractors._write_kg_rows` — entity-bearing: `"{subject} {verb} {obj}."`, date-style: `"{stem}: {verb} {obj}."`. If the forward composition ever changes, the repair must change too or they'll diverge. The "no recoverable SVO" guard exists on BOTH claim and entity helpers — polluted rows are left for manual review, NOT blanked. Don't remove the guards.
+- `StructuredDecodeError` IS an `AppleUnavailableError` subclass by design (#949/#962) — don't revert.
+
+**Architecture / process:**
+- KG/entity *logic* belongs in the backend, not SwiftUI/CLI — `feedback_kg_logic_in_backend` memory + the two audit docs in `agent-work/proposals/`. The engine is logic; CLI / SwiftUI / future iPad / web are display surfaces only.
 - The auth token file (`~/Library/Application Support/Fichero/.api-key`) is overwritten by every backend launch — concurrent backends starve their clients of valid auth. Documented in `agent-work/proposals/fichero-cli-smoke.md`.
