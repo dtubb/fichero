@@ -1922,6 +1922,24 @@
         "query_params": [],
         "request_model": null,
         "response_model": "DocumentInspectorResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/{document_id}/knowledge-graph",
+        "operation_id": "knowledge_graph_api_documents__document_id__knowledge_graph_get",
+        "summary": "Canonical KG grouping for a document \u2014 deduped, merge-resolved",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [
+          {
+            "name": "include_children",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "DocumentKnowledgeGraphResponse"
       }
     ],
     "entities": [

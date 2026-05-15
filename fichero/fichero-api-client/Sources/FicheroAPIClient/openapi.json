@@ -6340,6 +6340,68 @@
         }
       }
     },
+    "/api/documents/{document_id}/knowledge-graph": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Canonical KG grouping for a document \u2014 deduped, merge-resolved",
+        "description": "The single source of truth for a document's knowledge graph. Resolves entities, follows merge chains to the canonical entity (absorbed entities' claims are kept, not dropped), groups by kind \u2014 including a Dates group for entity-less date claims \u2014 dedups within each kind, and returns the groups in display order. The list-view row and the KG inspector tab both render this verbatim so they can no longer disagree (#1068).\n\nWith ``include_children=true`` the query walks the document tree (BFS) and aggregates every descendant's claims onto the parent. extract_all writes claims to PAGE doc ids, never the parent PDF \u2014 so a parent PDF queried without this flag looks empty even though its pages are full of entities (#1069).",
+        "operationId": "knowledge_graph_api_documents__document_id__knowledge_graph_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "include_children",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Children"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentKnowledgeGraphResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/entities/{entity_id}/inspector": {
       "get": {
         "tags": [
@@ -34186,6 +34248,50 @@
         "title": "DocumentInspectorResponse",
         "description": "Everything the inspector needs in one shot."
       },
+      "DocumentKnowledgeGraphResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "include_children": {
+            "type": "boolean",
+            "title": "Include Children"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/KGEntityGroup"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeClaim"
+            },
+            "type": "array",
+            "title": "Claims"
+          },
+          "entity_count": {
+            "type": "integer",
+            "title": "Entity Count"
+          },
+          "claim_count": {
+            "type": "integer",
+            "title": "Claim Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "include_children",
+          "groups",
+          "claims",
+          "entity_count",
+          "claim_count"
+        ],
+        "title": "DocumentKnowledgeGraphResponse"
+      },
       "DocumentListResponse": {
         "properties": {
           "documents": {
@@ -37100,6 +37206,97 @@
         ],
         "title": "InterpretiveFramework",
         "description": "An interpretive lens applied to claims and evidence.\n\nFrameworks are reusable lenses that shape how evidence is interpreted.\nExample: \"Marxist historical materialism\" as a framework for analyzing\nlabor relations in historical documents."
+      },
+      "KGEntityGroup": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/KGEntityItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "label",
+          "items"
+        ],
+        "title": "KGEntityGroup"
+      },
+      "KGEntityItem": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Entity Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          },
+          "claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Claim Ids"
+          },
+          "source_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Document Id"
+          },
+          "source_page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Page Label"
+          },
+          "source_excerpt": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Excerpt"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "canonical_name",
+          "entity_type",
+          "description",
+          "aliases",
+          "claim_ids",
+          "source_document_id",
+          "source_page_label",
+          "source_excerpt"
+        ],
+        "title": "KGEntityItem",
+        "description": "One deduped row in a kind group.\n\nFor entity-bearing claims this is a canonical KnowledgeEntity.\nFor date-style claims (no entity) it is the claim itself, keyed\non claim text. ``claim_ids`` collects every claim that collapsed\ninto this row so callers can still reach the provenance."
       },
       "KGMetricsResponse": {
         "properties": {
