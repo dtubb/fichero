@@ -525,11 +525,15 @@ async def _run_workflow_in_background(
             }
         }
 
-        # Build initial state with library_path
+        # Build initial state with library_path. Include workflow_id so it
+        # survives into checkpoint["channel_values"] — CheckpointMetadata is
+        # LangGraph-internal (source/step/parents/run_id) and never carries
+        # user data, so this is the only durable place for it (#1079).
         initial_state = build_initial_state(
             request.inputs,
             library_path=str(db.path.parent) if hasattr(db, "path") else "",
         )
+        initial_state["workflow_id"] = request.workflow_id
 
         # Identify exit nodes (nodes with no outgoing edges) using raw IDs
         exit_node_ids = set()

@@ -306,8 +306,14 @@ async def resume_workflow(
                 status_code=404, detail=f"No checkpoint found for thread: {thread_id}"
             )
 
-        # Extract workflow_id from checkpoint metadata
-        workflow_id = checkpoint_tuple.metadata.get("workflow_id", "unknown")
+        # workflow_id is stored in channel_values (CheckpointMetadata is
+        # LangGraph-internal and cannot carry user fields — see #1079).
+        resume_state = checkpoint_tuple.checkpoint.get("channel_values", {})
+        workflow_id = (
+            (resume_state.get("workflow_id") if isinstance(resume_state, dict) else None)
+            or checkpoint_tuple.metadata.get("workflow_id")
+            or "unknown"
+        )
 
         # Load workflow to rebuild graph
         store = WorkflowStore(db)
@@ -380,16 +386,21 @@ async def get_thread_status(
                 status_code=404, detail=f"No checkpoint found for thread: {thread_id}"
             )
 
-        # Extract workflow info from metadata
-        workflow_id = checkpoint_tuple.metadata.get("workflow_id", "unknown")
+        # Extract workflow info. CheckpointMetadata is LangGraph-internal
+        # (source/step/parents/run_id) — workflow_id is stored in the graph
+        # state's channel_values (#1079). Fall back to metadata for compat
+        # with any future LangGraph version that does propagate it.
+        current_state = checkpoint_tuple.checkpoint.get("channel_values", {})
+        workflow_id = (
+            (current_state.get("workflow_id") if isinstance(current_state, dict) else None)
+            or checkpoint_tuple.metadata.get("workflow_id")
+            or "unknown"
+        )
 
         # Try to get workflow name
         store = WorkflowStore(db)
         workflow = store.get(workflow_id) if workflow_id != "unknown" else None
         workflow_name = workflow.name if workflow else "Unknown"
-
-        # Determine status from checkpoint
-        current_state = checkpoint_tuple.checkpoint.get("channel_values", {})
         has_pending_writes = len(checkpoint_tuple.pending_writes) > 0
 
         # Check for error in state

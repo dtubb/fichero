@@ -149,8 +149,14 @@ async def get_thread_history(
                 status_code=404, detail=f"No checkpoint found for thread: {thread_id}"
             )
 
-        # Get workflow info
-        workflow_id = latest_tuple.metadata.get("workflow_id", "unknown")
+        # workflow_id is in channel_values (CheckpointMetadata is LangGraph-
+        # internal; cannot carry user fields — see #1079).
+        thread_state = latest_tuple.checkpoint.get("channel_values", {})
+        workflow_id = (
+            (thread_state.get("workflow_id") if isinstance(thread_state, dict) else None)
+            or latest_tuple.metadata.get("workflow_id")
+            or "unknown"
+        )
         store = WorkflowStore(db)
         workflow = store.get(workflow_id) if workflow_id != "unknown" else None
         workflow_name = workflow.name if workflow else "Unknown"
