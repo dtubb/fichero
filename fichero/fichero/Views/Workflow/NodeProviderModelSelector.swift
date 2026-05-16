@@ -38,6 +38,11 @@ struct NodeProviderModelSelector: View {
             || selectedProviderId == largeAliasProviderId
     }
 
+    /// Whether no explicit provider is set — node uses the workflow/system default.
+    private var isDefaultSelected: Bool {
+        selectedProviderId.isEmpty
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Provider picker
@@ -58,9 +63,9 @@ struct NodeProviderModelSelector: View {
                 }
             }
 
-            // Model picker (hidden when Apple Vision OR a tier alias is
-            // selected — alias resolution at runtime fills the model).
-            if !isAppleVisionSelected && !isAliasSelected {
+            // Model picker hidden when Default / Apple Vision / tier alias —
+            // runtime fills both fields in all three cases.
+            if !isDefaultSelected && !isAppleVisionSelected && !isAliasSelected {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Model")
                         .font(.caption)
@@ -111,7 +116,7 @@ struct NodeProviderModelSelector: View {
                 }
             } else {
                 Picker("Provider", selection: $selectedProviderId) {
-                    Text("Select provider...").tag("")
+                    Text("Default").tag("")
 
                     // Apple Vision as first option for tools that support it
                     if toolSupportsAppleVision {
@@ -134,7 +139,14 @@ struct NodeProviderModelSelector: View {
                 }
                 .pickerStyle(.menu)
                 .onChange(of: selectedProviderId) { _, newValue in
-                    guard !newValue.isEmpty else { return }
+                    if newValue.isEmpty {
+                        // Default selected — clear explicit provider/model so the runtime uses its default
+                        node.providerName = nil
+                        node.modelName = nil
+                        node.usesLLM = false
+                        selectedModelId = ""
+                        return
+                    }
 
                     if newValue == appleVisionProviderId {
                         // Apple Vision selected — set vision_mode, clear LLM provider/model
