@@ -13,7 +13,7 @@ class FeatureManager: ObservableObject {
         + "describe,rewrite,"
         + "people_extract,dates_extract,rivers_extract,events_extract,"
         + "mines_extract,properties_extract,legal_references_extract,"
-        + "keywords_extract"
+        + "keywords_extract,quotes_extract"
     private static let isDevFeatureTier =
         ProcessInfo.processInfo.environment["FICHERO_FEATURE_TIER"]?.lowercased() == "dev"
 

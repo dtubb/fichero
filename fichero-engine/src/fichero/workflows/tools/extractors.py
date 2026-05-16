@@ -317,6 +317,38 @@ _SECTIONS: list[dict[str, Any]] = [
         ),
     },
     {
+        "name": "quotes_extract",
+        "display": "Extract Quotes",
+        "artifact": "quotes",
+        "entity_type": EntityType.person,
+        "icon": "text.quote",
+        "color": "purple",
+        "schema_key": "quotes",
+        "allow_null_subject": True,
+        "item_shape": (
+            '{"name": "Speaker name or null", '
+            '"verb": "said|argued|wrote|testified", '
+            '"object": "verbatim quote text", '
+            '"source_text": "surrounding sentence"}'
+        ),
+        "instruction": (
+            "Extract every DIRECT QUOTATION — text the source presents as verbatim "
+            "words spoken or written by a specific person. "
+            "'name' = the speaker's name as written in the text (preserve original "
+            "spelling and accents), or null when no speaker is identified. "
+            "'verb' = the attribution verb (said, argued, wrote, testified, reported, "
+            "declared, stated, asked). "
+            "'object' = the verbatim quoted text exactly as it appears in the source "
+            "— preserve original punctuation, spelling, and accents. Do NOT "
+            "paraphrase or summarise the quote. "
+            "'source_text' = the shortest surrounding sentence or phrase that "
+            "contains both the quote and its attribution, to anchor it in context. "
+            "ONLY extract text that is clearly a direct quotation (enclosed in "
+            "quotation marks or attributed with a speech verb). "
+            "Skip paraphrases, indirect speech, and the author's own narrative voice."
+        ),
+    },
+    {
         "name": "keywords_extract",
         "display": "Extract Keywords",
         "artifact": "keywords",
@@ -679,6 +711,28 @@ class _SectionLegalReference(BaseModel):
     warrant: str = _WARRANT_FIELD
 
 
+class _SectionQuote(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_defaults(cls, data):
+        return _fill_required_defaults(data)
+
+    name: str | None = Field(
+        default=None,
+        description=(
+            "Speaker's name as written in the text (preserve original spelling "
+            "and accents), or null when no speaker is identified in the passage."
+        ),
+    )
+    verb: str = _SVO_VERB_FIELD
+    object: str = _SVO_OBJECT_FIELD
+    epistemic_status: str = _EPISTEMIC_FIELD
+    claim_type: str = _CLAIM_TYPE_FIELD
+    source_text: str = _SOURCE_TEXT_FIELD
+    time_start: str = _TIME_START_FIELD
+    time_end: str = _TIME_END_FIELD
+
+
 def _make_section_schema(item_model: type[BaseModel], schema_key: str) -> type[BaseModel]:
     """Build a single-section wrapper Pydantic model. Each per-section
     tool returns `{<schema_key>: [<items>]}` so the parsed result has
@@ -710,6 +764,7 @@ _SECTION_SCHEMAS: dict[str, type[BaseModel]] = {
     "mines": _make_section_schema(_SectionMine, "mines"),
     "properties": _make_section_schema(_SectionProperty, "properties"),
     "legal_references": _make_section_schema(_SectionLegalReference, "legal_references"),
+    "quotes": _make_section_schema(_SectionQuote, "quotes"),
 }
 
 
@@ -2031,6 +2086,44 @@ def _write_kg_rows(
 
         # Entity-bearing section.
         if not canonical:
+            # Sections with allow_null_subject (e.g. unattributed quotes) still
+            # write a claim with subject=None so the inspector can surface them
+            # rather than silently dropping them (#1099).
+            if section.get("allow_null_subject") and (verb or obj or legacy_context):
+                if verb or obj:
+                    _pred = predicate.rstrip()
+                    _suffix = "" if _pred.endswith((".", "!", "?")) else "."
+                    claim_text = f"[unattributed] {_pred}{_suffix}".strip()
+                else:
+                    claim_text = legacy_context or "[unattributed]"
+                mentioned = _scan_for_mentioned_entities(
+                    " ".join(filter(None, [claim_text, excerpt or ""])),
+                    alias_pairs,
+                    exclude=set(),
+                )
+                save_claim(
+                    db,
+                    text=claim_text,
+                    source_document_id=container_id,
+                    entity_ids=mentioned,
+                    source_excerpt=excerpt,
+                    source_page_label=page_label,
+                    source_char_start=char_start,
+                    source_char_end=char_end,
+                    claim_type=ctype or ClaimType.fact,
+                    metadata=meta,
+                    epistemic_status=epistemic,
+                    subject_canonical=None,
+                    predicate_verb=verb or None,
+                    object_phrase=obj or None,
+                    provider=base_provider_label,
+                    model=claim_model_label,
+                    language=detected_language,
+                    confidence=claim_confidence,
+                    source_language=detected_language,
+                    confidence_origin=("heuristic" if svo_synthesised else "llm"),
+                )
+                claims_written += 1
             continue
         aliases = (
             item.get("alternative_spellings")
