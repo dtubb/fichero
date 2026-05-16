@@ -1096,6 +1096,138 @@ def entity_resolve(
     _invoke(ctx, lambda c: c.resolve_entity(name))
 
 
+# -- #1125 scoped KG exploration ------------------------------------------
+# These compose existing endpoints client-side to answer "entities at
+# this scope" and "claims at this scope mentioning entity X". No new
+# backend routes — pure CLI orchestration over list_claims +
+# list_documents + entity_documents.
+
+@entity_app.command("at-page")
+def entity_at_page(
+    ctx: typer.Context,
+    page_doc_id: str = typer.Argument(..., help="Page document ID."),
+    entity_type: Optional[str] = typer.Option(
+        None, "--type", help="Filter by entity type (person/location/etc.)",
+    ),
+) -> None:
+    """Entities mentioned on a single page."""
+    _invoke(
+        ctx,
+        lambda c: c.entities_at_doc(page_doc_id, entity_type=entity_type),
+    )
+
+
+@entity_app.command("at-doc")
+def entity_at_doc(
+    ctx: typer.Context,
+    doc_id: str = typer.Argument(
+        ..., help="Document ID (a multi-page PDF or a single file).",
+    ),
+    entity_type: Optional[str] = typer.Option(
+        None, "--type", help="Filter by entity type (person/location/etc.)",
+    ),
+) -> None:
+    """Entities mentioned anywhere in this document (across all pages)."""
+    _invoke(
+        ctx,
+        lambda c: c.entities_at_doc(doc_id, entity_type=entity_type),
+    )
+
+
+@entity_app.command("at-folder")
+def entity_at_folder(
+    ctx: typer.Context,
+    folder_id: str = typer.Argument(..., help="Folder document ID."),
+    entity_type: Optional[str] = typer.Option(
+        None, "--type", help="Filter by entity type (person/location/etc.)",
+    ),
+    non_recursive: bool = typer.Option(
+        False, "--non-recursive",
+        help="Only direct children; don't walk sub-folders.",
+    ),
+) -> None:
+    """Entities mentioned in any document under this folder.
+
+    Recursive by default — walks every descendant. Pass
+    ``--non-recursive`` to limit to direct children.
+    """
+    _invoke(
+        ctx,
+        lambda c: c.entities_at_folder(
+            folder_id, recursive=not non_recursive,
+            entity_type=entity_type,
+        ),
+    )
+
+
+@entity_app.command("context")
+def entity_context(
+    ctx: typer.Context,
+    entity_id: str = typer.Argument(..., help="Entity ID."),
+) -> None:
+    """Show where an entity appears: page / doc / folder counts and
+    total claims. The cheap summary that drives 'navigate to this
+    scope' decisions: 'Pedro Pérez appears in 12 pages across 3 docs
+    in 1 folder, with 47 claims.'
+    """
+    _invoke(ctx, lambda c: c.entity_context(entity_id))
+
+
+@claim_app.command("at-page")
+def claim_at_page(
+    ctx: typer.Context,
+    page_doc_id: str = typer.Argument(..., help="Page document ID."),
+    entity_id: Optional[str] = typer.Option(
+        None, "--entity", help="Filter to claims mentioning this entity.",
+    ),
+) -> None:
+    """Claims sourced from this page (optionally about one entity)."""
+    _invoke(
+        ctx,
+        lambda c: c.claims_at_doc(page_doc_id, entity_id=entity_id),
+    )
+
+
+@claim_app.command("at-doc")
+def claim_at_doc(
+    ctx: typer.Context,
+    doc_id: str = typer.Argument(..., help="Document ID."),
+    entity_id: Optional[str] = typer.Option(
+        None, "--entity", help="Filter to claims mentioning this entity.",
+    ),
+) -> None:
+    """Claims sourced from this doc or any of its pages, optionally
+    about one entity."""
+    _invoke(
+        ctx,
+        lambda c: c.claims_at_doc(doc_id, entity_id=entity_id),
+    )
+
+
+@claim_app.command("at-folder")
+def claim_at_folder(
+    ctx: typer.Context,
+    folder_id: str = typer.Argument(..., help="Folder document ID."),
+    entity_id: Optional[str] = typer.Option(
+        None, "--entity", help="Filter to claims mentioning this entity.",
+    ),
+    non_recursive: bool = typer.Option(
+        False, "--non-recursive",
+        help="Only direct children; don't walk sub-folders.",
+    ),
+) -> None:
+    """Claims sourced from anywhere under this folder, optionally
+    about one entity."""
+    _invoke(
+        ctx,
+        lambda c: c.claims_at_folder(
+            folder_id,
+            entity_id=entity_id,
+            recursive=not non_recursive,
+        ),
+    )
+
+
 # -- audit -----------------------------------------------------------------
 @audit_app.command("list")
 def audit_list(

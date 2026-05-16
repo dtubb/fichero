@@ -389,6 +389,198 @@ class FicheroClient:
             for c in _expect_list(raw, "/api/claims")
         ]
 
+    # -- scoped KG exploration (#1125) ---------------------------------
+    # These compose existing endpoints (list_claims, list_documents,
+    # entity_documents) to answer "all entities at this scope" and
+    # "all claims at this scope mentioning entity X" without new
+    # backend routes. Folder-scope recursively walks the doc tree.
+
+    def entities_at_doc(
+        self, doc_id: str, *, entity_type: str | None = None,
+    ) -> list[KnowledgeEntity]:
+        """All entities mentioned by any claim sourced from this doc
+        (or any of its page children). For a page doc this is just
+        that page's entities; for a multi-page PDF this is the union
+        across all pages.
+
+        Resolves entities through the claim's entity_ids[] union so
+        secondary mentions (#1119) are included, not just claim
+        subjects.
+        """
+        # First the direct claims on this doc.
+        direct = self.list_claims(source_document_id=doc_id, limit=1000)
+        # Then claims on each child doc (pages of a PDF).
+        children = self.list_documents(parent_id=doc_id, limit=1000)
+        all_claims = list(direct)
+        for child in children:
+            all_claims.extend(
+                self.list_claims(source_document_id=child.id, limit=1000)
+            )
+        # Collect unique entity_ids from every claim's entity_ids[].
+        seen: set[str] = set()
+        for c in all_claims:
+            for eid in c.entity_ids or []:
+                seen.add(eid)
+        if not seen:
+            return []
+        # Resolve to KnowledgeEntity objects.
+        results: list[KnowledgeEntity] = []
+        for eid in seen:
+            try:
+                ent = self.get_entity(eid)
+            except Exception:
+                continue
+            if entity_type and (
+                (ent.entity_type.value if hasattr(ent.entity_type, "value") else str(ent.entity_type))
+                != entity_type
+            ):
+                continue
+            results.append(ent)
+        results.sort(key=lambda e: e.canonical_name.lower())
+        return results
+
+    def entities_at_folder(
+        self, folder_id: str, *,
+        recursive: bool = True,
+        entity_type: str | None = None,
+    ) -> list[KnowledgeEntity]:
+        """Entities mentioned anywhere under a folder. Recursive by
+        default — walks every doc descendant.
+        """
+        doc_ids = self._collect_descendant_doc_ids(
+            folder_id, recursive=recursive,
+        )
+        seen: set[str] = set()
+        for did in doc_ids:
+            for c in self.list_claims(source_document_id=did, limit=1000):
+                for eid in c.entity_ids or []:
+                    seen.add(eid)
+        results: list[KnowledgeEntity] = []
+        for eid in seen:
+            try:
+                ent = self.get_entity(eid)
+            except Exception:
+                continue
+            if entity_type and (
+                (ent.entity_type.value if hasattr(ent.entity_type, "value") else str(ent.entity_type))
+                != entity_type
+            ):
+                continue
+            results.append(ent)
+        results.sort(key=lambda e: e.canonical_name.lower())
+        return results
+
+    def claims_at_doc(
+        self, doc_id: str, *, entity_id: str | None = None,
+    ) -> list[KnowledgeClaim]:
+        """Claims sourced from this doc OR any of its page children,
+        optionally filtered to those mentioning a specific entity.
+        """
+        direct = self.list_claims(
+            source_document_id=doc_id, entity_id=entity_id, limit=1000,
+        )
+        children = self.list_documents(parent_id=doc_id, limit=1000)
+        all_claims = list(direct)
+        for child in children:
+            all_claims.extend(self.list_claims(
+                source_document_id=child.id, entity_id=entity_id, limit=1000,
+            ))
+        return all_claims
+
+    def claims_at_folder(
+        self, folder_id: str, *,
+        entity_id: str | None = None,
+        recursive: bool = True,
+    ) -> list[KnowledgeClaim]:
+        """Claims sourced from anywhere under a folder. Optionally
+        filtered to those mentioning a specific entity."""
+        doc_ids = self._collect_descendant_doc_ids(
+            folder_id, recursive=recursive,
+        )
+        results: list[KnowledgeClaim] = []
+        for did in doc_ids:
+            results.extend(self.list_claims(
+                source_document_id=did, entity_id=entity_id, limit=1000,
+            ))
+        return results
+
+    def entity_context(self, entity_id: str) -> dict[str, Any]:
+        """Cheap summary of where this entity appears.
+
+        Returns counts of distinct pages / docs / folders the entity
+        is mentioned in, plus the total claim count. Drives the
+        ``fichero entity context <id>`` CLI command — "Pedro Pérez
+        appears in: 12 pages across 3 docs in 1 folder, with 47
+        claims."
+        """
+        docs = self.entity_documents(entity_id)
+        # Page vs. doc distinguished by doc_type. Folder ancestors
+        # gathered from the doc.parent_id chain.
+        page_ids: set[str] = set()
+        doc_ids: set[str] = set()
+        folder_ids: set[str] = set()
+        claim_total = 0
+        for link in docs:
+            full = self.get_document(link.document_id)
+            doc_type_val = (
+                full.doc_type.value
+                if hasattr(full.doc_type, "value")
+                else str(full.doc_type)
+            )
+            if doc_type_val == "page":
+                page_ids.add(full.id)
+                # Parent is the doc that contains the page.
+                if full.parent_id:
+                    doc_ids.add(full.parent_id)
+            else:
+                doc_ids.add(full.id)
+            # Walk up to find the folder.
+            parent_id = full.parent_id
+            while parent_id:
+                try:
+                    parent = self.get_document(parent_id)
+                except Exception:
+                    break
+                parent_type = (
+                    parent.doc_type.value
+                    if hasattr(parent.doc_type, "value")
+                    else str(parent.doc_type)
+                )
+                if parent_type == "folder":
+                    folder_ids.add(parent.id)
+                    break
+                parent_id = parent.parent_id
+            claim_total += getattr(link, "claim_count", 0) or 0
+        return {
+            "entity_id": entity_id,
+            "page_count": len(page_ids),
+            "doc_count": len(doc_ids),
+            "folder_count": len(folder_ids),
+            "claim_count": claim_total,
+        }
+
+    def _collect_descendant_doc_ids(
+        self, root_id: str, *, recursive: bool = True,
+    ) -> list[str]:
+        """Walk the doc tree under ``root_id`` and return every
+        descendant's id (excluding the root itself).
+
+        Non-recursive returns only direct children. Recursive walks
+        the whole subtree breadth-first. Used by the scoped query
+        helpers; left private because callers should prefer the
+        public entities_at_/claims_at_ wrappers.
+        """
+        out: list[str] = []
+        frontier: list[str] = [root_id]
+        while frontier:
+            current = frontier.pop(0)
+            children = self.list_documents(parent_id=current, limit=1000)
+            for child in children:
+                out.append(child.id)
+                if recursive:
+                    frontier.append(child.id)
+        return out
+
     def kg_search(self, query: str, *, limit: int = 50) -> KGSearchResponse:
         return KGSearchResponse.model_validate(
             self.request(
