@@ -93,11 +93,43 @@ def set_ai_defaults(body: AIDefaults) -> StatusOkResponse:
         "default_max_tokens": body.max_tokens,
         "default_prompt_prefix": body.prompt_prefix,
     }
+    # Tier-alias keys ($small/$large) must never be deleted mid-session —
+    # workflows silently lose their fallback target (#1057). Skip empty
+    # values for these; explicit reset goes through DELETE /ai-defaults.
+    _tier_keys = {
+        "default_small_provider", "default_small_model",
+        "default_large_provider", "default_large_model",
+    }
     for key, value in mapping.items():
         if value:
             db.set_setting(key, value)
-        else:
+        elif key not in _tier_keys:
             db.delete_setting(key)
+    return StatusOkResponse(status="ok")
+
+
+@router.post("/ai-defaults/repair")
+def repair_ai_defaults() -> StatusOkResponse:
+    """Re-seed any missing tier-alias defaults to Apple on-device models.
+
+    Safe to call on an existing library — only fills gaps, never overwrites
+    values the user has already set. Fixes libraries created before the
+    factory-defaults seed was added (#1057).
+    """
+    from fichero.app_db import get_app_db
+
+    db = get_app_db()
+    apple = "apple"
+    seeds = {
+        "default_small_provider": apple, "default_small_model": "apple-intelligence",
+        "default_large_provider": apple, "default_large_model": "apple-intelligence",
+        "default_text_provider": apple, "default_text_model": "apple-intelligence",
+        "default_vision_provider": apple, "default_vision_model": "apple-vision",
+        "default_audio_provider": apple, "default_audio_model": "apple-speech",
+    }
+    for key, value in seeds.items():
+        if not db.get_setting(key):
+            db.set_setting(key, value)
     return StatusOkResponse(status="ok")
 
 
