@@ -19,7 +19,7 @@
 
 ## In Progress
 
-None.
+None — awaiting Daniel approval or new bug reports during 0.0.2 testing.
 
 ## Completed (Prior Sessions — Autonomous Loop)
 
