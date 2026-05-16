@@ -2,10 +2,10 @@
 
 ## Snapshot
 
-**Branch: 0.0.2** · Latest: `2cbe06c2` · Working tree clean.
+**Branch: 0.0.2** · Latest: `10f962bb` · Working tree clean.
 
 ✅ **Backend Round 2 VERIFIED COMPLETE** — all 6 issues verified as closed and fixed in prior sessions.
-🔄 **Round 3 (Post-Testing Bugs) IN PROGRESS** — three bugs discovered during CLI testing; #1136 fixed, #1137–#1138 queued.
+✅ **Backend Round 3 — 2 of 3 FIXED** — CLI bugs #1136 and #1137 completed; #1138 pending.
 
 ## Tooling Now Available
 
@@ -13,11 +13,14 @@
 
 ## Next Session — Start Here
 
-**Round 3 queue ready**: Two unblocked bugs await fixes:
-1. **#1137** — CLI entity documents renders '(item)' instead of document name (formatter key mismatch)
-2. **#1138** — fastembed multilingual-e5-large pooling strategy changed from CLS to mean (breaks vector comparability)
+**Round 3 queue — 1 bug remaining**:
+- **#1138** — fastembed multilingual-e5-large pooling strategy changed from CLS to mean
+  - **Fix**: Pin fastembed==0.5.1 in fichero-engine/pyproject.toml
+  - **Testing**: Run pytest + ruff, verify UserWarning silenced
+  - **Commits**: pyproject.toml change + worker-status update
+  - **Close**: Close issue on GitHub
 
-Both are on 0.0.2 milestone. Pick either one and follow the same fix-verify-commit-close pattern.
+Single-issue session: `/session-start-auto --max-tasks 1 /Users/danieltubb/code/fichero-0.0.2`
 
 ## In Progress
 
@@ -25,7 +28,8 @@ None — #1136 just completed.
 
 ## Completed (This Session & Prior)
 
-- **#1136** — CLI entity_neighborhood wrong URL path (FIXED: cebf5efd)
+- **#1137** — CLI entity documents formatter (FIXED: d2f4ebde, closed)
+- **#1136** — CLI entity_neighborhood wrong URL path (FIXED: cebf5efd, closed)
 - **#1037** — extract_all performance instrumentation (already fixed)
 - **#1033** — transcribe text-layer short-circuit (already fixed in 7ef16274)
 - **#1001** — permissive_guardrails for extractors (Apple Intelligence false-positives)

@@ -1952,3 +1952,20 @@ Autonomous session-start-auto invoked to continue Round 2 work. Finding: all 6 R
 
 **Status:** Backend 0.0.2 fully complete. Awaiting Daniel's test feedback or approval for merge to main.
 
+
+## 2026-05-16 — Backend Worker Round 3 Autonomous Session (CLI Bug Fix)
+
+**Task Completed:**
+- ✅ **#1137** — CLI entity documents renders '(item)' instead of document name
+  - **Root cause**: Formatter keys didn't recognize `document_id` and `document_name` fields
+  - **Fix**: Added `document_id` to `_ID_KEYS` and `document_name` to `_LABEL_KEYS` in `fichero-engine/src/fichero/cli/formatters.py`
+  - **Validation**: pytest 2845 passed (1 pre-existing failure in test_routes_settings.py ignored), ruff clean
+  - **Commits**: d2f4ebde (fix), 10f962bb (status)
+  - **Status**: Closed on GitHub
+
+**Queue Status:**
+- Round 3: 2 of 3 pending bugs now fixed (#1136, #1137)
+- Next: #1138 (fastembed pooling strategy pin to 0.5.1) — unblocked
+
+**Session Exit:** Max tasks (1) reached per `--max-tasks 1` flag.
+
