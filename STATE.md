@@ -42,6 +42,10 @@
 
 **12 issues closed today (0.0.2):** #1080, #1081, #1083, #1084, #1087, #1088, #1104, #1105, #1106, #1107, #1110, #1113.
 
+**Session continuation (2026-05-16 morning):** Module consolidation Wave 1 + CLI CRUD Wave 2 shipped in one big commit. Net -5,378 LOC (orphan graph_* / predictions / kg_citations deleted; review_queue → claim_curation rename; search_query relocated; CLI surface grew with 40 typed methods across claim/entity/audit/settings/providers groups). Hermeneutics fold deferred (shape drift broke 15 tests) — filed #1126 to redo properly. Backend cancel endpoint missing — #1127. No-migration rule + redundant migration fold — #1128.
+
+**Next session pickup:** test loop still works end-to-end (#1113 SVO live-verified 14/14 on Apple Intelligence yesterday). Outstanding 0.0.2 wave 2 work: #1123 attribution taxonomy (12 claim fields + KnowledgeClaimLink wiring + canonical KG verbs), #1124 hermeneutic predicates, #1125 scoped KG exploration (page/doc/folder/library navigation), #1126 hermeneutics fold redo, #1114 entity quality (dedup/grounding/hallucinations), #1119 entity_ids[] mention every entity, #1121 _entity_writer Stage 1↔4 race.
+
 **Open follow-up filed:** #1119 — claim.entity_ids[] should include every entity referenced (not just subject); deferred from #1113.
 
 **Live-verification caveat:** the running backend (PID 96872, started 10:38) wrote to `/tmp/fichero-backend.log` originally but later cycles aren't visible there — the kill at line 47 of `start_backend.sh` broke the redirect. Subsequent runs probably write to the tmux pane only. To verify SVO works against Apple Intelligence: (a) hard restart the backend (`tmux send-keys -t fichero-backend C-c; ... ./scripts/start_backend.sh`), (b) re-import a fresh md file, (c) `workflow run "NER per-page (local)" <doc> --wait`, (d) `kg claims <doc> --json | jq '.claims[] | [.subject_canonical, .predicate_verb, .object_phrase]'`. If 0/N have full SVO, the Apple Intelligence decoder isn't producing verb/object — that's a model-compatibility issue distinct from #1113 (which is fixed for OpenAI / structured-output-capable models).
