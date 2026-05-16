@@ -608,15 +608,18 @@ async def _propagate_to_page_children(
         for page_doc in page_docs:
             # sequence is 1-based; page_texts is 0-indexed
             page_idx = (page_doc.sequence or 1) - 1
-            if page_idx >= len(page_texts) or not page_texts[page_idx]:
+            if page_idx >= len(page_texts):
                 continue
             page_text = page_texts[page_idx]
-            if not isinstance(page_doc.metadata, dict):
-                page_doc.metadata = {}
-            page_doc.page_content = page_text
-            page_doc.status = Status.completed
-            db.save(page_doc)
-            db.embed(page_doc)
+            is_blank = not page_text or not page_text.strip()
+
+            if not is_blank:
+                if not isinstance(page_doc.metadata, dict):
+                    page_doc.metadata = {}
+                page_doc.page_content = page_text
+                page_doc.status = Status.completed
+                db.save(page_doc)
+                db.embed(page_doc)
 
             if artifact_type and llm_config is not None:
                 try:
@@ -637,14 +640,17 @@ async def _propagate_to_page_children(
                         if getattr(a, "provider", None) == provider
                         and getattr(a, "model", None) == model
                     ]
+                    # Save even for blank pages so the inspector can
+                    # distinguish "blank page" from "tool didn't run" (#1082).
+                    artifact_content = page_text if not is_blank else ""
                     if matched:
                         art = matched[0]
-                        art.content = page_text
+                        art.content = artifact_content
                     else:
                         art = Artifact(
                             document_id=page_doc.id,
                             artifact_type=artifact_type,
-                            content=page_text,
+                            content=artifact_content,
                             provider=provider,
                             model=model,
                             version=1,
