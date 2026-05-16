@@ -1799,6 +1799,16 @@ def _write_kg_rows(
                 model=claim_model_label,
                 language=detected_language,
                 confidence=claim_confidence,
+                # #1123 Phase D — separate per-claim source_language
+                # from the doc-level `language` arg (both point at
+                # detected_language today; the distinction matters
+                # when a doc has multilingual passages and a later
+                # pass overrides per-claim) and record whether the
+                # SVO came from the LLM or our heuristic fallback.
+                source_language=detected_language,
+                confidence_origin=(
+                    "heuristic" if svo_synthesised else "llm"
+                ),
             )
             claims_written += 1
             continue
@@ -1869,6 +1879,12 @@ def _write_kg_rows(
             model=claim_model_label,
             language=detected_language,
             confidence=claim_confidence,
+            # #1123 Phase D — see the parallel date-style block above
+            # for rationale on source_language + confidence_origin.
+            source_language=detected_language,
+            confidence_origin=(
+                "heuristic" if svo_synthesised else "llm"
+            ),
         )
         entities_written += 1
         claims_written += 1

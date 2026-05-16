@@ -13,6 +13,7 @@ implementation plan (#728).
 from __future__ import annotations
 
 import logging
+import re
 from typing import Optional
 
 from fichero.db import Database
@@ -22,6 +23,7 @@ from fichero.knowledge_models import (
     EpistemicStatus,
     KnowledgeClaim,
     KnowledgeEntity,
+    QuotationKind,
 )
 
 logger = logging.getLogger(__name__)
@@ -265,6 +267,130 @@ def upsert_entity(
     return entity.id
 
 
+# =============================================================================
+# #1123 Phase D — heuristic attribution detection
+# =============================================================================
+# Cheap regex / string-shape detectors that derive attribution fields from
+# the existing claim text + source excerpt — no extra LLM calls. Each
+# detector returns ``None`` when it can't tell (honest absence over
+# guessed mapping). The save_claim wrapper below applies them automatically
+# unless the caller passed an explicit value.
+
+# Reporting verbs that signal speech / testimony attribution. Detect on
+# the predicate_verb (not on free-form text) so a sentence that merely
+# *mentions* the verb in passing ("she said no when the deed was filed")
+# doesn't trigger quotation_kind=verbatim on an unrelated claim.
+_REPORTING_VERBS = {
+    "said", "stated", "declared", "asserted", "claimed", "testified",
+    "petitioned", "reported", "argued", "wrote", "denied",
+    "testified about", "testified that",
+}
+
+# Smart quotes + double-angle + straight + Spanish low-9 / German quotes.
+_QUOTE_CHARS_RE = re.compile(r'["“”‘’«»„‚]')
+
+# "<Speaker> said/testified/declared ...". The name capture group accepts
+# 1-4 capitalised tokens or a clearly-marked title-phrase ("the witness X").
+_SPEAKER_BEFORE_RE = re.compile(
+    r"(?:^|[\.\n;]\s*)"
+    r"(?P<speaker>(?:the\s+)?(?:witness|petitioner|deponent|scribe|"
+    r"alcalde|cabildo|notary|don|doña|señor|señora|king|queen|"
+    r"viceroy|judge|priest|presbyter)?\s*"
+    r"(?:[A-Z][\wÀ-ÖØ-öø-ÿ\.’']*\s*){1,4})"
+    r"\s+(?:said|stated|declared|asserted|claimed|testified|"
+    r"petitioned|reported|argued|wrote|denied)\b",
+    re.IGNORECASE,
+)
+
+# "according to <Speaker>", "as stated by <Speaker>"
+_SPEAKER_ACCORDING_RE = re.compile(
+    r"(?:according to|as stated by|per the testimony of|in the words of)\s+"
+    r"(?P<speaker>(?:the\s+)?[A-Z][\wÀ-ÖØ-öø-ÿ\.’']*"
+    r"(?:\s+[A-Z][\wÀ-ÖØ-öø-ÿ\.’']*){0,3})",
+    re.IGNORECASE,
+)
+
+# "addressed to / to the <Audience>" — for petitions, decrees, letters.
+# Restrict to capitalised audiences (institutions / titles) so generic
+# "to the place" prepositional phrases don't fire.
+_AUDIENCE_RE = re.compile(
+    r"(?:addressed\s+to|directed\s+to|to\s+the)\s+"
+    r"(?P<audience>(?:the\s+)?"
+    r"(?:Cabildo|Audiencia|Crown|King|Queen|Viceroy|Court|Tribunal|"
+    r"Council|Assembly|Congress|Senate|Governor|Alcalde|Judge|"
+    r"Bishop|Archbishop|Inquisition)"
+    r"(?:\s+of\s+[A-Z][\wÀ-ÖØ-öø-ÿ\.’']*"
+    r"(?:\s+[A-Z][\wÀ-ÖØ-öø-ÿ\.’']*)*)?)",
+)
+
+
+def _detect_quotation_kind(
+    predicate_verb: str | None,
+    source_excerpt: str | None,
+) -> QuotationKind | None:
+    """Heuristic: verbatim if quotes-around-the-claim + reporting verb,
+    indirect if reporting verb without quotes, None otherwise.
+
+    Conservative on purpose. We'd rather leave the field null than
+    claim something is verbatim that isn't — the inspector treats
+    verbatim as a warrant-strength signal, and a false positive
+    propagates downstream credibility.
+    """
+    if not predicate_verb:
+        return None
+    verb_norm = predicate_verb.lower().strip()
+    is_reporting = verb_norm in _REPORTING_VERBS or any(
+        verb_norm.startswith(v + " ") for v in _REPORTING_VERBS
+    )
+    if not is_reporting:
+        return None
+    has_quotes = bool(_QUOTE_CHARS_RE.search(source_excerpt or ""))
+    return QuotationKind.verbatim if has_quotes else QuotationKind.indirect
+
+
+def _detect_speaker(
+    claim_text: str | None,
+    source_excerpt: str | None,
+) -> str | None:
+    """Pull a speaker name from "X said" / "according to X" patterns.
+
+    Searches the source_excerpt first (where the original phrasing lives),
+    then falls back to the composed claim text. Caps length to 80 chars
+    so a runaway match doesn't pollute the field.
+    """
+    for blob in (source_excerpt, claim_text):
+        if not blob:
+            continue
+        for pat in (_SPEAKER_ACCORDING_RE, _SPEAKER_BEFORE_RE):
+            m = pat.search(blob)
+            if m:
+                speaker = m.group("speaker").strip(" .,;:'\"’")
+                # Reject too-short (likely a stray pronoun match) and
+                # too-long (likely the whole sentence) extractions.
+                if 2 <= len(speaker) <= 80:
+                    return speaker
+    return None
+
+
+def _detect_audience(
+    claim_text: str | None,
+    source_excerpt: str | None,
+) -> str | None:
+    """Pull "the Cabildo of Popayán" / "the Audiencia" type addressees
+    from the source text. Limited to capitalised institutional nouns;
+    a generic "to the place" doesn't match.
+    """
+    for blob in (source_excerpt, claim_text):
+        if not blob:
+            continue
+        m = _AUDIENCE_RE.search(blob)
+        if m:
+            aud = m.group("audience").strip(" .,;:")
+            if 3 <= len(aud) <= 80:
+                return aud
+    return None
+
+
 def save_claim(
     db: Database,
     text: str,
@@ -289,6 +415,16 @@ def save_claim(
     provider: Optional[str] = None,
     model: Optional[str] = None,
     language: Optional[str] = None,
+    # --- #1123 Phase D additions ---
+    # All optional; auto-derive from claim text + source excerpt when
+    # not passed. Callers who already have explicit values (e.g. a
+    # later structured-extraction pass that detects speakers via LLM)
+    # can override the heuristic.
+    source_language: Optional[str] = None,
+    quotation_kind: Optional[QuotationKind] = None,
+    speaker_name: Optional[str] = None,
+    audience: Optional[str] = None,
+    confidence_origin: Optional[str] = None,
 ) -> str:
     """Save a `KnowledgeClaim` row. Returns the claim ID.
 
@@ -345,6 +481,23 @@ def save_claim(
     # additions in kg/_common.py reach every existing writer for free.
     from fichero.kg._common import canonical_verb as _canonical_verb
     pred_canonical = _canonical_verb(sv)
+
+    # Attribution heuristics (#1123 Phase D): derive speaker / audience /
+    # quotation_kind from the claim text + excerpt when not explicitly
+    # passed. Same centralisation play as predicate_canonical — extractor
+    # call sites stay short, new detection rules in this module reach
+    # every writer for free. source_language defaults to the existing
+    # `language` arg when the caller hasn't separated them (most do not
+    # — the distinction matters when a doc has multilingual passages).
+    if quotation_kind is None:
+        quotation_kind = _detect_quotation_kind(sv, source_excerpt)
+    if speaker_name is None:
+        speaker_name = _detect_speaker(text, source_excerpt)
+    if audience is None:
+        audience = _detect_audience(text, source_excerpt)
+    if source_language is None:
+        source_language = language
+
     claim = KnowledgeClaim(
         text=text,
         source_document_id=source_document_id,
@@ -372,6 +525,14 @@ def save_claim(
         provider=provider,
         model=model,
         language=language,
+        # #1123 Phase D — attribution fields populated automatically
+        # from the claim text + source excerpt unless explicitly passed.
+        # provenance_layer defaults to main_text on the model itself.
+        source_language=source_language,
+        quotation_kind=quotation_kind,
+        speaker_name=speaker_name,
+        audience=audience,
+        confidence_source=confidence_origin,
     )
     db.save(claim)
     return claim.id
