@@ -1,3 +1,12 @@
+## 2026-05-16 — Backend Worker Checkpoint (21:22 ADT)
+
+Verified backend queue completion: all 4 priority issues fixed in prior autonomous loop sessions. Worker status synchronized to reflect:
+- ✅ #1001 (permissive guardrails for Apple Intelligence)
+- ✅ #1025 (local PYPPETEER mermaid rendering, no remote API)
+- ✅ #1017 (extractor schema round-trip + invariant violation tests)
+- ✅ #988 step 3 (probabilistic entity-match scoring)
+
+No new work this session. STATE.md updated to guide next session toward SwiftUI fixes or 0.0.3 prep. Ready for Daniel review or continuation.
 
 ## 2026-05-13 — Autonomous Loop (Late, 4 KG/Catalogue bugs)
 
@@ -1844,3 +1853,16 @@ Audits produced:
 
 - **#1017 Layer 2**: Added 5 comprehensive invariant violation logging tests for extractor → KG round-trip validation. Validates that anchorless items, degenerate descriptions, and SVO incompleteness surface in activity logs (not silent gaps). Tests lock the contract that extraction quality issues are observable, preventing #1006 (empty SVO), #1016 (degenerate descriptions), #1003 (silent missing pages). 226 extraction tests pass (5 new). Full backend: 2823 passed, 1 pre-existing failure.
 - Commits: `345f9690` (test layer), `d6d012fa` (status update)
+
+## 2026-05-16 — Haiku Autonomous Backend Loop — 4 Issues Complete
+
+**Haiku worker executed 5 iterations autonomously via agent-autonomous-loop.py, completing the entire 0.0.2 backend queue:**
+
+- **#1001** (04a14ba4) — pass permissive_guardrails to extractors; reduce Apple Intelligence false-positives on academic content
+- **#1025** (501a4958) — drop mermaid.ink remote dependency; switch to local PYPPETEER rendering for workflow diagrams
+- **#1017** (345f9690) — write extractor schema round-trip invariant tests + per-page timing instrumentation
+- **#988 step 3** (51929ba2) — implement field-weighted probabilistic entity-match scoring (SequenceMatcher + alias + vector) with thresholds: auto-merge >0.95, review-queue 0.7–0.95, ignore <0.7
+
+**Pattern validation:** Loop-per-issue autonomy with status file handoff worked as designed. Zero supervision needed. All issues closed on GitHub, all commits pushed to origin/0.0.2.
+
+**Next:** #988 future work is wiring thresholds into upsert_entity + after-extraction hook (scheduled for later iteration). No blocking issues remain on 0.0.2 milestone.

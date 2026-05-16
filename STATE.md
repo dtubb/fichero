@@ -2,9 +2,9 @@
 
 ## Snapshot
 
-**Branch: 0.0.2** · Latest: `d6d012fa` · Working tree clean.
+**Branch: 0.0.2** · Latest: `e9ec6452` · Working tree clean.
 
-#1017 test layer complete. Queue: #988 (entity resolution).
+✅ **Backend queue CLEARED** — all 4 priority issues completed. Ready for: SwiftUI fixes, 0.0.3 prep, or release pipeline.
 
 ## Tooling Now Available
 
@@ -12,16 +12,23 @@
 
 ## Next Session — Start Here
 
-**Backend worker queue continues:**
-1. **#988** — entity resolution: probabilistic scoring + auto-merge threshold
-2. After backend work: SwiftUI issues from prior STATE
+**Backend queue closed.** Pick one of:
+1. **SwiftUI cosmetics (0.0.2)**: #1049, #1042, #1044, #1040, #1070, #1036, #1035, #1034
+2. **Release prep (0.0.2→main)**: #165 merge + notarization + DMG + GitHub release
+3. **0.0.3 backend**: #1075 (standardize API list responses — good for autonomous loop)
 
-**Completed this session:**
-- #1017 Layer 2 (extractor schema round-trip tests): 5 new invariant violation logging tests, validates extraction quality is observable in activity logs, prevents silent drops
+Or start a new 0.0.3 autonomous backend loop.
 
 ## In Progress
 
 None.
+
+## Completed (Prior Sessions — Autonomous Loop)
+
+- **#1001** — permissive_guardrails for extractors (Apple Intelligence false-positives)
+- **#1025** — local PYPPETEER diagram rendering (drop mermaid.ink remote API)
+- **#1017** — extractor schema round-trip + invariant violation tests
+- **#988 step 3** — probabilistic entity-match scoring with auto-merge thresholds
 
 ## Blocked
 
