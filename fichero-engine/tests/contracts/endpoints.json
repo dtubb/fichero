@@ -1239,7 +1239,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "fichero__api__routes__kg_citations__CitationResponse"
+        "response_model": "fichero__api__routes__citation_rendering__CitationResponse"
       },
       {
         "method": "GET",
@@ -2259,7 +2259,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "fichero__api__routes__kg_graph__GraphMetricsResponse"
+        "response_model": "GraphMetricsResponse"
       },
       {
         "method": "GET",
@@ -2476,6 +2476,85 @@
         "response_model": "[LinkPredictionRow]"
       },
       {
+        "method": "GET",
+        "path": "/kg/pykeen/training-jobs",
+        "operation_id": "list_training_jobs_api_kg_pykeen_training_jobs_get",
+        "summary": "List all PyKEEN training jobs",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[TrainingResult]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/pykeen/training-jobs/{model_id}",
+        "operation_id": "get_training_job_api_kg_pykeen_training_jobs__model_id__get",
+        "summary": "Get a specific PyKEEN training job",
+        "path_params": [
+          "model_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TrainingResult"
+      },
+      {
+        "method": "DELETE",
+        "path": "/kg/pykeen/models/{model_id}",
+        "operation_id": "delete_trained_model_api_kg_pykeen_models__model_id__delete",
+        "summary": "Delete a trained PyKEEN model",
+        "path_params": [
+          "model_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "fichero__api__routes__kg_pykeen__DeleteModelResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/pykeen/stored",
+        "operation_id": "list_stored_predictions_api_kg_pykeen_stored_get",
+        "summary": "List stored predictions",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "model_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "verified",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[StoredPrediction]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/pykeen/stored/{prediction_id}",
+        "operation_id": "get_stored_prediction_api_kg_pykeen_stored__prediction_id__get",
+        "summary": "Get a specific stored prediction",
+        "path_params": [
+          "prediction_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "StoredPrediction"
+      },
+      {
+        "method": "PATCH",
+        "path": "/kg/pykeen/stored/{prediction_id}/verify",
+        "operation_id": "verify_prediction_api_kg_pykeen_stored__prediction_id__verify_patch",
+        "summary": "Verify or refute a stored prediction",
+        "path_params": [
+          "prediction_id"
+        ],
+        "query_params": [],
+        "request_model": "VerifyPredictionRequest",
+        "response_model": "StoredPrediction"
+      },
+      {
         "method": "POST",
         "path": "/kg/predictions/heuristic",
         "operation_id": "generate_heuristic_predictions_api_kg_predictions_heuristic_post",
@@ -2642,144 +2721,6 @@
         "query_params": [],
         "request_model": null,
         "response_model": "UndoResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/kg/interpretations/frameworks",
-        "operation_id": "create_framework_api_kg_interpretations_frameworks_post",
-        "summary": "Create an interpretive framework (e.g. 'Marxist historical materialism')",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "FrameworkRequest",
-        "response_model": "InterpretiveFramework"
-      },
-      {
-        "method": "GET",
-        "path": "/kg/interpretations/frameworks",
-        "operation_id": "list_frameworks_api_kg_interpretations_frameworks_get",
-        "summary": "List Frameworks",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "[InterpretiveFramework]"
-      },
-      {
-        "method": "GET",
-        "path": "/kg/interpretations/frameworks/{framework_id}",
-        "operation_id": "get_framework_api_kg_interpretations_frameworks__framework_id__get",
-        "summary": "Get Framework",
-        "path_params": [
-          "framework_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "InterpretiveFramework"
-      },
-      {
-        "method": "PATCH",
-        "path": "/kg/interpretations/frameworks/{framework_id}",
-        "operation_id": "patch_framework_api_kg_interpretations_frameworks__framework_id__patch",
-        "summary": "Patch Framework",
-        "path_params": [
-          "framework_id"
-        ],
-        "query_params": [],
-        "request_model": "FrameworkPatchRequest",
-        "response_model": "InterpretiveFramework"
-      },
-      {
-        "method": "DELETE",
-        "path": "/kg/interpretations/frameworks/{framework_id}",
-        "operation_id": "delete_framework_api_kg_interpretations_frameworks__framework_id__delete",
-        "summary": "Delete Framework",
-        "path_params": [
-          "framework_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "POST",
-        "path": "/kg/interpretations",
-        "operation_id": "create_interpretation_api_kg_interpretations_post",
-        "summary": "Create an interpretation \u2014 the result of applying a framework to evidence",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "InterpretationRequest",
-        "response_model": "Interpretation"
-      },
-      {
-        "method": "GET",
-        "path": "/kg/interpretations",
-        "operation_id": "list_interpretations_api_kg_interpretations_get",
-        "summary": "List Interpretations",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "framework_id",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "claim_id",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "document_id",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "request_model": null,
-        "response_model": "[Interpretation]"
-      },
-      {
-        "method": "GET",
-        "path": "/kg/interpretations/{interpretation_id}",
-        "operation_id": "get_interpretation_api_kg_interpretations__interpretation_id__get",
-        "summary": "Get Interpretation",
-        "path_params": [
-          "interpretation_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "Interpretation"
-      },
-      {
-        "method": "PATCH",
-        "path": "/kg/interpretations/{interpretation_id}",
-        "operation_id": "patch_interpretation_api_kg_interpretations__interpretation_id__patch",
-        "summary": "Patch Interpretation",
-        "path_params": [
-          "interpretation_id"
-        ],
-        "query_params": [],
-        "request_model": "InterpretationPatchRequest",
-        "response_model": "Interpretation"
-      },
-      {
-        "method": "DELETE",
-        "path": "/kg/interpretations/{interpretation_id}",
-        "operation_id": "delete_interpretation_api_kg_interpretations__interpretation_id__delete",
-        "summary": "Delete Interpretation",
-        "path_params": [
-          "interpretation_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/kg/interpretations/taxonomy/methods",
-        "operation_id": "get_taxonomy_api_kg_interpretations_taxonomy_methods_get",
-        "summary": "Picker values for interpretation editor (acts + framework types)",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "MethodTaxonomyResponse"
       },
       {
         "method": "POST",
@@ -3031,6 +2972,144 @@
         ],
         "request_model": null,
         "response_model": "[KnowledgeGraphInclusion]"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/interpretations/frameworks",
+        "operation_id": "create_framework_api_kg_interpretations_frameworks_post",
+        "summary": "Create an interpretive framework (e.g. 'Marxist historical materialism')",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "FrameworkRequest",
+        "response_model": "InterpretiveFramework"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/interpretations/frameworks",
+        "operation_id": "list_frameworks_api_kg_interpretations_frameworks_get",
+        "summary": "List Frameworks",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[InterpretiveFramework]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/interpretations/frameworks/{framework_id}",
+        "operation_id": "get_framework_api_kg_interpretations_frameworks__framework_id__get",
+        "summary": "Get Framework",
+        "path_params": [
+          "framework_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "InterpretiveFramework"
+      },
+      {
+        "method": "PATCH",
+        "path": "/kg/interpretations/frameworks/{framework_id}",
+        "operation_id": "patch_framework_api_kg_interpretations_frameworks__framework_id__patch",
+        "summary": "Patch Framework",
+        "path_params": [
+          "framework_id"
+        ],
+        "query_params": [],
+        "request_model": "FrameworkPatchRequest",
+        "response_model": "InterpretiveFramework"
+      },
+      {
+        "method": "DELETE",
+        "path": "/kg/interpretations/frameworks/{framework_id}",
+        "operation_id": "delete_framework_api_kg_interpretations_frameworks__framework_id__delete",
+        "summary": "Delete Framework",
+        "path_params": [
+          "framework_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/kg/interpretations",
+        "operation_id": "create_interpretation_api_kg_interpretations_post",
+        "summary": "Create an interpretation \u2014 the result of applying a framework to evidence",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "InterpretationRequest",
+        "response_model": "Interpretation"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/interpretations",
+        "operation_id": "list_interpretations_api_kg_interpretations_get",
+        "summary": "List Interpretations",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "framework_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "claim_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "document_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[Interpretation]"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/interpretations/{interpretation_id}",
+        "operation_id": "get_interpretation_api_kg_interpretations__interpretation_id__get",
+        "summary": "Get Interpretation",
+        "path_params": [
+          "interpretation_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "Interpretation"
+      },
+      {
+        "method": "PATCH",
+        "path": "/kg/interpretations/{interpretation_id}",
+        "operation_id": "patch_interpretation_api_kg_interpretations__interpretation_id__patch",
+        "summary": "Patch Interpretation",
+        "path_params": [
+          "interpretation_id"
+        ],
+        "query_params": [],
+        "request_model": "InterpretationPatchRequest",
+        "response_model": "Interpretation"
+      },
+      {
+        "method": "DELETE",
+        "path": "/kg/interpretations/{interpretation_id}",
+        "operation_id": "delete_interpretation_api_kg_interpretations__interpretation_id__delete",
+        "summary": "Delete Interpretation",
+        "path_params": [
+          "interpretation_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/kg/interpretations/taxonomy/methods",
+        "operation_id": "get_taxonomy_api_kg_interpretations_taxonomy_methods_get",
+        "summary": "Picker values for interpretation editor (acts + framework types)",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "MethodTaxonomyResponse"
       }
     ],
     "folders": [
@@ -3150,6 +3229,18 @@
         "query_params": [],
         "request_model": null,
         "response_model": "IngestTaskStatus"
+      }
+    ],
+    "library": [
+      {
+        "method": "POST",
+        "path": "/library",
+        "operation_id": "create_library_api_library_post",
+        "summary": "Create Library",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "LibraryCreateRequest",
+        "response_model": "LibraryCreateResponse"
       }
     ],
     "migrations": [
@@ -4924,138 +5015,6 @@
     "hermeneutics": [
       {
         "method": "POST",
-        "path": "/hermeneutics/frameworks",
-        "operation_id": "create_framework_api_hermeneutics_frameworks_post",
-        "summary": "Create Framework",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "FrameworkCreateRequest",
-        "response_model": "InterpretiveFramework"
-      },
-      {
-        "method": "GET",
-        "path": "/hermeneutics/frameworks",
-        "operation_id": "list_frameworks_api_hermeneutics_frameworks_get",
-        "summary": "List Frameworks",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "framework_type",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "is_active",
-            "required": false,
-            "type": "boolean"
-          }
-        ],
-        "request_model": null,
-        "response_model": "[InterpretiveFramework]"
-      },
-      {
-        "method": "GET",
-        "path": "/hermeneutics/frameworks/{framework_id}",
-        "operation_id": "get_framework_api_hermeneutics_frameworks__framework_id__get",
-        "summary": "Get Framework",
-        "path_params": [
-          "framework_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "InterpretiveFramework"
-      },
-      {
-        "method": "PATCH",
-        "path": "/hermeneutics/frameworks/{framework_id}",
-        "operation_id": "update_framework_api_hermeneutics_frameworks__framework_id__patch",
-        "summary": "Update Framework",
-        "path_params": [
-          "framework_id"
-        ],
-        "query_params": [],
-        "request_model": "FrameworkUpdateRequest",
-        "response_model": "InterpretiveFramework"
-      },
-      {
-        "method": "DELETE",
-        "path": "/hermeneutics/frameworks/{framework_id}",
-        "operation_id": "delete_framework_api_hermeneutics_frameworks__framework_id__delete",
-        "summary": "Delete Framework",
-        "path_params": [
-          "framework_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "FrameworkDeactivatedResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/hermeneutics/interpretations",
-        "operation_id": "create_interpretation_api_hermeneutics_interpretations_post",
-        "summary": "Create Interpretation",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "InterpretationCreateRequest",
-        "response_model": "Interpretation"
-      },
-      {
-        "method": "GET",
-        "path": "/hermeneutics/interpretations",
-        "operation_id": "list_interpretations_api_hermeneutics_interpretations_get",
-        "summary": "List Interpretations",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "framework_id",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "claim_id",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "document_id",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "act",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "request_model": null,
-        "response_model": "[Interpretation]"
-      },
-      {
-        "method": "GET",
-        "path": "/hermeneutics/interpretations/{interpretation_id}",
-        "operation_id": "get_interpretation_api_hermeneutics_interpretations__interpretation_id__get",
-        "summary": "Get Interpretation",
-        "path_params": [
-          "interpretation_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "Interpretation"
-      },
-      {
-        "method": "PATCH",
-        "path": "/hermeneutics/interpretations/{interpretation_id}",
-        "operation_id": "update_interpretation_api_hermeneutics_interpretations__interpretation_id__patch",
-        "summary": "Update Interpretation",
-        "path_params": [
-          "interpretation_id"
-        ],
-        "query_params": [],
-        "request_model": "InterpretationUpdateRequest",
-        "response_model": "Interpretation"
-      },
-      {
-        "method": "POST",
         "path": "/hermeneutics/patterns",
         "operation_id": "create_pattern_api_hermeneutics_patterns_post",
         "summary": "Create Pattern",
@@ -6358,114 +6317,6 @@
         "response_model": "ChainCancelResponse"
       }
     ],
-    "graph": [
-      {
-        "method": "GET",
-        "path": "/graph/networkx/status",
-        "operation_id": "get_networkx_status_api_graph_networkx_status_get",
-        "summary": "Get NetworkX status",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "EnableResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/graph/networkx/enable",
-        "operation_id": "set_networkx_enabled_api_graph_networkx_enable_post",
-        "summary": "Enable or disable NetworkX reasoning",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "fichero__api__routes__graph_reasoning__EnableRequest",
-        "response_model": "EnableResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/graph/networkx/centrality",
-        "operation_id": "calculate_centrality_api_graph_networkx_centrality_post",
-        "summary": "Calculate centrality metrics",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "CentralityRequest",
-        "response_model": "CentralityResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/graph/networkx/centrality/{algorithm}",
-        "operation_id": "get_centrality_api_graph_networkx_centrality__algorithm__get",
-        "summary": "Calculate centrality (GET endpoint)",
-        "path_params": [
-          "algorithm"
-        ],
-        "query_params": [
-          {
-            "name": "entity_type",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "request_model": null,
-        "response_model": "CentralityResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/graph/networkx/communities",
-        "operation_id": "detect_communities_api_graph_networkx_communities_post",
-        "summary": "Detect communities in the graph",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "CommunitiesRequest",
-        "response_model": "CommunitiesResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/graph/networkx/communities/{algorithm}",
-        "operation_id": "get_communities_api_graph_networkx_communities__algorithm__get",
-        "summary": "Detect communities (GET endpoint)",
-        "path_params": [
-          "algorithm"
-        ],
-        "query_params": [
-          {
-            "name": "min_size",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "CommunitiesResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/graph/networkx/paths",
-        "operation_id": "find_shortest_paths_api_graph_networkx_paths_post",
-        "summary": "Find shortest paths",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "ShortestPathsRequest",
-        "response_model": "ShortestPathsResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/graph/networkx/metrics",
-        "operation_id": "get_graph_metrics_api_graph_networkx_metrics_get",
-        "summary": "Get graph metrics",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "fichero__api__routes__graph_reasoning__GraphMetricsResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/graph/networkx/algorithms",
-        "operation_id": "list_algorithms_api_graph_networkx_algorithms_get",
-        "summary": "List available algorithms",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "AlgorithmsListResponse"
-      }
-    ],
     "integrations": [
       {
         "method": "GET",
@@ -7106,165 +6957,6 @@
         "query_params": [],
         "request_model": null,
         "response_model": "AgentWriteRecordResponse"
-      }
-    ],
-    "predictions": [
-      {
-        "method": "GET",
-        "path": "/predictions/status",
-        "operation_id": "get_prediction_status_api_predictions_status_get",
-        "summary": "Get Prediction Status",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "PredictionStatusResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/predictions/enable",
-        "operation_id": "set_prediction_enabled_api_predictions_enable_post",
-        "summary": "Set Prediction Enabled",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "fichero__api__routes__predictions__EnableRequest",
-        "response_model": "EnabledResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/predictions/models",
-        "operation_id": "list_available_models_api_predictions_models_get",
-        "summary": "List Available Models",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "POST",
-        "path": "/predictions/train",
-        "operation_id": "train_prediction_model_api_predictions_train_post",
-        "summary": "Train Prediction Model",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "TrainRequest",
-        "response_model": "TrainingResult"
-      },
-      {
-        "method": "GET",
-        "path": "/predictions/training-jobs",
-        "operation_id": "list_training_jobs_api_predictions_training_jobs_get",
-        "summary": "List Training Jobs",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "[TrainingResult]"
-      },
-      {
-        "method": "GET",
-        "path": "/predictions/training-jobs/{model_id}",
-        "operation_id": "get_training_job_api_predictions_training_jobs__model_id__get",
-        "summary": "Get Training Job",
-        "path_params": [
-          "model_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "TrainingResult"
-      },
-      {
-        "method": "DELETE",
-        "path": "/predictions/models/{model_id}",
-        "operation_id": "delete_trained_model_api_predictions_models__model_id__delete",
-        "summary": "Delete Trained Model",
-        "path_params": [
-          "model_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "fichero__api__routes__predictions__DeleteModelResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/predictions/generate/{model_id}",
-        "operation_id": "generate_predictions_api_predictions_generate__model_id__post",
-        "summary": "Generate Predictions",
-        "path_params": [
-          "model_id"
-        ],
-        "query_params": [],
-        "request_model": "PredictionRequest",
-        "response_model": "PredictionResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/predictions/heuristic",
-        "operation_id": "generate_heuristic_predictions_api_predictions_heuristic_post",
-        "summary": "Generate Heuristic Predictions",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "PredictionRequest",
-        "response_model": "PredictionResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/predictions/store",
-        "operation_id": "store_prediction_api_predictions_store_post",
-        "summary": "Store Prediction",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "model_id",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "request_model": "StorePredictionRequest",
-        "response_model": "StoredPrediction"
-      },
-      {
-        "method": "GET",
-        "path": "/predictions/stored",
-        "operation_id": "list_stored_predictions_api_predictions_stored_get",
-        "summary": "List Stored Predictions",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "model_id",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "verified",
-            "required": false,
-            "type": "boolean"
-          }
-        ],
-        "request_model": null,
-        "response_model": "[StoredPrediction]"
-      },
-      {
-        "method": "GET",
-        "path": "/predictions/stored/{prediction_id}",
-        "operation_id": "get_stored_prediction_api_predictions_stored__prediction_id__get",
-        "summary": "Get Stored Prediction",
-        "path_params": [
-          "prediction_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "StoredPrediction"
-      },
-      {
-        "method": "PATCH",
-        "path": "/predictions/stored/{prediction_id}/verify",
-        "operation_id": "verify_prediction_api_predictions_stored__prediction_id__verify_patch",
-        "summary": "Verify Prediction",
-        "path_params": [
-          "prediction_id"
-        ],
-        "query_params": [],
-        "request_model": "VerifyPredictionRequest",
-        "response_model": "StoredPrediction"
       }
     ],
     "schedules": [

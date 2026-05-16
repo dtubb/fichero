@@ -8,7 +8,7 @@ fix that surface so the route can rely on it.
 
 from __future__ import annotations
 
-from fichero.api.routes.search_query import parse_query, SearchPlan
+from fichero.search.query_parser import parse_query, SearchPlan
 
 
 class TestEmpty:

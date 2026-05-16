@@ -27,15 +27,26 @@ from typing import Any
 import httpx
 
 from fichero.api.routes.activity import ActivityResponse
+from fichero.api.routes.artifacts import ArtifactResponse
 from fichero.api.routes.document_inspector import (
     DocumentInspectorResponse,
     DocumentKnowledgeGraphResponse,
 )
+from fichero.api.routes.entities import (
+    EntityAuditResponse,
+    EntityCoOccurrence,
+    EntityDocumentLink,
+    EntityResolutionResponse,
+    TopEntityRow,
+)
 from fichero.api.routes.kg_search import KGSearchResponse
+from fichero.api.routes.provider_models import ProviderResponse
 from fichero.api.routes.workflow_execution.schemas import (
     ExecuteAcceptedResponse,
     ExecutionStatusResponse,
+    ThreadListResponse,
 )
+from fichero.api.routes.workflow_execution.threads import ThreadDeletedResponse
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 from fichero.models import Artifact, Document, LibraryCreateResponse, Workflow
 
@@ -434,3 +445,250 @@ class FicheroClient:
             "/api/activity",
             params={"thread_id": thread_id, "types": types, "limit": limit},
         )
+
+    # -- documents (extended) -----------------------------------------------
+    def delete_document(self, doc_id: str) -> None:
+        """Delete a document and cascade-delete its KG rows."""
+        self.request("DELETE", f"/api/documents/{doc_id}")
+
+    def update_document(self, doc_id: str, **fields: Any) -> Document:
+        """PATCH a document's editable fields (name, parent_id, folder_path, …)."""
+        return Document.model_validate(
+            self.request("PUT", f"/api/documents/{doc_id}", json=fields)
+        )
+
+    # -- artifacts (extended) ----------------------------------------------
+    def update_artifact(
+        self,
+        artifact_id: str,
+        *,
+        content: str | None = None,
+        reviewed: bool | None = None,
+    ) -> ArtifactResponse:
+        """PATCH an artifact's content and/or reviewed flag."""
+        body: dict[str, Any] = {}
+        if content is not None:
+            body["content"] = content
+        if reviewed is not None:
+            body["reviewed"] = reviewed
+        return ArtifactResponse.model_validate(
+            self.request("PUT", f"/api/artifacts/{artifact_id}", json=body)
+        )
+
+    def delete_artifact(self, artifact_id: str) -> None:
+        """Delete an artifact (204 No Content)."""
+        self.request("DELETE", f"/api/artifacts/{artifact_id}")
+
+    # -- claims (extended) -------------------------------------------------
+    def get_claim(self, claim_id: str) -> KnowledgeClaim:
+        """Fetch a single knowledge claim by ID."""
+        return KnowledgeClaim.model_validate(
+            self.request("GET", f"/api/claims/{claim_id}")
+        )
+
+    def update_claim(self, claim_id: str, **fields: Any) -> KnowledgeClaim:
+        """PATCH a claim's editable fields (text, curation_state, confidence, …)."""
+        return KnowledgeClaim.model_validate(
+            self.request("PATCH", f"/api/claims/{claim_id}", json=fields)
+        )
+
+    def delete_claim(self, claim_id: str) -> None:
+        """Delete a knowledge claim (204 No Content)."""
+        self.request("DELETE", f"/api/claims/{claim_id}")
+
+    def review_claim(
+        self, claim_id: str, *, status: str
+    ) -> KnowledgeClaim:
+        """Set the curation_state on a claim (approved / rejected / unreviewed)."""
+        return KnowledgeClaim.model_validate(
+            self.request(
+                "PATCH",
+                f"/api/claims/{claim_id}",
+                json={"curation_state": status},
+            )
+        )
+
+    # -- entities (extended) -----------------------------------------------
+    def get_entity(self, entity_id: str) -> KnowledgeEntity:
+        """Fetch a single knowledge entity by ID."""
+        return KnowledgeEntity.model_validate(
+            self.request("GET", f"/api/entities/{entity_id}")
+        )
+
+    def update_entity(self, entity_id: str, **fields: Any) -> KnowledgeEntity:
+        """PATCH an entity's editable fields (canonical_name, aliases, …)."""
+        return KnowledgeEntity.model_validate(
+            self.request("PATCH", f"/api/entities/{entity_id}", json=fields)
+        )
+
+    def delete_entity(self, entity_id: str) -> None:
+        """Delete a knowledge entity (204 No Content)."""
+        self.request("DELETE", f"/api/entities/{entity_id}")
+
+    def merge_entities(
+        self,
+        absorbing_id: str,
+        absorbed_ids: list[str],
+        *,
+        merged_aliases: list[str] | None = None,
+        merged_description: str | None = None,
+    ) -> EntityAuditResponse:
+        """Merge one or more entities into an absorbing entity, with audit."""
+        return EntityAuditResponse.model_validate(
+            self.request(
+                "POST",
+                "/api/kg/entity-curation/merge",
+                json={
+                    "absorbing_entity_id": absorbing_id,
+                    "absorbed_entity_ids": absorbed_ids,
+                    "merged_aliases": merged_aliases or [],
+                    "merged_description": merged_description,
+                },
+            )
+        )
+
+    def split_entity(
+        self,
+        primary_id: str,
+        split_off_ids: list[str],
+        *,
+        aliases_to_move: list[str] | None = None,
+    ) -> EntityAuditResponse:
+        """Split off sub-entities from a primary entity, with audit."""
+        return EntityAuditResponse.model_validate(
+            self.request(
+                "POST",
+                "/api/kg/entity-curation/split",
+                json={
+                    "primary_entity_id": primary_id,
+                    "split_off_entity_ids": split_off_ids,
+                    "aliases_to_move": aliases_to_move or [],
+                },
+            )
+        )
+
+    def top_entities(self, *, limit: int = 30) -> list[TopEntityRow]:
+        """Top-N entities by claim count across the whole library."""
+        raw = self.request(
+            "GET", "/api/entities/top", params={"limit": limit}
+        )
+        return [
+            TopEntityRow.model_validate(r)
+            for r in _expect_list(raw, "/api/entities/top")
+        ]
+
+    def entity_documents(self, entity_id: str) -> list[EntityDocumentLink]:
+        """Documents that mention this entity via knowledge claims."""
+        path = f"/api/entities/{entity_id}/documents"
+        raw = self.request("GET", path)
+        return [
+            EntityDocumentLink.model_validate(r)
+            for r in _expect_list(raw, path)
+        ]
+
+    def entity_co_occurrence(self, entity_id: str) -> list[EntityCoOccurrence]:
+        """Entities that co-occur with this entity in at least one claim."""
+        path = f"/api/entities/{entity_id}/co-occurrence"
+        raw = self.request("GET", path)
+        return [
+            EntityCoOccurrence.model_validate(r)
+            for r in _expect_list(raw, path)
+        ]
+
+    def resolve_entity(self, name: str) -> EntityResolutionResponse:
+        """Resolve a name/alias to a canonical entity."""
+        return EntityResolutionResponse.model_validate(
+            self.request("GET", f"/api/entities/resolve/{name}")
+        )
+
+    # -- audit -------------------------------------------------------------
+    def list_audits(self, *, limit: int = 50) -> list[EntityAuditResponse]:
+        """List entity merge/split audit records."""
+        raw = self.request(
+            "GET", "/api/kg/entity-curation/audit", params={"limit": limit}
+        )
+        return [
+            EntityAuditResponse.model_validate(r)
+            for r in _expect_list(raw, "/api/kg/entity-curation/audit")
+        ]
+
+    def undo_audit(self, audit_id: str) -> EntityAuditResponse:
+        """Reverse a merge or split operation by audit ID."""
+        return EntityAuditResponse.model_validate(
+            self.request(
+                "POST", f"/api/kg/entity-curation/audit/{audit_id}/undo"
+            )
+        )
+
+    # -- workflow threads (extended) ----------------------------------------
+    def list_threads(self, *, limit: int = 100) -> ThreadListResponse:
+        """List recent workflow execution threads."""
+        return ThreadListResponse.model_validate(
+            self.request(
+                "GET",
+                "/api/workflow-execution/threads",
+                params={"limit": limit},
+            )
+        )
+
+    def delete_thread(self, thread_id: str) -> ThreadDeletedResponse:
+        """Delete a workflow execution thread and its checkpoints (#1116)."""
+        return ThreadDeletedResponse.model_validate(
+            self.request(
+                "DELETE",
+                f"/api/workflow-execution/threads/{thread_id}",
+            )
+        )
+
+    # -- settings ----------------------------------------------------------
+    def get_settings(self) -> dict[str, Any]:
+        """Fetch the current AI-defaults settings block."""
+        return self.request("GET", "/api/settings/ai-defaults") or {}
+
+    def set_settings(self, **fields: Any) -> dict[str, Any]:
+        """PUT the full AI-defaults block (fetches current values, merges, saves)."""
+        current = self.get_settings()
+        merged = {**current, **fields}
+        result = self.request("PUT", "/api/settings/ai-defaults", json=merged)
+        return result if result is not None else {"status": "ok"}
+
+    # -- providers ---------------------------------------------------------
+    def list_providers(self) -> list[ProviderResponse]:
+        """List user-configured LLM providers."""
+        raw = self.request("GET", "/api/providers")
+        return [
+            ProviderResponse.model_validate(p)
+            for p in _expect_list(raw, "/api/providers")
+        ]
+
+    def get_provider(self, provider_id: str) -> ProviderResponse:
+        """Fetch a single configured provider by ID."""
+        return ProviderResponse.model_validate(
+            self.request("GET", f"/api/providers/{provider_id}")
+        )
+
+    def add_provider(
+        self,
+        provider_type: str,
+        *,
+        name: str | None = None,
+        api_base: str | None = None,
+        api_key: str | None = None,
+    ) -> ProviderResponse:
+        """Create or upsert a provider configuration."""
+        return ProviderResponse.model_validate(
+            self.request(
+                "POST",
+                "/api/providers",
+                json={
+                    "provider_type": provider_type,
+                    "name": name,
+                    "api_base": api_base,
+                    "api_key": api_key,
+                },
+            )
+        )
+
+    def delete_provider(self, provider_id: str) -> None:
+        """Delete a provider configuration."""
+        self.request("DELETE", f"/api/providers/{provider_id}")

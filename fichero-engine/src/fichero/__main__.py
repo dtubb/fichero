@@ -23,6 +23,7 @@ app = typer.Typer(
 )
 docs_app = typer.Typer(help="List and inspect documents.", no_args_is_help=True)
 workflow_app = typer.Typer(help="List and run workflows.", no_args_is_help=True)
+threads_app = typer.Typer(help="Manage workflow execution threads.", no_args_is_help=True)
 kg_app = typer.Typer(help="Query the knowledge graph.", no_args_is_help=True)
 library_app = typer.Typer(
     help="Create and enumerate .fichero library packages.",
@@ -31,11 +32,22 @@ library_app = typer.Typer(
 artifacts_app = typer.Typer(
     help="List and inspect artifacts.", no_args_is_help=True
 )
+claim_app = typer.Typer(help="Inspect and curate knowledge claims.", no_args_is_help=True)
+entity_app = typer.Typer(help="Inspect and curate knowledge entities.", no_args_is_help=True)
+audit_app = typer.Typer(help="Review entity merge/split audit trail.", no_args_is_help=True)
+settings_app = typer.Typer(help="Read and write AI-defaults settings.", no_args_is_help=True)
+providers_app = typer.Typer(help="Manage LLM provider configurations.", no_args_is_help=True)
 app.add_typer(docs_app, name="docs")
 app.add_typer(workflow_app, name="workflow")
 app.add_typer(kg_app, name="kg")
 app.add_typer(library_app, name="library")
 app.add_typer(artifacts_app, name="artifacts")
+app.add_typer(claim_app, name="claim")
+app.add_typer(entity_app, name="entity")
+app.add_typer(audit_app, name="audit")
+app.add_typer(settings_app, name="settings")
+app.add_typer(providers_app, name="providers")
+workflow_app.add_typer(threads_app, name="threads")
 
 # Execution statuses the workflow status endpoint may return when the run has
 # stopped from its perspective. The status endpoint alone is unreliable
@@ -814,6 +826,408 @@ def library_list(ctx: typer.Context) -> None:
         typer.echo(render({"libraries": paths}, as_json=True))
     else:
         typer.echo(render(paths))
+
+
+# -- docs (extended) -------------------------------------------------------
+@docs_app.command("delete")
+def docs_delete(
+    ctx: typer.Context,
+    doc_id: str = typer.Argument(..., help="Document ID to delete."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+) -> None:
+    """Delete a document (and cascade-delete its KG rows)."""
+    if not yes:
+        typer.confirm(f"Delete document {doc_id}?", abort=True)
+    _invoke(ctx, lambda c: c.delete_document(doc_id))
+
+
+@docs_app.command("update")
+def docs_update(
+    ctx: typer.Context,
+    doc_id: str = typer.Argument(..., help="Document ID."),
+    name: Optional[str] = typer.Option(None, "--name", help="New document name."),
+    parent_id: Optional[str] = typer.Option(None, "--parent-id", help="New parent folder ID."),
+    folder_path: Optional[str] = typer.Option(None, "--folder-path", help="New folder path."),
+) -> None:
+    """Update editable fields on a document."""
+    fields: dict[str, Any] = {}
+    if name is not None:
+        fields["name"] = name
+    if parent_id is not None:
+        fields["parent_id"] = parent_id
+    if folder_path is not None:
+        fields["folder_path"] = folder_path
+    if not fields:
+        typer.secho("No fields to update — pass --name, --parent-id, or --folder-path.", err=True)
+        raise typer.Exit(code=1)
+    _invoke(ctx, lambda c: c.update_document(doc_id, **fields))
+
+
+@docs_app.command("inspector")
+def docs_inspector(
+    ctx: typer.Context,
+    doc_id: str = typer.Argument(..., help="Document ID."),
+) -> None:
+    """Show the inspector aggregate view for a document."""
+    _invoke(ctx, lambda c: c.document_inspector(doc_id))
+
+
+@docs_app.command("kg")
+def docs_kg(
+    ctx: typer.Context,
+    doc_id: str = typer.Argument(..., help="Document ID."),
+    include_children: bool = typer.Option(
+        False, "--include-children", help="Include child page documents."
+    ),
+) -> None:
+    """Show the deduped knowledge graph for a document."""
+    _invoke(
+        ctx,
+        lambda c: c.document_knowledge_graph(doc_id, include_children=include_children),
+    )
+
+
+# -- artifacts (extended) --------------------------------------------------
+@artifacts_app.command("update")
+def artifacts_update(
+    ctx: typer.Context,
+    artifact_id: str = typer.Argument(..., help="Artifact ID."),
+    content: Optional[str] = typer.Option(None, "--content", help="New artifact content."),
+    reviewed: Optional[bool] = typer.Option(None, "--reviewed/--not-reviewed", help="Mark as reviewed."),
+) -> None:
+    """Update an artifact's content and/or reviewed flag."""
+    if content is None and reviewed is None:
+        typer.secho("Pass --content and/or --reviewed/--not-reviewed.", err=True)
+        raise typer.Exit(code=1)
+    _invoke(ctx, lambda c: c.update_artifact(artifact_id, content=content, reviewed=reviewed))
+
+
+@artifacts_app.command("delete")
+def artifacts_delete(
+    ctx: typer.Context,
+    artifact_id: str = typer.Argument(..., help="Artifact ID to delete."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+) -> None:
+    """Delete an artifact."""
+    if not yes:
+        typer.confirm(f"Delete artifact {artifact_id}?", abort=True)
+    _invoke(ctx, lambda c: c.delete_artifact(artifact_id))
+
+
+# -- claim -----------------------------------------------------------------
+@claim_app.command("get")
+def claim_get(
+    ctx: typer.Context,
+    claim_id: str = typer.Argument(..., help="Claim ID."),
+) -> None:
+    """Show a single knowledge claim."""
+    _invoke(ctx, lambda c: c.get_claim(claim_id))
+
+
+@claim_app.command("update")
+def claim_update(
+    ctx: typer.Context,
+    claim_id: str = typer.Argument(..., help="Claim ID."),
+    text: Optional[str] = typer.Option(None, "--text", help="New claim text."),
+    confidence: Optional[float] = typer.Option(None, "--confidence", help="Confidence [0..1]."),
+    curation_state: Optional[str] = typer.Option(
+        None, "--curation-state", help="approved | rejected | unreviewed"
+    ),
+) -> None:
+    """Update editable fields on a knowledge claim."""
+    fields: dict[str, Any] = {}
+    if text is not None:
+        fields["text"] = text
+    if confidence is not None:
+        fields["confidence"] = confidence
+    if curation_state is not None:
+        fields["curation_state"] = curation_state
+    if not fields:
+        typer.secho("Pass at least one of --text, --confidence, --curation-state.", err=True)
+        raise typer.Exit(code=1)
+    _invoke(ctx, lambda c: c.update_claim(claim_id, **fields))
+
+
+@claim_app.command("delete")
+def claim_delete(
+    ctx: typer.Context,
+    claim_id: str = typer.Argument(..., help="Claim ID to delete."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+) -> None:
+    """Delete a knowledge claim."""
+    if not yes:
+        typer.confirm(f"Delete claim {claim_id}?", abort=True)
+    _invoke(ctx, lambda c: c.delete_claim(claim_id))
+
+
+@claim_app.command("review")
+def claim_review(
+    ctx: typer.Context,
+    claim_id: str = typer.Argument(..., help="Claim ID."),
+    status: str = typer.Option(
+        ..., "--status", help="Curation status: approved | rejected | unreviewed"
+    ),
+) -> None:
+    """Set the curation_state on a claim (approved / rejected / unreviewed)."""
+    _invoke(ctx, lambda c: c.review_claim(claim_id, status=status))
+
+
+@claim_app.command("list")
+def claim_list(
+    ctx: typer.Context,
+    doc_id: Optional[str] = typer.Option(
+        None, "--doc", help="Filter claims to this document ID."
+    ),
+    limit: int = typer.Option(50, "--limit"),
+) -> None:
+    """List knowledge claims, optionally filtered to a document."""
+    _invoke(
+        ctx,
+        lambda c: c.list_claims(source_document_id=doc_id, limit=limit),
+    )
+
+
+# -- entity ----------------------------------------------------------------
+@entity_app.command("get")
+def entity_get(
+    ctx: typer.Context,
+    entity_id: str = typer.Argument(..., help="Entity ID."),
+) -> None:
+    """Show a single knowledge entity."""
+    _invoke(ctx, lambda c: c.get_entity(entity_id))
+
+
+@entity_app.command("update")
+def entity_update(
+    ctx: typer.Context,
+    entity_id: str = typer.Argument(..., help="Entity ID."),
+    canonical_name: Optional[str] = typer.Option(None, "--name", help="New canonical name."),
+    description: Optional[str] = typer.Option(None, "--description", help="New description."),
+    entity_type: Optional[str] = typer.Option(None, "--type", help="Entity type."),
+) -> None:
+    """Update editable fields on a knowledge entity."""
+    fields: dict[str, Any] = {}
+    if canonical_name is not None:
+        fields["canonical_name"] = canonical_name
+    if description is not None:
+        fields["description"] = description
+    if entity_type is not None:
+        fields["entity_type"] = entity_type
+    if not fields:
+        typer.secho("Pass at least one of --name, --description, --type.", err=True)
+        raise typer.Exit(code=1)
+    _invoke(ctx, lambda c: c.update_entity(entity_id, **fields))
+
+
+@entity_app.command("delete")
+def entity_delete(
+    ctx: typer.Context,
+    entity_id: str = typer.Argument(..., help="Entity ID to delete."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+) -> None:
+    """Delete a knowledge entity."""
+    if not yes:
+        typer.confirm(f"Delete entity {entity_id}?", abort=True)
+    _invoke(ctx, lambda c: c.delete_entity(entity_id))
+
+
+@entity_app.command("merge")
+def entity_merge(
+    ctx: typer.Context,
+    absorbing_id: str = typer.Argument(..., help="Entity ID that absorbs the others (survivor)."),
+    absorbed_ids: list[str] = typer.Argument(..., help="Entity IDs to be absorbed."),
+    description: Optional[str] = typer.Option(None, "--description", help="Override description."),
+) -> None:
+    """Merge one or more entities into an absorbing entity (creates audit record)."""
+    _invoke(
+        ctx,
+        lambda c: c.merge_entities(
+            absorbing_id, absorbed_ids, merged_description=description
+        ),
+    )
+
+
+@entity_app.command("split")
+def entity_split(
+    ctx: typer.Context,
+    primary_id: str = typer.Argument(..., help="Entity that retains canonical identity."),
+    split_off_ids: list[str] = typer.Argument(..., help="Entity IDs to split off."),
+) -> None:
+    """Split off sub-entities from a primary entity (creates audit record)."""
+    _invoke(
+        ctx,
+        lambda c: c.split_entity(primary_id, split_off_ids),
+    )
+
+
+@entity_app.command("top")
+def entity_top(
+    ctx: typer.Context,
+    limit: int = typer.Option(30, "--limit", help="Number of top entities to return."),
+) -> None:
+    """Top-N entities by claim count across the library."""
+    _invoke(ctx, lambda c: c.top_entities(limit=limit))
+
+
+@entity_app.command("documents")
+def entity_documents(
+    ctx: typer.Context,
+    entity_id: str = typer.Argument(..., help="Entity ID."),
+) -> None:
+    """Documents that mention this entity via knowledge claims."""
+    _invoke(ctx, lambda c: c.entity_documents(entity_id))
+
+
+@entity_app.command("co-occurrence")
+def entity_co_occurrence(
+    ctx: typer.Context,
+    entity_id: str = typer.Argument(..., help="Entity ID."),
+) -> None:
+    """Entities that co-occur with this entity in at least one claim."""
+    _invoke(ctx, lambda c: c.entity_co_occurrence(entity_id))
+
+
+@entity_app.command("resolve")
+def entity_resolve(
+    ctx: typer.Context,
+    name: str = typer.Argument(..., help="Name or alias to resolve."),
+) -> None:
+    """Resolve a name or alias to a canonical entity."""
+    _invoke(ctx, lambda c: c.resolve_entity(name))
+
+
+# -- audit -----------------------------------------------------------------
+@audit_app.command("list")
+def audit_list(
+    ctx: typer.Context,
+    limit: int = typer.Option(50, "--limit"),
+) -> None:
+    """List entity merge/split audit records."""
+    _invoke(ctx, lambda c: c.list_audits(limit=limit))
+
+
+@audit_app.command("undo")
+def audit_undo(
+    ctx: typer.Context,
+    audit_id: str = typer.Argument(..., help="Audit record ID to reverse."),
+) -> None:
+    """Reverse a merge or split operation by audit ID."""
+    _invoke(ctx, lambda c: c.undo_audit(audit_id))
+
+
+# -- workflow threads (extended) -------------------------------------------
+@threads_app.command("list")
+def threads_list(
+    ctx: typer.Context,
+    limit: int = typer.Option(100, "--limit"),
+) -> None:
+    """List recent workflow execution threads."""
+    _invoke(ctx, lambda c: c.list_threads(limit=limit))
+
+
+@threads_app.command("delete")
+def threads_delete(
+    ctx: typer.Context,
+    thread_id: str = typer.Argument(..., help="Thread ID to delete."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+) -> None:
+    """Delete a workflow execution thread and its checkpoints."""
+    if not yes:
+        typer.confirm(f"Delete thread {thread_id}?", abort=True)
+    _invoke(ctx, lambda c: c.delete_thread(thread_id))
+
+
+@workflow_app.command("status")
+def workflow_status(
+    ctx: typer.Context,
+    thread_id: str = typer.Argument(..., help="Thread ID to inspect."),
+) -> None:
+    """Show the current status of a workflow execution thread."""
+    _invoke(ctx, lambda c: c.execution_status(thread_id))
+
+
+# -- settings --------------------------------------------------------------
+@settings_app.command("list")
+def settings_list(ctx: typer.Context) -> None:
+    """Show all AI-default settings."""
+    _invoke(ctx, lambda c: c.get_settings())
+
+
+@settings_app.command("get")
+def settings_get(
+    ctx: typer.Context,
+    key: str = typer.Argument(..., help="Setting key (e.g. text_model)."),
+) -> None:
+    """Get a single AI-default setting value."""
+    try:
+        with _client(ctx) as client:
+            data = client.get_settings()
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    value = data.get(key) if isinstance(data, dict) else None
+    if value is None:
+        typer.secho(f"Key '{key}' not found.", err=True)
+        raise typer.Exit(code=1)
+    if ctx.obj["json"]:
+        typer.echo(render({key: value}, as_json=True))
+    else:
+        typer.echo(f"{key}: {value}")
+
+
+@settings_app.command("set")
+def settings_set(
+    ctx: typer.Context,
+    key: str = typer.Argument(..., help="Setting key (e.g. text_model)."),
+    value: str = typer.Argument(..., help="Setting value."),
+) -> None:
+    """Set a single AI-default setting value."""
+    _invoke(ctx, lambda c: c.set_settings(**{key: value}))
+
+
+# -- providers -------------------------------------------------------------
+@providers_app.command("list")
+def providers_list(ctx: typer.Context) -> None:
+    """List configured LLM providers."""
+    _invoke(ctx, lambda c: c.list_providers())
+
+
+@providers_app.command("get")
+def providers_get(
+    ctx: typer.Context,
+    provider_id: str = typer.Argument(..., help="Provider ID."),
+) -> None:
+    """Show a single configured provider."""
+    _invoke(ctx, lambda c: c.get_provider(provider_id))
+
+
+@providers_app.command("add")
+def providers_add(
+    ctx: typer.Context,
+    provider_type: str = typer.Option(..., "--type", help="Provider type (e.g. openai, anthropic)."),
+    name: Optional[str] = typer.Option(None, "--name", help="Custom display name."),
+    api_base: Optional[str] = typer.Option(None, "--api-base", help="Custom base URL."),
+    api_key: Optional[str] = typer.Option(None, "--api-key", help="API key (stored in keychain)."),
+) -> None:
+    """Add or upsert a provider configuration."""
+    _invoke(
+        ctx,
+        lambda c: c.add_provider(
+            provider_type, name=name, api_base=api_base, api_key=api_key
+        ),
+    )
+
+
+@providers_app.command("delete")
+def providers_delete(
+    ctx: typer.Context,
+    provider_id: str = typer.Argument(..., help="Provider ID to delete."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+) -> None:
+    """Delete a provider configuration."""
+    if not yes:
+        typer.confirm(f"Delete provider {provider_id}?", abort=True)
+    _invoke(ctx, lambda c: c.delete_provider(provider_id))
 
 
 def main() -> None:

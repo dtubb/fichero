@@ -677,11 +677,13 @@ from fichero.api.routes import (  # noqa: E402
     activity,
     annotations,
     artifacts,
-    bibliography,
     batch,
+    bibliography,
     chains,
     chat,
+    citation_rendering,
     citations,
+    claim_curation,
     claim_links,
     claims,
     classifications,
@@ -690,12 +692,10 @@ from fichero.api.routes import (  # noqa: E402
     entities,
     entity_inspector,
     folders,
-    graph_reasoning,
     hermeneutics,
     iiif,
     ingest,
     integrations,
-    kg_citations,
     kg_claim_analysis,
     kg_claim_search,
     kg_entity_curation,
@@ -720,12 +720,10 @@ from fichero.api.routes import (  # noqa: E402
     models,
     multilingual,
     notes,
-    projects,
     orchestration,
-    predictions,
+    projects,
     providers,
     research_agents,
-    review_queue,
     schedules,
     search,
     search_explain,
@@ -754,8 +752,12 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (claim_links.router, "/api", ["claim-links"]),
     (claims.router, "/api", ["claims"]),
     (documents.router, "/api/documents", ["documents"]),
-    (document_inspector.router, "/api", ["knowledge-graph"]),
-    (entity_inspector.router, "/api", ["knowledge-graph"]),
+    # Inspectors mount under /documents/* and /entities/* — tag with the
+    # owning resource so the OpenAPI generator groups operations under
+    # the correct Swift service file (was incorrectly tagged
+    # "knowledge-graph" pre-2026-05-15 cleanup).
+    (document_inspector.router, "/api", ["documents"]),
+    (entity_inspector.router, "/api", ["entities"]),
     (kg_search.router, "/api", ["knowledge-graph"]),
     (entities.router, "/api", ["entities"]),
     (folders.router, "/api/folders", ["folders"]),
@@ -771,7 +773,11 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (settings.router, "", ["settings"]),
     (sources.router, "/api/sources", ["sources"]),
     (models.router, "/api/models", ["models"]),
-    (review_queue.router, "/api", ["review-queue"]),
+    # claim_curation: KnowledgeClaim curation_state machine
+    # (transition / shortlist / curate / reject). Mounts under /api/claims.
+    # Renamed from review_queue 2026-05-15 — the file is unrelated to the
+    # entity-pair review queue in kg_review.py.
+    (claim_curation.router, "/api", ["claim-curation"]),
     (storage.router, "/api/storage", ["storage"]),
     (tasks.router, "/api/tasks", ["tasks"]),
     (workflow_execution.router, "/api/workflow-execution", ["workflow-execution"]),
@@ -790,8 +796,10 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (kg_predictions.router, "/api", ["knowledge-graph"]),
     (kg_review.router, "/api", ["knowledge-graph"]),
     (kg_mutations.router, "/api", ["knowledge-graph"]),
-    (kg_citations.router, "/api", ["knowledge-graph"]),
-    (kg_interpretations.router, "/api", ["knowledge-graph"]),
+    # citation_rendering: APA / Chicago / MLA / BibTeX string formatting.
+    # Renamed from kg_citations 2026-05-15 — it is a renderer, not the
+    # citation graph (that lives in citations.py / DocumentCitation #906).
+    (citation_rendering.router, "/api", ["citation-rendering"]),
     (kg_claim_search.router, "/api", ["knowledge-graph"]),
     (kg_claim_analysis.router, "/api", ["knowledge-graph"]),
     (kg_entity_curation.router, "/api", ["knowledge-graph"]),
@@ -803,6 +811,10 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # to release for 0.0.2 alongside the rest of the KG surface so end-
     # users get the full epistemology layer in shipped builds. (#997)
     (hermeneutics.router, "/api/hermeneutics", ["knowledge-graph"]),
+    # Interpretation + InterpretiveFramework CRUD stays in kg_interpretations.py
+    # for now — the Wave 1 fold into hermeneutics.py introduced test shape
+    # drift; deferred to a follow-up.
+    (kg_interpretations.router, "/api", ["knowledge-graph"]),
 ]
 
 _DEV_ROUTE_SPECS: list[RouteSpec] = [
@@ -817,13 +829,11 @@ _DEV_ROUTE_SPECS: list[RouteSpec] = [
     # Staged routes — feature-gated behind dev tier
     (actions.router, "/api", ["actions"]),
     (chains.router, "/api", ["chains"]),
-    (graph_reasoning.router, "", ["graph-reasoning"]),
     (integrations.router, "/api", ["integrations"]),
     (local_models.router, "/api", ["local-models"]),
     (mcp_servers.router, "/api", ["mcp-servers"]),
     (model_comparison.router, "/api", ["model-comparison"]),
     (orchestration.router, "", ["orchestration"]),
-    (predictions.router, "", ["predictions"]),
     (schedules.router, "/api", ["schedules"]),
     (triggers.router, "/api", ["triggers"]),
 ]

@@ -12,7 +12,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.api.main import get_library_database
-from fichero.api.routes.search_query import parse_query
+from fichero.search.query_parser import parse_query
 from fichero.db import Database, SearchResult
 from fichero.models import Document, SavedSearch
 

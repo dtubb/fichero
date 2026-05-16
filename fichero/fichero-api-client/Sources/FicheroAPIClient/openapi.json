@@ -6291,7 +6291,7 @@
     "/api/documents/{document_id}/inspector": {
       "get": {
         "tags": [
-          "knowledge-graph"
+          "documents"
         ],
         "summary": "One-call aggregate of every KG row attached to this document",
         "description": "Returns claims, entities, annotations, notes, citations (both directions), interpretations, and project memberships. Use this to populate the right-side inspector with a single request instead of 7 separate ones. (#902 prep)",
@@ -6343,7 +6343,7 @@
     "/api/documents/{document_id}/knowledge-graph": {
       "get": {
         "tags": [
-          "knowledge-graph"
+          "documents"
         ],
         "summary": "Canonical KG grouping for a document \u2014 deduped, merge-resolved",
         "description": "The single source of truth for a document's knowledge graph. Resolves entities, follows merge chains to the canonical entity (absorbed entities' claims are kept, not dropped), groups by kind \u2014 including a Dates group for entity-less date claims \u2014 dedups within each kind, and returns the groups in display order. The list-view row and the KG inspector tab both render this verbatim so they can no longer disagree (#1068).\n\nWith ``include_children=true`` the query walks the document tree (BFS) and aggregates every descendant's claims onto the parent. extract_all writes claims to PAGE doc ids, never the parent PDF \u2014 so a parent PDF queried without this flag looks empty even though its pages are full of entities (#1069).\n\nThe ``catalogue`` field carries any catalogue artifacts on the document (narrative / timeline / keywords), narrative-first, so a catalogued folder can render its readable synthesis above the entity-kind sections (#1047). Empty for leaf documents.",
@@ -6405,7 +6405,7 @@
     "/api/entities/{entity_id}/inspector": {
       "get": {
         "tags": [
-          "knowledge-graph"
+          "entities"
         ],
         "summary": "One-call aggregate of every KG row attached to this entity",
         "operationId": "inspector_api_entities__entity_id__inspector_get",
@@ -7730,6 +7730,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/IngestTaskStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/library": {
+      "post": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Create Library",
+        "description": "Create a new ``.fichero`` package (or report it already exists).\n\nBehaviour:\n  * Validates ``request.path`` against the allowlist (403 on miss).\n  * If the package directory already contains a ``fichero.duckdb``,\n    returns ``created=False`` without touching the filesystem.\n  * Otherwise creates the package directory plus ``files/`` and\n    ``vectors/`` subdirs, then triggers schema initialization by\n    calling ``db_manager.get_database(path)`` (which also runs all\n    migrations and seeds default workflows).",
+        "operationId": "create_library_api_library_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryCreateResponse"
                 }
               }
             }
@@ -11288,7 +11330,7 @@
     "/api/claims/{claim_id}/transition": {
       "patch": {
         "tags": [
-          "review-queue",
+          "claim-curation",
           "review-queue"
         ],
         "summary": "Transition claim curation state",
@@ -11351,7 +11393,7 @@
     "/api/claims/batch/transition": {
       "post": {
         "tags": [
-          "review-queue",
+          "claim-curation",
           "review-queue"
         ],
         "summary": "Batch transition claims",
@@ -11405,7 +11447,7 @@
     "/api/claims/queues/unreviewed": {
       "get": {
         "tags": [
-          "review-queue",
+          "claim-curation",
           "review-queue"
         ],
         "summary": "Get unreviewed claims queue",
@@ -11508,7 +11550,7 @@
     "/api/claims/queues/shortlisted": {
       "get": {
         "tags": [
-          "review-queue",
+          "claim-curation",
           "review-queue"
         ],
         "summary": "Get shortlisted claims queue",
@@ -11611,7 +11653,7 @@
     "/api/claims/queues/curated": {
       "get": {
         "tags": [
-          "review-queue",
+          "claim-curation",
           "review-queue"
         ],
         "summary": "Get curated claims queue",
@@ -11714,7 +11756,7 @@
     "/api/claims/queues/rejected": {
       "get": {
         "tags": [
-          "review-queue",
+          "claim-curation",
           "review-queue"
         ],
         "summary": "Get rejected claims queue",
@@ -15179,7 +15221,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__kg_graph__GraphMetricsResponse"
+                  "$ref": "#/components/schemas/GraphMetricsResponse"
                 }
               }
             }
@@ -15934,6 +15976,266 @@
         }
       }
     },
+    "/api/kg/pykeen/training-jobs": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "List all PyKEEN training jobs",
+        "operationId": "list_training_jobs_api_kg_pykeen_training_jobs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TrainingResult"
+                  },
+                  "type": "array",
+                  "title": "Response List Training Jobs Api Kg Pykeen Training Jobs Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/pykeen/training-jobs/{model_id}": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Get a specific PyKEEN training job",
+        "operationId": "get_training_job_api_kg_pykeen_training_jobs__model_id__get",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Model Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/pykeen/models/{model_id}": {
+      "delete": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Delete a trained PyKEEN model",
+        "operationId": "delete_trained_model_api_kg_pykeen_models__model_id__delete",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Model Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/fichero__api__routes__kg_pykeen__DeleteModelResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/pykeen/stored": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "List stored predictions",
+        "operationId": "list_stored_predictions_api_kg_pykeen_stored_get",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Model Id"
+            }
+          },
+          {
+            "name": "verified",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "nullable": true,
+              "title": "Verified"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StoredPrediction"
+                  },
+                  "title": "Response List Stored Predictions Api Kg Pykeen Stored Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/pykeen/stored/{prediction_id}": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Get a specific stored prediction",
+        "operationId": "get_stored_prediction_api_kg_pykeen_stored__prediction_id__get",
+        "parameters": [
+          {
+            "name": "prediction_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Prediction Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredPrediction"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/pykeen/stored/{prediction_id}/verify": {
+      "patch": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Verify or refute a stored prediction",
+        "operationId": "verify_prediction_api_kg_pykeen_stored__prediction_id__verify_patch",
+        "parameters": [
+          {
+            "name": "prediction_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Prediction Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyPredictionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredPrediction"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kg/predictions/heuristic": {
       "post": {
         "tags": [
@@ -16587,7 +16889,7 @@
     "/api/citations/document/{document_id}": {
       "get": {
         "tags": [
-          "knowledge-graph"
+          "citation-rendering"
         ],
         "summary": "Render a document's citation in one of the supported styles",
         "operationId": "cite_document_api_citations_document__document_id__get",
@@ -16635,7 +16937,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__kg_citations__CitationResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__citation_rendering__CitationResponse"
                 }
               }
             }
@@ -16656,7 +16958,7 @@
     "/api/citations/document/{document_id}.bib": {
       "get": {
         "tags": [
-          "knowledge-graph"
+          "citation-rendering"
         ],
         "summary": "Download a single document's BibTeX entry as text",
         "operationId": "cite_document_bibtex_api_citations_document__document_id__bib_get",
@@ -16707,7 +17009,7 @@
     "/api/citations/export": {
       "get": {
         "tags": [
-          "knowledge-graph"
+          "citation-rendering"
         ],
         "summary": "Bulk export \u2014 BibTeX for a list of documents",
         "description": "Returns a multi-entry BibTeX file. Pass document_ids as repeated query parameters: /api/citations/export?document_ids=A&document_ids=B",
@@ -16753,554 +17055,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/interpretations/frameworks": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Create an interpretive framework (e.g. 'Marxist historical materialism')",
-        "operationId": "create_framework_api_kg_interpretations_frameworks_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FrameworkRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterpretiveFramework"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "List Frameworks",
-        "operationId": "list_frameworks_api_kg_interpretations_frameworks_get",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/InterpretiveFramework"
-                  },
-                  "title": "Response List Frameworks Api Kg Interpretations Frameworks Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/interpretations/frameworks/{framework_id}": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Get Framework",
-        "operationId": "get_framework_api_kg_interpretations_frameworks__framework_id__get",
-        "parameters": [
-          {
-            "name": "framework_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Framework Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterpretiveFramework"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Patch Framework",
-        "operationId": "patch_framework_api_kg_interpretations_frameworks__framework_id__patch",
-        "parameters": [
-          {
-            "name": "framework_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Framework Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FrameworkPatchRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterpretiveFramework"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Delete Framework",
-        "operationId": "delete_framework_api_kg_interpretations_frameworks__framework_id__delete",
-        "parameters": [
-          {
-            "name": "framework_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Framework Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/interpretations": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Create an interpretation \u2014 the result of applying a framework to evidence",
-        "operationId": "create_interpretation_api_kg_interpretations_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InterpretationRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Interpretation"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "List Interpretations",
-        "operationId": "list_interpretations_api_kg_interpretations_get",
-        "parameters": [
-          {
-            "name": "framework_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Framework Id"
-            }
-          },
-          {
-            "name": "claim_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Claim Id"
-            }
-          },
-          {
-            "name": "document_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Document Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Interpretation"
-                  },
-                  "title": "Response List Interpretations Api Kg Interpretations Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/interpretations/{interpretation_id}": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Get Interpretation",
-        "operationId": "get_interpretation_api_kg_interpretations__interpretation_id__get",
-        "parameters": [
-          {
-            "name": "interpretation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Interpretation Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Interpretation"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Patch Interpretation",
-        "operationId": "patch_interpretation_api_kg_interpretations__interpretation_id__patch",
-        "parameters": [
-          {
-            "name": "interpretation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Interpretation Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InterpretationPatchRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Interpretation"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Delete Interpretation",
-        "operationId": "delete_interpretation_api_kg_interpretations__interpretation_id__delete",
-        "parameters": [
-          {
-            "name": "interpretation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Interpretation Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/interpretations/taxonomy/methods": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Picker values for interpretation editor (acts + framework types)",
-        "description": "Returns the enum values for InterpretiveActType + FrameworkType formatted as label/value pairs the Swift inspector can drop straight into a Picker. Consolidated from the older /api/interpretations/taxonomy/methods endpoint per #919.",
-        "operationId": "get_taxonomy_api_kg_interpretations_taxonomy_methods_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MethodTaxonomyResponse"
                 }
               }
             }
@@ -18268,531 +18022,10 @@
         }
       }
     },
-    "/api/hermeneutics/frameworks": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Create Framework",
-        "operationId": "create_framework_api_hermeneutics_frameworks_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FrameworkCreateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterpretiveFramework"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "List Frameworks",
-        "operationId": "list_frameworks_api_hermeneutics_frameworks_get",
-        "parameters": [
-          {
-            "name": "framework_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/FrameworkType",
-              "nullable": true,
-              "title": "Framework Type"
-            }
-          },
-          {
-            "name": "is_active",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "nullable": true,
-              "title": "Is Active"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/InterpretiveFramework"
-                  },
-                  "title": "Response List Frameworks Api Hermeneutics Frameworks Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/hermeneutics/frameworks/{framework_id}": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Get Framework",
-        "operationId": "get_framework_api_hermeneutics_frameworks__framework_id__get",
-        "parameters": [
-          {
-            "name": "framework_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Framework Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterpretiveFramework"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Update Framework",
-        "operationId": "update_framework_api_hermeneutics_frameworks__framework_id__patch",
-        "parameters": [
-          {
-            "name": "framework_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Framework Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FrameworkUpdateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterpretiveFramework"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Delete Framework",
-        "operationId": "delete_framework_api_hermeneutics_frameworks__framework_id__delete",
-        "parameters": [
-          {
-            "name": "framework_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Framework Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FrameworkDeactivatedResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/hermeneutics/interpretations": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Create Interpretation",
-        "operationId": "create_interpretation_api_hermeneutics_interpretations_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InterpretationCreateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Interpretation"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "List Interpretations",
-        "operationId": "list_interpretations_api_hermeneutics_interpretations_get",
-        "parameters": [
-          {
-            "name": "framework_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Framework Id"
-            }
-          },
-          {
-            "name": "claim_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Claim Id"
-            }
-          },
-          {
-            "name": "document_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Document Id"
-            }
-          },
-          {
-            "name": "act",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/InterpretiveActType",
-              "nullable": true,
-              "title": "Act"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Interpretation"
-                  },
-                  "title": "Response List Interpretations Api Hermeneutics Interpretations Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/hermeneutics/interpretations/{interpretation_id}": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Get Interpretation",
-        "operationId": "get_interpretation_api_hermeneutics_interpretations__interpretation_id__get",
-        "parameters": [
-          {
-            "name": "interpretation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Interpretation Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Interpretation"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Update Interpretation",
-        "operationId": "update_interpretation_api_hermeneutics_interpretations__interpretation_id__patch",
-        "parameters": [
-          {
-            "name": "interpretation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Interpretation Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InterpretationUpdateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Interpretation"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/hermeneutics/patterns": {
       "post": {
         "tags": [
-          "knowledge-graph"
+          "hermeneutics"
         ],
         "summary": "Create Pattern",
         "operationId": "create_pattern_api_hermeneutics_patterns_post",
@@ -18842,7 +18075,7 @@
       },
       "get": {
         "tags": [
-          "knowledge-graph"
+          "hermeneutics"
         ],
         "summary": "List Patterns",
         "operationId": "list_patterns_api_hermeneutics_patterns_get",
@@ -18918,7 +18151,7 @@
     "/api/hermeneutics/patterns/{pattern_id}": {
       "get": {
         "tags": [
-          "knowledge-graph"
+          "hermeneutics"
         ],
         "summary": "Get Pattern",
         "operationId": "get_pattern_api_hermeneutics_patterns__pattern_id__get",
@@ -18967,7 +18200,7 @@
       },
       "patch": {
         "tags": [
-          "knowledge-graph"
+          "hermeneutics"
         ],
         "summary": "Update Pattern",
         "operationId": "update_pattern_api_hermeneutics_patterns__pattern_id__patch",
@@ -19028,7 +18261,7 @@
     "/api/hermeneutics/patterns/{pattern_id}/claims/{claim_id}": {
       "post": {
         "tags": [
-          "knowledge-graph"
+          "hermeneutics"
         ],
         "summary": "Add Claim To Pattern",
         "operationId": "add_claim_to_pattern_api_hermeneutics_patterns__pattern_id__claims__claim_id__post",
@@ -19088,7 +18321,7 @@
     "/api/hermeneutics/circle-state": {
       "post": {
         "tags": [
-          "knowledge-graph"
+          "hermeneutics"
         ],
         "summary": "Create Circle State",
         "operationId": "create_circle_state_api_hermeneutics_circle_state_post",
@@ -19138,7 +18371,7 @@
       },
       "get": {
         "tags": [
-          "knowledge-graph"
+          "hermeneutics"
         ],
         "summary": "List Circle States",
         "operationId": "list_circle_states_api_hermeneutics_circle_state_get",
@@ -19194,7 +18427,7 @@
     "/api/hermeneutics/circle-state/{state_id}": {
       "get": {
         "tags": [
-          "knowledge-graph"
+          "hermeneutics"
         ],
         "summary": "Get Circle State",
         "operationId": "get_circle_state_api_hermeneutics_circle_state__state_id__get",
@@ -19245,7 +18478,7 @@
     "/api/hermeneutics/circle-state/{state_id}/navigate": {
       "post": {
         "tags": [
-          "knowledge-graph"
+          "hermeneutics"
         ],
         "summary": "Navigate Circle",
         "operationId": "navigate_circle_api_hermeneutics_circle_state__state_id__navigate_post",
@@ -19306,7 +18539,7 @@
     "/api/hermeneutics/circle-state/{state_id}/backtrack": {
       "post": {
         "tags": [
-          "knowledge-graph"
+          "hermeneutics"
         ],
         "summary": "Backtrack Circle",
         "operationId": "backtrack_circle_api_hermeneutics_circle_state__state_id__backtrack_post",
@@ -19357,7 +18590,7 @@
     "/api/hermeneutics/suggestions": {
       "post": {
         "tags": [
-          "knowledge-graph"
+          "hermeneutics"
         ],
         "summary": "Suggest Interpretations",
         "description": "Generate AI interpretation suggestions for claims.\n\nUses available LiteLLM providers to suggest how frameworks might\nbe applied to the given claims. Returns ranked suggestions.",
@@ -19404,6 +18637,553 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/interpretations/frameworks": {
+      "post": {
+        "tags": [
+          "hermeneutics"
+        ],
+        "summary": "Create an interpretive framework (e.g. 'Marxist historical materialism')",
+        "operationId": "create_framework_api_kg_interpretations_frameworks_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FrameworkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterpretiveFramework"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "hermeneutics"
+        ],
+        "summary": "List Frameworks",
+        "operationId": "list_frameworks_api_kg_interpretations_frameworks_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InterpretiveFramework"
+                  },
+                  "title": "Response List Frameworks Api Kg Interpretations Frameworks Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/interpretations/frameworks/{framework_id}": {
+      "get": {
+        "tags": [
+          "hermeneutics"
+        ],
+        "summary": "Get Framework",
+        "operationId": "get_framework_api_kg_interpretations_frameworks__framework_id__get",
+        "parameters": [
+          {
+            "name": "framework_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Framework Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterpretiveFramework"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "hermeneutics"
+        ],
+        "summary": "Patch Framework",
+        "operationId": "patch_framework_api_kg_interpretations_frameworks__framework_id__patch",
+        "parameters": [
+          {
+            "name": "framework_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Framework Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FrameworkPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterpretiveFramework"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "hermeneutics"
+        ],
+        "summary": "Delete Framework",
+        "operationId": "delete_framework_api_kg_interpretations_frameworks__framework_id__delete",
+        "parameters": [
+          {
+            "name": "framework_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Framework Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/interpretations": {
+      "post": {
+        "tags": [
+          "hermeneutics"
+        ],
+        "summary": "Create an interpretation \u2014 the result of applying a framework to evidence",
+        "operationId": "create_interpretation_api_kg_interpretations_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterpretationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interpretation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "hermeneutics"
+        ],
+        "summary": "List Interpretations",
+        "operationId": "list_interpretations_api_kg_interpretations_get",
+        "parameters": [
+          {
+            "name": "framework_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Framework Id"
+            }
+          },
+          {
+            "name": "claim_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Claim Id"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Interpretation"
+                  },
+                  "title": "Response List Interpretations Api Kg Interpretations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/interpretations/{interpretation_id}": {
+      "get": {
+        "tags": [
+          "hermeneutics"
+        ],
+        "summary": "Get Interpretation",
+        "operationId": "get_interpretation_api_kg_interpretations__interpretation_id__get",
+        "parameters": [
+          {
+            "name": "interpretation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Interpretation Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interpretation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "hermeneutics"
+        ],
+        "summary": "Patch Interpretation",
+        "operationId": "patch_interpretation_api_kg_interpretations__interpretation_id__patch",
+        "parameters": [
+          {
+            "name": "interpretation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Interpretation Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterpretationPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interpretation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "hermeneutics"
+        ],
+        "summary": "Delete Interpretation",
+        "operationId": "delete_interpretation_api_kg_interpretations__interpretation_id__delete",
+        "parameters": [
+          {
+            "name": "interpretation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Interpretation Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/interpretations/taxonomy/methods": {
+      "get": {
+        "tags": [
+          "hermeneutics"
+        ],
+        "summary": "Picker values for interpretation editor (acts + framework types)",
+        "operationId": "get_taxonomy_api_kg_interpretations_taxonomy_methods_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MethodTaxonomyResponse"
                 }
               }
             }
@@ -24511,430 +24291,6 @@
         }
       }
     },
-    "/api/graph/networkx/status": {
-      "get": {
-        "tags": [
-          "graph-reasoning",
-          "graph-reasoning"
-        ],
-        "summary": "Get NetworkX status",
-        "description": "Get NetworkX availability and status.",
-        "operationId": "get_networkx_status_api_graph_networkx_status_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EnableResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/graph/networkx/enable": {
-      "post": {
-        "tags": [
-          "graph-reasoning",
-          "graph-reasoning"
-        ],
-        "summary": "Enable or disable NetworkX reasoning",
-        "description": "Enable or disable NetworkX graph reasoning.",
-        "operationId": "set_networkx_enabled_api_graph_networkx_enable_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__graph_reasoning__EnableRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EnableResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/graph/networkx/centrality": {
-      "post": {
-        "tags": [
-          "graph-reasoning",
-          "graph-reasoning"
-        ],
-        "summary": "Calculate centrality metrics",
-        "description": "Calculate centrality metrics for the knowledge graph.\n\nAvailable algorithms:\n- degree_centrality: Node importance based on connections\n- betweenness_centrality: Nodes that act as bridges\n- closeness_centrality: How close a node is to all others\n- eigenvector_centrality: Influence based on neighbors' importance\n- pagerank: Google's PageRank algorithm",
-        "operationId": "calculate_centrality_api_graph_networkx_centrality_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CentralityRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CentralityResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/graph/networkx/centrality/{algorithm}": {
-      "get": {
-        "tags": [
-          "graph-reasoning",
-          "graph-reasoning"
-        ],
-        "summary": "Calculate centrality (GET endpoint)",
-        "description": "Calculate centrality metrics using specified algorithm.",
-        "operationId": "get_centrality_api_graph_networkx_centrality__algorithm__get",
-        "parameters": [
-          {
-            "name": "algorithm",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/AlgorithmType"
-            }
-          },
-          {
-            "name": "entity_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "description": "Filter by node type",
-              "title": "Entity Type"
-            },
-            "description": "Filter by node type"
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CentralityResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/graph/networkx/communities": {
-      "post": {
-        "tags": [
-          "graph-reasoning",
-          "graph-reasoning"
-        ],
-        "summary": "Detect communities in the graph",
-        "description": "Detect communities in the knowledge graph using community detection algorithms.\n\nAvailable algorithms:\n- louvain: Modularity optimization (default)\n- greedy_modularity: Greedy modularity maximization\n- label_propagation: Label propagation algorithm",
-        "operationId": "detect_communities_api_graph_networkx_communities_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CommunitiesRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CommunitiesResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/graph/networkx/communities/{algorithm}": {
-      "get": {
-        "tags": [
-          "graph-reasoning",
-          "graph-reasoning"
-        ],
-        "summary": "Detect communities (GET endpoint)",
-        "description": "Detect communities using specified algorithm.",
-        "operationId": "get_communities_api_graph_networkx_communities__algorithm__get",
-        "parameters": [
-          {
-            "name": "algorithm",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/CommunityAlgorithm"
-            }
-          },
-          {
-            "name": "min_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 2,
-              "description": "Minimum community size",
-              "default": 3,
-              "title": "Min Size"
-            },
-            "description": "Minimum community size"
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CommunitiesResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/graph/networkx/paths": {
-      "post": {
-        "tags": [
-          "graph-reasoning",
-          "graph-reasoning"
-        ],
-        "summary": "Find shortest paths",
-        "description": "Find shortest paths from source to multiple targets.",
-        "operationId": "find_shortest_paths_api_graph_networkx_paths_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ShortestPathsRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ShortestPathsResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/graph/networkx/metrics": {
-      "get": {
-        "tags": [
-          "graph-reasoning",
-          "graph-reasoning"
-        ],
-        "summary": "Get graph metrics",
-        "description": "Get basic graph metrics using NetworkX.",
-        "operationId": "get_graph_metrics_api_graph_networkx_metrics_get",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__graph_reasoning__GraphMetricsResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/graph/networkx/algorithms": {
-      "get": {
-        "tags": [
-          "graph-reasoning",
-          "graph-reasoning"
-        ],
-        "summary": "List available algorithms",
-        "description": "List all available NetworkX algorithms and their descriptions.",
-        "operationId": "list_algorithms_api_graph_networkx_algorithms_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AlgorithmsListResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/integrations": {
       "get": {
         "tags": [
@@ -27006,596 +26362,6 @@
         }
       }
     },
-    "/api/predictions/status": {
-      "get": {
-        "tags": [
-          "predictions",
-          "predictions"
-        ],
-        "summary": "Get Prediction Status",
-        "description": "Get PyKEEN prediction engine status.",
-        "operationId": "get_prediction_status_api_predictions_status_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PredictionStatusResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/predictions/enable": {
-      "post": {
-        "tags": [
-          "predictions",
-          "predictions"
-        ],
-        "summary": "Set Prediction Enabled",
-        "description": "Enable or disable PyKEEN inference.",
-        "operationId": "set_prediction_enabled_api_predictions_enable_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__predictions__EnableRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EnabledResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/predictions/models": {
-      "get": {
-        "tags": [
-          "predictions",
-          "predictions"
-        ],
-        "summary": "List Available Models",
-        "description": "List available PyKEEN model types.",
-        "operationId": "list_available_models_api_predictions_models_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array",
-                  "title": "Response List Available Models Api Predictions Models Get"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/predictions/train": {
-      "post": {
-        "tags": [
-          "predictions",
-          "predictions"
-        ],
-        "summary": "Train Prediction Model",
-        "description": "Train a PyKEEN model on the current knowledge graph.\n\nRequires sufficient knowledge graph data (at least 10 triples).\nTraining is asynchronous in memory; job status tracks completion.",
-        "operationId": "train_prediction_model_api_predictions_train_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TrainRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TrainingResult"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/predictions/training-jobs": {
-      "get": {
-        "tags": [
-          "predictions",
-          "predictions"
-        ],
-        "summary": "List Training Jobs",
-        "description": "List all training jobs.",
-        "operationId": "list_training_jobs_api_predictions_training_jobs_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/TrainingResult"
-                  },
-                  "type": "array",
-                  "title": "Response List Training Jobs Api Predictions Training Jobs Get"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/predictions/training-jobs/{model_id}": {
-      "get": {
-        "tags": [
-          "predictions",
-          "predictions"
-        ],
-        "summary": "Get Training Job",
-        "description": "Get specific training job details.",
-        "operationId": "get_training_job_api_predictions_training_jobs__model_id__get",
-        "parameters": [
-          {
-            "name": "model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Model Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TrainingResult"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/predictions/models/{model_id}": {
-      "delete": {
-        "tags": [
-          "predictions",
-          "predictions"
-        ],
-        "summary": "Delete Trained Model",
-        "description": "Delete a trained model.",
-        "operationId": "delete_trained_model_api_predictions_models__model_id__delete",
-        "parameters": [
-          {
-            "name": "model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Model Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__predictions__DeleteModelResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/predictions/generate/{model_id}": {
-      "post": {
-        "tags": [
-          "predictions",
-          "predictions"
-        ],
-        "summary": "Generate Predictions",
-        "description": "Generate link predictions using a trained model.",
-        "operationId": "generate_predictions_api_predictions_generate__model_id__post",
-        "parameters": [
-          {
-            "name": "model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Model Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PredictionRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PredictionResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/predictions/heuristic": {
-      "post": {
-        "tags": [
-          "predictions",
-          "predictions"
-        ],
-        "summary": "Generate Heuristic Predictions",
-        "description": "Generate heuristic predictions without PyKEEN.\n\nUses co-occurrence and simple graph patterns.\nAvailable regardless of PyKEEN installation.",
-        "operationId": "generate_heuristic_predictions_api_predictions_heuristic_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PredictionRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PredictionResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/predictions/store": {
-      "post": {
-        "tags": [
-          "predictions",
-          "predictions"
-        ],
-        "summary": "Store Prediction",
-        "description": "Store a prediction for later verification.",
-        "operationId": "store_prediction_api_predictions_store_post",
-        "parameters": [
-          {
-            "name": "model_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Model Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StorePredictionRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StoredPrediction"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/predictions/stored": {
-      "get": {
-        "tags": [
-          "predictions",
-          "predictions"
-        ],
-        "summary": "List Stored Predictions",
-        "description": "List stored predictions.",
-        "operationId": "list_stored_predictions_api_predictions_stored_get",
-        "parameters": [
-          {
-            "name": "model_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Model Id"
-            }
-          },
-          {
-            "name": "verified",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "nullable": true,
-              "title": "Verified"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/StoredPrediction"
-                  },
-                  "title": "Response List Stored Predictions Api Predictions Stored Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/predictions/stored/{prediction_id}": {
-      "get": {
-        "tags": [
-          "predictions",
-          "predictions"
-        ],
-        "summary": "Get Stored Prediction",
-        "description": "Get a specific stored prediction.",
-        "operationId": "get_stored_prediction_api_predictions_stored__prediction_id__get",
-        "parameters": [
-          {
-            "name": "prediction_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Prediction Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StoredPrediction"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/predictions/stored/{prediction_id}/verify": {
-      "patch": {
-        "tags": [
-          "predictions",
-          "predictions"
-        ],
-        "summary": "Verify Prediction",
-        "description": "Verify or refute a stored prediction.",
-        "operationId": "verify_prediction_api_predictions_stored__prediction_id__verify_patch",
-        "parameters": [
-          {
-            "name": "prediction_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Prediction Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VerifyPredictionRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StoredPrediction"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/schedules": {
       "post": {
         "tags": [
@@ -29495,75 +28261,6 @@
         "title": "AgentWriteResponse",
         "description": "Response for agent write submission."
       },
-      "AlgorithmInfo": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "description": {
-            "type": "string",
-            "title": "Description"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "description"
-        ],
-        "title": "AlgorithmInfo"
-      },
-      "AlgorithmType": {
-        "type": "string",
-        "enum": [
-          "degree_centrality",
-          "betweenness_centrality",
-          "closeness_centrality",
-          "eigenvector_centrality",
-          "pagerank"
-        ],
-        "title": "AlgorithmType",
-        "description": "Types of graph algorithms."
-      },
-      "AlgorithmsListResponse": {
-        "properties": {
-          "networkx_available": {
-            "type": "boolean",
-            "title": "Networkx Available"
-          },
-          "reasoner_enabled": {
-            "type": "boolean",
-            "title": "Reasoner Enabled"
-          },
-          "centrality_algorithms": {
-            "items": {
-              "$ref": "#/components/schemas/AlgorithmInfo"
-            },
-            "type": "array",
-            "title": "Centrality Algorithms"
-          },
-          "community_algorithms": {
-            "items": {
-              "$ref": "#/components/schemas/AlgorithmInfo"
-            },
-            "type": "array",
-            "title": "Community Algorithms"
-          }
-        },
-        "type": "object",
-        "required": [
-          "networkx_available",
-          "reasoner_enabled",
-          "centrality_algorithms",
-          "community_algorithms"
-        ],
-        "title": "AlgorithmsListResponse"
-      },
       "Annotation": {
         "properties": {
           "id": {
@@ -30741,101 +29438,6 @@
         ],
         "title": "CategoryToolsResponse",
         "description": "Tools grouped by category."
-      },
-      "CentralityRequest": {
-        "properties": {
-          "algorithm": {
-            "$ref": "#/components/schemas/AlgorithmType",
-            "default": "degree_centrality"
-          },
-          "entity_type": {
-            "type": "string",
-            "nullable": true,
-            "title": "Entity Type"
-          }
-        },
-        "type": "object",
-        "title": "CentralityRequest",
-        "description": "Request for centrality analysis."
-      },
-      "CentralityResponse": {
-        "properties": {
-          "algorithm": {
-            "type": "string",
-            "title": "Algorithm"
-          },
-          "node_count": {
-            "type": "integer",
-            "title": "Node Count"
-          },
-          "results": {
-            "items": {
-              "$ref": "#/components/schemas/CentralityResult"
-            },
-            "type": "array",
-            "title": "Results"
-          },
-          "top_nodes": {
-            "items": {
-              "$ref": "#/components/schemas/CentralityResult"
-            },
-            "type": "array",
-            "title": "Top Nodes"
-          },
-          "execution_time_ms": {
-            "type": "number",
-            "title": "Execution Time Ms"
-          },
-          "graph_density": {
-            "type": "number",
-            "title": "Graph Density"
-          }
-        },
-        "type": "object",
-        "required": [
-          "algorithm",
-          "node_count",
-          "results",
-          "top_nodes",
-          "execution_time_ms",
-          "graph_density"
-        ],
-        "title": "CentralityResponse",
-        "description": "Response for centrality analysis."
-      },
-      "CentralityResult": {
-        "properties": {
-          "node_id": {
-            "type": "string",
-            "title": "Node Id"
-          },
-          "node_type": {
-            "type": "string",
-            "title": "Node Type"
-          },
-          "node_label": {
-            "type": "string",
-            "title": "Node Label"
-          },
-          "score": {
-            "type": "number",
-            "title": "Score"
-          },
-          "rank": {
-            "type": "integer",
-            "title": "Rank"
-          }
-        },
-        "type": "object",
-        "required": [
-          "node_id",
-          "node_type",
-          "node_label",
-          "score",
-          "rank"
-        ],
-        "title": "CentralityResult",
-        "description": "Centrality metric for a single node."
       },
       "CentralityRow": {
         "properties": {
@@ -32378,115 +30980,6 @@
           "clustering_coefficient"
         ],
         "title": "ClusteringRow"
-      },
-      "CommunitiesRequest": {
-        "properties": {
-          "algorithm": {
-            "$ref": "#/components/schemas/CommunityAlgorithm",
-            "default": "louvain"
-          },
-          "min_community_size": {
-            "type": "integer",
-            "minimum": 2.0,
-            "title": "Min Community Size",
-            "default": 3
-          }
-        },
-        "type": "object",
-        "title": "CommunitiesRequest",
-        "description": "Request for community detection."
-      },
-      "CommunitiesResponse": {
-        "properties": {
-          "algorithm": {
-            "type": "string",
-            "title": "Algorithm"
-          },
-          "community_count": {
-            "type": "integer",
-            "title": "Community Count"
-          },
-          "modularity": {
-            "type": "number",
-            "title": "Modularity"
-          },
-          "communities": {
-            "items": {
-              "$ref": "#/components/schemas/CommunityResult"
-            },
-            "type": "array",
-            "title": "Communities"
-          },
-          "execution_time_ms": {
-            "type": "number",
-            "title": "Execution Time Ms"
-          }
-        },
-        "type": "object",
-        "required": [
-          "algorithm",
-          "community_count",
-          "modularity",
-          "communities",
-          "execution_time_ms"
-        ],
-        "title": "CommunitiesResponse",
-        "description": "Response for community detection."
-      },
-      "CommunityAlgorithm": {
-        "type": "string",
-        "enum": [
-          "louvain",
-          "greedy_modularity",
-          "label_propagation"
-        ],
-        "title": "CommunityAlgorithm",
-        "description": "Community detection algorithms."
-      },
-      "CommunityResult": {
-        "properties": {
-          "community_id": {
-            "type": "integer",
-            "title": "Community Id"
-          },
-          "nodes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Nodes"
-          },
-          "node_labels": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Node Labels"
-          },
-          "size": {
-            "type": "integer",
-            "title": "Size"
-          },
-          "density": {
-            "type": "number",
-            "title": "Density"
-          },
-          "cohesion_score": {
-            "type": "number",
-            "title": "Cohesion Score"
-          }
-        },
-        "type": "object",
-        "required": [
-          "community_id",
-          "nodes",
-          "node_labels",
-          "size",
-          "density",
-          "cohesion_score"
-        ],
-        "title": "CommunityResult",
-        "description": "Detected community."
       },
       "CommunityRow": {
         "properties": {
@@ -34601,44 +33094,6 @@
         ],
         "title": "EmbedEntitiesResponse"
       },
-      "EnableResponse": {
-        "properties": {
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled"
-          },
-          "available": {
-            "type": "boolean",
-            "title": "Available"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message"
-          }
-        },
-        "type": "object",
-        "required": [
-          "enabled",
-          "available",
-          "message"
-        ],
-        "title": "EnableResponse",
-        "description": "Response for enable/disable operation."
-      },
-      "EnabledResponse": {
-        "properties": {
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled"
-          }
-        },
-        "type": "object",
-        "required": [
-          "enabled"
-        ],
-        "title": "EnabledResponse",
-        "description": "Confirmation that inference was enabled or disabled."
-      },
       "EntitiesPageResponse": {
         "properties": {
           "entities": {
@@ -35678,82 +34133,6 @@
         ],
         "title": "FolderRenameResponse"
       },
-      "FrameworkCreateRequest": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "framework_type": {
-            "$ref": "#/components/schemas/FrameworkType"
-          },
-          "description": {
-            "type": "string",
-            "title": "Description"
-          },
-          "core_questions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Core Questions"
-          },
-          "key_concepts": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Key Concepts"
-          },
-          "typical_applications": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Typical Applications"
-          },
-          "origin": {
-            "type": "string",
-            "nullable": true,
-            "title": "Origin"
-          },
-          "creator": {
-            "type": "string",
-            "nullable": true,
-            "title": "Creator"
-          },
-          "language": {
-            "type": "string",
-            "nullable": true,
-            "title": "Language"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name",
-          "framework_type",
-          "description"
-        ],
-        "title": "FrameworkCreateRequest"
-      },
-      "FrameworkDeactivatedResponse": {
-        "properties": {
-          "status": {
-            "type": "string",
-            "title": "Status"
-          }
-        },
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "title": "FrameworkDeactivatedResponse"
-      },
       "FrameworkPatchRequest": {
         "properties": {
           "name": {
@@ -35889,76 +34268,6 @@
         "title": "FrameworkType",
         "description": "Interpretive lens categories."
       },
-      "FrameworkUpdateRequest": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "nullable": true,
-            "title": "Name"
-          },
-          "framework_type": {
-            "$ref": "#/components/schemas/FrameworkType",
-            "nullable": true
-          },
-          "description": {
-            "type": "string",
-            "nullable": true,
-            "title": "Description"
-          },
-          "core_questions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Core Questions"
-          },
-          "key_concepts": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Key Concepts"
-          },
-          "typical_applications": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Typical Applications"
-          },
-          "origin": {
-            "type": "string",
-            "nullable": true,
-            "title": "Origin"
-          },
-          "creator": {
-            "type": "string",
-            "nullable": true,
-            "title": "Creator"
-          },
-          "language": {
-            "type": "string",
-            "nullable": true,
-            "title": "Language"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "nullable": true,
-            "title": "Metadata"
-          },
-          "is_active": {
-            "type": "boolean",
-            "nullable": true,
-            "title": "Is Active"
-          }
-        },
-        "type": "object",
-        "title": "FrameworkUpdateRequest"
-      },
       "GraphCandidateResponse": {
         "properties": {
           "entity_a_id": {
@@ -36003,44 +34312,59 @@
         "title": "GraphCandidateResponse",
         "description": "One graph-context merge proposal \u2014 surfaced, not yet queued.\n\nComes from co-occurrence neighbourhood overlap (#988): the two\nentities are never directly co-mentioned but share neighbours, so\nthey may be the same entity under different surface forms. A human\npromotes a proposal into the review queue via POST /pairs."
       },
-      "GraphMetrics": {
+      "GraphMetricsResponse": {
         "properties": {
-          "node_count": {
+          "entity_count": {
             "type": "integer",
-            "title": "Node Count"
+            "title": "Entity Count"
           },
-          "edge_count": {
+          "claim_count": {
             "type": "integer",
-            "title": "Edge Count"
+            "title": "Claim Count"
           },
-          "density": {
+          "annotation_count": {
+            "type": "integer",
+            "title": "Annotation Count"
+          },
+          "note_count": {
+            "type": "integer",
+            "title": "Note Count"
+          },
+          "interpretation_count": {
+            "type": "integer",
+            "title": "Interpretation Count"
+          },
+          "document_citation_count": {
+            "type": "integer",
+            "title": "Document Citation Count"
+          },
+          "project_count": {
+            "type": "integer",
+            "title": "Project Count"
+          },
+          "avg_claims_per_entity": {
             "type": "number",
-            "title": "Density"
+            "title": "Avg Claims Per Entity"
           },
-          "clustering_coefficient": {
+          "avg_entities_per_claim": {
             "type": "number",
-            "title": "Clustering Coefficient"
-          },
-          "connected_components": {
-            "type": "integer",
-            "title": "Connected Components"
-          },
-          "largest_component_size": {
-            "type": "integer",
-            "title": "Largest Component Size"
+            "title": "Avg Entities Per Claim"
           }
         },
         "type": "object",
         "required": [
-          "node_count",
-          "edge_count",
-          "density",
-          "clustering_coefficient",
-          "connected_components",
-          "largest_component_size"
+          "entity_count",
+          "claim_count",
+          "annotation_count",
+          "note_count",
+          "interpretation_count",
+          "document_citation_count",
+          "project_count",
+          "avg_claims_per_entity",
+          "avg_entities_per_claim"
         ],
-        "title": "GraphMetrics",
-        "description": "Basic graph metrics."
+        "title": "GraphMetricsResponse",
+        "description": "Library-wide KG counts + averages. Drives the inspector summary."
       },
       "GridViewData": {
         "properties": {
@@ -36959,81 +35283,6 @@
         "title": "Interpretation",
         "description": "An interpretation \u2014 the result of applying a framework to evidence.\n\nAn interpretation is always about something (the claim or passage)\nand from the perspective of a specific framework."
       },
-      "InterpretationCreateRequest": {
-        "properties": {
-          "framework_id": {
-            "type": "string",
-            "title": "Framework Id"
-          },
-          "claim_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Claim Id"
-          },
-          "document_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Document Id"
-          },
-          "passage_text": {
-            "type": "string",
-            "nullable": true,
-            "title": "Passage Text"
-          },
-          "interpretation_text": {
-            "type": "string",
-            "title": "Interpretation Text"
-          },
-          "act": {
-            "$ref": "#/components/schemas/InterpretiveActType"
-          },
-          "confidence": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Confidence",
-            "default": 0.5
-          },
-          "key_insights": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Key Insights"
-          },
-          "tensions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Tensions"
-          },
-          "connections": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Connections"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata"
-          },
-          "created_by": {
-            "type": "string",
-            "title": "Created By",
-            "default": "human"
-          }
-        },
-        "type": "object",
-        "required": [
-          "framework_id",
-          "interpretation_text",
-          "act"
-        ],
-        "title": "InterpretationCreateRequest"
-      },
       "InterpretationPatchRequest": {
         "properties": {
           "interpretation_text": {
@@ -37149,58 +35398,6 @@
           "act"
         ],
         "title": "InterpretationRequest"
-      },
-      "InterpretationUpdateRequest": {
-        "properties": {
-          "interpretation_text": {
-            "type": "string",
-            "nullable": true,
-            "title": "Interpretation Text"
-          },
-          "act": {
-            "$ref": "#/components/schemas/InterpretiveActType",
-            "nullable": true
-          },
-          "confidence": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "nullable": true,
-            "title": "Confidence"
-          },
-          "key_insights": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Key Insights"
-          },
-          "tensions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Tensions"
-          },
-          "connections": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Connections"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "nullable": true,
-            "title": "Metadata"
-          }
-        },
-        "type": "object",
-        "title": "InterpretationUpdateRequest"
       },
       "InterpretiveActType": {
         "type": "string",
@@ -37751,6 +35948,18 @@
             "$ref": "#/components/schemas/PredictionMetadata",
             "nullable": true
           },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider",
+            "description": "LLM provider that proposed this claim (e.g. 'openai', 'anthropic', 'apple'). None for human-authored claims and legacy rows written before #1113."
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model",
+            "description": "Model that produced this claim, optionally suffixed with '+heuristic-svo' when local SVO synthesis filled in verb/object the LLM didn't return. Examples: 'gpt-4o-mini', 'apple-intelligence+heuristic-svo'."
+          },
           "language": {
             "type": "string",
             "nullable": true,
@@ -38289,6 +36498,44 @@
         ],
         "title": "LabelRow",
         "description": "One accumulated decision \u2014 accepted (positive) or rejected (negative).\n\nFeeds splink probabilistic linkage and PyKEEN retraining: the\nunion of accepted-merge pairs and rejected pairs is the training\nset for future automation."
+      },
+      "LibraryCreateRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "LibraryCreateRequest",
+        "description": "Request body for ``POST /api/library`` \u2014 bootstrap a fresh library.\n\nThe path must end in ``.fichero`` and be inside one of the allowlist\nroots enforced by ``fichero.api.main._is_allowed_library_path``. The\nserver expands ``~`` and validates before touching the filesystem."
+      },
+      "LibraryCreateResponse": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "created": {
+            "type": "boolean",
+            "title": "Created"
+          },
+          "tables_initialized": {
+            "type": "boolean",
+            "title": "Tables Initialized"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "created",
+          "tables_initialized"
+        ],
+        "title": "LibraryCreateResponse",
+        "description": "Response from ``POST /api/library``.\n\n``created`` is False when the package already existed (idempotent\nre-creation is a no-op). ``tables_initialized`` is True when the\nDuckDB schema is in place \u2014 for both the freshly-created and the\npre-existing case \u2014 so a CLI caller can immediately issue queries.\n``path`` is the absolute, expanded path that was operated on."
       },
       "LibraryListResponse": {
         "properties": {
@@ -39530,18 +37777,6 @@
         "title": "ModelSearchResponse",
         "description": "Paginated model search results."
       },
-      "ModelType": {
-        "type": "string",
-        "enum": [
-          "TransE",
-          "RotatE",
-          "DistMult",
-          "ComplEx",
-          "ConvE"
-        ],
-        "title": "ModelType",
-        "description": "PyKEEN model types for knowledge graph embeddings."
-      },
       "ModelsByTierResponse": {
         "properties": {
           "frontier": {
@@ -40746,48 +38981,6 @@
         "title": "PathResponse",
         "description": "Shortest path between two entities as a list of entity IDs."
       },
-      "PathResult": {
-        "properties": {
-          "path_id": {
-            "type": "string",
-            "title": "Path Id"
-          },
-          "source_id": {
-            "type": "string",
-            "title": "Source Id"
-          },
-          "target_id": {
-            "type": "string",
-            "title": "Target Id"
-          },
-          "path_length": {
-            "type": "integer",
-            "title": "Path Length"
-          },
-          "intermediate_nodes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Intermediate Nodes"
-          },
-          "weight": {
-            "type": "number",
-            "title": "Weight"
-          }
-        },
-        "type": "object",
-        "required": [
-          "path_id",
-          "source_id",
-          "target_id",
-          "path_length",
-          "intermediate_nodes",
-          "weight"
-        ],
-        "title": "PathResult",
-        "description": "Path analysis result."
-      },
       "PatternCreateRequest": {
         "properties": {
           "name": {
@@ -41534,87 +39727,6 @@
         ],
         "title": "PredictionModelType"
       },
-      "PredictionRequest": {
-        "properties": {
-          "prediction_type": {
-            "$ref": "#/components/schemas/PredictionType"
-          },
-          "source_entity_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Entity Id"
-          },
-          "target_entity_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Target Entity Id"
-          },
-          "relation": {
-            "type": "string",
-            "nullable": true,
-            "title": "Relation"
-          },
-          "top_k": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 1.0,
-            "title": "Top K",
-            "default": 10
-          }
-        },
-        "type": "object",
-        "required": [
-          "prediction_type"
-        ],
-        "title": "PredictionRequest",
-        "description": "Request to generate predictions."
-      },
-      "PredictionResponse": {
-        "properties": {
-          "model_id": {
-            "type": "string",
-            "title": "Model Id"
-          },
-          "prediction_type": {
-            "$ref": "#/components/schemas/PredictionType"
-          },
-          "source_entity_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Entity Id"
-          },
-          "target_entity_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Target Entity Id"
-          },
-          "relation": {
-            "type": "string",
-            "nullable": true,
-            "title": "Relation"
-          },
-          "top_k": {
-            "items": {
-              "$ref": "#/components/schemas/PredictionResult"
-            },
-            "type": "array",
-            "title": "Top K"
-          },
-          "execution_time_ms": {
-            "type": "number",
-            "title": "Execution Time Ms"
-          }
-        },
-        "type": "object",
-        "required": [
-          "model_id",
-          "prediction_type",
-          "top_k",
-          "execution_time_ms"
-        ],
-        "title": "PredictionResponse",
-        "description": "Link prediction response."
-      },
       "PredictionResult": {
         "properties": {
           "rank": {
@@ -41648,35 +39760,6 @@
         ],
         "title": "PredictionResult",
         "description": "Single link prediction result."
-      },
-      "PredictionStatusResponse": {
-        "properties": {
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled"
-          },
-          "models_trained": {
-            "type": "integer",
-            "title": "Models Trained"
-          },
-          "training_jobs": {
-            "type": "integer",
-            "title": "Training Jobs"
-          },
-          "stored_predictions": {
-            "type": "integer",
-            "title": "Stored Predictions"
-          }
-        },
-        "type": "object",
-        "required": [
-          "enabled",
-          "models_trained",
-          "training_jobs",
-          "stored_predictions"
-        ],
-        "title": "PredictionStatusResponse",
-        "description": "Current state of the PyKEEN inference engine."
       },
       "PredictionType": {
         "type": "string",
@@ -44387,62 +42470,6 @@
         ],
         "title": "SetAttributesResponse"
       },
-      "ShortestPathsRequest": {
-        "properties": {
-          "source_id": {
-            "type": "string",
-            "title": "Source Id"
-          },
-          "target_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Target Ids"
-          }
-        },
-        "type": "object",
-        "required": [
-          "source_id",
-          "target_ids"
-        ],
-        "title": "ShortestPathsRequest",
-        "description": "Request for shortest paths analysis."
-      },
-      "ShortestPathsResponse": {
-        "properties": {
-          "source_id": {
-            "type": "string",
-            "title": "Source Id"
-          },
-          "paths": {
-            "items": {
-              "$ref": "#/components/schemas/PathResult"
-            },
-            "type": "array",
-            "title": "Paths"
-          },
-          "diameter": {
-            "type": "integer",
-            "nullable": true,
-            "title": "Diameter"
-          },
-          "average_path_length": {
-            "type": "number",
-            "nullable": true,
-            "title": "Average Path Length"
-          }
-        },
-        "type": "object",
-        "required": [
-          "source_id",
-          "paths",
-          "diameter",
-          "average_path_length"
-        ],
-        "title": "ShortestPathsResponse",
-        "description": "Response for shortest paths analysis."
-      },
       "SimilarEntity": {
         "properties": {
           "entity_id": {
@@ -45405,53 +43432,6 @@
         "type": "object",
         "title": "StepUpdateRequest"
       },
-      "StorePredictionRequest": {
-        "properties": {
-          "prediction_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Prediction Id"
-          },
-          "prediction_type": {
-            "$ref": "#/components/schemas/PredictionType"
-          },
-          "source_entity_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Source Entity Id"
-          },
-          "target_entity_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Target Entity Id"
-          },
-          "relation": {
-            "type": "string",
-            "nullable": true,
-            "title": "Relation"
-          },
-          "predictions": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Predictions"
-          },
-          "notes": {
-            "type": "string",
-            "nullable": true,
-            "title": "Notes"
-          }
-        },
-        "type": "object",
-        "required": [
-          "prediction_type",
-          "predictions"
-        ],
-        "title": "StorePredictionRequest",
-        "description": "Request to store a prediction."
-      },
       "StoredPrediction": {
         "properties": {
           "prediction_id": {
@@ -46264,64 +44244,6 @@
         ],
         "title": "TopEntityRow",
         "description": "One row of /entities/top \u2014 most-claimed entity in the library\nwith name, kind, alias list, and claim count."
-      },
-      "TrainRequest": {
-        "properties": {
-          "model_type": {
-            "$ref": "#/components/schemas/ModelType",
-            "default": "DistMult"
-          },
-          "embedding_dim": {
-            "type": "integer",
-            "maximum": 512.0,
-            "minimum": 16.0,
-            "title": "Embedding Dim",
-            "default": 50
-          },
-          "epochs": {
-            "type": "integer",
-            "maximum": 1000.0,
-            "minimum": 10.0,
-            "title": "Epochs",
-            "default": 100
-          },
-          "batch_size": {
-            "type": "integer",
-            "maximum": 512.0,
-            "minimum": 8.0,
-            "title": "Batch Size",
-            "default": 32
-          },
-          "learning_rate": {
-            "type": "number",
-            "maximum": 0.1,
-            "minimum": 0.0001,
-            "title": "Learning Rate",
-            "default": 0.001
-          },
-          "patience": {
-            "type": "integer",
-            "maximum": 50.0,
-            "minimum": 3.0,
-            "title": "Patience",
-            "default": 10
-          },
-          "minimum_improvement": {
-            "type": "number",
-            "maximum": 0.1,
-            "minimum": 0.001,
-            "title": "Minimum Improvement",
-            "default": 0.01
-          },
-          "use_gpu": {
-            "type": "boolean",
-            "title": "Use Gpu",
-            "default": false
-          }
-        },
-        "type": "object",
-        "title": "TrainRequest",
-        "description": "Request to train a PyKEEN model."
       },
       "TrainResponse": {
         "properties": {
@@ -47452,8 +45374,7 @@
         "required": [
           "verified"
         ],
-        "title": "VerifyPredictionRequest",
-        "description": "Request to verify a prediction."
+        "title": "VerifyPredictionRequest"
       },
       "ViewportSaveRequest": {
         "properties": {
@@ -48154,6 +46075,34 @@
         ],
         "title": "ImportResponse"
       },
+      "fichero__api__routes__citation_rendering__CitationResponse": {
+        "properties": {
+          "style": {
+            "type": "string",
+            "title": "Style"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Id"
+          },
+          "claim_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Claim Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "style",
+          "text"
+        ],
+        "title": "CitationResponse"
+      },
       "fichero__api__routes__folders__EntityType": {
         "type": "string",
         "enum": [
@@ -48163,44 +46112,6 @@
         ],
         "title": "EntityType",
         "description": "Type of entity for folder operations."
-      },
-      "fichero__api__routes__graph_reasoning__EnableRequest": {
-        "properties": {
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled"
-          }
-        },
-        "type": "object",
-        "required": [
-          "enabled"
-        ],
-        "title": "EnableRequest",
-        "description": "Request to enable/disable NetworkX reasoning."
-      },
-      "fichero__api__routes__graph_reasoning__GraphMetricsResponse": {
-        "properties": {
-          "metrics": {
-            "$ref": "#/components/schemas/GraphMetrics",
-            "nullable": true
-          },
-          "networkx_available": {
-            "type": "boolean",
-            "title": "Networkx Available"
-          },
-          "reasoner_enabled": {
-            "type": "boolean",
-            "title": "Reasoner Enabled"
-          }
-        },
-        "type": "object",
-        "required": [
-          "metrics",
-          "networkx_available",
-          "reasoner_enabled"
-        ],
-        "title": "GraphMetricsResponse",
-        "description": "Response for graph metrics."
       },
       "fichero__api__routes__integrations__CitationResponse": {
         "properties": {
@@ -48303,87 +46214,23 @@
         "title": "ImportResponse",
         "description": "Response from import operation."
       },
-      "fichero__api__routes__kg_citations__CitationResponse": {
+      "fichero__api__routes__kg_pykeen__DeleteModelResponse": {
         "properties": {
-          "style": {
-            "type": "string",
-            "title": "Style"
+          "deleted": {
+            "type": "boolean",
+            "title": "Deleted"
           },
-          "text": {
+          "model_id": {
             "type": "string",
-            "title": "Text"
-          },
-          "document_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Document Id"
-          },
-          "claim_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Claim Id"
+            "title": "Model Id"
           }
         },
         "type": "object",
         "required": [
-          "style",
-          "text"
+          "deleted",
+          "model_id"
         ],
-        "title": "CitationResponse"
-      },
-      "fichero__api__routes__kg_graph__GraphMetricsResponse": {
-        "properties": {
-          "entity_count": {
-            "type": "integer",
-            "title": "Entity Count"
-          },
-          "claim_count": {
-            "type": "integer",
-            "title": "Claim Count"
-          },
-          "annotation_count": {
-            "type": "integer",
-            "title": "Annotation Count"
-          },
-          "note_count": {
-            "type": "integer",
-            "title": "Note Count"
-          },
-          "interpretation_count": {
-            "type": "integer",
-            "title": "Interpretation Count"
-          },
-          "document_citation_count": {
-            "type": "integer",
-            "title": "Document Citation Count"
-          },
-          "project_count": {
-            "type": "integer",
-            "title": "Project Count"
-          },
-          "avg_claims_per_entity": {
-            "type": "number",
-            "title": "Avg Claims Per Entity"
-          },
-          "avg_entities_per_claim": {
-            "type": "number",
-            "title": "Avg Entities Per Claim"
-          }
-        },
-        "type": "object",
-        "required": [
-          "entity_count",
-          "claim_count",
-          "annotation_count",
-          "note_count",
-          "interpretation_count",
-          "document_citation_count",
-          "project_count",
-          "avg_claims_per_entity",
-          "avg_entities_per_claim"
-        ],
-        "title": "GraphMetricsResponse",
-        "description": "Library-wide KG counts + averages. Drives the inspector summary."
+        "title": "DeleteModelResponse"
       },
       "fichero__api__routes__local_models__DeleteModelResponse": {
         "properties": {
@@ -48589,39 +46436,6 @@
         },
         "type": "object",
         "title": "NoteCreateRequest"
-      },
-      "fichero__api__routes__predictions__DeleteModelResponse": {
-        "properties": {
-          "deleted": {
-            "type": "boolean",
-            "title": "Deleted"
-          },
-          "model_id": {
-            "type": "string",
-            "title": "Model Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "deleted",
-          "model_id"
-        ],
-        "title": "DeleteModelResponse",
-        "description": "Confirmation that a trained model was deleted."
-      },
-      "fichero__api__routes__predictions__EnableRequest": {
-        "properties": {
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled"
-          }
-        },
-        "type": "object",
-        "required": [
-          "enabled"
-        ],
-        "title": "EnableRequest",
-        "description": "Request to enable/disable PyKEEN inference."
       },
       "fichero__api__routes__projects__ProjectCreateRequest": {
         "properties": {

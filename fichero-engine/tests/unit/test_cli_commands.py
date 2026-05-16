@@ -15,12 +15,23 @@ from fichero import __main__ as cli
 from fichero.cli import FicheroError
 from fichero.cli.formatters import render
 from fichero.api.routes.activity import ActivityResponse
+from fichero.api.routes.artifacts import ArtifactResponse
 from fichero.api.routes.document_inspector import DocumentInspectorResponse
+from fichero.api.routes.entities import (
+    EntityAuditResponse,
+    EntityCoOccurrence,
+    EntityDocumentLink,
+    EntityResolutionResponse,
+    TopEntityRow,
+)
 from fichero.api.routes.kg_search import KGSearchResponse
+from fichero.api.routes.provider_models import ProviderResponse
 from fichero.api.routes.workflow_execution.schemas import (
     ExecuteAcceptedResponse,
     ExecutionStatusResponse,
+    ThreadListResponse,
 )
+from fichero.api.routes.workflow_execution.threads import ThreadDeletedResponse
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 from fichero.models import LibraryCreateResponse, Workflow
 
@@ -137,7 +148,7 @@ class FakeClient:
     def list_entities(self, **kw):
         self.calls.append(("list_entities", kw))
         return [
-            KnowledgeEntity(id="e1", canonical_name="Bogotá", entity_type="place")
+            KnowledgeEntity(id="e1", canonical_name="Bogotá", entity_type="location")
         ]
 
     def list_claims(self, **kw):
@@ -156,7 +167,7 @@ class FakeClient:
                     id="c-other", text="should not appear", source_document_id=doc_id
                 )
             ],
-            entities=[KnowledgeEntity(id="e1", canonical_name="Bogotá")],
+            entities=[KnowledgeEntity(id="e1", canonical_name="Bogotá", entity_type="location")],
             annotations=[],
             notes=[],
             citations_outbound=[],
@@ -192,6 +203,245 @@ class FakeClient:
         return LibraryCreateResponse(
             path=path, created=True, tables_initialized=True
         )
+
+    # -- extended document methods -----------------------------------------
+    def delete_document(self, doc_id):
+        self.calls.append(("delete_document", doc_id))
+        return None
+
+    def update_document(self, doc_id, **fields):
+        self.calls.append(("update_document", doc_id, fields))
+        return {"id": doc_id, "name": fields.get("name", "Updated Doc")}
+
+    def document_knowledge_graph(self, doc_id, **kw):
+        self.calls.append(("document_knowledge_graph", doc_id, kw))
+        from fichero.api.routes.document_inspector import DocumentKnowledgeGraphResponse
+        return DocumentKnowledgeGraphResponse(
+            document_id=doc_id,
+            include_children=kw.get("include_children", False),
+            groups=[],
+            claims=[],
+            entity_count=0,
+            claim_count=0,
+            catalogue=[],
+        )
+
+    # -- extended artifact methods -----------------------------------------
+    def update_artifact(self, artifact_id, *, content=None, reviewed=None):
+        self.calls.append(("update_artifact", artifact_id, content, reviewed))
+        return ArtifactResponse(
+            id=artifact_id,
+            document_id="doc-7",
+            artifact_type="transcription",
+            content=content or "updated",
+            version=3,
+            reviewed=reviewed if reviewed is not None else True,
+            created_at="2026-05-15T00:00:00",
+        )
+
+    def delete_artifact(self, artifact_id):
+        self.calls.append(("delete_artifact", artifact_id))
+        return None
+
+    # -- claim methods -----------------------------------------------------
+    def get_claim(self, claim_id):
+        self.calls.append(("get_claim", claim_id))
+        return KnowledgeClaim(id=claim_id, text="A claim", source_document_id="d5")
+
+    def update_claim(self, claim_id, **fields):
+        self.calls.append(("update_claim", claim_id, fields))
+        return KnowledgeClaim(
+            id=claim_id,
+            text=fields.get("text", "Updated claim"),
+            source_document_id="d5",
+        )
+
+    def delete_claim(self, claim_id):
+        self.calls.append(("delete_claim", claim_id))
+        return None
+
+    def review_claim(self, claim_id, *, status):
+        self.calls.append(("review_claim", claim_id, status))
+        return KnowledgeClaim(id=claim_id, text="A claim", source_document_id="d5")
+
+    # -- entity methods ----------------------------------------------------
+    def get_entity(self, entity_id):
+        self.calls.append(("get_entity", entity_id))
+        return KnowledgeEntity(id=entity_id, canonical_name="Bogotá", entity_type="location")
+
+    def update_entity(self, entity_id, **fields):
+        self.calls.append(("update_entity", entity_id, fields))
+        return KnowledgeEntity(
+            id=entity_id,
+            canonical_name=fields.get("canonical_name", "Updated"),
+        )
+
+    def delete_entity(self, entity_id):
+        self.calls.append(("delete_entity", entity_id))
+        return None
+
+    def merge_entities(self, absorbing_id, absorbed_ids, **kw):
+        self.calls.append(("merge_entities", absorbing_id, absorbed_ids, kw))
+        from datetime import datetime
+        from fichero.knowledge_models import EntityMergeOperationType
+        return EntityAuditResponse(
+            id="audit-1",
+            operation_type=EntityMergeOperationType.merge,
+            source_entity_ids=absorbed_ids,
+            target_entity_id=absorbing_id,
+            alias_changes={},
+            reversal_id=None,
+            created_by="cli",
+            created_at=datetime(2026, 5, 15),
+        )
+
+    def split_entity(self, primary_id, split_off_ids, **kw):
+        self.calls.append(("split_entity", primary_id, split_off_ids, kw))
+        from datetime import datetime
+        from fichero.knowledge_models import EntityMergeOperationType
+        return EntityAuditResponse(
+            id="audit-2",
+            operation_type=EntityMergeOperationType.split,
+            source_entity_ids=[primary_id],
+            target_entity_id=split_off_ids[0] if split_off_ids else primary_id,
+            alias_changes={},
+            reversal_id=None,
+            created_by="cli",
+            created_at=datetime(2026, 5, 15),
+        )
+
+    def top_entities(self, *, limit=30):
+        self.calls.append(("top_entities", limit))
+        return [TopEntityRow(entity_id="e1", name="Bogotá", kind="place", claim_count=5)]
+
+    def entity_documents(self, entity_id):
+        self.calls.append(("entity_documents", entity_id))
+        return [
+            EntityDocumentLink(
+                document_id="d1",
+                document_name="Doc One",
+                claim_count=3,
+            )
+        ]
+
+    def entity_co_occurrence(self, entity_id):
+        self.calls.append(("entity_co_occurrence", entity_id))
+        return [
+            EntityCoOccurrence(
+                entity_id="e2",
+                name="Colombia",
+                kind="place",
+                shared_claims=2,
+            )
+        ]
+
+    def resolve_entity(self, name):
+        self.calls.append(("resolve_entity", name))
+        return EntityResolutionResponse(
+            resolved=True,
+            value=name,
+            entity_id="e1",
+            canonical_name="Bogotá",
+            entity_type="location",
+            match_type="canonical_name",
+        )
+
+    # -- audit methods -----------------------------------------------------
+    def list_audits(self, *, limit=50):
+        self.calls.append(("list_audits", limit))
+        from datetime import datetime
+        from fichero.knowledge_models import EntityMergeOperationType
+        return [
+            EntityAuditResponse(
+                id="audit-1",
+                operation_type=EntityMergeOperationType.merge,
+                source_entity_ids=["e2"],
+                target_entity_id="e1",
+                alias_changes={},
+                reversal_id=None,
+                created_by="cli",
+                created_at=datetime(2026, 5, 15),
+            )
+        ]
+
+    def undo_audit(self, audit_id):
+        self.calls.append(("undo_audit", audit_id))
+        from datetime import datetime
+        from fichero.knowledge_models import EntityMergeOperationType
+        return EntityAuditResponse(
+            id=audit_id,
+            operation_type=EntityMergeOperationType.merge,
+            source_entity_ids=["e1"],
+            target_entity_id="e2",
+            alias_changes={},
+            reversal_id=None,
+            created_by="cli",
+            created_at=datetime(2026, 5, 15),
+        )
+
+    # -- workflow thread methods -------------------------------------------
+    def list_threads(self, *, limit=100):
+        self.calls.append(("list_threads", limit))
+        return ThreadListResponse(threads=[])
+
+    def delete_thread(self, thread_id):
+        self.calls.append(("delete_thread", thread_id))
+        return ThreadDeletedResponse(message=f"Thread deleted: {thread_id}")
+
+    # -- settings methods --------------------------------------------------
+    def get_settings(self):
+        self.calls.append(("get_settings",))
+        return {"text_model": "gpt-4o", "text_provider": "openai"}
+
+    def set_settings(self, **fields):
+        self.calls.append(("set_settings", fields))
+        return {"status": "ok"}
+
+    # -- provider methods --------------------------------------------------
+    def list_providers(self):
+        self.calls.append(("list_providers",))
+        return [
+            ProviderResponse(
+                id="prov-1",
+                name="My OpenAI",
+                provider_type="openai",
+                api_base=None,
+                enabled=True,
+                sort_order=0,
+                has_api_key=True,
+                created_at="2026-05-15T00:00:00",
+            )
+        ]
+
+    def get_provider(self, provider_id):
+        self.calls.append(("get_provider", provider_id))
+        return ProviderResponse(
+            id=provider_id,
+            name="My OpenAI",
+            provider_type="openai",
+            api_base=None,
+            enabled=True,
+            sort_order=0,
+            has_api_key=True,
+            created_at="2026-05-15T00:00:00",
+        )
+
+    def add_provider(self, provider_type, **kw):
+        self.calls.append(("add_provider", provider_type, kw))
+        return ProviderResponse(
+            id="prov-new",
+            name=kw.get("name") or provider_type,
+            provider_type=provider_type,
+            api_base=kw.get("api_base"),
+            enabled=True,
+            sort_order=0,
+            has_api_key=bool(kw.get("api_key")),
+            created_at="2026-05-15T00:00:00",
+        )
+
+    def delete_provider(self, provider_id):
+        self.calls.append(("delete_provider", provider_id))
+        return None
 
 
 @pytest.fixture(autouse=True)
@@ -686,3 +936,255 @@ def test_library_list_json(tmp_path, monkeypatch):
     payload = json.loads(result.output)
     assert "libraries" in payload
     assert any(p.endswith("A.fichero") for p in payload["libraries"])
+
+
+# -- docs extended ---------------------------------------------------------
+def test_docs_delete_requires_confirmation():
+    result = runner.invoke(cli.app, ["docs", "delete", "d1"], input="n\n")
+    assert result.exit_code != 0
+    # When user aborts the confirmation, no client is created at all.
+    for fc in FakeClient.instances:
+        assert ("delete_document", "d1") not in fc.calls
+
+
+def test_docs_delete_yes_flag():
+    result = runner.invoke(cli.app, ["docs", "delete", "d1", "--yes"])
+    assert result.exit_code == 0
+    assert ("delete_document", "d1") in _last_client().calls
+
+
+def test_docs_update_passes_fields():
+    result = runner.invoke(cli.app, ["docs", "update", "d1", "--name", "New Name"])
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "update_document")
+    assert call[1] == "d1"
+    assert call[2].get("name") == "New Name"
+
+
+def test_docs_update_requires_fields():
+    result = runner.invoke(cli.app, ["docs", "update", "d1"])
+    assert result.exit_code == 1
+
+
+def test_docs_inspector_calls_client():
+    result = runner.invoke(cli.app, ["docs", "inspector", "d1"])
+    assert result.exit_code == 0
+    assert ("document_inspector", "d1") in _last_client().calls
+
+
+def test_docs_kg_calls_client():
+    result = runner.invoke(cli.app, ["docs", "kg", "d1"])
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "document_knowledge_graph")
+    assert call[1] == "d1"
+
+
+# -- artifacts extended ----------------------------------------------------
+def test_artifacts_update_content():
+    result = runner.invoke(
+        cli.app, ["artifacts", "update", "a-1", "--content", "new text"]
+    )
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "update_artifact")
+    assert call[1] == "a-1"
+    assert call[2] == "new text"
+
+
+def test_artifacts_delete_yes_flag():
+    result = runner.invoke(cli.app, ["artifacts", "delete", "a-1", "--yes"])
+    assert result.exit_code == 0
+    assert ("delete_artifact", "a-1") in _last_client().calls
+
+
+def test_artifacts_delete_requires_confirmation():
+    result = runner.invoke(cli.app, ["artifacts", "delete", "a-1"], input="n\n")
+    assert result.exit_code != 0
+
+
+# -- claim -----------------------------------------------------------------
+def test_claim_get():
+    result = runner.invoke(cli.app, ["claim", "get", "c-1"])
+    assert result.exit_code == 0
+    assert ("get_claim", "c-1") in _last_client().calls
+
+
+def test_claim_update_text():
+    result = runner.invoke(cli.app, ["claim", "update", "c-1", "--text", "Updated"])
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "update_claim")
+    assert call[2].get("text") == "Updated"
+
+
+def test_claim_delete_yes():
+    result = runner.invoke(cli.app, ["claim", "delete", "c-1", "--yes"])
+    assert result.exit_code == 0
+    assert ("delete_claim", "c-1") in _last_client().calls
+
+
+def test_claim_review():
+    result = runner.invoke(
+        cli.app, ["claim", "review", "c-1", "--status", "approved"]
+    )
+    assert result.exit_code == 0
+    assert ("review_claim", "c-1", "approved") in _last_client().calls
+
+
+def test_claim_list_with_doc_filter():
+    result = runner.invoke(cli.app, ["claim", "list", "--doc", "d5"])
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "list_claims")
+    assert call[1].get("source_document_id") == "d5"
+
+
+# -- entity ----------------------------------------------------------------
+def test_entity_get():
+    result = runner.invoke(cli.app, ["entity", "get", "e-1"])
+    assert result.exit_code == 0
+    assert ("get_entity", "e-1") in _last_client().calls
+
+
+def test_entity_update_name():
+    result = runner.invoke(
+        cli.app, ["entity", "update", "e-1", "--name", "Cartagena"]
+    )
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "update_entity")
+    assert call[2].get("canonical_name") == "Cartagena"
+
+
+def test_entity_delete_yes():
+    result = runner.invoke(cli.app, ["entity", "delete", "e-1", "--yes"])
+    assert result.exit_code == 0
+    assert ("delete_entity", "e-1") in _last_client().calls
+
+
+def test_entity_merge():
+    result = runner.invoke(cli.app, ["entity", "merge", "e-1", "e-2"])
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "merge_entities")
+    assert call[1] == "e-1"
+    assert "e-2" in call[2]
+
+
+def test_entity_split():
+    result = runner.invoke(cli.app, ["entity", "split", "e-1", "e-2"])
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "split_entity")
+    assert call[1] == "e-1"
+
+
+def test_entity_top():
+    result = runner.invoke(cli.app, ["entity", "top", "--limit", "5"])
+    assert result.exit_code == 0
+    assert ("top_entities", 5) in _last_client().calls
+
+
+def test_entity_documents():
+    result = runner.invoke(cli.app, ["entity", "documents", "e-1"])
+    assert result.exit_code == 0
+    assert ("entity_documents", "e-1") in _last_client().calls
+
+
+def test_entity_co_occurrence():
+    result = runner.invoke(cli.app, ["entity", "co-occurrence", "e-1"])
+    assert result.exit_code == 0
+    assert ("entity_co_occurrence", "e-1") in _last_client().calls
+
+
+def test_entity_resolve():
+    result = runner.invoke(cli.app, ["entity", "resolve", "Bogota"])
+    assert result.exit_code == 0
+    assert ("resolve_entity", "Bogota") in _last_client().calls
+
+
+# -- audit -----------------------------------------------------------------
+def test_audit_list():
+    result = runner.invoke(cli.app, ["audit", "list", "--limit", "10"])
+    assert result.exit_code == 0
+    assert ("list_audits", 10) in _last_client().calls
+
+
+def test_audit_undo():
+    result = runner.invoke(cli.app, ["audit", "undo", "audit-1"])
+    assert result.exit_code == 0
+    assert ("undo_audit", "audit-1") in _last_client().calls
+
+
+# -- workflow threads ------------------------------------------------------
+def test_workflow_threads_list():
+    result = runner.invoke(cli.app, ["workflow", "threads", "list"])
+    assert result.exit_code == 0
+    assert ("list_threads", 100) in _last_client().calls
+
+
+def test_workflow_threads_delete_yes():
+    result = runner.invoke(
+        cli.app, ["workflow", "threads", "delete", "t-abc", "--yes"]
+    )
+    assert result.exit_code == 0
+    assert ("delete_thread", "t-abc") in _last_client().calls
+
+
+def test_workflow_status():
+    result = runner.invoke(cli.app, ["workflow", "status", "t-1"])
+    assert result.exit_code == 0
+    assert ("execution_status", "t-1") in _last_client().calls
+
+
+# -- settings --------------------------------------------------------------
+def test_settings_list():
+    result = runner.invoke(cli.app, ["settings", "list"])
+    assert result.exit_code == 0
+    assert ("get_settings",) in _last_client().calls
+    assert "text_model" in result.output
+
+
+def test_settings_get():
+    result = runner.invoke(cli.app, ["settings", "get", "text_model"])
+    assert result.exit_code == 0
+    assert "gpt-4o" in result.output
+
+
+def test_settings_get_missing_key():
+    result = runner.invoke(cli.app, ["settings", "get", "nonexistent_key"])
+    assert result.exit_code == 1
+
+
+def test_settings_set():
+    result = runner.invoke(
+        cli.app, ["settings", "set", "text_model", "claude-sonnet-4-6"]
+    )
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "set_settings")
+    assert call[1].get("text_model") == "claude-sonnet-4-6"
+
+
+# -- providers -------------------------------------------------------------
+def test_providers_list():
+    result = runner.invoke(cli.app, ["providers", "list"])
+    assert result.exit_code == 0
+    assert ("list_providers",) in _last_client().calls
+    assert "My OpenAI" in result.output
+
+
+def test_providers_get():
+    result = runner.invoke(cli.app, ["providers", "get", "prov-1"])
+    assert result.exit_code == 0
+    assert ("get_provider", "prov-1") in _last_client().calls
+
+
+def test_providers_add():
+    result = runner.invoke(
+        cli.app,
+        ["providers", "add", "--type", "anthropic", "--name", "My Anthropic"],
+    )
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "add_provider")
+    assert call[1] == "anthropic"
+    assert call[2].get("name") == "My Anthropic"
+
+
+def test_providers_delete_yes():
+    result = runner.invoke(cli.app, ["providers", "delete", "prov-1", "--yes"])
+    assert result.exit_code == 0
+    assert ("delete_provider", "prov-1") in _last_client().calls
