@@ -4,24 +4,21 @@
 
 **Branch: 0.0.2** · Latest: `ff3a9cf1` · Working tree clean.
 
-✅ **Backend Round 2 VERIFIED COMPLETE** — all 6 issues verified as closed and fixed in prior sessions.
-✅ **Backend Round 3 VERIFIED COMPLETE** — all 3 issues closed: #1136 ✓, #1137 ✓, #1138 ✓ (already fixed in 44374c04).
+✅ **Backend Milestone FULLY COMPLETE** — All Rounds 1–3 verified complete (May 16, 8:54 PM):
+  - Round 1: 4 architectural fixes (#1001, #1025, #1017, #988) ✓
+  - Round 2: 6 verification sweep (all already fixed) ✓
+  - Round 3: 3 post-test bugs (all closed: #1136, #1137, #1138) ✓
 
 ## Tooling Now Available
 
-- **Knowledge graph at `graphify-out/`** (built 2026-05-16) — query the codebase via `/graphify query "..."`, `/graphify explain "LLMConfig"`, or `/graphify path "FicheroClient" "Database"`. ~17K nodes / 30K edges over fichero/ + fichero-engine/ (831 code files). ~50× cheaper than grepping. Run `/graphify --update` if the branch has moved substantially since.
+- **Knowledge graph at `graphify-out/`** (built 2026-05-16) — query the codebase via `/graphify query "..."`, `/graphify explain "LLMConfig"`, or `/graphify path "FicheroClient" "Database"`. ~17K nodes / 30K edges over fichero/ + fichero-engine/ (831 code files). ~50× cheaper than grepping.
 
 ## Next Session — Start Here
 
-**0.0.2 milestone backend is COMPLETE.** All priority fixes (Rounds 1–3) closed and verified:
-- Round 1: 4 architectural fixes (#1001, #1025, #1017, #988)
-- Round 2: 6 verification sweep issues (all already fixed)
-- Round 3: 3 post-test-cycle bugs (all closed)
-
-**Recommended next steps**:
-1. Review open GitHub issues on 0.0.2 milestone to see if any new bugs surfaced during testing
-2. If none: advance to 0.0.3 planning or ship 0.0.2 to main
-3. If new bugs: file them and prioritize by severity
+**Backend work is DONE. Daniel's decision point:**
+1. **Testing decision:** Are there new bugs surfaced during 0.0.2 testing? (Check open issues on milestone.)
+2. **Ship decision:** Ready to merge 0.0.2 → main and release?
+3. **If no new bugs:** Create PR, merge to main, advance to 0.0.3 planning.
 
 ## In Progress
 

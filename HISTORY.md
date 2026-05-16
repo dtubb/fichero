@@ -1991,3 +1991,12 @@ Autonomous session-start-auto invoked to continue Round 2 work. Finding: all 6 R
 
 **Session Exit:** Max tasks (1) reached per `--max-tasks 1` flag.
 
+
+## 2026-05-16 — Round 3 Backend Verification Complete
+
+- **Round 3 Issues Verification:** All three post-test-cycle bugs confirmed fixed and closed (#1136 ✓, #1137 ✓, #1138 ✓)
+  - #1137 CLI formatter: document_id + document_name keys added (commit d2f4ebde)
+  - #1138 fastembed: version pinned to <=0.5.1 (commit ff3a9cf1)
+  - #1136 CLI neighborhood: URL path fixed (commit cebf5efd)
+- **Backend Milestone Complete:** All Rounds 1–3 backend work verified; 0.0.2 backend ready for testing/shipping decision
+- **No remaining backend tasks** on 0.0.2 milestone
