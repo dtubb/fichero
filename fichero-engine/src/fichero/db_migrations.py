@@ -297,56 +297,6 @@ def migrate_activity_tables(conn) -> None:
         logger.warning(f"Activity tables migration failed: {e}")
 
 
-def migrate_knowledge_claims_provider_model(conn) -> None:
-    """Add ``provider`` and ``model`` columns to ``knowledgeclaims`` for
-    per-claim LLM attribution. (#1113)
-
-    Without this migration, an existing knowledgeclaims table (created
-    before the columns were added to ``KnowledgeClaim``) makes every
-    ``INSERT OR REPLACE INTO knowledgeclaims (...) VALUES (...)`` fail
-    with a DuckDB Binder Error because the model now lists more
-    columns than the schema knows about.
-
-    Idempotent — checks PRAGMA table_info first; ALTER ADD COLUMN is
-    skipped when the column already exists. Safe on first launch (table
-    doesn't exist yet → ``_ensure_table`` will pick up the new fields
-    automatically when first claim is written).
-    """
-    try:
-        table_exists = (
-            conn.execute("""
-            SELECT COUNT(*) FROM information_schema.tables
-            WHERE table_name = 'knowledgeclaims'
-        """).fetchone()[0]
-            > 0
-        )
-
-        if not table_exists:
-            logger.debug(
-                "knowledgeclaims table does not exist, skipping provider/model migration"
-            )
-            return
-
-        result = conn.execute("PRAGMA table_info('knowledgeclaims')").fetchall()
-        columns = {row[1] for row in result}
-
-        added = []
-        if "provider" not in columns:
-            conn.execute("ALTER TABLE knowledgeclaims ADD COLUMN provider VARCHAR")
-            added.append("provider")
-        if "model" not in columns:
-            conn.execute("ALTER TABLE knowledgeclaims ADD COLUMN model VARCHAR")
-            added.append("model")
-        if added:
-            logger.info(
-                "knowledgeclaims migration: added columns %s for #1113 attribution",
-                added,
-            )
-
-    except Exception as exc:
-        logger.warning("knowledgeclaims provider/model migration failed: %s", exc)
-
-
 def migrate_knowledge_indices(conn) -> None:
     """Add indices on knowledgeentitys + knowledgeclaims for fast lookup.
 

@@ -143,6 +143,7 @@ Top god nodes (call-graph hubs): `Database`, `KnowledgeClaim`, `KnowledgeEntity`
 6. `PYTHONPATH` must be set to `fichero-engine/src` for all Python commands.
 7. Never create per-task branches — commit all work to the milestone branch directly.
 8. Never start a milestone more than one ahead of what Daniel is currently testing.
+9. **0.0.x is no-migration**: schema changes go directly into `db.py` `_ensure_table` (via the Pydantic model field). Never add an `ALTER TABLE ADD COLUMN` migration function for a column that's already in the model — fresh databases pick it up automatically. Only historical structural migrations (table renames, data backfills) belong in `db_migrations.py`. Once 0.1.0 ships to real users, this rule changes.
 
 ## Before editing backend or API-client code
 

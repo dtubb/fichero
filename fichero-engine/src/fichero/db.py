@@ -194,7 +194,6 @@ class Database(DatabaseEmbeddingMixin):
         # Migrate tables if needed
         from fichero.db_migrations import (
             migrate_document_table,
-            migrate_knowledge_claims_provider_model,
             migrate_workflow_table,
             migrate_saved_search_table,
             migrate_provider_refs_table,
@@ -203,7 +202,6 @@ class Database(DatabaseEmbeddingMixin):
         migrate_workflow_table(self.conn)
         migrate_saved_search_table(self.conn)
         migrate_provider_refs_table(self.conn)
-        migrate_knowledge_claims_provider_model(self.conn)
 
     # =========================================================================
     # Core CRUD Operations
@@ -254,9 +252,7 @@ class Database(DatabaseEmbeddingMixin):
         # Earlier versions of this method used `INSERT OR REPLACE INTO`,
         # which DuckDB documents but implements as a column-store append
         # path that is NOT a reliable PK upsert. Under sustained load
-        # against tables that gained columns mid-flight via inline
-        # ADD COLUMN migrations (`migrate_knowledge_claims_provider_model`
-        # for #1113), the append path raises:
+        # against tables that gained columns mid-flight, the append path raises:
         #
         #   Constraint Error: PRIMARY KEY or UNIQUE constraint violation:
         #     duplicate key "<id>"
