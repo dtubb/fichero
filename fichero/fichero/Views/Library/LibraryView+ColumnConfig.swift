@@ -385,6 +385,7 @@ struct ArtifactEntityCell: View {
     let entityType: String
 
     @EnvironmentObject var artifactService: ArtifactServiceGenerated
+    @Environment(WorkflowExecutionObserver.self) var executionObserver
 
     @State private var names: [String] = []
     @State private var loaded = false
@@ -411,16 +412,19 @@ struct ArtifactEntityCell: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.vertical, 2)
         .onAppear { Task { await load() } }
+        .onChange(of: executionObserver.workflowCompletedCount) {
+            Task { await load(forceRefresh: true) }
+        }
     }
 
     @MainActor
-    private func load() async {
+    private func load(forceRefresh: Bool = false) async {
         let cacheKey = "\(documentId)|own"
         let artifacts: [Artifact]
-        if let cached = artifactService.artifactsByDocument[cacheKey] {
+        if !forceRefresh, let cached = artifactService.artifactsByDocument[cacheKey] {
             artifacts = cached
         } else if let fetched = try? await artifactService.getArtifacts(
-            forDocumentId: documentId, includeDescendants: false
+            forDocumentId: documentId, includeDescendants: false, forceRefresh: forceRefresh
         ) {
             artifacts = fetched
         } else {
