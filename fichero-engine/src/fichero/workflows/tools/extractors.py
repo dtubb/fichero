@@ -30,6 +30,7 @@ from fichero.knowledge_models import EntityType
 import asyncio
 import json
 import logging
+import re as _re
 from datetime import datetime
 from typing import Any
 
@@ -1402,6 +1403,88 @@ def _synthesize_svo_fallback(
     return "is", ctx
 
 
+# #1119 — reverse alias scan
+# ---------------------------
+# Walk every claim's text + object_phrase + source_excerpt looking for
+# canonical_names or aliases of OTHER known entities, and extend the
+# claim's entity_ids[] with the matches. This is the deferred piece of
+# the #1113 acceptance criteria: "all claims that mention X" queries
+# (entity inspector, KG-RAG retrieval, citation following) walk
+# entity_ids[], so a claim like "Chocó is part of the Andes region"
+# needs to reference both entities — not just the subject.
+
+_MIN_ALIAS_LENGTH = 4
+# Common stopwords / pronouns / connectives that occasionally end up
+# as entity canonical_names through degenerate extraction. Skip these
+# during reverse alias scan to keep false positives down. The
+# upstream extractors already reject these patterns at write time;
+# this is defense-in-depth.
+_ALIAS_SCAN_STOPLIST = frozenset({
+    "this", "that", "these", "those", "they", "them", "their",
+    "what", "when", "where", "with", "from", "about",
+    "esto", "este", "ese", "esa", "aquel", "ellos", "ellas",
+})
+
+
+def _build_alias_index(db) -> list[tuple[str, str]]:
+    """Snapshot of every entity's canonical_name + aliases as a sorted
+    list of ``(lowercased_name, entity_id)`` pairs.
+
+    Sorted longest-first so a greedy substring scan prefers
+    'Chocó department' over 'Chocó'. The pairs list is rebuilt per
+    section, not per claim, so the cost is O(entities) once instead
+    of O(entities × claims).
+    """
+    from fichero.knowledge_models import KnowledgeEntity
+
+    pairs: list[tuple[str, str]] = []
+    for ent in db.query(KnowledgeEntity):
+        if (
+            ent.canonical_name
+            and len(ent.canonical_name) >= _MIN_ALIAS_LENGTH
+            and ent.canonical_name.lower() not in _ALIAS_SCAN_STOPLIST
+        ):
+            pairs.append((ent.canonical_name.lower(), ent.id))
+        for alias in (ent.aliases or []):
+            if (
+                alias
+                and len(alias) >= _MIN_ALIAS_LENGTH
+                and alias.lower() not in _ALIAS_SCAN_STOPLIST
+            ):
+                pairs.append((alias.lower(), ent.id))
+    pairs.sort(key=lambda p: -len(p[0]))
+    return pairs
+
+
+def _scan_for_mentioned_entities(
+    text: str,
+    alias_pairs: list[tuple[str, str]],
+    exclude: set[str],
+) -> list[str]:
+    """Find entity IDs whose canonical_name or aliases appear as
+    whole-word matches in ``text`` (case-insensitive). Excludes ids
+    already in ``exclude``. Returns a deduped list preserving the
+    order entities were discovered.
+
+    Whole-word match via regex ``\\b`` boundaries prevents 'Lima' from
+    matching inside 'climate'. Case-insensitive so 'CHOCÓ' in source
+    text still finds the 'Chocó' entity.
+    """
+    if not text:
+        return []
+    text_lower = text.lower()
+    seen = set(exclude)
+    found: list[str] = []
+    for name_lower, entity_id in alias_pairs:
+        if entity_id in seen:
+            continue
+        pattern = r"\b" + _re.escape(name_lower) + r"\b"
+        if _re.search(pattern, text_lower):
+            seen.add(entity_id)
+            found.append(entity_id)
+    return found
+
+
 # #1114 issue 3 — event grounding guard
 # --------------------------------------
 # The event-extraction prompt lists 'Accident, Flood, Death, Fire,
@@ -1504,6 +1587,15 @@ def _write_kg_rows(
 
     entity_type = section.get("entity_type")
     page_excerpt = source_excerpt  # rename for clarity below
+
+    # Build the alias index ONCE per section (#1119). Cheaper than per-claim;
+    # rebuilt next section so newly-upserted entities are included for the
+    # next batch. Pure-read query — safe to run before the writes start.
+    try:
+        alias_pairs = _build_alias_index(db)
+    except Exception as exc:
+        logger.warning("alias index build failed: %s", exc)
+        alias_pairs = []
 
     # Event grounding guard (#1114 issue 3) — drop items whose event
     # name has no content token in the source text. Operates only on
@@ -1888,10 +1980,21 @@ def _write_kg_rows(
             meta["date_text"] = date_text
             meta["date_normalized"] = normalized
             meta["subject"] = stem
+            # #1119 — reverse alias scan over the claim text + object +
+            # excerpt. Date-style claims have no subject entity (the date
+            # IS the subject), so any entity mention here is purely
+            # secondary; the caller's entity_ids defaults to [].
+            scan_text = " ".join(filter(None, [
+                claim_text, predicate, excerpt or ""
+            ]))
+            mentioned = _scan_for_mentioned_entities(
+                scan_text, alias_pairs, exclude=set()
+            )
             save_claim(
                 db,
                 text=claim_text,
                 source_document_id=container_id,
+                entity_ids=mentioned,
                 source_excerpt=excerpt,
                 source_page_label=page_label,
                 source_char_start=char_start,
@@ -1968,11 +2071,22 @@ def _write_kg_rows(
             # leak when the LLM can't compose a real predicate. (#1016)
             description=entity_description,
         )
+        # #1119 — reverse alias scan over claim text + predicate + excerpt.
+        # Subject entity is already in entity_ids; the scan extends with
+        # any OTHER known entities mentioned. Example: "Chocó is part of
+        # the Andes region" — subject is Chocó, scan picks up "Andes
+        # region" too if it's a known entity.
+        scan_text = " ".join(filter(None, [
+            claim_text, predicate, excerpt or ""
+        ]))
+        mentioned = _scan_for_mentioned_entities(
+            scan_text, alias_pairs, exclude={entity_id}
+        )
         save_claim(
             db,
             text=claim_text,
             source_document_id=container_id,
-            entity_ids=[entity_id],
+            entity_ids=[entity_id, *mentioned],
             source_excerpt=excerpt,
             source_page_label=page_label,
             source_char_start=char_start,
