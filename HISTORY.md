@@ -1866,3 +1866,7 @@ Audits produced:
 **Pattern validation:** Loop-per-issue autonomy with status file handoff worked as designed. Zero supervision needed. All issues closed on GitHub, all commits pushed to origin/0.0.2.
 
 **Next:** #988 future work is wiring thresholds into upsert_entity + after-extraction hook (scheduled for later iteration). No blocking issues remain on 0.0.2 milestone.
+
+## 2026-05-16 — Round 2 Queue, Task #1037 (Verification)
+
+- **#1037**: extract_all timing instrumentation — already fixed in commit d17b5fb8. Verified code includes per-chunk LLM call timings, summary logging with slowest/average metrics. Closed issue.

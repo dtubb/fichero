@@ -2,9 +2,9 @@
 
 ## Snapshot
 
-**Branch: 0.0.2** · Latest: `45b6d773` · Working tree clean.
+**Branch: 0.0.2** · Latest: `37fd9905` · Working tree clean.
 
-✅ **Backend queue CLEARED** — all 4 priority issues completed. Ready for: SwiftUI fixes, 0.0.3 prep, or release pipeline. Daniel is testing 0.0.2.
+🔄 **Backend Round 2 in progress** — verifying & fixing remaining backend issues. Round 1 (4 issues) complete. Round 2 queue: #1033, #1030, #1029, #1027, #1020. Daniel is testing 0.0.2.
 
 ## Tooling Now Available
 
@@ -12,12 +12,14 @@
 
 ## Next Session — Start Here
 
-**Backend queue closed.** Pick one of:
-1. **SwiftUI cosmetics (0.0.2)**: #1049, #1042, #1044, #1040, #1070, #1036, #1035, #1034
-2. **Release prep (0.0.2→main)**: #165 merge + notarization + DMG + GitHub release
-3. **0.0.3 backend**: #1075 (standardize API list responses — good for autonomous loop)
+**Continue Round 2 backend queue:**
+1. **#1033**: transcribe re-OCRs digital PDFs with text layer (grep `process_vision` first — may already be fixed)
+2. **#1030**: KG entity rows show raw repr instead of readable context (defensive sanitizer in KnowledgeClaim.__str__)
+3. **#1029**: no quality gate on garbage workflow output (generic on_low_quality check)
+4. **#1027**: Apple Intelligence StructuredDecodeError forces fallback
+5. **#1020**: collapse catalogue.json + catalogue_mixed.json into one workflow
 
-Or start a new 0.0.3 autonomous backend loop.
+Use autonomous loop (`/fs_session:session-start-auto --max-tasks 1`) to chain these. Each task is a single session; max 1 task per invocation.
 
 ## In Progress
 
