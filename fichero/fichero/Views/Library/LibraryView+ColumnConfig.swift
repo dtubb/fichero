@@ -424,7 +424,7 @@ struct ArtifactEntityCell: View {
         if !forceRefresh, let cached = artifactService.artifactsByDocument[cacheKey] {
             artifacts = cached
         } else if let fetched = try? await artifactService.getArtifacts(
-            forDocumentId: documentId, includeDescendants: false, forceRefresh: forceRefresh
+            forDocumentId: documentId, forceRefresh: forceRefresh, includeDescendants: false
         ) {
             artifacts = fetched
         } else {
