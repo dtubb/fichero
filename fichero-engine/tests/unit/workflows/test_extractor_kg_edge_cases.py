@@ -656,3 +656,184 @@ class TestSanitizeEntityDescription:
         assert _sanitize_entity_description(
             "served as the alcalde of Popayán", "Eugenio Córdoba"
         ) == "served as the alcalde of Popayán"
+
+
+class TestInvariantViolationLogging:
+    """Verify that extractor → KG round-trip violations surface in logs (#1017 layer 2).
+
+    When extracted items violate invariants (no canonical name, degenerate
+    descriptions, empty SVO), the activity log must show WHY a page is thin,
+    not leave gaps unexplained. Tests that invariant violations are actually
+    logged at WARNING level so operators see them during triage.
+    """
+
+    def test_anchorless_items_logged_as_violations(self, db, container_doc, caplog):
+        """Items with no canonical name (the #1006/#1003 signature)
+        should be flagged as violations in the WARNING log."""
+        from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
+
+        places_section = next(s for s in _SECTIONS if s["name"] == "places_extract")
+        # Item with no name key — will be dropped by _write_kg_rows.
+        items = [
+            {"verb": "is", "object": "a significant location"},  # no name
+        ]
+
+        with caplog.at_level("WARNING", logger="fichero.workflows.tools.extractors"):
+            _write_kg_rows(
+                db, places_section, items, container_doc.id,
+                page_label="Page 1",
+                source_excerpt="some text",
+                provider="openai",
+                model="gpt-4o-mini",
+            )
+
+        # Should log an invariant violation for the missing canonical name.
+        violations = [
+            r.message for r in caplog.records
+            if "invariant violations" in r.message
+        ]
+        assert violations, "expected WARNING with invariant violations for anchorless item"
+        assert any("no canonical name" in v for v in violations)
+
+    def test_degenerate_descriptions_logged_as_violations(self, db, container_doc, caplog):
+        """Entity descriptions that are too short or echo the canonical name
+        should be logged as violations, not silently dropped."""
+        from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
+
+        people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
+        # Items with degenerate descriptions.
+        items = [
+            {"name": "Eugenio Córdoba", "context": "Eugenio Córdoba"},  # echoes name
+            {"name": "Juan", "context": "the"},  # too short
+        ]
+
+        with caplog.at_level("WARNING", logger="fichero.workflows.tools.extractors"):
+            _write_kg_rows(
+                db, people_section, items, container_doc.id,
+                page_label="Page 1",
+                source_excerpt="some text",
+                provider="openai",
+                model="gpt-4o-mini",
+            )
+
+        violations = [
+            r.message for r in caplog.records
+            if "invariant violations" in r.message
+        ]
+        assert violations, "expected WARNING for degenerate descriptions"
+
+    def test_page_summary_logs_items_in_and_written(self, db, container_doc, caplog):
+        """Every page write should log items_in vs entities_written/claims_written
+        so activity log shows when a page's items were lost or degraded (#1017)."""
+        from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
+
+        places_section = next(s for s in _SECTIONS if s["name"] == "places_extract")
+        # Mixed items: some good, some anchorless.
+        items = [
+            {"name": "Popayán", "verb": "is", "object": "a city"},  # good
+            {"verb": "has", "object": "significance"},  # anchorless — will drop
+        ]
+
+        with caplog.at_level("INFO", logger="fichero.workflows.tools.extractors"):
+            _write_kg_rows(
+                db, places_section, items, container_doc.id,
+                page_label="Page 1",
+                source_excerpt="some text",
+                provider="openai",
+                model="gpt-4o-mini",
+            )
+
+        # Should log structured summary with item counts.
+        summaries = [
+            r.message for r in caplog.records
+            if "items_in=" in r.message and "entities_written=" in r.message
+        ]
+        assert summaries, "expected INFO log with item counts"
+        # Should show items_in=2, entities_written=1 (one dropped).
+        assert any("items_in=2" in s and "entities_written=1" in s for s in summaries)
+
+    def test_svo_completeness_maintained_for_all_written_claims(self, db, container_doc):
+        """Verify that after _write_kg_rows, every claim has non-None
+        subject_canonical, predicate_verb, object_phrase (or all are None
+        for synthetic/fallback SVO cases). This is the #1113 invariant."""
+        from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
+        from fichero.knowledge_models import KnowledgeClaim
+
+        places_section = next(s for s in _SECTIONS if s["name"] == "places_extract")
+        # Mix of LLM-SVO and legacy-context items.
+        items = [
+            {"name": "Chocó", "verb": "is", "object": "a Pacific region"},
+            {"name": "Atrato", "context": "Atrato: a river"},
+        ]
+
+        _write_kg_rows(
+            db, places_section, items, container_doc.id,
+            page_label="Page 1",
+            source_excerpt="some text",
+            provider="openai",
+            model="gpt-4o-mini",
+        )
+
+        claims = db.query(KnowledgeClaim, source_document_id=container_doc.id)
+        assert len(claims) == 2, "both items should write claims"
+
+        # SVO invariant: all three fields must be non-None.
+        for claim in claims:
+            assert claim.subject_canonical, (
+                f"claim {claim.id!r} has no subject_canonical: {claim.text!r}"
+            )
+            assert claim.predicate_verb, (
+                f"claim {claim.id!r} has no predicate_verb: {claim.text!r}"
+            )
+            assert claim.object_phrase, (
+                f"claim {claim.id!r} has no object_phrase: {claim.text!r}"
+            )
+
+    def test_entity_description_invariant_enforced(self, db, container_doc):
+        """Entity descriptions written to the KG must be None OR
+        >=3 words AND not a substring of canonical_name. This prevents
+        the silent #1016 / #1009 degradation."""
+        from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
+        from fichero.knowledge_models import KnowledgeEntity
+
+        people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
+        # Items: one with valid description, one with short description.
+        items = [
+            {
+                "name": "Eugenio Córdoba",
+                "context": "served as the alcalde of Popayán",
+            },
+            {
+                "name": "María",
+                "context": "a",  # too short
+            },
+        ]
+
+        _write_kg_rows(
+            db, people_section, items, container_doc.id,
+            page_label="Page 1",
+            source_excerpt="some text",
+            provider="openai",
+            model="gpt-4o-mini",
+        )
+
+        entities = db.query(KnowledgeEntity)
+        assert len(entities) == 2, "both items should create entities"
+
+        # Check invariants.
+        for entity in entities:
+            if entity.description is not None:
+                # Must be >=3 words.
+                words = entity.description.split()
+                assert len(words) >= 3, (
+                    f"{entity.canonical_name!r} description too short: "
+                    f"{entity.description!r}"
+                )
+                # Must not be a substring of canonical name.
+                assert (
+                    entity.description.casefold()
+                    not in entity.canonical_name.casefold()
+                ), (
+                    f"{entity.canonical_name!r} description echoes name: "
+                    f"{entity.description!r}"
+                )
