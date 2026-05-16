@@ -1917,3 +1917,29 @@ Autonomous loop final pass — verified all 6 remaining issues in Round 2 queue 
 - ✅ #1020 (collapse catalogue workflows)
 
 **Status**: 0.0.2 milestone backend work is fully verified complete. All tests passing, all issues closed. Daniel is testing 0.0.2; awaiting approval or new bug filings. Next: merge to main (task #165) or start 0.0.3.
+
+## 2026-05-16 Evening — Autonomous Backend Loop (Round 1 + 2)
+
+**Round 1 — Haiku autonomous loop (5 iterations):**
+- Fixed #1001: permissive_guardrails for extractors, reduce Apple Intelligence false positives
+- Fixed #1025: drop mermaid.ink remote dependency, switch to local PYPPETEER rendering  
+- Fixed #1017: extractor schema round-trip tests + backend integration smoke tests
+- Fixed #988: entity resolution probabilistic scoring + auto-merge threshold
+
+All tested, committed, pushed, closed on GitHub.
+
+**Round 2 — Issue triage + second loop:**
+- Scanned 6 remaining backend issues; found all already fixed in code but not closed on GitHub
+- Closed #1030 (SVO repr sanitizer), #1029 (output quality gate), #1027 (StructuredDecodeError retry), #1020 (catalogue collapse), #1033 (PDF text layer short-circuit)
+- #1037 (extract_all timing) already marked fixed by Haiku loop
+- Started second 8-iteration Haiku loop to verify/close any remaining issues
+
+**Lessons:**
+- Haiku autonomous loop pattern works well: 1 issue/iteration, clean context, status file as persistent handoff
+- GitHub issue hygiene: many "open" issues were already fixed; always check before implementing
+- Two-cadence approach (Haiku grinds continuously, Sonnet reviews periodically) is efficient
+
+**Next session:**
+- Monitor the second Haiku loop completion
+- Do a full build/test/lint pass on accumulated fixes
+- Decide on 0.0.2 release readiness or continue with remaining SwiftUI issues (#1049, #1042, #1044, etc.)
