@@ -588,6 +588,23 @@ class FicheroClient:
             )
         )
 
+    def kg_rebuild(self, *, vectors: bool = True, triples: bool = True) -> Any:
+        return self.request(
+            "POST", "/api/kg/rebuild",
+            json={"vectors": vectors, "triples": triples},
+        )
+
+    def kg_reset(self) -> Any:
+        return self.request("POST", "/api/kg/reset")
+
+    def import_document(self, path: Path, parent_id: str | None = None) -> Any:
+        with open(path, "rb") as fh:
+            files = {"file": (path.name, fh, "application/octet-stream")}
+            params = {}
+            if parent_id:
+                params["parent_id"] = parent_id
+            return self.request("POST", "/api/documents/import", files=files, params=params)
+
     def entity_neighborhood(
         self,
         entity_id: str,

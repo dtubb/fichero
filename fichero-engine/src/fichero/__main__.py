@@ -772,6 +772,38 @@ def kg_search(
     _invoke(ctx, lambda c: c.kg_search(query, limit=limit))
 
 
+@kg_app.command("rebuild")
+def kg_rebuild(
+    ctx: typer.Context,
+    vectors: bool = typer.Option(True, "--vectors/--no-vectors", help="Rebuild entity vector store."),
+    triples: bool = typer.Option(True, "--triples/--no-triples", help="Rebuild RDF triple file."),
+) -> None:
+    """Rebuild derived KG stores (vectors + RDF triples) from canonical DB rows.
+
+    Safe to run any time — idempotent. Use after pulling a new engine version
+    or after a KG reset + re-extraction.
+    """
+    _invoke(ctx, lambda c: c.kg_rebuild(vectors=vectors, triples=triples))
+
+
+@kg_app.command("reset")
+def kg_reset(
+    ctx: typer.Context,
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+) -> None:
+    """Wipe all KG rows (entities, claims, links) so extraction can run fresh.
+
+    Documents and artifacts are not touched. Run a Catalogue/Extract
+    workflow afterwards to refill the knowledge graph.
+    """
+    if not yes:
+        typer.confirm(
+            "This will delete ALL entities, claims, and links. Continue?",
+            abort=True,
+        )
+    _invoke(ctx, lambda c: c.kg_reset())
+
+
 # -- library bootstrap -----------------------------------------------------
 # Where `library list` looks for .fichero packages. Mirrors the server-side
 # allowlist in fichero/api/main.py::_is_allowed_library_path — keep these in
@@ -882,6 +914,22 @@ def docs_update(
         typer.secho("No fields to update — pass --name, --parent-id, or --folder-path.", err=True)
         raise typer.Exit(code=1)
     _invoke(ctx, lambda c: c.update_document(doc_id, **fields))
+
+
+@docs_app.command("import")
+def docs_import(
+    ctx: typer.Context,
+    path: Path = typer.Argument(..., help="File path to import into the library."),
+    parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Parent folder document ID."),
+) -> None:
+    """Import a file into the library (copies it in, creates a document record).
+
+    Equivalent to drag-dropping a file in the SwiftUI app.
+    """
+    if not path.exists():
+        typer.secho(f"File not found: {path}", err=True)
+        raise typer.Exit(code=1)
+    _invoke(ctx, lambda c: c.import_document(path, parent_id=parent_id))
 
 
 @docs_app.command("inspector")

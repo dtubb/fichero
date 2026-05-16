@@ -20,6 +20,51 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/kg")
 
 
+class KGResetResponse(BaseModel):
+    """Counts of rows deleted by a KG reset."""
+    entities_deleted: int
+    claims_deleted: int
+    links_deleted: int
+
+
+@router.post(
+    "/reset",
+    response_model=KGResetResponse,
+    summary="Wipe all KG rows so extraction can run fresh",
+    description=(
+        "Deletes every KnowledgeEntity, KnowledgeClaim, and KnowledgeClaimLink "
+        "row in the library. Documents and Artifacts are not touched. "
+        "Use before re-running Catalogue/Extract workflows to get a clean slate."
+    ),
+)
+async def reset_kg(
+    db: Database = Depends(get_library_database),
+) -> KGResetResponse:
+    """Delete all KG rows (entities, claims, links)."""
+    from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim, KnowledgeClaimLink
+
+    entities = db.query(KnowledgeEntity)
+    claims = db.query(KnowledgeClaim)
+    links = db.query(KnowledgeClaimLink)
+
+    for e in entities:
+        db.delete(KnowledgeEntity, e.id)
+    for c in claims:
+        db.delete(KnowledgeClaim, c.id)
+    for lnk in links:
+        db.delete(KnowledgeClaimLink, lnk.id)
+
+    logger.info(
+        "KG reset: %d entities, %d claims, %d links deleted",
+        len(entities), len(claims), len(links),
+    )
+    return KGResetResponse(
+        entities_deleted=len(entities),
+        claims_deleted=len(claims),
+        links_deleted=len(links),
+    )
+
+
 class RebuildRequest(BaseModel):
     """Toggle which derived stores get refreshed."""
     vectors: bool = True
