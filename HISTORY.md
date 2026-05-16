@@ -1870,3 +1870,9 @@ Audits produced:
 ## 2026-05-16 — Round 2 Queue, Task #1037 (Verification)
 
 - **#1037**: extract_all timing instrumentation — already fixed in commit d17b5fb8. Verified code includes per-chunk LLM call timings, summary logging with slowest/average metrics. Closed issue.
+
+## 2026-05-16 20:29 — Backend Round 2 Session 3
+
+- **#1033** — verified transcribe text-layer short-circuit already fixed in commit 7ef16274; marked complete in worker-status.md, updated STATE.md queue pointer to #1030
+- Round 2 progress: 2 of 6 issues verified complete (both pre-existing fixes); 4 issues remaining
+

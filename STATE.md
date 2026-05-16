@@ -2,9 +2,9 @@
 
 ## Snapshot
 
-**Branch: 0.0.2** · Latest: `37fd9905` · Working tree clean.
+**Branch: 0.0.2** · Latest: `c4f27271` · Working tree clean.
 
-🔄 **Backend Round 2 in progress** — verifying & fixing remaining backend issues. Round 1 (4 issues) complete. Round 2 queue: #1033, #1030, #1029, #1027, #1020. Daniel is testing 0.0.2.
+🔄 **Backend Round 2 in progress** — verifying & fixing remaining backend issues. Round 1 (4 issues) complete. Round 2 queue: #1030, #1029, #1027, #1020. Daniel is testing 0.0.2.
 
 ## Tooling Now Available
 
@@ -12,12 +12,11 @@
 
 ## Next Session — Start Here
 
-**Continue Round 2 backend queue:**
-1. **#1033**: transcribe re-OCRs digital PDFs with text layer (grep `process_vision` first — may already be fixed)
-2. **#1030**: KG entity rows show raw repr instead of readable context (defensive sanitizer in KnowledgeClaim.__str__)
-3. **#1029**: no quality gate on garbage workflow output (generic on_low_quality check)
-4. **#1027**: Apple Intelligence StructuredDecodeError forces fallback
-5. **#1020**: collapse catalogue.json + catalogue_mixed.json into one workflow
+**Continue Round 2 backend queue (5 remaining):**
+1. **#1030**: KG entity rows show raw repr instead of readable context (defensive sanitizer in KnowledgeClaim.__str__)
+2. **#1029**: no quality gate on garbage workflow output (generic on_low_quality check)
+3. **#1027**: Apple Intelligence StructuredDecodeError forces fallback
+4. **#1020**: collapse catalogue.json + catalogue_mixed.json into one workflow
 
 Use autonomous loop (`/fs_session:session-start-auto --max-tasks 1`) to chain these. Each task is a single session; max 1 task per invocation.
 
@@ -27,6 +26,8 @@ None.
 
 ## Completed (Prior Sessions — Autonomous Loop)
 
+- **#1037** — extract_all performance instrumentation (already fixed)
+- **#1033** — transcribe text-layer short-circuit (already fixed in 7ef16274)
 - **#1001** — permissive_guardrails for extractors (Apple Intelligence false-positives)
 - **#1025** — local PYPPETEER diagram rendering (drop mermaid.ink remote API)
 - **#1017** — extractor schema round-trip + invariant violation tests
