@@ -2,9 +2,10 @@
 
 ## Snapshot
 
-**Branch: 0.0.2** · Latest: `ae593d0c` · Working tree clean.
+**Branch: 0.0.2** · Latest: `2cbe06c2` · Working tree clean.
 
-✅ **Backend Round 2 VERIFIED COMPLETE** — all 6 issues verified as closed and fixed in prior sessions. No further backend work required for 0.0.2. Daniel is testing 0.0.2; awaiting approval or new bugs.
+✅ **Backend Round 2 VERIFIED COMPLETE** — all 6 issues verified as closed and fixed in prior sessions.
+🔄 **Round 3 (Post-Testing Bugs) IN PROGRESS** — three bugs discovered during CLI testing; #1136 fixed, #1137–#1138 queued.
 
 ## Tooling Now Available
 
@@ -12,17 +13,19 @@
 
 ## Next Session — Start Here
 
-**0.0.2 milestone is complete** — all backend issues fixed, tested, and verified. Awaiting one of:
-1. Daniel approves 0.0.2 → run task #165 (merge to main + release pipeline)
-2. Daniel reports new bugs during testing → file and work them on 0.0.2
-3. Start 0.0.3 work if Daniel is done testing 0.0.2 (check STATE.md when resuming)
+**Round 3 queue ready**: Two unblocked bugs await fixes:
+1. **#1137** — CLI entity documents renders '(item)' instead of document name (formatter key mismatch)
+2. **#1138** — fastembed multilingual-e5-large pooling strategy changed from CLS to mean (breaks vector comparability)
+
+Both are on 0.0.2 milestone. Pick either one and follow the same fix-verify-commit-close pattern.
 
 ## In Progress
 
-None — awaiting Daniel approval or new bug reports during 0.0.2 testing.
+None — #1136 just completed.
 
-## Completed (Prior Sessions — Autonomous Loop)
+## Completed (This Session & Prior)
 
+- **#1136** — CLI entity_neighborhood wrong URL path (FIXED: cebf5efd)
 - **#1037** — extract_all performance instrumentation (already fixed)
 - **#1033** — transcribe text-layer short-circuit (already fixed in 7ef16274)
 - **#1001** — permissive_guardrails for extractors (Apple Intelligence false-positives)
