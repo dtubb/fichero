@@ -306,11 +306,12 @@ class SearchRequest(BaseModel):
 
     query: str
     limit: int = 10
-    # 0.3 cosine ≈ "loosely related" floor; below that are usually
-    # incidental matches across an embedding space. Callers wanting
-    # everything can pass 0.0; callers wanting tight matches can pass
-    # 0.5+. Applies to semantic results only.
-    min_score: float = 0.3
+    # 0.45 cuts the unthresholded-semantic noise floor: a query like
+    # "racial inequality" over a 15-doc corpus returns every page at
+    # 42-50% cosine similarity (#1054). At 0.45 the post-RRF filter
+    # keeps only the top few genuinely ranked results.
+    # Callers wanting everything can pass 0.0; tight matches: 0.6+.
+    min_score: float = 0.45
 
     # Advanced search options
     search_type: str = "hybrid"  # "semantic", "fulltext", or "hybrid"

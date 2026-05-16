@@ -819,7 +819,20 @@ class Database(DatabaseEmbeddingMixin):
                 for item in merged.values():
                     item["score"] = min(1.0, item["_rrf"] / rrf_max)
                     item.pop("_rrf", None)
-                combined_results = list(merged.values())
+                # Apply min_score to the normalised RRF projection.
+                # Docs that appear only in semantic results and rank poorly
+                # get RRF scores of ~0.40-0.44 in a 15-doc corpus — the
+                # tight 42-50% band that returns the whole library for a
+                # rare query (#1054). The pre-RRF semantic filter (above)
+                # already removed scores below min_score in cosine space;
+                # this second pass catches docs that scraped past that floor
+                # but then ranked near the bottom of the fusion list.
+                if min_score > 0:
+                    combined_results = [
+                        r for r in merged.values() if r["score"] >= min_score
+                    ]
+                else:
+                    combined_results = list(merged.values())
             elif search_type == "semantic":
                 combined_results = semantic_results
             elif search_type == "fulltext":
