@@ -7,18 +7,18 @@
 - [x] #988  — entity resolution probabilistic scoring (DONE, committed 51929ba2)
 - SKIP #1075 — breaking API change, defer to 0.0.3
 
-## Queue (Round 2)
+## Queue (Round 2 — ALL COMPLETE ✓)
 - [x] #1037 — extract_all slow on 15-page PDF (DONE, already fixed in d17b5fb8)
 - [x] #1033 — transcribe re-OCRs digital PDFs with text layer (DONE, already fixed in 7ef16274)
-- [ ] #1030 — KG entity rows show raw repr instead of readable context
-- [ ] #1029 — no quality gate on garbage workflow output
-- [ ] #1027 — Apple Intelligence StructuredDecodeError forces fallback
-- [ ] #1020 — collapse catalogue.json + catalogue_mixed.json into one workflow
+- [x] #1030 — KG entity rows show raw repr instead of readable context (DONE, already fixed in 79d01166)
+- [x] #1029 — no quality gate on garbage workflow output (DONE, quality gate + output_quality.py implemented)
+- [x] #1027 — Apple Intelligence StructuredDecodeError forces fallback (DONE, on-device retry implemented)
+- [x] #1020 — collapse catalogue.json + catalogue_mixed.json into one workflow (DONE)
 - SKIP #1075 — breaking API change, defer to 0.0.3
 - SKIP #1044 — SwiftUI only, skip
 
-## Current
-next: #1030
+## Status: VERIFIED COMPLETE
+All 6 issues in Round 2 backend queue have been verified as closed on GitHub and corresponding code fixes confirmed. No remaining unblocked tasks.
 
 ## Attempts
 {}
