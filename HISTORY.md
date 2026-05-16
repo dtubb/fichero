@@ -1,3 +1,19 @@
+## 2026-05-16 — Backend Worker Loop (Round 2 Verification Complete, 20:35 ADT)
+
+Autonomous session invoked to work Round 2 backend queue. Discovery: all 6 issues were already verified fixed and closed in prior sessions (Round 1 queue completed 8:33p). No tasks available.
+
+**Round 2 Issues Verified Complete:**
+- ✅ #1037 (extract_all slow on 15-page PDF — already fixed in d17b5fb8)
+- ✅ #1033 (transcribe re-OCRs digital PDFs with text layer — already fixed in 7ef16274)
+- ✅ #1030 (KG entity repr leak — already fixed in 79d01166)
+- ✅ #1029 (quality gate on garbage workflow output — implemented + verified)
+- ✅ #1027 (Apple Intelligence StructuredDecodeError — on-device retry implemented)
+- ✅ #1020 (collapse catalogue.json + catalogue_mixed.json — completed)
+
+**Outcome:** Backend 0.0.2 milestone fully verified complete. Zero unblocked tasks remain. System awaits Daniel's approval to merge 0.0.2 → main via task #165, or new bugs filed during active testing on 0.0.2.
+
+---
+
 ## 2026-05-16 — Backend Worker Loop (Final Checkpoint, 21:24 ADT)
 
 Autonomous loop completed — all 4 priority backend issues finished in prior session invocations. Final verification and state commit:
