@@ -29,11 +29,11 @@ class FeatureManager: ObservableObject {
     @AppStorage("fichero.features.search")
     private var searchEnabledInternal: Bool = true
     @AppStorage("fichero.features.library_advanced_views")
-    private var libraryAdvancedViewsEnabledInternal: Bool = false
+    private var libraryAdvancedViewsEnabledInternal: Bool = true
     @AppStorage("fichero.features.search_advanced_views")
-    private var searchAdvancedViewsEnabledInternal: Bool = false
+    private var searchAdvancedViewsEnabledInternal: Bool = true
     @AppStorage("fichero.features.library_search_split_layouts")
-    private var librarySearchSplitLayoutsEnabledInternal: Bool = false
+    private var librarySearchSplitLayoutsEnabledInternal: Bool = true
     @AppStorage("fichero.features.library_filter_toolbar")
     private var libraryFilterToolbarEnabledInternal: Bool = false
     @AppStorage("fichero.features.library_icon_zoom_controls")
