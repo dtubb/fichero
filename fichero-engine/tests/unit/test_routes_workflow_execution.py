@@ -40,6 +40,7 @@ def _make_mock_checkpointer(thread_ids: list[str] | None = None):
     cp.aget_tuple = AsyncMock(return_value=None)
     cp.alist = AsyncMock(return_value=iter([]))
     cp.adelete_thread = AsyncMock()
+    cp.alist_threads = AsyncMock(return_value=[tid for tid in (thread_ids or [])])
     return cp
 
 

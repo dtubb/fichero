@@ -467,6 +467,33 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
         )
         return deleted
 
+    async def alist_threads(self, limit: int = 100) -> list[str]:
+        """Return distinct thread IDs from the checkpoints table (#1122).
+
+        Replaces the raw conn.execute call in the threads route so the
+        checkpointer owns all SQL against its own schema.
+
+        Args:
+            limit: Maximum number of thread IDs to return (most-recent first).
+
+        Returns:
+            List of thread ID strings.
+        """
+
+        def _list() -> list[str]:
+            result = self.conn.execute(
+                """
+                SELECT DISTINCT thread_id
+                FROM checkpoints
+                ORDER BY checkpoint_id DESC
+                LIMIT ?
+                """,
+                [limit],
+            )
+            return [row[0] for row in result.fetchall()]
+
+        return await asyncio.to_thread(_list)
+
     def __enter__(self):
         return self
 

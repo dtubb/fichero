@@ -342,16 +342,7 @@ async def list_threads(
         # Get checkpointer
         checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
 
-        # Query all checkpoints from database
-        # Note: This is a simplified version - in production, add filtering and pagination
-        query = """
-            SELECT DISTINCT thread_id
-            FROM checkpoints
-            ORDER BY checkpoint_id DESC
-            LIMIT ?
-        """
-        result = checkpointer.conn.execute(query, [limit])
-        thread_ids = [row[0] for row in result.fetchall()]
+        thread_ids = await checkpointer.alist_threads(limit=limit)
 
         # Get status for each thread
         threads = []
