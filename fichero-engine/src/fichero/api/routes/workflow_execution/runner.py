@@ -559,6 +559,34 @@ async def _run_workflow_in_background(
             config=config,
             version="v2",
         ):
+            # #1127 — cancellation check. If the user POSTed
+            # /threads/{id}/cancel, the cancel endpoint sets
+            # state["cancel_requested"]=True. Break out of the stream;
+            # the LangGraph checkpointer has already persisted partial
+            # results (per the issue invariant: "partial results are
+            # NOT rolled back"), and the activity tracker emits a
+            # workflow_cancelled event in the surrounding finally.
+            if state.get("cancel_requested"):
+                state["status"] = "cancelled"
+                await log_execution(
+                    f"Workflow '{workflow.name}' cancelled by user "
+                    f"(thread_id={thread_id}) — partial results "
+                    f"preserved"
+                )
+                event_queue.put(
+                    SSEEvent(
+                        event="cancelled",
+                        thread_id=thread_id,
+                        workflow_id=workflow_id,
+                        data={"reason": "user_requested"},
+                    )
+                )
+                activity_tracker.workflow_cancelled(
+                    workflow_id=workflow_id,
+                    thread_id=thread_id,
+                )
+                return
+
             event_kind = event.get("event", "")
 
             if event_kind == "on_chain_start" and event.get("name"):

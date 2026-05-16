@@ -832,6 +832,21 @@ class FicheroClient:
             )
         )
 
+    def cancel_workflow(self, thread_id: str) -> dict[str, Any]:
+        """Cancel a running workflow (#1127).
+
+        Returns the CancelResponse shape: ``thread_id``, ``status``
+        (cancel_requested/not_running/already_terminal),
+        ``partial_results_preserved`` (always True for now),
+        ``message``. The endpoint is idempotent — calling it twice on
+        an already-cancelled thread returns ``status=already_terminal``
+        rather than raising.
+        """
+        return self.request(
+            "POST",
+            f"/api/workflow-execution/threads/{thread_id}/cancel",
+        ) or {}
+
     # -- settings ----------------------------------------------------------
     def get_settings(self) -> dict[str, Any]:
         """Fetch the current AI-defaults settings block."""

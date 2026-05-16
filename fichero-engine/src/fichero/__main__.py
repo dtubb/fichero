@@ -1278,6 +1278,22 @@ def workflow_status(
     _invoke(ctx, lambda c: c.execution_status(thread_id))
 
 
+@workflow_app.command("stop")
+def workflow_stop(
+    ctx: typer.Context,
+    thread_id: str = typer.Argument(..., help="Thread ID to cancel."),
+) -> None:
+    """Cancel a running workflow (#1127).
+
+    Signals the workflow to stop at the next execution tick. Partial
+    results — artifacts, entities, claims already written — are
+    preserved so the comparison loop can inspect them. The response
+    surfaces `status=cancel_requested|not_running|already_terminal`
+    so scripts can branch on the outcome.
+    """
+    _invoke(ctx, lambda c: c.cancel_workflow(thread_id))
+
+
 # -- settings --------------------------------------------------------------
 @settings_app.command("list")
 def settings_list(ctx: typer.Context) -> None:

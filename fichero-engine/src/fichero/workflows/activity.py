@@ -259,6 +259,38 @@ class ActivityTracker:
             metadata={"workflow_name": workflow_name, **metadata},
         )
 
+    def workflow_cancelled(
+        self,
+        workflow_id: str,
+        thread_id: str,
+        workflow_name: Optional[str] = None,
+        duration_ms: Optional[float] = None,
+        **metadata,
+    ) -> Activity:
+        """Log workflow cancelled event (#1127).
+
+        Emitted when a user-initiated cancellation interrupts the
+        astream_events loop in the runner. Partial results (artifacts
+        already written, entities/claims already extracted) are
+        intentionally NOT rolled back — the comparison loop can still
+        inspect what got done before the cancel. metadata may carry
+        `partial_results_preserved=True` for downstream consumers
+        that want to surface that to the user.
+        """
+        return self.log(
+            type=ActivityType.WORKFLOW_CANCELLED,
+            level=ActivityLevel.WARNING,
+            message=(
+                f"Workflow '{workflow_name}' cancelled by user"
+                if workflow_name
+                else "Workflow cancelled by user"
+            ),
+            workflow_id=workflow_id,
+            thread_id=thread_id,
+            duration_ms=duration_ms,
+            metadata={"workflow_name": workflow_name, **metadata},
+        )
+
     def node_started(
         self,
         workflow_id: str,

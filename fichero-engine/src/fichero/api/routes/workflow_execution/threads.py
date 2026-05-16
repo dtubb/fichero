@@ -417,6 +417,89 @@ async def delete_thread(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class CancelResponse(BaseModel):
+    """Response from POST /threads/{thread_id}/cancel (#1127).
+
+    ``partial_results_preserved`` is always True for now — the issue's
+    invariant is that artifacts and entities written before the cancel
+    stay in place. Future work could add a soft-rollback option that
+    deletes per-thread writes; for now we surface the contract clearly
+    in the response shape.
+    """
+
+    thread_id: str
+    status: str  # "cancel_requested" | "not_running" | "already_terminal"
+    partial_results_preserved: bool = True
+    message: str = ""
+
+
+@router.post("/threads/{thread_id}/cancel", response_model=CancelResponse)
+async def cancel_workflow(
+    thread_id: str,
+) -> CancelResponse:
+    """Signal a running workflow to stop at the next astream_events
+    tick (#1127).
+
+    The runner's astream_events loop checks ``state["cancel_requested"]``
+    on every event; setting it here causes the loop to break,
+    a ``workflow_cancelled`` SSE event to fire, and an activity-log
+    entry to record the cancellation. Partial results (artifacts,
+    entities, claims already written) are intentionally preserved so
+    a comparison loop can inspect what got done before the user
+    interrupted.
+
+    Idempotent: cancelling a thread that's already cancelled /
+    completed / failed returns ``status="already_terminal"`` and a
+    descriptive message instead of raising. Cancelling a thread that
+    isn't in the running registry at all returns
+    ``status="not_running"``.
+    """
+    # Import lazily to keep test isolation tight — the runner module
+    # imports a lot of LangChain machinery; we only need its registry.
+    from .runner import _get_workflow_state
+
+    state = _get_workflow_state(thread_id)
+    if state is None:
+        return CancelResponse(
+            thread_id=thread_id,
+            status="not_running",
+            partial_results_preserved=True,
+            message=(
+                f"No running workflow with thread_id={thread_id}. "
+                "It may have already finished or never started."
+            ),
+        )
+
+    current = state.get("status")
+    if current in ("completed", "failed", "cancelled"):
+        return CancelResponse(
+            thread_id=thread_id,
+            status="already_terminal",
+            partial_results_preserved=True,
+            message=(
+                f"Workflow is already in terminal state '{current}'; "
+                "nothing to cancel."
+            ),
+        )
+
+    # The astream loop in runner picks this flag up on the next event
+    # tick. No need to await anything here — the runner handles the
+    # graceful exit, SSE event emission, and activity logging.
+    state["cancel_requested"] = True
+    logger.info(
+        "cancel_workflow: marked thread %s for cancellation", thread_id,
+    )
+    return CancelResponse(
+        thread_id=thread_id,
+        status="cancel_requested",
+        partial_results_preserved=True,
+        message=(
+            "Cancellation requested. Workflow will stop at the next "
+            "execution tick; partial results stay in place."
+        ),
+    )
+
+
 @router.get("/threads/{thread_id}/run")
 async def get_workflow_run(
     thread_id: str,
