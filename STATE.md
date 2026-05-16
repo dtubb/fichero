@@ -2,10 +2,10 @@
 
 ## Snapshot
 
-**Branch: 0.0.2** · Latest: `10f962bb` · Working tree clean.
+**Branch: 0.0.2** · Latest: `ff3a9cf1` · Working tree clean.
 
 ✅ **Backend Round 2 VERIFIED COMPLETE** — all 6 issues verified as closed and fixed in prior sessions.
-✅ **Backend Round 3 — 2 of 3 FIXED** — CLI bugs #1136 and #1137 completed; #1138 pending.
+✅ **Backend Round 3 VERIFIED COMPLETE** — all 3 issues closed: #1136 ✓, #1137 ✓, #1138 ✓ (already fixed in 44374c04).
 
 ## Tooling Now Available
 
@@ -13,18 +13,19 @@
 
 ## Next Session — Start Here
 
-**Round 3 queue — 1 bug remaining**:
-- **#1138** — fastembed multilingual-e5-large pooling strategy changed from CLS to mean
-  - **Fix**: Pin fastembed==0.5.1 in fichero-engine/pyproject.toml
-  - **Testing**: Run pytest + ruff, verify UserWarning silenced
-  - **Commits**: pyproject.toml change + worker-status update
-  - **Close**: Close issue on GitHub
+**0.0.2 milestone backend is COMPLETE.** All priority fixes (Rounds 1–3) closed and verified:
+- Round 1: 4 architectural fixes (#1001, #1025, #1017, #988)
+- Round 2: 6 verification sweep issues (all already fixed)
+- Round 3: 3 post-test-cycle bugs (all closed)
 
-Single-issue session: `/session-start-auto --max-tasks 1 /Users/danieltubb/code/fichero-0.0.2`
+**Recommended next steps**:
+1. Review open GitHub issues on 0.0.2 milestone to see if any new bugs surfaced during testing
+2. If none: advance to 0.0.3 planning or ship 0.0.2 to main
+3. If new bugs: file them and prioritize by severity
 
 ## In Progress
 
-None — #1136 just completed.
+None — all backend work complete for this milestone.
 
 ## Completed (This Session & Prior)
 
