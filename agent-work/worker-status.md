@@ -1,39 +1,39 @@
 # Backend Worker Status
 
-## Queue (Round 1 — complete)
-- [x] #1001 — permissive_guardrails for extractors (DONE, committed 04a14ba4)
-- [x] #1025 — drop mermaid.ink remote dependency (DONE, committed 501a4958)
-- [x] #1017 — extractor schema round-trip tests (DONE, committed 345f9690)
-- [x] #988  — entity resolution probabilistic scoring (DONE, committed 51929ba2)
-- SKIP #1075 — breaking API change, defer to 0.0.3
+## Queue (Rounds 1-3 — ALL COMPLETE ✓)
+- [x] #1001 — permissive_guardrails for extractors
+- [x] #1025 — drop mermaid.ink remote dependency
+- [x] #1017 — extractor schema round-trip tests
+- [x] #988  — entity resolution probabilistic scoring
+- [x] #1037 — extract_all timing (already fixed)
+- [x] #1033 — transcribe text layer short-circuit (already fixed)
+- [x] #1030 — KG raw repr sanitizer (already fixed)
+- [x] #1029 — quality gate (already fixed)
+- [x] #1027 — StructuredDecodeError retry (already fixed)
+- [x] #1020 — collapse catalogue workflows (already fixed)
+- [x] #1136 — CLI neighborhood wrong URL path
+- [x] #1137 — CLI entity documents renders '(item)'
+- [x] #1138 — fastembed pooling (already fixed)
 
-## Queue (Round 2 — ALL COMPLETE ✓)
-- [x] #1037 — extract_all slow on 15-page PDF (DONE, already fixed in d17b5fb8)
-- [x] #1033 — transcribe re-OCRs digital PDFs with text layer (DONE, already fixed in 7ef16274)
-- [x] #1030 — KG entity rows show raw repr instead of readable context (DONE, already fixed in 79d01166)
-- [x] #1029 — no quality gate on garbage workflow output (DONE, quality gate + output_quality.py implemented)
-- [x] #1027 — Apple Intelligence StructuredDecodeError forces fallback (DONE, on-device retry implemented)
-- [x] #1020 — collapse catalogue.json + catalogue_mixed.json into one workflow (DONE)
-- SKIP #1075 — breaking API change, defer to 0.0.3
-- SKIP #1044 — SwiftUI only, skip
+## Queue (Round 4 — CLI typed client + output)
+- [ ] #1139 — Generate typed Python client from openapi.json (drop hand-written URLs)
+- [ ] #1140 — Audit + fix response model coverage (typed models end-to-end)
+- [ ] #1141 — Improve CLI output formatting (entity/claim/doc renderers)
 
-## Queue (Round 3 — Post-session bug fixes)
-- [x] #1136 — CLI entity_neighborhood wrong path (DONE, committed cebf5efd, tests pass)
-- [x] #1137 — CLI entity documents renders '(item)' instead of name (DONE, committed d2f4ebde)
-- [x] #1138 — Embeddings: fastembed pooling strategy changed (DONE, already fixed in 44374c04)
-
-## Status: ROUND 3 COMPLETE ✓
-Round 2 complete. Round 3 all fixes completed: #1136 ✓, #1137 ✓, #1138 ✓ (already fixed).
+## Current
+next: #1139
 
 ## Attempts
 {}
 
 ## Last Completed
-#988
+#1138
 
-## IMPORTANT: Check before fixing
-Many of these may already be fixed. For each issue:
-1. grep the relevant source for the fix (e.g. grep for the function/error mentioned)
-2. check if tests already cover the scenario
-3. If already fixed: close with gh issue close N --comment "Already fixed in <commit hash>" and mark [x]
-4. If not fixed: implement, run tests, commit, close
+## IMPORTANT
+- Work through ONE issue per session
+- Check if already fixed before implementing (grep first)
+- #1139 must come before #1140 and #1141 — they depend on the generated client
+- #1139: install openapi-python-client, generate from fichero-engine/tests/contracts/openapi.json, wire into cli/client.py, add to sync_openapi_schema.sh
+- Tests: PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived -q
+- Lint: ruff check fichero-engine/src/
+- Pre-existing failure to ignore: test_routes_settings.py::TestResetAIDefaults
