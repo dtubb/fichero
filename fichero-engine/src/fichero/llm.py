@@ -550,7 +550,12 @@ async def chat_with_fallback(
             type(apple_exc).__name__, large_provider, large_model,
         )
         # Permissive guardrails is Apple-only and has no effect here.
-        return await chat(prompt, fallback_config, system=system)
+        result = await chat(prompt, fallback_config, system=system)
+        logger.info(
+            "Fallback to %s/%s succeeded.",
+            large_provider, large_model,
+        )
+        return result
 
 
 async def _apple_intelligence_chat(
@@ -1413,6 +1418,7 @@ async def chat_structured_with_fallback(
     system: str | None = None,
     include_schema_in_prompt: bool | None = None,
     use_case: str | None = None,
+    permissive_guardrails: bool = False,
 ) -> BaseModel:
     """Like chat_structured(), but falls back to the user's $large model
     when Apple Intelligence can't service the request (guardrail refusal
@@ -1429,6 +1435,7 @@ async def chat_structured_with_fallback(
             prompt, schema, config, system=system,
             include_schema_in_prompt=include_schema_in_prompt,
             use_case=use_case,
+            permissive_guardrails=permissive_guardrails,
         )
     except AppleUnavailableError as apple_exc:
         # Catches GuardrailViolationError, UnsupportedLocaleError, and
@@ -1454,6 +1461,7 @@ async def chat_structured_with_fallback(
                     prompt, schema, config, system=system,
                     include_schema_in_prompt=include_schema_in_prompt,
                     use_case=use_case,
+                    permissive_guardrails=permissive_guardrails,
                 )
             except AppleUnavailableError as retry_exc:
                 # Retry also failed — fall through to $large with the
@@ -1496,7 +1504,12 @@ async def chat_structured_with_fallback(
         )
         # The fallback provider is LangChain-based, so the Apple-only
         # include_schema_in_prompt parameter is ignored on that path.
-        return await chat_structured(prompt, schema, fallback_config, system=system)
+        result = await chat_structured(prompt, schema, fallback_config, system=system)
+        logger.info(
+            "Structured fallback to %s/%s succeeded.",
+            large_provider, large_model,
+        )
+        return result
 
 
 # Apple Intelligence on-device model context window size. Documented at

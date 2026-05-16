@@ -366,6 +366,7 @@ async def extract_all(
                     # instructions cover behavior; let the grammar carry the
                     # shape (#843).
                     include_schema_in_prompt=False,
+                    permissive_guardrails=True,
                 )
         except Exception as exc:
             elapsed = time.monotonic() - call_start

@@ -1224,6 +1224,7 @@ async def _run_extractor(
                 # to save the on-device 4K window (#843).
                 include_schema_in_prompt=False,
                 use_case=section_use_case,
+                permissive_guardrails=True,
             )
         except Exception as exc:
             msg = f"structured LLM call failed: {exc}"

@@ -576,7 +576,7 @@ class TestChatStructuredWithFallback:
 
         call_count = {"n": 0}
 
-        async def fake_chat_structured(prompt, schema, config, system=None, include_schema_in_prompt=None, use_case=None):
+        async def fake_chat_structured(prompt, schema, config, system=None, include_schema_in_prompt=None, use_case=None, permissive_guardrails=False):
             call_count["n"] += 1
             if config.provider == "apple":
                 raise GuardrailViolationError("safety filter")
@@ -652,7 +652,7 @@ class TestChatStructuredWithFallback:
         so chat_structured_with_fallback's single `except` catches both (#868)."""
         apple_cfg = LLMConfig(provider="apple", model="apple-intelligence")
 
-        async def fake_chat_structured(prompt, schema, config, system=None, include_schema_in_prompt=None, use_case=None):
+        async def fake_chat_structured(prompt, schema, config, system=None, include_schema_in_prompt=None, use_case=None, permissive_guardrails=False):
             if config.provider == "apple":
                 raise UnsupportedLocaleError(
                     "Apple Intelligence (unsupported_language): es-CO not supported"
