@@ -671,12 +671,15 @@ struct KnowledgeGraphInspectorSection: View {
 
     private var grouped: [(EntityKind, [GroupedItem])] {
         var byKind: [EntityKind: [GroupedItem]] = [:]
+        // Index into byKind so extra claims can be appended to existing rows.
+        var kindItemIndex: [EntityKind: [String: Int]] = [:]
         // Dedupe within a kind by canonical key. Folder cleanup leaves
         // multiple claims referencing the same canonical entity, plus
         // absorbed entities still carry their old claims — we collapse
         // both into one row per canonical name (or per claim text for
         // date-only claims that have no entity).
-        var seenKey: [EntityKind: Set<String>] = [:]
+        // When the same entity has multiple DISTINCT substantive claims,
+        // accumulate them in extraClaims so all SVOs are visible (#1109).
         for claim in claims {
             let entityId = claim.entityIds?.first
             let entity = entityId.flatMap { entitiesById[$0] }
@@ -688,36 +691,54 @@ struct KnowledgeGraphInspectorSection: View {
                 continue
             }
 
-            let kind = entity.flatMap { EntityKind(apiType: $0.entityType) } ?? .date
-            // claim.text is non-optional in the OpenAPI schema — fall back
-            // to it directly without an extra "(untitled)" guard.
-            let displayName = entity?.canonicalName ?? claim.text
-            // Dedupe key: canonical entity name when present, else claim text.
-            let key = displayName
-            if seenKey[kind, default: []].contains(key) {
+            // Skip tautological "is a [entity_type]" claims emitted by
+            // the NER step to assert entity kind — they carry no
+            // knowledge content and pollute the inspector (#1109).
+            let predVerb = (claim.predicateVerb ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let objPhrase = (claim.objectPhrase ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if predVerb == "is" && (objPhrase.hasPrefix("a ") || objPhrase.hasPrefix("an ")) {
                 continue
             }
-            seenKey[kind, default: []].insert(key)
 
-            // Prefer the entity's curated description (set by the
-            // extractor from `contexto`) over the raw claim source
-            // excerpt — it's a one-line role/role-in-document blurb
-            // and is what the user wants ("a little bit of information
-            // about them"). Falls back to claim.sourceExcerpt then
-            // claim.text so date claims (no entity) still render.
+            let kind = entity.flatMap { EntityKind(apiType: $0.entityType) } ?? .date
+            let displayName = entity?.canonicalName ?? claim.text
+            let key = displayName
+
+            let excerpt = claim.sourceExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines)
             let context = entity?.description?.trimmingCharacters(in: .whitespacesAndNewlines)
-                ?? claim.sourceExcerpt
+                ?? excerpt
                 ?? claim.text
-            let item = GroupedItem(
-                claimId: claim.id ?? UUID().uuidString,
-                displayName: displayName,
-                context: context,
-                aliases: entity?.aliases ?? [],
-                sourceDocumentId: claim.sourceDocumentId,
-                sourcePageLabel: claim.sourcePageLabel,
-                sourceExcerpt: claim.sourceExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines)
-            )
-            byKind[kind, default: []].append(item)
+
+            if let existingIdx = kindItemIndex[kind]?[key] {
+                // Entity already has a row — accumulate as extra SVO (#1109).
+                let extra = GroupedItem.ExtraClaim(
+                    claimId: claim.id ?? UUID().uuidString,
+                    context: context,
+                    sourceDocumentId: claim.sourceDocumentId,
+                    sourcePageLabel: claim.sourcePageLabel,
+                    sourceExcerpt: excerpt
+                )
+                byKind[kind]![existingIdx].extraClaims.append(extra)
+            } else {
+                // Prefer the entity's curated description (set by the
+                // extractor from `contexto`) over the raw claim source
+                // excerpt — it's a one-line role/role-in-document blurb
+                // and is what the user wants ("a little bit of information
+                // about them"). Falls back to claim.sourceExcerpt then
+                // claim.text so date claims (no entity) still render.
+                let item = GroupedItem(
+                    claimId: claim.id ?? UUID().uuidString,
+                    displayName: displayName,
+                    context: context,
+                    aliases: entity?.aliases ?? [],
+                    sourceDocumentId: claim.sourceDocumentId,
+                    sourcePageLabel: claim.sourcePageLabel,
+                    sourceExcerpt: excerpt
+                )
+                let idx = byKind[kind, default: []].count
+                byKind[kind, default: []].append(item)
+                kindItemIndex[kind, default: [:]][key] = idx
+            }
         }
         let hidden = hiddenKinds
         return EntityKind.displayOrder
@@ -859,6 +880,17 @@ private struct GroupedItem: Identifiable {
     /// runs a library search for the exact text — same path as the
     /// OntologyBrowser ClaimSummaryCard.
     var sourceExcerpt: String?
+    /// Additional SVO claims for this same entity (#1109). When an entity
+    /// has multiple substantive claims, the first lands in context/sourceExcerpt
+    /// above; the rest accumulate here and render as secondary rows.
+    struct ExtraClaim {
+        let claimId: String
+        let context: String
+        let sourceDocumentId: String?
+        let sourcePageLabel: String?
+        let sourceExcerpt: String?
+    }
+    var extraClaims: [ExtraClaim] = []
     var id: String { claimId }
 }
 
@@ -1101,6 +1133,46 @@ private struct EntityKindRow: View {
                 }
                 .buttonStyle(.plain)
                 .help("Search the library for this quote")
+            }
+
+            // Additional SVO claims for the same entity (#1109).
+            // Each renders as an indented context + excerpt pair, visually
+            // subordinate to the primary claim above.
+            if !item.extraClaims.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(item.extraClaims, id: \.claimId) { extra in
+                        if !extra.context.isEmpty,
+                           extra.context != item.displayName,
+                           extra.context != item.context {
+                            Text(extra.context)
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
+                        if let excerpt = extra.sourceExcerpt,
+                           !excerpt.isEmpty,
+                           excerpt != extra.context,
+                           excerpt != item.displayName {
+                            Button {
+                                NotificationCenter.default.post(
+                                    name: .ficheroEntitySearchRequested,
+                                    object: nil,
+                                    userInfo: ["name": excerpt]
+                                )
+                            } label: {
+                                Text("\u{201C}\(excerpt)\u{201D}")
+                                    .font(.caption)
+                                    .italic()
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(3)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Search the library for this quote")
+                        }
+                    }
+                }
+                .padding(.leading, 8)
             }
         }
         .padding(.vertical, 2)
