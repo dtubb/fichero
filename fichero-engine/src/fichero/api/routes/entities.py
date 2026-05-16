@@ -277,6 +277,87 @@ async def resolve_entity(
     return EntityResolutionResponse(resolved=False, value=value, match_type=None)
 
 
+class TopEntityRow(BaseModel):
+    """One row of /entities/top — most-claimed entity in the library
+    with name, kind, alias list, and claim count.
+    """
+
+    entity_id: str
+    name: str
+    kind: str | None = None
+    aliases: list[str] = []
+    claim_count: int
+
+
+@router.get("/top", response_model=list[TopEntityRow])
+async def top_entities(
+    entity_type: Annotated[EntityType | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 30,
+    db: Database = Depends(get_library_database),
+) -> list[TopEntityRow]:
+    """Top-N entities by claim count across the whole library.
+
+    Powers a 'Who's in this archive?' entry-point — the catalogue
+    workflow extracts entities per page; this aggregates per-entity
+    claim counts so the user can browse by salience instead of
+    typing a name they already know.
+
+    Optional `entity_type` filter (people / places / organizations
+    / dates / events / other) restricts the cloud to one kind.
+    """
+    try:
+        rows = db.conn.execute(
+            "SELECT entity_ids FROM knowledgeclaims",
+        ).fetchall()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("top-entities lookup failed: %s", exc)
+        return []
+
+    import json as _json
+    from collections import Counter
+
+    counter: Counter[str] = Counter()
+    for (raw,) in rows:
+        if not raw:
+            continue
+        try:
+            ids = _json.loads(raw) if isinstance(raw, str) else raw
+        except (TypeError, ValueError):
+            continue
+        if isinstance(ids, list):
+            for eid in ids:
+                if isinstance(eid, str) and eid:
+                    counter[eid] += 1
+
+    if not counter:
+        return []
+
+    type_filter = entity_type.value if entity_type else None
+    out: list[TopEntityRow] = []
+    for eid, count in counter.most_common(limit * 2 if type_filter else limit):
+        ent = db.get(KnowledgeEntity, eid)
+        if ent is None:
+            continue
+        kind_val = getattr(ent, "entity_type", None)
+        kind_str = kind_val.value if hasattr(kind_val, "value") else (
+            str(kind_val) if kind_val else None
+        )
+        if type_filter and kind_str != type_filter:
+            continue
+        out.append(
+            TopEntityRow(
+                entity_id=ent.id,
+                name=ent.canonical_name,
+                kind=kind_str,
+                aliases=list(getattr(ent, "aliases", []) or []),
+                claim_count=count,
+            )
+        )
+        if len(out) >= limit:
+            break
+    return out
+
+
 @router.get("/{entity_id}", response_model=KnowledgeEntity)
 async def get_entity(
     entity_id: str,
@@ -453,87 +534,6 @@ async def delete_entity(
         logging.getLogger(__name__).warning(
             "delete_entity: mutation log write failed: %s", exc
         )
-
-
-class TopEntityRow(BaseModel):
-    """One row of /entities/top — most-claimed entity in the library
-    with name, kind, alias list, and claim count.
-    """
-
-    entity_id: str
-    name: str
-    kind: str | None = None
-    aliases: list[str] = []
-    claim_count: int
-
-
-@router.get("/top", response_model=list[TopEntityRow])
-async def top_entities(
-    entity_type: Annotated[EntityType | None, Query()] = None,
-    limit: Annotated[int, Query(ge=1, le=200)] = 30,
-    db: Database = Depends(get_library_database),
-) -> list[TopEntityRow]:
-    """Top-N entities by claim count across the whole library.
-
-    Powers a 'Who's in this archive?' entry-point — the catalogue
-    workflow extracts entities per page; this aggregates per-entity
-    claim counts so the user can browse by salience instead of
-    typing a name they already know.
-
-    Optional `entity_type` filter (people / places / organizations
-    / dates / events / other) restricts the cloud to one kind.
-    """
-    try:
-        rows = db.conn.execute(
-            "SELECT entity_ids FROM knowledgeclaims",
-        ).fetchall()
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("top-entities lookup failed: %s", exc)
-        return []
-
-    import json as _json
-    from collections import Counter
-
-    counter: Counter[str] = Counter()
-    for (raw,) in rows:
-        if not raw:
-            continue
-        try:
-            ids = _json.loads(raw) if isinstance(raw, str) else raw
-        except (TypeError, ValueError):
-            continue
-        if isinstance(ids, list):
-            for eid in ids:
-                if isinstance(eid, str) and eid:
-                    counter[eid] += 1
-
-    if not counter:
-        return []
-
-    type_filter = entity_type.value if entity_type else None
-    out: list[TopEntityRow] = []
-    for eid, count in counter.most_common(limit * 2 if type_filter else limit):
-        ent = db.get(KnowledgeEntity, eid)
-        if ent is None:
-            continue
-        kind_val = getattr(ent, "entity_type", None)
-        kind_str = kind_val.value if hasattr(kind_val, "value") else (
-            str(kind_val) if kind_val else None
-        )
-        if type_filter and kind_str != type_filter:
-            continue
-        out.append(
-            TopEntityRow(
-                entity_id=ent.id,
-                name=ent.canonical_name,
-                kind=kind_str,
-                aliases=list(getattr(ent, "aliases", []) or []),
-                claim_count=count,
-            )
-        )
-        if len(out) >= limit:
-            break
-    return out
 
 
 class EntityDocumentLink(BaseModel):
