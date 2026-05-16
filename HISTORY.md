@@ -1770,3 +1770,51 @@ Long interactive 0.0.2 testing session with Daniel. Two halves: a backend fix sw
 - **#1030 backend shipped** — `MigrationRunner.repair_kg_svo_repr_leak` (commit 70cf965b). Scrubs existing KG rows with leaked `verb='X', object='Y'` reprs in `KnowledgeClaim.text`/SVO fields/`source_excerpt` and `KnowledgeEntity.description`. Detector consolidated into `kg/_common.parse_kwarg_repr` so the forward-path guard and backfill share one source of truth. Per-row try/except keeps a single bad row from aborting the cleanup; "no recoverable SVO" guard on BOTH claim and entity helpers. +10 pytest cases, registered in CLI script + API route. Independently reviewed by code-reviewer (REQUEST CHANGES on missing entity guard → fixed) + silent-failure-hunter (HIGH on per-row resilience → fixed). Issue stays OPEN for the SwiftUI render-time guard half.
 - **Branch:** 0.0.2
 - **PRs:** none — committed direct per CLAUDE.md rule 7
+
+## 2026-05-15 / 2026-05-16 — Session Summary (KG Wave 1 + #1120 crash fix)
+
+**Engine quality + KG architecture work — 13 issues closed, 14 filed, ~5,400 LOC net deletion via consolidation.**
+
+Critical fixes:
+- #1120 — Database.save() upsert via DuckDB ON CONFLICT (closed FATAL crash on re-extract)
+- #1087 + #1105 — `_resolve_write_target` fallback restores KG persistence on single-file selections
+- #1110 — initialize_token idempotent (pytest no longer clobbers live backend's .api-key)
+- #1088 — workflow run --wait actually waits for terminal activity event
+- #1104 — import preserves original filename instead of fichero_upload_<random>
+- #1113 — full SVO + provider/model attribution per claim (14/14 live-verified on Apple Intelligence)
+- #1083 — LangChain deprecation warning suppressed at app startup
+- #1080 — `fichero artifacts get <id>` typed CLI command
+- #1084 — CLI parity Wave 1: 8 methods typed against backend Pydantic
+- #1106 + #1107 + #1081 — CLI display polish (search results render, --type validation, LangGraph internals scrubbed)
+- #1116 — typed `adelete_thread` on AsyncDuckDBCheckpointer; raw DELETE removed from threads.py
+
+Consolidation (Wave 1 — commit 793f102e):
+- Deleted orphan: graph_exploration / graph_traversal / graph_reasoning / kg_citations / predictions / review_queue
+- Renamed: review_queue → claim_curation, kg_citations → citation_rendering
+- Moved: search_query out of routes/ (it's a parser, not a route) into fichero/search/query_parser.py
+- Ported: predictions /training-jobs and /stored/{id}/verify into kg_pykeen.py
+- CLI Wave 2 added: claim/entity/audit/settings/providers subcommand groups + extensions on docs/artifacts/workflow (40 new typed methods)
+- Hermeneutics fold deferred (broke 15 tests; #1126 to redo properly)
+
+Filed for future waves:
+- #1123 full attribution taxonomy (12 claim fields + KnowledgeClaimLink wiring + canonical KG verbs)
+- #1124 hermeneutic predicate vocabulary (separate from KG verbs)
+- #1125 scoped KG exploration CLI (page/doc/folder/library navigation + embedding integration)
+- #1126 hermeneutics fold redo
+- #1127 workflow cancel endpoint
+- #1128 schema fold + no-migration project rule doc
+- #1119 claim.entity_ids[] every-entity coverage
+- #1121 _entity_writer Stage 1↔4 race
+- #1118 multi-NER (spaCy + LLM + transformers abstraction)
+- #1114 entity quality (dedup / grounding / hallucinated events)
+- #1111 paragraph-rendering primitive with bidirectional citation links
+- #1109 SwiftUI entity inspector first-claim-only bug (engine returns all; display drops the rest)
+- #1115 KG-write as explicit workflow node
+
+Audits produced:
+- agent-work/proposals/duckdb-typed-audit-2026-05-15-v2.md — typed DB-access audit (4 offenders, all known)
+- agent-work/proposals/module-organization-2026-05-15.md — module-org cleanup plan (executed as Wave 1)
+- agent-work/proposals/engine-quality-2026-05-15.md — engine-quality findings from first comparison-loop run
+- agent-work/proposals/cli-swiftui-parity-2026-05-15.md — 115 endpoints, 3.5% parity baseline
+- agent-work/proposals/maps-import-survey-2026-05-15.md — 2266 imgs + 497 sidecars, importer design
+- docs/superpowers/plans/2026-05-15-module-organization-cleanup.md — Wave 1A execution plan

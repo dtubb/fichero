@@ -1,128 +1,69 @@
 # STATE.md — Fichero
 
+## Snapshot
+
+**Branch: 0.0.2** · Latest: `7b352c02` · Working tree clean.
+
+CLI test loop operational end-to-end. SVO + provider/model attribution per claim verified live on Apple Intelligence (14/14). Wave 1 module consolidation shipped (-5,378 LOC). CLI Wave 2 CRUD complete (40 typed methods).
+
 ## Next Session — Start Here
 
-**Branch: 0.0.2.** Latest: `94add97a`. The CLI test loop is **operational end-to-end**: `library create` → bulk `import --recursive` → `workflow run --wait` (now actually waits) → `search` (semantic + fulltext + hybrid all return real results in <50ms) → `kg entities/claims/search` → `artifacts get`. Run on a fresh `~/Documents/fichero-loop-test.fichero` library with 20 staged md files from `~/code/slipbox/coded` (9.4k words). Vector search confirmed real (LanceDB embeddings auto-generated at import; "gold extraction" — not in any doc — finds the mining doc at 0.910 similarity).
+1. **Tonight's autonomous-loop command** (sonnet — Opus monthly limit hit):
+   ```
+   sleep 3.5h && caffeinate -dimsu python3 /Users/danieltubb/code/fichero-skills/agent-autonomous-loop.py \
+   /Users/danieltubb/code/fichero-0.0.2 \
+   --agent claude --model claude-sonnet-4-6 --effort auto \
+   --iterations 25 --sleep 999 --max-tasks 2 \
+   --claude-show-thinking \
+   --start-extra "Wave 2 of 0.0.2 KG completeness — see STATE.md Wave 2 backlog."
+   ```
 
-**One architectural fix in flight (subagent a3791449)** — `extract_all` / `extractors` / `catalogue` all gate writes on `if container and library_path:` where `_resolve_container_doc` returns None for non-folder selections. Closes #1087 + #1105 in one shared-helper change. Live verification on the loop library will prove KG entities populate after extraction.
+2. **Wave 2 priority order**:
+   - **#1123** attribution taxonomy (12 claim fields + KnowledgeClaimLink wiring + canonical KG verbs in `kg/_common.py::CANONICAL_VERBS`)
+   - **#1114** entity quality (dedup / grounding / hallucinated events)
+   - **#1119** claim.entity_ids[] covers every mentioned entity, not just subject
+   - **#1121** _entity_writer Stage 1↔4 race (transaction or unique constraint)
+   - **#1125** scoped KG exploration CLI (page / doc / folder / library navigation + embedding integration)
+   - **#1126** hermeneutics fold redo (preserve existing test contract)
+   - **#1124** hermeneutic predicates (separate from KG verbs)
+   - **#1128** schema-fold + no-migration project rule docs
+   - **#1127** workflow cancel endpoint
 
-**Bugs filed today (10 new):** #1077 dup transcription · #1078 provider/model normalisation · #1079 workflow_name unknown · #1081 LangGraph internals leak · #1082 page-2 missing artifact · #1083 LangChain deprecation warning · #1085 maps importer · #1086 vector search verification · #1087 catalogue wastes LLM call · #1088 --wait early return (FIXED) · #1080 artifacts get gap (FIXED) · #1096–#1098 catalogue case-grouping/HITL/fan-out · #1104 import loses filename · #1105 KG never persisted · #1106 search render placeholders · #1107 --type keyword vs fulltext · #1108 MCP server.
+3. **Skip** #1054 + #1057 (need product decisions).
 
-**Loop status today (live, CLI-verified):**
+4. **No-migration window**: schema changes go in `db.py` CREATE TABLE directly; nuke + recreate `~/Documents/fichero-loop-test.fichero` to pick up. (Documented in MEMORY.md 2026-05-16.)
 
-| Feature | Status | Notes |
-|---|---|---|
-| Library bootstrap (`library create/list`) | ✅ | `~/Documents/fichero-loop-test.fichero` |
-| Bulk import (`import --recursive`) | ✅ | 20 md files, 9.4k words |
-| Doc viewing (`docs get/list`) | ✅ | metadata + page_content rendered |
-| Vector search (LanceDB) | ✅ | embeddings auto-generated; "gold extraction" → mining doc 0.910 |
-| Fulltext search (FTS) | ✅ | exact-match scoring works |
-| Hybrid search | ✅ | semantic + FTS rank-fused |
-| Workflow run + wait | ✅ | activity-log polled, terminal-aware (#1088 fixed) |
-| Entity extraction (compute) | ✅ | 32 entities surfaced for the test mining doc |
-| KG persistence (single-file selections) | ✅ | #1087+#1105 fixed — `_resolve_write_target` falls back to selected doc |
-| Catalogue artifact save (single-file) | ✅ | same fix; LLM call short-circuits if no target |
-| Auth idempotent across processes | ✅ | #1110 fixed — `initialize_token` reuses existing key |
-| 8 CLI methods typed | ✅ | #1084 Wave 1 — DocumentInspector / KG / activity / workflow status |
-| Claims have full SVO (verb + object) | ❌ | #1113 — 0/40 today, subagent in flight |
-| Original filenames preserved on import | ❌ | #1104 — subagent in flight |
-| CLI search results render properly | ❌ | #1106/#1107/#1081 — subagent in flight |
-| Entity dedup + grounding | ❌ | #1114 — Atrató = concept AND location; hallucinated events |
-| Duplicate transcription (parent+page) | ❌ | #1077 |
-| Provider/model normalisation | ❌ | #1078 — "Apple"/"Vision" vs "apple"/"apple-vision" |
-| LangChain deprecation warning | ❌ | #1083 — subagent in flight |
-| MCP server | ❌ | #1108 — same client.py + Pydantic models, MCP transport |
-| Multi-provider NER (spaCy + LLM + transformers) | ❌ | #1118 — architecture issue |
-| KG-write as explicit workflow node | ❌ | #1115 — architecture issue |
+5. **Loop verification corpus**: `/tmp/fichero-loop-corpus/` has 20 staged md files (~9.4k words) from `~/code/slipbox/coded`. After each Wave 2 commit that touches the extractor or KG schema, re-import + run NER and confirm SVO still 14/14 (or higher with the new fields populated).
 
-**Subagent results (3, all landed):**
-- `ec6865f8` — #1113 SVO + claim richness CLOSED. Subagent verified 11/11 claims with full SVO + provider + model + confidence + language using `openai/gpt-4o-mini` in-process. Live verification on the running uvicorn (which uses Apple Intelligence by default) returned 0 entities — needs a clean backend restart + a re-run on a fresh doc to confirm Apple Intelligence's structured-output decoder honours the new `verb`/`object` schema fields. Migration `migrate_knowledge_claims_provider_model` is wired into both bootstrap paths.
-- `19bcccd8` — #1104 filename + #1083 LangChain warning CLOSED. Both live-verified.
-- `fe5c3f8f` — #1106/#1107/#1081 CLI display fixes CLOSED. All live-verified.
+## In Progress
 
-**12 issues closed today (0.0.2):** #1080, #1081, #1083, #1084, #1087, #1088, #1104, #1105, #1106, #1107, #1110, #1113.
+None — Wave 2 hasn't started; tonight's autonomous loop will pick up.
 
-**Session continuation (2026-05-16 morning):** Module consolidation Wave 1 + CLI CRUD Wave 2 shipped in one big commit. Net -5,378 LOC (orphan graph_* / predictions / kg_citations deleted; review_queue → claim_curation rename; search_query relocated; CLI surface grew with 40 typed methods across claim/entity/audit/settings/providers groups). Hermeneutics fold deferred (shape drift broke 15 tests) — filed #1126 to redo properly. Backend cancel endpoint missing — #1127. No-migration rule + redundant migration fold — #1128.
+## Blocked
 
-**Next session pickup:** test loop still works end-to-end (#1113 SVO live-verified 14/14 on Apple Intelligence yesterday). Outstanding 0.0.2 wave 2 work: #1123 attribution taxonomy (12 claim fields + KnowledgeClaimLink wiring + canonical KG verbs), #1124 hermeneutic predicates, #1125 scoped KG exploration (page/doc/folder/library navigation), #1126 hermeneutics fold redo, #1114 entity quality (dedup/grounding/hallucinations), #1119 entity_ids[] mention every entity, #1121 _entity_writer Stage 1↔4 race.
+None right now. Watch for:
+- Anthropic monthly limit on Opus (use sonnet for subagents).
+- `~/Library/Application Support/Fichero/.api-key` clobbered by pytest if `initialize_token` rotation regressed (#1110 was the fix; keep an eye if 401s reappear).
 
-**Open follow-up filed:** #1119 — claim.entity_ids[] should include every entity referenced (not just subject); deferred from #1113.
+## Don't Break (load-bearing invariants)
 
-**Live-verification caveat:** the running backend (PID 96872, started 10:38) wrote to `/tmp/fichero-backend.log` originally but later cycles aren't visible there — the kill at line 47 of `start_backend.sh` broke the redirect. Subsequent runs probably write to the tmux pane only. To verify SVO works against Apple Intelligence: (a) hard restart the backend (`tmux send-keys -t fichero-backend C-c; ... ./scripts/start_backend.sh`), (b) re-import a fresh md file, (c) `workflow run "NER per-page (local)" <doc> --wait`, (d) `kg claims <doc> --json | jq '.claims[] | [.subject_canonical, .predicate_verb, .object_phrase]'`. If 0/N have full SVO, the Apple Intelligence decoder isn't producing verb/object — that's a model-compatibility issue distinct from #1113 (which is fixed for OpenAI / structured-output-capable models).
+**Engine / typed contract:**
+- `Database.save()` MUST use DuckDB `ON CONFLICT (id) DO UPDATE SET … = EXCLUDED.…` — `INSERT OR REPLACE` is not reliable upsert in DuckDB and crashes uvicorn (#1120).
+- `_resolve_write_target()` (catalogue.py) is the canonical helper for "where do KG / artifact writes attach when no folder container resolves" — falls back to selected doc. Don't add a 5th call site that gates on raw `_resolve_container_doc` (#1087/#1105).
+- `initialize_token()` is idempotent — reuses existing `.api-key` if present; rotation only via `force_rotate=True` or env var. Don't revert to unconditional rotation (#1110).
+- Every claim written by the extractor MUST have non-None `subject_canonical` + `predicate_verb` + `object_phrase`. Heuristic fallback in `_synthesize_svo_fallback()` covers cases the LLM doesn't fill; `+heuristic-svo` model suffix surfaces this honestly to users (#1113).
+- Never raw SQL outside `db.py` / typed store layers. The typed audit (`agent-work/proposals/duckdb-typed-audit-2026-05-15-v2.md`) lists the 4 known offenders; new violations must not creep in.
+- `client.py::_expect_list(raw, path)` is the contract — typed list methods raise on wrong-shape responses, never silently coerce.
 
-**Issues filed today:** #1077-#1078 (engine), #1079/#1081 (CLI polish), #1080 (artifacts get — FIXED), #1082 (page-2 verify), #1083 (langchain), #1084 (parity wave 1 — FIXED), #1085 (maps importer), #1086 (vector verify — DONE), #1087 (catalogue waste — FIXED), #1088 (--wait — FIXED), #1096-#1098 (catalogue case grouping/HITL/fan-out), #1104 (filename), #1105 (KG never persisted — FIXED), #1106-#1109 (CLI/UI polish), #1110 (auth — FIXED), #1111 (paragraph rendering with citations), #1113 (SVO populate), #1114 (entity quality), #1115 (kg-writer node), #1118 (multi-NER).
+**Architecture:**
+- Backend = logic; CLI / SwiftUI / future iPad / web = display surfaces. KG/entity logic stays in the engine.
+- Hermeneutics ≠ KG. Separate epistemic layers — KG asserts facts; hermeneutics interprets. Hermeneutic objects reference KG by id (`claim_ids`, `entity_ids`). Don't fold either into the other (#1126 will redo the abortive Wave 1 fold).
+- `process_vision`: PDF text-layer short-circuit runs BEFORE the skip-if-artifact cache check; cache check is gated on `not pdf_layer_used` (#1064). Don't reorder.
+- `document_inspector._build_knowledge_graph` *follows* `merged_into_id` to the canonical entity — does NOT skip merged entities (#1068 under-count root cause). Don't revert.
+- `entity_inspector._compose_entity_summary` builds `summary` as a deterministic entity-level line — must NEVER echo a claim's text/predicate (#1050).
 
-
-
-### The vision (Daniel's framing)
-
-The engine uses Apple Vision / Apple Intelligence (smaller on-device models). Claude is a frontier model. Using the typed CLI, the loop is:
-1. Run real workflows on real documents (e.g. his Preface PDF).
-2. Read the document directly.
-3. Compare the engine's output vs the direct read.
-4. File / fix gaps in the engine to close the quality difference.
-
-Backend = logic; CLI / SwiftUI / future iPad / web = display surfaces only. Every commit gets code-review + silent-failure + security review via subagents (per Daniel 2026-05-15) — and stays good Pythonic + good SwiftUI code.
-
-### What to do first (in order)
-
-1. **Fix #1074 (CRITICAL — blocks all workflow testing).** `fichero workflow run Catalogue <doc>` via CLI: kickoff returns `accepted`, then completes in seconds with `selected_doc_ids: []` and `files-source: {files: [], count: 0}`. The doc_id in `inputs.files=[...]` never reaches the Files-source node. Check what payload SwiftUI's `WorkflowExecutionService.swift` actually sends to `/api/workflow-execution/execute` — that's the reference; the CLI's payload shape is wrong. Without this fix, the comparison loop can't even start.
-2. **First end-to-end comparison run.** Once #1074's fixed: `fichero workflow run Catalogue <preface-pdf-id> --wait`. Pull `artifacts <id>` and `kg entities <id>`. Read the Preface PDF directly. Compare. Write findings to `agent-work/proposals/engine-quality-2026-05-15.md` and file specific bugs for each gap.
-3. **CLI ↔ SwiftUI endpoint parity** (Daniel 2026-05-15): for every endpoint the SwiftUI app uses across workflows / activity / search / library / KG, the CLI must have a corresponding typed command. Audit `fichero/fichero/Services/*Generated.swift` against `fichero/cli/client.py` — every endpoint SwiftUI calls should be reachable from the CLI, typed against the same Pydantic response model the backend declares. This is the "two surfaces, one ground truth" principle: any drift between what the CLI sees and what SwiftUI sees is a bug. Type these next: `document_inspector` → `DocumentInspectorResponse`; new `document_knowledge_graph` method for the #1068 endpoint (`DocumentKnowledgeGraphResponse` — endpoint shipped, CLI doesn't expose it); `search`, `recent_activity`, KG-search/entities/claims; activity (recent + filtered); workflow execution stream / status. Each typed method unlocks a comparison surface.
-
-### Constitution / governance docs drift (audit 2026-05-15)
-
-`CLAUDE.md` / `.claude/CLAUDE.md` / `docs/CLAUDE.md` are current (May 14). Everything else lags this week's work — the CLI merge, "engine is logic; clients display", autonomous loops, per-commit gates, manager pattern. Priority order:
-
-1. **README.md — HIGH.** Still references `fichero-api/` and `fichero-swiftui/` paths from before the repo split — actively misleads. Replace with `fichero-engine/` and `fichero/` throughout. Add a **Surfaces** section (SwiftUI app / `fichero` CLI / MCP server, all thin clients on the engine). Add Knowledge Graph + CLI/MCP to Features.
-2. **AGENTS.md — MEDIUM.** Wrong paths in build commands. Missing: Per-Commit Gates section (pytest+ruff+code-reviewer+silent-failure-hunter+security), Manager Pattern section (delegate to subagents), Autonomous Loop section (tmux + `agent-autonomous-loop.py` + ScheduleWakeup + BLOCK.md), CLI as Verification Surface.
-3. **CONSTITUTION.md — MEDIUM.** "Two codebases" framing wrong (3+ surfaces). Add Hard Constraint: *all logic in the engine; clients render only*. Refresh diagram for one-engine / many-surfaces.
-4. **VISION.md — MEDIUM.** "Phase 0 Feb 2026" stale; mid-0.0.2 with workflows, KG endpoints, CLI, autonomous loops live. Add Display Surfaces subsection naming CLI/MCP/SwiftUI + iPad/web as future. Point versioning at GitHub Milestones.
-5. **SOUL.md — LOW.** Rename "two codebases must stay in sync" to "engine is the only place logic lives".
-6. **USER.md — LOW.** One line that Daniel drives CLI/MCP directly; "multiple surfaces, one engine" bullet.
-
-Approach: delegate the edits to one subagent per file (or one subagent for all six) with the audit findings as the spec. Review each diff, gate as usual.
-
-### Parallel 0.0.2 track (no CLI/workflow dependency)
-
-The #1072 audit identified three HIGH clusters of misplaced SwiftUI logic: **artifacts**, **workflow runs**, **model/provider capability**. Phase B shipped the canonical KG endpoint (#1068/#1069/#1047/#1050). Remaining picks that are pytest-verifiable: **#1075** (list-endpoint envelope standardization), the audit clusters' remaining backend endpoints. Swift wiring (Phase C) stays deferred per Daniel.
-
-### Manager pattern (apply to ALL future work)
-
-Per Daniel 2026-05-15: as manager, **delegate targeted edits to subagents** rather than doing every keystroke myself — preserve context for orchestration, decisions, and review. A subagent can write/edit a focused chunk and return a diff; I review the diff (small) rather than holding the whole file (large). Use `Agent` (general-purpose) for multi-step edits, the `pr-review-toolkit` agents for reviews, `test-runner` for the gate. Only do direct edits when the change is genuinely a one-liner or needs my judgment inline.
-
-### Per-commit gates (apply to ALL commits going forward)
-
-- **pytest + ruff** via a `test-runner` subagent — no commit unless green.
-- **`code-reviewer` subagent** on the staged diff — address findings before commit.
-- **`pr-review-toolkit:silent-failure-hunter` subagent** for any change that touches error handling, fallbacks, or response parsing — catches the exact `raw or []` pattern this session almost shipped.
-- For Swift changes (when those start): swiftlint + Xcode build + `RunAllTests` via the Xcode MCP, and review the SwiftUI changes as Swift code (idioms, view-state, no logic creeping in).
-- Daniel asked for **security review** too — for backend changes touching auth, library-path handling, file I/O, or external network calls, add an explicit security pass (the loop's `pr-review-toolkit:code-reviewer` covers it; spawn it with a security lens).
-
-### What was shipped this session
-
-- Merged `fichero-cli` → `0.0.2` (PR #1073, merge commit `22c679b4`).
-- Typed `list_documents`/`get_document`/`list_workflows`/`list_artifacts` against `fichero.models` with `_expect_list` guard for loud failure (`0a91ff62`).
-- Caught + fixed the `/api/artifacts/document/{id}` envelope mismatch (`ea0ddeaf`).
-- Fixed `_resolve_workflow` attribute access + MockClient typed fixture (`29c61fbd`).
-- Filed **#1074** (Files-source kickoff drops the doc_id — critical) and **#1075** (list-endpoint envelope inconsistency).
-- CLI verified end-to-end against the real `Catalogue.fichero` library: `health`/`docs list`/`workflow list`/`artifacts` all work; `workflow run` kickoff accepted but workflow runs on 0 docs (= #1074).
-
-### Don't break
-
-**CLI / this session:**
-- `client.py`: `_expect_list(raw, path)` is the contract — typed list methods must raise on wrong-shape responses, never silently coerce. `list_artifacts` unwraps the `{"artifacts": [...]}` envelope locally.
-- `__main__.py` `_resolve_workflow` uses attribute access on `Workflow` objects — don't revert to `.get()` / `["..."]`.
-
-**Backend invariants (from loop #1, all load-bearing):**
-- `builder._execute_node` converts any tool's `result["error"]` into a `SystemicErrorDetected` abort AND gates on garbage output via `output_quality.assess_result_quality` (#1029). Tools surfacing partial success must NOT set `error`.
-- `extract_all._classify_systemic_error` (#1060), `DBWriter` fails loud via bounded `_drain()` (#1000), `StructuredDecodeError.kind` + `RETRYABLE_KINDS` (#1027).
-- `process_vision`: PDF text-layer short-circuit runs **before** the skip-if-artifact cache check; the cache check is gated on `not pdf_layer_used` (#1064). Don't reorder.
-- `document_inspector._build_knowledge_graph` *follows* `merged_into_id` to the canonical entity — does NOT skip merged entities (skipping silently drops absorbed entities' claims; that was a #1068 under-count cause). Don't revert to skipping.
-- `entity_inspector._compose_entity_summary` builds `summary` as a deterministic entity-level line — must NEVER echo a claim's text/predicate (the #1050 bug).
-- #1030 migration drift: `MigrationRunner.repair_kg_svo_repr_leak` recomposes `claim.text` mirroring `extractors._write_kg_rows` — entity-bearing: `"{subject} {verb} {obj}."`, date-style: `"{stem}: {verb} {obj}."`. If the forward composition ever changes, the repair must change too or they'll diverge. The "no recoverable SVO" guard exists on BOTH claim and entity helpers — polluted rows are left for manual review, NOT blanked. Don't remove the guards.
-- `StructuredDecodeError` IS an `AppleUnavailableError` subclass by design (#949/#962) — don't revert.
-
-**Architecture / process:**
-- KG/entity *logic* belongs in the backend, not SwiftUI/CLI — `feedback_kg_logic_in_backend` memory + the two audit docs in `agent-work/proposals/`. The engine is logic; CLI / SwiftUI / future iPad / web are display surfaces only.
-- The auth token file (`~/Library/Application Support/Fichero/.api-key`) is overwritten by every backend launch — concurrent backends starve their clients of valid auth. Documented in `agent-work/proposals/fichero-cli-smoke.md`.
+**Process:**
+- One issue per commit, directly to `0.0.2` branch (CLAUDE.md rule 7 — no per-task branches).
+- Per-commit gates: pytest + ruff via test-runner subagent; code-reviewer subagent on diff; silent-failure-hunter when touching error handling.
+- Subagents on **sonnet**; orchestrator on opus (when not limit-bound).
+- When orchestrator context hits 200%+ : /session-end is cheaper than continuing.

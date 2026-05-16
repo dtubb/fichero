@@ -1,5 +1,33 @@
 # Durable Lessons Learned / Decisions
 
+## No-migration window for 0.0.x — 2026-05-16
+
+The 0.0.x window has no users; libraries can be nuked + recreated freely. Schema changes go directly into `db.py` CREATE TABLE; do NOT write `db_migrations.py` migrations for new fields. Once 0.1.0 ships, the schema locks and migrations become mandatory. This simplifies new-field work (e.g. SVO attribution, claim attribution taxonomy): just add Pydantic field + base CREATE TABLE column.
+
+## Database.save() must be a real upsert, not INSERT OR REPLACE — 2026-05-16
+
+DuckDB documents `INSERT OR REPLACE INTO` but does NOT implement it as a reliable PK upsert (unlike SQLite). Under the column-store append path — especially against tables that gained columns mid-flight via `ADD COLUMN` migrations — it raises `Constraint Error: PRIMARY KEY violation` which escalates to `INTERNAL Error: Failed to append to PRIMARY_…_0`, a `FatalException` that tears down the whole uvicorn process (#1120 crash). Use native `INSERT … VALUES … ON CONFLICT (id) DO UPDATE SET col = EXCLUDED.col, …`. Key-only tables degenerate to `ON CONFLICT (id) DO NOTHING`. The typed `Database.save(model)` layer wraps this so callers stay clean.
+
+## initialize_token() must be idempotent — 2026-05-16
+
+`api/auth.py::initialize_token` runs at module import time. pytest's `TestClient(app)` re-imports the app, which re-runs `initialize_token`. If it rotates the token on every call, concurrent processes (live uvicorn + pytest + a second uvicorn) clobber each other's `.api-key` and start returning 401s to the legitimate client. Default behaviour: reuse the existing on-disk token if present. Opt-in rotation via `force_rotate=True` or `FICHERO_FORCE_ROTATE_AUTH=1` when "stale token after crash" hardening is needed. (#1110)
+
+## Container fallback in workflow tools — 2026-05-16
+
+`_resolve_container_doc()` returns None for selections that don't include a folder/group. Four call sites (`extract_all.py`, `extractors.py`, `catalogue.py`, `cleanup.py`) gated KG persistence + artifact saves on `if container and library_path:` — so single-file selections (md / txt / jpg / individual PDF) silently skipped all writes including the LLM call's output (#1087, #1105). New `_resolve_write_target()` helper (catalogue.py) prefers folder container, falls back to the first selected doc. Catalogue's LLM call now short-circuits BEFORE the expensive work if no target resolves at all. The folder-preference contract of `_resolve_container_doc` is unchanged; the fallback is a layer above it.
+
+## SVO via LLM-noun-phrase + heuristic verb/object split — 2026-05-16
+
+Apple Intelligence and other constrained-output LLMs don't reliably populate strict verb/object fields when added to the structured-output schema. The hybrid approach (#1113): LLM extracts noun phrases + descriptions; deterministic heuristic in `_synthesize_svo_fallback()` splits "X: Y" / "X — Y" forms into subject/verb/object; typed default ("X is a {entity_type}.") fills bare keywords. Provider attribution must be honest: when the heuristic ran, suffix the model name with `+heuristic-svo` (e.g. `apple-intelligence+heuristic-svo`, confidence 0.5). When the LLM supplied SVO directly (e.g. gpt-4o-mini), no suffix, confidence 0.7. Users see the difference per claim in `KnowledgeClaim.model`.
+
+## Hermeneutics and KG are separate epistemic layers — 2026-05-16
+
+KG (`api/routes/entities.py`, `claims.py`, `kg_*.py`) = ontological / fact layer. What the document asserts: entities, claims, relations, sources. Predicates are about the world ("X is_located_in Y"). Hermeneutics (`api/routes/hermeneutics.py`) = interpretive layer. How we read what's asserted: frameworks, interpretations, readings, contested glosses. Predicates are about interpretive moves ("Reading A centers women's labor"). Needs its own controlled vocabulary distinct from KG verbs (#1124). Hermeneutic objects reference KG primitives by id (`claim_ids`, `entity_ids`) — bidirectional but not folded into one model. The Wave 1 fold attempt broke 15 existing hermeneutics tests via shape drift; deferred to #1126 to redo properly with the existing test contract preserved.
+
+## Subagent cost vs context-protection tradeoff — 2026-05-16
+
+Manager pattern (orchestrator dispatches per-task subagents) uses MORE total tokens than inline work — each subagent reloads project context (~15-20k tokens) and writes its own transcript. But it protects the orchestrator's context, which is the binding constraint for multi-wave work. The right metric isn't tokens-per-task; it's useful-commits-per-credit. Subagents that ship a commit pay their way; subagents that explore-and-report waste their cost. Always tell subagents to "execute, don't plan" unless you explicitly want a design doc. Run subagents on **sonnet** (~5× cheaper than opus), orchestrator on opus for judgment. When orchestrator context hits 200%+, /session-end is cheaper than continuing.
+
 ## FastAPI tag double-count via APIRouter + include_router collision — 2026-05-12
 
 If an `APIRouter` is constructed with `tags=["foo"]` AND main.py's `include_router(router, tags=["foo"])` also passes the same tag, FastAPI appends both to every operation. The OpenAPI export then lists each route's tags as `["foo", "foo"]`. Any tag-grouped tooling (export scripts, UI tag pickers) double-counts the endpoint.
