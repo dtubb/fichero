@@ -6,6 +6,10 @@
 
 CLI test loop operational end-to-end. SVO + provider/model attribution per claim verified live on Apple Intelligence (14/14). Wave 1 module consolidation shipped (-5,378 LOC). CLI Wave 2 CRUD complete (40 typed methods).
 
+## Tooling Now Available
+
+- **Knowledge graph at `graphify-out/`** (built 2026-05-16) — query the codebase via `/graphify query "..."`, `/graphify explain "LLMConfig"`, or `/graphify path "FicheroClient" "Database"`. ~17K nodes / 30K edges over fichero/ + fichero-engine/ (831 code files). ~50× cheaper than grepping. Run `/graphify --update` if the branch has moved substantially since.
+
 ## Next Session — Start Here
 
 1. **Tonight's autonomous-loop command** (sonnet — Opus monthly limit hit):

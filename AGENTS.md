@@ -29,6 +29,24 @@ Run `/session-start` first. It reads SOUL.md → MEMORY.md → STATE.md and repo
 
 ---
 
+## Knowledge Graph — Query Before Grep
+
+`graphify-out/` (gitignored) holds a persistent knowledge graph of `fichero/` + `fichero-engine/` — ~17K nodes / 30K edges, ~50× cheaper than reading source. **Use it first for "where is X?", "what calls Y?", "what connects A to B?" questions.**
+
+```bash
+/graphify query "how does extract_all get called"     # broad context (BFS)
+/graphify query "..." --dfs                            # trace specific path
+/graphify path "FicheroClient" "Database"              # shortest concept chain
+/graphify explain "LLMConfig"                          # one-node + neighbors
+/graphify --update                                     # rebuild after substantial changes
+```
+
+God nodes (touch-with-care, high blast radius): `Database`, `KnowledgeClaim`, `KnowledgeEntity`, `Document`, `LLMConfig`, `EntityType`, `DocType`, `Artifact`, `WorkflowDef`.
+
+If `graphify-out/manifest.json` is older than your branch's last substantial backend/SwiftUI change, run `/graphify --update` (incremental — only re-extracts what changed) before relying on the graph.
+
+---
+
 ## Skills Available
 
 Run skills with `/skill-name`.

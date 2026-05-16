@@ -59,6 +59,9 @@ old documents/
 examples/
 toga-examples/
 
+# Graphify knowledge graph (machine-generated, ~17MB)
+graphify-out/
+
 # Misc
 output.txt
 cpu_worker.log
@@ -67,6 +70,7 @@ dump.rdb
 .empty/
 .mcp.json
 .claude/settings.local.json
+.claude/settings.*.bak
 
 default.profraw
 .claude/worktrees/

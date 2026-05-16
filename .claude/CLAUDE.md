@@ -97,6 +97,22 @@ SwiftUI App → HTTP localhost:8765 → FastAPI → DuckDB/LanceDB
 
 Full architecture: `docs/CLAUDE.md`, `docs/architecture/`
 
+## Knowledge Graph — Use This First for Code Questions
+
+A persistent knowledge graph of `fichero/` + `fichero-engine/` lives in `graphify-out/` (gitignored, ~17K nodes / 30K edges across ~1,200 communities, indexed from 831 code files + 9 docs). **Before grepping the codebase to answer "where is X?", "what calls Y?", or "what connects A to B?", query the graph — it's ~50× cheaper in tokens than reading source.**
+
+```bash
+/graphify query "how does the workflow executor call extract_all"   # BFS — broad context
+/graphify query "..." --dfs                                          # DFS — trace a specific path
+/graphify path "FicheroClient" "Database"                            # shortest hop chain between two concepts
+/graphify explain "LLMConfig"                                        # plain-language summary of one node + its neighbors
+/graphify --update                                                   # incremental rebuild after substantial code changes
+```
+
+Scope indexed: `fichero/` + `fichero-engine/{src,tests,scripts}`. Excluded: `.venv`, `build`, `dist`, `bin`, `DerivedData`, `evals`, `logs`, generated OpenAPI client, app icons, fixtures. If you've made substantial backend/SwiftUI changes since `graphify-out/manifest.json` was last written, run `/graphify --update` before relying on stale paths.
+
+Top god nodes (call-graph hubs): `Database`, `KnowledgeClaim`, `KnowledgeEntity`, `Document`, `LLMConfig`, `EntityType`, `DocType`, `Artifact`, `WorkflowDef`. Touching any of these usually has cross-cluster blast radius.
+
 ## Key Paths
 
 | Path | What |
@@ -111,6 +127,7 @@ Full architecture: `docs/CLAUDE.md`, `docs/architecture/`
 | `docs/CLAUDE.md` | Full agent guidance (canonical, detailed) |
 | `docs/agent-workflow/parallel-execution.md` | When to use single session / subagents / agent teams + QA review gate |
 | `docs/architecture/` | Architecture docs |
+| `graphify-out/` | Knowledge graph of fichero/ + fichero-engine/ — query via `/graphify query "..."` |
 | `fichero/fichero/` | Swift/SwiftUI frontend (Xcode project: `fichero/fichero.xcodeproj`) |
 | `fichero/fichero-api-client/` | Generated Swift OpenAPI client package |
 | `fichero-engine/src/fichero/` | Python FastAPI backend |
