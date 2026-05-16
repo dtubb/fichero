@@ -22,13 +22,14 @@ from pydantic import BaseModel
 _ID_KEYS = (
     "id",
     "doc_id",
+    "document_id",
     "thread_id",
     "workflow_id",
     "entity_id",
     "claim_id",
     "artifact_id",
 )
-_LABEL_KEYS = ("title", "name", "filename", "label", "subject", "query")
+_LABEL_KEYS = ("title", "name", "document_name", "filename", "label", "subject", "query")
 _DETAIL_KEYS = (
     "doc_type",
     "file_type",
