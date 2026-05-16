@@ -815,6 +815,11 @@ struct DocumentInspectorContentV2: View {
                         await savePageContent(newContent)
                     }
                 )
+                // In pageContentOnly mode there's no outer ScrollView, so
+                // the panel can safely claim all remaining inspector height.
+                // Without this, the VStack wraps at the editor's sizeThatFits
+                // and leaves dead space below (#1062).
+                .frame(maxWidth: .infinity, maxHeight: mode == .pageContentOnly ? .infinity : nil)
             }
 
             // Generated artifacts — only when the mode wants them. Each one
