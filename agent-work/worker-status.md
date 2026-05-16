@@ -8,7 +8,7 @@
 - SKIP #1075 — breaking API change, defer to 0.0.3
 
 ## Queue (Round 2)
-- [ ] #1037 — extract_all slow on 15-page PDF
+- [x] #1037 — extract_all slow on 15-page PDF (DONE, already fixed in d17b5fb8)
 - [ ] #1033 — transcribe re-OCRs digital PDFs with text layer
 - [ ] #1030 — KG entity rows show raw repr instead of readable context
 - [ ] #1029 — no quality gate on garbage workflow output
@@ -18,7 +18,7 @@
 - SKIP #1044 — SwiftUI only, skip
 
 ## Current
-next: #1037
+next: #1033
 
 ## Attempts
 {}
