@@ -337,6 +337,14 @@ def save_claim(
     sc = subject_canonical or (meta.get("subject") if isinstance(meta.get("subject"), str) else None)
     sv = predicate_verb or (meta.get("verb") if isinstance(meta.get("verb"), str) else None)
     so = object_phrase or (meta.get("object") if isinstance(meta.get("object"), str) else None)
+    # Predicate canonicalisation (#1123 Phase C): every claim that
+    # carries a free-text predicate_verb also gets the canonical slug
+    # looked up at write time. Unknown verbs → None (honest absence
+    # over guessed mapping). Callers don't need to import canonical_verb
+    # at every save site; centralising here means new vocabulary
+    # additions in kg/_common.py reach every existing writer for free.
+    from fichero.kg._common import canonical_verb as _canonical_verb
+    pred_canonical = _canonical_verb(sv)
     claim = KnowledgeClaim(
         text=text,
         source_document_id=source_document_id,
@@ -356,6 +364,7 @@ def save_claim(
         subject_canonical=sc,
         subject_entity_id=subject_entity_id,
         predicate_verb=sv,
+        predicate_canonical=pred_canonical,
         object_phrase=so,
         # Provider attribution (#1113) — which LLM (and any heuristic
         # post-processing) produced this claim. Surface in the inspector
