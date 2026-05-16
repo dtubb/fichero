@@ -1210,7 +1210,7 @@ async def process_vision(
                 if vision_mode == "apple":
                     from fichero.llm import LLMConfig
 
-                    save_config = LLMConfig(provider="Apple", model="Vision")
+                    save_config = LLMConfig(provider="apple", model="apple-vision")
 
                 artifact_id = await save_artifact(
                     file_path=file_path,
