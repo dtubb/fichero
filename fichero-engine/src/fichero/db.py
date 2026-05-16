@@ -1119,6 +1119,27 @@ class Database(DatabaseEmbeddingMixin):
                     result[name] = tuple(value)
                 else:
                     result[name] = value
+            # If field expects a nested Pydantic model, parse JSON and
+            # reconstruct the typed instance. Without this, fields like
+            # `KnowledgeClaim.claim_geo: GeoPoint | None` (#1123) and the
+            # latent `KnowledgeClaim.source_metadata: SourceMetadata | None`
+            # come back as raw JSON strings and fail Pydantic validation
+            # on load. Save side already JSON-encodes BaseModel via the
+            # `_json_safe` recursion in `Database.save`; this is the
+            # symmetric read-side handling.
+            elif isinstance(annotation, type) and issubclass(annotation, BaseModel):
+                if isinstance(value, str):
+                    try:
+                        parsed = json.loads(value)
+                        result[name] = (
+                            annotation.model_validate(parsed)
+                            if isinstance(parsed, dict)
+                            else value
+                        )
+                    except (json.JSONDecodeError, TypeError):
+                        result[name] = value
+                else:
+                    result[name] = value
             else:
                 result[name] = value
 

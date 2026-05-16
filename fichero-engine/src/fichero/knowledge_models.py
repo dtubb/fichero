@@ -294,6 +294,143 @@ class ClaimRelationType(str, Enum):
     duplicate_of = "duplicate_of"
 
 
+# --- #1123 attribution-taxonomy enums (Phase A) ---
+# Three orthogonal axes of "how does this claim's text relate to its source":
+# QuotationKind = how literal (warrant strength),
+# ProvenanceLayer = where on the page (marginalia ≠ main text),
+# SourceGenre = what kind of document genre per passage (a 19c collection
+# may reprint an 18c royal decree — the genre is per-passage, not per-doc).
+
+
+class QuotationKind(str, Enum):
+    """How literally a claim reproduces its source text.
+
+    Picks up the warrant strength: a verbatim quotation supports a stronger
+    epistemic status than an inferred one. Defaults to ``paraphrase`` —
+    that's the realistic default for an LLM extractor that summarised the
+    source rather than copying it verbatim.
+    """
+
+    verbatim = "verbatim"
+    paraphrase = "paraphrase"
+    indirect = "indirect"
+    inference = "inference"
+    free_indirect = "free_indirect"
+
+
+class ProvenanceLayer(str, Enum):
+    """Where on a page the claim's source text lives.
+
+    Marginalia and interlinear annotations were added by later readers and
+    carry different evidentiary weight than the main text. ``main_text``
+    is the default; PDF-bbox heuristics (top/bottom margin offsets) flip
+    to ``marginalia`` or ``footnote``.
+    """
+
+    main_text = "main_text"
+    marginalia = "marginalia"
+    footnote = "footnote"
+    annotation_later = "annotation_later"
+    scribal_correction = "scribal_correction"
+    interlinear = "interlinear"
+
+
+class SourceGenre(str, Enum):
+    """Genre of the source passage that produced this claim.
+
+    Per-passage, not per-document — a 19th-century compiled collection may
+    reprint an 18th-century royal decree alongside private letters; each
+    excerpt carries its own genre. Classified per-doc at ingest, stamped
+    onto every claim from that doc as a default; overridable per-claim.
+    """
+
+    petition = "petition"
+    testimony = "testimony"
+    royal_decree = "royal_decree"
+    private_letter = "private_letter"
+    receipt = "receipt"
+    inventory = "inventory"
+    deed = "deed"
+    minutes = "minutes"
+    report = "report"
+    article = "article"
+    book = "book"
+    note = "note"
+    other = "other"
+
+
+class GeoPoint(BaseModel):
+    """Lat/lon for the spatial scope a claim refers to.
+
+    Distinct from entity locations (a claim about Pedro travelling from
+    Popayán to Quito has a different geo scope than Pedro's birthplace).
+    Optional precision_m lets the renderer draw a confidence radius
+    instead of a point pin when locations are imprecise.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    lat: float = Field(ge=-90.0, le=90.0)
+    lon: float = Field(ge=-180.0, le=180.0)
+    precision_m: float | None = Field(
+        default=None,
+        description="Radius of locational uncertainty in metres (None = exact).",
+    )
+    place_name: str | None = None
+
+
+class ProvenanceStep(BaseModel):
+    """One step in a document's chain of custody.
+
+    Example sequence for a colonial bill of sale:
+        filed 1699 (Popayán) → copied 1933 (compiled into archive series)
+        → scanned 2019 → accessed 2026 (researcher).
+
+    Each step records who did what, when, where. Empty actor/date is fine
+    when the step is implicit or unknown.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    action: str = Field(
+        description="What happened: 'filed', 'copied', 'scanned', 'accessed', etc.",
+    )
+    actor: str | None = Field(
+        default=None,
+        description="Who performed the action (person / institution / agent).",
+    )
+    date: str | None = Field(
+        default=None, description="ISO 8601 — date or partial date.",
+    )
+    location: str | None = None
+    notes: str | None = None
+
+
+class ImageProvenance(BaseModel):
+    """For digitised images: who/when/how the digital surrogate was captured.
+
+    Separate from document-level provenance because the same physical
+    document can have multiple captures (initial scan + reshoot for
+    damaged page); image_provenance describes THIS particular digital
+    artifact, not the document's broader chain of custody.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    photographer: str | None = None
+    capture_date: str | None = Field(
+        default=None, description="ISO 8601 — when the digital image was captured.",
+    )
+    equipment: str | None = Field(
+        default=None,
+        description="Camera / scanner make + model.",
+    )
+    condition_notes: str | None = Field(
+        default=None,
+        description="Notable damage, fading, or capture limitations.",
+    )
+
+
 class InclusionScopeType(str, Enum):
     library = "library"
     folder = "folder"
@@ -897,6 +1034,160 @@ class KnowledgeClaim(BaseModel):
         default=None,
         description="Structured citation and archival metadata for the primary source",
     )
+    # =====================================================================
+    # #1123 attribution taxonomy — Phase A (claim-level)
+    # =====================================================================
+    # All nullable / default-safe so legacy claims survive. Populated by
+    # the extractor (Phase D); defaults encode "we don't know" rather than
+    # a guess. Honest absence > guessed presence.
+    #
+    # --- speaker / authorship layer ---
+    # Claim provenance ≠ document author. A trial record may quote ten
+    # witnesses; each witness's statements need their own speaker. The
+    # scribe / editor split surfaces bias that a flat author field hides:
+    # Maria petitions, the scribe writes (and may insert language), the
+    # 19c editor selects + orders the passage into a collection.
+    speaker_name: str | None = Field(
+        default=None,
+        description=(
+            "Free-text speaker label as it appears in the source — "
+            "'the witness Pedro', 'the petitioner Maria'. May not match "
+            "any known entity (use speaker_entity_id when it does)."
+        ),
+    )
+    speaker_entity_id: str | None = Field(
+        default=None,
+        description=(
+            "Resolved KnowledgeEntity.id when speaker_name matches a "
+            "known entity — lets the inspector navigate by speaker."
+        ),
+    )
+    subject_of_inquiry_entity_id: str | None = Field(
+        default=None,
+        description=(
+            "When the claim is testimony ABOUT a third party (Pedro "
+            "testified about Maria), this names that third party. "
+            "Distinct from subject_entity_id (the SVO subject = Pedro)."
+        ),
+    )
+    scribe_name: str | None = Field(
+        default=None,
+        description=(
+            "Who physically wrote the source text. The scribe is often "
+            "different from the speaker (Maria petitions; the scribe "
+            "writes); their hand may inflect bias or formula."
+        ),
+    )
+    scribe_entity_id: str | None = Field(default=None)
+    editor_name: str | None = Field(
+        default=None,
+        description=(
+            "Editor of the curated collection / edition this claim was "
+            "extracted from. For uncurated raw documents this is null."
+        ),
+    )
+    editor_entity_id: str | None = Field(default=None)
+
+    # --- quotation / interpretive layer ---
+    quotation_kind: QuotationKind | None = Field(
+        default=None,
+        description=(
+            "How literally the claim reproduces the source — verbatim "
+            "vs paraphrase changes the warrant strength."
+        ),
+    )
+    provenance_layer: ProvenanceLayer = Field(
+        default=ProvenanceLayer.main_text,
+        description=(
+            "Where on the page the source text lives. Defaults to "
+            "main_text; PDF-bbox margin heuristics promote to marginalia "
+            "/ footnote / interlinear."
+        ),
+    )
+    source_language: str | None = Field(
+        default=None,
+        description=(
+            "Original language of THIS claim's source text (ISO 639-1). "
+            "May differ from the document's primary language when a doc "
+            "contains multilingual passages — a 17c Spanish record may "
+            "embed a Latin formula. Mirrors `language` for back-compat; "
+            "the extractor writes both."
+        ),
+    )
+    translation_chain: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Translation history as 'lang:source' tags, e.g. "
+            "['es:original', 'en:apple-translate', 'en:human-edit']. "
+            "Empty list means the text is in its original language."
+        ),
+    )
+    audience: str | None = Field(
+        default=None,
+        description=(
+            "Whom the claim was addressed to — 'the Cabildo of Popayán', "
+            "'the Audiencia'. Extracted from 'to the X' / 'addressed to "
+            "Y' patterns in the source."
+        ),
+    )
+    source_genre: SourceGenre | None = Field(
+        default=None,
+        description=(
+            "Genre of the source passage. Per-passage (not per-doc) — "
+            "a 19c compiled collection may reprint petitions alongside "
+            "royal decrees and private letters."
+        ),
+    )
+
+    # --- temporal / spatial scope (extending existing time_*) ---
+    claim_recorded_at: str | None = Field(
+        default=None,
+        description=(
+            "When THIS claim's text was recorded, ISO 8601. Distinct "
+            "from time_start (when the events happened) and from the "
+            "document's date — a 1933 archive copy may reproduce an "
+            "1820 letter, so the letter's claim has time_start=1820 "
+            "but claim_recorded_at=1820 (the letter's date), while a "
+            "scribal annotation on the same page might have "
+            "claim_recorded_at=1965."
+        ),
+    )
+    claim_geo: GeoPoint | None = Field(
+        default=None,
+        description=(
+            "Spatial scope of the claim — distinct from entity "
+            "locations. 'Pedro left Popayán for Quito' has claim_geo "
+            "pinned to the journey path's midpoint, not Pedro's "
+            "birthplace."
+        ),
+    )
+
+    # --- quality / confidence layer ---
+    confidence_source: str | None = Field(
+        default=None,
+        description=(
+            "Where the `confidence` value came from: 'llm_logprob' / "
+            "'heuristic' / 'human_review' / 'corroboration' / 'default'. "
+            "Lets the inspector explain why a claim is rated 0.7 "
+            "instead of treating the number as load-bearing."
+        ),
+    )
+
+    # --- predicate canonical vocabulary ---
+    # `predicate_verb` is free-text (good for display). `predicate_canonical`
+    # is a normalised slug from `kg/_common.py::CANONICAL_VERBS` (added in
+    # Phase C). Queries / aggregation use canonical; rendering uses verb.
+    predicate_canonical: str | None = Field(
+        default=None,
+        description=(
+            "Normalised predicate from kg/_common.py::CANONICAL_VERBS "
+            "(~40-50 verbs across ontological / spatial / temporal / "
+            "speech / role / kinship / property / causal / quantitative "
+            "categories). Used for queries + SPARQL parity; "
+            "predicate_verb is kept free-text for display."
+        ),
+    )
+
     created_by: str = "human"
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)

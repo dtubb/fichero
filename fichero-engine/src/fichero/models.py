@@ -187,6 +187,33 @@ class Document(BaseModel):
         description="Bibliographic metadata (SourceMetadata shape). See #908.",
     )
 
+    # =========================================================================
+    # #1123 attribution taxonomy — document-level provenance (Phase A)
+    # =========================================================================
+    # Stored as JSON dicts (not nested Pydantic models) for the same reason
+    # source_metadata above is dict — Document lives in DuckDB and nested
+    # Pydantic would require migration + custom serializer. The KG inspector
+    # constructs typed ProvenanceStep / ImageProvenance models on the fly
+    # at read time. Both default-empty so existing docs survive.
+    provenance_chain: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "Chain of custody as a list of ProvenanceStep dicts: "
+            "'filed 1933, copied 1965, scanned 2019, accessed 2026'. "
+            "Lets the inspector render lineage; queries by step.actor / "
+            "step.date answer 'show me everything this scribe touched'."
+        ),
+    )
+    image_provenance: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "For digitised images: photographer / capture_date / "
+            "equipment / condition_notes. Separate from the broader "
+            "provenance_chain because the same physical document can "
+            "have multiple captures (initial scan + reshoot)."
+        ),
+    )
+
     # Processing state
     status: Status = Status.pending
 

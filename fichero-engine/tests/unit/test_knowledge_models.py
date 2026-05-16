@@ -1,12 +1,21 @@
 """Unit tests for knowledge_models.py — SourceMetadata, ProvenanceInfo, KnowledgeClaim."""
 
+import tempfile
+from pathlib import Path
+
 import pytest
+
 from fichero.knowledge_models import (
     SourceMetadata,
     ProvenanceInfo,
-    SourceMetadataProvenance,
     KnowledgeClaim,
-    SourceType,
+    # #1123 attribution taxonomy
+    QuotationKind,
+    ProvenanceLayer,
+    SourceGenre,
+    GeoPoint,
+    ProvenanceStep,
+    ImageProvenance,
 )
 
 
@@ -262,3 +271,248 @@ class TestKnowledgeClaimWithSourceMetadata:
             source_document_id="doc-456",
         )
         assert claim.source_metadata is None
+
+
+# =============================================================================
+# #1123 Attribution-taxonomy tests
+# =============================================================================
+# Three layers verified here:
+#  1. The new enums have the values listed in the issue's tables.
+#  2. The new claim fields default to safe values ("we don't know"), not
+#     plausible-but-fabricated guesses. This is the "honest absence" rule
+#     — a fresh claim with no attribution data should serialise without
+#     any speaker / scribe / language / genre filled in.
+#  3. Every new field round-trips through DuckDB (writer encodes, reader
+#     decodes the nested GeoPoint back to a typed instance).
+
+
+class TestAttributionEnums:
+    """The three orthogonal enums (#1123 Phase A)."""
+
+    def test_quotation_kind_members(self):
+        assert {q.value for q in QuotationKind} == {
+            "verbatim",
+            "paraphrase",
+            "indirect",
+            "inference",
+            "free_indirect",
+        }
+
+    def test_provenance_layer_members(self):
+        assert {p.value for p in ProvenanceLayer} == {
+            "main_text",
+            "marginalia",
+            "footnote",
+            "annotation_later",
+            "scribal_correction",
+            "interlinear",
+        }
+
+    def test_source_genre_members(self):
+        # 13 explicit + "other" = 13 total per issue
+        assert "petition" in {g.value for g in SourceGenre}
+        assert "royal_decree" in {g.value for g in SourceGenre}
+        assert "other" in {g.value for g in SourceGenre}
+
+
+class TestGeoPoint:
+    """Spatial scope for a claim (#1123 Phase A)."""
+
+    def test_basic(self):
+        p = GeoPoint(lat=2.4448, lon=-76.6147, place_name="Popayán")
+        assert p.lat == 2.4448
+        assert p.lon == -76.6147
+        assert p.place_name == "Popayán"
+        assert p.precision_m is None
+
+    def test_lat_out_of_range(self):
+        with pytest.raises(ValueError):
+            GeoPoint(lat=100.0, lon=0.0)
+
+    def test_lon_out_of_range(self):
+        with pytest.raises(ValueError):
+            GeoPoint(lat=0.0, lon=200.0)
+
+
+class TestAttributionDefaults:
+    """A claim with no attribution data should encode absence, not guess (#1123)."""
+
+    def test_empty_claim_has_no_attribution(self):
+        c = KnowledgeClaim(text="x", source_document_id="d1")
+        assert c.speaker_name is None
+        assert c.speaker_entity_id is None
+        assert c.scribe_name is None
+        assert c.editor_name is None
+        assert c.quotation_kind is None
+        # provenance_layer DOES default — main_text is the safe assumption.
+        assert c.provenance_layer == ProvenanceLayer.main_text
+        assert c.source_language is None
+        assert c.translation_chain == []
+        assert c.audience is None
+        assert c.source_genre is None
+        assert c.claim_recorded_at is None
+        assert c.claim_geo is None
+        assert c.confidence_source is None
+        assert c.predicate_canonical is None
+
+    def test_populated_claim(self):
+        c = KnowledgeClaim(
+            text="Pedro testified about Maria.",
+            source_document_id="d1",
+            speaker_name="the witness Pedro",
+            speaker_entity_id="e:pedro",
+            subject_of_inquiry_entity_id="e:maria",
+            scribe_name="hand B",
+            quotation_kind=QuotationKind.indirect,
+            provenance_layer=ProvenanceLayer.main_text,
+            source_language="es",
+            translation_chain=["es:original", "en:apple-translate"],
+            audience="the Cabildo of Popayán",
+            source_genre=SourceGenre.testimony,
+            claim_recorded_at="1820-03-15",
+            claim_geo=GeoPoint(lat=2.4448, lon=-76.6147),
+            confidence_source="llm_logprob",
+            predicate_canonical="testified_about",
+        )
+        assert c.speaker_name == "the witness Pedro"
+        assert c.subject_of_inquiry_entity_id == "e:maria"
+        assert c.quotation_kind == QuotationKind.indirect
+        assert c.translation_chain == ["es:original", "en:apple-translate"]
+        assert c.claim_geo.lat == 2.4448
+
+
+class TestAttributionDuckDBRoundTrip:
+    """Every #1123 claim field survives save → reload (#1123 Phase A).
+
+    Catches the regression where nested Pydantic models on claims came
+    back as raw JSON strings — fixed in `Database._parse_json_fields`
+    by adding the BaseModel branch. This test pins that fix in place:
+    if someone removes the BaseModel branch, `claim_geo` becomes a
+    string and the lat assertion fails.
+    """
+
+    def test_round_trip_all_new_fields(self):
+        from fichero.db import Database
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Database(Path(tmp) / "test.fichero")
+            geo = GeoPoint(lat=2.4448, lon=-76.6147, place_name="Popayán")
+            c = KnowledgeClaim(
+                text="Pedro testified about Maria.",
+                source_document_id="d1",
+                speaker_name="Pedro",
+                speaker_entity_id="e:pedro",
+                subject_of_inquiry_entity_id="e:maria",
+                scribe_name="hand B",
+                scribe_entity_id="e:scribe-b",
+                editor_name="19c editor",
+                editor_entity_id="e:editor",
+                quotation_kind=QuotationKind.indirect,
+                provenance_layer=ProvenanceLayer.marginalia,
+                source_language="es",
+                translation_chain=["es:original", "en:apple-translate"],
+                audience="the Cabildo",
+                source_genre=SourceGenre.testimony,
+                claim_recorded_at="1820-03-15",
+                claim_geo=geo,
+                confidence_source="llm_logprob",
+                predicate_canonical="testified_about",
+            )
+            db.save(c)
+            loaded = db.get(KnowledgeClaim, c.id)
+            assert loaded is not None
+            # All scalar / enum fields
+            assert loaded.speaker_name == "Pedro"
+            assert loaded.speaker_entity_id == "e:pedro"
+            assert loaded.subject_of_inquiry_entity_id == "e:maria"
+            assert loaded.scribe_name == "hand B"
+            assert loaded.scribe_entity_id == "e:scribe-b"
+            assert loaded.editor_name == "19c editor"
+            assert loaded.editor_entity_id == "e:editor"
+            assert loaded.quotation_kind == QuotationKind.indirect
+            assert loaded.provenance_layer == ProvenanceLayer.marginalia
+            assert loaded.source_language == "es"
+            assert loaded.translation_chain == ["es:original", "en:apple-translate"]
+            assert loaded.audience == "the Cabildo"
+            assert loaded.source_genre == SourceGenre.testimony
+            assert loaded.claim_recorded_at == "1820-03-15"
+            assert loaded.confidence_source == "llm_logprob"
+            assert loaded.predicate_canonical == "testified_about"
+            # Nested Pydantic — exercises the new BaseModel deserializer
+            # branch in `Database._parse_json_fields`.
+            assert isinstance(loaded.claim_geo, GeoPoint)
+            assert loaded.claim_geo.lat == 2.4448
+            assert loaded.claim_geo.place_name == "Popayán"
+
+
+class TestDocumentProvenance:
+    """Document gains provenance_chain + image_provenance (#1123 Phase A)."""
+
+    def test_document_provenance_round_trip(self):
+        from fichero.db import Database
+        from fichero.models import Document, DocType
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Database(Path(tmp) / "test.fichero")
+            doc = Document(
+                name="1933 court copy of 1820 letter",
+                doc_type=DocType.file,
+                provenance_chain=[
+                    {"action": "filed", "actor": "Pedro", "date": "1820"},
+                    {"action": "copied", "date": "1933"},
+                    {"action": "scanned", "date": "2019"},
+                ],
+                image_provenance={
+                    "photographer": "archive staff",
+                    "equipment": "Nikon D850",
+                },
+            )
+            db.save(doc)
+            loaded = db.get(Document, doc.id)
+            assert loaded is not None
+            assert len(loaded.provenance_chain) == 3
+            assert loaded.provenance_chain[0]["actor"] == "Pedro"
+            assert loaded.image_provenance["equipment"] == "Nikon D850"
+
+    def test_document_provenance_defaults_empty(self):
+        from fichero.models import Document, DocType
+
+        doc = Document(name="plain doc", doc_type=DocType.file)
+        assert doc.provenance_chain == []
+        assert doc.image_provenance is None
+
+
+class TestProvenanceStepImageProvenance:
+    """The two sub-models exposed by the issue (#1123)."""
+
+    def test_provenance_step_minimal(self):
+        step = ProvenanceStep(action="filed")
+        assert step.action == "filed"
+        assert step.actor is None
+        assert step.date is None
+
+    def test_provenance_step_full(self):
+        step = ProvenanceStep(
+            action="copied",
+            actor="archive scribe",
+            date="1933-04-15",
+            location="Bogotá archive",
+            notes="rebound and renumbered",
+        )
+        assert step.actor == "archive scribe"
+        assert step.notes == "rebound and renumbered"
+
+    def test_image_provenance_minimal(self):
+        ip = ImageProvenance()
+        assert ip.photographer is None
+        assert ip.capture_date is None
+
+    def test_image_provenance_full(self):
+        ip = ImageProvenance(
+            photographer="archive staff",
+            capture_date="2019-04-02",
+            equipment="Nikon D850 + copy stand",
+            condition_notes="bottom-right water damage",
+        )
+        assert ip.photographer == "archive staff"
+        assert ip.condition_notes == "bottom-right water damage"
