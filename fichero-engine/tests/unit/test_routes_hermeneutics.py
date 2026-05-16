@@ -187,3 +187,86 @@ class TestListInterpretations:
         r = client.get(f"{BASE}/interpretations")
         assert r.status_code == 200
         assert len(r.json()) == 2
+
+
+# ---------------------------------------------------------------------------
+# GET /api/hermeneutics/taxonomy/methods  (#1126 — merged from kg_interpretations)
+# ---------------------------------------------------------------------------
+
+
+class TestTaxonomyMethods:
+    def test_returns_acts_and_frameworks(self, client):
+        r = client.get(f"{BASE}/taxonomy/methods")
+        assert r.status_code == 200
+        data = r.json()
+        assert "acts" in data
+        assert "frameworks" in data
+        assert len(data["acts"]) > 0
+        assert len(data["frameworks"]) > 0
+        # Spot-check structure
+        act = data["acts"][0]
+        assert "value" in act and "label" in act
+
+
+# ---------------------------------------------------------------------------
+# Canonical /api/kg/interpretations/* URLs (#1126 — same router, two mounts)
+# ---------------------------------------------------------------------------
+
+KG_BASE = "/api/kg/interpretations"
+
+
+class TestKgInterpretationsCanonicalUrls:
+    """Verify the KG_ENDPOINTS.md canonical paths are reachable (#1126)."""
+
+    def test_frameworks_list(self, client):
+        r = client.get(f"{KG_BASE}/frameworks")
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_frameworks_create(self, client):
+        r = client.post(f"{KG_BASE}/frameworks", json={
+            "name": "Structural Functionalism",
+            "framework_type": "theoretical",
+            "description": "Societies as systems of interrelated parts.",
+        })
+        assert r.status_code == 200
+        assert r.json()["name"] == "Structural Functionalism"
+
+    def test_frameworks_get(self, client, db):
+        db.save(_make_framework("fwk-kg", "KG Framework"))
+        r = client.get(f"{KG_BASE}/frameworks/fwk-kg")
+        assert r.status_code == 200
+        assert r.json()["name"] == "KG Framework"
+
+    def test_frameworks_get_missing(self, client):
+        r = client.get(f"{KG_BASE}/frameworks/no-such")
+        assert r.status_code == 404
+
+    def test_interpretations_list(self, client):
+        r = client.get(f"{KG_BASE}/interpretations")
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_interpretations_create(self, client, db):
+        db.save(_make_framework("fwk-kg2"))
+        r = client.post(f"{KG_BASE}/interpretations", json={
+            "framework_id": "fwk-kg2",
+            "passage_text": "Evidence passage.",
+            "interpretation_text": "Structural reading.",
+            "act": "contextualizing",
+        })
+        assert r.status_code == 200
+        assert r.json()["framework_id"] == "fwk-kg2"
+
+    def test_interpretations_get(self, client, db):
+        db.save(_make_framework("fwk-kg3"))
+        db.save(_make_interpretation("interp-kg", "fwk-kg3"))
+        r = client.get(f"{KG_BASE}/interpretations/interp-kg")
+        assert r.status_code == 200
+        assert r.json()["id"] == "interp-kg"
+
+    def test_taxonomy_methods(self, client):
+        r = client.get(f"{KG_BASE}/taxonomy/methods")
+        assert r.status_code == 200
+        data = r.json()
+        assert "acts" in data and "frameworks" in data

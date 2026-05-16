@@ -701,7 +701,6 @@ from fichero.api.routes import (  # noqa: E402
     kg_entity_curation,
     kg_graph,
     kg_inclusion,
-    kg_interpretations,
     kg_mutations,
     kg_predictions,
     kg_pykeen,
@@ -811,10 +810,8 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # to release for 0.0.2 alongside the rest of the KG surface so end-
     # users get the full epistemology layer in shipped builds. (#997)
     (hermeneutics.router, "/api/hermeneutics", ["knowledge-graph"]),
-    # Interpretation + InterpretiveFramework CRUD stays in kg_interpretations.py
-    # for now — the Wave 1 fold into hermeneutics.py introduced test shape
-    # drift; deferred to a follow-up.
-    (kg_interpretations.router, "/api", ["knowledge-graph"]),
+    # Canonical KG URL prefix — same router, different mount point (#1126).
+    (hermeneutics.router, "/api/kg/interpretations", ["knowledge-graph"]),
 ]
 
 _DEV_ROUTE_SPECS: list[RouteSpec] = [

@@ -114,6 +114,18 @@ class PatternUpdateRequest(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
+class TaxonomyItem(BaseModel):
+    value: str
+    label: str
+
+
+class MethodTaxonomyResponse(BaseModel):
+    """Picker values for the interpretation editor (acts + framework types)."""
+
+    acts: list[TaxonomyItem]
+    frameworks: list[TaxonomyItem]
+
+
 class CircleStateCreateRequest(BaseModel):
     claim_id: str
     current_focus: str  # "part" or "whole"
@@ -577,3 +589,25 @@ async def suggest_interpretations(
         suggestions.append(suggestion)
 
     return suggestions
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Taxonomy picker (merged from kg_interpretations.py #1126)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/taxonomy/methods",
+    response_model=MethodTaxonomyResponse,
+    summary="Picker values for interpretation editor (acts + framework types)",
+)
+async def get_taxonomy() -> MethodTaxonomyResponse:
+    acts = [
+        TaxonomyItem(value=act.value, label=act.name.replace("_", " ").title())
+        for act in InterpretiveActType
+    ]
+    frameworks = [
+        TaxonomyItem(value=ft.value, label=ft.name.replace("_", " ").title())
+        for ft in FrameworkType
+    ]
+    return MethodTaxonomyResponse(acts=acts, frameworks=frameworks)
