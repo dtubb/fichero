@@ -20,10 +20,10 @@
 ## Queue (Round 3 — Post-session bug fixes)
 - [x] #1136 — CLI entity_neighborhood wrong path (DONE, committed cebf5efd, tests pass)
 - [x] #1137 — CLI entity documents renders '(item)' instead of name (DONE, committed d2f4ebde)
-- [ ] #1138 — Embeddings: fastembed pooling strategy changed (next)
+- [x] #1138 — Embeddings: fastembed pooling strategy changed (DONE, already fixed in 44374c04)
 
-## Status: ROUND 3 IN PROGRESS
-Round 2 complete. Round 3 fixes discovered during testing: #1136 closed, #1137-#1138 pending.
+## Status: ROUND 3 COMPLETE ✓
+Round 2 complete. Round 3 all fixes completed: #1136 ✓, #1137 ✓, #1138 ✓ (already fixed).
 
 ## Attempts
 {}
