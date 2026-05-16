@@ -9,7 +9,7 @@
 
 ## Queue (Round 2)
 - [x] #1037 — extract_all slow on 15-page PDF (DONE, already fixed in d17b5fb8)
-- [ ] #1033 — transcribe re-OCRs digital PDFs with text layer
+- [x] #1033 — transcribe re-OCRs digital PDFs with text layer (DONE, already fixed in 7ef16274)
 - [ ] #1030 — KG entity rows show raw repr instead of readable context
 - [ ] #1029 — no quality gate on garbage workflow output
 - [ ] #1027 — Apple Intelligence StructuredDecodeError forces fallback
@@ -18,7 +18,7 @@
 - SKIP #1044 — SwiftUI only, skip
 
 ## Current
-next: #1033
+next: #1030
 
 ## Attempts
 {}
