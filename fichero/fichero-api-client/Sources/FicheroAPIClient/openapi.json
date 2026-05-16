@@ -18022,10 +18022,531 @@
         }
       }
     },
+    "/api/hermeneutics/frameworks": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Create Framework",
+        "operationId": "create_framework_api_hermeneutics_frameworks_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FrameworkCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterpretiveFramework"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "List Frameworks",
+        "operationId": "list_frameworks_api_hermeneutics_frameworks_get",
+        "parameters": [
+          {
+            "name": "framework_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/FrameworkType",
+              "nullable": true,
+              "title": "Framework Type"
+            }
+          },
+          {
+            "name": "is_active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "nullable": true,
+              "title": "Is Active"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InterpretiveFramework"
+                  },
+                  "title": "Response List Frameworks Api Hermeneutics Frameworks Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hermeneutics/frameworks/{framework_id}": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Get Framework",
+        "operationId": "get_framework_api_hermeneutics_frameworks__framework_id__get",
+        "parameters": [
+          {
+            "name": "framework_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Framework Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterpretiveFramework"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Update Framework",
+        "operationId": "update_framework_api_hermeneutics_frameworks__framework_id__patch",
+        "parameters": [
+          {
+            "name": "framework_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Framework Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FrameworkUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterpretiveFramework"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Delete Framework",
+        "operationId": "delete_framework_api_hermeneutics_frameworks__framework_id__delete",
+        "parameters": [
+          {
+            "name": "framework_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Framework Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FrameworkDeactivatedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hermeneutics/interpretations": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Create Interpretation",
+        "operationId": "create_interpretation_api_hermeneutics_interpretations_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterpretationCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interpretation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "List Interpretations",
+        "operationId": "list_interpretations_api_hermeneutics_interpretations_get",
+        "parameters": [
+          {
+            "name": "framework_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Framework Id"
+            }
+          },
+          {
+            "name": "claim_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Claim Id"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "act",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/InterpretiveActType",
+              "nullable": true,
+              "title": "Act"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Interpretation"
+                  },
+                  "title": "Response List Interpretations Api Hermeneutics Interpretations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hermeneutics/interpretations/{interpretation_id}": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Get Interpretation",
+        "operationId": "get_interpretation_api_hermeneutics_interpretations__interpretation_id__get",
+        "parameters": [
+          {
+            "name": "interpretation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Interpretation Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interpretation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Update Interpretation",
+        "operationId": "update_interpretation_api_hermeneutics_interpretations__interpretation_id__patch",
+        "parameters": [
+          {
+            "name": "interpretation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Interpretation Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterpretationUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interpretation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/hermeneutics/patterns": {
       "post": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Create Pattern",
         "operationId": "create_pattern_api_hermeneutics_patterns_post",
@@ -18075,7 +18596,7 @@
       },
       "get": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "List Patterns",
         "operationId": "list_patterns_api_hermeneutics_patterns_get",
@@ -18151,7 +18672,7 @@
     "/api/hermeneutics/patterns/{pattern_id}": {
       "get": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Get Pattern",
         "operationId": "get_pattern_api_hermeneutics_patterns__pattern_id__get",
@@ -18200,7 +18721,7 @@
       },
       "patch": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Update Pattern",
         "operationId": "update_pattern_api_hermeneutics_patterns__pattern_id__patch",
@@ -18261,7 +18782,7 @@
     "/api/hermeneutics/patterns/{pattern_id}/claims/{claim_id}": {
       "post": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Add Claim To Pattern",
         "operationId": "add_claim_to_pattern_api_hermeneutics_patterns__pattern_id__claims__claim_id__post",
@@ -18321,7 +18842,7 @@
     "/api/hermeneutics/circle-state": {
       "post": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Create Circle State",
         "operationId": "create_circle_state_api_hermeneutics_circle_state_post",
@@ -18371,7 +18892,7 @@
       },
       "get": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "List Circle States",
         "operationId": "list_circle_states_api_hermeneutics_circle_state_get",
@@ -18427,7 +18948,7 @@
     "/api/hermeneutics/circle-state/{state_id}": {
       "get": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Get Circle State",
         "operationId": "get_circle_state_api_hermeneutics_circle_state__state_id__get",
@@ -18478,7 +18999,7 @@
     "/api/hermeneutics/circle-state/{state_id}/navigate": {
       "post": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Navigate Circle",
         "operationId": "navigate_circle_api_hermeneutics_circle_state__state_id__navigate_post",
@@ -18539,7 +19060,7 @@
     "/api/hermeneutics/circle-state/{state_id}/backtrack": {
       "post": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Backtrack Circle",
         "operationId": "backtrack_circle_api_hermeneutics_circle_state__state_id__backtrack_post",
@@ -18590,7 +19111,7 @@
     "/api/hermeneutics/suggestions": {
       "post": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Suggest Interpretations",
         "description": "Generate AI interpretation suggestions for claims.\n\nUses available LiteLLM providers to suggest how frameworks might\nbe applied to the given claims. Returns ranked suggestions.",
@@ -18647,7 +19168,7 @@
     "/api/kg/interpretations/frameworks": {
       "post": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Create an interpretive framework (e.g. 'Marxist historical materialism')",
         "operationId": "create_framework_api_kg_interpretations_frameworks_post",
@@ -18697,7 +19218,7 @@
       },
       "get": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "List Frameworks",
         "operationId": "list_frameworks_api_kg_interpretations_frameworks_get",
@@ -18743,7 +19264,7 @@
     "/api/kg/interpretations/frameworks/{framework_id}": {
       "get": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Get Framework",
         "operationId": "get_framework_api_kg_interpretations_frameworks__framework_id__get",
@@ -18792,7 +19313,7 @@
       },
       "patch": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Patch Framework",
         "operationId": "patch_framework_api_kg_interpretations_frameworks__framework_id__patch",
@@ -18851,7 +19372,7 @@
       },
       "delete": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Delete Framework",
         "operationId": "delete_framework_api_kg_interpretations_frameworks__framework_id__delete",
@@ -18895,7 +19416,7 @@
     "/api/kg/interpretations": {
       "post": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Create an interpretation \u2014 the result of applying a framework to evidence",
         "operationId": "create_interpretation_api_kg_interpretations_post",
@@ -18945,7 +19466,7 @@
       },
       "get": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "List Interpretations",
         "operationId": "list_interpretations_api_kg_interpretations_get",
@@ -19021,7 +19542,7 @@
     "/api/kg/interpretations/{interpretation_id}": {
       "get": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Get Interpretation",
         "operationId": "get_interpretation_api_kg_interpretations__interpretation_id__get",
@@ -19070,7 +19591,7 @@
       },
       "patch": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Patch Interpretation",
         "operationId": "patch_interpretation_api_kg_interpretations__interpretation_id__patch",
@@ -19129,7 +19650,7 @@
       },
       "delete": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Delete Interpretation",
         "operationId": "delete_interpretation_api_kg_interpretations__interpretation_id__delete",
@@ -19173,9 +19694,10 @@
     "/api/kg/interpretations/taxonomy/methods": {
       "get": {
         "tags": [
-          "hermeneutics"
+          "knowledge-graph"
         ],
         "summary": "Picker values for interpretation editor (acts + framework types)",
+        "description": "Returns the enum values for InterpretiveActType + FrameworkType formatted as label/value pairs the Swift inspector can drop straight into a Picker. Consolidated from the older /api/interpretations/taxonomy/methods endpoint per #919.",
         "operationId": "get_taxonomy_api_kg_interpretations_taxonomy_methods_get",
         "responses": {
           "200": {
@@ -30383,6 +30905,104 @@
           "epistemic_status": {
             "$ref": "#/components/schemas/EpistemicStatus",
             "nullable": true
+          },
+          "subject_canonical": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subject Canonical"
+          },
+          "subject_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subject Entity Id"
+          },
+          "predicate_verb": {
+            "type": "string",
+            "nullable": true,
+            "title": "Predicate Verb"
+          },
+          "object_phrase": {
+            "type": "string",
+            "nullable": true,
+            "title": "Object Phrase"
+          },
+          "speaker_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Speaker Name"
+          },
+          "speaker_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Speaker Entity Id"
+          },
+          "subject_of_inquiry_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subject Of Inquiry Entity Id"
+          },
+          "scribe_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Scribe Name"
+          },
+          "scribe_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Scribe Entity Id"
+          },
+          "editor_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Editor Name"
+          },
+          "editor_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Editor Entity Id"
+          },
+          "quotation_kind": {
+            "$ref": "#/components/schemas/QuotationKind",
+            "nullable": true
+          },
+          "provenance_layer": {
+            "$ref": "#/components/schemas/ProvenanceLayer",
+            "default": "main_text"
+          },
+          "source_language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Language"
+          },
+          "translation_chain": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Translation Chain"
+          },
+          "audience": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audience"
+          },
+          "source_genre": {
+            "$ref": "#/components/schemas/SourceGenre",
+            "nullable": true
+          },
+          "claim_recorded_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Claim Recorded At"
+          },
+          "claim_geo": {
+            "$ref": "#/components/schemas/GeoPoint",
+            "nullable": true
+          },
+          "confidence_source": {
+            "type": "string",
+            "nullable": true,
+            "title": "Confidence Source"
           }
         },
         "type": "object",
@@ -30613,9 +31233,16 @@
           "supports",
           "contradicts",
           "refines",
-          "duplicate_of"
+          "duplicate_of",
+          "corroborates",
+          "derives_from",
+          "cites",
+          "follows",
+          "caused_by",
+          "related_to"
         ],
-        "title": "ClaimRelationType"
+        "title": "ClaimRelationType",
+        "description": "Typed relationship kinds for KnowledgeClaimLink (#1123 Phase B).\n\nOriginally four kinds (supports / contradicts / refines / duplicate_of).\n#1123 extends with five new dimensions plus ``related_to`` (the generic\nfallback used by ``kg_predictions._record_predictions`` when a model\nsurfaces a relation outside the curated set):\n\n- ``corroborates`` \u2014 independent evidence agreeing with the source\n  claim. Distinct from ``supports`` (which just reinforces with\n  additional evidence drawn from the same line of reasoning).\n- ``derives_from`` \u2014 claim B is inferred from / built on claim A;\n  removing A invalidates B. Stronger than ``cites``.\n- ``cites`` \u2014 B references A as a source. Bibliographic / citation\n  graph use.\n- ``follows`` \u2014 temporal sequence (A then B). Doesn't imply\n  causation; ``caused_by`` is the explicit causal claim.\n- ``caused_by`` \u2014 A is the cause of B. Strong claim; reviewers\n  should treat with corroboration.\n- ``related_to`` \u2014 generic fallback when the typed kinds don't\n  fit. Closes the latent crash in\n  ``kg_predictions.py:269`` where the relation_map fallback\n  referenced this value before it existed.\n\nNote: ``contests`` was considered as a synonym for ``contradicts``\nbut excluded \u2014 same semantic, different word, doesn't earn a\nseparate enum slot. Writers should keep using ``contradicts``."
       },
       "ClaimSummary": {
         "properties": {
@@ -32426,6 +33053,22 @@
             "title": "Source Metadata",
             "description": "Bibliographic metadata (SourceMetadata shape). See #908."
           },
+          "provenance_chain": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Provenance Chain",
+            "description": "Chain of custody as a list of ProvenanceStep dicts: 'filed 1933, copied 1965, scanned 2019, accessed 2026'. Lets the inspector render lineage; queries by step.actor / step.date answer 'show me everything this scribe touched'."
+          },
+          "image_provenance": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Image Provenance",
+            "description": "For digitised images: photographer / capture_date / equipment / condition_notes. Separate from the broader provenance_chain because the same physical document can have multiple captures (initial scan + reshoot)."
+          },
           "status": {
             "$ref": "#/components/schemas/Status",
             "default": "pending"
@@ -34133,6 +34776,82 @@
         ],
         "title": "FolderRenameResponse"
       },
+      "FrameworkCreateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "framework_type": {
+            "$ref": "#/components/schemas/FrameworkType"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "core_questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Core Questions"
+          },
+          "key_concepts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Key Concepts"
+          },
+          "typical_applications": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Typical Applications"
+          },
+          "origin": {
+            "type": "string",
+            "nullable": true,
+            "title": "Origin"
+          },
+          "creator": {
+            "type": "string",
+            "nullable": true,
+            "title": "Creator"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "framework_type",
+          "description"
+        ],
+        "title": "FrameworkCreateRequest"
+      },
+      "FrameworkDeactivatedResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "FrameworkDeactivatedResponse"
+      },
       "FrameworkPatchRequest": {
         "properties": {
           "name": {
@@ -34267,6 +34986,111 @@
         ],
         "title": "FrameworkType",
         "description": "Interpretive lens categories."
+      },
+      "FrameworkUpdateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name"
+          },
+          "framework_type": {
+            "$ref": "#/components/schemas/FrameworkType",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description"
+          },
+          "core_questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Core Questions"
+          },
+          "key_concepts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Key Concepts"
+          },
+          "typical_applications": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Typical Applications"
+          },
+          "origin": {
+            "type": "string",
+            "nullable": true,
+            "title": "Origin"
+          },
+          "creator": {
+            "type": "string",
+            "nullable": true,
+            "title": "Creator"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Metadata"
+          },
+          "is_active": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "title": "FrameworkUpdateRequest"
+      },
+      "GeoPoint": {
+        "properties": {
+          "lat": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Lon"
+          },
+          "precision_m": {
+            "type": "number",
+            "nullable": true,
+            "title": "Precision M",
+            "description": "Radius of locational uncertainty in metres (None = exact)."
+          },
+          "place_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Place Name"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "title": "GeoPoint",
+        "description": "Lat/lon for the spatial scope a claim refers to.\n\nDistinct from entity locations (a claim about Pedro travelling from\nPopay\u00e1n to Quito has a different geo scope than Pedro's birthplace).\nOptional precision_m lets the renderer draw a confidence radius\ninstead of a point pin when locations are imprecise."
       },
       "GraphCandidateResponse": {
         "properties": {
@@ -35283,6 +36107,81 @@
         "title": "Interpretation",
         "description": "An interpretation \u2014 the result of applying a framework to evidence.\n\nAn interpretation is always about something (the claim or passage)\nand from the perspective of a specific framework."
       },
+      "InterpretationCreateRequest": {
+        "properties": {
+          "framework_id": {
+            "type": "string",
+            "title": "Framework Id"
+          },
+          "claim_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Claim Id"
+          },
+          "document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Id"
+          },
+          "passage_text": {
+            "type": "string",
+            "nullable": true,
+            "title": "Passage Text"
+          },
+          "interpretation_text": {
+            "type": "string",
+            "title": "Interpretation Text"
+          },
+          "act": {
+            "$ref": "#/components/schemas/InterpretiveActType"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "default": 0.5
+          },
+          "key_insights": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Key Insights"
+          },
+          "tensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tensions"
+          },
+          "connections": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Connections"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "default": "human"
+          }
+        },
+        "type": "object",
+        "required": [
+          "framework_id",
+          "interpretation_text",
+          "act"
+        ],
+        "title": "InterpretationCreateRequest"
+      },
       "InterpretationPatchRequest": {
         "properties": {
           "interpretation_text": {
@@ -35398,6 +36297,58 @@
           "act"
         ],
         "title": "InterpretationRequest"
+      },
+      "InterpretationUpdateRequest": {
+        "properties": {
+          "interpretation_text": {
+            "type": "string",
+            "nullable": true,
+            "title": "Interpretation Text"
+          },
+          "act": {
+            "$ref": "#/components/schemas/InterpretiveActType",
+            "nullable": true
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Confidence"
+          },
+          "key_insights": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Key Insights"
+          },
+          "tensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Tensions"
+          },
+          "connections": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Connections"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "title": "InterpretationUpdateRequest"
       },
       "InterpretiveActType": {
         "type": "string",
@@ -35974,6 +36925,104 @@
             "$ref": "#/components/schemas/SourceMetadata",
             "nullable": true,
             "description": "Structured citation and archival metadata for the primary source"
+          },
+          "speaker_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Speaker Name",
+            "description": "Free-text speaker label as it appears in the source \u2014 'the witness Pedro', 'the petitioner Maria'. May not match any known entity (use speaker_entity_id when it does)."
+          },
+          "speaker_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Speaker Entity Id",
+            "description": "Resolved KnowledgeEntity.id when speaker_name matches a known entity \u2014 lets the inspector navigate by speaker."
+          },
+          "subject_of_inquiry_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subject Of Inquiry Entity Id",
+            "description": "When the claim is testimony ABOUT a third party (Pedro testified about Maria), this names that third party. Distinct from subject_entity_id (the SVO subject = Pedro)."
+          },
+          "scribe_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Scribe Name",
+            "description": "Who physically wrote the source text. The scribe is often different from the speaker (Maria petitions; the scribe writes); their hand may inflect bias or formula."
+          },
+          "scribe_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Scribe Entity Id"
+          },
+          "editor_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Editor Name",
+            "description": "Editor of the curated collection / edition this claim was extracted from. For uncurated raw documents this is null."
+          },
+          "editor_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Editor Entity Id"
+          },
+          "quotation_kind": {
+            "$ref": "#/components/schemas/QuotationKind",
+            "nullable": true,
+            "description": "How literally the claim reproduces the source \u2014 verbatim vs paraphrase changes the warrant strength."
+          },
+          "provenance_layer": {
+            "$ref": "#/components/schemas/ProvenanceLayer",
+            "description": "Where on the page the source text lives. Defaults to main_text; PDF-bbox margin heuristics promote to marginalia / footnote / interlinear.",
+            "default": "main_text"
+          },
+          "source_language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Language",
+            "description": "Original language of THIS claim's source text (ISO 639-1). May differ from the document's primary language when a doc contains multilingual passages \u2014 a 17c Spanish record may embed a Latin formula. Mirrors `language` for back-compat; the extractor writes both."
+          },
+          "translation_chain": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Translation Chain",
+            "description": "Translation history as 'lang:source' tags, e.g. ['es:original', 'en:apple-translate', 'en:human-edit']. Empty list means the text is in its original language."
+          },
+          "audience": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audience",
+            "description": "Whom the claim was addressed to \u2014 'the Cabildo of Popay\u00e1n', 'the Audiencia'. Extracted from 'to the X' / 'addressed to Y' patterns in the source."
+          },
+          "source_genre": {
+            "$ref": "#/components/schemas/SourceGenre",
+            "nullable": true,
+            "description": "Genre of the source passage. Per-passage (not per-doc) \u2014 a 19c compiled collection may reprint petitions alongside royal decrees and private letters."
+          },
+          "claim_recorded_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Claim Recorded At",
+            "description": "When THIS claim's text was recorded, ISO 8601. Distinct from time_start (when the events happened) and from the document's date \u2014 a 1933 archive copy may reproduce an 1820 letter, so the letter's claim has time_start=1820 but claim_recorded_at=1820 (the letter's date), while a scribal annotation on the same page might have claim_recorded_at=1965."
+          },
+          "claim_geo": {
+            "$ref": "#/components/schemas/GeoPoint",
+            "nullable": true,
+            "description": "Spatial scope of the claim \u2014 distinct from entity locations. 'Pedro left Popay\u00e1n for Quito' has claim_geo pinned to the journey path's midpoint, not Pedro's birthplace."
+          },
+          "confidence_source": {
+            "type": "string",
+            "nullable": true,
+            "title": "Confidence Source",
+            "description": "Where the `confidence` value came from: 'llm_logprob' / 'heuristic' / 'human_review' / 'corroboration' / 'default'. Lets the inspector explain why a claim is rated 0.7 instead of treating the number as load-bearing."
+          },
+          "predicate_canonical": {
+            "type": "string",
+            "nullable": true,
+            "title": "Predicate Canonical",
+            "description": "Normalised predicate from kg/_common.py::CANONICAL_VERBS (~40-50 verbs across ontological / spatial / temporal / speech / role / kinship / property / causal / quantitative categories). Used for queries + SPARQL parity; predicate_verb is kept free-text for display."
           },
           "created_by": {
             "type": "string",
@@ -40089,6 +41138,19 @@
         "title": "ProvenanceInfo",
         "description": "Tracks how source metadata was obtained."
       },
+      "ProvenanceLayer": {
+        "type": "string",
+        "enum": [
+          "main_text",
+          "marginalia",
+          "footnote",
+          "annotation_later",
+          "scribal_correction",
+          "interlinear"
+        ],
+        "title": "ProvenanceLayer",
+        "description": "Where on a page the claim's source text lives.\n\nMarginalia and interlinear annotations were added by later readers and\ncarry different evidentiary weight than the main text. ``main_text``\nis the default; PDF-bbox heuristics (top/bottom margin offsets) flip\nto ``marginalia`` or ``footnote``."
+      },
       "ProviderCatalogResponse": {
         "properties": {
           "type": {
@@ -40519,6 +41581,18 @@
         ],
         "title": "QueueListResponse",
         "description": "Response from queue list endpoint."
+      },
+      "QuotationKind": {
+        "type": "string",
+        "enum": [
+          "verbatim",
+          "paraphrase",
+          "indirect",
+          "inference",
+          "free_indirect"
+        ],
+        "title": "QuotationKind",
+        "description": "How literally a claim reproduces its source text.\n\nPicks up the warrant strength: a verbatim quotation supports a stronger\nepistemic status than an inferred one. Defaults to ``paraphrase`` \u2014\nthat's the realistic default for an LLM extractor that summarised the\nsource rather than copying it verbatim."
       },
       "RAGMode": {
         "type": "string",
@@ -42660,6 +43734,26 @@
         ],
         "title": "SourceAuthority",
         "description": "How authoritative this source is for KG triangulation (#903).\n\nWeighted contribution to ``triangulation.support_count``:\n- primary:   1.0  \u2014 original archive document, primary research output\n- secondary: 0.6  \u2014 academic / journalistic citation of primary sources\n- tertiary:  0.3  \u2014 encyclopaedic / aggregate / textbook\n- unknown:   1.0  \u2014 default for un-tagged documents (treated as primary\n                   to avoid silently down-weighting existing libraries\n                   before the user has tagged anything)"
+      },
+      "SourceGenre": {
+        "type": "string",
+        "enum": [
+          "petition",
+          "testimony",
+          "royal_decree",
+          "private_letter",
+          "receipt",
+          "inventory",
+          "deed",
+          "minutes",
+          "report",
+          "article",
+          "book",
+          "note",
+          "other"
+        ],
+        "title": "SourceGenre",
+        "description": "Genre of the source passage that produced this claim.\n\nPer-passage, not per-document \u2014 a 19th-century compiled collection may\nreprint an 18th-century royal decree alongside private letters; each\nexcerpt carries its own genre. Classified per-doc at ingest, stamped\nonto every claim from that doc as a default; overridable per-claim."
       },
       "SourceMetadata": {
         "properties": {

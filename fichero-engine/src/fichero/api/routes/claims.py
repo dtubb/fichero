@@ -18,9 +18,13 @@ from fichero.knowledge_models import (
     ClaimCurationState,
     ClaimType,
     EpistemicStatus,
+    GeoPoint,
     KnowledgeClaim,
     KnowledgeEntity,
     PredictionMetadata,
+    ProvenanceLayer,
+    QuotationKind,
+    SourceGenre,
     SourceType,
 )
 from fichero.models import Document
@@ -59,6 +63,31 @@ class ClaimCreateRequest(BaseModel):
     # Claim classification
     claim_type: ClaimType | None = None
     epistemic_status: EpistemicStatus | None = None
+    # SVO triple (#984) — request-side optional; auto-canonicalised below
+    subject_canonical: str | None = None
+    subject_entity_id: str | None = None
+    predicate_verb: str | None = None
+    object_phrase: str | None = None
+    # Attribution taxonomy (#1123) — request-side optional. If the
+    # caller doesn't pass these, the create route's heuristic detection
+    # mirrors `_entity_writer.save_claim` so manually-created and
+    # extractor-created claims have the same attribution shape.
+    speaker_name: str | None = None
+    speaker_entity_id: str | None = None
+    subject_of_inquiry_entity_id: str | None = None
+    scribe_name: str | None = None
+    scribe_entity_id: str | None = None
+    editor_name: str | None = None
+    editor_entity_id: str | None = None
+    quotation_kind: QuotationKind | None = None
+    provenance_layer: ProvenanceLayer = ProvenanceLayer.main_text
+    source_language: str | None = None
+    translation_chain: list[str] = Field(default_factory=list)
+    audience: str | None = None
+    source_genre: SourceGenre | None = None
+    claim_recorded_at: str | None = None
+    claim_geo: GeoPoint | None = None
+    confidence_source: str | None = None
 
 
 class ClaimPatchRequest(BaseModel):
@@ -115,6 +144,31 @@ async def create_claim(
             status_code=404, detail=f"Unknown entities: {missing_entities}"
         )
 
+    # Auto-derive predicate_canonical + heuristic attribution to mirror
+    # the extractor pipeline (#1123). Without this, manually-created
+    # claims would be missing the canonicalisation that extractor-
+    # created claims get for free, and the inspector / SPARQL views
+    # would treat the two writers' output differently. We import the
+    # helpers from `_entity_writer` so there's one source of truth.
+    from fichero.kg._common import canonical_verb as _canonical_verb
+    from fichero.workflows.tools._entity_writer import (
+        _detect_audience,
+        _detect_quotation_kind,
+        _detect_speaker,
+    )
+
+    predicate_canonical = _canonical_verb(request.predicate_verb)
+    quotation_kind = request.quotation_kind or _detect_quotation_kind(
+        request.predicate_verb, request.source_excerpt
+    )
+    speaker_name = request.speaker_name or _detect_speaker(
+        request.text, request.source_excerpt
+    )
+    audience = request.audience or _detect_audience(
+        request.text, request.source_excerpt
+    )
+    source_language = request.source_language or request.language
+
     now = datetime.now()
     claim = KnowledgeClaim(
         text=request.text.strip(),
@@ -140,6 +194,29 @@ async def create_claim(
         source_languages=request.source_languages,
         claim_type=request.claim_type,
         epistemic_status=request.epistemic_status,
+        # SVO + canonical predicate
+        subject_canonical=request.subject_canonical,
+        subject_entity_id=request.subject_entity_id,
+        predicate_verb=request.predicate_verb,
+        predicate_canonical=predicate_canonical,
+        object_phrase=request.object_phrase,
+        # #1123 attribution — explicit request fields win over heuristics.
+        speaker_name=speaker_name,
+        speaker_entity_id=request.speaker_entity_id,
+        subject_of_inquiry_entity_id=request.subject_of_inquiry_entity_id,
+        scribe_name=request.scribe_name,
+        scribe_entity_id=request.scribe_entity_id,
+        editor_name=request.editor_name,
+        editor_entity_id=request.editor_entity_id,
+        quotation_kind=quotation_kind,
+        provenance_layer=request.provenance_layer,
+        source_language=source_language,
+        translation_chain=request.translation_chain,
+        audience=audience,
+        source_genre=request.source_genre,
+        claim_recorded_at=request.claim_recorded_at,
+        claim_geo=request.claim_geo,
+        confidence_source=request.confidence_source,
     )
     db.save(claim)
     return claim

@@ -5015,6 +5015,138 @@
     "hermeneutics": [
       {
         "method": "POST",
+        "path": "/hermeneutics/frameworks",
+        "operation_id": "create_framework_api_hermeneutics_frameworks_post",
+        "summary": "Create Framework",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "FrameworkCreateRequest",
+        "response_model": "InterpretiveFramework"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/frameworks",
+        "operation_id": "list_frameworks_api_hermeneutics_frameworks_get",
+        "summary": "List Frameworks",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "framework_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "is_active",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[InterpretiveFramework]"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/frameworks/{framework_id}",
+        "operation_id": "get_framework_api_hermeneutics_frameworks__framework_id__get",
+        "summary": "Get Framework",
+        "path_params": [
+          "framework_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "InterpretiveFramework"
+      },
+      {
+        "method": "PATCH",
+        "path": "/hermeneutics/frameworks/{framework_id}",
+        "operation_id": "update_framework_api_hermeneutics_frameworks__framework_id__patch",
+        "summary": "Update Framework",
+        "path_params": [
+          "framework_id"
+        ],
+        "query_params": [],
+        "request_model": "FrameworkUpdateRequest",
+        "response_model": "InterpretiveFramework"
+      },
+      {
+        "method": "DELETE",
+        "path": "/hermeneutics/frameworks/{framework_id}",
+        "operation_id": "delete_framework_api_hermeneutics_frameworks__framework_id__delete",
+        "summary": "Delete Framework",
+        "path_params": [
+          "framework_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "FrameworkDeactivatedResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/hermeneutics/interpretations",
+        "operation_id": "create_interpretation_api_hermeneutics_interpretations_post",
+        "summary": "Create Interpretation",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "InterpretationCreateRequest",
+        "response_model": "Interpretation"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/interpretations",
+        "operation_id": "list_interpretations_api_hermeneutics_interpretations_get",
+        "summary": "List Interpretations",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "framework_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "claim_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "document_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "act",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[Interpretation]"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/interpretations/{interpretation_id}",
+        "operation_id": "get_interpretation_api_hermeneutics_interpretations__interpretation_id__get",
+        "summary": "Get Interpretation",
+        "path_params": [
+          "interpretation_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "Interpretation"
+      },
+      {
+        "method": "PATCH",
+        "path": "/hermeneutics/interpretations/{interpretation_id}",
+        "operation_id": "update_interpretation_api_hermeneutics_interpretations__interpretation_id__patch",
+        "summary": "Update Interpretation",
+        "path_params": [
+          "interpretation_id"
+        ],
+        "query_params": [],
+        "request_model": "InterpretationUpdateRequest",
+        "response_model": "Interpretation"
+      },
+      {
+        "method": "POST",
         "path": "/hermeneutics/patterns",
         "operation_id": "create_pattern_api_hermeneutics_patterns_post",
         "summary": "Create Pattern",
