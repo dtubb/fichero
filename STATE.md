@@ -12,20 +12,12 @@
 
 ## Next Session — Start Here
 
-1. **SwiftUI issues (pick one)**:
-   - **#1049** — workflow nodes spacing in editor
-   - **#1042** — editor missing merge→catalogue edge
-   - **#1044** — per-page progress display
-   - **#1040** — activity progress wrong node
-   - **#1070** — pane widths jump
-   - **#1036** — claim SVO readability
-   - **#1035/#1034** — KG viewer cosmetics
+**Backend worker queue continues:**
+1. **#1017** — extractor schema round-trip tests + backend integration smoke
+2. **#988** — entity resolution: probabilistic scoring + auto-merge threshold
+3. After backend work: SwiftUI issues from prior STATE
 
-2. **Three-leg check still needed** before PR: `swiftlint` + `xcodebuild` + `RunAllTests`. Last clean build: 7:04 PM today (208c36fb).
-
-3. **KG quality gap**: no `person` entities extracted from fichero-loop-test — "Don Antonio" is keywords only. `quotes_extract` is now available to help, but person extraction root cause (NER extractor prompt quality) should be reviewed.
-
-4. **Defer**: #1075 (API list vs paginated envelope — breaking change risk).
+**Note**: #1025 completed (mermaid local rendering). Queue updated in agent-work/worker-status.md. Next autonomous loop iteration will pick #1017.
 
 ## In Progress
 

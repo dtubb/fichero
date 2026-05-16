@@ -1835,3 +1835,7 @@ Audits produced:
 - Fixed test_extractors.py: added quotes_extract to EXTRACTOR_NAMES + 'quotes' to known artifact types allowlist
 - Committed and pushed complete #1099 quotes_extract implementation (457bc1e9)
 - Closed GitHub issue #1099
+
+## 2026-05-16 — Backend Worker Session (Autonomous, 1 task)
+
+- **#1025**: Switch workflow/thread diagram rendering from remote mermaid.ink to local PYPPETEER. Added `MermaidDrawMethod.PYPPETEER` parameter to `draw_mermaid_png()` calls in visualization.py and threads.py. Import: `from langchain_core.runnables.graph import MermaidDrawMethod` (not langgraph.graph). Eliminates remote API dependency, handles arbitrarily complex graphs without 400 errors.
