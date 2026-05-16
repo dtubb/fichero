@@ -45,6 +45,7 @@ import time
 import unicodedata
 import duckdb
 from pydantic import BaseModel
+from pydantic_core import PydanticUndefinedType
 from fichero.db_embeddings import DatabaseEmbeddingMixin
 from fichero.db_manager import DatabaseManager, db_manager  # noqa: F401
 from fichero.errors import ErrorCategory, handle_error
@@ -1067,9 +1068,8 @@ class Database(DatabaseEmbeddingMixin):
         for name, field_info in model.model_fields.items():
             value = data.get(name)
             if value is None:
-                # For non-Optional dict/list fields with a default_factory, use
-                # the default instead of None to prevent Pydantic ValidationError
-                # when a DB column is NULL (e.g. after schema migration).
+                # For non-Optional fields, substitute the field's default when the
+                # DB returns NULL (common after schema migration adds a new column).
                 annotation = field_info.annotation
                 raw_origin = get_origin(annotation)
                 is_optional = raw_origin is Union or raw_origin is UnionType
@@ -1081,6 +1081,11 @@ class Database(DatabaseEmbeddingMixin):
                         if callable(default_factory):
                             result[name] = default_factory()
                             continue
+                    # Scalar default (e.g. enum fields added after initial schema).
+                    scalar_default = field_info.default
+                    if not isinstance(scalar_default, PydanticUndefinedType):
+                        result[name] = scalar_default
+                        continue
                 result[name] = value
                 continue
 

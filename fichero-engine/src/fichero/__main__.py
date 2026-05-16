@@ -1444,6 +1444,149 @@ def providers_delete(
     _invoke(ctx, lambda c: c.delete_provider(provider_id))
 
 
+@app.command()
+def check(ctx: typer.Context) -> None:
+    """Probe every endpoint group and report which are reachable.
+
+    Run this after upgrading the backend to detect CLI / backend drift:
+    a 404 on a previously-working route means the backend route moved or
+    was renamed. A TypeError on a response field means the schema changed.
+
+    Exit code 0 = all probes pass. Exit code 1 = one or more failures.
+    """
+    c = _client(ctx)
+
+    # Each probe: (label, callable). Callable returns a truthy value or raises.
+    def _probe_health():
+        r = c.request("GET", "/api/health")
+        assert isinstance(r, dict) and r.get("status") == "healthy"
+
+    def _probe_docs():
+        r = c.request("GET", "/api/documents", params={"limit": 1})
+        assert isinstance(r, list)
+
+    def _probe_workflows():
+        r = c.request("GET", "/api/workflows", params={"limit": 1})
+        assert isinstance(r, list)
+
+    def _probe_search():
+        r = c.request("POST", "/api/search", json={"query": "", "limit": 1, "min_score": 0.0})
+        assert isinstance(r, dict) and "results" in r
+
+    def _probe_activity():
+        r = c.request("GET", "/api/activity", params={"limit": 1})
+        assert isinstance(r, (list, dict))
+
+    def _probe_entities():
+        r = c.request("GET", "/api/entities/top", params={"limit": 1})
+        assert isinstance(r, list)
+
+    def _probe_kg_search():
+        r = c.request("GET", "/api/kg/search", params={"q": "test", "limit": 1})
+        assert isinstance(r, (list, dict))
+
+    def _probe_settings():
+        r = c.request("GET", "/api/settings/ai-defaults")
+        assert isinstance(r, dict) and "small_provider" in r
+
+    def _probe_providers():
+        r = c.request("GET", "/api/providers")
+        assert isinstance(r, list)
+
+    def _probe_search_stats():
+        r = c.request("GET", "/api/search/stats")
+        assert isinstance(r, dict)
+
+    def _probe_kg_communities():
+        r = c.request("GET", "/api/kg/graph/communities", params={"limit": 1})
+        assert isinstance(r, (list, dict))
+
+    def _probe_audit():
+        r = c.request("GET", "/api/kg/entity-curation/audit", params={"limit": 1})
+        assert isinstance(r, (list, dict))
+
+    def _probe_openapi():
+        r = c.request("GET", "/openapi.json")
+        assert isinstance(r, dict) and "paths" in r
+        return r  # returned for drift check below
+
+    probes: list[tuple[str, object]] = [
+        ("health            GET /api/health", _probe_health),
+        ("docs              GET /api/documents", _probe_docs),
+        ("workflows         GET /api/workflows", _probe_workflows),
+        ("search            POST /api/search", _probe_search),
+        ("search stats      GET /api/search/stats", _probe_search_stats),
+        ("activity          GET /api/activity", _probe_activity),
+        ("entity top        GET /api/entities/top", _probe_entities),
+        ("kg search         GET /api/kg/search", _probe_kg_search),
+        ("kg communities    GET /api/kg/graph/communities", _probe_kg_communities),
+        ("settings          GET /api/settings/ai-defaults", _probe_settings),
+        ("providers         GET /api/providers", _probe_providers),
+        ("audit log         GET /api/kg/entity-curation/audit", _probe_audit),
+        ("openapi schema    GET /openapi.json", _probe_openapi),
+    ]
+
+    passed = 0
+    failed = 0
+    openapi_schema = None
+
+    for label, probe_fn in probes:
+        try:
+            result = probe_fn()  # type: ignore[operator]
+            if label.startswith("openapi"):
+                openapi_schema = result
+            typer.echo(f"  \033[32m✓\033[0m  {label}")
+            passed += 1
+        except Exception as exc:
+            typer.echo(f"  \033[31m✗\033[0m  {label}  — {type(exc).__name__}: {exc}")
+            failed += 1
+
+    # Drift check: compare CLI-known routes against backend OpenAPI paths.
+    # Routes present in OpenAPI but never called by any CLI probe are flagged
+    # as potential CLI gaps (the CLI may be missing coverage).
+    cli_paths = {
+        "/api/health", "/api/documents", "/api/workflows", "/api/search",
+        "/api/search/stats", "/api/activity", "/api/entities/top",
+        "/api/entities", "/api/kg/search", "/api/kg/graph/communities",
+        "/api/kg/neighborhood/{entity_id}", "/api/kg/sparql",
+        "/api/settings/ai-defaults", "/api/providers", "/api/artifacts",
+        "/api/kg/entity-curation/audit",
+    }
+    if openapi_schema:
+        backend_paths: set[str] = set(openapi_schema.get("paths", {}).keys())
+        uncovered = sorted(
+            p for p in backend_paths
+            if p not in cli_paths
+            and not p.startswith("/api/search/views")
+            and not p.startswith("/api/search/saved")
+            and not p.startswith("/api/kg/interpretations")
+            and not p.startswith("/api/classifications")
+            and not p.startswith("/api/mind-palace")
+            and not p.startswith("/api/chat")
+            and not p.startswith("/api/notes")
+            and not p.startswith("/api/projects")
+            and not p.startswith("/api/research")
+            and not p.startswith("/api/ingest")
+            and not p.startswith("/api/actions")
+            and not p.startswith("/api/mcp")
+            and not p.startswith("/api/multilingual")
+            and not p.startswith("/api/folders")
+            and not p.startswith("/api/integrations")
+            and not p.startswith("/api/embeddings")
+            and not p.startswith("/api/workflows/execute")
+            and not p.startswith("/api/workflows/stream")
+            and not p.startswith("/api/workflows/threads")
+        )
+        if uncovered:
+            typer.echo(f"\n  \033[33m⚠\033[0m  {len(uncovered)} backend routes not covered by CLI probes:")
+            for p in uncovered[:20]:
+                typer.echo(f"       {p}")
+
+    typer.echo(f"\n  {passed} passed, {failed} failed")
+    if failed:
+        raise typer.Exit(1)
+
+
 def main() -> None:
     """Console entry point."""
     app()
