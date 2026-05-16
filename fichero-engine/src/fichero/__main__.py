@@ -314,14 +314,35 @@ def search(
         help="Search mode: [semantic | fulltext (alias: keyword) | hybrid].",
         callback=_validate_search_type,
     ),
+    in_doc: Optional[str] = typer.Option(
+        None, "--in-doc", help="Restrict results to this document ID."
+    ),
+    in_folder: Optional[str] = typer.Option(
+        None, "--in-folder", help="Restrict results to this folder ID."
+    ),
 ) -> None:
-    """Search documents."""
+    """Search documents. Use --in-doc / --in-folder to scope results."""
     if ctx.obj["json"]:
-        _invoke(ctx, lambda c: c.search(query, limit=limit, search_type=search_type))
+        _invoke(
+            ctx,
+            lambda c: c.search(
+                query,
+                limit=limit,
+                search_type=search_type,
+                doc_id=in_doc,
+                folder_id=in_folder,
+            ),
+        )
         return
     try:
         with _client(ctx) as client:
-            data = client.search(query, limit=limit, search_type=search_type)
+            data = client.search(
+                query,
+                limit=limit,
+                search_type=search_type,
+                doc_id=in_doc,
+                folder_id=in_folder,
+            )
     except FicheroError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -1171,6 +1192,51 @@ def entity_context(
     in 1 folder, with 47 claims.'
     """
     _invoke(ctx, lambda c: c.entity_context(entity_id))
+
+
+@entity_app.command("similar")
+def entity_similar(
+    ctx: typer.Context,
+    entity_id: str = typer.Argument(..., help="Entity ID."),
+    hops: int = typer.Option(1, "--hops", help="Graph hops to traverse (1-3)."),
+    limit: int = typer.Option(20, "--limit"),
+    rank: str = typer.Option(
+        "edge_weight",
+        "--rank",
+        help="Rank neighbours by: edge_weight | degree | name.",
+    ),
+) -> None:
+    """Show entities neighbouring this one in the knowledge graph (co-claim
+    graph traversal). Use this to find related names, themes, or people that
+    appear alongside the focus entity.
+    """
+    if ctx.obj["json"]:
+        _invoke(
+            ctx,
+            lambda c: c.entity_neighborhood(entity_id, hops=hops, limit=limit, rank=rank),
+        )
+        return
+    try:
+        with _client(ctx) as client:
+            data = client.entity_neighborhood(entity_id, hops=hops, limit=limit, rank=rank)
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    focus = data.get("focus") if isinstance(data, dict) else {}
+    neighbors = data.get("neighbors") if isinstance(data, dict) else []
+    typer.echo(f"focus: {focus.get('canonical_name', entity_id)} ({entity_id[:8]})")
+    typer.echo(f"neighbours ({len(neighbors)}):")
+    for n in neighbors[:limit]:
+        if not isinstance(n, dict):
+            typer.echo(f"  {n}")
+            continue
+        nid = str(n.get("entity_id") or n.get("id") or "?")[:8]
+        name = n.get("canonical_name") or n.get("name") or nid
+        etype = n.get("entity_type") or ""
+        weight = n.get("edge_weight") or n.get("weight")
+        w_str = f"  w={weight:.2f}" if isinstance(weight, (int, float)) else ""
+        typer.echo(f"  {nid}  {name:<30}  {etype}{w_str}")
 
 
 @claim_app.command("at-page")

@@ -588,6 +588,20 @@ class FicheroClient:
             )
         )
 
+    def entity_neighborhood(
+        self,
+        entity_id: str,
+        *,
+        hops: int = 1,
+        limit: int = 50,
+        rank: str = "edge_weight",
+    ) -> Any:
+        return self.request(
+            "GET",
+            f"/api/kg/neighborhood/{entity_id}",
+            params={"hops": hops, "limit": limit, "rank": rank},
+        )
+
     # -- search ------------------------------------------------------------
     def search(
         self,
@@ -596,16 +610,26 @@ class FicheroClient:
         limit: int = 10,
         search_type: str = "hybrid",
         min_score: float = 0.3,
+        doc_id: str | None = None,
+        folder_id: str | None = None,
     ) -> Any:
+        body: dict = {
+            "query": query,
+            "limit": limit,
+            "search_type": search_type,
+            "min_score": min_score,
+        }
+        filters: dict = {}
+        if doc_id:
+            filters["document_id"] = doc_id
+        if folder_id:
+            filters["folder_id"] = folder_id
+        if filters:
+            body["filters"] = filters
         return self.request(
             "POST",
             "/api/search",
-            json={
-                "query": query,
-                "limit": limit,
-                "search_type": search_type,
-                "min_score": min_score,
-            },
+            json=body,
         )
 
     # -- activity ----------------------------------------------------------
