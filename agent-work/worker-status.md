@@ -16,18 +16,18 @@
 - [x] #1138 — fastembed pooling (already fixed)
 
 ## Queue (Round 4 — CLI typed client + output)
-- [ ] #1139 — Generate typed Python client from openapi.json (drop hand-written URLs)
+- [x] #1139 — Generate typed Python client from openapi.json (drop hand-written URLs)
 - [ ] #1140 — Audit + fix response model coverage (typed models end-to-end)
 - [ ] #1141 — Improve CLI output formatting (entity/claim/doc renderers)
 
 ## Current
-next: #1139
+next: #1140
 
 ## Attempts
 {}
 
 ## Last Completed
-#1138
+#1139
 
 ## IMPORTANT
 - Work through ONE issue per session
