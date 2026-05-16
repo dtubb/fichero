@@ -2,9 +2,9 @@
 
 ## Snapshot
 
-**Branch: 0.0.2** · Latest: `e9ec6452` · Working tree clean.
+**Branch: 0.0.2** · Latest: `45b6d773` · Working tree clean.
 
-✅ **Backend queue CLEARED** — all 4 priority issues completed. Ready for: SwiftUI fixes, 0.0.3 prep, or release pipeline.
+✅ **Backend queue CLEARED** — all 4 priority issues completed. Ready for: SwiftUI fixes, 0.0.3 prep, or release pipeline. Daniel is testing 0.0.2.
 
 ## Tooling Now Available
 
