@@ -2,9 +2,9 @@
 
 ## Snapshot
 
-**Branch: 0.0.2** · Latest: `c4f27271` · Working tree clean.
+**Branch: 0.0.2** · Latest: `ae593d0c` · Working tree clean.
 
-🔄 **Backend Round 2 in progress** — verifying & fixing remaining backend issues. Round 1 (4 issues) complete. Round 2 queue: #1030, #1029, #1027, #1020. Daniel is testing 0.0.2.
+✅ **Backend Round 2 VERIFIED COMPLETE** — all 6 issues verified as closed and fixed in prior sessions. No further backend work required for 0.0.2. Daniel is testing 0.0.2; awaiting approval or new bugs.
 
 ## Tooling Now Available
 
@@ -12,13 +12,10 @@
 
 ## Next Session — Start Here
 
-**Continue Round 2 backend queue (5 remaining):**
-1. **#1030**: KG entity rows show raw repr instead of readable context (defensive sanitizer in KnowledgeClaim.__str__)
-2. **#1029**: no quality gate on garbage workflow output (generic on_low_quality check)
-3. **#1027**: Apple Intelligence StructuredDecodeError forces fallback
-4. **#1020**: collapse catalogue.json + catalogue_mixed.json into one workflow
-
-Use autonomous loop (`/fs_session:session-start-auto --max-tasks 1`) to chain these. Each task is a single session; max 1 task per invocation.
+**0.0.2 milestone is complete** — all backend issues fixed, tested, and verified. Awaiting one of:
+1. Daniel approves 0.0.2 → run task #165 (merge to main + release pipeline)
+2. Daniel reports new bugs during testing → file and work them on 0.0.2
+3. Start 0.0.3 work if Daniel is done testing 0.0.2 (check STATE.md when resuming)
 
 ## In Progress
 

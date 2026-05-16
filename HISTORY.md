@@ -1876,3 +1876,15 @@ Audits produced:
 - **#1033** — verified transcribe text-layer short-circuit already fixed in commit 7ef16274; marked complete in worker-status.md, updated STATE.md queue pointer to #1030
 - Round 2 progress: 2 of 6 issues verified complete (both pre-existing fixes); 4 issues remaining
 
+
+## 2026-05-16 — Backend Round 2 Verification (22:30 ADT)
+
+Autonomous loop final pass — verified all 6 remaining issues in Round 2 queue are already fixed and closed:
+- ✅ #1037 (extract_all performance instrumentation)
+- ✅ #1033 (transcribe text-layer short-circuit)
+- ✅ #1030 (SVO repr leak, _normalize_kwarg_repr_fields sanitizer, commit 79d01166)
+- ✅ #1029 (workflow quality gate, output_quality.py module, builder integration)
+- ✅ #1027 (Apple Intelligence StructuredDecodeError, on-device retry fallback)
+- ✅ #1020 (collapse catalogue workflows)
+
+**Status**: 0.0.2 milestone backend work is fully verified complete. All tests passing, all issues closed. Daniel is testing 0.0.2; awaiting approval or new bug filings. Next: merge to main (task #165) or start 0.0.3.
