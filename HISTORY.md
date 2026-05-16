@@ -1839,3 +1839,8 @@ Audits produced:
 ## 2026-05-16 — Backend Worker Session (Autonomous, 1 task)
 
 - **#1025**: Switch workflow/thread diagram rendering from remote mermaid.ink to local PYPPETEER. Added `MermaidDrawMethod.PYPPETEER` parameter to `draw_mermaid_png()` calls in visualization.py and threads.py. Import: `from langchain_core.runnables.graph import MermaidDrawMethod` (not langgraph.graph). Eliminates remote API dependency, handles arbitrarily complex graphs without 400 errors.
+
+## 2026-05-16 — Backend Test Coverage (Layer 2: Extractor Schema Round-Trip)
+
+- **#1017 Layer 2**: Added 5 comprehensive invariant violation logging tests for extractor → KG round-trip validation. Validates that anchorless items, degenerate descriptions, and SVO incompleteness surface in activity logs (not silent gaps). Tests lock the contract that extraction quality issues are observable, preventing #1006 (empty SVO), #1016 (degenerate descriptions), #1003 (silent missing pages). 226 extraction tests pass (5 new). Full backend: 2823 passed, 1 pre-existing failure.
+- Commits: `345f9690` (test layer), `d6d012fa` (status update)

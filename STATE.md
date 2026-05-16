@@ -2,9 +2,9 @@
 
 ## Snapshot
 
-**Branch: 0.0.2** · Latest: `457bc1e9` · Working tree clean.
+**Branch: 0.0.2** · Latest: `d6d012fa` · Working tree clean.
 
-#1099 quotes_extract complete and shipped. #1082 blank-page artifact fix shipped.
+#1017 test layer complete. Queue: #988 (entity resolution).
 
 ## Tooling Now Available
 
@@ -13,11 +13,11 @@
 ## Next Session — Start Here
 
 **Backend worker queue continues:**
-1. **#1017** — extractor schema round-trip tests + backend integration smoke
-2. **#988** — entity resolution: probabilistic scoring + auto-merge threshold
-3. After backend work: SwiftUI issues from prior STATE
+1. **#988** — entity resolution: probabilistic scoring + auto-merge threshold
+2. After backend work: SwiftUI issues from prior STATE
 
-**Note**: #1025 completed (mermaid local rendering). Queue updated in agent-work/worker-status.md. Next autonomous loop iteration will pick #1017.
+**Completed this session:**
+- #1017 Layer 2 (extractor schema round-trip tests): 5 new invariant violation logging tests, validates extraction quality is observable in activity logs, prevents silent drops
 
 ## In Progress
 
