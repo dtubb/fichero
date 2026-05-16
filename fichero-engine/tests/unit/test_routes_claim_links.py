@@ -207,3 +207,67 @@ class TestGetRelatedClaims:
     def test_missing_claim_returns_404(self, client):
         r = client.get("/api/claims/no-such-claim/related")
         assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# #1123 Phase B — new ClaimRelationType kinds
+# ---------------------------------------------------------------------------
+
+
+class TestExtendedClaimRelationTypes:
+    """The new relation kinds added by #1123 round-trip through the
+    POST/GET/PATCH/DELETE endpoints. Without enum extension the FastAPI
+    validator would 422-reject these values; this test pins the enum
+    addition in place.
+    """
+
+    @pytest.mark.parametrize(
+        "kind",
+        [
+            "corroborates",
+            "derives_from",
+            "cites",
+            "follows",
+            "caused_by",
+            "related_to",
+        ],
+    )
+    def test_create_with_new_kind(self, client, db, kind):
+        doc = _make_document(db)
+        c1 = _make_claim(db, doc, "claim 1")
+        c2 = _make_claim(db, doc, "claim 2")
+        r = client.post(
+            f"/api/claims/{c1.id}/links",
+            json={"related_claim_id": c2.id, "relation_type": kind},
+        )
+        assert r.status_code == 200, r.text
+        link_id = r.json()["id"]
+        # Round-trip the value back via GET
+        r2 = client.get(f"/api/claim-links/{link_id}")
+        assert r2.status_code == 200
+        assert r2.json()["relation_type"] == kind
+
+    def test_patch_to_new_kind(self, client, db):
+        doc = _make_document(db)
+        c1 = _make_claim(db, doc)
+        c2 = _make_claim(db, doc)
+        link = _make_link(db, c1, c2, ClaimRelationType.supports)
+        r = client.patch(
+            f"/api/claim-links/{link.id}",
+            json={"relation_type": "corroborates"},
+        )
+        assert r.status_code == 200
+        assert r.json()["relation_type"] == "corroborates"
+
+    def test_filter_related_by_new_kind(self, client, db):
+        doc = _make_document(db)
+        c1 = _make_claim(db, doc, "anchor")
+        c2 = _make_claim(db, doc, "supporter")
+        c3 = _make_claim(db, doc, "citation")
+        _make_link(db, c1, c2, ClaimRelationType.supports)
+        _make_link(db, c1, c3, ClaimRelationType.cites)
+        r = client.get(f"/api/claims/{c1.id}/related?relation_type=cites")
+        assert r.status_code == 200
+        ids = [c["id"] for c in r.json()]
+        assert c3.id in ids
+        assert c2.id not in ids

@@ -288,10 +288,45 @@ class ClaimCurationState(str, Enum):
 
 
 class ClaimRelationType(str, Enum):
+    """Typed relationship kinds for KnowledgeClaimLink (#1123 Phase B).
+
+    Originally four kinds (supports / contradicts / refines / duplicate_of).
+    #1123 extends with five new dimensions plus ``related_to`` (the generic
+    fallback used by ``kg_predictions._record_predictions`` when a model
+    surfaces a relation outside the curated set):
+
+    - ``corroborates`` — independent evidence agreeing with the source
+      claim. Distinct from ``supports`` (which just reinforces with
+      additional evidence drawn from the same line of reasoning).
+    - ``derives_from`` — claim B is inferred from / built on claim A;
+      removing A invalidates B. Stronger than ``cites``.
+    - ``cites`` — B references A as a source. Bibliographic / citation
+      graph use.
+    - ``follows`` — temporal sequence (A then B). Doesn't imply
+      causation; ``caused_by`` is the explicit causal claim.
+    - ``caused_by`` — A is the cause of B. Strong claim; reviewers
+      should treat with corroboration.
+    - ``related_to`` — generic fallback when the typed kinds don't
+      fit. Closes the latent crash in
+      ``kg_predictions.py:269`` where the relation_map fallback
+      referenced this value before it existed.
+
+    Note: ``contests`` was considered as a synonym for ``contradicts``
+    but excluded — same semantic, different word, doesn't earn a
+    separate enum slot. Writers should keep using ``contradicts``.
+    """
+
     supports = "supports"
     contradicts = "contradicts"
     refines = "refines"
     duplicate_of = "duplicate_of"
+    # --- #1123 Phase B additions ---
+    corroborates = "corroborates"
+    derives_from = "derives_from"
+    cites = "cites"
+    follows = "follows"
+    caused_by = "caused_by"
+    related_to = "related_to"
 
 
 # --- #1123 attribution-taxonomy enums (Phase A) ---
