@@ -654,7 +654,7 @@ class FicheroClient:
     ) -> Any:
         return self.request(
             "GET",
-            f"/api/kg/neighborhood/{entity_id}",
+            f"/api/kg/graph/neighborhood/{entity_id}",
             params={"hops": hops, "limit": limit, "rank": rank},
         )
 
