@@ -387,6 +387,65 @@ def upsert_entity(
         description=description,
     )
     db.save(entity)
+
+    # Stage 4.5 — Race recovery (#1121)
+    # ---------------------------------
+    # Between Stage 1's "no existing row" lookup and this Stage 4 save,
+    # a concurrent caller can hit Stages 1-4 with the same
+    # (canonical_name, entity_type) and also create a new row. Both
+    # writes succeed (different UUIDs, no PK conflict to upsert
+    # against), leaving silent duplicates. The entity inspector then
+    # aggregates against ONE id and misses claims attached to the
+    # other.
+    #
+    # Recovery: re-query for siblings with the same canonical_name +
+    # entity_type. If more than one row exists, keep the OLDEST
+    # (lowest created_at) as canonical, fold every duplicate's
+    # aliases + canonical_name into the survivor's aliases, then
+    # delete the duplicates. Idempotent — if two concurrent callers
+    # both reconcile, they converge on the same survivor and the
+    # second cleanup is a no-op.
+    #
+    # The race window remains microscopic (DuckDB serializes writes
+    # on a single connection; cross-thread sharing the same db_manager
+    # cache is the realistic exposure), so the post-write re-query
+    # almost always returns just our row. The cost is one extra
+    # query per Stage 4 entity creation — negligible compared to the
+    # LLM extraction cost upstream.
+    siblings = db.query(
+        KnowledgeEntity,
+        canonical_name=canonical_name,
+        entity_type=entity_type,
+    )
+    if len(siblings) > 1:
+        siblings.sort(key=lambda e: e.created_at)
+        survivor = siblings[0]
+        # Aliases-fold helper inline so it's local to the race path.
+        seen_folded = {a.strip().casefold(): a.strip()
+                       for a in (survivor.aliases or [])
+                       if a and a.strip()}
+        canonical_key = survivor.canonical_name.strip().casefold()
+        for dup in siblings[1:]:
+            for surface in (
+                [dup.canonical_name] + list(dup.aliases or [])
+            ):
+                if not surface or not surface.strip():
+                    continue
+                key = surface.strip().casefold()
+                if key != canonical_key and key not in seen_folded:
+                    seen_folded[key] = surface.strip()
+            db.delete(dup)
+        survivor.aliases = sorted(seen_folded.values())
+        db.save(survivor)
+        logger.warning(
+            "upsert_entity: race-recovery merged %d duplicate(s) of "
+            "%r → %s (#1121)",
+            len(siblings) - 1, canonical_name, survivor.id,
+        )
+        # The caller wants the surviving id, not the one we just
+        # created (which we just deleted above if we lost the race).
+        return survivor.id
+
     try:
         from fichero.kg import entity_vectors
 

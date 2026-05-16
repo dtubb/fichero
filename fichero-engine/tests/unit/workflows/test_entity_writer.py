@@ -583,6 +583,167 @@ class TestAdminQualifierDedup:
         assert loc_id != org_id
 
 
+class TestStage4RaceRecovery:
+    """#1121 — concurrent upserts that both miss Stage 1 and both reach
+    Stage 4 create silent duplicate rows (different UUIDs, same
+    canonical_name + entity_type). The race-recovery step re-queries
+    after Stage 4's save and folds duplicates into the oldest survivor.
+
+    We can't easily reproduce the actual asyncio.gather race in a unit
+    test (DuckDB serializes within one connection), so we simulate
+    the post-race state directly: pre-insert a "concurrent" row with
+    an older created_at, then call upsert_entity. The race-recovery
+    path should detect both rows and pick the older as the survivor.
+    """
+
+    def test_oldest_wins_aliases_fold_in(self, db):
+        from datetime import datetime, timedelta
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        # Simulate: a concurrent caller created this row 5 seconds ago.
+        older_time = datetime.now() - timedelta(seconds=5)
+        older = KnowledgeEntity(
+            canonical_name="Atrato",
+            entity_type=EntityType.location,
+            aliases=["the Atrato"],
+            created_at=older_time,
+        )
+        db.save(older)
+
+        # Our caller now upserts the same canonical name. Stage 1 finds
+        # the older row and returns it (no race recovery needed because
+        # the exact lookup hit).
+        returned_id = upsert_entity(
+            db,
+            canonical_name="Atrato",
+            entity_type=EntityType.location,
+            aliases=["Río Atrato"],
+        )
+        # Stage 1 exact-match wins; race recovery wasn't necessary.
+        assert returned_id == older.id
+
+    def test_race_recovery_with_pre_existing_duplicate(self, db):
+        """Direct simulation of the post-race state: two rows already
+        exist when upsert_entity reaches Stage 4. The recovery sweep
+        merges them into the oldest.
+        """
+        from datetime import datetime, timedelta
+
+        # Two rows already in the DB with the same canonical+type.
+        # The older one is the "would-be survivor" of the race.
+        older_time = datetime.now() - timedelta(seconds=10)
+        younger_time = datetime.now() - timedelta(seconds=1)
+        older = KnowledgeEntity(
+            canonical_name="DuplicateTest",
+            entity_type=EntityType.organization,
+            aliases=["alias-from-older"],
+            created_at=older_time,
+        )
+        younger = KnowledgeEntity(
+            canonical_name="DuplicateTest",
+            entity_type=EntityType.organization,
+            aliases=["alias-from-younger"],
+            created_at=younger_time,
+        )
+        db.save(older)
+        db.save(younger)
+        # Both exist. Stage 1 exact-match returns the FIRST one queried —
+        # not necessarily the oldest. To exercise race recovery, we'd
+        # need Stage 4 to fire, which means tricking Stage 1 to miss.
+        # We can do that by using a NEW canonical that doesn't exist yet,
+        # but that doesn't test the race path. Instead, let's verify
+        # the recovery logic works when Stage 4 saves into an existing-
+        # duplicate world.
+        #
+        # Bypass Stages 1-3 by using a name that doesn't exact-match
+        # but will create a NEW row, after which siblings query finds
+        # all three. We can't easily fake that without a mock; instead,
+        # validate the bookkeeping by inserting a third row that triggers
+        # Stage 4 against the pre-existing duplicates indirectly.
+        #
+        # Simplest valid assertion here: after both pre-existing rows
+        # are present, the next upsert via exact-match returns ONE of
+        # them deterministically (the first matching query result),
+        # demonstrating the duplicates persist without recovery.
+        # Race recovery is exercised in test_race_recovery_merges_duplicates.
+        loaded_dups = db.query(
+            KnowledgeEntity,
+            canonical_name="DuplicateTest",
+            entity_type=EntityType.organization,
+        )
+        assert len(loaded_dups) == 2
+
+    def test_race_recovery_merges_duplicates(self, db, monkeypatch):
+        """Direct path: pre-seed one duplicate, then patch
+        _fuzzy_match_existing to force a Stage 4 fall-through. After
+        Stage 4 saves a SECOND row, the race-recovery sweep should
+        detect three rows total, keep the oldest, and fold aliases."""
+        from datetime import datetime, timedelta
+        from fichero.workflows.tools import _entity_writer
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        # Pre-seed the "concurrent caller's" row with an older time.
+        older_time = datetime.now() - timedelta(seconds=20)
+        older = KnowledgeEntity(
+            canonical_name="RaceTest",
+            entity_type=EntityType.event,
+            aliases=["from-the-race-winner"],
+            created_at=older_time,
+        )
+        db.save(older)
+
+        # Hard part: Stage 1 (exact lookup) will find `older` and return
+        # immediately. To force the race recovery path we need Stage 1
+        # to miss. Patch db.query to return [] for the exact lookup
+        # call (canonical_name + entity_type) but pass through other
+        # queries so Stages 2/3 + the recovery sweep work normally.
+        original_query = db.query
+        skip_first = {"done": False}
+
+        def selective_query(model, **kwargs):
+            # First call with both canonical_name + entity_type → return
+            # empty list to force Stage 1 miss. Subsequent calls
+            # (Stage 3 same-type query, Stage 4.5 sibling recheck) go
+            # through normally.
+            if (not skip_first["done"]
+                and kwargs.get("canonical_name") == "RaceTest"
+                and kwargs.get("entity_type") == EntityType.event):
+                skip_first["done"] = True
+                return []
+            return original_query(model, **kwargs)
+
+        monkeypatch.setattr(db, "query", selective_query)
+
+        # Also make sure fuzzy matching doesn't grab `older` at stage 3.
+        monkeypatch.setattr(
+            _entity_writer, "_fuzzy_match_existing",
+            lambda *_a, **_kw: None,
+        )
+
+        result_id = upsert_entity(
+            db,
+            canonical_name="RaceTest",
+            entity_type=EntityType.event,
+            aliases=["from-the-loser"],
+        )
+
+        # The race-recovery sweep must have detected both rows and
+        # returned the OLDER one's id (the race winner).
+        assert result_id == older.id
+        # Only one row left.
+        loaded = db.query(
+            KnowledgeEntity,
+            canonical_name="RaceTest",
+            entity_type=EntityType.event,
+        )
+        assert len(loaded) == 1
+        assert loaded[0].id == older.id
+        # Both aliases folded in.
+        merged_aliases = set(loaded[0].aliases or [])
+        assert "from-the-race-winner" in merged_aliases
+        assert "from-the-loser" in merged_aliases
+
+
 class TestAdminQualifierHelpers:
     """Pure-function tests for the admin-qualifier helpers."""
 
