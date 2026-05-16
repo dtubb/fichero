@@ -17,8 +17,13 @@
 - SKIP #1075 — breaking API change, defer to 0.0.3
 - SKIP #1044 — SwiftUI only, skip
 
-## Status: VERIFIED COMPLETE
-All 6 issues in Round 2 backend queue have been verified as closed on GitHub and corresponding code fixes confirmed. No remaining unblocked tasks.
+## Queue (Round 3 — Post-session bug fixes)
+- [x] #1136 — CLI entity_neighborhood wrong path (DONE, committed cebf5efd, tests pass)
+- [ ] #1137 — CLI entity documents renders '(item)' instead of name (next)
+- [ ] #1138 — Embeddings: fastembed pooling strategy changed
+
+## Status: ROUND 3 IN PROGRESS
+Round 2 complete. Round 3 fixes discovered during testing: #1136 closed, #1137-#1138 pending.
 
 ## Attempts
 {}
