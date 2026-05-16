@@ -275,9 +275,6 @@ struct SearchResultsDisplay: View {
                 SearchResultRowFromAPI(result: result)
                     .tag(result.documentId)
                     .draggable(result.documentId)
-                    .onTapGesture(count: 2) {
-                        onLoadDocument(result.documentId)
-                    }
             }
         }
         .listStyle(.inset)

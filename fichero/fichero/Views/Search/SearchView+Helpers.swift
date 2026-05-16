@@ -14,7 +14,23 @@ extension SearchView {
     func loadDocument(_ id: String) {
         Task {
             do {
-                let doc: Document = try await apiClient.get("/documents/\(id)")
+                var doc: Document = try await apiClient.get("/documents/\(id)")
+                // Page-child docs have no path of their own — the preview
+                // needs the parent PDF's on-disk path. EditorView resolves
+                // it via documentStore.currentDocuments, but in the search
+                // context that cache holds the browsed folder's docs, not
+                // the parent. Inject the parent's path into metadata["pdf_path"]
+                // so EditorView.resolvedParentPDFPath finds it immediately.
+                if doc.docType == .page || (doc.path == nil && doc.parentId != nil) {
+                    let parentId = doc.parentId ?? (doc.metadata["pdf_parent_id"]?.value as? String)
+                    if let parentId {
+                        if let parent: Document = try? await apiClient.get("/documents/\(parentId)"),
+                           let parentPath = parent.path, !parentPath.isEmpty {
+                            doc.metadata["pdf_path"] = AnyCodable(parentPath)
+                            doc.metadata["pdf_parent_id"] = AnyCodable(parentId)
+                        }
+                    }
+                }
                 await MainActor.run {
                     detailDocument = doc
                 }
@@ -144,7 +160,7 @@ extension SearchView {
                     // Record the query in @SceneStorage history once it
                     // returned a real result set; suppress 'recents'
                     // pollution when the user is just typing fragments.
-                    if response.count > 0 {
+                    if !response.results.isEmpty {
                         recordRecentSearch(queryText)
                     }
                 }
