@@ -622,16 +622,35 @@ async def _propagate_to_page_children(
                 try:
                     provider = getattr(llm_config, "provider", None) or "unknown"
                     model = getattr(llm_config, "model", None) or "unknown"
-                    artifact = Artifact(
+                    # Re-use an existing artifact if one already exists for
+                    # this (page_doc, type, provider, model) — db.save()
+                    # uses ON CONFLICT (id) which never fires for a freshly
+                    # constructed Artifact() since it gets a new UUID each
+                    # time, causing duplicates on re-run (#1067).
+                    existing_arts = db.query(
+                        Artifact,
                         document_id=page_doc.id,
                         artifact_type=artifact_type,
-                        content=page_text,
-                        provider=provider,
-                        model=model,
-                        version=1,
-                        reviewed=False,
                     )
-                    db.save(artifact)
+                    matched = [
+                        a for a in existing_arts
+                        if getattr(a, "provider", None) == provider
+                        and getattr(a, "model", None) == model
+                    ]
+                    if matched:
+                        art = matched[0]
+                        art.content = page_text
+                    else:
+                        art = Artifact(
+                            document_id=page_doc.id,
+                            artifact_type=artifact_type,
+                            content=page_text,
+                            provider=provider,
+                            model=model,
+                            version=1,
+                            reviewed=False,
+                        )
+                    db.save(art)
                 except Exception as artifact_err:
                     logger.warning(
                         "Failed to save per-page artifact for %s page %d: %s",
