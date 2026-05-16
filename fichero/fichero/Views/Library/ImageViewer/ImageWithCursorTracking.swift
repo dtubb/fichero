@@ -69,7 +69,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         scrollView.minMagnification = minScale
         scrollView.maxMagnification = maxScale
         scrollView.magnification = scale
-        scrollView.backgroundColor = NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)
+        scrollView.backgroundColor = NSColor(white: 0.88, alpha: 1)
         scrollView.scrollerStyle = .overlay  // Auto-hiding overlay scrollers like Preview.app
         scrollView.automaticallyAdjustsContentInsets = false
         scrollView.alphaValue = 0  // Hidden until first center to prevent flash
