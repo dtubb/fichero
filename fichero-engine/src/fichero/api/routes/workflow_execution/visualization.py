@@ -5,6 +5,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import Response
 from pydantic import BaseModel
+from langchain_core.runnables.graph import MermaidDrawMethod
 
 from fichero.db import Database
 from fichero.api.main import get_library_database
@@ -130,9 +131,9 @@ async def get_workflow_visualization_png(
         # Build compiled graph
         app = build_graph(workflow_def, enable_parallel=True, checkpointer=None)
 
-        # Get PNG bytes
+        # Get PNG bytes using local PYPPETEER rendering, not remote mermaid.ink
         graph_obj = app.get_graph(xray=xray)
-        png_bytes = graph_obj.draw_mermaid_png()
+        png_bytes = graph_obj.draw_mermaid_png(draw_method=MermaidDrawMethod.PYPPETEER)
 
         return Response(
             content=png_bytes,

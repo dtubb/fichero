@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
+from langchain_core.runnables.graph import MermaidDrawMethod
 
 from fichero.db import Database
 from fichero.api.main import get_library_database
@@ -615,14 +616,13 @@ async def get_thread_diagram_png(
             ],
         )
 
-        # Build graph and generate PNG. The default `draw_mermaid_png`
-        # path POSTs to https://mermaid.ink, which 400s on complex
-        # graphs whose URL-encoded mermaid source exceeds the upstream
-        # limit (#952). Surface that as a 503 so the client can show a
-        # real error message instead of cascading into a 500.
+        # Build graph and generate PNG using local PYPPETEER rendering.
+        # This eliminates the remote mermaid.ink dependency which 400s on
+        # complex graphs whose URL-encoded mermaid source exceeds the upstream
+        # limit (#952, #1025).
         try:
             app = build_graph(workflow_def, enable_parallel=True, checkpointer=None)
-            png_bytes = app.get_graph().draw_mermaid_png()
+            png_bytes = app.get_graph().draw_mermaid_png(draw_method=MermaidDrawMethod.PYPPETEER)
         except Exception as render_exc:
             logger.warning(
                 "Mermaid PNG render failed for thread %s (likely upstream "
