@@ -984,6 +984,36 @@ def artifacts_delete(
 
 
 # -- claim -----------------------------------------------------------------
+@claim_app.command("create")
+def claim_create(
+    ctx: typer.Context,
+    text: str = typer.Argument(..., help="Claim statement text."),
+    doc_id: Optional[str] = typer.Option(None, "--doc-id", help="Source document ID (omit for manual claims)."),
+    entity: list[str] = typer.Option([], "--entity", "-e", help="Entity ID to associate (repeat for multiple)."),
+    predicate: Optional[str] = typer.Option(None, "--predicate", help="Predicate verb (e.g. 'founded')."),
+    subject: Optional[str] = typer.Option(None, "--subject", help="Subject canonical name."),
+    obj: Optional[str] = typer.Option(None, "--object", help="Object phrase."),
+    confidence: float = typer.Option(1.0, "--confidence", help="Confidence [0..1], default 1.0 for manual."),
+) -> None:
+    """Manually assert a knowledge claim (not extracted from a document).
+
+    Use --doc-id to anchor the claim to a source document, or omit it
+    for a claim asserted from your own knowledge.
+    """
+    _invoke(
+        ctx,
+        lambda c: c.create_claim(
+            text,
+            source_document_id=doc_id,
+            entity_ids=list(entity) or None,
+            predicate_verb=predicate,
+            subject_canonical=subject,
+            object_phrase=obj,
+            confidence=confidence,
+        ),
+    )
+
+
 @claim_app.command("get")
 def claim_get(
     ctx: typer.Context,
@@ -1057,6 +1087,30 @@ def claim_list(
 
 
 # -- entity ----------------------------------------------------------------
+@entity_app.command("create")
+def entity_create(
+    ctx: typer.Context,
+    name: str = typer.Argument(..., help="Canonical name for the entity."),
+    entity_type: str = typer.Option("other", "--type", "-t", help="Entity type (person, place, org, concept, event, other)."),
+    description: Optional[str] = typer.Option(None, "--description", "-d", help="Short description."),
+    alias: list[str] = typer.Option([], "--alias", "-a", help="Alias (repeat for multiple)."),
+) -> None:
+    """Manually add a knowledge entity to the graph.
+
+    Use this to assert entities that weren't extracted from a document —
+    domain knowledge, corrections, or seed data for a new library.
+    """
+    _invoke(
+        ctx,
+        lambda c: c.create_entity(
+            name,
+            entity_type,
+            description=description,
+            aliases=list(alias) or None,
+        ),
+    )
+
+
 @entity_app.command("get")
 def entity_get(
     ctx: typer.Context,

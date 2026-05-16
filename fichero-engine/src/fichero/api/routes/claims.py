@@ -41,7 +41,7 @@ class ClaimCreateRequest(BaseModel):
     """Request to create a knowledge claim."""
 
     text: str
-    source_document_id: str
+    source_document_id: str | None = None  # None for manually-asserted claims
     source_segment_id: str | None = None
     source_page_label: str | None = None
     source_excerpt: str | None = None
@@ -125,13 +125,14 @@ async def create_claim(
     db: Database = Depends(get_library_database),
 ) -> KnowledgeClaim:
     """Create a new knowledge claim."""
-    # Validate source document exists
-    source_doc = db.get(Document, request.source_document_id)
-    if source_doc is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Source document not found: {request.source_document_id}",
-        )
+    # Validate source document exists (manual claims have no source doc)
+    if request.source_document_id is not None:
+        source_doc = db.get(Document, request.source_document_id)
+        if source_doc is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Source document not found: {request.source_document_id}",
+            )
 
     # Validate entity IDs exist
     missing_entities = [

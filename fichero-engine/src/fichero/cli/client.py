@@ -362,6 +362,45 @@ class FicheroClient:
             for e in _expect_list(raw, "/api/entities")
         ]
 
+    def create_entity(
+        self,
+        canonical_name: str,
+        entity_type: str = "other",
+        *,
+        description: str | None = None,
+        aliases: list[str] | None = None,
+    ) -> KnowledgeEntity:
+        return KnowledgeEntity.model_validate(
+            self.request("POST", "/api/entities", json={
+                "canonical_name": canonical_name,
+                "entity_type": entity_type,
+                "description": description,
+                "aliases": aliases or [],
+            })
+        )
+
+    def create_claim(
+        self,
+        text: str,
+        *,
+        source_document_id: str | None = None,
+        entity_ids: list[str] | None = None,
+        predicate_verb: str | None = None,
+        subject_canonical: str | None = None,
+        object_phrase: str | None = None,
+        confidence: float = 1.0,
+    ) -> Any:
+        return self.request("POST", "/api/claims", json={
+            "text": text,
+            "source_document_id": source_document_id,
+            "entity_ids": entity_ids or [],
+            "predicate_verb": predicate_verb,
+            "subject_canonical": subject_canonical,
+            "object_phrase": object_phrase,
+            "confidence": confidence,
+            "created_by": "human",
+        })
+
     def list_claims(
         self,
         *,
