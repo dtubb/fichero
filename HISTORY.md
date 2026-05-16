@@ -1818,3 +1818,13 @@ Audits produced:
 - agent-work/proposals/cli-swiftui-parity-2026-05-15.md — 115 endpoints, 3.5% parity baseline
 - agent-work/proposals/maps-import-survey-2026-05-15.md — 2266 imgs + 497 sidecars, importer design
 - docs/superpowers/plans/2026-05-15-module-organization-cleanup.md — Wave 1A execution plan
+
+## 2026-05-16 — Interactive testing session (afternoon)
+
+- fix(library): enable view-mode strip and split layouts by default (#1063) — `ddef28f2`
+- fix(viewer): image viewer canvas grey so white-page scans are visible (#1066) — `3308cf50`
+- fix(inspector): show all SVOs per entity + filter tautological claims (#1109) — `61ef2f10`
+- Verified hybrid vector search end-to-end via CLI against fichero-loop-test (4 semantic queries, all correct)
+- Closed #1086 (vector search verified), #1109 (inspector multi-SVO fix)
+- Confirmed #1127 (workflow cancel) already closed and implemented
+- KG quality review: person entities absent from NER output; "is a X" tautological claims fixed in inspector

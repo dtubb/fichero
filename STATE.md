@@ -2,9 +2,9 @@
 
 ## Snapshot
 
-**Branch: 0.0.2** · Latest: `7b352c02` · Working tree clean.
+**Branch: 0.0.2** · Latest: `61ef2f10` · Working tree clean.
 
-CLI test loop operational end-to-end. SVO + provider/model attribution per claim verified live on Apple Intelligence (14/14). Wave 1 module consolidation shipped (-5,378 LOC). CLI Wave 2 CRUD complete (40 typed methods).
+Interactive testing session complete. 5 SwiftUI + CLI bugs fixed. Hybrid vector search verified end-to-end via CLI. KG quality reviewed against real ethnographic documents.
 
 ## Tooling Now Available
 
@@ -12,36 +12,24 @@ CLI test loop operational end-to-end. SVO + provider/model attribution per claim
 
 ## Next Session — Start Here
 
-1. **Tonight's autonomous-loop command** (sonnet — Opus monthly limit hit):
-   ```
-   sleep 3.5h && caffeinate -dimsu python3 /Users/danieltubb/code/fichero-skills/agent-autonomous-loop.py \
-   /Users/danieltubb/code/fichero-0.0.2 \
-   --agent claude --model claude-sonnet-4-6 --effort auto \
-   --iterations 25 --sleep 999 --max-tasks 2 \
-   --claude-show-thinking \
-   --start-extra "Wave 2 of 0.0.2 KG completeness — see STATE.md Wave 2 backlog."
-   ```
+1. **Remaining open 0.0.2 issues (CLI-testable first)**:
+   - **#1082** — Page 2 of 2-page test PDF has no transcription artifact — check via CLI
+   - **#1099** — Workflow tool: extract direct quotes with speaker attribution (backend)
+   - **#1075** — API inconsistency: bare list vs paginated envelope (breaking change risk, defer)
+   - **SwiftUI**: #1049 (workflow nodes spacing), #1042 (editor missing merge→catalogue edge), #1044 (per-page progress), #1040 (activity progress wrong node), #1070 (pane widths jump), #1036 (claim SVO readability), #1035/#1034 (KG viewer cosmetics)
 
-2. **Wave 2 priority order**:
-   - **#1123** attribution taxonomy (12 claim fields + KnowledgeClaimLink wiring + canonical KG verbs in `kg/_common.py::CANONICAL_VERBS`)
-   - **#1114** entity quality (dedup / grounding / hallucinated events)
-   - **#1119** claim.entity_ids[] covers every mentioned entity, not just subject
-   - **#1121** _entity_writer Stage 1↔4 race (transaction or unique constraint)
-   - **#1125** scoped KG exploration CLI (page / doc / folder / library navigation + embedding integration)
-   - **#1126** hermeneutics fold redo (preserve existing test contract)
-   - **#1124** hermeneutic predicates (separate from KG verbs)
-   - **#1128** schema-fold + no-migration project rule docs
-   - **#1127** workflow cancel endpoint
+2. **KG quality observations from fichero-loop-test** (2 completed docs):
+   - No `person` entities extracted — "Don Antonio" is in `catalogue.keywords` but missing from the KG. Person extraction is the biggest gap.
+   - Event alias confusion: "Filing of Petition" incorrectly aliased to "Repairing Water Pipes" entity.
+   - After #1109 fix, tautological "is a X" claims are now filtered in the inspector.
 
-3. **Skip** #1054 + #1057 (need product decisions).
+3. **Build required before PR**: three-leg check — `swiftlint` + `xcodebuild` + `RunAllTests`. Last build was not run this session; swiftlint was clean.
 
-4. **No-migration window**: schema changes go in `db.py` CREATE TABLE directly; nuke + recreate `~/Documents/fichero-loop-test.fichero` to pick up. (Documented in MEMORY.md 2026-05-16.)
-
-5. **Loop verification corpus**: `/tmp/fichero-loop-corpus/` has 20 staged md files (~9.4k words) from `~/code/slipbox/coded`. After each Wave 2 commit that touches the extractor or KG schema, re-import + run NER and confirm SVO still 14/14 (or higher with the new fields populated).
+4. **Loop verification corpus**: `fichero-loop-test.fichero` has 2 completed docs (20 total). Run NER on remaining 18 to expand the KG for further review.
 
 ## In Progress
 
-None — Wave 2 hasn't started; tonight's autonomous loop will pick up.
+None.
 
 ## Blocked
 
