@@ -974,7 +974,7 @@ async def process_vision(
                 page_records.extend(
                     _build_page_records_for_file(
                         library_path,
-                        path_to_doc.get(file_path),
+                        doc_id_for_file,
                         file_text,
                         None,
                     )
@@ -985,7 +985,7 @@ async def process_vision(
                     artifact_id = await save_artifact(
                         file_path=file_path,
                         content=file_text,
-                        document_id=path_to_doc.get(file_path),
+                        document_id=doc_id_for_file,
                         library_path=library_path,
                         llm_config=effective_config,
                         task_id=task_id,
@@ -1052,7 +1052,7 @@ async def process_vision(
                 cache_provider = getattr(llm_config, "provider", None) if vision_mode != "apple" else None
                 cache_model = getattr(llm_config, "model", None) if vision_mode != "apple" else None
                 existing = find_existing_artifact(
-                    document_id=path_to_doc.get(file_path),
+                    document_id=doc_id_for_file,
                     file_path=file_path,
                     artifact_type=tool_config.artifact_type,
                     library_path=library_path,
@@ -1074,7 +1074,7 @@ async def process_vision(
                     page_records.extend(
                         _build_page_records_for_file(
                             library_path,
-                            path_to_doc.get(file_path),
+                            doc_id_for_file,
                             cached_text,
                             None,
                         )
@@ -1215,7 +1215,7 @@ async def process_vision(
                 artifact_id = await save_artifact(
                     file_path=file_path,
                     content=text,
-                    document_id=path_to_doc.get(file_path),
+                    document_id=doc_id_for_file,
                     library_path=library_path,
                     llm_config=save_config,
                     task_id=task_id,
@@ -1229,10 +1229,10 @@ async def process_vision(
 
                     # Propagate per-page OCR to page child documents so semantic
                     # search can surface individual pages, not only the parent PDF.
-                    # Pass artifact_type + llm_config so the helper also saves a
-                    # per-page artifact row — V2 inspector clicks on a single
-                    # page child should see that page's transcription panel
-                    # (#701).
+                    # Only runs when the parent doc is in the files list (not
+                    # per-page fan-out): path_to_doc has the parent_id then.
+                    # When sources.py already expanded to page docs, parent_id
+                    # is None here and propagation is correctly skipped (#1077).
                     if per_page_texts and len(per_page_texts) > 1:
                         parent_id = path_to_doc.get(file_path)
                         if parent_id:
@@ -1252,7 +1252,7 @@ async def process_vision(
                     content=text,
                     data=parsed if isinstance(parsed, dict) else None,
                     library_path=library_path,
-                    document_id=path_to_doc.get(file_path),
+                    document_id=doc_id_for_file,
                     file_path=file_path,
                     tool_config=tool_config,
                     output_format=output_format,
@@ -1267,7 +1267,7 @@ async def process_vision(
             page_records.extend(
                 _build_page_records_for_file(
                     library_path,
-                    path_to_doc.get(file_path),
+                    doc_id_for_file,
                     text,
                     per_page_texts,
                 )
