@@ -1227,6 +1227,10 @@ async def _run_extractor(
                     page_label=page_label, source_excerpt=excerpt,
                     provider=getattr(llm_config, "provider", None),
                     model=getattr(llm_config, "model", None),
+                    # #1114 issue 3 — full chunk text for the event
+                    # grounding guard. Drops hallucinated events that
+                    # don't appear in the source.
+                    grounding_text=chunk_text,
                 )
         except Exception as exc:
             logger.error(f"{section['name']}: KG write failed: {exc}")
@@ -1398,6 +1402,74 @@ def _synthesize_svo_fallback(
     return "is", ctx
 
 
+# #1114 issue 3 — event grounding guard
+# --------------------------------------
+# The event-extraction prompt lists 'Accident, Flood, Death, Fire,
+# Strike' as exemplars, which leads the LLM to dutifully extract them
+# even for documents that don't mention any of them. Real harm: a doc
+# about artisanal mining as a way of life produced "Accident" / "Death"
+# / "Strike" event entities the source text didn't support.
+#
+# Defense-in-depth: post-extract validator that requires at least one
+# content token of the event's name to appear in the source chunk text.
+# Operates on event entities only — locations / persons / organizations
+# have stronger LLM grounding because they're concrete named things.
+
+# Stop tokens dropped before grounding match — these are too common to
+# carry signal. Bilingual list (corpus is heavily Spanish + English).
+_GROUNDING_STOPWORDS = frozenset({
+    # English
+    "the", "of", "a", "an", "and", "or", "to", "in", "on", "at", "by",
+    "for", "with", "from", "as", "is", "was", "were", "be", "been",
+    "has", "have", "had", "this", "that", "these", "those",
+    # Spanish
+    "el", "la", "los", "las", "de", "del", "y", "o", "a", "en",
+    "por", "para", "con", "sin", "es", "fue", "son", "este", "esta",
+    "ese", "esa", "un", "una", "su", "le", "les",
+})
+
+
+def _event_grounded_in_text(event_name: str, source_text: str | None) -> bool:
+    """Return True when at least one content token of the event's name
+    appears (case-insensitively, as a substring) in the source text.
+
+    Stopwords are dropped before the check so 'Filing of the Petition'
+    requires 'filing' or 'petition' (not 'of', 'the'). Single-word
+    events like 'Accident' require that exact word.
+
+    Fail-open cases (return True) — better to keep a borderline item
+    than drop a legitimate one:
+    - ``source_text`` is None/empty (caller hasn't been updated yet).
+    - ``event_name`` is empty / has no content tokens after stopword
+      and short-token filtering. Real hallucinations have full
+      word-form names ('Accident', 'Mining Boom'); a single-letter
+      name like 'E' is degenerate test/error data, not a hallucinated
+      content claim — let the upstream extractor validation catch it.
+
+    The strict case (return False): the name has content tokens, the
+    source has content, and NONE of the content tokens substring-match
+    in the source. That's the hallucination signature this guard
+    targets.
+    """
+    if not source_text:
+        return True
+    if not event_name:
+        return True
+    cleaned = "".join(
+        c if c.isalnum() or c.isspace() else " " for c in event_name.lower()
+    )
+    content_tokens = [
+        tok for tok in cleaned.split()
+        if tok and tok not in _GROUNDING_STOPWORDS and len(tok) > 2
+    ]
+    if not content_tokens:
+        # Degenerate name — no content to ground against. Fail-open;
+        # upstream extractor validation handles bad names.
+        return True
+    src_lower = source_text.lower()
+    return any(tok in src_lower for tok in content_tokens)
+
+
 def _write_kg_rows(
     db,
     section: dict[str, Any],
@@ -1407,6 +1479,7 @@ def _write_kg_rows(
     source_excerpt: str | None = None,
     provider: str | None = None,
     model: str | None = None,
+    grounding_text: str | None = None,
 ) -> None:
     """Persist extractor items as KnowledgeEntity + KnowledgeClaim rows.
 
@@ -1419,12 +1492,52 @@ def _write_kg_rows(
     when the caller is processing per-page chunks via ``_split_into_pages``.
     Both fields land on the ``KnowledgeClaim`` so cross-doc views can
     answer "which page of which document mentions this entity?"
+
+    ``grounding_text`` (#1114 issue 3) — full source chunk text used by
+    the event grounding guard to drop event items that aren't supported
+    by the source text. Source_excerpt is truncated to 500 chars for
+    storage; grounding_text is the full chunk so the check sees the
+    whole context. None disables the guard (fail-open).
     """
-    from fichero.knowledge_models import ClaimType, EpistemicStatus
+    from fichero.knowledge_models import ClaimType, EpistemicStatus, EntityType
     from fichero.workflows.tools._entity_writer import upsert_entity, save_claim
 
     entity_type = section.get("entity_type")
     page_excerpt = source_excerpt  # rename for clarity below
+
+    # Event grounding guard (#1114 issue 3) — drop items whose event
+    # name has no content token in the source text. Operates only on
+    # event sections; other entity types pass through unchanged.
+    if entity_type == EntityType.event and grounding_text:
+        grounded: list[Any] = []
+        dropped: list[str] = []
+        for item in items:
+            if not isinstance(item, dict):
+                # Pydantic model — convert via model_dump for read-only access
+                try:
+                    item_data = item.model_dump()
+                except Exception:
+                    item_data = {}
+            else:
+                item_data = item
+            name = (
+                item_data.get("event")
+                or item_data.get("name")
+                or item_data.get("canonical_name")
+                or ""
+            ).strip()
+            if _event_grounded_in_text(name, grounding_text):
+                grounded.append(item)
+            else:
+                dropped.append(name or "<unnamed>")
+        if dropped:
+            logger.info(
+                "event grounding guard: dropped %d hallucinated event(s) "
+                "for %s on %s: %s (#1114 issue 3)",
+                len(dropped), section.get("name"), container_id,
+                ", ".join(dropped[:5]),
+            )
+        items = grounded
 
     # First-person → third-person rewrite (#963).
     # When the container document carries source_metadata.authors, we

@@ -29,6 +29,75 @@ from fichero.knowledge_models import (
 logger = logging.getLogger(__name__)
 
 
+# Admin-subdivision qualifier vocabulary (#1114 issue 2)
+# ------------------------------------------------------
+# Words that act as "type qualifiers" on a place name — adding or
+# stripping them doesn't change which entity is referred to. "Chocó"
+# vs "Chocó department" is the same entity; "Chocó" vs "Chocó River"
+# is NOT (the river and the department are different things).
+#
+# Limited deliberately to political / administrative subdivisions so
+# we don't accidentally collapse genuinely-distinct entities. Adding
+# "river" / "mountain" / "sea" here would break that contract.
+#
+# Spanish equivalents because the corpus is heavily Hispano-American.
+# Add other languages as the corpus extends.
+_ADMIN_SUFFIXES = frozenset({
+    # English
+    "department", "province", "state", "region", "county", "district",
+    "territory", "republic",
+    # Spanish
+    "departamento", "provincia", "región", "regional", "condado",
+    "distrito", "territorio", "república",
+})
+
+_ADMIN_PREFIXES = frozenset({
+    "the", "el", "la", "los", "las", "le", "les",
+})
+
+
+def _tokenise_lower(s: str) -> list[str]:
+    """Split a name into lowercase alphanumeric tokens."""
+    cleaned = "".join(c if c.isalnum() or c.isspace() else " " for c in s.lower())
+    return [tok for tok in cleaned.split() if tok]
+
+
+def _strip_admin_qualifiers(tokens: list[str]) -> list[str]:
+    """Drop leading articles ('the', 'el', 'la') and trailing
+    administrative-subdivision words ('department', 'province').
+    Returns the core entity tokens.
+    """
+    while tokens and tokens[0] in _ADMIN_PREFIXES:
+        tokens = tokens[1:]
+    while tokens and tokens[-1] in _ADMIN_SUFFIXES:
+        tokens = tokens[:-1]
+    return tokens
+
+
+def _admin_qualifier_match(a: str, b: str) -> bool:
+    """Return True when ``a`` and ``b`` reduce to the same non-empty
+    core tokens after dropping leading articles and trailing
+    admin-qualifier suffixes.
+
+    Examples — match:
+        "Chocó" ↔ "Chocó department"
+        "the Cabildo" ↔ "Cabildo"
+        "Province of Antioquia" ↔ "Antioquia"   (after future stem rule)
+        "el Atrato" ↔ "Atrato"
+
+    Examples — no match:
+        "Chocó" ↔ "Chocó River"          (River isn't in the vocab)
+        "Cauca" ↔ "Cauca Valley"         (Valley isn't admin)
+        "Bogotá" ↔ "Bogotá District"     (District IS in vocab, OK)
+        "Lima" ↔ "Lima"                   (different types still need
+                                           upsert's type-conflict check;
+                                           this is name-only)
+    """
+    core_a = _strip_admin_qualifiers(_tokenise_lower(a))
+    core_b = _strip_admin_qualifiers(_tokenise_lower(b))
+    return bool(core_a) and core_a == core_b
+
+
 def _fuzzy_match_existing(
     existing: list[KnowledgeEntity],
     canonical_name: str,
@@ -123,6 +192,100 @@ def upsert_entity(
     )
     if existing:
         return existing[0].id
+
+    # Stage 1.5 — Type-conflict detector (#1114 issue 1)
+    # ----------------------------------------------------
+    # The exact lookup keys on (canonical_name, entity_type), so
+    # "Atrató River" entered first as `concept` and then later as
+    # `location` produced two rows. For a deduplicated KG, a river
+    # is a `location`; the `concept` row is the catchall the LLM
+    # falls back to when section classification fails.
+    #
+    # Detection: if any other-type row exists with the same canonical
+    # name, decide whether to:
+    #   (a) promote the existing row's type if it's the catchall
+    #       `concept` and the new claim names a more specific type
+    #       (person / location / organization / event), OR
+    #   (b) leave both rows and log a warning — type ambiguity that
+    #       might be legitimate (e.g., "Mexico City" the location vs
+    #       an event titled "Mexico City").
+    #
+    # We intentionally don't auto-merge in case (b); a false-positive
+    # cross-type merge would silently collapse distinct entities and
+    # users would have no audit trail. The warning + an EntityMergeAudit
+    # candidate row (see future work) is the safer path.
+    other_type = db.query(KnowledgeEntity, canonical_name=canonical_name)
+    if other_type:
+        prior = other_type[0]
+        prior_type_val = (
+            prior.entity_type.value
+            if hasattr(prior.entity_type, "value")
+            else str(prior.entity_type)
+        )
+        new_type_val = (
+            entity_type.value
+            if hasattr(entity_type, "value")
+            else str(entity_type)
+        )
+        # `concept` is the catchall — promote to the more specific type.
+        if prior_type_val == "concept" and new_type_val != "concept":
+            logger.info(
+                "upsert_entity: type-conflict promotion %r %s → %s (#1114)",
+                canonical_name, prior_type_val, new_type_val,
+            )
+            prior.entity_type = entity_type
+            db.save(prior)
+            return prior.id
+        # Symmetric: existing row is specific, new request is `concept`.
+        # Keep the existing specific type; just return the same id.
+        if new_type_val == "concept" and prior_type_val != "concept":
+            logger.info(
+                "upsert_entity: ignoring concept-typed upsert for "
+                "existing specific entity %r (%s) (#1114)",
+                canonical_name, prior_type_val,
+            )
+            return prior.id
+        # Both types are specific (location vs event, etc.) — log and
+        # fall through to create a new row. Human review can later
+        # decide whether to collapse them.
+        logger.warning(
+            "upsert_entity: ambiguous type for %r — existing=%s, "
+            "new=%s; creating a second row (#1114). Review the merge "
+            "candidate via the review queue.",
+            canonical_name, prior_type_val, new_type_val,
+        )
+
+    # Stage 1.7 — Admin-qualifier dedup (#1114 issue 2)
+    # --------------------------------------------------
+    # Catch "Chocó" vs "Chocó department" cases that the existing
+    # SequenceMatcher / token-set fuzzy match misses (score 0.5 for
+    # one-token-in-two-tokens) before paying the embedding-stage
+    # cost. Deterministic, cheap, no model variance — runs even when
+    # vectors are unavailable.
+    same_type_for_admin = db.query(
+        KnowledgeEntity, entity_type=entity_type,
+    )
+    for ent in same_type_for_admin:
+        if _admin_qualifier_match(canonical_name, ent.canonical_name):
+            logger.info(
+                "upsert_entity: admin-qualifier merge %r → %s (%r) (#1114)",
+                canonical_name, ent.id, ent.canonical_name,
+            )
+            # Fold the new surface form into the existing entity's
+            # aliases so the original phrasing is preserved.
+            seen_folded: dict[str, str] = {}
+            for surface in list(ent.aliases or []) + [canonical_name] + list(aliases or []):
+                if not surface or not surface.strip():
+                    continue
+                key = surface.strip().casefold()
+                if key not in seen_folded:
+                    seen_folded[key] = surface.strip()
+            canonical_key = ent.canonical_name.strip().casefold()
+            ent.aliases = sorted(
+                v for k, v in seen_folded.items() if k != canonical_key
+            )
+            db.save(ent)
+            return ent.id
 
     # Stage 2: embedding cosine. Lazy-imports the model on first call;
     # subsequent calls are free. Failures fall through to stage 3.
