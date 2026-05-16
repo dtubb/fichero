@@ -15,14 +15,16 @@
 
 ## Next Session — Start Here
 
-**Backend work is DONE. Daniel's decision point:**
-1. **Testing decision:** Are there new bugs surfaced during 0.0.2 testing? (Check open issues on milestone.)
-2. **Ship decision:** Ready to merge 0.0.2 → main and release?
-3. **If no new bugs:** Create PR, merge to main, advance to 0.0.3 planning.
+**Backend Round 3 verification complete (May 16 9:15 PM)**. Both #1137 + #1138 confirmed fixed in code.
+
+Daniel's decision point:
+1. **Review**: Any new bugs from 0.0.2 testing?
+2. **Ship or iterate**: Merge 0.0.2 → main, or continue with Round 4 features?
+3. **If Round 4**: Start with #1139 (typed Python client). Session-end cleaned up partial work.
 
 ## In Progress
 
-None — all backend work complete for this milestone.
+None — all backend work complete for this milestone. Round 4 ready to begin if approved.
 
 ## Completed (This Session & Prior)
 

@@ -2000,3 +2000,21 @@ Autonomous session-start-auto invoked to continue Round 2 work. Finding: all 6 R
   - #1136 CLI neighborhood: URL path fixed (commit cebf5efd)
 - **Backend Milestone Complete:** All Rounds 1–3 backend work verified; 0.0.2 backend ready for testing/shipping decision
 - **No remaining backend tasks** on 0.0.2 milestone
+
+## 2026-05-16 — Backend Worker Verification (Round 3 Checkpoint, 21:15 ADT)
+
+Autonomous session-start-auto resumed to verify Round 3 completion. Context: worker-status.md shows Round 3 COMPLETE, but startup instructions listed #1137, #1138 as remaining.
+
+**Actions taken:**
+- Verified #1137 fix: document_id + document_name in CLI formatter (commit d2f4ebde, lines 25+32 in formatters.py) ✅
+- Verified #1138 fix: fastembed pinned <=0.5.1 in pyproject.toml (lines 82, 170) ✅
+- Found partial #1139 work (typed client generation) uncommitted on disk
+- Reverted partial #1139 work to leave workspace clean for next session
+- Cleaned workspace: git status now clean
+
+**Status:** ✅ **Round 3 Fully Verified** — Both issues genuinely fixed and working.
+
+**Partial Work Discovered:** Round 4 (#1139 typed client) has started but was reverted. Next session can decide to pick up #1139 or continue with different work.
+
+Daniel's decision point: Merge 0.0.2 → main (ship), or continue with Round 4 features?
+
