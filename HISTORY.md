@@ -1828,3 +1828,10 @@ Audits produced:
 - Closed #1086 (vector search verified), #1109 (inspector multi-SVO fix)
 - Confirmed #1127 (workflow cancel) already closed and implemented
 - KG quality review: person entities absent from NER output; "is a X" tautological claims fixed in inspector
+
+## 2026-05-16 (evening) — Session Summary
+
+- Fixed test_quotes_extract.py: removed stale library_path kwarg from _write_kg_rows calls — all 6 quotes tests pass
+- Fixed test_extractors.py: added quotes_extract to EXTRACTOR_NAMES + 'quotes' to known artifact types allowlist
+- Committed and pushed complete #1099 quotes_extract implementation (457bc1e9)
+- Closed GitHub issue #1099

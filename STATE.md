@@ -2,9 +2,9 @@
 
 ## Snapshot
 
-**Branch: 0.0.2** · Latest: `61ef2f10` · Working tree clean.
+**Branch: 0.0.2** · Latest: `457bc1e9` · Working tree clean.
 
-Interactive testing session complete. 5 SwiftUI + CLI bugs fixed. Hybrid vector search verified end-to-end via CLI. KG quality reviewed against real ethnographic documents.
+#1099 quotes_extract complete and shipped. #1082 blank-page artifact fix shipped.
 
 ## Tooling Now Available
 
@@ -12,20 +12,20 @@ Interactive testing session complete. 5 SwiftUI + CLI bugs fixed. Hybrid vector 
 
 ## Next Session — Start Here
 
-1. **Remaining open 0.0.2 issues (CLI-testable first)**:
-   - **#1082** — Page 2 of 2-page test PDF has no transcription artifact — check via CLI
-   - **#1099** — Workflow tool: extract direct quotes with speaker attribution (backend)
-   - **#1075** — API inconsistency: bare list vs paginated envelope (breaking change risk, defer)
-   - **SwiftUI**: #1049 (workflow nodes spacing), #1042 (editor missing merge→catalogue edge), #1044 (per-page progress), #1040 (activity progress wrong node), #1070 (pane widths jump), #1036 (claim SVO readability), #1035/#1034 (KG viewer cosmetics)
+1. **SwiftUI issues (pick one)**:
+   - **#1049** — workflow nodes spacing in editor
+   - **#1042** — editor missing merge→catalogue edge
+   - **#1044** — per-page progress display
+   - **#1040** — activity progress wrong node
+   - **#1070** — pane widths jump
+   - **#1036** — claim SVO readability
+   - **#1035/#1034** — KG viewer cosmetics
 
-2. **KG quality observations from fichero-loop-test** (2 completed docs):
-   - No `person` entities extracted — "Don Antonio" is in `catalogue.keywords` but missing from the KG. Person extraction is the biggest gap.
-   - Event alias confusion: "Filing of Petition" incorrectly aliased to "Repairing Water Pipes" entity.
-   - After #1109 fix, tautological "is a X" claims are now filtered in the inspector.
+2. **Three-leg check still needed** before PR: `swiftlint` + `xcodebuild` + `RunAllTests`. Last clean build: 7:04 PM today (208c36fb).
 
-3. **Build required before PR**: three-leg check — `swiftlint` + `xcodebuild` + `RunAllTests`. Last build was not run this session; swiftlint was clean.
+3. **KG quality gap**: no `person` entities extracted from fichero-loop-test — "Don Antonio" is keywords only. `quotes_extract` is now available to help, but person extraction root cause (NER extractor prompt quality) should be reviewed.
 
-4. **Loop verification corpus**: `fichero-loop-test.fichero` has 2 completed docs (20 total). Run NER on remaining 18 to expand the KG for further review.
+4. **Defer**: #1075 (API list vs paginated envelope — breaking change risk).
 
 ## In Progress
 
