@@ -52,14 +52,14 @@
   completed_at: null
 
 - issue: 841
-  status: in_progress
+  status: done
   title: "744 unit tests fail with 'Reject non-loopback request from testclient'"
   files: [fichero-engine/src/fichero/api/main.py, fichero-engine/tests/conftest.py]
   approach: "Adjust loopback middleware to accept TestClient's 'testserver' Host header or whitelist in test config."
   est_tokens: 20000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 50c6c421
+  completed_at: 2026-05-17T12:16:00-03:00
 
 - issue: 840
   status: in_progress
