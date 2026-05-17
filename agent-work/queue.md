@@ -2,14 +2,14 @@
 # Generated: 2026-05-17
 
 - issue: 840
-  status: in_progress
+  status: done
   title: "Save per-chunk catalogue summaries as catalogue.chunk.N artifacts (transparency)"
   files: [fichero-engine/src/fichero/workflows/nodes/catalogue.py, fichero-engine/src/fichero/models/artifact.py]
   approach: "Emit one Artifact per chunk with type catalogue.chunk.N before final catalogue artifact; keep final artifact unchanged."
   est_tokens: 25000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 22e96e6e
+  completed_at: 2026-05-17
 
 - issue: 984
   status: pending

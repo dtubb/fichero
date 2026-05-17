@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtualenvs
+.venv/
+venv/
+.briefcase-venv/
+
+# Build artifacts (~500MB Python.framework bundles)
+build/
+dist/
+
+# Logs / evals
+logs/
+evals/.cache/
+
+# Archived tests (per CLAUDE.md pytest --ignore)
+tests/unit/_archived/
+
+# macOS clutter
+.DS_Store

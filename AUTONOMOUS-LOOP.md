@@ -5,7 +5,7 @@
 The autonomous loop runs N issues from the GitHub backlog using a **curator/worker split**:
 
 1. **Curator** (Sonnet 4.5): Ranks 80 open issues, produces `queue.md` (20 issues) + `digest.md` (2k brief)
-2. **Workers** (Haiku 4.5): Pop one pending issue per iteration, use trace-mcp tools to explore/implement, commit + close
+2. **Workers** (Haiku 4.5): Pop one pending issue per iteration, use jcodemunch tools to explore/implement, commit + close
 3. **Loop**: Curator → N workers → Curator → N workers → ...
 
 ## Quick Start
@@ -49,16 +49,16 @@ All scripts are in `~/code/fichero-skills/bin/`:
 
 ## Skills
 
-**Curator**: Uses trace-mcp tools (search, get_outline, find_usages, get_change_impact, get_tests_for) to:
+**Curator**: Uses jcodemunch tools (search_symbols, get_file_outline, find_references, get_blast_radius, get_class_hierarchy) to:
 - Map issues to files
 - Estimate blast radius (est_tokens)
 - Rank by dependency order + small-first heuristic
 - Skip: needs-human-test, blocked-external, wontfix labels
 
-**Worker** (`/fs_autoloop:session-worker`): Mandatory trace-mcp-first pattern:
+**Worker** (`/fs_autoloop:session-worker`): Mandatory jcodemunch-first pattern:
 1. Load digest.md + first pending block from queue.md
 2. Mark issue as in_progress
-3. Use trace-mcp ONLY for code exploration (no Read/Grep/Glob on .py/.ts/.swift)
+3. Use jcodemunch ONLY for code exploration (no Read/Grep/Glob on .py/.ts/.swift)
 4. Implement approach, run tests, ruff check
 5. Commit + push + close issue
 6. Call `/session-end-worker` to mark status in queue
@@ -67,13 +67,13 @@ All scripts are in `~/code/fichero-skills/bin/`:
 
 **Curator pass** (Sonnet, ~7k tokens):
 - 80 raw issues: ~2k tokens
-- trace-mcp introspection: ~2k tokens
+- jcodemunch introspection: ~2k tokens
 - Queue + digest output: ~3k tokens
 - Cost: ~$0.20-0.40
 
 **Worker iteration** (Haiku, ~15-30k tokens):
 - digest.md + issue block: ~3k tokens
-- trace-mcp exploration: ~5-10k tokens
+- jcodemunch exploration: ~5-10k tokens
 - Implementation + tests: ~7-15k tokens
 - Cost: ~$0.05-0.10 per issue
 

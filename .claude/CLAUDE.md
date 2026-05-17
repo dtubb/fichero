@@ -97,30 +97,36 @@ SwiftUI App → HTTP localhost:8765 → FastAPI → DuckDB/LanceDB
 
 Full architecture: `docs/CLAUDE.md`, `docs/architecture/`
 
-## Code Intelligence — trace-mcp First, ALWAYS
+## Code Intelligence — jCodemunch First, ALWAYS
 
-**Primary tool**: `trace-mcp` (MCP server, 155k+ symbols indexed, file-watcher kept fresh, ~93% token savings vs Read/Grep on this codebase per benchmark).
+**Primary tool**: `jcodemunch` (MCP server, tree-sitter AST index, ~95% token savings vs Read/Grep). Migrated from trace-mcp 2026-05-17.
 
-**Hard rule for ANY code question — use trace-mcp tools, NOT Read/Grep/Glob/Bash(ls,find):**
+**Start every session** with `plan_turn { repo: ".", query: "<task>", model: "<your-model-id>" }` — returns confidence + recommended files in one call. Use `resolve_repo { path: "." }` to confirm the index is fresh; if not, `index_folder { path: "." }`.
 
-| Question | trace-mcp tool | Instead of |
+**Hard rule for ANY code question — use jcodemunch tools, NOT Read/Grep/Glob/Bash(ls,find):**
+
+| Question | jcodemunch tool | Instead of |
 |---|---|---|
-| Where is `extract_all` defined? | `search` (with `fusion=true` for best ranking) | Grep |
-| What's in this file before I edit? | `get_outline <path>` | Read (whole file) |
-| Show me just `WorkflowExecutor.run`'s source | `get_symbol <fqn>` | Read (whole file) |
-| What breaks if I change `KnowledgeClaim`? | `get_change_impact` | guessing |
-| Who calls `_entity_writer`? | `find_usages` / `get_call_graph` | Grep |
-| All implementations of `LanguagePlugin`? | `get_type_hierarchy` | ls/find |
-| Tests for this symbol? | `get_tests_for` | Glob + Grep |
+| Where is `extract_all` defined? | `search_symbols { query: "extract_all", language: "python" }` | Grep |
+| What's in this file before I edit? | `get_file_outline { path: "..." }` | Read (whole file) |
+| Show me just `WorkflowExecutor.run`'s source | `get_symbol_source { symbol_id: "..." }` | Read (whole file) |
+| Symbol + its imports in one call | `get_context_bundle { symbol_id: "..." }` | multiple reads |
+| What breaks if I change `KnowledgeClaim`? | `get_blast_radius { symbol_id: "..." }` | guessing |
+| Who imports this file? | `find_importers { path: "..." }` | Grep |
+| Where is this name used? | `find_references { name: "..." }` | Grep |
+| Is identifier X used anywhere? | `check_references { name: "..." }` | Grep |
+| Class hierarchy / implementations | `get_class_hierarchy { class: "..." }` | ls/find |
 | Untested public API? | `get_untested_symbols` | manual audit |
-| Dead exports? | `get_dead_exports` | Grep for unused |
-| Circular imports? | `get_circular_imports` | manual tracing |
-| Context for a new task? | `get_task_context` | reading 15 files |
-| HTTP request flow? | trace-mcp framework edges | reading route files |
+| Dead code? | `find_dead_code` | Grep for unused |
+| Changed symbols since last commit | `get_changed_symbols` | git diff + parse |
+| Repo overview / file tree | `get_repo_outline` / `get_file_tree` | ls -R |
+| String/comment/config search | `search_text { query: "..." }` | Grep |
 
-Read/Grep/Glob is allowed ONLY for non-code files (`.md`, `.json`, `.yaml`, `.toml`) or before `Edit`-ing a file you just identified.
+**After editing files:** PostToolUse hooks auto-reindex. For bulk edits (5+ files) call `register_edit { paths: [...] }` to batch-invalidate.
 
-**Top god nodes (high blast radius — `get_change_impact` BEFORE touching)**: `Database`, `KnowledgeClaim`, `KnowledgeEntity`, `Document`, `LLMConfig`, `EntityType`, `DocType`, `Artifact`, `WorkflowDef`.
+**Read/Grep/Glob is allowed ONLY** for non-code files (`.md`, `.json`, `.yaml`, `.toml`) or as the mandatory `Read` immediately before `Edit`/`Write` on a file you just located via jcodemunch.
+
+**Top god nodes (high blast radius — `get_blast_radius` BEFORE touching)**: `Database`, `KnowledgeClaim`, `KnowledgeEntity`, `Document`, `LLMConfig`, `EntityType`, `DocType`, `Artifact`, `WorkflowDef`.
 
 ## Key Paths
 

@@ -61,8 +61,7 @@ Conventional commits required: `feat:`, `fix:`, `chore:`, etc. Always reference 
 - **Pydantic field must be declared** — `extra="allow"` lets runtime writes succeed silently but `model_dump()` only serializes declared fields. Always add both the Pydantic field AND the `_ensure_table` column together.
 - **Empty list ≠ None** — use `if raw_value:` not `if raw_value is not None:` for optional list inputs with fallback chains.
 - **Catalogue writes KG via extract_all** — `catalogue` node only emits the readable artifact; `extract_all` is what writes `KnowledgeEntity`/`KnowledgeClaim`. Don't duplicate KG writes in catalogue.
-- **KG god nodes — check blast radius first** — `Database`, `KnowledgeClaim`, `KnowledgeEntity`, `Document`, `LLMConfig`, `Artifact` have high fan-out. Run `get_change_impact` before touching them.
-- **trace-mcp Python index caveat** — as of 2026-05-17, `search` returns zero results for Python symbols despite 246k indexed symbols. Use `get_outline <path>` and `get_symbol` by known FQN as workarounds; confirm file paths via `get_outline` before editing.
+- **KG god nodes — check blast radius first** — `Database`, `KnowledgeClaim`, `KnowledgeEntity`, `Document`, `LLMConfig`, `Artifact` have high fan-out. Run `get_blast_radius` before touching them.
 
 ## Build / Test / Lint Commands
 
@@ -80,18 +79,23 @@ ruff check fichero-engine/src/
 swiftlint lint fichero/fichero/
 ```
 
-## trace-mcp Reminder
+## jcodemunch Reminder
 
-Worker MUST use trace-mcp for ALL code exploration. NEVER use Read/Grep/Glob/Bash(find/ls) on source files.
+Worker MUST use jcodemunch for ALL code exploration. NEVER use Read/Grep/Glob/Bash(find/ls) on source files. (Migrated from trace-mcp 2026-05-17.)
+
+**Opening move:** `mcp__jcodemunch__plan_turn { repo: "local/fichero-engine-9ae88c40", query: "<issue title>", model: "claude-haiku-4-5" }` — returns confidence + recommended files in one call.
 
 | Need | Use |
 |------|-----|
-| Find a function/class | `search` (fusion=true for best ranking) |
-| File structure before editing | `get_outline <path>` |
-| One symbol's source | `get_symbol <fqn>` |
-| Who calls X | `find_usages` or `get_call_graph` |
-| What breaks if I change X | `get_change_impact` |
-| Task context | `get_task_context` |
-| Feature area context | `get_feature_context` |
+| Find a function/class | `search_symbols { query: "...", language: "python" }` |
+| String/comment search | `search_text { query: "..." }` |
+| File structure before editing | `get_file_outline { path: "..." }` |
+| One symbol's source | `get_symbol_source { symbol_id: "..." }` |
+| Symbol + its imports (one call) | `get_context_bundle { symbol_id: "..." }` |
+| Who imports this file | `find_importers { path: "..." }` |
+| Where is this name used | `find_references { name: "..." }` |
+| What breaks if I change X | `get_blast_radius { symbol_id: "..." }` |
+| Class hierarchy | `get_class_hierarchy { class: "..." }` |
+| Repo overview | `get_repo_outline { repo: "..." }` |
 
-Note: if `search` returns zero results, fall back to `get_outline` on the known file path, then `get_symbol` by FQN. Do not fall back to Grep/Read on source.
+Note: if a query returns `negative_evidence` or `verdict: no_implementation_found`, the feature likely doesn't exist — report the gap. Do NOT keep re-searching or fall back to Grep/Read on source. After Edit/Write, PostToolUse hooks auto-reindex.

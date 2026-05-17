@@ -29,29 +29,35 @@ Run `/session-start` first. It reads SOUL.md → MEMORY.md → STATE.md and repo
 
 ---
 
-## Code Intelligence — trace-mcp First, ALWAYS
+## Code Intelligence — jCodemunch First, ALWAYS
 
-**trace-mcp** is the primary code-exploration tool. SQLite-backed graph, 155k+ symbols, file-watcher kept fresh. Benchmark on this repo: **~93% token savings vs Read/Grep**. The trace-mcp MCP server is auto-loaded by Claude Code — its tools show up as `mcp__trace-mcp__*`.
+**jcodemunch** is the primary code-exploration tool (migrated from trace-mcp 2026-05-17). Tree-sitter AST index, persistent across sessions, supports 70+ languages. The jcodemunch MCP server is auto-loaded by Claude Code — its tools show up as `mcp__jcodemunch__*`.
 
-**Hard rule — for ANY code question, use trace-mcp tools, NOT Read/Grep/Glob/Bash(ls,find):**
+**Opening move for any task:** `mcp__jcodemunch__plan_turn { repo: "...", query: "...", model: "claude-haiku-4-5" }` returns confidence + recommended files in one call. Obey confidence (high → 2 supplementary reads, medium → 5, low → report gap).
 
-| Question | trace-mcp tool |
+**Hard rule — for ANY code question, use jcodemunch tools, NOT Read/Grep/Glob/Bash(ls,find):**
+
+| Question | jcodemunch tool |
 |---|---|
-| Where is `extract_all` defined? | `search` (set `fusion=true` for best ranking) |
-| What's in this file before editing? | `get_outline <path>` |
-| Show me just one function's source | `get_symbol <fqn>` |
-| What breaks if I change X? | `get_change_impact` |
-| Who calls Y / what does Y call? | `find_usages` / `get_call_graph` |
-| All implementations of an interface? | `get_type_hierarchy` |
-| Tests for this symbol? | `get_tests_for` |
-| Untested public API? | `get_untested_symbols` |
-| Dead exports / dead code? | `get_dead_exports` / `get_dead_code` |
-| Circular imports? | `get_circular_imports` |
-| Context for a new task? | `get_task_context` |
+| Where is `extract_all` defined? | `search_symbols { query: "extract_all", language: "python" }` |
+| What's in this file before editing? | `get_file_outline { path: "..." }` |
+| Show me just one function's source | `get_symbol_source { symbol_id: "..." }` |
+| Symbol + its imports in one call | `get_context_bundle { symbol_id: "..." }` |
+| What breaks if I change X? | `get_blast_radius { symbol_id: "..." }` |
+| Who imports this file? | `find_importers { path: "..." }` |
+| Where is this name used? | `find_references { name: "..." }` |
+| Is identifier X used anywhere? | `check_references { name: "..." }` |
+| Class hierarchy | `get_class_hierarchy { class: "..." }` |
+| Tests for this symbol? | `get_untested_symbols` (inverse: which are NOT tested) |
+| Dead code? | `find_dead_code` |
+| Changed symbols since last commit | `get_changed_symbols` |
+| String/comment search | `search_text { query: "..." }` |
 
-Read/Grep/Glob is permitted ONLY for non-code files (`.md`, `.json`, `.yaml`, `.toml`) or immediately before `Edit`-ing a file you just located via trace-mcp.
+After Edit/Write, PostToolUse hooks auto-reindex. For bulk edits (5+ files), call `register_edit { paths: [...] }` to batch-invalidate.
 
-God nodes (high blast radius — run `get_change_impact` BEFORE touching): `Database`, `KnowledgeClaim`, `KnowledgeEntity`, `Document`, `LLMConfig`, `EntityType`, `DocType`, `Artifact`, `WorkflowDef`.
+Read/Grep/Glob is permitted ONLY for non-code files (`.md`, `.json`, `.yaml`, `.toml`) or immediately before `Edit`-ing a file you just located via jcodemunch.
+
+God nodes (high blast radius — run `get_blast_radius` BEFORE touching): `Database`, `KnowledgeClaim`, `KnowledgeEntity`, `Document`, `LLMConfig`, `EntityType`, `DocType`, `Artifact`, `WorkflowDef`.
 
 
 ---
@@ -271,12 +277,16 @@ See `docs/agent-workflow/parallel-execution.md` for the full pattern.
 
 ## Autonomous Loop
 
-The pattern Daniel uses to run Claude unattended:
+Curator + worker split, lives at `~/code/autoloop/`. See `~/code/autoloop/README.md` for the full pattern.
+
+Pattern Daniel uses to run unattended:
 
 1. **tmux** session on the dev machine (a bare SSH shell hits "Not logged in" — see MEMORY.md).
-2. **`agent-autonomous-loop.py`** drives a `claude` CLI loop.
-3. **ScheduleWakeup** reschedules the loop on a cadence.
-4. **BLOCK.md** is the human-in-the-loop gate — the loop checks it each cycle and halts if there is anything for Daniel to decide.
+2. **`~/code/autoloop/bin/batch-loop.sh <project> <batches> <workers>`** runs Sonnet curator (1 pass) then Haiku workers (N iterations), repeats.
+3. Workers run under hard scoping: `--plugin-dir fs_autoloop` (only), `--strict-mcp-config` (jcodemunch only), `--max-turns 30`, `--disallowed-tools` (no subagents, no meta-work, no self-modify).
+4. **BLOCK.md** is the human-in-the-loop gate — checked each cycle, halts if anything for Daniel to decide.
+5. Status persisted in `agent-work/queue.md` (pending/in_progress/done/blocked) so curator recurates intelligently across batches.
+6. **ScheduleWakeup** reschedules the loop on a cadence.
 
 Workflow execution runs on a worker thread (post-#1000); per-thread `db_manager` and `DBWriter` are required.
 
@@ -370,31 +380,3 @@ GitHub Issues + Milestones are authoritative for scope and status.
 7. `PYTHONPATH=fichero-engine/src` on all Python commands
 8. One concern per commit, conventional commit format
 9. `trash` over `rm`
-
-<!-- trace-mcp:start -->
-## trace-mcp Tool Routing
-
-IMPORTANT: For ANY code exploration task, ALWAYS use trace-mcp tools first. NEVER use Read/Grep/Glob/Bash(ls,find) for navigating source code.
-
-| Task | trace-mcp tool | Instead of |
-|------|---------------|------------|
-| Find a function/class/method | `search` | Grep |
-| Understand a file before editing | `get_outline` | Read (full file) |
-| Read one symbol's source | `get_symbol` | Read (full file) |
-| What breaks if I change X | `get_change_impact` | guessing |
-| All usages of a symbol | `find_usages` | Grep |
-| All implementations of an interface | `get_type_hierarchy` | ls/find on directories |
-| All classes implementing X | `search` with `implements` filter | Grep |
-| Project health / coverage gaps | `self_audit` | manual inspection |
-| Dead code / dead exports | `get_dead_code` / `get_dead_exports` | Grep for unused |
-| Context for a task | `get_feature_context` | reading 15 files |
-| Tests for a symbol | `get_tests_for` | Glob + Grep |
-| Untested symbols (deep) | `get_untested_symbols` (classifies "unreached" vs "imported_not_called") | manual audit |
-| HTTP request flow | `get_request_flow` | reading route files |
-| DB model relationships | `get_model_context` | reading model + migrations |
-| Component tree | `get_component_tree` | reading component files |
-| Circular dependencies | `get_circular_imports` | manual tracing |
-
-Use Read/Grep/Glob ONLY for non-code files (.md, .json, .yaml, config) or before Edit.
-Start sessions with `get_project_map` (summary_only=true).
-<!-- trace-mcp:end -->

@@ -12,7 +12,7 @@
 ## Tooling Now Available
 
 - **trace-mcp** — installed and wired into Claude Code MCP. 155k+ symbols indexed, file-watcher kept fresh. Benchmark: ~93% token savings vs Read/Grep on this codebase. Use `mcp__trace-mcp__*` tools (search, get_outline, get_symbol, find_usages, get_change_impact, etc.) instead of Read/Grep/Glob for ALL code questions.
-- **Autonomous loop** — curator + worker split via `~/code/fichero-skills/bin/batch-loop.sh`. Opus curator builds queue.md + digest.md; Haiku worker pops issues, marks status, exits. Status persists in queue (done/blocked/pending) so curator recurates intelligently.
+- **Autonomous loop** — curator + worker split, lives at `~/code/autoloop/`. Run via `~/code/autoloop/bin/batch-loop.sh <project> <batches> <workers>`. Sonnet curator builds `agent-work/queue.md` + `agent-work/digest.md`; Haiku worker pops issues, marks status, exits. Tight scoping via `--bare`, `--plugin-dir`, `--strict-mcp-config`, `--max-turns 30`, `--disallowed-tools`. Status persists in queue (done/blocked/pending) so curator recurates intelligently. See `~/code/autoloop/README.md`.
 
 ## Next Session — Start Here
 
