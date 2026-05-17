@@ -1843,6 +1843,64 @@ def check(ctx: typer.Context) -> None:
         raise typer.Exit(1)
 
 
+# -- engine lifecycle management -----------------------------------------------
+engine_app = typer.Typer(help="Manage the Fichero engine process.", no_args_is_help=True)
+app.add_typer(engine_app, name="engine")
+
+
+@engine_app.command("status")
+def engine_status() -> None:
+    """Show engine status (running or stopped with uptime)."""
+    from fichero.cli.engine_manager import status
+
+    status()
+
+
+@engine_app.command("start")
+def engine_start(
+    port: int = typer.Option(8765, "--port", help="Port to run the engine on."),
+    workers: int = typer.Option(
+        4, "--workers", help="Number of uvicorn worker processes."
+    ),
+) -> None:
+    """Start the engine in the background.
+
+    Launches a detached uvicorn process and polls the port until responsive.
+    If the engine is already running, prints its PID and exits.
+    """
+    from fichero.cli.engine_manager import start
+
+    start(port=port, workers=workers)
+
+
+@engine_app.command("stop")
+def engine_stop() -> None:
+    """Stop the engine gracefully.
+
+    Attempts graceful shutdown via HTTP first, then SIGTERM, finally SIGKILL
+    if the process does not respond.
+    """
+    from fichero.cli.engine_manager import stop
+
+    stop()
+
+
+@engine_app.command("restart")
+def engine_restart(
+    port: int = typer.Option(8765, "--port", help="Port to run the engine on."),
+    workers: int = typer.Option(
+        4, "--workers", help="Number of uvicorn worker processes."
+    ),
+) -> None:
+    """Stop and start the engine.
+
+    Useful for reloading configuration or recovering from a hung state.
+    """
+    from fichero.cli.engine_manager import restart
+
+    restart(port=port, workers=workers)
+
+
 def main() -> None:
     """Console entry point."""
     app()
