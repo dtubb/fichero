@@ -1021,6 +1021,33 @@ class LibraryCreateResponse(BaseModel):
     tables_initialized: bool
 
 
+class HealthResponse(BaseModel):
+    """Response from ``GET /api/health`` endpoint.
+
+    If library path is provided in the request header, returns stats for that
+    library. Otherwise, returns general backend health.
+    """
+
+    status: str
+    library_path: str | None = None
+    database: str | None = None
+    document_count: int | None = None
+
+
+class EntityContextResponse(BaseModel):
+    """Response from CLI ``entity_context()`` aggregation.
+
+    Counts of related entities, documents, and claims in the knowledge graph
+    for a specific entity. Used for scoped entity context queries.
+    """
+
+    entity_id: str
+    page_count: int
+    doc_count: int
+    folder_count: int
+    claim_count: int
+
+
 # =============================================================================
 # Convenience exports
 # =============================================================================
@@ -1048,7 +1075,9 @@ __all__ = [
     "SavedSearch",
     "Conversation",
     "MCPServer",
-    # Library bootstrap
+    # Library bootstrap + API responses
     "LibraryCreateRequest",
     "LibraryCreateResponse",
+    "HealthResponse",
+    "EntityContextResponse",
 ]

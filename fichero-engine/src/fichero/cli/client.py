@@ -39,14 +39,21 @@ from fichero.api.routes.entities import (
     EntityResolutionResponse,
     TopEntityRow,
 )
+from fichero.api.routes.kg_graph import NeighborhoodResponse
+from fichero.api.routes.kg_rebuild import KGResetResponse, RebuildResponse
 from fichero.api.routes.kg_search import KGSearchResponse
 from fichero.api.routes.provider_models import ProviderResponse
+from fichero.api.routes.search import SearchResponse
+from fichero.api.routes.settings import AIDefaults
 from fichero.api.routes.workflow_execution.schemas import (
     ExecuteAcceptedResponse,
     ExecutionStatusResponse,
     ThreadListResponse,
 )
-from fichero.api.routes.workflow_execution.threads import ThreadDeletedResponse
+from fichero.api.routes.workflow_execution.threads import (
+    CancelResponse,
+    ThreadDeletedResponse,
+)
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 from fichero.models import Artifact, Document, LibraryCreateResponse, Workflow
 
@@ -252,16 +259,17 @@ class FicheroClient:
             )
         )
 
-    def import_file(self, path: str | Path, parent_id: str | None = None) -> Any:
+    def import_file(self, path: str | Path, parent_id: str | None = None) -> Document:
         """Upload a single file to the library (multipart/form-data)."""
         file_path = Path(path).expanduser()
         with file_path.open("rb") as handle:
-            return self.request(
+            raw = self.request(
                 "POST",
                 "/api/documents/import",
                 params={"parent_id": parent_id},
                 files={"file": (file_path.name, handle)},
             )
+            return Document.model_validate(raw)
 
     # -- workflows ---------------------------------------------------------
     def list_workflows(self) -> list[Workflow]:
@@ -389,8 +397,8 @@ class FicheroClient:
         subject_canonical: str | None = None,
         object_phrase: str | None = None,
         confidence: float = 1.0,
-    ) -> Any:
-        return self.request("POST", "/api/claims", json={
+    ) -> KnowledgeClaim:
+        raw = self.request("POST", "/api/claims", json={
             "text": text,
             "source_document_id": source_document_id,
             "entity_ids": entity_ids or [],
@@ -400,6 +408,7 @@ class FicheroClient:
             "confidence": confidence,
             "created_by": "human",
         })
+        return KnowledgeClaim.model_validate(raw)
 
     def list_claims(
         self,
@@ -627,22 +636,25 @@ class FicheroClient:
             )
         )
 
-    def kg_rebuild(self, *, vectors: bool = True, triples: bool = True) -> Any:
-        return self.request(
+    def kg_rebuild(self, *, vectors: bool = True, triples: bool = True) -> RebuildResponse:
+        raw = self.request(
             "POST", "/api/kg/rebuild",
             json={"vectors": vectors, "triples": triples},
         )
+        return RebuildResponse.model_validate(raw)
 
-    def kg_reset(self) -> Any:
-        return self.request("POST", "/api/kg/reset")
+    def kg_reset(self) -> KGResetResponse:
+        raw = self.request("POST", "/api/kg/reset")
+        return KGResetResponse.model_validate(raw)
 
-    def import_document(self, path: Path, parent_id: str | None = None) -> Any:
+    def import_document(self, path: Path, parent_id: str | None = None) -> Document:
         with open(path, "rb") as fh:
             files = {"file": (path.name, fh, "application/octet-stream")}
             params = {}
             if parent_id:
                 params["parent_id"] = parent_id
-            return self.request("POST", "/api/documents/import", files=files, params=params)
+            raw = self.request("POST", "/api/documents/import", files=files, params=params)
+            return Document.model_validate(raw)
 
     def entity_neighborhood(
         self,
@@ -651,12 +663,13 @@ class FicheroClient:
         hops: int = 1,
         limit: int = 50,
         rank: str = "edge_weight",
-    ) -> Any:
-        return self.request(
+    ) -> NeighborhoodResponse:
+        raw = self.request(
             "GET",
             f"/api/kg/graph/neighborhood/{entity_id}",
             params={"hops": hops, "limit": limit, "rank": rank},
         )
+        return NeighborhoodResponse.model_validate(raw)
 
     # -- search ------------------------------------------------------------
     def search(
@@ -668,7 +681,7 @@ class FicheroClient:
         min_score: float = 0.3,
         doc_id: str | None = None,
         folder_id: str | None = None,
-    ) -> Any:
+    ) -> SearchResponse:
         body: dict = {
             "query": query,
             "limit": limit,
@@ -682,11 +695,12 @@ class FicheroClient:
             filters["folder_id"] = folder_id
         if filters:
             body["filters"] = filters
-        return self.request(
+        raw = self.request(
             "POST",
             "/api/search",
             json=body,
         )
+        return SearchResponse.model_validate(raw)
 
     # -- activity ----------------------------------------------------------
     def recent_activity(self, *, limit: int = 50) -> list[ActivityResponse]:
@@ -702,7 +716,7 @@ class FicheroClient:
         thread_id: str | None = None,
         types: str | None = None,
         limit: int = 100,
-    ) -> Any:
+    ) -> list[ActivityResponse]:
         """Query the durable activity log.
 
         Used by ``workflow run --wait`` because the checkpoint-based status
@@ -712,11 +726,15 @@ class FicheroClient:
         in contrast, only emits ``workflow_completed`` / ``workflow_failed`` /
         ``workflow_cancelled`` once the executor itself has finished.
         """
-        return self.request(
+        raw = self.request(
             "GET",
             "/api/activity",
             params={"thread_id": thread_id, "types": types, "limit": limit},
         )
+        return [
+            ActivityResponse.model_validate(a)
+            for a in _expect_list(raw, "/api/activity")
+        ]
 
     # -- documents (extended) -----------------------------------------------
     def delete_document(self, doc_id: str) -> None:
@@ -912,7 +930,7 @@ class FicheroClient:
             )
         )
 
-    def cancel_workflow(self, thread_id: str) -> dict[str, Any]:
+    def cancel_workflow(self, thread_id: str) -> CancelResponse:
         """Cancel a running workflow (#1127).
 
         Returns the CancelResponse shape: ``thread_id``, ``status``
@@ -922,22 +940,25 @@ class FicheroClient:
         an already-cancelled thread returns ``status=already_terminal``
         rather than raising.
         """
-        return self.request(
+        raw = self.request(
             "POST",
             f"/api/workflow-execution/threads/{thread_id}/cancel",
-        ) or {}
+        )
+        return CancelResponse.model_validate(raw or {})
 
     # -- settings ----------------------------------------------------------
-    def get_settings(self) -> dict[str, Any]:
+    def get_settings(self) -> AIDefaults:
         """Fetch the current AI-defaults settings block."""
-        return self.request("GET", "/api/settings/ai-defaults") or {}
+        raw = self.request("GET", "/api/settings/ai-defaults")
+        return AIDefaults.model_validate(raw or {})
 
-    def set_settings(self, **fields: Any) -> dict[str, Any]:
+    def set_settings(self, **fields: Any) -> AIDefaults:
         """PUT the full AI-defaults block (fetches current values, merges, saves)."""
         current = self.get_settings()
-        merged = {**current, **fields}
-        result = self.request("PUT", "/api/settings/ai-defaults", json=merged)
-        return result if result is not None else {"status": "ok"}
+        current_dict = current.model_dump() if hasattr(current, 'model_dump') else current
+        merged = {**current_dict, **fields}
+        raw = self.request("PUT", "/api/settings/ai-defaults", json=merged)
+        return AIDefaults.model_validate(raw or {})
 
     # -- providers ---------------------------------------------------------
     def list_providers(self) -> list[ProviderResponse]:
