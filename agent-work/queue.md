@@ -12,7 +12,7 @@
   completed_at: 2026-05-17
 
 - issue: 984
-  status: pending
+  status: in_progress
   title: "Backend: promote subject/verb/object from KnowledgeClaim.metadata to top-level DB columns"
   files: [fichero-engine/src/fichero/workflows/tools/extractors.py, fichero-engine/src/fichero/db.py, fichero-engine/src/fichero/models/]
   approach: "Add subject/verb/object columns to KnowledgeClaim table in db.py _ensure_table + Pydantic model, then update the extractors.py write path to use top-level fields; no ALTER TABLE needed."
