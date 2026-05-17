@@ -55,7 +55,14 @@ from fichero.api.routes.workflow_execution.threads import (
     ThreadDeletedResponse,
 )
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
-from fichero.models import Artifact, Document, LibraryCreateResponse, Workflow
+from fichero.models import (
+    Artifact,
+    Document,
+    KnownLibrary,
+    LibraryCreateResponse,
+    LibraryRegistryResponse,
+    Workflow,
+)
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8765"
 
@@ -1000,3 +1007,55 @@ class FicheroClient:
     def delete_provider(self, provider_id: str) -> None:
         """Delete a provider configuration."""
         self.request("DELETE", f"/api/providers/{provider_id}")
+
+    def list_known_libraries(self) -> LibraryRegistryResponse:
+        """List all known libraries in the registry.
+
+        Returns libraries sorted by last_accessed descending (most recent first).
+        """
+        raw = self.request("GET", "/api/registry")
+        return LibraryRegistryResponse.model_validate(raw)
+
+    def add_known_library(self, path: str, name: str | None = None) -> KnownLibrary:
+        """Register an existing library path in the registry.
+
+        Validates that the path exists and contains a .fichero package.
+
+        Args:
+            path: Absolute path to the .fichero package
+            name: Optional display name (defaults to package basename)
+
+        Returns:
+            The KnownLibrary record that was created or updated.
+        """
+        params = {"path": path}
+        if name is not None:
+            params["name"] = name
+        raw = self.request("POST", "/api/registry/add", params=params)
+        return KnownLibrary.model_validate(raw)
+
+    def remove_known_library(self, path: str) -> dict:
+        """Remove a library from the known libraries registry.
+
+        Args:
+            path: Absolute path to the .fichero package
+
+        Returns:
+            Response dict with status confirmation.
+        """
+        from urllib.parse import quote
+
+        encoded_path = quote(path, safe="")
+        return self.request("DELETE", f"/api/registry/{encoded_path}")
+
+    def update_library_access(self, path: str) -> KnownLibrary:
+        """Mark a library as accessed (update last_accessed timestamp).
+
+        Args:
+            path: Absolute path to the .fichero package
+
+        Returns:
+            The updated KnownLibrary record.
+        """
+        raw = self.request("POST", "/api/registry/update-access", params={"path": path})
+        return KnownLibrary.model_validate(raw)

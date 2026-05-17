@@ -912,6 +912,66 @@ def _discover_libraries(roots: tuple[Path, ...] | None = None) -> list[str]:
     return sorted(set(found))
 
 
+@library_app.command("list")
+def library_list(ctx: typer.Context) -> None:
+    """List all known libraries in the registry.
+
+    Shows libraries sorted by last_accessed (most recent first).
+    Output: "path [last_accessed]" per library, or "(no libraries)" if empty.
+    """
+
+    def op(c: FicheroClient) -> Any:
+        response = c.list_known_libraries()
+        if not response.libraries:
+            return "(no libraries)"
+        return response.libraries
+
+    _invoke(ctx, op)
+
+
+@library_app.command("add")
+def library_add(
+    ctx: typer.Context,
+    path: str = typer.Argument(
+        ...,
+        help="Path to the .fichero library package to register.",
+    ),
+) -> None:
+    """Register an existing library path.
+
+    Validates that the path exists and contains a .fichero package.
+    Output: "Added: {path}"
+    """
+    expanded = str(Path(path).expanduser())
+
+    def op(c: FicheroClient) -> dict:
+        lib = c.add_known_library(expanded)
+        return {"status": f"Added: {lib.path}"}
+
+    _invoke(ctx, op)
+
+
+@library_app.command("remove")
+def library_remove(
+    ctx: typer.Context,
+    path: str = typer.Argument(
+        ...,
+        help="Path to the library to unregister.",
+    ),
+) -> None:
+    """Unregister a library from the registry.
+
+    Output: "Removed: {path}"
+    """
+    expanded = str(Path(path).expanduser())
+
+    def op(c: FicheroClient) -> dict:
+        c.remove_known_library(expanded)
+        return {"status": f"Removed: {expanded}"}
+
+    _invoke(ctx, op)
+
+
 @library_app.command("create")
 def library_create(
     ctx: typer.Context,
@@ -920,23 +980,114 @@ def library_create(
         help="Path to the .fichero package to create (e.g. ~/Documents/Test.fichero).",
     ),
 ) -> None:
-    """Create a fresh .fichero library and initialize its tables."""
-    expanded = str(Path(path).expanduser())
-    _invoke(ctx, lambda c: c.create_library(expanded))
+    """Create a new library at path and auto-register it.
 
-
-@library_app.command("list")
-def library_list(ctx: typer.Context) -> None:
-    """List .fichero packages found under the allowlist roots.
-
-    Pure filesystem walk — does NOT call the backend, so this works even
-    when the engine isn't running.
+    Output: "Created and registered: {path}"
     """
-    paths = _discover_libraries()
-    if ctx.obj["json"]:
-        typer.echo(render({"libraries": paths}, as_json=True))
-    else:
-        typer.echo(render(paths))
+    expanded = str(Path(path).expanduser())
+
+    def op(c: FicheroClient) -> dict:
+        c.create_library(expanded)
+        # Auto-register by calling add_known_library
+        c.add_known_library(expanded)
+        return {"status": f"Created and registered: {expanded}"}
+
+    _invoke(ctx, op)
+
+
+@library_app.command("delete")
+def library_delete(
+    ctx: typer.Context,
+    path: str = typer.Argument(
+        ...,
+        help="Path to the library to delete.",
+    ),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+) -> None:
+    """Delete a library and remove it from the registry.
+
+    Removes the .fichero directory from the filesystem.
+    Confirm before deletion: "Delete {path}? (y/n)"
+    Output: "Deleted: {path}"
+    """
+    expanded = str(Path(path).expanduser())
+
+    if not yes:
+        typer.confirm(f"Delete {expanded}?", abort=True)
+
+    def op(c: FicheroClient) -> dict:
+        # Remove from registry first
+        c.remove_known_library(expanded)
+        # Then delete the filesystem directory
+        lib_path = Path(expanded)
+        if lib_path.exists():
+            import shutil
+
+            shutil.rmtree(lib_path)
+        return {"status": f"Deleted: {expanded}"}
+
+    _invoke(ctx, op)
+
+
+@library_app.command("open")
+def library_open(
+    ctx: typer.Context,
+    path: str = typer.Argument(
+        ...,
+        help="Path to the library to activate.",
+    ),
+) -> None:
+    """Mark library as active (updates last_accessed).
+
+    For future: CLI will use this to switch active library context.
+    Output: "Activated: {path}"
+    """
+    expanded = str(Path(path).expanduser())
+
+    def op(c: FicheroClient) -> dict:
+        c.update_library_access(expanded)
+        return {"status": f"Activated: {expanded}"}
+
+    _invoke(ctx, op)
+
+
+@library_app.command("close")
+def library_close(
+    ctx: typer.Context,
+    path: str = typer.Argument(
+        ...,
+        help="Path to the library to deactivate.",
+    ),
+) -> None:
+    """Deactivate a library (placeholder for future logic).
+
+    Output: "Closed: {path}"
+    """
+    expanded = str(Path(path).expanduser())
+    # For now, this is a no-op that just prints the message
+    typer.echo(f"Closed: {expanded}")
+
+
+@library_app.command("reset")
+def library_reset(
+    ctx: typer.Context,
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+) -> None:
+    """Clear all registry entries.
+
+    Confirm before reset: "Clear all known libraries? (y/n)"
+    Output: "Reset complete"
+    """
+    if not yes:
+        typer.confirm("Clear all known libraries?", abort=True)
+
+    def op(c: FicheroClient) -> dict:
+        response = c.list_known_libraries()
+        for lib in response.libraries:
+            c.remove_known_library(lib.path)
+        return {"status": "Reset complete"}
+
+    _invoke(ctx, op)
 
 
 # -- docs (extended) -------------------------------------------------------
