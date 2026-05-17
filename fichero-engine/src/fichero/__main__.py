@@ -248,9 +248,25 @@ def artifacts_list(
     limit: int = typer.Option(50, "--limit"),
 ) -> None:
     """List a document's artifacts."""
-    _invoke(
-        ctx, lambda c: c.list_artifacts(doc_id, artifact_type=artifact_type, limit=limit)
-    )
+    if ctx.obj["json"]:
+        _invoke(
+            ctx, lambda c: c.list_artifacts(doc_id, artifact_type=artifact_type, limit=limit)
+        )
+        return
+    try:
+        with _client(ctx) as client:
+            artifacts = client.list_artifacts(doc_id, artifact_type=artifact_type, limit=limit)
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    from fichero.cli.formatters import render_artifact
+
+    if isinstance(artifacts, list):
+        for artifact in artifacts:
+            typer.echo(render_artifact(artifact))
+    else:
+        typer.echo(render_artifact(artifacts))
 
 
 @artifacts_app.command("get")
@@ -346,7 +362,50 @@ def search(
     except FicheroError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
-    typer.echo(_render_search_results(data))
+
+    from fichero.cli.formatters import render_claim
+
+    # Try to render as search results with custom formatting first
+    results = data.get("results") if isinstance(data, dict) else data
+    if isinstance(results, list) and results:
+        typer.echo(f"results ({len(results)}):")
+        for r in results:
+            # If result has claim-like structure, use render_claim
+            if isinstance(r, dict) and "subject_canonical" in r:
+                typer.echo(f"  {render_claim(r)}")
+            else:
+                # Fall back to custom search result formatting
+                typer.echo(_render_search_result_item(r))
+    else:
+        typer.echo(_render_search_results(data))
+
+
+def _render_search_result_item(r: Any) -> str:
+    """Render a single search result item — score, doc id, name, preview, highlights."""
+    if not isinstance(r, dict):
+        return f"  - {r}"
+    score = r.get("score")
+    score_str = f"{score:.3f}" if isinstance(score, (int, float)) else "  -  "
+    doc_id = str(r.get("document_id") or r.get("id") or "?")
+    doc_id_short = doc_id[:8]
+    meta = r.get("metadata") if isinstance(r.get("metadata"), dict) else {}
+    name = meta.get("name") or meta.get("title") or meta.get("filename")
+    if not name:
+        path = meta.get("path") or ""
+        name = path.rsplit("/", 1)[-1] if path else "(unnamed)"
+    preview = (r.get("content_preview") or "").strip().replace("\n", " ")
+    if len(preview) > 80:
+        preview = preview[:80] + "…"
+    lines = [f"  {score_str}  {doc_id_short}  {name}"]
+    if preview:
+        lines.append(f"              {preview}")
+    highlights = r.get("highlights") or []
+    if isinstance(highlights, list) and highlights:
+        joined = " / ".join(str(h).strip().replace("\n", " ") for h in highlights[:2])
+        if len(joined) > 120:
+            joined = joined[:120] + "…"
+        lines.append(f"              highlights: {joined}")
+    return "\n".join(lines)
 
 
 def _render_search_results(data: Any) -> str:
@@ -363,30 +422,7 @@ def _render_search_results(data: Any) -> str:
         return "results: (empty)"
     lines = [f"results ({len(results)}):"]
     for r in results:
-        if not isinstance(r, dict):
-            lines.append(f"  - {r}")
-            continue
-        score = r.get("score")
-        score_str = f"{score:.3f}" if isinstance(score, (int, float)) else "  -  "
-        doc_id = str(r.get("document_id") or r.get("id") or "?")
-        doc_id_short = doc_id[:8]
-        meta = r.get("metadata") if isinstance(r.get("metadata"), dict) else {}
-        name = meta.get("name") or meta.get("title") or meta.get("filename")
-        if not name:
-            path = meta.get("path") or ""
-            name = path.rsplit("/", 1)[-1] if path else "(unnamed)"
-        preview = (r.get("content_preview") or "").strip().replace("\n", " ")
-        if len(preview) > 80:
-            preview = preview[:80] + "…"
-        lines.append(f"  {score_str}  {doc_id_short}  {name}")
-        if preview:
-            lines.append(f"              {preview}")
-        highlights = r.get("highlights") or []
-        if isinstance(highlights, list) and highlights:
-            joined = " / ".join(str(h).strip().replace("\n", " ") for h in highlights[:2])
-            if len(joined) > 120:
-                joined = joined[:120] + "…"
-            lines.append(f"              highlights: {joined}")
+        lines.append(_render_search_result_item(r))
     return "\n".join(lines)
 
 
@@ -409,16 +445,38 @@ def docs_list(
     limit: Optional[int] = typer.Option(None, "--limit"),
 ) -> None:
     """List documents."""
-    _invoke(
-        ctx,
-        lambda c: c.list_documents(
-            parent_id=parent,
-            doc_type=doc_type,
-            file_type=file_type,
-            status=status,
-            limit=limit,
-        ),
-    )
+    if ctx.obj["json"]:
+        _invoke(
+            ctx,
+            lambda c: c.list_documents(
+                parent_id=parent,
+                doc_type=doc_type,
+                file_type=file_type,
+                status=status,
+                limit=limit,
+            ),
+        )
+        return
+    try:
+        with _client(ctx) as client:
+            documents = client.list_documents(
+                parent_id=parent,
+                doc_type=doc_type,
+                file_type=file_type,
+                status=status,
+                limit=limit,
+            )
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    from fichero.cli.formatters import render_document
+
+    if isinstance(documents, list):
+        for doc in documents:
+            typer.echo(render_document(doc))
+    else:
+        typer.echo(render_document(documents))
 
 
 @docs_app.command("get")
@@ -1080,10 +1138,26 @@ def claim_list(
     limit: int = typer.Option(50, "--limit"),
 ) -> None:
     """List knowledge claims, optionally filtered to a document."""
-    _invoke(
-        ctx,
-        lambda c: c.list_claims(source_document_id=doc_id, limit=limit),
-    )
+    if ctx.obj["json"]:
+        _invoke(
+            ctx,
+            lambda c: c.list_claims(source_document_id=doc_id, limit=limit),
+        )
+        return
+    try:
+        with _client(ctx) as client:
+            claims = client.list_claims(source_document_id=doc_id, limit=limit)
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    from fichero.cli.formatters import render_claim
+
+    if isinstance(claims, list):
+        for claim in claims:
+            typer.echo(render_claim(claim))
+    else:
+        typer.echo(render_claim(claims))
 
 
 # -- entity ----------------------------------------------------------------
@@ -1117,7 +1191,19 @@ def entity_get(
     entity_id: str = typer.Argument(..., help="Entity ID."),
 ) -> None:
     """Show a single knowledge entity."""
-    _invoke(ctx, lambda c: c.get_entity(entity_id))
+    if ctx.obj["json"]:
+        _invoke(ctx, lambda c: c.get_entity(entity_id))
+        return
+    try:
+        with _client(ctx) as client:
+            entity = client.get_entity(entity_id)
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    from fichero.cli.formatters import render_entity
+
+    typer.echo(render_entity(entity))
 
 
 @entity_app.command("update")
@@ -1189,7 +1275,23 @@ def entity_top(
     limit: int = typer.Option(30, "--limit", help="Number of top entities to return."),
 ) -> None:
     """Top-N entities by claim count across the library."""
-    _invoke(ctx, lambda c: c.top_entities(limit=limit))
+    if ctx.obj["json"]:
+        _invoke(ctx, lambda c: c.top_entities(limit=limit))
+        return
+    try:
+        with _client(ctx) as client:
+            entities = client.top_entities(limit=limit)
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    from fichero.cli.formatters import render_entity
+
+    if isinstance(entities, list):
+        for entity in entities:
+            typer.echo(render_entity(entity))
+    else:
+        typer.echo(render_entity(entities))
 
 
 @entity_app.command("documents")
@@ -1350,10 +1452,26 @@ def claim_at_page(
     ),
 ) -> None:
     """Claims sourced from this page (optionally about one entity)."""
-    _invoke(
-        ctx,
-        lambda c: c.claims_at_doc(page_doc_id, entity_id=entity_id),
-    )
+    if ctx.obj["json"]:
+        _invoke(
+            ctx,
+            lambda c: c.claims_at_doc(page_doc_id, entity_id=entity_id),
+        )
+        return
+    try:
+        with _client(ctx) as client:
+            claims = client.claims_at_doc(page_doc_id, entity_id=entity_id)
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    from fichero.cli.formatters import render_claim
+
+    if isinstance(claims, list):
+        for claim in claims:
+            typer.echo(render_claim(claim))
+    else:
+        typer.echo(render_claim(claims))
 
 
 @claim_app.command("at-doc")
@@ -1366,10 +1484,26 @@ def claim_at_doc(
 ) -> None:
     """Claims sourced from this doc or any of its pages, optionally
     about one entity."""
-    _invoke(
-        ctx,
-        lambda c: c.claims_at_doc(doc_id, entity_id=entity_id),
-    )
+    if ctx.obj["json"]:
+        _invoke(
+            ctx,
+            lambda c: c.claims_at_doc(doc_id, entity_id=entity_id),
+        )
+        return
+    try:
+        with _client(ctx) as client:
+            claims = client.claims_at_doc(doc_id, entity_id=entity_id)
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    from fichero.cli.formatters import render_claim
+
+    if isinstance(claims, list):
+        for claim in claims:
+            typer.echo(render_claim(claim))
+    else:
+        typer.echo(render_claim(claims))
 
 
 @claim_app.command("at-folder")
@@ -1386,14 +1520,34 @@ def claim_at_folder(
 ) -> None:
     """Claims sourced from anywhere under this folder, optionally
     about one entity."""
-    _invoke(
-        ctx,
-        lambda c: c.claims_at_folder(
-            folder_id,
-            entity_id=entity_id,
-            recursive=not non_recursive,
-        ),
-    )
+    if ctx.obj["json"]:
+        _invoke(
+            ctx,
+            lambda c: c.claims_at_folder(
+                folder_id,
+                entity_id=entity_id,
+                recursive=not non_recursive,
+            ),
+        )
+        return
+    try:
+        with _client(ctx) as client:
+            claims = client.claims_at_folder(
+                folder_id,
+                entity_id=entity_id,
+                recursive=not non_recursive,
+            )
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    from fichero.cli.formatters import render_claim
+
+    if isinstance(claims, list):
+        for claim in claims:
+            typer.echo(render_claim(claim))
+    else:
+        typer.echo(render_claim(claims))
 
 
 # -- audit -----------------------------------------------------------------

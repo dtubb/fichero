@@ -91,7 +91,23 @@ def render(data: Any, *, as_json: bool = False) -> str:
     Accepts plain dicts/lists OR Pydantic model instances (or nested
     combinations). Pydantic models are converted to JSON-shaped dicts at the
     boundary so the rest of the formatter stays purely structural.
+
+    Specialized renderers for entities, claims, documents, and artifacts are
+    dispatched based on dict key signatures before falling back to generic.
     """
+    # Handle type-specific renderers BEFORE converting to jsonable
+    # This preserves the original type information for dispatch
+    if isinstance(data, (dict, BaseModel)):
+        data_dict = data if isinstance(data, dict) else data.model_dump(mode="json")
+        if "canonical_name" in data_dict:
+            return render_entity(data_dict, as_json=as_json)
+        if "subject_canonical" in data_dict:
+            return render_claim(data_dict, as_json=as_json)
+        if "filename" in data_dict:
+            return render_document(data_dict, as_json=as_json)
+        if "artifact_type" in data_dict:
+            return render_artifact(data_dict, as_json=as_json)
+
     data = _to_jsonable(data)
     if as_json:
         return json.dumps(data, indent=2, default=str, sort_keys=True)
@@ -155,3 +171,149 @@ def _first(item: dict, keys: tuple[str, ...]) -> str | None:
         if value not in (None, ""):
             return str(value)
     return None
+
+
+def _truncate(text: str, width: int) -> str:
+    """Truncate text to width, appending '...' if truncated."""
+    if len(text) > width:
+        return text[:width] + "..."
+    return text
+
+
+def _align_columns(items: list[tuple[str, ...]], widths: list[int]) -> str:
+    """Pad each field in items to specified widths and join with ' | ' separator.
+
+    Args:
+        items: List of tuples, each tuple is a row of fields
+        widths: List of column widths to pad to
+
+    Returns:
+        Multi-line string with aligned columns
+    """
+    lines = []
+    for item in items:
+        padded = [str(field).ljust(width) for field, width in zip(item, widths)]
+        lines.append(" | ".join(padded))
+    return "\n".join(lines)
+
+
+def render_entity(entity: dict | Any, *, as_json: bool = False) -> str:
+    """Render a KnowledgeEntity for display.
+
+    Args:
+        entity: Entity dict or BaseModel with canonical_name, entity_type, description
+        as_json: If True, return raw JSON instead of human-readable format
+
+    Returns:
+        Formatted string
+    """
+    if as_json:
+        if isinstance(entity, BaseModel):
+            data = entity.model_dump(mode="json")
+        else:
+            data = entity
+        return json.dumps(data, indent=2, default=str, sort_keys=True)
+
+    # Convert BaseModel to dict if needed
+    if isinstance(entity, BaseModel):
+        entity = entity.model_dump(mode="json")
+
+    canonical_name = entity.get("canonical_name", "(missing)")
+    entity_type = entity.get("entity_type", "(missing)")
+    description = entity.get("description", "")
+
+    # Truncate description to 50 chars
+    description = _truncate(str(description), 50)
+
+    # Align 3 columns: 30, 15, 50
+    items = [(canonical_name, entity_type, description)]
+    return _align_columns(items, [30, 15, 50])
+
+
+def render_claim(claim: dict | Any, *, as_json: bool = False) -> str:
+    """Render a KnowledgeClaim for display.
+
+    Args:
+        claim: Claim dict or BaseModel with subject_canonical, predicate_verb, object_phrase,
+               source_document_id
+        as_json: If True, return raw JSON instead of human-readable format
+
+    Returns:
+        Formatted string
+    """
+    if as_json:
+        if isinstance(claim, BaseModel):
+            data = claim.model_dump(mode="json")
+        else:
+            data = claim
+        return json.dumps(data, indent=2, default=str, sort_keys=True)
+
+    # Convert BaseModel to dict if needed
+    if isinstance(claim, BaseModel):
+        claim = claim.model_dump(mode="json")
+
+    subject = _truncate(str(claim.get("subject_canonical", "(missing)")), 25)
+    predicate = _truncate(str(claim.get("predicate_verb", "(missing)")), 25)
+    obj = _truncate(str(claim.get("object_phrase", "(missing)")), 25)
+    doc_id = claim.get("source_document_id", "(missing)")
+
+    return f"{subject} → {predicate} → {obj} (from: {doc_id})"
+
+
+def render_document(doc: dict | Any, *, as_json: bool = False) -> str:
+    """Render a Document for display.
+
+    Args:
+        doc: Document dict or BaseModel with filename, doc_type, description
+        as_json: If True, return raw JSON instead of human-readable format
+
+    Returns:
+        Formatted string
+    """
+    if as_json:
+        if isinstance(doc, BaseModel):
+            data = doc.model_dump(mode="json")
+        else:
+            data = doc
+        return json.dumps(data, indent=2, default=str, sort_keys=True)
+
+    # Convert BaseModel to dict if needed
+    if isinstance(doc, BaseModel):
+        doc = doc.model_dump(mode="json")
+
+    filename = doc.get("filename", "(missing)")
+    doc_type = doc.get("doc_type", "(missing)")
+    description = doc.get("description", "")
+
+    # Truncate description to 50 chars
+    description = _truncate(str(description), 50)
+
+    return f"{filename} [{doc_type}] - {description}"
+
+
+def render_artifact(artifact: dict | Any, *, as_json: bool = False) -> str:
+    """Render an Artifact for display.
+
+    Args:
+        artifact: Artifact dict or BaseModel with artifact_type, title, document_id
+        as_json: If True, return raw JSON instead of human-readable format
+
+    Returns:
+        Formatted string
+    """
+    if as_json:
+        if isinstance(artifact, BaseModel):
+            data = artifact.model_dump(mode="json")
+        else:
+            data = artifact
+        return json.dumps(data, indent=2, default=str, sort_keys=True)
+
+    # Convert BaseModel to dict if needed
+    if isinstance(artifact, BaseModel):
+        artifact = artifact.model_dump(mode="json")
+
+    artifact_type = artifact.get("artifact_type", "(missing)")
+    title = _truncate(str(artifact.get("title", "")), 40)
+    document_id = artifact.get("document_id", "(missing)")
+
+    return f"{artifact_type}: {title} (from doc: {document_id})"
