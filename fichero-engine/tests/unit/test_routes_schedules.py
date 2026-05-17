@@ -89,7 +89,7 @@ class TestListSchedules:
         mock_scheduler.list_schedules.return_value = []
         r = client.get("/api/schedules")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json() == {"items": [], "count": 0}
 
     def test_list_returns_schedules(self, client, mock_scheduler):
         mock_scheduler.list_schedules.return_value = [_make_mock_schedule("s1"), _make_mock_schedule("s2")]
@@ -135,7 +135,7 @@ class TestGetSchedule:
     def test_get_existing_schedule(self, client, mock_scheduler):
         r = client.get("/api/schedules/sched-1")
         assert r.status_code == 200
-        assert r.json()["schedule_id"] == "sched-1"
+        assert r.json()["items"]["schedule_id"] == "sched-1"
 
     def test_get_returns_404_when_none(self, client, mock_scheduler):
         mock_scheduler.get_schedule.return_value = None
@@ -185,7 +185,7 @@ class TestScheduleRuns:
         mock_scheduler.get_schedule_runs.return_value = []
         r = client.get("/api/schedules/sched-1/runs")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json() == {"items": [], "count": 0}
 
     def test_get_runs_missing_schedule_returns_404(self, client, mock_scheduler):
         mock_scheduler.get_schedule.return_value = None

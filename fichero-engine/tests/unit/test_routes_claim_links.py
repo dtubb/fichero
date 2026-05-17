@@ -111,7 +111,7 @@ class TestListClaimLinks:
         _make_link(db, c1, c3)
         r = client.get(f"/api/claims/{c1.id}/links")
         assert r.status_code == 200
-        assert len(r.json()) == 2
+        assert len(r.json()["items"]["items"]) == 2
 
     def test_includes_incoming_links(self, client, db):
         doc = _make_document(db)
@@ -120,7 +120,7 @@ class TestListClaimLinks:
         _make_link(db, c2, c1)  # c2 -> c1 (c1 is related_claim_id)
         r = client.get(f"/api/claims/{c1.id}/links")
         assert r.status_code == 200
-        assert len(r.json()) == 1  # incoming link is included
+        assert len(r.json()["items"]["items"]) == 1  # incoming link is included
 
     def test_missing_claim_returns_404(self, client):
         r = client.get("/api/claims/no-such-claim/links")
@@ -140,7 +140,7 @@ class TestGetClaimLink:
         link = _make_link(db, c1, c2)
         r = client.get(f"/api/claim-links/{link.id}")
         assert r.status_code == 200
-        assert r.json()["id"] == link.id
+        assert r.json()["items"]["id"] == link.id
 
     def test_get_missing_link_returns_404(self, client):
         r = client.get("/api/claim-links/no-such-link")
@@ -160,7 +160,7 @@ class TestUpdateClaimLink:
         link = _make_link(db, c1, c2)
         r = client.patch(f"/api/claim-links/{link.id}", json={"link_quality": 0.95})
         assert r.status_code == 200
-        assert r.json()["link_quality"] == 0.95
+        assert r.json()["items"]["link_quality"] == 0.95
 
     def test_patch_missing_returns_404(self, client):
         r = client.patch("/api/claim-links/no-such-id", json={"link_quality": 0.5})
@@ -241,7 +241,7 @@ class TestExtendedClaimRelationTypes:
             json={"related_claim_id": c2.id, "relation_type": kind},
         )
         assert r.status_code == 200, r.text
-        link_id = r.json()["id"]
+        link_id = r.json()["items"]["id"]
         # Round-trip the value back via GET
         r2 = client.get(f"/api/claim-links/{link_id}")
         assert r2.status_code == 200
@@ -257,7 +257,7 @@ class TestExtendedClaimRelationTypes:
             json={"relation_type": "corroborates"},
         )
         assert r.status_code == 200
-        assert r.json()["relation_type"] == "corroborates"
+        assert r.json()["items"]["relation_type"] == "corroborates"
 
     def test_filter_related_by_new_kind(self, client, db):
         doc = _make_document(db)

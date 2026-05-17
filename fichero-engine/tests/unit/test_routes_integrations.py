@@ -53,7 +53,7 @@ class TestListIntegrations:
         with patch("fichero.api.routes.integrations.get_integration_registry", return_value=registry):
             r = client.get("/api/integrations")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json() == {"items": [], "count": 0}
 
     def test_returns_integrations(self, client):
         devonthink = _make_integration("DEVONthink")
@@ -100,7 +100,7 @@ class TestGetIntegration:
         with patch("fichero.api.routes.integrations.get_integration_registry", return_value=registry):
             r = client.get("/api/integrations/devonthink")
         assert r.status_code == 200
-        assert r.json()["name"] == "DEVONthink"
+        assert r.json()["items"]["name"] == "DEVONthink"
 
     def test_get_missing_integration_returns_404(self, client):
         registry = _make_registry()

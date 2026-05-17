@@ -52,14 +52,14 @@ class TestListMCPServers:
     def test_empty_list(self, client):
         r = client.get("/api/mcp-servers")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json() == {"items": [], "count": 0}
 
     def test_returns_configured_servers(self, client, app_db):
         _make_mcp_server(app_db, "Server A")
         _make_mcp_server(app_db, "Server B")
         r = client.get("/api/mcp-servers")
         assert r.status_code == 200
-        assert len(r.json()) == 2
+        assert len(r.json()["items"]["items"]) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -105,7 +105,7 @@ class TestGetMCPServer:
         server = _make_mcp_server(app_db)
         r = client.get(f"/api/mcp-servers/{server.id}")
         assert r.status_code == 200
-        assert r.json()["id"] == server.id
+        assert r.json()["items"]["id"] == server.id
 
     def test_get_missing_returns_404(self, client):
         r = client.get("/api/mcp-servers/nonexistent-id")
@@ -126,7 +126,7 @@ class TestUpdateMCPServer:
             "description": "Updated description",
         })
         assert r.status_code == 200
-        assert r.json()["description"] == "Updated description"
+        assert r.json()["items"]["description"] == "Updated description"
 
     def test_update_missing_returns_404(self, client):
         r = client.put("/api/mcp-servers/no-such-id", json={

@@ -66,7 +66,7 @@ class TestListRooms:
     def test_empty_list(self, client):
         r = client.get(f"{BASE}/rooms")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json() == {"items": [], "count": 0}
 
     def test_returns_rooms(self, client, db):
         db.save(_make_room("r-1", "Room A"))
@@ -74,7 +74,7 @@ class TestListRooms:
 
         r = client.get(f"{BASE}/rooms")
         assert r.status_code == 200
-        assert len(r.json()) == 2
+        assert len(r.json()["items"]["items"]) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -88,7 +88,7 @@ class TestGetRoom:
 
         r = client.get(f"{BASE}/rooms/r-get")
         assert r.status_code == 200
-        assert r.json()["name"] == "My Room"
+        assert r.json()["items"]["name"] == "My Room"
 
     def test_get_missing_room_returns_404(self, client):
         r = client.get(f"{BASE}/rooms/no-such")
@@ -106,7 +106,7 @@ class TestUpdateRoom:
 
         r = client.patch(f"{BASE}/rooms/r-upd", json={"name": "New Name"})
         assert r.status_code == 200
-        assert r.json()["name"] == "New Name"
+        assert r.json()["items"]["name"] == "New Name"
 
     def test_update_missing_room_returns_404(self, client):
         r = client.patch(f"{BASE}/rooms/no-such", json={"name": "X"})
@@ -168,7 +168,7 @@ class TestListNodes:
         db.save(_make_room("r-empty"))
         r = client.get(f"{BASE}/nodes?room_id=r-empty")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json() == {"items": [], "count": 0}
 
     def test_returns_nodes_for_room(self, client, db):
         db.save(_make_room("r-ln"))
@@ -177,7 +177,7 @@ class TestListNodes:
 
         r = client.get(f"{BASE}/nodes?room_id=r-ln")
         assert r.status_code == 200
-        assert len(r.json()) == 2
+        assert len(r.json()["items"]["items"]) == 2
 
     def test_filters_by_room(self, client, db):
         db.save(_make_room("r-a"))
@@ -187,5 +187,5 @@ class TestListNodes:
 
         r = client.get(f"{BASE}/nodes?room_id=r-a")
         assert r.status_code == 200
-        assert len(r.json()) == 1
-        assert r.json()[0]["room_id"] == "r-a"
+        assert len(r.json()["items"]["items"]) == 1
+        assert r.json()["items"]["items"][0]["room_id"] == "r-a"

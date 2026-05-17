@@ -74,7 +74,7 @@ class TestListFrameworks:
     def test_empty_list(self, client):
         r = client.get(f"{BASE}/frameworks")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json() == {"items": [], "count": 0}
 
     def test_returns_frameworks(self, client, db):
         db.save(_make_framework("fwk-1", "Framework A"))
@@ -82,7 +82,7 @@ class TestListFrameworks:
 
         r = client.get(f"{BASE}/frameworks")
         assert r.status_code == 200
-        assert len(r.json()) == 2
+        assert len(r.json()["items"]["items"]) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -96,7 +96,7 @@ class TestGetFramework:
 
         r = client.get(f"{BASE}/frameworks/fwk-get")
         assert r.status_code == 200
-        assert r.json()["name"] == "Named Framework"
+        assert r.json()["items"]["name"] == "Named Framework"
 
     def test_get_missing_returns_404(self, client):
         r = client.get(f"{BASE}/frameworks/no-such")
@@ -116,7 +116,7 @@ class TestUpdateFramework:
             "description": "Updated description."
         })
         assert r.status_code == 200
-        assert r.json()["description"] == "Updated description."
+        assert r.json()["items"]["description"] == "Updated description."
 
     def test_update_missing_returns_404(self, client):
         r = client.patch(f"{BASE}/frameworks/no-such", json={"description": "X"})
@@ -177,7 +177,7 @@ class TestListInterpretations:
     def test_empty_list(self, client):
         r = client.get(f"{BASE}/interpretations")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json() == {"items": [], "count": 0}
 
     def test_returns_interpretations(self, client, db):
         db.save(_make_framework("fwk-li"))
@@ -186,7 +186,7 @@ class TestListInterpretations:
 
         r = client.get(f"{BASE}/interpretations")
         assert r.status_code == 200
-        assert len(r.json()) == 2
+        assert len(r.json()["items"]["items"]) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -230,13 +230,13 @@ class TestKgInterpretationsCanonicalUrls:
             "description": "Societies as systems of interrelated parts.",
         })
         assert r.status_code == 200
-        assert r.json()["name"] == "Structural Functionalism"
+        assert r.json()["items"]["name"] == "Structural Functionalism"
 
     def test_frameworks_get(self, client, db):
         db.save(_make_framework("fwk-kg", "KG Framework"))
         r = client.get(f"{KG_BASE}/frameworks/fwk-kg")
         assert r.status_code == 200
-        assert r.json()["name"] == "KG Framework"
+        assert r.json()["items"]["name"] == "KG Framework"
 
     def test_frameworks_get_missing(self, client):
         r = client.get(f"{KG_BASE}/frameworks/no-such")
@@ -256,14 +256,14 @@ class TestKgInterpretationsCanonicalUrls:
             "act": "contextualizing",
         })
         assert r.status_code == 200
-        assert r.json()["framework_id"] == "fwk-kg2"
+        assert r.json()["items"]["framework_id"] == "fwk-kg2"
 
     def test_interpretations_get(self, client, db):
         db.save(_make_framework("fwk-kg3"))
         db.save(_make_interpretation("interp-kg", "fwk-kg3"))
         r = client.get(f"{KG_BASE}/interpretations/interp-kg")
         assert r.status_code == 200
-        assert r.json()["id"] == "interp-kg"
+        assert r.json()["items"]["id"] == "interp-kg"
 
     def test_taxonomy_methods(self, client):
         r = client.get(f"{KG_BASE}/taxonomy/methods")

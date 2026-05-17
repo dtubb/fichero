@@ -78,7 +78,7 @@ class TestListTriggers:
         mock_watcher.list_triggers.return_value = []
         r = client.get("/api/triggers")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json() == {"items": [], "count": 0}
 
     def test_list_returns_triggers(self, client, mock_watcher):
         mock_watcher.list_triggers.return_value = [
@@ -87,7 +87,7 @@ class TestListTriggers:
         ]
         r = client.get("/api/triggers")
         assert r.status_code == 200
-        assert len(r.json()) == 2
+        assert len(r.json()["items"]["items"]) == 2
 
 
 class TestCreateTrigger:
@@ -109,14 +109,14 @@ class TestCreateTrigger:
         }
         r = client.post("/api/triggers", json=payload)
         assert r.status_code == 200
-        assert r.json()["trigger_id"] == "trig-1"
+        assert r.json()["items"]["trigger_id"] == "trig-1"
 
 
 class TestGetTrigger:
     def test_get_existing_trigger(self, client, mock_watcher):
         r = client.get("/api/triggers/trig-1")
         assert r.status_code == 200
-        assert r.json()["trigger_id"] == "trig-1"
+        assert r.json()["items"]["trigger_id"] == "trig-1"
 
     def test_get_missing_returns_404(self, client, mock_watcher):
         mock_watcher.get_trigger.return_value = None
@@ -155,7 +155,7 @@ class TestTriggerExecutions:
         mock_watcher.get_executions.return_value = []
         r = client.get("/api/triggers/trig-1/executions")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json() == {"items": [], "count": 0}
 
     def test_get_executions_missing_trigger_returns_404(self, client, mock_watcher):
         mock_watcher.get_trigger.return_value = None

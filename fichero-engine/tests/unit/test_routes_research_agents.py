@@ -66,7 +66,7 @@ class TestListProjects:
     def test_empty_list(self, client):
         r = client.get(f"{BASE}/projects")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json() == {"items": [], "count": 0}
 
     def test_returns_projects(self, client, db):
         db.save(_make_project("p-1", "Project Alpha"))
@@ -74,7 +74,7 @@ class TestListProjects:
 
         r = client.get(f"{BASE}/projects")
         assert r.status_code == 200
-        assert len(r.json()) == 2
+        assert len(r.json()["items"]["items"]) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -88,7 +88,7 @@ class TestGetProject:
 
         r = client.get(f"{BASE}/projects/p-get")
         assert r.status_code == 200
-        assert r.json()["name"] == "Named Project"
+        assert r.json()["items"]["name"] == "Named Project"
 
     def test_get_missing_returns_404(self, client):
         r = client.get(f"{BASE}/projects/no-such")
@@ -106,7 +106,7 @@ class TestUpdateProject:
 
         r = client.patch(f"{BASE}/projects/p-upd", json={"name": "New Name"})
         assert r.status_code == 200
-        assert r.json()["name"] == "New Name"
+        assert r.json()["items"]["name"] == "New Name"
 
     def test_update_missing_returns_404(self, client):
         r = client.patch(f"{BASE}/projects/no-such", json={"name": "X"})
@@ -169,7 +169,7 @@ class TestListProjectPlans:
 
         r = client.get(f"{BASE}/projects/proj-noplan/plans")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json() == {"items": [], "count": 0}
 
     def test_returns_plans(self, client, db):
         db.save(_make_project("proj-pl"))
@@ -178,7 +178,7 @@ class TestListProjectPlans:
 
         r = client.get(f"{BASE}/projects/proj-pl/plans")
         assert r.status_code == 200
-        assert len(r.json()) == 2
+        assert len(r.json()["items"]["items"]) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -222,4 +222,4 @@ class TestListPlanTasks:
 
         r = client.get(f"{BASE}/plans/plan-lt/tasks")
         assert r.status_code == 200
-        assert len(r.json()) == 2
+        assert len(r.json()["items"]["items"]) == 2
