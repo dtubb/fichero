@@ -15,16 +15,20 @@
 
 ## Next Session — Start Here
 
-**Backend Round 3 verification complete (May 16 9:15 PM)**. Both #1137 + #1138 confirmed fixed in code.
+**Backend Round 4, Task #1139 verified complete (May 16 9:05 PM)**. Typed Python client generated, integrated, tested.
 
-Daniel's decision point:
-1. **Review**: Any new bugs from 0.0.2 testing?
-2. **Ship or iterate**: Merge 0.0.2 → main, or continue with Round 4 features?
-3. **If Round 4**: Start with #1139 (typed Python client). Session-end cleaned up partial work.
+**Next task: #1140** (Audit + fix response model coverage)
+- Verify every client.py method returns typed models from fichero.models / knowledge_models
+- Replace raw dict returns with Model.model_validate(response.json())
+- Update formatters.py to render from typed fields
+- One issue per session, tests + lint before commit
+
+Daniel's decision point after #1140/#1141:
+1. Ship 0.0.2 → main, or continue with Round 5 backend work (#1054/#1108/#1075)?
 
 ## In Progress
 
-None — all backend work complete for this milestone. Round 4 ready to begin if approved.
+None — #1139 complete. #1140 is next unblocked task (wire typed models through CLI).
 
 ## Completed (This Session & Prior)
 

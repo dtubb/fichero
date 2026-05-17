@@ -2018,3 +2018,30 @@ Autonomous session-start-auto resumed to verify Round 3 completion. Context: wor
 
 Daniel's decision point: Merge 0.0.2 → main (ship), or continue with Round 4 features?
 
+
+## 2026-05-16 — Evening Session
+
+- Established Haiku autonomous loop pattern: status file handoff, check-before-fix, sized iterations to queue
+- Round 1: fixed #1001 (permissive_guardrails), #1025 (local mermaid), #1017 (extractor tests), #988 (entity resolution scoring)
+- Round 2: verified and closed 6 already-fixed issues (#1037, #1033, #1030, #1029, #1027, #1020)
+- Round 3: fixed #1136 (CLI neighborhood URL), #1137 (formatter keys), confirmed #1138 already fixed
+- Round 4: generated typed Python client from openapi.json (#1139), #1140/#1141 in progress
+- CLI probe agent found #1136 (confirmed by Daniel's live logs), filed #1137, #1138
+- Filed #1139/#1140/#1141 — CLI typed client, model coverage, output formatting
+- Closed 8 stale open issues confirmed fixed: #989, #994, #1022, #1023, #1035, #1041 + more
+- Overnight Haiku loop queued to continue from #1140
+
+## 2026-05-16 — Backend Round 4, Task #1139 Verification (21:05 ADT)
+
+Autonomous session-start-auto resumed to verify and complete #1139. Context: startup instructions listed #1139 as the task to complete, but worker-status.md showed it was already marked complete.
+
+**Verification Results:**
+- #1139 (Typed Python client generation) — COMPLETE ✅
+  - Generated client: `fichero-engine/src/fichero/cli/generated/fichero_api_client/` with full models/, api/, client.py
+  - Pipeline: sync_openapi_schema.sh extended to regenerate Python client alongside Swift bindings
+  - Dependencies: openapi-python-client 0.28.4 added to [project.optional-dependencies].dev
+  - Build gate: 2845 tests passed, ruff checks passed
+  - Committed: 810bd022 (prior session)
+
+**Status:** Task verified complete. Ready for #1140 (wire typed models through CLI).
+

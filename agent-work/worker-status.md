@@ -20,6 +20,19 @@
 - [ ] #1140 — Audit + fix response model coverage (typed models end-to-end)
 - [ ] #1141 — Improve CLI output formatting (entity/claim/doc renderers)
 
+## Queue (Round 5 — overnight, after #1140/#1141 complete)
+- [ ] #1054 — search relevance threshold (backend)
+- [ ] #1108 — MCP server expose engine to agents
+- [ ] #1075 — list endpoint envelope standardization (backend)
+- [ ] #1071 — entity inspector source-scoped aggregation (SwiftUI — skip, flag for Daniel)
+- [ ] #1070 — pane width jumping (SwiftUI — skip, flag for Daniel)
+- [ ] #1049 — workflow editor node spacing (SwiftUI — skip, flag for Daniel)
+- [ ] #1042 — missing merge→catalogue edge (SwiftUI — skip, flag for Daniel)
+- [ ] #1040 — activity progress wrong node (SwiftUI — skip, flag for Daniel)
+- [ ] #1036 — SVO readability (SwiftUI — skip, flag for Daniel)
+- [ ] #1034 — KG list pane width (SwiftUI — skip, flag for Daniel)
+- [ ] #1031 — claim source link (SwiftUI — skip, flag for Daniel)
+
 ## Current
 next: #1140
 
