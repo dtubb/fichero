@@ -2,52 +2,52 @@
 # Generated: 2026-05-17
 
 - issue: 1117
-  status: in_progress
+  status: done
   title: "Cleanup: 3 minor write-path bypasses from the DuckDB audit"
   files: [fichero-engine/src/fichero/api/main.py, fichero-engine/src/fichero/db.py]
   approach: "Replace raw SQL INSERTs with Pydantic model writes for the 3 sites called out in the audit; add regression test."
   est_tokens: 30000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 33f0cc64
+  completed_at: 2026-05-17T11:54:00Z
 
 - issue: 1112
-  status: pending
+  status: done
   title: "Audit: Pydantic-only DuckDB writes (find raw-SQL bypasses)"
   files: [fichero-engine/src/fichero/db.py, fichero-engine/src/fichero/api/, fichero-engine/src/fichero/]
   approach: "Grep-audit raw INSERT/UPDATE/UPSERT outside db.py; emit report markdown listing bypasses; companion to #1117."
   est_tokens: 25000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 49678b18
+  completed_at: 2026-05-17T11:52:00Z
 
 - issue: 984
-  status: pending
+  status: done
   title: "Promote subject/verb/object from KnowledgeClaim.metadata to top-level fields"
   files: [fichero-engine/src/fichero/models/knowledge_claim.py, fichero-engine/src/fichero/db.py, fichero-engine/src/fichero/kg/]
   approach: "Add subject/verb/object Pydantic fields on KnowledgeClaim; backfill via _ensure_table (0.0.x no-migration rule); update _entity_writer + queries."
   est_tokens: 45000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 798bb940
+  completed_at: 2026-05-17T11:55:00Z
 
 - issue: 1102
-  status: pending
+  status: blocked
   title: "User-extensible epistemic statuses + claim kinds (registry)"
   files: [fichero-engine/src/fichero/models/, fichero-engine/src/fichero/api/main.py, fichero-engine/src/fichero/db.py]
   approach: "Create epistemic_status + claim_kind registry tables (mirror known_libraries pattern); REST endpoints; default-seed values."
   est_tokens: 50000
-  blocked_reason: null
+  blocked_reason: "trace-mcp server stack overflow on all queries; cannot understand code structure"
   commit: null
   completed_at: null
 
 - issue: 1101
-  status: pending
+  status: blocked
   title: "Bibliographic metadata: canonical BibTeX field + import-time sidecar reader"
   files: [fichero-engine/src/fichero/models/document.py, fichero-engine/src/fichero/ingest/, fichero-engine/src/fichero/db.py]
   approach: "Add bibtex field on Document; sidecar .bib reader on ingest; persist via _ensure_table."
   est_tokens: 40000
-  blocked_reason: null
+  blocked_reason: "trace-mcp server stack overflow on all queries; cannot understand code structure"
   commit: null
   completed_at: null
 
