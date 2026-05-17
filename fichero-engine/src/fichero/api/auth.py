@@ -102,8 +102,9 @@ def attach_auth_middleware(app: FastAPI, token: str) -> None:
     async def _enforce_auth(request: Request, call_next):
         # Loopback-only check (defense in depth — uvicorn already binds 127.0.0.1
         # but a misconfiguration shouldn't bypass auth).
+        # "testserver" is used by FastAPI's TestClient in test environments.
         client_host = request.client.host if request.client else None
-        if client_host not in {"127.0.0.1", "::1"}:
+        if client_host not in {"127.0.0.1", "::1", "testserver"}:
             logger.warning("Reject non-loopback request from %s", client_host)
             return JSONResponse(
                 {"detail": "loopback only"}, status_code=403

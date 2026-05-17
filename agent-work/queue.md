@@ -52,7 +52,7 @@
   completed_at: null
 
 - issue: 841
-  status: pending
+  status: in_progress
   title: "744 unit tests fail with 'Reject non-loopback request from testclient'"
   files: [fichero-engine/src/fichero/api/main.py, fichero-engine/tests/conftest.py]
   approach: "Adjust loopback middleware to accept TestClient's 'testserver' Host header or whitelist in test config."
@@ -62,7 +62,7 @@
   completed_at: null
 
 - issue: 840
-  status: pending
+  status: in_progress
   title: "Save per-chunk catalogue summaries as catalogue.chunk.N artifacts"
   files: [fichero-engine/src/fichero/workflows/nodes/catalogue.py, fichero-engine/src/fichero/models/artifact.py]
   approach: "Emit one Artifact per chunk with type catalogue.chunk.N before final catalogue artifact; keep final artifact unchanged."
@@ -72,7 +72,7 @@
   completed_at: null
 
 - issue: 801
-  status: pending
+  status: in_progress
   title: "Chunk inputs to summarize_file / summarize_folder / summarize_collection / rewrite"
   files: [fichero-engine/src/fichero/workflows/nodes/, fichero-engine/src/fichero/tools/]
   approach: "Wrap LLM-input assembly in a chunk-and-merge helper; reuse catalogue's chunker; preserve order."
@@ -82,7 +82,7 @@
   completed_at: null
 
 - issue: 834
-  status: pending
+  status: in_progress
   title: "Apple Vision OCR returns empty silently — log + retry-with-fast-level"
   files: [fichero-engine/src/fichero/ocr/, fichero-engine/src/fichero/transcribe/]
   approach: "On empty Vision result, log warning + retry at .fast recognition level; surface error if still empty."
@@ -92,7 +92,7 @@
   completed_at: null
 
 - issue: 1085
-  status: pending
+  status: in_progress
   title: "Maps importer: pair sidecar .iffy.json files with image/PDF on ingest"
   files: [fichero-engine/src/fichero/ingest/]
   approach: "During ingest, detect sibling <name>.iffy.json and persist as metadata on the Document."
@@ -102,7 +102,7 @@
   completed_at: null
 
 - issue: 1124
-  status: pending
+  status: in_progress
   title: "Hermeneutics: controlled predicate vocabulary distinct from KG verbs"
   files: [fichero-engine/src/fichero/kg/, fichero-engine/src/fichero/models/]
   approach: "Introduce HermeneuticPredicate registry; keep slug_verb path untouched; expose via API."
@@ -112,7 +112,7 @@
   completed_at: null
 
 - issue: 1096
-  status: pending
+  status: in_progress
   title: "Catalogue: case grouping (sub-group docs into cases inside a folder)"
   files: [fichero-engine/src/fichero/workflows/nodes/catalogue.py]
   approach: "Add a case-grouping pass in the catalogue node; emit sub-group artifacts."
@@ -122,7 +122,7 @@
   completed_at: null
 
 - issue: 925
-  status: pending
+  status: in_progress
   title: "OCR cleanup workflow step: dehyphenate + rejoin columns + strip library footers"
   files: [fichero-engine/src/fichero/workflows/nodes/, fichero-engine/src/fichero/tools/]
   approach: "Add new workflow node post-transcribe that runs deterministic text cleanup; emit cleanup.text artifact."
@@ -132,7 +132,7 @@
   completed_at: null
 
 - issue: 971
-  status: pending
+  status: in_progress
   title: "Cross-page paragraphs / quotes: NER loses context when text spans a page break"
   files: [fichero-engine/src/fichero/kg/, fichero-engine/src/fichero/workflows/nodes/]
   approach: "Buffer last paragraph across page boundary in extract; emit unified spans tagged with originating pages."
@@ -142,7 +142,7 @@
   completed_at: null
 
 - issue: 975
-  status: pending
+  status: in_progress
   title: "Structured transcript ingest: timecoded segments + speaker diarization as artifacts"
   files: [fichero-engine/src/fichero/ingest/, fichero-engine/src/fichero/models/artifact.py]
   approach: "Detect transcript JSON/VTT; persist segments as transcript.segments artifact with start/end/speaker."
@@ -152,7 +152,7 @@
   completed_at: null
 
 - issue: 1043
-  status: pending
+  status: in_progress
   title: "Dependency audit + update sweep (langchain/langgraph etc.)"
   files: [fichero-engine/pyproject.toml]
   approach: "pip-tools / uv pip compile to surface outdated; bump non-breaking; run full unit test suite."
@@ -162,7 +162,7 @@
   completed_at: null
 
 - issue: 1115
-  status: pending
+  status: in_progress
   title: "Workflow architecture: make KG-write an explicit node"
   files: [fichero-engine/src/fichero/workflows/, fichero-engine/src/fichero/workflows/nodes/]
   approach: "Split extract_all so KG write is a separate kg_write node; keep extract pure; rewire graph edges."
@@ -172,7 +172,7 @@
   completed_at: null
 
 - issue: 1108
-  status: pending
+  status: in_progress
   title: "MCP server: expose the engine to MCP-aware agents"
   files: [fichero-engine/src/fichero/, fichero-engine/pyproject.toml]
   approach: "Add fichero-mcp entry point wrapping client.py; tool schemas reuse Pydantic models."
@@ -182,7 +182,7 @@
   completed_at: null
 
 - issue: 1111
-  status: pending
+  status: in_progress
   title: "KG: deterministic paragraph rendering with bidirectional citation links"
   files: [fichero-engine/src/fichero/kg/]
   approach: "Render claims as paragraphs with stable ordering; emit subject-↔-claim anchors."
@@ -192,7 +192,7 @@
   completed_at: null
 
 - issue: 873
-  status: pending
+  status: in_progress
   title: "pytest integration test: workflow-execution end-to-end"
   files: [fichero-engine/tests/integration/]
   approach: "Add e2e test that posts a workflow, polls status, asserts artifacts + KG rows present."

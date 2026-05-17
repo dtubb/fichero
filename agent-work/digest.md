@@ -13,10 +13,15 @@
 ### Examples for this queue:
 
 **#841 (middleware fix):**
+Error: "Reject non-loopback request from testclient" in 744 unit tests.
 ```
-search("loopback", language="python")  # Find loopback middleware
-get_outline("fichero-engine/src/fichero/api/main.py")  # See file structure
-get_symbol("fqn_of_middleware_function")  # Read it
+# Pre-computed exploration:
+search_text("Reject non-loopback", file_pattern="fichero-engine/src/**/*.py")
+# ^ Found in fichero-engine/src/fichero/api/auth.py:107
+get_symbol("fichero-engine.src.fichero.api.auth.attach_auth_middleware._enforce_auth")
+# ^ This is the middleware that needs to accept TestClient's 'testserver' Host header
+search("testserver", language="python")
+# ^ Check for existing testserver whitelist patterns
 ```
 
 **#840 (catalogue artifacts):**
