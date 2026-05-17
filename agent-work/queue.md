@@ -51,6 +51,16 @@
   commit: null
   completed_at: null
 
+- issue: 841
+  status: pending
+  title: "744 unit tests fail with 'Reject non-loopback request from testclient'"
+  files: [fichero-engine/src/fichero/api/main.py, fichero-engine/tests/conftest.py]
+  approach: "Adjust loopback middleware to accept TestClient's 'testserver' Host header or whitelist in test config."
+  est_tokens: 20000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
 - issue: 840
   status: pending
   title: "Save per-chunk catalogue summaries as catalogue.chunk.N artifacts"
@@ -77,16 +87,6 @@
   files: [fichero-engine/src/fichero/ocr/, fichero-engine/src/fichero/transcribe/]
   approach: "On empty Vision result, log warning + retry at .fast recognition level; surface error if still empty."
   est_tokens: 18000
-  blocked_reason: null
-  commit: null
-  completed_at: null
-
-- issue: 841
-  status: pending
-  title: "744 unit tests fail with 'Reject non-loopback request from testclient'"
-  files: [fichero-engine/src/fichero/api/main.py, fichero-engine/tests/conftest.py]
-  approach: "Adjust loopback middleware to accept TestClient's 'testserver' Host header or whitelist in test config."
-  est_tokens: 20000
   blocked_reason: null
   commit: null
   completed_at: null

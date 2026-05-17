@@ -1043,7 +1043,7 @@ async def _generate_resumen(
     llm_config: LLMConfig,
     claim_context: str = "",
     error_sink: list[str] | None = None,
-) -> str:
+) -> tuple[str, list[str]]:
     """Generate the catalogue narrative paragraph from the merged transcript
     plus optional typed-entity context surfaced from the Extract* nodes.
 
@@ -1056,7 +1056,11 @@ async def _generate_resumen(
     When ``claim_context`` is provided (composable workflow path), the LLM
     has both the raw transcripts and a structured summary of the entities
     already extracted — produces a richer, more grounded paragraph than
-    transcripts alone. Returns empty string on failure.
+    transcripts alone.
+
+    Returns: (final_narrative_text, list_of_chunk_summaries)
+    - final_narrative_text: empty string on failure
+    - list_of_chunk_summaries: empty list if not chunked (single-shot path)
 
     Reasoning is enabled at "medium" effort on the synthesis call sites
     (single-shot + final reduce) — Claude Sonnet 4.6's extended thinking
@@ -1069,7 +1073,7 @@ async def _generate_resumen(
     import dataclasses
 
     if not text and not claim_context:
-        return ""
+        return "", []
 
     context_block = (
         f"\n\nExtracted entities (from prior workflow steps):\n{claim_context}\n"
