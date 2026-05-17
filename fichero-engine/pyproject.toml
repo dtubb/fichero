@@ -197,6 +197,7 @@ dev = [
     "requests",
     "cryptography",
     "ruamel.yaml",
+    "openapi-python-client",
 ]
 
 [project.scripts]

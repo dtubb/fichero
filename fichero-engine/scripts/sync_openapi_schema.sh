@@ -39,11 +39,17 @@ if [ -f "$DEST_SCHEMA" ] && cmp -s "$NEW_SCHEMA" "$DEST_SCHEMA"; then
   exit 0
 fi
 
-echo "↻ OpenAPI schema changed — regenerating Swift bindings"
+echo "↻ OpenAPI schema changed — regenerating Swift + Python bindings"
 cp "$NEW_SCHEMA" "$DEST_SCHEMA"
 
 cd "$REPO_ROOT/fichero/fichero-api-client"
 # Keep output compact while surfacing generation/build signal lines.
 swift build 2>&1 | grep -E "error|warning: Schema|Writing data|Build complete" | head -30 || true
 
-echo "✅ Synced backend OpenAPI schema into Swift client package (fichero-api-client)"
+echo "↻ Regenerating Python typed client from OpenAPI schema"
+cd "$REPO_ROOT"
+.venv/bin/openapi-python-client generate \
+  --path "$NEW_SCHEMA" \
+  --output-path "fichero-engine/src/fichero/cli/generated/" 2>&1 | grep -E "Generating|WARNING" | head -20 || true
+
+echo "✅ Synced backend OpenAPI schema into Swift client package (fichero-api-client) and Python client (fichero-engine/src/fichero/cli/generated)"

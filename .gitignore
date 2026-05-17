@@ -33,6 +33,7 @@ fichero-engine/.mypy_cache/
 build/
 dist/
 logs/
+fichero-engine/src/fichero/cli/generated/
 
 # Site
 site/_site/
