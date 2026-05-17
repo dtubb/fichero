@@ -456,11 +456,12 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
 
 
 def _vision_ocr_cgimage(cg_image, language: str = "en") -> str:
-    """Run Vision OCR on a CGImage and return the recognized text."""
-    import Vision
+    """Run Vision OCR on a CGImage and return the recognized text.
 
-    request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
-    request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
+    Retries with .Fast recognition level if Accurate returns empty, to handle
+    degraded scans (low contrast, unusual layout, title pages) (#834).
+    """
+    import Vision
 
     lang_map = {
         "en": "en-US",
@@ -469,28 +470,57 @@ def _vision_ocr_cgimage(cg_image, language: str = "en") -> str:
         "de": "de-DE",
         "pt": "pt-BR",
     }
-    request.setRecognitionLanguages_([lang_map.get(language, language)])
+    lang = lang_map.get(language, language)
 
-    handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(
-        cg_image, None
-    )  # pylint: disable=no-member
-    success = handler.performRequests_error_([request], None)
+    def _extract_text(request, recognition_level_name: str) -> str:
+        handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(
+            cg_image, None
+        )  # pylint: disable=no-member
+        success = handler.performRequests_error_([request], None)
 
-    if not success:
-        raise ValueError("Vision request failed")
+        if not success:
+            raise ValueError("Vision request failed")
 
-    results = request.results()
-    if not results:
-        return ""
+        results = request.results()
+        if not results:
+            img_width = cg_image.width()
+            img_height = cg_image.height()
+            logger.warning(
+                f"Vision OCR returned empty at {recognition_level_name} "
+                f"({img_width}x{img_height} pixels, lang={language})"
+            )
+            return None
 
-    lines = []
-    for observation in results:
-        if hasattr(observation, "topCandidates_"):
-            candidates = observation.topCandidates_(1)
-            if candidates:
-                lines.append(candidates[0].string())
+        lines = []
+        for observation in results:
+            if hasattr(observation, "topCandidates_"):
+                candidates = observation.topCandidates_(1)
+                if candidates:
+                    lines.append(candidates[0].string())
+        return "\n".join(lines) if lines else None
 
-    return "\n".join(lines)
+    # Try Accurate first
+    request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
+    request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
+    request.setRecognitionLanguages_([lang])
+
+    text = _extract_text(request, "Accurate")
+    if text is not None:
+        return text
+
+    # Retry with Fast if Accurate returned empty
+    logger.info("Retrying with Fast recognition level")
+    request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
+    request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelFast)  # pylint: disable=no-member
+    request.setRecognitionLanguages_([lang])
+
+    text = _extract_text(request, "Fast")
+    if text is not None:
+        return text
+
+    # Both attempts returned empty
+    logger.error(f"Vision OCR returned empty even at Fast level (lang={language})")
+    return ""
 
 
 async def apple_vision_ocr_async(image_path: str, language: str = "en") -> str:
