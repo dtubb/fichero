@@ -1049,6 +1049,37 @@ class EntityContextResponse(BaseModel):
 
 
 # =============================================================================
+# Known Library Registry (for CLI library lifecycle #1131)
+# =============================================================================
+
+
+class KnownLibrary(BaseModel):
+    """Persistent registry of known libraries.
+
+    Stored in the backend database to support CLI operations like
+    listing available libraries and switching between them (#1131).
+    When a library is created via POST /api/library, it's auto-registered.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    path: str  # Absolute path to .fichero package (unique constraint)
+    name: str | None = None  # Optional display name (defaults to basename)
+
+    # Timestamps for CLI UX (sort by last_accessed for "recent" list)
+    added_at: datetime = Field(default_factory=datetime.now)
+    last_accessed: datetime = Field(default_factory=datetime.now)
+
+
+class LibraryRegistryResponse(BaseModel):
+    """Response from GET /api/registry — list all known libraries."""
+
+    libraries: list[KnownLibrary]
+    count: int
+
+
+# =============================================================================
 # Convenience exports
 # =============================================================================
 
@@ -1080,4 +1111,7 @@ __all__ = [
     "LibraryCreateResponse",
     "HealthResponse",
     "EntityContextResponse",
+    # Known library registry (#1131)
+    "KnownLibrary",
+    "LibraryRegistryResponse",
 ]

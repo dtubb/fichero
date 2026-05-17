@@ -710,6 +710,7 @@ from fichero.api.routes import (  # noqa: E402
     kg_sparql,
     kg_triangulation,
     library,
+    library_registry,
     local_models,
     mcp_servers,
     mcp_tools,
@@ -764,6 +765,9 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # /api/library — bootstrap a fresh .fichero package from the CLI
     # without going through SwiftUI's NSDocument flow (#1075 follow-up).
     (library.router, "/api", ["library"]),
+    # /api/registry — known library registry persistence (#1131).
+    # CLI list/switch uses these endpoints to manage the set of known libraries.
+    (library_registry.router, "/api", ["library"]),
     (migrations.router, "/api/migrations", ["migrations"]),
     (mcp_tools.router, "/api/mcp/tools", ["mcp"]),
     (multilingual.router, "/api", ["multilingual"]),

@@ -390,3 +390,24 @@ def migrate_checkpoint_tables(conn) -> None:
 
     except Exception as e:
         logger.warning(f"Checkpoint tables migration failed: {e}")
+
+
+def migrate_known_libraries_table(conn) -> None:
+    """Ensure known_libraries registry table exists (#1131).
+
+    Stores a persistent registry of known .fichero libraries for CLI
+    operations (list available libraries, switch between them).
+    """
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS known_libraries (
+                id VARCHAR PRIMARY KEY,
+                path VARCHAR UNIQUE NOT NULL,
+                name VARCHAR,
+                added_at TIMESTAMP NOT NULL,
+                last_accessed TIMESTAMP NOT NULL
+            )
+        """)
+        logger.info("Known libraries registry table migration completed")
+    except Exception as e:
+        logger.warning("Known libraries table migration failed: %s", e)

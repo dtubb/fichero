@@ -20,7 +20,11 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 
 from fichero.db import db_manager
-from fichero.models import LibraryCreateRequest, LibraryCreateResponse
+from fichero.models import (
+    KnownLibrary,
+    LibraryCreateRequest,
+    LibraryCreateResponse,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -87,6 +91,23 @@ def create_library(request: LibraryCreateRequest) -> LibraryCreateResponse:
             status_code=500,
             detail=f"Failed to initialize library database: {exc}",
         ) from exc
+
+    # Auto-register the library in the known_libraries registry (#1131)
+    try:
+        # Get the database for the library we just created
+        registry_db = db_manager.get_database(package)
+        existing = registry_db.query(KnownLibrary, path=str(package))
+        if not existing:
+            # New library — register it with basename as name
+            library = KnownLibrary(
+                path=str(package),
+                name=package.name,  # e.g. "My Library.fichero"
+            )
+            registry_db.save(library)
+            logger.info("Registered new library in registry: %s", package)
+    except Exception as exc:
+        # Registry registration is best-effort; don't fail library creation
+        logger.warning("Failed to register library in registry: %s", exc)
 
     return LibraryCreateResponse(
         path=str(package),

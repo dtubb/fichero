@@ -198,11 +198,13 @@ class Database(DatabaseEmbeddingMixin):
             migrate_workflow_table,
             migrate_saved_search_table,
             migrate_provider_refs_table,
+            migrate_known_libraries_table,
         )
         migrate_document_table(self.conn)
         migrate_workflow_table(self.conn)
         migrate_saved_search_table(self.conn)
         migrate_provider_refs_table(self.conn)
+        migrate_known_libraries_table(self.conn)
 
     # =========================================================================
     # Core CRUD Operations
