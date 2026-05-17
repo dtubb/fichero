@@ -776,3 +776,30 @@ class TestCollapseDuplicateProviders:
         # Different name OR different provider_type → not duplicates.
         ids = {p.id for p in app_db.list_providers()}
         assert {a.id, b.id, c.id}.issubset(ids)
+
+    def test_reparent_model(self, app_db):
+        """Test reparent_model re-parents a model to a different provider."""
+        from fichero.models import Provider, ProviderType, Model
+
+        prov_a = Provider(name="Provider A", provider_type=ProviderType.openai)
+        prov_b = Provider(name="Provider B", provider_type=ProviderType.anthropic)
+        app_db.save_provider(prov_a)
+        app_db.save_provider(prov_b)
+
+        model = Model(
+            provider_id=prov_a.id,
+            name="Test Model",
+            model_id="test-model",
+        )
+        app_db.save_model(model)
+
+        # Re-parent model from prov_a to prov_b
+        reparented = app_db.reparent_model(model.id, prov_b.id)
+        assert reparented is not None
+        assert reparented.provider_id == prov_b.id
+
+        # Verify model now lists under prov_b, not prov_a
+        models_a = app_db.list_models(prov_a.id)
+        models_b = app_db.list_models(prov_b.id)
+        assert not any(m.id == model.id for m in models_a)
+        assert any(m.id == model.id for m in models_b)

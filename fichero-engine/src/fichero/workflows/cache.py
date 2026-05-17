@@ -24,6 +24,8 @@ from typing import Any
 
 import duckdb
 
+from fichero.workflows.activity_types import CacheEntry
+
 logger = logging.getLogger(__name__)
 
 
@@ -113,7 +115,7 @@ class NodeCache:
             ON node_cache(workflow_id, node_id)
         """)
 
-    def get(self, cache_key: str) -> dict[str, Any] | None:
+    def get(self, cache_key: str) -> CacheEntry | None:
         """
         Retrieve cached result.
 
@@ -121,16 +123,26 @@ class NodeCache:
             cache_key: The cache key to look up
 
         Returns:
-            Cached result dict, or None if not found
+            CacheEntry with cached result, or None if not found
         """
         try:
             result = self.conn.execute(
-                "SELECT result_json FROM node_cache WHERE cache_key = ?", [cache_key]
+                """SELECT cache_key, workflow_id, node_id, tool, file_path, created_at, result_json
+                   FROM node_cache WHERE cache_key = ?""",
+                [cache_key],
             ).fetchone()
 
             if result:
                 logger.debug(f"Cache hit: {cache_key[:16]}...")
-                return json.loads(result[0])
+                return CacheEntry(
+                    cache_key=result[0],
+                    workflow_id=result[1],
+                    node_id=result[2],
+                    tool=result[3],
+                    file_path=result[4],
+                    created_at=result[5],
+                    result=json.loads(result[6]),
+                )
 
             logger.debug(f"Cache miss: {cache_key[:16]}...")
             return None

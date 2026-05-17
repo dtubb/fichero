@@ -155,3 +155,37 @@ class ActivityFilter:
         self.search = search
         self.limit = limit
         self.offset = offset
+
+
+@dataclass
+class WorkflowRun:
+    """Typed representation of a workflow execution."""
+
+    thread_id: str
+    workflow_id: str
+    workflow_name: str
+    python_code: str
+    execution_log: str
+    status: str
+    started_at: datetime | None
+    completed_at: datetime | None
+    duration_ms: int | None
+    error: str | None
+    workflow_snapshot: dict[str, Any] | None
+    node_name_map: dict[str, Any] | None
+    progress_timeline: dict[str, Any] | None
+    diagram_mermaid: str | None
+
+
+@dataclass
+class CacheEntry:
+    """Represents a cached node execution result."""
+
+    cache_key: str
+    result: dict[str, Any]
+    created_at: datetime
+    workflow_id: str
+    node_id: str
+    tool: str
+    file_path: str | None = None
+    ttl_seconds: int | None = None

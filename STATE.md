@@ -11,7 +11,8 @@
 
 ## Tooling Now Available
 
-- **Knowledge graph at `graphify-out/`** (built 2026-05-16) — query the codebase via `/graphify query "..."`, `/graphify explain "LLMConfig"`, or `/graphify path "FicheroClient" "Database"`. ~17K nodes / 30K edges over fichero/ + fichero-engine/ (831 code files). ~50× cheaper than grepping.
+- **trace-mcp** — installed and wired into Claude Code MCP. 155k+ symbols indexed, file-watcher kept fresh. Benchmark: ~93% token savings vs Read/Grep on this codebase. Use `mcp__trace-mcp__*` tools (search, get_outline, get_symbol, find_usages, get_change_impact, etc.) instead of Read/Grep/Glob for ALL code questions.
+- **Autonomous loop** — curator + worker split via `~/code/fichero-skills/bin/batch-loop.sh`. Opus curator builds queue.md + digest.md; Haiku worker pops issues, marks status, exits. Status persists in queue (done/blocked/pending) so curator recurates intelligently.
 
 ## Next Session — Start Here
 

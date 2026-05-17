@@ -358,10 +358,7 @@ def _collapse_duplicate_providers() -> None:
                     reparent_pairs.append((canonical.id, model.id))
 
             for canonical_id, model_id in reparent_pairs:
-                app_db.conn.execute(
-                    "UPDATE models SET provider_id = ? WHERE id = ?",
-                    [canonical_id, model_id],
-                )
+                app_db.reparent_model(model_id, canonical_id)
             for dup in duplicates:
                 app_db.delete_provider(dup.id)
             app_db.conn.commit()

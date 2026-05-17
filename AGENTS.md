@@ -29,21 +29,30 @@ Run `/session-start` first. It reads SOUL.md → MEMORY.md → STATE.md and repo
 
 ---
 
-## Knowledge Graph — Query Before Grep
+## Code Intelligence — trace-mcp First, ALWAYS
 
-`graphify-out/` (gitignored) holds a persistent knowledge graph of `fichero/` + `fichero-engine/` — ~17K nodes / 30K edges, ~50× cheaper than reading source. **Use it first for "where is X?", "what calls Y?", "what connects A to B?" questions.**
+**trace-mcp** is the primary code-exploration tool. SQLite-backed graph, 155k+ symbols, file-watcher kept fresh. Benchmark on this repo: **~93% token savings vs Read/Grep**. The trace-mcp MCP server is auto-loaded by Claude Code — its tools show up as `mcp__trace-mcp__*`.
 
-```bash
-/graphify query "how does extract_all get called"     # broad context (BFS)
-/graphify query "..." --dfs                            # trace specific path
-/graphify path "FicheroClient" "Database"              # shortest concept chain
-/graphify explain "LLMConfig"                          # one-node + neighbors
-/graphify --update                                     # rebuild after substantial changes
-```
+**Hard rule — for ANY code question, use trace-mcp tools, NOT Read/Grep/Glob/Bash(ls,find):**
 
-God nodes (touch-with-care, high blast radius): `Database`, `KnowledgeClaim`, `KnowledgeEntity`, `Document`, `LLMConfig`, `EntityType`, `DocType`, `Artifact`, `WorkflowDef`.
+| Question | trace-mcp tool |
+|---|---|
+| Where is `extract_all` defined? | `search` (set `fusion=true` for best ranking) |
+| What's in this file before editing? | `get_outline <path>` |
+| Show me just one function's source | `get_symbol <fqn>` |
+| What breaks if I change X? | `get_change_impact` |
+| Who calls Y / what does Y call? | `find_usages` / `get_call_graph` |
+| All implementations of an interface? | `get_type_hierarchy` |
+| Tests for this symbol? | `get_tests_for` |
+| Untested public API? | `get_untested_symbols` |
+| Dead exports / dead code? | `get_dead_exports` / `get_dead_code` |
+| Circular imports? | `get_circular_imports` |
+| Context for a new task? | `get_task_context` |
 
-If `graphify-out/manifest.json` is older than your branch's last substantial backend/SwiftUI change, run `/graphify --update` (incremental — only re-extracts what changed) before relying on the graph.
+Read/Grep/Glob is permitted ONLY for non-code files (`.md`, `.json`, `.yaml`, `.toml`) or immediately before `Edit`-ing a file you just located via trace-mcp.
+
+God nodes (high blast radius — run `get_change_impact` BEFORE touching): `Database`, `KnowledgeClaim`, `KnowledgeEntity`, `Document`, `LLMConfig`, `EntityType`, `DocType`, `Artifact`, `WorkflowDef`.
+
 
 ---
 
@@ -355,9 +364,37 @@ GitHub Issues + Milestones are authoritative for scope and status.
 1. Never push to `main` — all work goes to `0.0.2`
 2. Never deploy or publish without permission
 3. Never edit generated files (`*Generated.swift`, `openapi.json`, api-client)
-4. **Three-leg Swift check is mandatory** — for any SwiftUI change, run ALL three before marking work complete, in this exact order: (1) `swiftlint lint fichero-swiftui/fichero-swiftui/`, (2) Xcode build (`xcodebuild … build` or `mcp__xcode__BuildProject`), (3) Xcode unit tests (`xcodebuild … test` or `mcp__xcode__RunAllTests`). None of these are optional. "Build passed" alone is not evidence of done. Python work requires the equivalent two-leg check (ruff + pytest). Add peekaboo visual verification for any SwiftUI change that has a rendered UI surface.
+4. **Three-leg Swift check is mandatory** — for any SwiftUI change, run ALL three before marking work complete, in this exact order: (1) `swiftlint lint fichero/fichero/`, (2) Xcode build (`xcodebuild … build` or `mcp__xcode__BuildProject`), (3) Xcode unit tests (`xcodebuild … test` or `mcp__xcode__RunAllTests`). None of these are optional. "Build passed" alone is not evidence of done. Python work requires the equivalent two-leg check (ruff + pytest).
 5. **Every SwiftUI bug fix or feature must land with new/updated unit tests in the same commit** — no "tests in a follow-up." This is how we stop UI regressions from recurring.
 6. Never start coding on unapproved scope (GitHub milestone/issues are the approval boundary)
 7. `PYTHONPATH=fichero-engine/src` on all Python commands
 8. One concern per commit, conventional commit format
 9. `trash` over `rm`
+
+<!-- trace-mcp:start -->
+## trace-mcp Tool Routing
+
+IMPORTANT: For ANY code exploration task, ALWAYS use trace-mcp tools first. NEVER use Read/Grep/Glob/Bash(ls,find) for navigating source code.
+
+| Task | trace-mcp tool | Instead of |
+|------|---------------|------------|
+| Find a function/class/method | `search` | Grep |
+| Understand a file before editing | `get_outline` | Read (full file) |
+| Read one symbol's source | `get_symbol` | Read (full file) |
+| What breaks if I change X | `get_change_impact` | guessing |
+| All usages of a symbol | `find_usages` | Grep |
+| All implementations of an interface | `get_type_hierarchy` | ls/find on directories |
+| All classes implementing X | `search` with `implements` filter | Grep |
+| Project health / coverage gaps | `self_audit` | manual inspection |
+| Dead code / dead exports | `get_dead_code` / `get_dead_exports` | Grep for unused |
+| Context for a task | `get_feature_context` | reading 15 files |
+| Tests for a symbol | `get_tests_for` | Glob + Grep |
+| Untested symbols (deep) | `get_untested_symbols` (classifies "unreached" vs "imported_not_called") | manual audit |
+| HTTP request flow | `get_request_flow` | reading route files |
+| DB model relationships | `get_model_context` | reading model + migrations |
+| Component tree | `get_component_tree` | reading component files |
+| Circular dependencies | `get_circular_imports` | manual tracing |
+
+Use Read/Grep/Glob ONLY for non-code files (.md, .json, .yaml, config) or before Edit.
+Start sessions with `get_project_map` (summary_only=true).
+<!-- trace-mcp:end -->

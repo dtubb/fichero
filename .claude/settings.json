@@ -3,6 +3,15 @@
   "env": {
     "CLAUDE_CODE_TASK_LIST_ID": "fichero"
   },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": false,
+    "code-simplifier@claude-plugins-official": false,
+    "playwright@claude-plugins-official": false,
+    "claude-md-management@claude-plugins-official": false,
+    "playground@claude-plugins-official": false,
+    "qodo-skills@claude-plugins-official": false,
+    "fs_autoloop@fichero-skills": true
+  },
   "hooks": {
     "SessionStart": [
       {

@@ -223,6 +223,43 @@ class AppDatabase:
             self.conn.execute("DELETE FROM providers WHERE id = ?", [provider_id])
             self.conn.commit()
 
+    def get_model(self, model_id: str) -> Model | None:
+        """Get a model by ID."""
+        from fichero.models import Model
+
+        with self._lock:
+            result = self.conn.execute(
+                "SELECT * FROM models WHERE id = ?", [model_id]
+            ).fetchone()
+
+        if not result:
+            return None
+
+        return Model(
+            id=result[0],
+            provider_id=result[1],
+            name=result[2],
+            model_id=result[3],
+            capabilities=json.loads(result[4]) if result[4] else [],
+            is_default=result[5],
+            enabled=result[6],
+            sort_order=result[7],
+            input_cost=result[8],
+            output_cost=result[9],
+            created_at=result[10],
+            updated_at=result[11],
+        )
+
+    def reparent_model(self, model_id: str, new_provider_id: str) -> Model | None:
+        """Re-parent a model to a different provider. Used during provider dedup collapse."""
+        with self._lock:
+            self.conn.execute(
+                "UPDATE models SET provider_id = ? WHERE id = ?",
+                [new_provider_id, model_id],
+            )
+            self.conn.commit()
+        return self.get_model(model_id)
+
     def save_model(self, model: Model) -> Model:
         """Save or update a model.
 

@@ -1,0 +1,32 @@
+# macOS clutter
+.DS_Store
+**/.DS_Store
+
+# Built-in Default Overrides
+**/node_modules/
+**/.git/
+**/__pycache__/
+**/.trace-mcp/
+**/vendor/
+
+# Root-level Caches & Git Clutter
+/.pytest_cache/
+/.ruff_cache/
+/.worktrees/
+
+# Python Environment & Tools Cache
+/.venv/
+/venv/
+/**/.venv/
+/**/venv/
+
+# Swift/Xcode App Workspace Targets (fichero/ subdirectory)
+/fichero/build/
+/fichero/fichero-tests/
+/fichero/fichero-ui-tests/
+/fichero/appcast.xml
+**/*.xctestplan
+**/*.app/
+
+# Global Build safety net
+/build/

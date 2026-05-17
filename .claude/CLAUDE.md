@@ -97,21 +97,30 @@ SwiftUI App → HTTP localhost:8765 → FastAPI → DuckDB/LanceDB
 
 Full architecture: `docs/CLAUDE.md`, `docs/architecture/`
 
-## Knowledge Graph — Use This First for Code Questions
+## Code Intelligence — trace-mcp First, ALWAYS
 
-A persistent knowledge graph of `fichero/` + `fichero-engine/` lives in `graphify-out/` (gitignored, ~17K nodes / 30K edges across ~1,200 communities, indexed from 831 code files + 9 docs). **Before grepping the codebase to answer "where is X?", "what calls Y?", or "what connects A to B?", query the graph — it's ~50× cheaper in tokens than reading source.**
+**Primary tool**: `trace-mcp` (MCP server, 155k+ symbols indexed, file-watcher kept fresh, ~93% token savings vs Read/Grep on this codebase per benchmark).
 
-```bash
-/graphify query "how does the workflow executor call extract_all"   # BFS — broad context
-/graphify query "..." --dfs                                          # DFS — trace a specific path
-/graphify path "FicheroClient" "Database"                            # shortest hop chain between two concepts
-/graphify explain "LLMConfig"                                        # plain-language summary of one node + its neighbors
-/graphify --update                                                   # incremental rebuild after substantial code changes
-```
+**Hard rule for ANY code question — use trace-mcp tools, NOT Read/Grep/Glob/Bash(ls,find):**
 
-Scope indexed: `fichero/` + `fichero-engine/{src,tests,scripts}`. Excluded: `.venv`, `build`, `dist`, `bin`, `DerivedData`, `evals`, `logs`, generated OpenAPI client, app icons, fixtures. If you've made substantial backend/SwiftUI changes since `graphify-out/manifest.json` was last written, run `/graphify --update` before relying on stale paths.
+| Question | trace-mcp tool | Instead of |
+|---|---|---|
+| Where is `extract_all` defined? | `search` (with `fusion=true` for best ranking) | Grep |
+| What's in this file before I edit? | `get_outline <path>` | Read (whole file) |
+| Show me just `WorkflowExecutor.run`'s source | `get_symbol <fqn>` | Read (whole file) |
+| What breaks if I change `KnowledgeClaim`? | `get_change_impact` | guessing |
+| Who calls `_entity_writer`? | `find_usages` / `get_call_graph` | Grep |
+| All implementations of `LanguagePlugin`? | `get_type_hierarchy` | ls/find |
+| Tests for this symbol? | `get_tests_for` | Glob + Grep |
+| Untested public API? | `get_untested_symbols` | manual audit |
+| Dead exports? | `get_dead_exports` | Grep for unused |
+| Circular imports? | `get_circular_imports` | manual tracing |
+| Context for a new task? | `get_task_context` | reading 15 files |
+| HTTP request flow? | trace-mcp framework edges | reading route files |
 
-Top god nodes (call-graph hubs): `Database`, `KnowledgeClaim`, `KnowledgeEntity`, `Document`, `LLMConfig`, `EntityType`, `DocType`, `Artifact`, `WorkflowDef`. Touching any of these usually has cross-cluster blast radius.
+Read/Grep/Glob is allowed ONLY for non-code files (`.md`, `.json`, `.yaml`, `.toml`) or before `Edit`-ing a file you just identified.
+
+**Top god nodes (high blast radius — `get_change_impact` BEFORE touching)**: `Database`, `KnowledgeClaim`, `KnowledgeEntity`, `Document`, `LLMConfig`, `EntityType`, `DocType`, `Artifact`, `WorkflowDef`.
 
 ## Key Paths
 
@@ -127,7 +136,6 @@ Top god nodes (call-graph hubs): `Database`, `KnowledgeClaim`, `KnowledgeEntity`
 | `docs/CLAUDE.md` | Full agent guidance (canonical, detailed) |
 | `docs/agent-workflow/parallel-execution.md` | When to use single session / subagents / agent teams + QA review gate |
 | `docs/architecture/` | Architecture docs |
-| `graphify-out/` | Knowledge graph of fichero/ + fichero-engine/ — query via `/graphify query "..."` |
 | `fichero/fichero/` | Swift/SwiftUI frontend (Xcode project: `fichero/fichero.xcodeproj`) |
 | `fichero/fichero-api-client/` | Generated Swift OpenAPI client package |
 | `fichero-engine/src/fichero/` | Python FastAPI backend |

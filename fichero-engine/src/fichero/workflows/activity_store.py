@@ -20,6 +20,7 @@ from fichero.workflows.activity_types import (
     ActivityLevel,
     ActivityStats,
     ActivityType,
+    WorkflowRun,
 )
 
 logger = logging.getLogger(__name__)
@@ -499,7 +500,30 @@ class ActivityStore:
 
         await asyncio.to_thread(_append)
 
-    async def get_workflow_run(self, thread_id: str) -> Optional[dict[str, Any]]:
+    def _row_to_workflow_run(self, row: tuple) -> WorkflowRun:
+        """Convert a database row to a WorkflowRun instance."""
+        workflow_snapshot = json.loads(row[10]) if row[10] else None
+        node_name_map = json.loads(row[11]) if row[11] else None
+        progress_timeline = json.loads(row[12]) if row[12] else None
+
+        return WorkflowRun(
+            thread_id=row[0],
+            workflow_id=row[1],
+            workflow_name=row[2],
+            python_code=row[3],
+            execution_log=row[4],
+            status=row[5],
+            started_at=row[6],
+            completed_at=row[7],
+            duration_ms=row[8],
+            error=row[9],
+            workflow_snapshot=workflow_snapshot,
+            node_name_map=node_name_map,
+            progress_timeline=progress_timeline,
+            diagram_mermaid=row[13],
+        )
+
+    async def get_workflow_run(self, thread_id: str) -> Optional[WorkflowRun]:
         """Get a workflow run by thread_id."""
 
         def _get():
@@ -518,27 +542,7 @@ class ActivityStore:
                 ).fetchone()
 
                 if result:
-                    # Parse JSON fields
-                    workflow_snapshot = json.loads(result[10]) if result[10] else None
-                    node_name_map = json.loads(result[11]) if result[11] else None
-                    progress_timeline = json.loads(result[12]) if result[12] else None
-
-                    return {
-                        "thread_id": result[0],
-                        "workflow_id": result[1],
-                        "workflow_name": result[2],
-                        "python_code": result[3],
-                        "execution_log": result[4],
-                        "status": result[5],
-                        "started_at": result[6].isoformat() if result[6] else None,
-                        "completed_at": result[7].isoformat() if result[7] else None,
-                        "duration_ms": result[8],
-                        "error": result[9],
-                        "workflow_snapshot": workflow_snapshot,
-                        "node_name_map": node_name_map,
-                        "progress_timeline": progress_timeline,
-                        "diagram_mermaid": result[13],
-                    }
+                    return self._row_to_workflow_run(result)
                 return None
             finally:
                 conn.close()
@@ -549,7 +553,7 @@ class ActivityStore:
         self,
         workflow_id: Optional[str] = None,
         limit: int = 50,
-    ) -> list[dict[str, Any]]:
+    ) -> list[WorkflowRun]:
         """List workflow runs, optionally filtered by workflow_id."""
 
         def _list():
@@ -558,8 +562,10 @@ class ActivityStore:
                 if workflow_id:
                     result = conn.execute(
                         """
-                        SELECT thread_id, workflow_id, workflow_name, status,
-                               started_at, completed_at, duration_ms, error
+                        SELECT thread_id, workflow_id, workflow_name, python_code,
+                               execution_log, status, started_at, completed_at,
+                               duration_ms, error, workflow_snapshot, node_name_map,
+                               progress_timeline, diagram_mermaid
                         FROM workflow_runs
                         WHERE workflow_id = ?
                         ORDER BY started_at DESC
@@ -570,8 +576,10 @@ class ActivityStore:
                 else:
                     result = conn.execute(
                         """
-                        SELECT thread_id, workflow_id, workflow_name, status,
-                               started_at, completed_at, duration_ms, error
+                        SELECT thread_id, workflow_id, workflow_name, python_code,
+                               execution_log, status, started_at, completed_at,
+                               duration_ms, error, workflow_snapshot, node_name_map,
+                               progress_timeline, diagram_mermaid
                         FROM workflow_runs
                         ORDER BY started_at DESC
                         LIMIT ?
@@ -579,19 +587,7 @@ class ActivityStore:
                         [limit],
                     ).fetchall()
 
-                return [
-                    {
-                        "thread_id": row[0],
-                        "workflow_id": row[1],
-                        "workflow_name": row[2],
-                        "status": row[3],
-                        "started_at": row[4].isoformat() if row[4] else None,
-                        "completed_at": row[5].isoformat() if row[5] else None,
-                        "duration_ms": row[6],
-                        "error": row[7],
-                    }
-                    for row in result
-                ]
+                return [self._row_to_workflow_run(row) for row in result]
             finally:
                 conn.close()
 

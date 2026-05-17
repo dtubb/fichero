@@ -77,3 +77,4 @@ default.profraw
 .claude/worktrees/
 .session-end-complete
 .claude/scheduled_tasks.lock
+CONTINUE.md
