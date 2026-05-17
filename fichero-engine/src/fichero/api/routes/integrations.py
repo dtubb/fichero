@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from fichero.integrations.base import get_integration_registry
+from fichero.models import IntegrationListResponse
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
@@ -116,7 +117,7 @@ class SetAttributesResponse(BaseModel):
 
 
 # Routes
-@router.get("", response_model=list[IntegrationInfo])
+@router.get("", response_model=IntegrationListResponse)
 async def list_integrations():
     """List all available integrations and their status."""
     registry = get_integration_registry()
@@ -135,10 +136,10 @@ async def list_integrations():
             )
         )
 
-    return integrations
+    return IntegrationListResponse(items=integrations, count=len(integrations))
 
 
-@router.get("/available", response_model=list[IntegrationInfo])
+@router.get("/available", response_model=IntegrationListResponse)
 async def list_available_integrations():
     """List only integrations that are currently available."""
     registry = get_integration_registry()
@@ -157,7 +158,7 @@ async def list_available_integrations():
             )
         )
 
-    return integrations
+    return IntegrationListResponse(items=integrations, count=len(integrations))
 
 
 @router.get("/{app_name}", response_model=IntegrationInfo)
@@ -208,7 +209,7 @@ async def refresh_integration(app_name: str):
     )
 
 
-@router.get("/{app_name}/items", response_model=list[IntegrationItem])
+@router.get("/{app_name}/items", response_model=IntegrationListResponse)
 async def list_items(
     app_name: str,
     limit: int = Query(default=100, ge=1, le=1000),

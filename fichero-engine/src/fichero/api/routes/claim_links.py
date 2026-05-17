@@ -19,6 +19,7 @@ from fichero.knowledge_models import (
     KnowledgeClaim,
     KnowledgeClaimLink,
 )
+from fichero.models import ClaimLinkListResponse, ClaimListResponse
 
 router = APIRouter(tags=["claim-links"])
 
@@ -106,11 +107,11 @@ async def create_claim_link(
     return link
 
 
-@router.get("/claims/{claim_id}/links", response_model=list[KnowledgeClaimLink])
+@router.get("/claims/{claim_id}/links", response_model=ClaimLinkListResponse)
 async def list_claim_links(
     claim_id: str,
     db: Database = Depends(get_library_database),
-) -> list[KnowledgeClaimLink]:
+) -> ClaimLinkListResponse:
     """List all links for a given claim (both outgoing and incoming)."""
     # Validate claim exists
     claim = db.get(KnowledgeClaim, claim_id)
@@ -124,7 +125,8 @@ async def list_claim_links(
 
     # Merge and deduplicate by ID
     merged = {link.id: link for link in [*outgoing, *incoming]}
-    return sorted(merged.values(), key=lambda link: link.created_at, reverse=True)
+    items = sorted(merged.values(), key=lambda link: link.created_at, reverse=True)
+    return ClaimLinkListResponse(items=items, count=len(items))
 
 
 @router.get("/claim-links/{link_id}", response_model=KnowledgeClaimLink)
@@ -178,12 +180,12 @@ async def delete_claim_link(
 # =============================================================================
 
 
-@router.get("/claims/{claim_id}/related", response_model=list[KnowledgeClaim])
+@router.get("/claims/{claim_id}/related", response_model=ClaimListResponse)
 async def get_related_claims(
     claim_id: str,
     relation_type: ClaimRelationType | None = None,
     db: Database = Depends(get_library_database),
-) -> list[KnowledgeClaim]:
+) -> ClaimListResponse:
     """Get all claims related to a given claim."""
     # Validate source claim exists
     claim = db.get(KnowledgeClaim, claim_id)

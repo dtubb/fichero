@@ -85,8 +85,11 @@ class TestActivityEndpoints:
             response = client.get("/api/activity")
             assert response.status_code == 200
             data = response.json()
-            assert isinstance(data, list)
-            assert len(data) == 4
+            assert isinstance(data, dict)
+            assert "items" in data
+            assert "count" in data
+            assert len(data["items"]) == 4
+            assert data["count"] == 4
 
     def test_list_activities_with_type_filter(self, client, db, sample_activities):
         """List activities with type filter."""
@@ -100,8 +103,8 @@ class TestActivityEndpoints:
             response = client.get("/api/activity?types=workflow_completed")
             assert response.status_code == 200
             data = response.json()
-            assert len(data) == 1
-            assert data[0]["type"] == "workflow_completed"
+            assert len(data["items"]) == 1
+            assert data["items"][0]["type"] == "workflow_completed"
 
     def test_list_activities_with_level_filter(self, client, db, sample_activities):
         """List activities with level filter."""
@@ -115,8 +118,8 @@ class TestActivityEndpoints:
             response = client.get("/api/activity?levels=error")
             assert response.status_code == 200
             data = response.json()
-            assert len(data) == 1
-            assert data[0]["level"] == "error"
+            assert len(data["items"]) == 1
+            assert data["items"][0]["level"] == "error"
 
     def test_list_activities_with_workflow_filter(self, client, db, sample_activities):
         """List activities filtered by workflow ID."""
@@ -130,8 +133,8 @@ class TestActivityEndpoints:
             response = client.get("/api/activity?workflow_id=wf-1")
             assert response.status_code == 200
             data = response.json()
-            assert len(data) == 3
-            assert all(item["workflow_id"] == "wf-1" for item in data)
+            assert len(data["items"]) == 3
+            assert all(item["workflow_id"] == "wf-1" for item in data["items"])
 
     def test_list_activities_with_time_filter(self, client, db, sample_activities):
         """List activities with time range filter."""
@@ -165,7 +168,8 @@ class TestActivityEndpoints:
             response = client.get("/api/activity/recent?limit=2")
             assert response.status_code == 200
             data = response.json()
-            assert len(data) == 2
+            assert len(data["items"]) == 2
+            assert data["count"] == 2
 
     def test_activity_stats(self, client, db):
         """Get activity statistics."""
@@ -205,7 +209,8 @@ class TestActivityEndpoints:
             response = client.get("/api/activity/workflow/wf-1")
             assert response.status_code == 200
             data = response.json()
-            assert len(data) == 3
+            assert len(data["items"]) == 3
+            assert data["count"] == 3
 
     def test_get_batch_activity(self, client, db):
         """Get activities for specific batch."""
@@ -226,8 +231,8 @@ class TestActivityEndpoints:
             response = client.get("/api/activity/batch/batch-1")
             assert response.status_code == 200
             data = response.json()
-            assert len(data) == 1
-            assert data[0]["batch_id"] == "batch-1"
+            assert len(data["items"]) == 1
+            assert data["items"][0]["batch_id"] == "batch-1"
 
     def test_cleanup_old_activities(self, client, db):
         """Delete old activities."""
@@ -273,7 +278,7 @@ class TestActivityResponse:
             data = response.json()
 
             # All metadata values should be strings
-            metadata = data[0]["metadata"]
+            metadata = data["items"][0]["metadata"]
             assert metadata["nodes_completed"] == "5"
             assert metadata["duration"] == "1.5"
             assert metadata["success"] == "True"

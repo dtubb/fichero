@@ -20,6 +20,7 @@ from fichero.knowledge_models import (
     ProjectInclusion,
     ProjectStatus,
 )
+from fichero.models import ProjectListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects")
@@ -54,7 +55,7 @@ async def create_project(
     return project
 
 
-@router.get("", response_model=list[Project])
+@router.get("", response_model=ProjectListResponse)
 async def list_projects(
     status: ProjectStatus | None = Query(default=None),
     db: Database = Depends(get_library_database),
@@ -63,7 +64,7 @@ async def list_projects(
     if status is not None:
         rows = [r for r in rows if r.status == status]
     rows.sort(key=lambda r: r.updated_at, reverse=True)
-    return rows
+    return ProjectListResponse(items=rows, count=len(rows))
 
 
 @router.get("/{project_id}", response_model=Project)
@@ -206,7 +207,7 @@ async def list_items(
 
 @router.get(
     "/membership/{target_id}",
-    response_model=list[Project],
+    response_model=ProjectListResponse,
     summary="Which projects include this KG row?",
 )
 async def project_membership(
@@ -221,4 +222,5 @@ async def project_membership(
     ]
     project_ids = {i.project_id for i in inclusions}
     projects = [db.get(Project, pid) for pid in project_ids]
-    return [p for p in projects if p is not None]
+    items = [p for p in projects if p is not None]
+    return ProjectListResponse(items=items, count=len(items))

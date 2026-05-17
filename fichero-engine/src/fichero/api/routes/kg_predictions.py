@@ -43,6 +43,7 @@ from fichero.knowledge_models import (
     KnowledgeClaimLink,
     KnowledgePredictionRun,
 )
+from fichero.models import KGPredictionListResponse
 
 router = APIRouter(prefix="/kg/predictions")
 
@@ -169,7 +170,7 @@ async def generate_heuristic_predictions(
     )
 
 
-@router.get("", response_model=list[KnowledgePredictionRun])
+@router.get("", response_model=KGPredictionListResponse)
 async def list_prediction_runs(
     status: str | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
@@ -180,7 +181,7 @@ async def list_prediction_runs(
     if status:
         runs = [r for r in runs if r.status == status]
     runs.sort(key=lambda r: r.trained_at, reverse=True)
-    return runs[:limit]
+    return KGPredictionListResponse(items=runs[:limit], count=len(runs[:limit]))
 
 
 @router.post("/{run_id}/apply", response_model=ApplyPredictionsResponse)

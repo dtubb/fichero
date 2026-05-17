@@ -241,7 +241,9 @@ class FicheroClient:
                 "offset": offset,
             },
         )
-        return [Document.model_validate(d) for d in _expect_list(raw, "/api/documents")]
+        # Extract items from envelope format
+        items = raw.get("items", raw) if isinstance(raw, dict) else raw
+        return [Document.model_validate(d) for d in _expect_list(items, "/api/documents")]
 
     def get_document(self, doc_id: str) -> Document:
         return Document.model_validate(
@@ -281,7 +283,9 @@ class FicheroClient:
     # -- workflows ---------------------------------------------------------
     def list_workflows(self) -> list[Workflow]:
         raw = self.request("GET", "/api/workflows")
-        return [Workflow.model_validate(w) for w in _expect_list(raw, "/api/workflows")]
+        # Extract items from envelope format
+        items = raw.get("items", raw) if isinstance(raw, dict) else raw
+        return [Workflow.model_validate(w) for w in _expect_list(items, "/api/workflows")]
 
     def run_workflow(
         self,

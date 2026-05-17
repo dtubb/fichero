@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.models import Document
+from fichero.models import SourceListResponse
 
 router = APIRouter(tags=["sources"])
 
@@ -85,12 +86,13 @@ async def upsert_source(
     return _to_response(document)
 
 
-@router.get("", response_model=list[SourceUpsertResponse])
+@router.get("", response_model=SourceListResponse)
 async def list_sources(
     db: Database = Depends(get_library_database),
-) -> list[SourceUpsertResponse]:
+) -> SourceListResponse:
     """List all source documents."""
-    return [_to_response(d) for d in db.all(Document) if _is_source_document(d)]
+    sources = [_to_response(d) for d in db.all(Document) if _is_source_document(d)]
+    return SourceListResponse(items=sources, count=len(sources))
 
 
 @router.get("/{source_id}", response_model=SourceUpsertResponse)

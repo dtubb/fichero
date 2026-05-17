@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.models import Artifact, DocType, Document, FileType, Status
+from fichero.models import DocumentListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -410,7 +411,7 @@ async def delete_document(doc_id: str, db: Database = Depends(get_library_databa
     )
 
 
-@router.get("/{doc_id}/related", response_model=list[RelatedDocumentsResponse])
+@router.get("/{doc_id}/related", response_model=DocumentListResponse)
 async def related_documents(
     doc_id: str,
     limit: int = 20,

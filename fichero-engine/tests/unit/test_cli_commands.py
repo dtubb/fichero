@@ -64,7 +64,19 @@ class FakeClient:
 
     def list_documents(self, **kw):
         self.calls.append(("list_documents", kw))
-        return [{"id": "d1", "title": "Doc One", "doc_type": "file"}]
+        from fichero.models import DocumentListResponse
+        return DocumentListResponse(
+            items=[{
+                "id": "d1",
+                "name": "Doc One",
+                "path": "/path/to/doc",
+                "doc_type": "file",
+                "description": "",
+                "created_at": "2024-01-01T00:00:00",
+                "updated_at": "2024-01-01T00:00:00"
+            }],
+            count=1
+        )
 
     def get_document(self, doc_id):
         self.calls.append(("get_document", doc_id))
@@ -110,19 +122,23 @@ class FakeClient:
 
     def list_activities(self, *, thread_id=None, types=None, limit=100):
         self.calls.append(("list_activities", thread_id, types, limit))
+        from fichero.models import ActivityListResponse
         # Mimic the executor: emit a workflow_completed event only after
         # the second poll, so the wait loop has to actually wait.
         polls = [c for c in self.calls if c[0] == "list_activities"]
         if len(polls) < 2:
-            return []
-        return [
-            {
-                "id": "act-end",
-                "type": "workflow_completed",
-                "thread_id": thread_id,
-                "workflow_id": "wf-1",
-            }
-        ]
+            return ActivityListResponse(items=[], count=0)
+        activity_data = {
+            "id": "act-end",
+            "type": "workflow_completed",
+            "level": "info",
+            "message": "Workflow completed",
+            "timestamp": "2024-01-01T00:00:00",
+            "thread_id": thread_id,
+            "workflow_id": "wf-1",
+            "metadata": {},
+        }
+        return ActivityListResponse(items=[activity_data], count=1)
 
     def get_artifact(self, artifact_id):
         self.calls.append(("get_artifact", artifact_id))
@@ -442,6 +458,54 @@ class FakeClient:
     def delete_provider(self, provider_id):
         self.calls.append(("delete_provider", provider_id))
         return None
+
+    def list_known_libraries(self):
+        from fichero.models import KnownLibrary, LibraryRegistryResponse
+        from datetime import datetime
+
+        self.calls.append(("list_known_libraries",))
+        return LibraryRegistryResponse(
+            libraries=[
+                KnownLibrary(
+                    id="lib-1",
+                    path="/Users/daniel/Documents/Test.fichero",
+                    name="Test Library",
+                    added_at=datetime(2026, 5, 15),
+                    last_accessed=datetime(2026, 5, 17),
+                )
+            ],
+            count=1,
+        )
+
+    def add_known_library(self, path, name=None):
+        from fichero.models import KnownLibrary
+        from datetime import datetime
+
+        self.calls.append(("add_known_library", path, name))
+        return KnownLibrary(
+            id="lib-new",
+            path=path,
+            name=name or "New Library",
+            added_at=datetime(2026, 5, 15),
+            last_accessed=datetime(2026, 5, 17),
+        )
+
+    def remove_known_library(self, path):
+        self.calls.append(("remove_known_library", path))
+        return {"status": "removed", "path": path}
+
+    def update_library_access(self, path):
+        from fichero.models import KnownLibrary
+        from datetime import datetime
+
+        self.calls.append(("update_library_access", path))
+        return KnownLibrary(
+            id="lib-1",
+            path=path,
+            name="Test Library",
+            added_at=datetime(2026, 5, 15),
+            last_accessed=datetime.now(),
+        )
 
 
 @pytest.fixture(autouse=True)
@@ -1188,3 +1252,119 @@ def test_providers_delete_yes():
     result = runner.invoke(cli.app, ["providers", "delete", "prov-1", "--yes"])
     assert result.exit_code == 0
     assert ("delete_provider", "prov-1") in _last_client().calls
+
+
+# -- library lifecycle (registry) ------------------------------------------
+def test_library_list():
+    result = runner.invoke(cli.app, ["library", "list"])
+    assert result.exit_code == 0
+    assert ("list_known_libraries",) in _last_client().calls
+    assert "Test Library" in result.output or "Test.fichero" in result.output
+
+
+def test_library_list_empty():
+    """When no libraries are registered, display (no libraries)."""
+    FakeClient.instances.clear()
+
+    def empty_client(**_kwargs):
+        fake = FakeClient()
+        fake.kwargs = {}
+        fake.calls = []
+        return fake
+
+    original = FakeClient
+
+    class EmptyClient(FakeClient):
+        def list_known_libraries(self):
+            from fichero.models import LibraryRegistryResponse
+
+            self.calls.append(("list_known_libraries",))
+            return LibraryRegistryResponse(libraries=[], count=0)
+
+    # Monkey-patch for this test
+    import fichero.__main__ as cli_module
+
+    old_client_class = cli_module.FicheroClient
+    try:
+        cli_module.FicheroClient = EmptyClient
+        result = runner.invoke(cli_module.app, ["library", "list"])
+        assert result.exit_code == 0
+        assert "(no libraries)" in result.output
+    finally:
+        cli_module.FicheroClient = old_client_class
+
+
+def test_library_add():
+    result = runner.invoke(cli.app, ["library", "add", "~/Documents/MyLib.fichero"])
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "add_known_library")
+    assert "MyLib.fichero" in call[1]
+    assert "Added:" in result.output
+
+
+def test_library_remove():
+    result = runner.invoke(cli.app, ["library", "remove", "~/Documents/MyLib.fichero", "--yes"])
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "remove_known_library")
+    assert "MyLib.fichero" in call[1]
+    assert "Removed:" in result.output
+
+
+def test_library_create():
+    result = runner.invoke(cli.app, ["library", "create", "~/Documents/NewLib.fichero"])
+    assert result.exit_code == 0
+    calls = _last_client().calls
+    # Should call create_library and then add_known_library
+    assert any(c[0] == "create_library" for c in calls)
+    assert any(c[0] == "add_known_library" for c in calls)
+    assert "Created and registered:" in result.output
+
+
+def test_library_delete_yes():
+    """Delete a library with confirmation."""
+    result = runner.invoke(
+        cli.app, ["library", "delete", "~/Documents/OldLib.fichero", "--yes"]
+    )
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "remove_known_library")
+    assert "OldLib.fichero" in call[1]
+    assert "Deleted:" in result.output
+
+
+def test_library_delete_no_confirm():
+    """Delete aborts when user declines confirmation."""
+    result = runner.invoke(
+        cli.app, ["library", "delete", "~/Documents/OldLib.fichero"], input="n\n"
+    )
+    assert result.exit_code == 1
+
+
+def test_library_open():
+    result = runner.invoke(cli.app, ["library", "open", "~/Documents/MyLib.fichero"])
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "update_library_access")
+    assert "MyLib.fichero" in call[1]
+    assert "Activated:" in result.output
+
+
+def test_library_close():
+    """Close is a no-op for now but should not error."""
+    result = runner.invoke(cli.app, ["library", "close", "~/Documents/MyLib.fichero"])
+    assert result.exit_code == 0
+    assert "Closed:" in result.output
+
+
+def test_library_reset_yes():
+    result = runner.invoke(cli.app, ["library", "reset", "--yes"])
+    assert result.exit_code == 0
+    calls = _last_client().calls
+    # Should list all libraries and remove each one
+    assert ("list_known_libraries",) in calls
+    assert any(c[0] == "remove_known_library" for c in calls)
+    assert "Reset complete" in result.output
+
+
+def test_library_reset_no_confirm():
+    """Reset aborts when user declines confirmation."""
+    result = runner.invoke(cli.app, ["library", "reset"], input="n\n")
+    assert result.exit_code == 1

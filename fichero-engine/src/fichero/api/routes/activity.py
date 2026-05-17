@@ -39,6 +39,7 @@ from fichero.workflows.activity import (
     ActivityType,
     get_activity_tracker,
 )
+from fichero.models import ActivityListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/activity", tags=["activity"])
@@ -121,7 +122,7 @@ class ActivityStatsResponse(BaseModel):
 # API Endpoints
 
 
-@router.get("", response_model=list[ActivityResponse])
+@router.get("", response_model=ActivityListResponse)
 async def list_activities(
     db: Database = Depends(get_library_database),
     types: Optional[str] = Query(None, description="Comma-separated activity types"),
@@ -194,10 +195,11 @@ async def list_activities(
     )
 
     activities = await tracker.query(filter)
-    return [ActivityResponse.from_activity(a) for a in activities]
+    items = [ActivityResponse.from_activity(a) for a in activities]
+    return ActivityListResponse(items=items, count=len(items))
 
 
-@router.get("/recent", response_model=list[ActivityResponse])
+@router.get("/recent", response_model=ActivityListResponse)
 async def get_recent_activities(
     db: Database = Depends(get_library_database),
     limit: int = Query(50, ge=1, le=200),
@@ -210,7 +212,7 @@ async def get_recent_activities(
     """
     tracker = get_activity_tracker(str(db.path))
     activities = tracker.get_recent(limit)
-    return [ActivityResponse.from_activity(a) for a in activities]
+    return ActivityListResponse(items=[ActivityResponse.from_activity(a) for a in activities], count=len(activities))
 
 
 @router.get("/stats", response_model=ActivityStatsResponse)
@@ -344,7 +346,7 @@ async def websocket_activity_stream(
         tracker.unsubscribe(sub_id)
 
 
-@router.get("/workflow/{workflow_id}", response_model=list[ActivityResponse])
+@router.get("/workflow/{workflow_id}", response_model=ActivityListResponse)
 async def get_workflow_activity(
     workflow_id: str,
     db: Database = Depends(get_library_database),
@@ -359,10 +361,10 @@ async def get_workflow_activity(
     )
 
     activities = await tracker.query(filter)
-    return [ActivityResponse.from_activity(a) for a in activities]
+    return ActivityListResponse(items=[ActivityResponse.from_activity(a) for a in activities], count=len(activities))
 
 
-@router.get("/batch/{batch_id}", response_model=list[ActivityResponse])
+@router.get("/batch/{batch_id}", response_model=ActivityListResponse)
 async def get_batch_activity(
     batch_id: str,
     db: Database = Depends(get_library_database),
@@ -377,7 +379,7 @@ async def get_batch_activity(
     )
 
     activities = await tracker.query(filter)
-    return [ActivityResponse.from_activity(a) for a in activities]
+    return ActivityListResponse(items=[ActivityResponse.from_activity(a) for a in activities], count=len(activities))
 
 
 @router.delete("/cleanup")

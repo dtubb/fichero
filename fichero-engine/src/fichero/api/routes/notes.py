@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.knowledge_models import Note, NoteKind, NoteLink
+from fichero.models import NoteListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/notes")
@@ -50,7 +51,7 @@ async def create_note(
     return note
 
 
-@router.get("", response_model=list[Note])
+@router.get("", response_model=NoteListResponse)
 async def list_notes(
     kind: NoteKind | None = Query(default=None),
     tag: str | None = Query(default=None),
@@ -186,7 +187,7 @@ async def delete_note_link(
 
 @router.get(
     "/{note_id}/backlinks",
-    response_model=list[Note],
+    response_model=NoteListResponse,
     summary="Every note that links to this one",
     description=(
         "Returns the notes that point at ``note_id`` via NoteLink "
@@ -206,12 +207,13 @@ async def backlinks(
     ]
     source_ids = {link.source_note_id for link in incoming}
     notes = [db.get(Note, sid) for sid in source_ids]
-    return [n for n in notes if n is not None]
+    items = [n for n in notes if n is not None]
+    return NoteListResponse(items=items, count=len(items))
 
 
 @router.get(
     "/{note_id}/forward-links",
-    response_model=list[Note],
+    response_model=NoteListResponse,
     summary="Every note this one links to",
 )
 async def forward_links(
@@ -226,4 +228,5 @@ async def forward_links(
     ]
     target_ids = {link.target_note_id for link in outgoing}
     notes = [db.get(Note, tid) for tid in target_ids]
-    return [n for n in notes if n is not None]
+    items = [n for n in notes if n is not None]
+    return NoteListResponse(items=items, count=len(items))

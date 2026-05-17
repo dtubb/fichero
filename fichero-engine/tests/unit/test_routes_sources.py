@@ -37,22 +37,31 @@ class TestListSources:
     def test_empty_list(self, client):
         r = client.get("/api/sources")
         assert r.status_code == 200
-        assert r.json() == []
+        data = r.json()
+        assert isinstance(data, dict)
+        assert "items" in data
+        assert "count" in data
+        assert data["items"] == []
+        assert data["count"] == 0
 
     def test_returns_sources(self, client):
         client.post("/api/sources", json=_source_payload("Source A"))
         client.post("/api/sources", json=_source_payload("Source B"))
         r = client.get("/api/sources")
         assert r.status_code == 200
-        assert len(r.json()) == 2
+        data = r.json()
+        assert len(data["items"]) == 2
+        assert data["count"] == 2
 
     def test_excludes_non_source_documents(self, client, db):
         _make_non_source_doc(db, "Not a source")
         client.post("/api/sources", json=_source_payload("Real Source"))
         r = client.get("/api/sources")
         assert r.status_code == 200
-        assert len(r.json()) == 1
-        assert r.json()[0]["title"] == "Real Source"
+        data = r.json()
+        assert len(data["items"]) == 1
+        assert data["count"] == 1
+        assert data["items"][0]["title"] == "Real Source"
 
 
 # ---------------------------------------------------------------------------

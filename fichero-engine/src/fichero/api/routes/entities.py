@@ -20,6 +20,7 @@ from fichero.knowledge_models import (
     EntityType,
     KnowledgeEntity,
 )
+from fichero.models import EntityListResponse, EntityCoOccurrenceListResponse, EntityDocumentListResponse
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +178,7 @@ async def upsert_entity(
     return entity
 
 
-@router.get("", response_model=list[KnowledgeEntity])
+@router.get("", response_model=EntityListResponse)
 async def list_entities(
     q: Annotated[str | None, Query()] = None,
     entity_type: Annotated[EntityType | None, Query()] = None,
@@ -289,7 +290,7 @@ class TopEntityRow(BaseModel):
     claim_count: int
 
 
-@router.get("/top", response_model=list[TopEntityRow])
+@router.get("/top", response_model=EntityListResponse)
 async def top_entities(
     entity_type: Annotated[EntityType | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 30,
@@ -563,7 +564,7 @@ class EntityCoOccurrence(BaseModel):
     shared_claims: int
 
 
-@router.get("/{entity_id}/documents", response_model=list[EntityDocumentLink])
+@router.get("/{entity_id}/documents", response_model=EntityDocumentListResponse)
 async def get_entity_documents(
     entity_id: str,
     limit: int = 100,
@@ -622,7 +623,7 @@ async def get_entity_documents(
     ]
 
 
-@router.get("/{entity_id}/co-occurrence", response_model=list[EntityCoOccurrence])
+@router.get("/{entity_id}/co-occurrence", response_model=EntityCoOccurrenceListResponse)
 async def get_entity_co_occurrence(
     entity_id: str,
     limit: int = 50,

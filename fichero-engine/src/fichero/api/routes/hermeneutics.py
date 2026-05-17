@@ -20,6 +20,7 @@ from fichero.hermeneutics_models import (
     PatternInstance,
     PatternStatus,
 )
+from fichero.models import HermeneuticsListResponse
 
 
 router = APIRouter()
@@ -171,7 +172,7 @@ async def create_framework(
     return framework
 
 
-@router.get("/frameworks", response_model=list[InterpretiveFramework])
+@router.get("/frameworks", response_model=HermeneuticsListResponse)
 async def list_frameworks(
     framework_type: FrameworkType | None = None,
     is_active: bool | None = None,
@@ -182,7 +183,7 @@ async def list_frameworks(
         rows = [r for r in rows if r.framework_type == framework_type]
     if is_active is not None:
         rows = [r for r in rows if r.is_active == is_active]
-    return rows
+    return HermeneuticsListResponse(items=rows, count=len(rows))
 
 
 @router.get("/frameworks/{framework_id}", response_model=InterpretiveFramework)
@@ -280,7 +281,7 @@ async def create_interpretation(
     return interpretation
 
 
-@router.get("/interpretations", response_model=list[Interpretation])
+@router.get("/interpretations", response_model=HermeneuticsListResponse)
 async def list_interpretations(
     framework_id: str | None = None,
     claim_id: str | None = None,
@@ -297,7 +298,7 @@ async def list_interpretations(
         rows = [r for r in rows if r.document_id == document_id]
     if act is not None:
         rows = [r for r in rows if r.act == act]
-    return rows
+    return HermeneuticsListResponse(items=rows, count=len(rows))
 
 
 @router.get("/interpretations/{interpretation_id}", response_model=Interpretation)
@@ -363,7 +364,7 @@ async def create_pattern(
     return pattern
 
 
-@router.get("/patterns", response_model=list[PatternInstance])
+@router.get("/patterns", response_model=HermeneuticsListResponse)
 async def list_patterns(
     pattern_type: str | None = None,
     status: PatternStatus | None = None,
@@ -377,7 +378,7 @@ async def list_patterns(
         rows = [r for r in rows if r.status == status]
     if framework_id is not None:
         rows = [r for r in rows if r.framework_id == framework_id]
-    return rows
+    return HermeneuticsListResponse(items=rows, count=len(rows))
 
 
 @router.get("/patterns/{pattern_id}", response_model=PatternInstance)
@@ -453,7 +454,7 @@ async def create_circle_state(
     return state
 
 
-@router.get("/circle-state", response_model=list[HermeneuticCircleState])
+@router.get("/circle-state", response_model=HermeneuticsListResponse)
 async def list_circle_states(
     claim_id: str | None = None,
     db: Database = Depends(get_library_database),
@@ -461,7 +462,7 @@ async def list_circle_states(
     rows = db.all(HermeneuticCircleState)
     if claim_id is not None:
         rows = [r for r in rows if r.claim_id == claim_id]
-    return rows
+    return HermeneuticsListResponse(items=rows, count=len(rows))
 
 
 @router.get("/circle-state/{state_id}", response_model=HermeneuticCircleState)

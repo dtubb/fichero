@@ -23,6 +23,7 @@ from fichero.knowledge_models import (
     EntityType,
     KnowledgeEntity,
 )
+from fichero.models import EntityAuditListResponse
 
 router = APIRouter(prefix="/kg/entity-curation")
 
@@ -253,12 +254,12 @@ async def undo_entity_operation(
     return _audit_response(undo)
 
 
-@router.get("/audit", response_model=list[EntityAuditResponse])
+@router.get("/audit", response_model=EntityAuditListResponse)
 async def list_entity_audits(
     entity_id: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     db: Database = Depends(get_library_database),
-) -> list[EntityAuditResponse]:
+) -> EntityAuditListResponse:
     """List entity merge/split audit records, optionally filtered by entity."""
     audits = db.all(EntityMergeAudit)
     if entity_id:
@@ -267,7 +268,8 @@ async def list_entity_audits(
             if a.target_entity_id == entity_id or entity_id in a.source_entity_ids
         ]
     audits.sort(key=lambda a: a.created_at, reverse=True)
-    return [_audit_response(a) for a in audits[:limit]]
+    items = [_audit_response(a) for a in audits[:limit]]
+    return EntityAuditListResponse(items=items, count=len(items))
 
 
 def _embed_entities_sync(

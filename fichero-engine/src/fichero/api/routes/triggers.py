@@ -25,6 +25,7 @@ from fichero.workflows.file_watcher import (
     TriggerExecution,
 )
 from fichero.workflows.workflow_store import WorkflowStore
+from fichero.models import TriggerListResponse
 
 logger = logging.getLogger(__name__)
 
@@ -247,7 +248,7 @@ async def create_trigger(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("", response_model=list[TriggerResponse])
+@router.get("", response_model=TriggerListResponse)
 async def list_triggers(
     status: Optional[str] = None,
     workflow_id: Optional[str] = None,
@@ -266,7 +267,7 @@ async def list_triggers(
         offset=offset,
     )
 
-    return [TriggerResponse.from_trigger(t) for t in triggers]
+    return TriggerListResponse(items=[TriggerResponse.from_trigger(t) for t in triggers], count=len(triggers))
 
 
 @router.get("/{trigger_id}", response_model=TriggerResponse)
@@ -384,7 +385,7 @@ async def resume_trigger(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/{trigger_id}/executions", response_model=list[TriggerExecutionResponse])
+@router.get("/{trigger_id}/executions", response_model=TriggerListResponse)
 async def get_trigger_executions(
     trigger_id: str,
     limit: int = 50,
@@ -398,4 +399,4 @@ async def get_trigger_executions(
         raise HTTPException(status_code=404, detail=f"Trigger {trigger_id} not found")
 
     executions = await watcher.get_trigger_executions(trigger_id, limit=limit)
-    return [TriggerExecutionResponse.from_execution(e) for e in executions]
+    return TriggerListResponse(items=[TriggerExecutionResponse.from_execution(e) for e in executions], count=len(executions))

@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.workflows.action_store import ActionStore, Action
+from fichero.models import ActionListResponse
 
 router = APIRouter(prefix="/actions", tags=["actions"])
 
@@ -150,45 +151,45 @@ def get_action_store(db: Database = Depends(get_library_database)) -> ActionStor
 # =========================================================================
 
 
-@router.get("", response_model=list[ActionResponse])
+@router.get("", response_model=ActionListResponse)
 async def list_actions(store: ActionStore = Depends(get_action_store)):
     """List all actions."""
     actions = store.list_all()
-    return [action_to_response(a) for a in actions]
+    return ActionListResponse(items=[action_to_response(a) for a in actions], count=len(actions))
 
 
-@router.get("/builtin", response_model=list[ActionResponse])
+@router.get("/builtin", response_model=ActionListResponse)
 async def list_builtin_actions(store: ActionStore = Depends(get_action_store)):
     """List built-in actions only."""
     actions = store.list_builtin()
-    return [action_to_response(a) for a in actions]
+    return ActionListResponse(items=[action_to_response(a) for a in actions], count=len(actions))
 
 
-@router.get("/custom", response_model=list[ActionResponse])
+@router.get("/custom", response_model=ActionListResponse)
 async def list_custom_actions(store: ActionStore = Depends(get_action_store)):
     """List user-created actions only."""
     actions = store.list_custom()
-    return [action_to_response(a) for a in actions]
+    return ActionListResponse(items=[action_to_response(a) for a in actions], count=len(actions))
 
 
-@router.get("/recent", response_model=list[ActionResponse])
+@router.get("/recent", response_model=ActionListResponse)
 async def list_recent_actions(
     limit: int = Query(default=10, ge=1, le=50),
     store: ActionStore = Depends(get_action_store),
 ):
     """List recently used actions."""
     actions = store.list_recent(limit=limit)
-    return [action_to_response(a) for a in actions]
+    return ActionListResponse(items=[action_to_response(a) for a in actions], count=len(actions))
 
 
-@router.get("/popular", response_model=list[ActionResponse])
+@router.get("/popular", response_model=ActionListResponse)
 async def list_popular_actions(
     limit: int = Query(default=10, ge=1, le=50),
     store: ActionStore = Depends(get_action_store),
 ):
     """List most frequently used actions."""
     actions = store.list_popular(limit=limit)
-    return [action_to_response(a) for a in actions]
+    return ActionListResponse(items=[action_to_response(a) for a in actions], count=len(actions))
 
 
 @router.get("/categories")
@@ -198,13 +199,13 @@ async def list_categories(store: ActionStore = Depends(get_action_store)) -> Cat
     return CategoriesResponse(categories=categories)
 
 
-@router.get("/category/{category}", response_model=list[ActionResponse])
+@router.get("/category/{category}", response_model=ActionListResponse)
 async def list_actions_by_category(
     category: str, store: ActionStore = Depends(get_action_store)
 ):
     """List actions in a specific category."""
     actions = store.list_by_category(category)
-    return [action_to_response(a) for a in actions]
+    return ActionListResponse(items=[action_to_response(a) for a in actions], count=len(actions))
 
 
 # =========================================================================
@@ -212,7 +213,7 @@ async def list_actions_by_category(
 # =========================================================================
 
 
-@router.get("/search", response_model=list[ActionResponse])
+@router.get("/search", response_model=ActionListResponse)
 async def search_actions(
     query: str | None = None,
     category: str | None = None,
@@ -230,7 +231,7 @@ async def search_actions(
     tag_list = [t.strip() for t in tags.split(",")] if tags else None
 
     actions = store.search(query=query, category=category, tags=tag_list)
-    return [action_to_response(a) for a in actions]
+    return ActionListResponse(items=[action_to_response(a) for a in actions], count=len(actions))
 
 
 # =========================================================================

@@ -25,6 +25,7 @@ from fichero.spatial_models import (
     SpatialViewport,
     SpatialRoom,
 )
+from fichero.models import MindPalaceListResponse
 
 
 router = APIRouter()
@@ -183,7 +184,7 @@ async def create_room(
     return room
 
 
-@router.get("/rooms", response_model=list[SpatialRoom])
+@router.get("/rooms", response_model=MindPalaceListResponse)
 async def list_rooms(
     room_type: RoomType | None = None,
     owner_id: str | None = None,
@@ -194,7 +195,7 @@ async def list_rooms(
         rows = [r for r in rows if r.room_type == room_type]
     if owner_id is not None:
         rows = [r for r in rows if r.owner_id == owner_id]
-    return rows
+    return MindPalaceListResponse(items=rows, count=len(rows))
 
 
 @router.get("/rooms/{room_id}", response_model=SpatialRoom)
@@ -306,7 +307,7 @@ async def place_node(
     return node
 
 
-@router.get("/nodes", response_model=list[SpatialNode])
+@router.get("/nodes", response_model=MindPalaceListResponse)
 async def list_nodes(
     room_id: str,
     node_type: NodeType | None = None,
@@ -315,7 +316,7 @@ async def list_nodes(
     rows = [n for n in db.all(SpatialNode) if n.room_id == room_id]
     if node_type is not None:
         rows = [n for n in rows if n.node_type == node_type]
-    return rows
+    return MindPalaceListResponse(items=rows, count=len(rows))
 
 
 @router.get("/nodes/{node_id}", response_model=SpatialNode)
@@ -409,7 +410,7 @@ async def create_connection(
     return conn
 
 
-@router.get("/connections", response_model=list[SpatialConnection])
+@router.get("/connections", response_model=MindPalaceListResponse)
 async def list_connections(
     room_id: str,
     connection_type: ConnectionType | None = None,
@@ -418,7 +419,7 @@ async def list_connections(
     rows = [c for c in db.all(SpatialConnection) if c.room_id == room_id]
     if connection_type is not None:
         rows = [c for c in rows if c.connection_type == connection_type]
-    return rows
+    return MindPalaceListResponse(items=rows, count=len(rows))
 
 
 @router.delete("/connections/{connection_id}")
@@ -466,12 +467,13 @@ async def create_stack(
     return stack
 
 
-@router.get("/stacks", response_model=list[SpatialStack])
+@router.get("/stacks", response_model=MindPalaceListResponse)
 async def list_stacks(
     room_id: str,
     db: Database = Depends(get_library_database),
-) -> list[SpatialStack]:
-    return [s for s in db.all(SpatialStack) if s.room_id == room_id]
+) -> MindPalaceListResponse:
+    stacks = [s for s in db.all(SpatialStack) if s.room_id == room_id]
+    return MindPalaceListResponse(items=stacks, count=len(stacks))
 
 
 @router.get("/stacks/{stack_id}", response_model=SpatialStack)
@@ -544,7 +546,7 @@ async def create_note(
     return note
 
 
-@router.get("/notes", response_model=list[NativeNote])
+@router.get("/notes", response_model=MindPalaceListResponse)
 async def list_notes(
     room_id: str | None = None,
     note_type: NoteType | None = None,
@@ -561,7 +563,7 @@ async def list_notes(
         rows = [n for n in rows if n.status == status]
     if author_id is not None:
         rows = [n for n in rows if n.author_id == author_id]
-    return rows
+    return MindPalaceListResponse(items=rows, count=len(rows))
 
 
 @router.get("/notes/{note_id}", response_model=NativeNote)
@@ -704,7 +706,7 @@ async def focus_node(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@router.post("/rooms/{room_id}/suggest-arrangement", response_model=list[SpatialNode])
+@router.post("/rooms/{room_id}/suggest-arrangement", response_model=MindPalaceListResponse)
 async def suggest_arrangement(
     room_id: str,
     request: ArrangeRequest,

@@ -28,6 +28,7 @@ from fichero.knowledge_models import (
     SourceType,
 )
 from fichero.models import Document
+from fichero.models import ClaimListResponse
 
 router = APIRouter(prefix="/claims", tags=["claims"])
 
@@ -334,7 +335,7 @@ def _descendant_doc_ids(db: Database, root_id: str) -> set[str]:
     return seen
 
 
-@router.get("", response_model=list[KnowledgeClaim])
+@router.get("", response_model=ClaimListResponse)
 async def list_claims(
     q: Annotated[str | None, Query()] = None,
     entity_id: Annotated[str | None, Query()] = None,

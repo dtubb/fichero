@@ -18,6 +18,7 @@ from fichero.knowledge_models import (
     InclusionScopeType,
     KnowledgeGraphInclusion,
 )
+from fichero.models import KGInclusionListResponse
 
 router = APIRouter(prefix="/kg/inclusion")
 
@@ -61,7 +62,7 @@ async def upsert_inclusion(
     return record
 
 
-@router.get("", response_model=list[KnowledgeGraphInclusion])
+@router.get("", response_model=KGInclusionListResponse)
 async def list_inclusion(
     scope_type: InclusionScopeType | None = Query(default=None),
     target_id: str | None = Query(default=None),
@@ -77,4 +78,4 @@ async def list_inclusion(
     else:
         rows = db.all(KnowledgeGraphInclusion)
     rows.sort(key=lambda row: row.updated_at, reverse=True)
-    return rows
+    return KGInclusionListResponse(items=rows, count=len(rows))

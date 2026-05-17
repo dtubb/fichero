@@ -1080,6 +1080,179 @@ class LibraryRegistryResponse(BaseModel):
 
 
 # =============================================================================
+# List Envelope Response Models — standardize all GET list endpoints (#1075)
+# =============================================================================
+
+
+class ActionListResponse(BaseModel):
+    """Standardized envelope for GET /api/actions list endpoints."""
+
+    items: list[Any]  # Typically ActionResponse
+    count: int
+
+
+class ActivityListResponse(BaseModel):
+    """Standardized envelope for GET /api/activity list endpoints."""
+
+    items: list[Any]  # Typically ActivityResponse
+    count: int
+
+
+class BatchListResponse(BaseModel):
+    """Standardized envelope for GET /api/batch list endpoints."""
+
+    items: list[Any]  # Typically BatchResponse
+    count: int
+
+
+class ClaimListResponse(BaseModel):
+    """Standardized envelope for GET /api/claims list endpoints."""
+
+    items: list[Any]  # Typically KnowledgeClaim
+    count: int
+
+
+class ClaimLinkListResponse(BaseModel):
+    """Standardized envelope for claim links list endpoints."""
+
+    items: list[Any]  # Typically KnowledgeClaimLink or KnowledgeClaim
+    count: int
+
+
+class DocumentListResponse(BaseModel):
+    """Standardized envelope for document-related list endpoints."""
+
+    items: list[Any]  # Typically Document or RelatedDocumentsResponse
+    count: int
+
+
+class EntityListResponse(BaseModel):
+    """Standardized envelope for GET /api/entities list endpoints."""
+
+    items: list[Any]  # Typically KnowledgeEntity
+    count: int
+
+
+class EntityCoOccurrenceListResponse(BaseModel):
+    """Standardized envelope for GET /api/entities/{entity_id}/co-occurrence."""
+
+    items: list[Any]  # Typically EntityCoOccurrence
+    count: int
+
+
+class EntityDocumentListResponse(BaseModel):
+    """Standardized envelope for GET /api/entities/{entity_id}/documents."""
+
+    items: list[Any]  # Typically EntityDocumentLink
+    count: int
+
+
+class EntityAuditListResponse(BaseModel):
+    """Standardized envelope for GET /api/kg-entity-curation/audit."""
+
+    items: list[Any]  # Typically EntityAuditResponse
+    count: int
+
+
+class HermeneuticsListResponse(BaseModel):
+    """Standardized envelope for hermeneutics list endpoints."""
+
+    items: list[Any]  # Interpretations, Frameworks, Patterns, or HermeneuticCircleState
+    count: int
+
+
+class IntegrationListResponse(BaseModel):
+    """Standardized envelope for GET /api/integrations list endpoints."""
+
+    items: list[Any]  # Typically IntegrationInfo or IntegrationItem
+    count: int
+
+
+class KGInclusionListResponse(BaseModel):
+    """Standardized envelope for GET /api/kg-inclusion list endpoints."""
+
+    items: list[Any]  # Typically KnowledgeGraphInclusion
+    count: int
+
+
+class KGPredictionListResponse(BaseModel):
+    """Standardized envelope for GET /api/kg-predictions list endpoints."""
+
+    items: list[Any]  # Typically KnowledgePredictionRun
+    count: int
+
+
+class ContradictionListResponse(BaseModel):
+    """Standardized envelope for GET /api/kg-claim-analysis/{claim_id}/contradictions."""
+
+    items: list[Any]  # Typically ContradictionEvidence
+    count: int
+
+
+class MCPServerListResponse(BaseModel):
+    """Standardized envelope for GET /api/mcp-servers list endpoints."""
+
+    items: list[Any]  # Typically MCPServerResponse
+    count: int
+
+
+class MindPalaceListResponse(BaseModel):
+    """Standardized envelope for mind palace spatial list endpoints."""
+
+    items: list[Any]  # Rooms, Nodes, Connections, Stacks, or NativeNote
+    count: int
+
+
+class NoteListResponse(BaseModel):
+    """Standardized envelope for GET /api/notes list endpoints."""
+
+    items: list[Any]  # Typically Note
+    count: int
+
+
+class ProjectListResponse(BaseModel):
+    """Standardized envelope for GET /api/projects list endpoints."""
+
+    items: list[Any]  # Typically Project
+    count: int
+
+
+class ResearchCrudListResponse(BaseModel):
+    """Standardized envelope for research CRUD list endpoints."""
+
+    items: list[Any]  # Projects, Plans, Tasks, Steps
+    count: int
+
+
+class ResearchNotesListResponse(BaseModel):
+    """Standardized envelope for research notes/sources/checklists list endpoints."""
+
+    items: list[Any]  # ResearchNote, SearchSource, or ResearchChecklist
+    count: int
+
+
+class ScheduleListResponse(BaseModel):
+    """Standardized envelope for GET /api/schedules list endpoints."""
+
+    items: list[Any]  # Typically ScheduleResponse or ScheduleRunResponse
+    count: int
+
+
+class SourceListResponse(BaseModel):
+    """Standardized envelope for GET /api/sources list endpoints."""
+
+    items: list[Any]  # Typically SourceUpsertResponse
+    count: int
+
+
+class TriggerListResponse(BaseModel):
+    """Standardized envelope for GET /api/triggers list endpoints."""
+
+    items: list[Any]  # Typically TriggerResponse or TriggerExecutionResponse
+    count: int
+
+
+# =============================================================================
 # Convenience exports
 # =============================================================================
 
@@ -1114,4 +1287,29 @@ __all__ = [
     # Known library registry (#1131)
     "KnownLibrary",
     "LibraryRegistryResponse",
+    # List envelope response models (#1075)
+    "ActionListResponse",
+    "ActivityListResponse",
+    "BatchListResponse",
+    "ClaimListResponse",
+    "ClaimLinkListResponse",
+    "DocumentListResponse",
+    "EntityListResponse",
+    "EntityCoOccurrenceListResponse",
+    "EntityDocumentListResponse",
+    "EntityAuditListResponse",
+    "HermeneuticsListResponse",
+    "IntegrationListResponse",
+    "KGInclusionListResponse",
+    "KGPredictionListResponse",
+    "ContradictionListResponse",
+    "MCPServerListResponse",
+    "MindPalaceListResponse",
+    "NoteListResponse",
+    "ProjectListResponse",
+    "ResearchCrudListResponse",
+    "ResearchNotesListResponse",
+    "ScheduleListResponse",
+    "SourceListResponse",
+    "TriggerListResponse",
 ]

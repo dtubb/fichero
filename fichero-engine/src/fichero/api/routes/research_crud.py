@@ -19,6 +19,7 @@ from fichero.research_models import (
     StepTool,
     TaskStatus,
 )
+from fichero.models import ResearchCrudListResponse
 
 router = APIRouter()
 
@@ -62,7 +63,7 @@ async def create_project(
     return project
 
 
-@router.get("/projects", response_model=list[ResearchProject])
+@router.get("/projects", response_model=ResearchCrudListResponse)
 async def list_projects(
     status: ProjectStatus | None = None,
     db: Database = Depends(get_library_database),
@@ -70,7 +71,8 @@ async def list_projects(
     projects = db.query(ResearchProject)
     if status is not None:
         projects = [p for p in projects if p.status == status]
-    return sorted(projects, key=lambda p: p.created_at, reverse=True)
+    items = sorted(projects, key=lambda p: p.created_at, reverse=True)
+    return ResearchCrudListResponse(items=items, count=len(items))
 
 
 @router.get("/projects/{project_id}", response_model=ResearchProject)
@@ -155,13 +157,14 @@ async def create_plan(
     return plan
 
 
-@router.get("/projects/{project_id}/plans", response_model=list[ResearchPlan])
+@router.get("/projects/{project_id}/plans", response_model=ResearchCrudListResponse)
 async def list_plans(
     project_id: str,
     db: Database = Depends(get_library_database),
-) -> list[ResearchPlan]:
+) -> ResearchCrudListResponse:
     plans = db.query(ResearchPlan, project_id=project_id)
-    return sorted(plans, key=lambda p: p.order_index)
+    items = sorted(plans, key=lambda p: p.order_index)
+    return ResearchCrudListResponse(items=items, count=len(items))
 
 
 @router.get("/plans/{plan_id}", response_model=ResearchPlan)
@@ -237,13 +240,14 @@ async def create_task(
     return task
 
 
-@router.get("/plans/{plan_id}/tasks", response_model=list[ResearchTask])
+@router.get("/plans/{plan_id}/tasks", response_model=ResearchCrudListResponse)
 async def list_tasks(
     plan_id: str,
     db: Database = Depends(get_library_database),
-) -> list[ResearchTask]:
+) -> ResearchCrudListResponse:
     tasks = db.query(ResearchTask, plan_id=plan_id)
-    return sorted(tasks, key=lambda t: (t.priority, t.created_at))
+    items = sorted(tasks, key=lambda t: (t.priority, t.created_at))
+    return ResearchCrudListResponse(items=items, count=len(items))
 
 
 @router.get("/tasks/{task_id}", response_model=ResearchTask)
@@ -324,13 +328,14 @@ async def create_step(
     return step
 
 
-@router.get("/tasks/{task_id}/steps", response_model=list[ResearchStep])
+@router.get("/tasks/{task_id}/steps", response_model=ResearchCrudListResponse)
 async def list_steps(
     task_id: str,
     db: Database = Depends(get_library_database),
-) -> list[ResearchStep]:
+) -> ResearchCrudListResponse:
     steps = db.query(ResearchStep, task_id=task_id)
-    return sorted(steps, key=lambda s: s.order_index)
+    items = sorted(steps, key=lambda s: s.order_index)
+    return ResearchCrudListResponse(items=items, count=len(items))
 
 
 @router.patch("/steps/{step_id}", response_model=ResearchStep)

@@ -123,7 +123,15 @@ def test_import_file_sends_multipart(tmp_path):
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request)
-        return httpx.Response(200, json={"id": "doc-1"})
+        return httpx.Response(200, json={
+            "id": "doc-1",
+            "name": "note.txt",
+            "path": "/path/to/note.txt",
+            "doc_type": "file",
+            "description": "",
+            "created_at": "2024-01-01T00:00:00",
+            "updated_at": "2024-01-01T00:00:00",
+        })
 
     _client(handler).import_file(sample, parent_id="folder-1")
     assert seen[0].url.path == "/api/documents/import"

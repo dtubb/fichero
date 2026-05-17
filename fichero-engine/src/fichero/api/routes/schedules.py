@@ -24,6 +24,7 @@ from fichero.workflows.scheduler import (
     ScheduleRun,
 )
 from fichero.workflows.workflow_store import WorkflowStore
+from fichero.models import ScheduleListResponse
 
 logger = logging.getLogger(__name__)
 
@@ -233,7 +234,7 @@ async def create_schedule(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("", response_model=list[ScheduleResponse])
+@router.get("", response_model=ScheduleListResponse)
 async def list_schedules(
     status: Optional[str] = None,
     workflow_id: Optional[str] = None,
@@ -252,7 +253,7 @@ async def list_schedules(
         offset=offset,
     )
 
-    return [ScheduleResponse.from_schedule(s) for s in schedules]
+    return ScheduleListResponse(items=[ScheduleResponse.from_schedule(s) for s in schedules], count=len(schedules))
 
 
 @router.get("/{schedule_id}", response_model=ScheduleResponse)
@@ -386,7 +387,7 @@ async def trigger_schedule(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/{schedule_id}/runs", response_model=list[ScheduleRunResponse])
+@router.get("/{schedule_id}/runs", response_model=ScheduleListResponse)
 async def get_schedule_runs(
     schedule_id: str,
     limit: int = 50,
@@ -400,4 +401,4 @@ async def get_schedule_runs(
         raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
 
     runs = await scheduler.get_schedule_runs(schedule_id, limit=limit)
-    return [ScheduleRunResponse.from_run(r) for r in runs]
+    return ScheduleListResponse(items=[ScheduleRunResponse.from_run(r) for r in runs], count=len(runs))

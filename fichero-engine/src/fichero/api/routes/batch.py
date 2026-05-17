@@ -25,6 +25,7 @@ from fichero.workflows.batch import (
     BatchStatus,
 )
 from fichero.workflows.workflow_store import WorkflowStore
+from fichero.models import BatchListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/batches", tags=["batches"])
@@ -210,7 +211,7 @@ async def create_batch(request: CreateBatchRequest) -> BatchResponse:
     return BatchResponse.from_batch(batch, include_items=True)
 
 
-@router.get("", response_model=list[BatchResponse])
+@router.get("", response_model=BatchListResponse)
 async def list_batches(
     status: Optional[str] = None,
     limit: int = 100,
@@ -224,7 +225,7 @@ async def list_batches(
         status=filter_status, limit=limit, offset=offset
     )
 
-    return [BatchResponse.from_batch(b, include_items=False) for b in batches]
+    return BatchListResponse(items=[BatchResponse.from_batch(b, include_items=False) for b in batches], count=len(batches))
 
 
 @router.get("/{batch_id}", response_model=BatchResponse)

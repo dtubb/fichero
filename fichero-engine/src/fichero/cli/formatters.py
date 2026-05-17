@@ -281,7 +281,7 @@ def render_document(doc: dict | Any, *, as_json: bool = False) -> str:
     if isinstance(doc, BaseModel):
         doc = doc.model_dump(mode="json")
 
-    filename = doc.get("filename", "(missing)")
+    filename = doc.get("filename") or doc.get("name", "(missing)")
     doc_type = doc.get("doc_type", "(missing)")
     description = doc.get("description", "")
 

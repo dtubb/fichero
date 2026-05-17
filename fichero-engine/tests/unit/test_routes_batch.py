@@ -74,7 +74,12 @@ class TestListBatches:
         with patch("fichero.api.routes.batch.get_batch_manager", return_value=manager):
             r = client.get("/api/batches")
         assert r.status_code == 200
-        assert r.json() == []
+        data = r.json()
+        assert isinstance(data, dict)
+        assert "items" in data
+        assert "count" in data
+        assert len(data["items"]) == 0
+        assert data["count"] == 0
 
     def test_returns_batches(self, client):
         batch = _make_mock_batch()
@@ -83,8 +88,9 @@ class TestListBatches:
         with patch("fichero.api.routes.batch.get_batch_manager", return_value=manager):
             r = client.get("/api/batches")
         assert r.status_code == 200
-        assert len(r.json()) == 1
-        assert r.json()[0]["batch_id"] == "batch-1"
+        data = r.json()
+        assert len(data["items"]) == 1
+        assert data["items"][0]["batch_id"] == "batch-1"
 
 
 # ---------------------------------------------------------------------------

@@ -8,41 +8,51 @@ import pytest
 
 
 class TestListActions:
-    def test_list_returns_list(self, client):
+    def test_list_returns_envelope(self, client):
         r = client.get("/api/actions")
         assert r.status_code == 200
-        assert isinstance(r.json(), list)
+        data = r.json()
+        assert isinstance(data, dict)
+        assert "items" in data
+        assert "count" in data
 
     def test_list_includes_builtin_actions(self, client):
         r = client.get("/api/actions")
         assert r.status_code == 200
         # Builtin actions are always populated from the action store
         data = r.json()
-        assert isinstance(data, list)
+        assert isinstance(data, dict)
+        assert "items" in data
 
     def test_list_builtin_only(self, client):
         r = client.get("/api/actions/builtin")
         assert r.status_code == 200
         data = r.json()
-        assert isinstance(data, list)
-        assert all(a["is_builtin"] for a in data)
+        assert isinstance(data, dict)
+        assert "items" in data
+        assert all(a["is_builtin"] for a in data["items"])
 
     def test_list_custom_only(self, client):
         r = client.get("/api/actions/custom")
         assert r.status_code == 200
         data = r.json()
-        assert isinstance(data, list)
-        assert all(not a["is_builtin"] for a in data)
+        assert isinstance(data, dict)
+        assert "items" in data
+        assert all(not a["is_builtin"] for a in data["items"])
 
     def test_list_recent(self, client):
         r = client.get("/api/actions/recent")
         assert r.status_code == 200
-        assert isinstance(r.json(), list)
+        data = r.json()
+        assert isinstance(data, dict)
+        assert "items" in data
 
     def test_list_popular(self, client):
         r = client.get("/api/actions/popular")
         assert r.status_code == 200
-        assert isinstance(r.json(), list)
+        data = r.json()
+        assert isinstance(data, dict)
+        assert "items" in data
 
 
 class TestCategories:
@@ -58,26 +68,33 @@ class TestCategories:
         if cats:
             r = client.get(f"/api/actions/category/{cats[0]}")
             assert r.status_code == 200
-            assert isinstance(r.json(), list)
+            data = r.json()
+            assert isinstance(data, dict)
+            assert "items" in data
 
 
 class TestSearchActions:
-    def test_search_returns_list(self, client):
+    def test_search_returns_envelope(self, client):
         r = client.get("/api/actions/search?q=test")
         assert r.status_code == 200
-        assert isinstance(r.json(), list)
+        data = r.json()
+        assert isinstance(data, dict)
+        assert "items" in data
 
     def test_search_empty_query_returns_all(self, client):
         r = client.get("/api/actions/search?q=")
         assert r.status_code == 200
+        data = r.json()
+        assert isinstance(data, dict)
+        assert "items" in data
 
 
 class TestGetAction:
     def test_get_builtin_action_by_id(self, client):
         # Get a builtin action ID from the list first
-        builtins = client.get("/api/actions/builtin").json()
-        if builtins:
-            action_id = builtins[0]["id"]
+        builtins_response = client.get("/api/actions/builtin").json()
+        if builtins_response.get("items"):
+            action_id = builtins_response["items"][0]["id"]
             r = client.get(f"/api/actions/{action_id}")
             assert r.status_code == 200
             assert r.json()["id"] == action_id
@@ -119,8 +136,8 @@ class TestCreateAction:
             "author": "",
         }
         created = client.post("/api/actions", json=payload).json()
-        custom_list = client.get("/api/actions/custom").json()
-        ids = [a["id"] for a in custom_list]
+        custom_list_response = client.get("/api/actions/custom").json()
+        ids = [a["id"] for a in custom_list_response["items"]]
         assert created["id"] in ids
 
 

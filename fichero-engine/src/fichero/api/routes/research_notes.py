@@ -16,6 +16,7 @@ from fichero.research_models import (
     SearchSource,
     SearchSourceType,
 )
+from fichero.models import ResearchNotesListResponse
 
 router = APIRouter()
 
@@ -57,12 +58,13 @@ async def create_search_source(
     return source
 
 
-@router.get("/projects/{project_id}/sources", response_model=list[SearchSource])
+@router.get("/projects/{project_id}/sources", response_model=ResearchNotesListResponse)
 async def list_search_sources(
     project_id: str,
     db: Database = Depends(get_library_database),
-) -> list[SearchSource]:
-    return db.query(SearchSource, project_id=project_id)
+) -> ResearchNotesListResponse:
+    items = db.query(SearchSource, project_id=project_id)
+    return ResearchNotesListResponse(items=items, count=len(items))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -113,7 +115,7 @@ async def create_note(
     return note
 
 
-@router.get("/projects/{project_id}/notes", response_model=list[ResearchNote])
+@router.get("/projects/{project_id}/notes", response_model=ResearchNotesListResponse)
 async def list_notes(
     project_id: str,
     task_id: str | None = None,
@@ -122,7 +124,8 @@ async def list_notes(
     notes = db.query(ResearchNote, project_id=project_id)
     if task_id is not None:
         notes = [n for n in notes if n.task_id == task_id]
-    return sorted(notes, key=lambda n: n.created_at, reverse=True)
+    items = sorted(notes, key=lambda n: n.created_at, reverse=True)
+    return ResearchNotesListResponse(items=items, count=len(items))
 
 
 @router.get("/notes/{note_id}", response_model=ResearchNote)
@@ -200,12 +203,13 @@ async def create_checklist(
     return checklist
 
 
-@router.get("/projects/{project_id}/checklists", response_model=list[ResearchChecklist])
+@router.get("/projects/{project_id}/checklists", response_model=ResearchNotesListResponse)
 async def list_checklists(
     project_id: str,
     db: Database = Depends(get_library_database),
-) -> list[ResearchChecklist]:
-    return db.query(ResearchChecklist, project_id=project_id)
+) -> ResearchNotesListResponse:
+    items = db.query(ResearchChecklist, project_id=project_id)
+    return ResearchNotesListResponse(items=items, count=len(items))
 
 
 @router.patch(

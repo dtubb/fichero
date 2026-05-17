@@ -484,8 +484,8 @@ class TestClaimLinksRoutes:
             db,
         )
 
-        links = await list_claim_links(claim1.id, db)
-        assert len(links) == 2  # Both outgoing and incoming
+        links_response = await list_claim_links(claim1.id, db)
+        assert len(links_response.items) == 2  # Both outgoing and incoming
 
     @pytest.mark.asyncio
     async def test_update_claim_link(self, tmp_path):
