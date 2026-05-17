@@ -28,8 +28,25 @@ _ID_KEYS = (
     "entity_id",
     "claim_id",
     "artifact_id",
+    "batch_id",
+    "node_id",
+    "schedule_id",
+    "run_id",
+    "target_id",
 )
-_LABEL_KEYS = ("title", "name", "document_name", "filename", "label", "subject", "query")
+_LABEL_KEYS = (
+    "canonical_name",
+    "text",
+    "message",
+    "workflow_name",
+    "title",
+    "name",
+    "document_name",
+    "filename",
+    "label",
+    "subject",
+    "query",
+)
 _DETAIL_KEYS = (
     "doc_type",
     "file_type",
@@ -39,6 +56,11 @@ _DETAIL_KEYS = (
     "entity_type",
     "artifact_type",
     "action",
+    "level",
+    "note_type",
+    "operation_type",
+    "relation_type",
+    "source_type",
 )
 # Envelope keys whose list value is the real payload.
 _ENVELOPE_KEYS = (
@@ -52,6 +74,14 @@ _ENVELOPE_KEYS = (
     "items",
     "rows",
     "matches",
+    "hits",
+    "notes",
+    "interpretations",
+    "frameworks",
+    "links",
+    "snapshots",
+    "providers",
+    "models",
 )
 
 
