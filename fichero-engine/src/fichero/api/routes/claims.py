@@ -350,7 +350,7 @@ async def list_claims(
     limit: Annotated[int, Query(ge=1, le=1000)] = 200,
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Database = Depends(get_library_database),
-) -> list[KnowledgeClaim]:
+) -> ClaimListResponse:
     """List knowledge claims with optional filtering.
 
     When ``include_descendants=true`` is combined with
@@ -386,4 +386,5 @@ async def list_claims(
     if source_type:
         claims = [c for c in claims if c.source_type == source_type]
 
-    return claims[offset : offset + limit]
+    items = claims[offset : offset + limit]
+    return ClaimListResponse(items=items, count=len(items))

@@ -21,7 +21,7 @@ from fichero.knowledge_models import (
     AnnotationKind,
     KnowledgeClaim,
 )
-from fichero.models import Document
+from fichero.models import AnnotationListResponse, Document
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/annotations")
@@ -57,7 +57,7 @@ async def create_annotation(
 
 @router.get(
     "",
-    response_model=list[Annotation],
+    response_model=AnnotationListResponse,
     summary="List annotations, filterable by document / kind / tag",
 )
 async def list_annotations(
@@ -66,7 +66,7 @@ async def list_annotations(
     tag: str | None = Query(default=None),
     min_rating: int | None = Query(default=None, ge=1, le=5),
     db: Database = Depends(get_library_database),
-) -> list[Annotation]:
+) -> AnnotationListResponse:
     rows = db.query(Annotation)
     if document_id is not None:
         rows = [r for r in rows if r.document_id == document_id]

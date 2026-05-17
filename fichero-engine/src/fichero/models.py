@@ -1252,6 +1252,69 @@ class TriggerListResponse(BaseModel):
     count: int
 
 
+class AnnotationListResponse(BaseModel):
+    """Standardized envelope for GET /api/annotations list endpoints."""
+
+    items: list[Any]  # Typically Annotation
+    count: int
+
+
+class CitationListResponse(BaseModel):
+    """Standardized envelope for GET /api/citations list endpoints."""
+
+    items: list[Any]  # Typically DocumentCitation
+    count: int
+
+
+class ClassificationListResponse(BaseModel):
+    """Standardized envelope for GET /api/classifications list endpoints."""
+
+    items: list[Any]  # Typically ClassificationValue
+    count: int
+
+
+class MutationListResponse(BaseModel):
+    """Standardized envelope for mutation/triangulation list endpoints."""
+
+    items: list[Any]  # Typically MutationRow or TripleSupportResponse
+    count: int
+
+
+class ReviewListResponse(BaseModel):
+    """Standardized envelope for KG review list endpoints."""
+
+    items: list[Any]  # Typically ReviewPairResponse
+    count: int
+
+
+class KGGraphListResponse(BaseModel):
+    """Standardized envelope for KG graph analytics endpoints."""
+
+    items: list[Any]  # Various graph analysis rows (CentralityRow, PageRankRow, etc.)
+    count: int
+
+
+class PykeenListResponse(BaseModel):
+    """Standardized envelope for PyKEEN prediction endpoints."""
+
+    items: list[Any]  # Typically StoredPrediction or TrainingResult
+    count: int
+
+
+class ProjectInclusionListResponse(BaseModel):
+    """Standardized envelope for project inclusion list endpoints."""
+
+    items: list[Any]  # Typically ProjectInclusion
+    count: int
+
+
+class HermesSuggestionListResponse(BaseModel):
+    """Standardized envelope for hermeneutics suggestion endpoints."""
+
+    items: list[Any]  # Typically HermesSuggestion
+    count: int
+
+
 # =============================================================================
 # Convenience exports
 # =============================================================================

@@ -14,6 +14,7 @@ from fichero.pykeen_inference import (
     TrainingResult,
     get_inference,
 )
+from fichero.models import PykeenListResponse, KGGraphListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/kg/pykeen")
@@ -60,7 +61,7 @@ class LinkPredictionRow(BaseModel):
 
 @router.get(
     "/predict/{entity_id}",
-    response_model=list[LinkPredictionRow],
+    response_model=KGGraphListResponse,
     summary="Top-k predicted facts for one entity",
     description=(
         "Surfaces the curation queue: ranked candidate (predicate, "
@@ -74,7 +75,7 @@ async def predict(
     entity_id: str,
     top_k: int = Query(default=10, ge=1, le=100),
     db: Database = Depends(get_library_database),
-) -> list[LinkPredictionRow]:
+) -> KGGraphListResponse:
     from fichero.kg.pykeen_predictor import predict_for_subject
 
     predictions = predict_for_subject(db, entity_id, top_k=top_k)
@@ -117,10 +118,10 @@ class VerifyPredictionRequest(BaseModel):
 
 @router.get(
     "/training-jobs",
-    response_model=list[TrainingResult],
+    response_model=PykeenListResponse,
     summary="List all PyKEEN training jobs",
 )
-async def list_training_jobs() -> list[TrainingResult]:
+async def list_training_jobs() -> PykeenListResponse:
     inference = get_inference()
     return inference.get_training_jobs()
 
@@ -153,13 +154,13 @@ async def delete_trained_model(model_id: str) -> DeleteModelResponse:
 
 @router.get(
     "/stored",
-    response_model=list[StoredPrediction],
+    response_model=PykeenListResponse,
     summary="List stored predictions",
 )
 async def list_stored_predictions(
     model_id: str | None = None,
     verified: bool | None = None,
-) -> list[StoredPrediction]:
+) -> PykeenListResponse:
     inference = get_inference()
     return inference.list_predictions(model_id=model_id, verified=verified)
 

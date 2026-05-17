@@ -31,6 +31,7 @@ from fichero.knowledge_models import (
     PendingMatchMethod,
     PendingMatchState,
 )
+from fichero.models import ReviewListResponse, KGGraphListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/kg/review")
@@ -99,13 +100,13 @@ class ReviewPairResponse(BaseModel):
 
 @router.get(
     "/pairs",
-    response_model=list[ReviewPairResponse],
+    response_model=ReviewListResponse,
     summary="List pending entity-match pairs",
 )
 async def list_pairs(
     limit: int = Query(default=50, ge=1, le=500),
     db: Database = Depends(get_library_database),
-) -> list[ReviewPairResponse]:
+) -> ReviewListResponse:
     """Return up-to ``limit`` pending pairs, newest first."""
     pending = db.query(EntityMatchCandidate, state=PendingMatchState.pending)
     pending.sort(key=lambda c: c.created_at, reverse=True)
@@ -154,7 +155,7 @@ class GraphCandidateResponse(BaseModel):
 
 @router.get(
     "/graph-candidates",
-    response_model=list[GraphCandidateResponse],
+    response_model=KGGraphListResponse,
     summary="Propose entity-merge candidates from co-occurrence overlap",
     description=(
         "Runs the graph-context heuristic (#988) over the full "
@@ -170,7 +171,7 @@ async def graph_candidates(
     min_shared: int = Query(default=2, ge=1),
     limit: int = Query(default=50, ge=1, le=500),
     db: Database = Depends(get_library_database),
-) -> list[GraphCandidateResponse]:
+) -> KGGraphListResponse:
     from fichero.kg.graph import (
         build_full_cooccurrence,
         graph_context_merge_candidates,
@@ -181,7 +182,9 @@ async def graph_candidates(
         g, threshold=threshold, min_shared=min_shared, top_k=limit,
     )
     if not candidates:
-        return []
+        items = []
+
+        return ReviewListResponse(items=items, count=len(items))
 
     # Soft-deleted entities still appear as graph nodes — drop any
     # candidate touching one (it was already merged away).
@@ -393,12 +396,12 @@ class LabelRow(BaseModel):
 
 @router.get(
     "/labels",
-    response_model=list[LabelRow],
+    response_model=KGGraphListResponse,
     summary="Accumulated human-labelled pairs for splink / PyKEEN training",
 )
 async def list_labels(
     db: Database = Depends(get_library_database),
-) -> list[LabelRow]:
+) -> KGGraphListResponse:
     rows = db.query(EntityMatchCandidate)
     out: list[LabelRow] = []
     for r in rows:

@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.knowledge_models import DocumentCitation
-from fichero.models import Document
+from fichero.models import CitationListResponse, Document
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/citations/graph")
@@ -61,7 +61,7 @@ async def create_citation(
 
 @router.get(
     "",
-    response_model=list[DocumentCitation],
+    response_model=CitationListResponse,
     summary="List citations (filter by source/target/detector)",
 )
 async def list_citations(
@@ -70,7 +70,7 @@ async def list_citations(
     detector: str | None = Query(default=None),
     min_confidence: float | None = Query(default=None, ge=0.0, le=1.0),
     db: Database = Depends(get_library_database),
-) -> list[DocumentCitation]:
+) -> CitationListResponse:
     rows = db.query(DocumentCitation)
     if source_document_id is not None:
         rows = [r for r in rows if r.source_document_id == source_document_id]
@@ -86,32 +86,36 @@ async def list_citations(
 
 @router.get(
     "/document/{document_id}/outbound",
-    response_model=list[DocumentCitation],
+    response_model=CitationListResponse,
     summary="Citations FROM this document — what it cites",
 )
 async def outbound(
     document_id: str,
     db: Database = Depends(get_library_database),
-) -> list[DocumentCitation]:
-    return [
+) -> CitationListResponse:
+    items = [
         c for c in db.query(DocumentCitation)
         if c.source_document_id == document_id
     ]
 
+    return CitationListResponse(items=items, count=len(items))
+
 
 @router.get(
     "/document/{document_id}/inbound",
-    response_model=list[DocumentCitation],
+    response_model=CitationListResponse,
     summary="Citations TO this document — what cites it",
 )
 async def inbound(
     document_id: str,
     db: Database = Depends(get_library_database),
-) -> list[DocumentCitation]:
-    return [
+) -> CitationListResponse:
+    items = [
         c for c in db.query(DocumentCitation)
         if c.target_document_id == document_id
     ]
+
+    return CitationListResponse(items=items, count=len(items))
 
 
 class CitationPatchRequest(BaseModel):

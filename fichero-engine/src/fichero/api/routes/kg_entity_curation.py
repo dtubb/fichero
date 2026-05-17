@@ -23,7 +23,7 @@ from fichero.knowledge_models import (
     EntityType,
     KnowledgeEntity,
 )
-from fichero.models import EntityAuditListResponse
+from fichero.models import EntityAuditListResponse, KGGraphListResponse
 
 router = APIRouter(prefix="/kg/entity-curation")
 
@@ -371,7 +371,7 @@ class CandidatePair(BaseModel):
 
 @router.get(
     "/candidates",
-    response_model=list[CandidatePair],
+    response_model=KGGraphListResponse,
     summary="Graph-context merge candidates (Jaccard over co-occurrence neighborhoods)",
     description=(
         "Surfaces entity pairs whose claim-neighborhoods overlap heavily — "
@@ -387,7 +387,7 @@ async def candidate_pairs(
     top_k: int = Query(default=20, ge=1, le=200),
     same_type_only: bool = Query(default=True),
     db: Database = Depends(get_library_database),
-) -> list[CandidatePair]:
+) -> KGGraphListResponse:
     """Compute Jaccard similarity over the co-occurrence graph between
     every pair of entities of the same type. O(E²) in the entity count
     but bounded by the shared networkx graph cache (#990).

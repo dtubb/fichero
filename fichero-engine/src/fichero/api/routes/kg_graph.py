@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
+from fichero.models import KGGraphListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/kg/graph")
@@ -35,7 +36,7 @@ class CentralityRow(BaseModel):
 
 @router.get(
     "/centrality",
-    response_model=list[CentralityRow],
+    response_model=KGGraphListResponse,
     summary="Top-k entities by composite centrality",
     description=(
         "Ranks entities by degree + betweenness + eigenvector "
@@ -51,7 +52,7 @@ async def centrality(
         description="Filter to one EntityType (person/location/...).",
     ),
     db: Database = Depends(get_library_database),
-) -> list[CentralityRow]:
+) -> KGGraphListResponse:
     from fichero.kg.graph import build_full_cooccurrence, centrality as compute_centrality
 
     g = build_full_cooccurrence(db)
@@ -78,7 +79,7 @@ class CooccurrenceNeighbour(BaseModel):
 
 @router.get(
     "/cooccurrence/{entity_id}",
-    response_model=list[CooccurrenceNeighbour],
+    response_model=KGGraphListResponse,
     summary="Co-occurrence neighbours of an entity",
     description=(
         "Returns every other entity that shares a source document "
@@ -90,7 +91,7 @@ class CooccurrenceNeighbour(BaseModel):
 async def cooccurrence_neighbours(
     entity_id: str,
     db: Database = Depends(get_library_database),
-) -> list[CooccurrenceNeighbour]:
+) -> KGGraphListResponse:
     from fichero.kg.graph import build_full_cooccurrence, NODE_NAME, NODE_TYPE
 
     g = build_full_cooccurrence(db)
@@ -632,7 +633,7 @@ class PageRankRow(BaseModel):
 
 @router.get(
     "/pagerank",
-    response_model=list[PageRankRow],
+    response_model=KGGraphListResponse,
     summary="Top-k entities by PageRank",
     description=(
         "PageRank over the directed claim graph (entity → entity via "
@@ -645,7 +646,7 @@ async def pagerank(
     top_k: int = Query(default=20, ge=1, le=500),
     entity_type: str | None = Query(default=None),
     db: Database = Depends(get_library_database),
-) -> list[PageRankRow]:
+) -> KGGraphListResponse:
     import networkx as nx
     from fichero.kg.graph import build_full_graph
     from fichero.knowledge_models import KnowledgeEntity
@@ -688,7 +689,7 @@ class CommunityRow(BaseModel):
 
 @router.get(
     "/communities",
-    response_model=list[CommunityRow],
+    response_model=KGGraphListResponse,
     summary="Cluster entities into communities (Louvain / label propagation)",
     description=(
         "Returns one row per entity with a stable community_id. "
@@ -701,7 +702,7 @@ class CommunityRow(BaseModel):
 async def communities(
     method: str = Query(default="louvain", pattern="^(louvain|label_propagation)$"),
     db: Database = Depends(get_library_database),
-) -> list[CommunityRow]:
+) -> KGGraphListResponse:
     import networkx as nx
     from fichero.kg.graph import build_full_cooccurrence
     from fichero.knowledge_models import KnowledgeEntity
@@ -748,7 +749,7 @@ class SimilarEntityRow(BaseModel):
 
 @router.get(
     "/similar/{entity_id}",
-    response_model=list[SimilarEntityRow],
+    response_model=KGGraphListResponse,
     summary="Structurally-similar entities (Jaccard / Adamic-Adar / preferential attachment)",
     description=(
         "Ranks other entities by neighborhood overlap with the focus "
@@ -767,7 +768,7 @@ async def similar(
     ),
     top_k: int = Query(default=20, ge=1, le=200),
     db: Database = Depends(get_library_database),
-) -> list[SimilarEntityRow]:
+) -> KGGraphListResponse:
     import networkx as nx
     from fichero.kg.graph import build_full_cooccurrence
     from fichero.knowledge_models import KnowledgeEntity
@@ -818,7 +819,7 @@ class ComponentRow(BaseModel):
 
 @router.get(
     "/components",
-    response_model=list[ComponentRow],
+    response_model=KGGraphListResponse,
     summary="Connected components of the entity graph",
     description=(
         "Returns one row per connected component over the undirected "
@@ -828,7 +829,7 @@ class ComponentRow(BaseModel):
 )
 async def components(
     db: Database = Depends(get_library_database),
-) -> list[ComponentRow]:
+) -> KGGraphListResponse:
     import networkx as nx
     from fichero.kg.graph import build_full_cooccurrence
 
@@ -896,7 +897,7 @@ class ClusteringRow(BaseModel):
 
 @router.get(
     "/clustering",
-    response_model=list[ClusteringRow],
+    response_model=KGGraphListResponse,
     summary="Clustering coefficient per entity",
     description=(
         "Per-entity local clustering coefficient — fraction of an "
@@ -908,7 +909,7 @@ class ClusteringRow(BaseModel):
 async def clustering(
     top_k: int = Query(default=50, ge=1, le=500),
     db: Database = Depends(get_library_database),
-) -> list[ClusteringRow]:
+) -> KGGraphListResponse:
     import networkx as nx
     from fichero.kg.graph import build_full_cooccurrence
     from fichero.knowledge_models import KnowledgeEntity

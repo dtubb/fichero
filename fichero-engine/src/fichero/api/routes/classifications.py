@@ -20,6 +20,7 @@ from fichero.knowledge_models import (
     ClassificationDimension,
     ClassificationValue,
 )
+from fichero.models import ClassificationListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/classifications")
@@ -64,13 +65,13 @@ def _seed_if_empty(db: Database) -> None:
 
 @router.get(
     "",
-    response_model=list[ClassificationValue],
+    response_model=ClassificationListResponse,
     summary="List classification values (filter by dimension)",
 )
 async def list_values(
     dimension: ClassificationDimension | None = Query(default=None),
     db: Database = Depends(get_library_database),
-) -> list[ClassificationValue]:
+) -> ClassificationListResponse:
     _seed_if_empty(db)
     rows = db.query(ClassificationValue)
     if dimension is not None:

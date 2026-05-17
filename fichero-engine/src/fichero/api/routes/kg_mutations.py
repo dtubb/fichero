@@ -17,6 +17,7 @@ from fichero.knowledge_models import (
     MutationLog,
     MutationOperationType,
 )
+from fichero.models import MutationListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/kg/mutations")
@@ -35,18 +36,18 @@ class MutationRow(BaseModel):
 
 @router.get(
     "",
-    response_model=list[MutationRow],
+    response_model=MutationListResponse,
     summary="List recent KG mutations (newest first)",
     description="Recent entity/claim edits + deletes for undo. (#901)",
 )
 async def list_mutations(
     limit: int = Query(default=50, ge=1, le=500),
     db: Database = Depends(get_library_database),
-) -> list[MutationRow]:
+) -> MutationListResponse:
     rows = db.query(MutationLog)
     rows.sort(key=lambda m: m.created_at, reverse=True)
     rows = rows[:limit]
-    return [
+    items = [
         MutationRow(
             id=m.id,
             entity_type=m.entity_type,
@@ -59,6 +60,8 @@ async def list_mutations(
         )
         for m in rows
     ]
+
+    return MutationListResponse(items=items, count=len(items))
 
 
 class UndoResponse(BaseModel):

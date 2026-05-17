@@ -20,7 +20,7 @@ from fichero.knowledge_models import (
     ProjectInclusion,
     ProjectStatus,
 )
-from fichero.models import ProjectListResponse
+from fichero.models import ProjectInclusionListResponse, ProjectListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects")
@@ -185,14 +185,14 @@ async def remove_inclusion(
 
 @router.get(
     "/{project_id}/items",
-    response_model=list[ProjectInclusion],
+    response_model=ProjectInclusionListResponse,
     summary="List every item included in a project, optionally filtered by type",
 )
 async def list_items(
     project_id: str,
     target_type: str | None = Query(default=None),
     db: Database = Depends(get_library_database),
-) -> list[ProjectInclusion]:
+) -> ProjectInclusionListResponse:
     if db.get(Project, project_id) is None:
         raise HTTPException(404, f"Project not found: {project_id}")
     rows = [

@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
+from fichero.models import MutationListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/kg/triangulation")
@@ -33,7 +34,7 @@ class TripleSupportResponse(BaseModel):
 
 @router.get(
     "/entity/{entity_id}",
-    response_model=list[TripleSupportResponse],
+    response_model=MutationListResponse,
     summary="Triangulated triples for one entity",
     description=(
         "Return every (subject, predicate, object) triple where the "
@@ -45,11 +46,11 @@ class TripleSupportResponse(BaseModel):
 async def entity_triangulation(
     entity_id: str,
     db: Database = Depends(get_library_database),
-) -> list[TripleSupportResponse]:
+) -> MutationListResponse:
     """Triples for a single entity, sorted by corroboration strength."""
     from fichero.kg.triangulation import triples_for_entity
 
-    return [
+    items = [
         TripleSupportResponse(
             subject_id=t.key.subject_id,
             predicate=t.key.predicate,
@@ -64,9 +65,12 @@ async def entity_triangulation(
     ]
 
 
+    return MutationListResponse(items=items, count=len(items))
+
+
 @router.get(
     "",
-    response_model=list[TripleSupportResponse],
+    response_model=MutationListResponse,
     summary="Triangulated facts across the library",
     description=(
         "Return triples whose support_count meets the threshold "
@@ -81,11 +85,11 @@ async def library_triangulation(
         description="Minimum distinct sources required.",
     ),
     db: Database = Depends(get_library_database),
-) -> list[TripleSupportResponse]:
+) -> MutationListResponse:
     """Corpus-wide triangulated facts."""
     from fichero.kg.triangulation import triangulated_facts
 
-    return [
+    items = [
         TripleSupportResponse(
             subject_id=t.key.subject_id,
             predicate=t.key.predicate,
@@ -98,3 +102,6 @@ async def library_triangulation(
         )
         for t in triangulated_facts(db, threshold=threshold)
     ]
+
+
+    return MutationListResponse(items=items, count=len(items))

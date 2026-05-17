@@ -20,7 +20,7 @@ from fichero.hermeneutics_models import (
     PatternInstance,
     PatternStatus,
 )
-from fichero.models import HermeneuticsListResponse
+from fichero.models import HermeneuticsListResponse, HermesSuggestionListResponse
 
 
 router = APIRouter()
@@ -542,11 +542,11 @@ async def backtrack_circle(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@router.post("/suggestions", response_model=list[HermesSuggestion])
+@router.post("/suggestions", response_model=HermesSuggestionListResponse)
 async def suggest_interpretations(
     request: HermesSuggestionRequest,
     db: Database = Depends(get_library_database),
-) -> list[HermesSuggestion]:
+) -> HermesSuggestionListResponse:
     """Generate AI interpretation suggestions for claims.
 
     Uses available LiteLLM providers to suggest how frameworks might
