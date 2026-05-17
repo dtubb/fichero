@@ -2081,3 +2081,22 @@ Autonomous session-start-auto resumed to verify and complete #1139. Context: sta
 
 **Status:** Task verified complete. Ready for #1140 (wire typed models through CLI).
 
+
+
+## 2026-05-17 — Session Summary
+
+**Shipped:**
+- **#840** — `catalogue.chunk.N` artifacts: `_generate_resumen` now returns tuple (final, chunk_summaries) from both single-shot and map-reduce paths; `catalogue()` writes per-chunk artifacts before the final one. 72/72 catalogue unit tests pass. Commit `22e96e6e`.
+
+**Infrastructure:**
+- **trace-mcp → jcodemunch migration** (`69cb6fcd`): trace-mcp fully uninstalled (daemon, launchd plist, 8 hooks, 5 MCP configs); `jcodemunch-mcp` installed via pipx, auto-registered with Claude Code via `uvx jcodemunch-mcp`. All operational docs (`AGENTS.md`, `AUTONOMOUS-LOOP.md`, `.claude/CLAUDE.md`, `fichero-engine/AGENTS.md`, `agent-work/digest.md`) and the autoloop (`bin/curator.sh`, `config/minimal-mcp.json`, `session-worker/SKILL.md`) updated to use jcodemunch tool names.
+- **.venv rebuild** — replaced symlink (pointed at stale `../fichero/fichero-api/.briefcase-venv`) with fresh Python 3.12 venv + `fichero-engine[dev]` editable install. Root cause of worker iter-1's pytest failure.
+- **6.1GB disk freed** — deleted `fichero-engine/build/` (1.4GB briefcase Python.framework bundle) and `fichero/build/` (4.7GB Xcode XCBuildData).
+- **fichero-engine/.gitignore + .traceignore** added to keep build/.venv/cache out of code-index walks.
+- **Autoloop fixes** (`autoloop@4f5a755`, local commit): curator now pre-digests `raw-issues.json` → `issues-summary.md` (avoids 25k Read limit on 80-issue payloads); "Provider: ollama" banner suppressed when agent is claude (misleading misprint).
+
+**Curator + Worker run telemetry** (2026-05-17 evening):
+- Curator: 1 iter, 18 turns, 350s, $0.83, 86% cache hit, 31 issues queued, commit `45c2736a`.
+- Worker iter-1: hit max-turns trying to fix pytest failure (env rot, not code). $0.46, 98% cache hit. Edits sat in working tree, verified green after venv rebuild, then committed by hand as `22e96e6e`.
+
+**Lessons added to MEMORY.md:** jcodemunch migration; briefcase build/ exclusion; .venv symlink-rot diagnosis pattern; "MCP search returns zero — fall through immediately" worker recovery pattern.

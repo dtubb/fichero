@@ -1,5 +1,21 @@
 # Durable Lessons Learned / Decisions
 
+## Migrated from trace-mcp to jcodemunch — 2026-05-17
+
+Code-intelligence MCP server replaced. **Why:** trace-mcp's `search` returned zero results on the parent monorepo index despite 246k indexed symbols — a real upstream bug, not a configuration issue (CLI worked, MCP didn't). Migrated to `jcodemunch-mcp` (`pipx install`, `uvx jcodemunch-mcp init`). Tool-name mapping: `search` → `search_symbols`, `get_outline` → `get_file_outline`, `get_symbol` → `get_symbol_source`, `find_usages` → `find_references`, `get_change_impact` → `get_blast_radius`. Same tree-sitter approach, same persistence model, ~95% token savings vs Read/Grep. Backups of trace-mcp state preserved at `/tmp/trace-mcp-*` (30d TTL). Worker's `minimal-mcp.json` now points at jcodemunch — if you re-enable trace-mcp later, restore that file too.
+
+## Briefcase build/ dirs must be in .gitignore AND code-index ignore — 2026-05-17
+
+`fichero-engine/build/` (1.4GB) and `fichero/build/` (4.7GB) contain bundled `Python.framework`, embedded `app_packages/`, and Xcode XCBuildData — all regenerable, but if they leak into the code-index they (a) blow past file-count limits (jcodemunch defaults to 10k), (b) trigger "Sensitive file blocked" warnings per file (briefcase bundles litellm secret managers, etc.), and (c) destroy search relevance with bundled-Python symbol pollution. Pre-emptively delete before re-indexing if briefcase has run recently; ensure `.gitignore` + project-level `.traceignore` / equivalent both list `build/` and `dist/`. Added `fichero-engine/.gitignore` + `.traceignore` covering both. The macOS app's Resources/app_packages/ ARE bundled python — don't confuse them for source.
+
+## .venv symlink rot — diagnose before "fix" — 2026-05-17
+
+A `.venv/` that exists and activates does NOT mean it works. The symbol `.venv` at the project root can be a symlink into another worktree's venv (e.g. `../fichero/fichero-api/.briefcase-venv`). Check `ls -la .venv` and `.venv/bin/python -c "import sys; print(sys.executable, sys.prefix)"` — if the prefix points outside this project, every `pip install` and pytest run targets the wrong site-packages. Briefcase venvs are for packaging, not development — never alias `.venv` to a briefcase venv. Canonical rebuild: `~/code/fichero-0.0.2/scripts/venv-sync.sh`. Worker iter-1's pytest failure (#840 work) was 100% environment rot, not bad code — its `catalogue.py` edits passed 72/72 tests once the venv was rebuilt.
+
+## When MCP `search` returns zero, fall through immediately — 2026-05-17
+
+Confirmed in worker iter-1: when `mcp__<tool>__search` returns `items: [], total: 0` for a symbol you know exists, don't keep retrying with different query terms (cost ramps, signal stays zero). Fall through to: `search_text` (FTS regex on file content), `get_outline` on the known directory, then `get_file_outline` on a guessed path. The worker recovered #840 via this exact chain after the curator's `workflows/nodes/catalogue.py` path guess was wrong (real path: `workflows/tools/catalogue.py`). Curator's `files: [...]` in queue.md is a HINT, not ground truth — worker must verify.
+
 ## No-migration window for 0.0.x — 2026-05-16
 
 The 0.0.x window has no users; libraries can be nuked + recreated freely. Schema changes go directly into `db.py` CREATE TABLE; do NOT write `db_migrations.py` migrations for new fields. Once 0.1.0 ships, the schema locks and migrations become mandatory. This simplifies new-field work (e.g. SVO attribution, claim attribution taxonomy): just add Pydantic field + base CREATE TABLE column.
