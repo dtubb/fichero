@@ -1,71 +1,41 @@
-# Worker Digest — fichero 0.0.2
+# Worker Digest — 0.0.2 backend loop
+# Generated: 2026-05-17
 
-## Branch + milestone
-- Working branch: `0.0.2` (commit directly — no per-task branches).
-- Worktree root: `/Users/danieltubb/code/fichero-0.0.2`.
-- Autonomous: commits + PRs allowed. Push, open PR, merge yourself. Never push to `main`.
-- Two-ahead rule: 0.0.1 released, 0.0.2 testing (this branch is for bug-cluster fixes), 0.0.3 building.
+## Branch + Milestone Context
 
-## Tooling — trace-mcp is MANDATORY
+Branch: `0.0.2` (worktree at `~/code/fichero-0.0.2`)
+Milestone: 0.0.2 backend fixes and small features. Daniel is actively testing this build.
+Do NOT start 0.0.3 work. All commits go directly to the `0.0.2` branch — no per-task branches.
 
-**⚠️  CRITICAL: Use ONLY trace-mcp tools for code exploration. NEVER use Bash ls/find/cat, Read, Grep on .py/.ts files. The system will block these.**
+## Issues This Cycle
 
-### Examples for this queue:
+| # | Title | Est tokens |
+|---|-------|-----------|
+| #834 | Apple Vision OCR empty → retry at .fast level | 18 k |
+| #1085 | Maps importer: pair sidecar .iffy.json with image/PDF | 20 k |
+| #840 | Save per-chunk catalogue summaries as catalogue.chunk.N artifacts | 25 k |
 
-**#841 (middleware fix):**
-Error: "Reject non-loopback request from testclient" in 744 unit tests.
-```
-# Pre-computed exploration:
-search_text("Reject non-loopback", file_pattern="fichero-engine/src/**/*.py")
-# ^ Found in fichero-engine/src/fichero/api/auth.py:107
-get_symbol("fichero-engine.src.fichero.api.auth.attach_auth_middleware._enforce_auth")
-# ^ This is the middleware that needs to accept TestClient's 'testserver' Host header
-search("testserver", language="python")
-# ^ Check for existing testserver whitelist patterns
-```
+## Top 5 Architectural Invariants
 
-**#840 (catalogue artifacts):**
-```
-search("catalogue", language="python", kind="function")
-get_symbol("src/fichero/workflows/nodes/catalogue.py::catalogue_node")
-get_outline("src/fichero/models/artifact.py")
-```
+1. **0.0.x no-migration rule** — schema changes go directly into `db.py` `_ensure_table` via the Pydantic model field. Never add `ALTER TABLE ADD COLUMN` for a column already in the model. Fresh DBs pick it up automatically.
 
-### Complete tool reference:
+2. **Pydantic-only DB writes** — all INSERT/UPDATE/UPSERT must go through the Pydantic model write path in `db.py`. No raw SQL outside `db.py`. Violations were audited in #1112/#1117.
 
-| Need | Tool |
-|---|---|
-| Find a symbol | `search` (set `fusion=true`) |
-| File shape before edit | `get_outline <path>` |
-| One symbol's source | `get_symbol <fqn>` |
-| Blast radius | `get_change_impact` |
-| Callers / callees | `find_usages`, `get_call_graph` |
-| Interface impls | `get_type_hierarchy` |
-| Tests for a symbol | `get_tests_for` |
-| Task kickoff | `get_task_context` |
+3. **Artifact pattern** — workflow node outputs are persisted as `Artifact` rows (use the `Artifact` model, not ad-hoc fields). Artifact types follow a namespaced convention (`catalogue.chunk.N`, `catalogue.narrative`, etc.).
 
-Read/Grep/Glob allowed ONLY for `.md`, `.json`, `.yaml`, `.toml` or immediately before `Edit` of a file already located via trace-mcp.
+4. **PYTHONPATH must be set** — every Python command requires `PYTHONPATH=fichero-engine/src`. Omitting it causes import errors that look like missing modules.
 
-After every Edit/Write, call `register_edit` to keep the index fresh.
+5. **Workflow runs on the main FastAPI event loop** — `_run_workflow_in_background` is a `create_task` on the main loop. Any sync-blocking call inside a node freezes the entire backend. Use `asyncio.to_thread` for blocking I/O.
 
-## Top architectural invariants for THESE issues
+## Relevant Pitfalls
 
-1. **DuckDB writes go through Pydantic models.** All persistence happens in `fichero-engine/src/fichero/db.py`. Raw SQL outside `db.py` is a bug (this is the entire premise of #1112 / #1117). New columns: add the field on the Pydantic model and `_ensure_table` picks it up — 0.0.x is the no-migration regime.
-2. **Pydantic field must be declared.** `extra="allow"` lets a runtime write succeed but `model_dump()` only serializes declared fields — so the value disappears from the next read. Always add a real field, not metadata. (See MEMORY: `feedback_pydantic_field_must_be_declared`.)
-3. **Workflow runs on the main event loop.** `_run_workflow_in_background` is a `create_task` on the FastAPI loop — any sync-blocking call in a node freezes the backend (#1000 root cause). Workflow tool nodes execute on a worker thread with a per-thread `db_manager` and DBWriter.
-4. **KG/entity logic belongs in the backend.** Frontend only renders. Aggregation, dedup, scoping, summary are backend endpoints. Shared KG helpers live in `fichero/kg/_common.py` (`enum_value`, `slug_verb`, `extract_svo`) — reuse `slug_verb` to keep SPARQL ↔ aggregation parity.
-5. **Catalogue writes KG via `extract_all`.** The `extract_all` node populates `KnowledgeEntity` + `KnowledgeClaim`; the catalogue node only emits the readable artifact. Extractor shared instruction strings (`_SECTIONS`) drive both per-section tools AND `extract_all` — fix prompt quality there, not in `extract_all.py`.
+- **Verify the issue isn't already fixed** — open status ≠ unfinished work. `search` the code + check tests before implementing. Fichero has a strong fixed-but-not-closed pattern.
+- **Pydantic field must be declared** — `extra="allow"` lets runtime writes succeed silently but `model_dump()` only serializes declared fields. Add both the field AND the `_ensure_table` column together.
+- **Empty list is not None** — always use `if raw_value:` not `if raw_value is not None:` when checking optional list inputs with fallback chains.
+- **`LINK` ingest mode heuristic** — `Document.isLinked` is detected via `metadata["bookmark"] != nil`; no schema column for this.
+- **Catalogue writes KG via extract_all** — the `catalogue` node only emits the readable artifact; KG population happens in `extract_all`. Don't confuse the two.
 
-## Common pitfalls (filtered to this queue)
-
-- **Empty list ≠ None** — `inputs["files"] = []` passes `is not None` and short-circuits the Priority 1/2/3 fallback chain. Use `if raw_files:` not `if raw_files is not None:`.
-- **Endpoint filter defaults vs seed-data drift** — strict-equality query params silently hide rows when seed JSONs change shape. Default to `Optional`, audit on every seed change (relevant to #1102, #1117).
-- **HTTP header arbitrary text** — uvicorn rejects non-ASCII / multi-line header values. base64 or percent-encode; prefer body over header.
-- **TestClient loopback** — #841: middleware rejects `testserver` Host header.
-- **Pipe exit-code shadowing** — `cmd | head; echo $?` reads `head`'s exit, not `cmd`'s. Use `set -o pipefail` or `${PIPESTATUS[0]}`.
-- **Verify "open" ≠ "unfinished"** — fichero has a strong fixed-but-not-closed pattern. Before implementing any queued issue, `search` for the relevant symbol/tests and confirm the work isn't already merged. If it is, mark `done` with the existing commit hash and move on.
-
-## Build / test / lint (verbatim from CLAUDE.md)
+## Build / Test / Lint Commands
 
 ```bash
 # Backend server
@@ -78,22 +48,15 @@ PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --igno
 ruff check fichero-engine/src/
 ```
 
-Three-leg check (build + test + lint) is mandatory before commit.
+## trace-mcp Reminder
 
-## Commit + PR
+Worker MUST use trace-mcp tools for ALL code exploration. NEVER use Read/Grep/Glob/Bash(find/ls) on source files.
 
-- Conventional commits: `feat:`, `fix:`, `chore:`, `refactor:`, `test:`, `docs:`. Always reference the issue: `fix: ... (#1117)`.
-- One concern per commit.
-- Push → create PR → merge PR yourself.
-
-## Queue protocol
-
-- Read `agent-work/queue.md`. Pick the first `status: pending` issue.
-- Mark `status: in_progress` BEFORE starting work.
-- On finish: set `status: done`, fill `commit:` (short hash) and `completed_at:` (ISO).
-- On block: set `status: blocked` + `blocked_reason:` (one sentence) and continue to next pending issue.
-- Never edit shared STATE.md / MEMORY.md / HISTORY.md from inside a worker iteration.
-
-## Reminder
-
-Use trace-mcp tools. Not Read. Not Grep. Not Glob. Not `ls`. Not `find`.
+| Need | Use |
+|------|-----|
+| Find a function | `search` (fusion=true for best ranking) |
+| File structure before editing | `get_outline <path>` |
+| One symbol's source | `get_symbol <fqn>` |
+| Who calls X | `find_usages` or `get_call_graph` |
+| What breaks if I change X | `get_change_impact` |
+| Task context | `get_task_context` |
