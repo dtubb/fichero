@@ -13,7 +13,6 @@ import pytest
 from typer.testing import CliRunner
 
 from fichero import __main__ as cli
-from fichero.cli import FicheroClient
 from fichero.models import KnownLibrary, LibraryRegistryResponse
 
 runner = CliRunner()
