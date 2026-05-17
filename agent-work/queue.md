@@ -58,8 +58,8 @@
   approach: "Adjust loopback middleware to accept TestClient's 'testserver' Host header or whitelist in test config."
   est_tokens: 20000
   blocked_reason: null
-  commit: 50c6c421
-  completed_at: 2026-05-17T12:16:00-03:00
+  commit: fe3ae619
+  completed_at: 2026-05-17T12:16:45-03:00
 
 - issue: 840
   status: in_progress
