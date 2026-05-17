@@ -8,7 +8,25 @@
 
 ## Tooling — trace-mcp is MANDATORY
 
-For ANY code question, use trace-mcp tools. NEVER use Read/Grep/Glob/Bash(ls,find) for source code.
+**⚠️  CRITICAL: Use ONLY trace-mcp tools for code exploration. NEVER use Bash ls/find/cat, Read, Grep on .py/.ts files. The system will block these.**
+
+### Examples for this queue:
+
+**#841 (middleware fix):**
+```
+search("loopback", language="python")  # Find loopback middleware
+get_outline("fichero-engine/src/fichero/api/main.py")  # See file structure
+get_symbol("fqn_of_middleware_function")  # Read it
+```
+
+**#840 (catalogue artifacts):**
+```
+search("catalogue", language="python", kind="function")
+get_symbol("src/fichero/workflows/nodes/catalogue.py::catalogue_node")
+get_outline("src/fichero/models/artifact.py")
+```
+
+### Complete tool reference:
 
 | Need | Tool |
 |---|---|
@@ -21,7 +39,7 @@ For ANY code question, use trace-mcp tools. NEVER use Read/Grep/Glob/Bash(ls,fin
 | Tests for a symbol | `get_tests_for` |
 | Task kickoff | `get_task_context` |
 
-Read/Grep/Glob allowed only for `.md`, `.json`, `.yaml`, `.toml` or immediately before `Edit` of a file you already located via trace-mcp.
+Read/Grep/Glob allowed ONLY for `.md`, `.json`, `.yaml`, `.toml` or immediately before `Edit` of a file already located via trace-mcp.
 
 After every Edit/Write, call `register_edit` to keep the index fresh.
 
