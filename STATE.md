@@ -15,20 +15,24 @@
 
 ## Next Session — Start Here
 
-**Backend Round 4, Task #1139 verified complete (May 16 9:05 PM)**. Typed Python client generated, integrated, tested.
+**All 0.0.2 milestones completed through CLI + backend standardization (May 17, 8:51 AM)**. 
 
-**Next task: #1140** (Audit + fix response model coverage)
-- Verify every client.py method returns typed models from fichero.models / knowledge_models
-- Replace raw dict returns with Model.model_validate(response.json())
-- Update formatters.py to render from typed fields
-- One issue per session, tests + lint before commit
+**Completed in this session:**
+- #1140: CLI typed response models (12 methods)
+- #1141: CLI formatters (specialized renderers)
+- #1132: Engine lifecycle commands
+- #1131: Library registry persistence ← backend blocker
+- #1130: Library lifecycle CLI (8 commands)
+- #1075: List endpoint standardization (51+ endpoints, 33 models)
 
-Daniel's decision point after #1140/#1141:
-1. Ship 0.0.2 → main, or continue with Round 5 backend work (#1054/#1108/#1075)?
+**Decision point:**
+1. **Ship 0.0.2 → main** (backend milestone fully complete, CLI/backend APIs type-safe)
+2. **Continue with Round 5** backend work (#1054/#1108 and other unblocked items in backlog)
+3. **Begin SwiftUI milestone** (#1135 KG editor, #1133 AppleScript bridge)
 
 ## In Progress
 
-None — #1139 complete. #1140 is next unblocked task (wire typed models through CLI).
+None — all CLI tasks complete. Awaiting direction on next milestone.
 
 ## Completed (This Session & Prior)
 

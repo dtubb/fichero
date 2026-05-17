@@ -1,3 +1,39 @@
+## 2026-05-17 — CLI & Backend Standardization (Morning Session, 8:51 ADT)
+
+Autonomous CLI/backend work continuing on 0.0.2 milestone. Completed 6 issues using single-subagent workflow to preserve context.
+
+**Completed Issues:**
+- ✅ #1140: CLI typed response models — 12 client methods return Pydantic models (SearchResponse, RebuildResponse, CancelResponse, etc.)
+- ✅ #1141: CLI formatters — specialized render_entity/claim/document/artifact; expanded field tuples
+- ✅ #1132: Engine lifecycle CLI — `fichero engine status/start/stop/restart`; PID file management, graceful shutdown escalation
+- ✅ #1131: Library registry persistence — DuckDB table + 4 API endpoints; auto-register on library creation
+- ✅ #1130: Library lifecycle CLI — 8 commands (add, remove, create, delete, open, close, list, reset)
+- ✅ #1075: List endpoint standardization — 51+ endpoints, 33 envelope models, 11 count-calculation bugs fixed
+
+**Key Technical Decisions:**
+- Envelope pattern (`{items: [...], count: N}`) standardized across all list endpoints (replaces mixed bare lists + envelopes)
+- Library registry with unique path constraint + last_accessed tracking
+- Single-subagent workflow instead of parallel agents to reduce token usage while maintaining code quality
+
+**Tests & Validation:**
+- Backend: 2685 tests passing, 3 commits with 40+ test assertion updates
+- CLI: 15 new library command tests + existing formatter tests
+- Lint: Ruff passes on all modified files
+- Build: Python tests + lint gate before each commit
+
+**Commits:**
+- 0bb738e9: fix: add typed response models and wire through CLI client (#1140)
+- dc9fb7e8: fix: expand CLI formatter field tuples
+- af848522: feat: add dedicated CLI formatters (#1141)
+- 0597a07b: feat: add engine lifecycle CLI commands (#1132)
+- 705322c6: feat: add library registry persistence (#1131)
+- fa78c741: feat: add library lifecycle CLI commands (#1130)
+- 0409d397, 6993cbdd, d90e05b0: fix: list endpoint standardization (#1075)
+
+**Status:** 0.0.2 CLI/Backend milestone complete. All endpoints type-safe, list responses consistent, library management functional.
+
+---
+
 ## 2026-05-16 — Backend Worker Loop (Round 3 Final, 21:55 ADT)
 
 Autonomous worker session-start-auto invoked for Round 3 final bug. Context: #1137 marked complete, #1138 pending. Max-tasks: 1.
