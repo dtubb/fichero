@@ -460,11 +460,12 @@ async def catalogue(
             claim_context = _format_claims_as_context(
                 data, cap_overrides=inputs.get("claim_context_caps"),
             )
-            paragraph = await _generate_resumen(
+            paragraph, chunk_summaries = await _generate_resumen(
                 text, output_language, llm_config,
                 claim_context=claim_context, error_sink=catalogue_errors,
             )
             data["summary"] = paragraph
+            data["chunk_summaries"] = chunk_summaries
             logger.info(
                 f"Catalogue: built from existing claims on {container.id} "
                 f"({len(claim_context)} chars of entity context)"
@@ -489,7 +490,7 @@ async def catalogue(
         # rather than silently producing an empty narrative + no
         # artifact. (#1011)
         try:
-            paragraph = await _generate_resumen(
+            paragraph, chunk_summaries = await _generate_resumen(
                 text, output_language, llm_config, claim_context="",
                 error_sink=catalogue_errors,
             )
@@ -497,6 +498,7 @@ async def catalogue(
             logger.error(f"Catalogue LLM call failed: {exc}")
             return {"text": "", "value": None, "error": str(exc)}
         response = paragraph
+        data = {"chunk_summaries": chunk_summaries}
 
         # Prompt asks for markdown directly (no JSON intermediary). Strip
         # any stray code fences just in case the model wrapped the output.
@@ -565,6 +567,23 @@ async def catalogue(
                             logger.warning(f"Catalogue: prior artifact delete failed ({ex})")
             except Exception as ex:
                 logger.warning(f"Catalogue: prior artifact query failed ({ex})")
+
+            # Per-chunk summaries as separate artifacts (#840)
+            chunk_summaries = data.get("chunk_summaries", []) if data else []
+            for chunk_index, chunk_text in enumerate(chunk_summaries, 1):
+                if not chunk_text:
+                    continue
+                a = Artifact(
+                    document_id=container.id,
+                    artifact_type=f"catalogue.chunk.{chunk_index}",
+                    content=chunk_text,
+                    data=None,
+                    provider=provider,
+                    model=model,
+                    run_id=run_id,
+                )
+                db.save(a)
+                saved_artifact_ids.append(a.id)
 
             # Three new artifacts.
             artifacts_to_save = [
@@ -1110,8 +1129,8 @@ async def _generate_resumen(
             logger.warning(f"Catalogue: resumen LLM call failed ({exc}); using empty")
             if error_sink is not None:
                 error_sink.append(str(exc))
-            return ""
-        return _strip_narrative_header(response)
+            return "", []
+        return _strip_narrative_header(response), []
 
     # Map-reduce path — text exceeds context window. Split, summarise each
     # chunk briefly, then synthesise the final paragraph from the chunk
@@ -1170,8 +1189,8 @@ async def _generate_resumen(
         )
     except Exception as exc:
         logger.warning(f"Catalogue: final synthesis failed ({exc}); using empty")
-        return ""
-    return _strip_narrative_header(response)
+        return "", chunk_summaries
+    return _strip_narrative_header(response), chunk_summaries
 
 
 def _generate_timeline(data: dict[str, Any] | None) -> str:
