@@ -1,69 +1,38 @@
-# Worker Digest — 0.0.2 backend loop
-# Generated: 2026-05-17
+# Worker Digest — 0.0.2 autonomous loop
+# Generated: 2026-05-18
 
 ## Branch + Milestone Context
 
-Branch: `0.0.2` (worktree at `~/code/fichero-0.0.2`)
-Milestone: 0.0.2 backend fixes and small features. Daniel is actively testing this build.
-Do NOT start 0.0.3 work. All commits go directly to the `0.0.2` branch — no per-task branches.
-Conventional commits required: `feat:`, `fix:`, `chore:`, etc. Always reference the GitHub issue number.
+- Branch: `0.0.2` (worktree at `~/code/fichero-0.0.2/`)
+- Milestone: bug-fix + contained feature sweep for Daniel's active test build
+- Queue state: 27 pending, 3 blocked (architecture decisions needed)
+- Recent ships: #801 (chunked summarize/rewrite/analyze), #925 (OCR cleanup), #1096 (catalogue case grouping), #1124 (hermeneutic predicates), #834 (Vision OCR retry)
+- jCodemunch is the ONLY code exploration tool — never use Read/Grep/Glob on source files
 
-## Queue Summary (30 issues)
+## Top 5 Architectural Invariants for This Queue
 
-| # | Area | Title | Est tokens |
-|---|------|-------|-----------|
-| #840 | backend | Save per-chunk catalogue summaries as catalogue.chunk.N | 25 k |
-| #984 | backend | Promote SVO from KnowledgeClaim.metadata to top-level columns | 15 k |
-| #801 | backend | Chunk summarize/rewrite/analyze/classify tools | 30 k |
-| #873 | backend | pytest integration test: workflow e2e | 20 k |
-| #925 | backend | OCR cleanup workflow step (dehyphenate + column-rejoin) | 22 k |
-| #1096 | backend | Catalogue: case grouping sub-groups | 25 k |
-| #1097 | backend | Catalogue: HITL confirmation for ambiguous groupings | 28 k |
-| #1098 | backend | Catalogue: bulk fan-out for 500 folders | 35 k |
-| #971 | backend | Cross-page paragraph overlap for NER | 20 k |
-| #1115 | backend | KG-write as explicit workflow node | 30 k |
-| #1124 | backend | Hermeneutics controlled predicate vocabulary | 18 k |
-| #924 | backend | Citation extraction with role-tagged entities | 35 k |
-| #974 | backend | Citation graph: in-text → bibliography → claim | 40 k |
-| #1118 | backend | NER multi-provider abstraction | 40 k |
-| #868 | backend | LLMProvider abstraction layer | 50 k |
-| #874 | backend | User-extensible entity type registry | 45 k |
-| #1108 | backend | MCP server: expose engine to agents | 35 k |
-| #975 | backend | Structured transcript ingest (SRT/VTT) | 25 k |
-| #926 | backend | Translation + modernization workflow nodes | 22 k |
-| #970 | backend | OCR bounding boxes from Apple Vision | 25 k |
-| #1049 | swiftui | Workflow editor: nodes too far apart | 12 k |
-| #1042 | swiftui | Workflow editor: missing merge→catalogue edge | 15 k |
-| #1040 | swiftui | Activity: wrong node shown as running | 15 k |
-| #1044 | swiftui | PDF per-page progress not visible | 20 k |
-| #1036 | swiftui | Claim SVO display: tappable chips | 15 k |
-| #1034 | swiftui | KG entities pane width not persisted | 12 k |
-| #1070 | swiftui | Pane widths jump between views | 12 k |
-| #961 | swiftui | Console hygiene: NaN + FocusedValue warnings | 10 k |
-| #1031 | swiftui | KG claim source link: page-child parent lookup | 18 k |
-| #1085 | blocked | Maps importer: pair .iffy.json sidecar at ingest | 20 k |
+1. **0.0.x no-migration rule**: Schema changes go into `db.py` `_ensure_table` via Pydantic model fields — fresh databases pick them up automatically. Never write `ALTER TABLE ADD COLUMN` migration functions. Only historical structural migrations (renames, backfills) belong in `db_migrations.py`.
 
-## Top 5 Architectural Invariants
+2. **Pydantic fields must be declared**: `extra="allow"` silently accepts writes at runtime but `model_dump()` only serializes declared fields. Always add the Pydantic field AND confirm `_ensure_table` covers the column together.
 
-1. **0.0.x no-migration rule** — schema changes go directly into `db.py` `_ensure_table` via the Pydantic model field. Never add `ALTER TABLE ADD COLUMN` for a column already in the Pydantic model. Fresh DBs pick it up automatically; existing DBs need the column added to `_ensure_table` only.
+3. **No inspector() or nested NavigationSplitView**: SwiftUI inspector panels must use `HStack + ResizableDivider` with global-coordinate `DragGesture`. Never nest `.inspector()` inside `NavigationSplitView`. Pane widths go in `AppStorage`, not `@State`.
 
-2. **Pydantic-only DB writes** — all INSERT/UPDATE/UPSERT must go through the Pydantic model write path in `db.py`. No raw SQL writes outside `db.py`. Bypasses silently omit declared fields on `model_dump()` (see memory: `feedback_pydantic_field_must_be_declared`).
+4. **SidebarItem.id has type prefix**: `SidebarItem.id` is `"doc:UUID"` — always extract the actual doc UUID from `.itemType` before calling backend APIs. Passing the raw `SidebarItem.id` to endpoints silently sends the wrong value.
 
-3. **Artifact pattern** — workflow node outputs are persisted as `Artifact` rows. Use the `Artifact` model; follow namespaced type conventions (`catalogue.chunk.N`, `catalogue.narrative`, `transcription`, etc.). Catalogue node emits artifacts; KG population is a side-effect of `extract_all`, not catalogue.
+5. **KG slug_verb parity**: New KG modules must reuse `slug_verb()` from `fichero/kg/_common.py` to keep SPARQL ↔ aggregation parity. New enum members also go in `_common.py` so both paths agree.
 
-4. **PYTHONPATH must be set** — every Python command requires `PYTHONPATH=fichero-engine/src`. Omitting it produces misleading import errors. Set it on every shell invocation.
+## Pitfalls Filtered to This Queue's Issues
 
-5. **Workflow runs on the main FastAPI event loop** — `_run_workflow_in_background` is a `create_task` on the main loop. Any sync-blocking call inside a node freezes the entire backend. Use `asyncio.to_thread` for blocking I/O inside nodes.
+- **SwiftUI pane width (#1034, #1070)**: `.inspector()` + `NavigationSplitView` is the banned pattern. Use `HStack + ResizableDivider`. Width keys in `AppStorage` only.
+- **PDF zoom (#1024)**: `PDFZoomController` uses `scaleFactorForSizeToFit` for fit-to-window — do NOT re-enable `autoScales` (causes #588 re-fit regression).
+- **Workflow node display (#1040, #1049, #1042)**: Internal LangGraph nodes (`__dunder__`, UUID slots, `Runnable*`) are already filtered on the backend in `_is_internal_langchain_node()`; the Swift Activity view should trust the filtered stream.
+- **WorkflowExecutionObserver.workflowCompletedCount** is the canonical "data may be stale" tick for KG and inspector views — subscribe via `.onChange` rather than adding manual refresh buttons (#1071, #1031).
+- **Empty list ≠ None in tools**: In workflow tools with Priority 1/2/3 fallback chains, always guard with `if raw_files:` not `if raw_files is not None:` — an empty list passes the `is not None` check and short-circuits the fallback.
+- **Ingest path for #1085, #975, #1101**: Use `search_symbols(query="ingest", language="python")` to find the ingest module entry point before editing — the previous blocker on #1085 was failing to locate it.
+- **Claim SVO chips (#1036)**: subject/verb/object are already promoted to top-level DB columns (shipped in #984). Read them directly, not from `metadata`.
+- **LangGraph SSE events (#1044, #1048)**: Per-page progress events are emitted from `_process` node; `parallel_file`, `parallel_index`, `parallel_total` are in `event.data.input` for each parallel file.
 
-## Relevant Pitfalls
-
-- **Verify the issue isn't already fixed** — open GitHub status ≠ unfinished code. Search the codebase + check tests before implementing. Fichero has a strong fixed-but-not-closed pattern.
-- **Pydantic field must be declared** — `extra="allow"` lets runtime writes succeed silently but `model_dump()` only serializes declared fields. Always add both the Pydantic field AND the `_ensure_table` column together.
-- **Empty list ≠ None** — use `if raw_value:` not `if raw_value is not None:` for optional list inputs with fallback chains.
-- **Catalogue writes KG via extract_all** — `catalogue` node only emits the readable artifact; `extract_all` is what writes `KnowledgeEntity`/`KnowledgeClaim`. Don't duplicate KG writes in catalogue.
-- **KG god nodes — check blast radius first** — `Database`, `KnowledgeClaim`, `KnowledgeEntity`, `Document`, `LLMConfig`, `Artifact` have high fan-out. Run `get_blast_radius` before touching them.
-
-## Build / Test / Lint Commands
+## Build / Test / Lint Commands (verbatim from CLAUDE.md)
 
 ```bash
 # Backend server
@@ -75,27 +44,21 @@ PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --igno
 # Python lint
 ruff check fichero-engine/src/
 
-# Swift lint (if touching SwiftUI)
+# Swift lint
 swiftlint lint fichero/fichero/
 ```
 
-## jcodemunch Reminder
+**Xcode MCP tools** (prefer over xcodebuild):
+- Build: `mcp__xcode__BuildProject` (needs `tabIdentifier` from `XcodeListWindows`)
+- Tests: `mcp__xcode__RunAllTests` / `mcp__xcode__RunSomeTests`
+- Errors: `mcp__xcode__GetBuildLog` / `mcp__xcode__XcodeListNavigatorIssues`
 
-Worker MUST use jcodemunch for ALL code exploration. NEVER use Read/Grep/Glob/Bash(find/ls) on source files. (Migrated from trace-mcp 2026-05-17.)
+## Worker Protocol
 
-**Opening move:** `mcp__jcodemunch__plan_turn { repo: "local/fichero-engine-9ae88c40", query: "<issue title>", model: "claude-haiku-4-5" }` — returns confidence + recommended files in one call.
-
-| Need | Use |
-|------|-----|
-| Find a function/class | `search_symbols { query: "...", language: "python" }` |
-| String/comment search | `search_text { query: "..." }` |
-| File structure before editing | `get_file_outline { path: "..." }` |
-| One symbol's source | `get_symbol_source { symbol_id: "..." }` |
-| Symbol + its imports (one call) | `get_context_bundle { symbol_id: "..." }` |
-| Who imports this file | `find_importers { path: "..." }` |
-| Where is this name used | `find_references { name: "..." }` |
-| What breaks if I change X | `get_blast_radius { symbol_id: "..." }` |
-| Class hierarchy | `get_class_hierarchy { class: "..." }` |
-| Repo overview | `get_repo_outline { repo: "..." }` |
-
-Note: if a query returns `negative_evidence` or `verdict: no_implementation_found`, the feature likely doesn't exist — report the gap. Do NOT keep re-searching or fall back to Grep/Read on source. After Edit/Write, PostToolUse hooks auto-reindex.
+1. **Open every task** with `plan_turn { "repo": ".", "query": "<issue title>", "model": "claude-sonnet-4-6" }` — returns confidence + recommended files.
+2. **High confidence** → go directly to recommended symbols, max 2 supplementary reads.
+3. **Medium confidence** → explore recommended files, max 5 supplementary reads.
+4. **Low confidence / negative_evidence** → stop, mark blocked with reason, move on. Do NOT re-search hoping to find it.
+5. **After editing** → run lint + tests. For SwiftUI: swiftlint + xcodebuild + RunAllTests (three-leg check is mandatory).
+6. **Commit format**: `fix: <description> (#N)` or `feat: <description> (#N)` — always reference the issue.
+7. **Never Read/Grep/Glob source files** — jcodemunch tools only for code exploration. `Read` is allowed only immediately before `Edit`/`Write` on a file already located via jcodemunch.
