@@ -34,14 +34,14 @@
   completed_at: 2026-05-18T15:57:33-03:00
 
 - issue: 745
-  status: in_progress
+  status: done
   title: "Launch view: with a folder selected, show the folder-icon grid (not the document-preview-as-grid)"
   files: [fichero/fichero/Views/]
   approach: "Detect sidebar selection is a folder in the launch/empty state and render folder-children grid instead of the document-preview grid."
   est_tokens: 10000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 71d215cd
+  completed_at: 2026-05-18T16:04:41-03:00
 
 - issue: 1008
   status: pending
