@@ -44,14 +44,14 @@
   completed_at: 2026-05-18T13:07:06-03:00
 
 - issue: 788
-  status: pending
+  status: done
   title: "First click on icon in grid flashes — looks like a reset"
   files: [fichero/fichero/Views/]
   approach: "Identify what causes the flash on first selection (likely a @State reset or List selection binding race) and eliminate the transient re-render."
   est_tokens: 12000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 8c4651f3
+  completed_at: 2026-05-18T13:19:13-03:00
 
 - issue: 783
   status: pending
