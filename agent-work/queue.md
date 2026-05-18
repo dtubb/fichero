@@ -22,14 +22,14 @@
   completed_at: 2026-05-18
 
 - issue: 801
-  status: in_progress
+  status: done
   title: "Chunk inputs to summarize_file / summarize_folder / summarize_collection / rewrite / analyze"
   files: [fichero-engine/src/fichero/workflows/tools/summarize.py, fichero-engine/src/fichero/workflows/tools/rewrite.py, fichero-engine/src/fichero/workflows/tools/analyze.py, fichero-engine/src/fichero/workflows/tools/classify_text.py]
   approach: "Apply the chunked map-reduce pattern already shipping in catalogue (#ea2c59e0) to summarize/rewrite/analyze/classify tools that currently send unbounded merged text to the LLM."
   est_tokens: 30000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: eb086498
+  completed_at: 2026-05-18T09:00:26-03:00
 
 - issue: 873
   status: in_progress
@@ -52,14 +52,14 @@
   completed_at: 2026-05-18T08:46:20-03:00
 
 - issue: 1096
-  status: in_progress
+  status: done
   title: "Catalogue: case grouping (sub-group docs into cases inside a folder)"
   files: [fichero-engine/src/fichero/workflows/nodes/catalogue.py, fichero-engine/src/fichero/api/]
   approach: "Add optional case_id metadata field to Document; extend catalogue resolver to group by case_id and emit one catalogue artifact per case rather than per folder."
   est_tokens: 25000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: eb086498
+  completed_at: 2026-05-18T09:00:37.060852
 
 - issue: 1097
   status: pending
