@@ -130,7 +130,7 @@ extension WorkflowInspector {
         } else {
             // Find rightmost node and place new node to its right
             let rightmost = workflow.nodes.max(by: { $0.positionX < $1.positionX })!
-            return CGPoint(x: rightmost.positionX + 200, y: rightmost.positionY)
+            return CGPoint(x: rightmost.positionX + 160, y: rightmost.positionY)
         }
     }
 

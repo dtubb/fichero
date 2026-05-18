@@ -1,11 +1,17 @@
 {
   "name": "NER per-page (local)",
-  "description": "Local NER extraction over a folder of text files (.md / .txt). No transcription step (text already has page_content); no folder cleanup; no aggregate-combine output. Each file gets its own per-doc people / places / organizations / dates / events / keywords artifacts. Uses the $small alias — point it at Apple Intelligence in Settings → AI Defaults to keep everything on-device. Designed for field notes, journals, and any plain-text corpus where you want entity extraction without burning cloud tokens.",
+  "description": "Local NER extraction over a folder of text files (.md / .txt). No transcription step (text already has page_content); no folder cleanup; no aggregate-combine output. Each file gets its own per-doc people / places / organizations / dates / events / keywords artifacts. Uses the $small alias \u2014 point it at Apple Intelligence in Settings \u2192 AI Defaults to keep everything on-device. Designed for field notes, journals, and any plain-text corpus where you want entity extraction without burning cloud tokens.",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
   "folder_path": "/Catalogue",
-  "tags": ["preset", "ner", "local", "text", "field-notes"],
+  "tags": [
+    "preset",
+    "ner",
+    "local",
+    "text",
+    "field-notes"
+  ],
   "config": {
     "preset_version": 1
   },
@@ -23,7 +29,7 @@
       "id": "aggregate_text",
       "tool": "aggregate",
       "label": "Collect per-file text",
-      "position_x": 360,
+      "position_x": 240,
       "position_y": 200,
       "inputs": {},
       "config": {
@@ -35,7 +41,7 @@
       "id": "extract_all",
       "tool": "extract_all",
       "label": "Extract entities (per-page)",
-      "position_x": 720,
+      "position_x": 400,
       "position_y": 200,
       "inputs": {},
       "config": {

@@ -5,7 +5,11 @@
   "is_template": true,
   "is_system": true,
   "folder_path": "/Transcribe",
-  "tags": ["preset", "ocr", "cloud"],
+  "tags": [
+    "preset",
+    "ocr",
+    "cloud"
+  ],
   "nodes": [
     {
       "id": "files-source",
@@ -20,7 +24,7 @@
       "id": "transcribe",
       "tool": "transcribe",
       "label": "Transcribe (cloud)",
-      "position_x": 360,
+      "position_x": 240,
       "position_y": 160,
       "inputs": {},
       "config": {

@@ -25,7 +25,7 @@
       "id": "transcribe",
       "tool": "transcribe",
       "label": "Transcribe each file",
-      "position_x": 340,
+      "position_x": 240,
       "position_y": 400,
       "inputs": {},
       "config": {
@@ -38,7 +38,7 @@
       "id": "extract_all",
       "tool": "extract_all",
       "label": "Extract All Entities",
-      "position_x": 900,
+      "position_x": 400,
       "position_y": 400,
       "inputs": {},
       "config": {
@@ -50,7 +50,7 @@
       "id": "people_folder_clean",
       "tool": "people_folder_cleanup",
       "label": "Clean People (folder)",
-      "position_x": 1180,
+      "position_x": 560,
       "position_y": 80,
       "inputs": {},
       "config": {
@@ -61,7 +61,7 @@
       "id": "places_folder_clean",
       "tool": "places_folder_cleanup",
       "label": "Clean Places (folder)",
-      "position_x": 1180,
+      "position_x": 560,
       "position_y": 180,
       "inputs": {},
       "config": {
@@ -72,7 +72,7 @@
       "id": "organizations_folder_clean",
       "tool": "organizations_folder_cleanup",
       "label": "Clean Organizations (folder)",
-      "position_x": 1180,
+      "position_x": 560,
       "position_y": 280,
       "inputs": {},
       "config": {
@@ -83,7 +83,7 @@
       "id": "dates_folder_clean",
       "tool": "dates_folder_cleanup",
       "label": "Clean Dates (folder)",
-      "position_x": 1180,
+      "position_x": 560,
       "position_y": 380,
       "inputs": {},
       "config": {
@@ -94,7 +94,7 @@
       "id": "events_folder_clean",
       "tool": "events_folder_cleanup",
       "label": "Clean Events (folder)",
-      "position_x": 1180,
+      "position_x": 560,
       "position_y": 480,
       "inputs": {},
       "config": {
@@ -105,7 +105,7 @@
       "id": "keywords_folder_clean",
       "tool": "keywords_folder_cleanup",
       "label": "Clean Keywords (folder)",
-      "position_x": 1180,
+      "position_x": 560,
       "position_y": 580,
       "inputs": {},
       "config": {
@@ -116,7 +116,7 @@
       "id": "merge_extracts",
       "tool": "aggregate",
       "label": "Combine all per-section outputs",
-      "position_x": 1460,
+      "position_x": 720,
       "position_y": 400,
       "inputs": {},
       "config": {
@@ -128,7 +128,7 @@
       "id": "catalogue",
       "tool": "catalogue",
       "label": "Catalogue",
-      "position_x": 1740,
+      "position_x": 880,
       "position_y": 400,
       "inputs": {},
       "config": {
