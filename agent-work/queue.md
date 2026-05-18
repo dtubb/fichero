@@ -24,14 +24,14 @@
   completed_at: 2026-05-18T14:47:52-03:00
 
 - issue: 783
-  status: pending
+  status: done
   title: "Loupe (image viewer magnifier) not working properly"
   files: [fichero/fichero/Views/]
   approach: "Debug LoupeView / ImageViewer magnification calculation; fix coordinate mapping from window space to image space."
   est_tokens: 12000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 9264ae5f
+  completed_at: 2026-05-18T14:56:55-03:00
 
 - issue: 795
   status: pending
