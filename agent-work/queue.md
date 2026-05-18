@@ -14,14 +14,14 @@
   completed_at: 2026-05-18T14:39:27-03:00
 
 - issue: 758
-  status: in_progress
+  status: done
   title: "BackendConnectionView: detect engine startup failure, don't cycle 'Almost ready…' forever"
   files: [fichero/fichero/Views/]
   approach: "Add a timeout + retry-limit to the health-poll loop; display an actionable error state with a Restart Engine button after N failed polls."
   est_tokens: 10000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: e06999b8
+  completed_at: 2026-05-18T14:47:52-03:00
 
 - issue: 783
   status: pending
