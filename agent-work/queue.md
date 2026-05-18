@@ -3,52 +3,42 @@
 
 # ── Priority 1: Small bugs (≤12k tokens) ─────────────────────────────────────
 
-- issue: 759
-  status: done
-  title: "Engine startup: log Bundle.main.bundlePath so multi-install users know which Fichero is running"
-  files: [fichero-engine/src/fichero/api/main.py]
-  approach: "Add a startup log line emitting the engine binary path at INFO level on boot."
-  est_tokens: 6000
+- issue: 1043
+  status: pending
+  title: "Dependency audit + update sweep (langchain/langgraph et al.) — post-0.0.2"
+  files: [fichero-engine/requirements.txt, fichero-engine/pyproject.toml]
+  approach: "Run pip-audit + pip list --outdated; update langchain/langgraph/litellm/lancedb to latest compatible; run unit tests to confirm nothing breaks."
+  est_tokens: 8000
   blocked_reason: null
-  commit: c15ced54
-  completed_at: 2026-05-18T14:39:27-03:00
+  commit: null
+  completed_at: null
 
-- issue: 758
-  status: done
-  title: "BackendConnectionView: detect engine startup failure, don't cycle 'Almost ready…' forever"
+- issue: 747
+  status: pending
+  title: "Inspector: text selection persists when switching documents"
   files: [fichero/fichero/Views/]
-  approach: "Add a timeout + retry-limit to the health-poll loop; display an actionable error state with a Restart Engine button after N failed polls."
+  approach: "Clear NSTextView/RTFEditor selection state when detailDocument binding changes so stale selection from previous doc is not carried over."
+  est_tokens: 8000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 746
+  status: pending
+  title: "Inspector: bold formatting not persisting to backend"
+  files: [fichero/fichero/Services/, fichero/fichero/Views/]
+  approach: "Trace RTFEditor save path; ensure bold attribute changes trigger a PUT to the document content endpoint instead of being dropped on view refresh."
   est_tokens: 10000
   blocked_reason: null
-  commit: e06999b8
-  completed_at: 2026-05-18T14:47:52-03:00
+  commit: null
+  completed_at: null
 
-- issue: 783
-  status: done
-  title: "Loupe (image viewer magnifier) not working properly"
-  files: [fichero/fichero/Views/]
-  approach: "Debug LoupeView / ImageViewer magnification calculation; fix coordinate mapping from window space to image space."
-  est_tokens: 12000
-  blocked_reason: null
-  commit: 9264ae5f
-  completed_at: 2026-05-18T14:56:55-03:00
-
-- issue: 795
-  status: done
-  title: "Sidebar folder click doesn't update inspector when a doc is currently previewed"
-  files: [fichero/fichero/Views/]
-  approach: "Force-clear the previewed document binding when a folder is selected so the inspector refreshes to folder context."
-  est_tokens: 12000
-  blocked_reason: null
-  commit: 31183886
-  completed_at: 2026-05-18T15:21:05-03:00
-
-- issue: 1046
+- issue: 745
   status: pending
-  title: "Search results icon view shows a generic placeholder, never the page thumbnail"
+  title: "Launch view: with a folder selected, show the folder-icon grid (not the document-preview-as-grid)"
   files: [fichero/fichero/Views/]
-  approach: "Wire the search result row to fetch and display the document's page thumbnail instead of the generic document icon."
-  est_tokens: 12000
+  approach: "Detect sidebar selection is a folder in the launch/empty state and render folder-children grid instead of the document-preview grid."
+  est_tokens: 10000
   blocked_reason: null
   commit: null
   completed_at: null
@@ -65,6 +55,16 @@
 
 # ── Priority 2: Medium bugs (12–20k tokens) ──────────────────────────────────
 
+- issue: 764
+  status: pending
+  title: "Workflow run: backend appears frozen until activity finally shows up"
+  files: [fichero/fichero/Views/]
+  approach: "Show an immediate 'Starting…' progress indicator as soon as the run request is posted, before the first SSE event arrives."
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
 - issue: 1042
   status: pending
   title: "Workflow editor doesn't draw the merge→catalogue edge and shows '0 connections'"
@@ -80,36 +80,6 @@
   title: "Activity Progress tab shows wrong node as running — says Transcribe while Extract runs"
   files: [fichero/fichero/Views/]
   approach: "Fix node-state update to clear a node's running indicator when its completed event arrives, before marking the next node running."
-  est_tokens: 15000
-  blocked_reason: null
-  commit: null
-  completed_at: null
-
-- issue: 1036
-  status: pending
-  title: "Make claim SVO display easier to read and click — tappable subject / verb / object chips"
-  files: [fichero/fichero/Views/]
-  approach: "Render claim subject/verb/object as three individually-tappable chips with distinct styling instead of a composed sentence string."
-  est_tokens: 15000
-  blocked_reason: null
-  commit: null
-  completed_at: null
-
-- issue: 1045
-  status: pending
-  title: "Activity Overview: show the document × step grid (like workflow Output Log), not a flat file list"
-  files: [fichero/fichero/Views/]
-  approach: "Replace the flat file list in Activity Overview with a 2D grid where rows are documents and columns are workflow nodes."
-  est_tokens: 15000
-  blocked_reason: null
-  commit: null
-  completed_at: null
-
-- issue: 1048
-  status: pending
-  title: "Activity: add a per-node timing summary so runs can be optimized"
-  files: [fichero/fichero/Views/]
-  approach: "Compute elapsed time per workflow node from SSE events and display a timing breakdown in the Activity detail view."
   est_tokens: 15000
   blocked_reason: null
   commit: null
@@ -135,16 +105,6 @@
   commit: null
   completed_at: null
 
-- issue: 764
-  status: pending
-  title: "Workflow run: backend appears frozen until activity finally shows up"
-  files: [fichero/fichero/Views/]
-  approach: "Show an immediate 'Starting…' progress indicator as soon as the run request is posted, before the first SSE event arrives."
-  est_tokens: 15000
-  blocked_reason: null
-  commit: null
-  completed_at: null
-
 - issue: 879
   status: pending
   title: "401s from running app despite token file in place — investigate auth path"
@@ -161,6 +121,46 @@
   files: [fichero/fichero/Views/]
   approach: "Extend PDFViewer to host LoupeView overlay and image-preview toolbar, mirroring the existing ImageViewer implementation."
   est_tokens: 16000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1036
+  status: pending
+  title: "Make claim SVO display easier to read and click — tappable subject / verb / object chips"
+  files: [fichero/fichero/Views/]
+  approach: "Render claim subject/verb/object as three individually-tappable chips with distinct styling instead of a composed sentence string."
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1038
+  status: pending
+  title: "Activity view is too complex — 8 tabs, much of it low-value; simplify to what users actually need"
+  files: [fichero/fichero/Views/]
+  approach: "Audit all 8 Activity tabs for usage; collapse low-value tabs into 3-4 tabs (Overview grid, Progress, Log, Timing)."
+  est_tokens: 18000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1045
+  status: pending
+  title: "Activity Overview: show the document × step grid (like workflow Output Log), not a flat file list"
+  files: [fichero/fichero/Views/]
+  approach: "Replace the flat file list in Activity Overview with a 2D grid where rows are documents and columns are workflow nodes."
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1048
+  status: pending
+  title: "Activity: add a per-node timing summary so runs can be optimized"
+  files: [fichero/fichero/Views/]
+  approach: "Compute elapsed time per workflow node from SSE events and display a timing breakdown in the Activity detail view."
+  est_tokens: 15000
   blocked_reason: null
   commit: null
   completed_at: null
@@ -215,43 +215,33 @@
   commit: null
   completed_at: null
 
-# ── Priority 3: Larger bugs + contained features (18–30k tokens) ──────────────
-
-- issue: 1038
+- issue: 743
   status: pending
-  title: "Activity view is too complex — 8 tabs, much of it low-value; simplify to what users actually need"
+  title: "Engine: lazy-import heavy ML modules to drop cold-start from 25s to ~3s"
+  files: [fichero-engine/src/fichero/api/main.py, fichero-engine/src/fichero/workflows/nodes/]
+  approach: "Move heavy ML imports (torch, transformers, spacy) inside the functions that use them; use lazy importlib loading at top-level module scope."
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 797
+  status: pending
+  title: "Workflow run context-menu: model picker submenu (Transcribe → Provider → Model)"
   files: [fichero/fichero/Views/]
-  approach: "Audit all 8 Activity tabs for usage; collapse low-value tabs into 3-4 tabs (Overview grid, Progress, Log, Timing)."
-  est_tokens: 18000
+  approach: "Add a nested submenu to the workflow context menu that lets users pick a provider and model per-node before running; wire to the existing LLM config path."
+  est_tokens: 15000
   blocked_reason: null
   commit: null
   completed_at: null
 
-- issue: 1111
-  status: pending
-  title: "KG: deterministic paragraph rendering with bidirectional citation links"
-  files: [fichero-engine/src/fichero/kg/, fichero-engine/src/fichero/api/]
-  approach: "Build a renderer composing subject + slug_verb + object into deterministic prose paragraphs with source citations; expose via /kg/render endpoint."
-  est_tokens: 18000
-  blocked_reason: null
-  commit: null
-  completed_at: null
+# ── Priority 3: Larger bugs + contained features (18–30k tokens) ──────────────
 
 - issue: 1032
   status: pending
   title: "Unify search into one always-visible top search bar with consistent scope (documents + vectors + KG)"
   files: [fichero/fichero/Views/]
   approach: "Add a single top-level SearchBar visible in all modes; route queries to the unified search endpoint with scope toggle chips."
-  est_tokens: 20000
-  blocked_reason: null
-  commit: null
-  completed_at: null
-
-- issue: 1102
-  status: pending
-  title: "User-extensible epistemic statuses + claim kinds (registry, companion to #874)"
-  files: [fichero-engine/src/fichero/models/, fichero-engine/src/fichero/api/, fichero-engine/src/fichero/db.py]
-  approach: "Add EpistemicStatus and ClaimKind registry tables with seed defaults; CRUD endpoints; plumb into KnowledgeClaim model. Use _ensure_table pattern (no ALTER TABLE)."
   est_tokens: 20000
   blocked_reason: null
   commit: null
@@ -267,22 +257,32 @@
   commit: null
   completed_at: null
 
+- issue: 1102
+  status: pending
+  title: "User-extensible epistemic statuses + claim kinds (registry, companion to #874)"
+  files: [fichero-engine/src/fichero/models/, fichero-engine/src/fichero/api/, fichero-engine/src/fichero/db.py]
+  approach: "Add EpistemicStatus and ClaimKind registry tables with seed defaults; CRUD endpoints; plumb into KnowledgeClaim model. Use _ensure_table pattern (no ALTER TABLE)."
+  est_tokens: 20000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1111
+  status: pending
+  title: "KG: deterministic paragraph rendering with bidirectional citation links"
+  files: [fichero-engine/src/fichero/kg/, fichero-engine/src/fichero/api/]
+  approach: "Build a renderer composing subject + slug_verb + object into deterministic prose paragraphs with source citations; expose via /kg/render endpoint."
+  est_tokens: 18000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
 - issue: 926
   status: pending
   title: "Translation + modernization workflow nodes: archaic → modern, source → user language"
   files: [fichero-engine/src/fichero/workflows/nodes/, fichero-engine/src/fichero/workflows/tools/]
   approach: "Add translate_node and modernize_node using LLM with configurable source/target language; follow the existing node pattern (catalogue.py as template)."
   est_tokens: 22000
-  blocked_reason: null
-  commit: null
-  completed_at: null
-
-- issue: 975
-  status: pending
-  title: "Structured transcript ingest: timecoded segments + speaker diarization as artifacts"
-  files: [fichero-engine/src/fichero/ingest/, fichero-engine/src/fichero/models/]
-  approach: "Parse .srt/.vtt/.sbv as timecoded segment arrays; persist speaker+timestamp metadata per segment as Artifacts."
-  est_tokens: 25000
   blocked_reason: null
   commit: null
   completed_at: null
@@ -297,12 +297,12 @@
   commit: null
   completed_at: null
 
-- issue: 1043
+- issue: 975
   status: pending
-  title: "Dependency audit + update sweep (langchain/langgraph et al.) — post-0.0.2"
-  files: [fichero-engine/requirements.txt, fichero-engine/pyproject.toml]
-  approach: "Run pip-audit + pip list --outdated; update langchain/langgraph/litellm/lancedb to latest compatible; run unit tests to confirm nothing breaks."
-  est_tokens: 8000
+  title: "Structured transcript ingest: timecoded segments + speaker diarization as artifacts"
+  files: [fichero-engine/src/fichero/ingest/, fichero-engine/src/fichero/models/]
+  approach: "Parse .srt/.vtt/.sbv as timecoded segment arrays; persist speaker+timestamp metadata per segment as Artifacts."
+  est_tokens: 25000
   blocked_reason: null
   commit: null
   completed_at: null
@@ -325,7 +325,7 @@
   files: [fichero-engine/src/fichero/workflows/nodes/catalogue.py, fichero-engine/src/fichero/api/]
   approach: "Add HITL interrupt after grouping-proposal step; surface candidate groupings via SSE for user confirmation before committing catalogue artifacts."
   est_tokens: 28000
-  blocked_reason: "Same blocker as #873: requires novel pause/resume pattern for interactive workflow. Architecture decision needed."
+  blocked_reason: "Depends on #873: requires novel pause/resume pattern for interactive workflow. Architecture decision needed."
   commit: null
   completed_at: null
 
@@ -338,3 +338,55 @@
   blocked_reason: "Architecture review needed for cross-page dedup strategy; requires design for result merging to avoid duplicate entities/claims."
   commit: null
   completed_at: null
+
+# ── Done ──────────────────────────────────────────────────────────────────────
+
+- issue: 759
+  status: done
+  title: "Engine startup: log Bundle.main.bundlePath so multi-install users know which Fichero is running"
+  files: [fichero-engine/src/fichero/api/main.py]
+  approach: "Add a startup log line emitting the engine binary path at INFO level on boot."
+  est_tokens: 6000
+  blocked_reason: null
+  commit: c15ced54
+  completed_at: 2026-05-18T14:39:27-03:00
+
+- issue: 758
+  status: done
+  title: "BackendConnectionView: detect engine startup failure, don't cycle 'Almost ready…' forever"
+  files: [fichero/fichero/Views/]
+  approach: "Add a timeout + retry-limit to the health-poll loop; display an actionable error state with a Restart Engine button after N failed polls."
+  est_tokens: 10000
+  blocked_reason: null
+  commit: e06999b8
+  completed_at: 2026-05-18T14:47:52-03:00
+
+- issue: 783
+  status: done
+  title: "Loupe (image viewer magnifier) not working properly"
+  files: [fichero/fichero/Views/]
+  approach: "Debug LoupeView / ImageViewer magnification calculation; fix coordinate mapping from window space to image space."
+  est_tokens: 12000
+  blocked_reason: null
+  commit: 9264ae5f
+  completed_at: 2026-05-18T14:56:55-03:00
+
+- issue: 795
+  status: done
+  title: "Sidebar folder click doesn't update inspector when a doc is currently previewed"
+  files: [fichero/fichero/Views/]
+  approach: "Force-clear the previewed document binding when a folder is selected so the inspector refreshes to folder context."
+  est_tokens: 12000
+  blocked_reason: null
+  commit: 31183886
+  completed_at: 2026-05-18T15:21:05-03:00
+
+- issue: 1046
+  status: done
+  title: "Search results icon view shows a generic placeholder, never the page thumbnail"
+  files: [fichero/fichero/Views/]
+  approach: "Wire the search result row to fetch and display the document's page thumbnail instead of the generic document icon."
+  est_tokens: 12000
+  blocked_reason: null
+  commit: 7ad65815
+  completed_at: 2026-05-18T15:28:40-03:00
