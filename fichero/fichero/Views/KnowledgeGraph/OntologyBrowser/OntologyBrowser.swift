@@ -1129,6 +1129,7 @@ struct ForceDirectedGraphView: View {
                   let target = sim.nodes.first(where: { $0.id == edge.target }) else { continue }
             let from = centered(source.position, in: ctx)
             let dest = centered(target.position, in: ctx)
+            guard from.x.isFinite && from.y.isFinite && dest.x.isFinite && dest.y.isFinite else { continue }
             var path = Path()
             path.move(to: from)
             path.addLine(to: dest)
@@ -1155,6 +1156,7 @@ struct ForceDirectedGraphView: View {
     private func drawNodes(ctx: GraphicsContext) {
         for node in sim.nodes {
             let pos = centered(node.position, in: ctx)
+            guard pos.x.isFinite && pos.y.isFinite else { continue }
             let radius: CGFloat = node.id == selectedEntityId ? 9 : 6
             let circle = Path(ellipseIn: CGRect(
                 x: pos.x - radius,

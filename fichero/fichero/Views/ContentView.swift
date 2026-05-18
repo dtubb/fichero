@@ -604,10 +604,14 @@ struct ContentView: View {
             // preview." Folders shouldn't be previewed; clicking a folder
             // should reset the layout to grid-only.
             let applyDoc: (Document) -> Void = { doc in
-                detailDocument = doc
-                if doc.docType == .folder, currentLayoutMode != .none {
-                    currentLayoutMode = .none
-                    viewSettings.previewMode = .none
+                // Defer mutations to next run loop turn to avoid triggering
+                // multiple FocusedValue updates in the same render cycle (#961).
+                DispatchQueue.main.async {
+                    detailDocument = doc
+                    if doc.docType == .folder, currentLayoutMode != .none {
+                        currentLayoutMode = .none
+                        viewSettings.previewMode = .none
+                    }
                 }
             }
             if detailDocument?.id != docId {
@@ -629,8 +633,10 @@ struct ContentView: View {
                 // Re-clicking the already-selected folder: still collapse the
                 // preview. Earlier guard short-circuits the detailDocument
                 // assignment so we have to handle this branch explicitly.
-                currentLayoutMode = .none
-                viewSettings.previewMode = .none
+                DispatchQueue.main.async {
+                    currentLayoutMode = .none
+                    viewSettings.previewMode = .none
+                }
             }
         }
         .onChange(of: sidebarMode) { _, _ in
