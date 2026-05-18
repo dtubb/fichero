@@ -4,7 +4,7 @@
 # ── Priority 1: Small bugs (≤12k tokens) ─────────────────────────────────────
 
 - issue: 1043
-  status: pending
+  status: in_progress
   title: "Dependency audit + update sweep (langchain/langgraph et al.) — post-0.0.2"
   files: [fichero-engine/requirements.txt, fichero-engine/pyproject.toml]
   approach: "Run pip-audit + pip list --outdated; update langchain/langgraph/litellm/lancedb to latest compatible; run unit tests to confirm nothing breaks."

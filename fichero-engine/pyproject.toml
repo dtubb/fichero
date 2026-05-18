@@ -79,11 +79,11 @@ requires = [
     "apscheduler",
     "watchdog",
     "kreuzberg",
-    "fastembed<=0.5.1",
+    "fastembed",
     "pykeen",
     # Document Processing
     "PyMuPDF",
-    "Pillow",
+    "Pillow>=12.2.0",
 ]
 
 [tool.briefcase.app.engine.macOS]
@@ -167,7 +167,7 @@ dependencies = [
     "apscheduler",
     "watchdog",
     "kreuzberg",
-    "fastembed<=0.5.1",
+    "fastembed",
     "pykeen",
     # KG substrate (#899) — rdflib materializes SVO claims as triples
     # so SPARQL queries become available alongside DuckDB joins.
@@ -177,7 +177,7 @@ dependencies = [
     "spacy",
     "splink",
     "PyMuPDF",
-    "Pillow",
+    "Pillow>=12.2.0",
 ]
 
 [project.optional-dependencies]
