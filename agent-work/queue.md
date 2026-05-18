@@ -4,7 +4,7 @@
 # ── Priority 1: Small bugs (≤12k tokens) ─────────────────────────────────────
 
 - issue: 759
-  status: pending
+  status: in_progress
   title: "Engine startup: log Bundle.main.bundlePath so multi-install users know which Fichero is running"
   files: [fichero-engine/src/fichero/api/main.py]
   approach: "Add a startup log line emitting the engine binary path at INFO level on boot."

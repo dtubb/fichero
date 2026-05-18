@@ -16,6 +16,7 @@ Environment Variables:
 """
 
 import os
+import sys
 import warnings
 
 # Disable tokenizers parallelism so the Rust tokenizer's thread pool
@@ -439,6 +440,7 @@ async def lifespan(app: FastAPI):
 
     # Startup: initialize database manager
     logger.info("Fichero API starting up...")
+    logger.info("Engine binary: %s", sys.executable)
     logger.info("DatabaseManager initialized")
 
     # Quiet the /api/health access-log spam now that uvicorn has
