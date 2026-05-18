@@ -465,13 +465,17 @@ struct OntologyBrowser: View {
         .task {
             await loadEntities()
         }
-        // #1007: auto-refresh entity list when any workflow finishes.
-        // Catalogue / Extract All write KG rows in reduce-phase nodes
-        // after all parallel files settle, so this is the right signal
-        // — the user no longer needs to click a manual refresh button
-        // to see newly-extracted entities appear.
+        // #1007/#1008: auto-refresh + re-embed KG data when any workflow
+        // finishes. Catalogue / Extract All write KG rows in reduce-phase
+        // nodes after all parallel files settle. Embeds run first so the
+        // LanceDB index is fresh before heuristic predictions are scored.
         .onChange(of: executionObserver.workflowCompletedCount) { _, _ in
-            Task { await loadEntities() }
+            Task {
+                await loadEntities()
+                await runEmbedClaims()
+                await runEmbedEntities()
+                await runHeuristicPredictions()
+            }
         }
     }
 
