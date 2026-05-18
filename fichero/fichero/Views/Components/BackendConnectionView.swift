@@ -18,6 +18,19 @@ struct BackendConnectionView: View {
     /// Animation phase for the connecting-dots between app + engine icons.
     @State private var dotPhase: Int = 0
 
+    /// How many consecutive 5-second health-poll intervals have passed without
+    /// the backend coming up. When this hits `maxPollAttempts` the view
+    /// declares failure rather than spinning forever on "Almost ready…".
+    @State private var pollCount: Int = 0
+
+    /// Incremented each time the user taps "Restart Engine". Both `.task`
+    /// blocks are keyed on this value so SwiftUI cancels and re-creates them
+    /// on each restart, resuming the poll loop from scratch.
+    @State private var restartCount: Int = 0
+
+    /// 12 × 5 s = 60 s before we give up and show the error state.
+    private static let maxPollAttempts = 12
+
     /// Messages cycled while `backendService.status == .starting`.
     ///
     /// Honest phrasing only: the engine doesn't load models, prepare the
@@ -138,24 +151,44 @@ struct BackendConnectionView: View {
                 }
             }
 
-            // Retry button only on failure — during normal startup the user
-            // shouldn't see a "retry" affordance suggesting something went
-            // wrong. Auto-retry runs in the .task block regardless.
+            // Shown only after startup failure or timeout — not during normal
+            // booting where the user hasn't done anything wrong. Tapping
+            // "Restart Engine" stops the current (likely stuck) engine
+            // process and re-launches it, resetting the poll counter so
+            // the 60-second window starts fresh.
             if isFailed {
                 Button {
-                    Task { await appState.checkBackendHealth() }
+                    // Reset view state synchronously before incrementing
+                    // restartCount so the re-keyed .task blocks see a
+                    // non-failed status when they first evaluate the while
+                    // condition.
+                    pollCount = 0
+                    messageIndex = 0
+                    backendService.status = .stopped
+                    restartCount += 1
+                    Task {
+                        backendService.stop()
+                        do {
+                            try await backendService.start()
+                        } catch {
+                            appState.backendError = error.localizedDescription
+                        }
+                    }
                 } label: {
-                    Label("Retry Connection", systemImage: "arrow.clockwise")
+                    Label("Restart Engine", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(appState.isCheckingBackend)
+                .disabled(backendService.status == .starting)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
-        .task {
-            // Cycle the status message every 5 seconds while booting.
-            while !appState.isBackendRunning {
+        .task(id: restartCount) {
+            // Poll health every 5 s while the engine is booting. After
+            // maxPollAttempts failures we give up and flip status to
+            // .failed so the error UI appears — this prevents the view
+            // from cycling "Almost ready…" forever if the engine hangs.
+            while !appState.isBackendRunning && backendService.status != .failed {
                 try? await Task.sleep(for: .seconds(5))
                 if Task.isCancelled { return }
                 if backendService.status == .starting {
@@ -164,12 +197,22 @@ struct BackendConnectionView: View {
                     }
                 }
                 await appState.checkBackendHealth()
+                if !appState.isBackendRunning && backendService.status != .failed {
+                    pollCount += 1
+                    if pollCount >= Self.maxPollAttempts {
+                        let msg = "Engine did not respond after \(Self.maxPollAttempts * 5) seconds."
+                        backendService.status = .failed
+                        backendService.errorMessage = msg
+                        appState.backendError = msg
+                    }
+                }
             }
         }
-        .task {
+        .task(id: restartCount) {
             // Dot animation — runs independently at a faster cadence so the
             // visual stays alive even while the message timer waits.
-            while !appState.isBackendRunning {
+            // Stops when the backend is up or when failure is declared.
+            while !appState.isBackendRunning && backendService.status != .failed {
                 try? await Task.sleep(for: .milliseconds(450))
                 if Task.isCancelled { return }
                 withAnimation(.easeInOut(duration: 0.25)) {
