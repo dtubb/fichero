@@ -597,6 +597,12 @@ struct ContentView: View {
             guard let prefixedId = newFolderId,
                   prefixedId.hasPrefix("doc:") else { return }
             let docId = String(prefixedId.dropFirst("doc:".count))
+            // Force-clear any previewed document immediately so the inspector
+            // reflects the newly-selected folder before the async applyDoc
+            // resolution completes. Without this, detailDocument stays set to
+            // the previously-previewed file and inspectorDocument step 1 can
+            // match it against the stale browserSelection. (#795)
+            detailDocument = nil
             // Closure to apply a resolved Document — sets detailDocument and,
             // for folders, collapses the preview pane so navigating in the
             // sidebar lands on a clean grid view (#785 follow-up). Daniel's
