@@ -14,14 +14,14 @@
   completed_at: 2026-05-18T15:47:31-03:00
 
 - issue: 747
-  status: in_progress
+  status: done
   title: "Inspector: text selection persists when switching documents"
   files: [fichero/fichero/Views/]
   approach: "Clear NSTextView/RTFEditor selection state when detailDocument binding changes so stale selection from previous doc is not carried over."
   est_tokens: 8000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: a63874b2
+  completed_at: 2026-05-18T15:52:59-03:00
 
 - issue: 746
   status: pending
