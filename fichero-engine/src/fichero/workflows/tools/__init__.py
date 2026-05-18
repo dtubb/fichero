@@ -74,8 +74,9 @@ from fichero.workflows.tools import mcp
 # Research tools
 from fichero.workflows.tools import research
 
-# Transform tools (fan-in, reshape)
+# Transform tools (fan-in, reshape, cleanup)
 from fichero.workflows.tools import aggregate
+from fichero.workflows.tools import ocr_cleanup  # noqa: F401  (#925)
 
 # Output tools
 from fichero.workflows.tools import write_file
@@ -131,6 +132,7 @@ __all__ = [
     "research",
     # Transform
     "aggregate",
+    "ocr_cleanup",
     # Output
     "write_file",
 ]
