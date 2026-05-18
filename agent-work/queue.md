@@ -22,7 +22,7 @@
   completed_at: 2026-05-18
 
 - issue: 801
-  status: pending
+  status: in_progress
   title: "Chunk inputs to summarize_file / summarize_folder / summarize_collection / rewrite / analyze"
   files: [fichero-engine/src/fichero/workflows/tools/summarize.py, fichero-engine/src/fichero/workflows/tools/rewrite.py, fichero-engine/src/fichero/workflows/tools/analyze.py, fichero-engine/src/fichero/workflows/tools/classify_text.py]
   approach: "Apply the chunked map-reduce pattern already shipping in catalogue (#ea2c59e0) to summarize/rewrite/analyze/classify tools that currently send unbounded merged text to the LLM."
@@ -32,7 +32,7 @@
   completed_at: null
 
 - issue: 873
-  status: pending
+  status: in_progress
   title: "pytest integration test: workflow-execution end-to-end"
   files: [fichero-engine/tests/integration/, fichero-engine/tests/fixtures/]
   approach: "Write a pytest test that boots a fixture-managed backend, posts Catalogue workflow against a small fixture PDF, polls thread status to terminal, and asserts status/completed_nodes/artifacts."
@@ -42,14 +42,14 @@
   completed_at: null
 
 - issue: 925
-  status: pending
+  status: done
   title: "OCR cleanup workflow step: dehyphenate + rejoin columns + strip library stamps"
   files: [fichero-engine/src/fichero/workflows/nodes/, fichero-engine/src/fichero/workflows/tools/]
   approach: "Add an OCR-cleanup node that runs post-Vision text through dehyphenation, column-rejoin, and stamp-stripping before passing to downstream extraction nodes."
   est_tokens: 22000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 995bca3a
+  completed_at: 2026-05-18T08:46:20-03:00
 
 - issue: 1096
   status: pending
