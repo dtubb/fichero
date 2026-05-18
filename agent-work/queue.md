@@ -14,14 +14,14 @@
   completed_at: 2026-05-18T16:31:21-03:00
 
 - issue: 750
-  status: in_progress
+  status: done
   title: "Test fixtures: starlette TestClient requests rejected by AuthTokenMiddleware (#742 fallout)"
   files: [fichero-engine/tests/, fichero-engine/src/fichero/api/]
   approach: "Add a test-mode bypass or fixture token to AuthTokenMiddleware so starlette TestClient requests are accepted in pytest without a real token file."
   est_tokens: 8000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: c6808ca2
+  completed_at: 2026-05-18T16:41:15-03:00
 
 - issue: 743
   status: pending

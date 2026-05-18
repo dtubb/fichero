@@ -84,3 +84,10 @@
 
 ## 2026-05-18T16:11:54-03:00 — #1008 — done
 - commit: 6821fd29
+
+## 2026-05-18T16:31:21-03:00 — #879 — done
+- commit: cc2d7a24
+- note: verify-only; fix shipped in commit 31053667 (PR #1110) on 2026-05-15
+
+## 2026-05-18T16:41:15-03:00 — #750 — done
+- commit: c6808ca2
