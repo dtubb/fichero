@@ -115,13 +115,16 @@ struct OntologyBrowser: View {
         // Toolbar moved INSIDE the entity list pane (#964) so it scopes
         // to the list only — was previously spanning across both panes
         // including the detail / preview area on the right.
-        HSplitView {
+        HStack(spacing: 0) {
             VStack(spacing: 0) {
                 toolbar
                 Divider()
                 entityListSidebar
             }
+            .frame(width: entityListWidth)
+            ResizableDivider(width: $entityListWidth, minWidth: 220, maxWidth: 420, edge: .leading)
             detailPaneForMode
+                .frame(maxWidth: .infinity)
         }
         .frame(minWidth: 300, minHeight: 200)
         .sheet(item: Binding(
@@ -367,12 +370,11 @@ struct OntologyBrowser: View {
 
     // MARK: - Entity List Sidebar
 
-    /// Window-shared list-column width. Same key the Library /
-    /// Workflows / Activity destinations adopt so a resize in one
-    /// remembers across all four (#985). 280pt default matches the
-    /// `sidebarWidth` convention so the columns line up visually.
-    @SceneStorage("window.listColumnWidth")
-    private var listColumnWidth: Double = 280
+    /// Persisted entity-list pane width (#1034). AppStorage so it survives
+    /// app restarts; 240pt default is narrower than the old 280pt to give
+    /// the detail pane more room.
+    @AppStorage("ontology.entityListWidth")
+    private var entityListWidth: Double = 240
 
     private var entityListSidebar: some View {
         VStack(spacing: 0) {
@@ -381,11 +383,6 @@ struct OntologyBrowser: View {
             entityList
                 .frame(maxWidth: .infinity)  // fill the column, don't anchor left (#981)
         }
-        .frame(
-            minWidth: 220,
-            idealWidth: listColumnWidth,
-            maxWidth: 420
-        )
     }
 
     private var searchBar: some View {
