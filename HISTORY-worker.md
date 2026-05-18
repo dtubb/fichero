@@ -23,3 +23,21 @@
 ## 2026-05-18T10:39:00 — #971 — blocked
 - commit: no-commit (investigation only)
 - blocked_reason: "architecture review needed for cross-page dedup strategy; requires planning for result merging logic"
+
+## 2026-05-18T11:11:56-03:00 — # — blocked
+- commit: 225f3a4c
+- blocked_reason: Architecture design required: catalogue/kg_writer dependency. Needs proposal phase.
+
+## 2026-05-18T11:12:04-03:00 — #1115 — blocked
+- commit: 225f3a4c
+- blocked_reason: Architecture design required: catalogue/kg_writer dependency. Needs proposal phase.
+
+## 2026-05-18T12:17:36-03:00 — #1124 — blocked
+- commit: 38d35bda
+- blocked_reason: Exceeds single-iteration scope — 35k tokens across schemas, tool, API, UI. Recommend split into 3-part sequence or agent team escalation.
+
+## 2026-05-18T12:45:31-03:00 — #961 — done
+- commit: be1f0bcd
+
+## 2026-05-18T12:51:36-03:00 — #1049 — done
+- commit: 15bff835

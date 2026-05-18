@@ -4,24 +4,24 @@
 # ── Priority 1: Small bugs (≤15k tokens) ─────────────────────────────────────
 
 - issue: 961
-  status: pending
+  status: done
   title: "Console hygiene: CoreGraphics NaN errors + FocusedValue multi-update warnings"
   files: [fichero/fichero/Views/ContentView.swift, fichero/fichero/Views/]
   approach: "Guard geometry values against NaN before CoreGraphics calls; wrap FocusedValue updates in DispatchQueue.main.async to silence multi-update warnings."
   est_tokens: 10000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: be1f0bcd
+  completed_at: 2026-05-18T12:45:31-03:00
 
 - issue: 1049
-  status: pending
+  status: done
   title: "Workflow editor: nodes are spaced too far apart on the canvas"
   files: [fichero/fichero/Views/WorkflowEditor/]
   approach: "Reduce the horizontal spacing constant in the workflow canvas layout algorithm so nodes fit without panning."
   est_tokens: 12000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 15bff835
+  completed_at: 2026-05-18T12:51:36-03:00
 
 - issue: 1034
   status: pending
