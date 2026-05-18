@@ -32,12 +32,12 @@
   completed_at: 2026-05-18T09:00:26-03:00
 
 - issue: 873
-  status: in_progress
+  status: blocked
   title: "pytest integration test: workflow-execution end-to-end"
   files: [fichero-engine/tests/integration/, fichero-engine/tests/fixtures/]
   approach: "Write a pytest test that boots a fixture-managed backend, posts Catalogue workflow against a small fixture PDF, polls thread status to terminal, and asserts status/completed_nodes/artifacts."
   est_tokens: 20000
-  blocked_reason: null
+  blocked_reason: "Requires novel pause/resume pattern for interactive workflow execution. Architecture decision needed: pause mechanism, decision storage, SSE interactive protocol. Recommend: curator escalates to agent team for design."
   commit: null
   completed_at: null
 
@@ -62,12 +62,12 @@
   completed_at: 2026-05-18T09:00:37.060852
 
 - issue: 1097
-  status: pending
+  status: blocked
   title: "Catalogue: human-in-the-loop confirmation for ambiguous groupings"
   files: [fichero-engine/src/fichero/workflows/nodes/catalogue.py, fichero-engine/src/fichero/api/]
   approach: "Add a HITL interrupt after the grouping-proposal step that surfaces candidate groupings via SSE for user confirmation before committing catalogue artifacts."
   est_tokens: 28000
-  blocked_reason: null
+  blocked_reason: "Requires novel pause/resume pattern for interactive workflow. Architecture decision needed."
   commit: null
   completed_at: null
 

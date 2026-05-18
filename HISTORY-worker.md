@@ -12,3 +12,10 @@
 ## 2026-05-18T08:46:28-03:00 — #925 — done
 - commit: 995bca3a
 - result: Implemented ocr_cleanup workflow node with dehyphenation, column-rejoin, and library stamp stripping. 16 unit tests pass, ruff clean.
+
+## 2026-05-18T09:33:07-03:00 — #873 — blocked
+- commit: 9784b020
+- blocked_reason: Requires novel pause/resume pattern for interactive workflow execution. Architecture decision needed: pause mechanism, decision storage, SSE interactive protocol. Recommend: curator escalates to agent team for design.
+
+## 2026-05-18T09:35:00-03:00 — #1097 — blocked
+- blocked_reason: "Requires novel pause/resume pattern for interactive workflow execution (pause mechanism, decision storage, SSE interactive protocol). Recommend: curator escalates to agent team for design."
