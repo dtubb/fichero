@@ -1349,6 +1349,7 @@ private final class GraphSimulation {
     }
 
     func step(in size: CGSize, now: Date) {
+        guard !nodes.isEmpty, size.width > 0, size.height > 0 else { return }
         let elapsed = now.timeIntervalSince(startTime)
         guard elapsed < 4.0 else { return }
         let dt = max(min(now.timeIntervalSince(lastTick), 1.0 / 30.0), 0.001)
@@ -1416,8 +1417,19 @@ private final class GraphSimulation {
                 node.velocity.dx = node.velocity.dx / speed * maxSpeed
                 node.velocity.dy = node.velocity.dy / speed * maxSpeed
             }
+            guard node.velocity.dx.isFinite, node.velocity.dy.isFinite else {
+                node.velocity = .zero
+                nodes[i] = node
+                continue
+            }
             node.position.x += node.velocity.dx * CGFloat(dt)
             node.position.y += node.velocity.dy * CGFloat(dt)
+            guard node.position.x.isFinite, node.position.y.isFinite else {
+                node.position = .zero
+                node.velocity = .zero
+                nodes[i] = node
+                continue
+            }
             node.position.x = min(max(node.position.x, -halfW), halfW)
             node.position.y = min(max(node.position.y, -halfH), halfH)
             nodes[i] = node
