@@ -92,7 +92,8 @@
   completed_at: null
 
 - issue: 1115
-  status: pending
+  status: blocked
+  blocked_reason: "Architecture design needed: catalogue reads KG from DB, but kg_writer delays write. Need design for in-workflow-state KG passing or catalogue/KG reordering. Related: #1097 HITL, #1114 dedup, #1113 claim richness."
   title: "Workflow architecture: make KG-write an explicit node (transcribe → extract → KG)"
   files: [fichero-engine/src/fichero/workflows/nodes/, fichero-engine/src/fichero/workflows/tools/extract_all.py, fichero-engine/src/fichero/kg/]
   approach: "Refactor extract_all to return entities/claims without writing to DB, then add a discrete kg_write node downstream that owns all KnowledgeEntity/KnowledgeClaim DB writes."
