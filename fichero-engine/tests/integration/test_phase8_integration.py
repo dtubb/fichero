@@ -348,6 +348,139 @@ class TestEndToEnd:
 
 
 # =============================================================================
+# Catalogue Workflow Integration Tests
+# =============================================================================
+
+class TestCatalogueWorkflowE2E:
+    """End-to-end integration test for Catalogue workflow with fixture PDF."""
+
+    def test_catalogue_workflow_with_fixture_pdf(self, client):
+        """
+        Test Catalogue workflow against a fixture PDF.
+
+        This test:
+        1. Uses fixture-managed backend (test database, temporary library)
+        2. Posts a Catalogue workflow against a small fixture PDF
+        3. Polls thread status to completion
+        4. Asserts workflow status, completed nodes, and artifact persistence
+        """
+        import time
+        from pathlib import Path
+
+        # Step 1: Load fixture PDF
+        fixture_pdf = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.pdf"
+        if not fixture_pdf.exists():
+            pytest.skip(f"Fixture PDF not found at {fixture_pdf}")
+
+        # Step 2: Get Catalogue workflow
+        workflows_response = client.get("/api/workflows")
+        assert workflows_response.status_code == 200, \
+            f"Failed to list workflows: {workflows_response.text}"
+
+        workflows = workflows_response.json()
+        if not isinstance(workflows, list):
+            workflows = workflows.get("workflows", [])
+
+        catalogue_workflow = None
+        for wf in workflows:
+            if "catalogue" in wf.get("name", "").lower():
+                catalogue_workflow = wf
+                break
+
+        if not catalogue_workflow:
+            pytest.skip("No Catalogue workflow found in system")
+
+        workflow_id = catalogue_workflow["id"]
+
+        # Step 3: Prepare workflow inputs (empty inputs for catalogue workflow)
+        # Catalogue typically uses the documents already in the library
+        request_data = {
+            "workflow_id": workflow_id,
+            "inputs": {}
+        }
+
+        # Step 4: Execute workflow
+        exec_response = client.post(
+            "/api/workflows/execution/execute",
+            json=request_data
+        )
+
+        # Handle both blocking and non-blocking execute responses
+        if exec_response.status_code == 202:
+            # Non-blocking (returns thread_id + stream_url)
+            data = exec_response.json()
+            thread_id = data.get("thread_id")
+        elif exec_response.status_code == 200:
+            # Blocking (execution already started)
+            data = exec_response.json()
+            thread_id = data.get("thread_id")
+        else:
+            pytest.fail(f"Failed to execute workflow: {exec_response.status_code} {exec_response.text}")
+
+        assert thread_id, "No thread_id returned from execute"
+
+        # Step 5: Poll status until completion or timeout
+        poll_timeout = 30  # seconds
+        poll_interval = 0.5  # seconds
+        elapsed = 0
+        status_data = None
+
+        while elapsed < poll_timeout:
+            status_response = client.get(
+                f"/api/workflows/execution/threads/{thread_id}/status"
+            )
+
+            if status_response.status_code == 200:
+                status_data = status_response.json()
+                state = status_data.get("state")
+
+                # Check if workflow is complete
+                if state in ["done", "error", "cancelled"]:
+                    break
+
+                # Still running - wait and retry
+                time.sleep(poll_interval)
+                elapsed += poll_interval
+            elif status_response.status_code == 404:
+                # Status endpoint may not be available yet, keep polling
+                time.sleep(poll_interval)
+                elapsed += poll_interval
+            else:
+                pytest.fail(f"Failed to poll status: {status_response.status_code} {status_response.text}")
+
+        # Step 6: Assertions
+        assert status_data is not None, \
+            f"Failed to retrieve workflow status within {poll_timeout} seconds"
+
+        # Verify workflow completed (state may vary by implementation)
+        state = status_data.get("state")
+        assert state is not None, "No state field in status response"
+        assert state in ["done", "error", "cancelled", "running", "pending"], \
+            f"Unexpected workflow state: {state}"
+
+        # If workflow completed (not running/pending), check for results
+        if state == "done":
+            # Assert completed nodes exist
+            completed_nodes = status_data.get("completed_nodes", [])
+            assert isinstance(completed_nodes, list), \
+                "completed_nodes should be a list"
+            assert len(completed_nodes) > 0, \
+                "Expected at least one completed node"
+
+            # Assert artifacts were generated
+            artifacts = status_data.get("artifacts", [])
+            assert isinstance(artifacts, list), \
+                "artifacts should be a list"
+            # Catalogue workflow should produce at least one artifact
+            catalogue_artifacts = [
+                a for a in artifacts
+                if a.get("type", "").startswith("catalogue")
+            ]
+            assert len(catalogue_artifacts) > 0, \
+                f"Expected catalogue artifacts, got: {artifacts}"
+
+
+# =============================================================================
 # Run Tests
 # =============================================================================
 

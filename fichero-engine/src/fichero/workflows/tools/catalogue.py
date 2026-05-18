@@ -315,6 +315,33 @@ def _resolve_container_doc(
     return None
 
 
+def _group_documents_by_case(
+    container: Document, library_path: str
+) -> dict[str | None, list[Document]]:
+    """Group documents under container by case_id (#1096).
+
+    Returns dict mapping case_id -> list of docs with that case_id.
+    Docs with None/empty case_id are grouped under None key.
+    """
+    if not library_path or container.doc_type not in (DocType.folder, DocType.group):
+        return {None: [container]}
+
+    db = db_manager.get_database(library_path)
+    try:
+        # Query all children of this container
+        all_docs = db.query(Document, parent_id=container.id) or []
+        groups: dict[str | None, list[Document]] = {}
+        for doc in all_docs:
+            case = doc.case_id or None
+            if case not in groups:
+                groups[case] = []
+            groups[case].append(doc)
+        return groups if groups else {None: [container]}
+    except Exception as exc:
+        logger.warning(f"Case grouping query failed: {exc}; using container only")
+        return {None: [container]}
+
+
 def _resolve_write_target(
     selected_doc_ids: list[str], library_path: str
 ) -> Document | None:

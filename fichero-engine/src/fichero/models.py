@@ -231,6 +231,11 @@ class Document(BaseModel):
     # fields are serialized), so reorder never persists to DB.
     sort_order: int = 0
 
+    # Case grouping: optional identifier to group documents into cases within
+    # a folder (#1096). Catalogue tool groups documents by case_id and emits
+    # one artifact per case instead of per folder.
+    case_id: str | None = None
+
     # =========================================================================
     # Typed accessors for common metadata
     # =========================================================================

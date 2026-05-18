@@ -52,7 +52,7 @@
   completed_at: 2026-05-18T08:46:20-03:00
 
 - issue: 1096
-  status: pending
+  status: in_progress
   title: "Catalogue: case grouping (sub-group docs into cases inside a folder)"
   files: [fichero-engine/src/fichero/workflows/nodes/catalogue.py, fichero-engine/src/fichero/api/]
   approach: "Add optional case_id metadata field to Document; extend catalogue resolver to group by case_id and emit one catalogue artifact per case rather than per folder."
