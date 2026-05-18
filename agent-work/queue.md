@@ -24,14 +24,14 @@
   completed_at: 2026-05-18T15:52:59-03:00
 
 - issue: 746
-  status: in_progress
+  status: done
   title: "Inspector: bold formatting not persisting to backend"
   files: [fichero/fichero/Services/, fichero/fichero/Views/]
   approach: "Trace RTFEditor save path; ensure bold attribute changes trigger a PUT to the document content endpoint instead of being dropped on view refresh."
   est_tokens: 10000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 7c14adec
+  completed_at: 2026-05-18T15:57:33-03:00
 
 - issue: 745
   status: pending
