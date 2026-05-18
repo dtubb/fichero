@@ -11,7 +11,7 @@ struct MCPServersView: View {
     @State private var showAddServer = false
     @State private var selectedServer: MCPServerResponse?
 
-    @SceneStorage("window.listColumnWidth")
+    @AppStorage("window.listColumnWidth")
     private var listColumnWidth: Double = 280
 
     var body: some View {

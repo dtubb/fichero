@@ -14,7 +14,7 @@ struct ProvidersView: View {
 
     @EnvironmentObject var providerService: ProviderServiceGenerated
 
-    @SceneStorage("window.listColumnWidth")
+    @AppStorage("window.listColumnWidth")
     private var listColumnWidth: Double = 280
 
     var body: some View {

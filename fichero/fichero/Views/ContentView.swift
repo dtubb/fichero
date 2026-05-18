@@ -77,10 +77,10 @@ struct ContentView: View {
     @SceneStorage("sidebarMode") var sidebarMode: SidebarMode = .library
 
     // Column visibility persistence
-    @SceneStorage("sidebarWidth") var sidebarWidth: Double = 280
-    @SceneStorage("contentWidth") var contentWidth: Double = 600
-    @SceneStorage("inspectorWidth") var inspectorWidth: Double = 300
-    @SceneStorage("widescreenContentPaneWidth") var widescreenContentPaneWidth: Double = 320
+    @AppStorage("sidebarWidth") var sidebarWidth: Double = 280
+    @AppStorage("contentWidth") var contentWidth: Double = 600
+    @AppStorage("inspectorWidth") var inspectorWidth: Double = 300
+    @AppStorage("widescreenContentPaneWidth") var widescreenContentPaneWidth: Double = 320
     @SceneStorage("showSidebar") var showSidebar: Bool = true
     @SceneStorage("showInspectorSidebar") var showInspectorSidebar: Bool = true
     @SceneStorage("showDocumentGrid") var showDocumentGrid: Bool = true

@@ -16,7 +16,7 @@ struct ActivityGraphView: View {
     /// Window-shared list-column width; matches OntologyBrowser entity
     /// list + (future) Library / Workflows lists so resize sticks across
     /// destinations. (#985)
-    @SceneStorage("window.listColumnWidth")
+    @AppStorage("window.listColumnWidth")
     private var listColumnWidth: Double = 280
 
     var body: some View {
