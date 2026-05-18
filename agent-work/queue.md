@@ -44,14 +44,14 @@
   completed_at: 2026-05-18T16:04:41-03:00
 
 - issue: 1008
-  status: pending
+  status: done
   title: "KG Tools menu items (Embed claims / Embed entities / Generate suggested links) should run automatically, not be user-triggered"
   files: [fichero/fichero/Views/]
   approach: "Wire KG tool triggers to WorkflowExecutionObserver.workflowCompletedCount so they fire automatically post-run instead of requiring manual menu selection."
   est_tokens: 12000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 6821fd29
+  completed_at: 2026-05-18T16:11:54-03:00
 
 # ── Priority 2: Medium bugs (12–20k tokens) ──────────────────────────────────
 

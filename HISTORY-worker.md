@@ -81,3 +81,6 @@
 ## 2026-05-18T16:04:41-03:00 — #745 — done
 - commit: 71d215cd
 - note: verify-only — #749 already implements folder-layout fix (centerContent forces layout=.none for folders); closed as fixed-but-not-closed
+
+## 2026-05-18T16:11:54-03:00 — #1008 — done
+- commit: 6821fd29
