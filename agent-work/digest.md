@@ -6,8 +6,8 @@
 Branch: `0.0.2` (worktree at `~/code/fichero-0.0.2/`).
 Daniel is actively testing this build. All bug fixes go directly to this branch — no per-issue branches.
 Architecture: SwiftUI frontend (`fichero/fichero/`) + Python FastAPI backend (`fichero-engine/src/fichero/`).
-Queue: 30 pending, 3 blocked. Done this session: #759, #758, #783, #795, #1046.
-Next up: #1043 (dep audit), #747 (text selection), #746 (bold persist), #745 (launch view), #1008 (KG auto-trigger).
+Queue: 27 pending, 3 blocked. Done this session: #759, #758, #783, #795, #1046, #1043, #747, #746, #745, #1008.
+Next up: #879 (auth 401s), #750 (test fixture auth), #743 (lazy ML imports), then #764 (workflow frozen UX).
 
 ## Top 5 Architectural Invariants for These Issues
 
@@ -15,24 +15,25 @@ Next up: #1043 (dep audit), #747 (text selection), #746 (bold persist), #745 (la
    Schema changes go in `_ensure_table` via the Pydantic model field. Never add `ALTER TABLE ADD COLUMN`. Fresh databases pick up columns automatically. Only historical structural migrations belong in `db_migrations.py`. Applies to #1085, #1101, #1102.
 
 2. **WorkflowExecutionObserver.workflowCompletedCount is the canonical "data may be stale" tick.**
-   Subscribe via `.onChange(of: observer.workflowCompletedCount)` to refresh KG/inspector views post-run. Use this for #1008 (auto-trigger KG embed tools) and #1052 (color-code refresh). Do not add manual refresh buttons.
+   Subscribe via `.onChange(of: observer.workflowCompletedCount)` to refresh KG/inspector views post-run. Use for #1052 (color-code refresh). Do not add manual refresh buttons.
 
 3. **KG / entity logic belongs in the backend — frontend only renders.**
    Aggregation, dedup, scoping, summary generation are backend endpoints. For #1071 inspector entity lists, add `?document_id` filter to the endpoint rather than filtering client-side.
 
 4. **@State parent properties invisible to child views.**
-   `ContentView` `@State` (browserSelection, detailDocument) must be passed explicitly as `let`/`Binding` params to child views. Applies to any SwiftUI fix touching inspector or sidebar state (#747, #746, #1031).
+   `ContentView` `@State` (browserSelection, detailDocument) must be passed explicitly as `let`/`Binding` params to child views. Applies to any SwiftUI fix touching inspector or sidebar state (#1031, #1036, #1071).
 
 5. **NSViewRepresentable Coordinator must be `@MainActor`.**
    Annotate entire Coordinator when all PDFKit/AppKit notification callbacks fire on main thread. Applies to #1024 (PDFZoomToolbar) and #928 (PDF loupe overlay). PDFZoomController uses `scaleFactorForSizeToFit`; never re-enable `autoScales` (causes #588 re-fit regression).
 
 ## Pitfalls Relevant to This Queue
 
+- **Auth token path** — `#879` and `#750`: token file location written at engine startup must match the path the middleware reads. For tests, AuthTokenMiddleware needs a fixture bypass — don't hardcode a real token path in test fixtures.
 - **SidebarItem.id has a type prefix** — `"doc:UUID"`. Always extract `doc.id` from `.itemType` before calling backend APIs (#1031, #1071).
 - **Pydantic field must be declared** — `extra="allow"` lets runtime writes succeed silently but `model_dump()` only serializes declared fields. Add `_ensure_table` column AND the model field together (#1101, #1102, #1085).
 - **Empty list is not None** — `inputs["files"] = []` passes `is not None`; use `if raw_files:` not `if raw_files is not None:` in tools with fallback chains (#743, backend nodes).
 - **LangGraph internal node name filtering** — hide UUID slots, `__dunder__`, `fan_out`; show user nodes as `snake_case → Title Case`. Backend also drops `Runnable*` LCEL nodes at SSE source via `_is_internal_langchain_node()` in runner.py. Applies to #1040.
-- **TimelineView snapshot count** — never re-read live `@State.count` inside helpers consuming a snapshot; bound by `snapshot.count` to avoid brk #0x1 (pattern that caused #998 crash). Applies to #1045/#1048 activity grid work.
+- **TimelineView snapshot count** — never re-read live `@State.count` inside helpers consuming a snapshot; bound by `snapshot.count` to avoid brk #0x1 (#998 pattern). Applies to #1045/#1048 activity grid work.
 - **confirmationDialog beats alert(presenting:)** — on macOS inside `List(selection:)`, `.alert(title:isPresented:presenting:)` can race on same-tick `@Published` updates. Use `.confirmationDialog` instead.
 - **focusable() swallows first click** — never put `.focusable()` on pane wrappers; use `simultaneousGesture(TapGesture())` to track focus without consuming taps.
 - **Verify an issue isn't already fixed** — open status ≠ unfinished work; check the code + tests before implementing. Fichero has a strong fixed-but-not-closed pattern.

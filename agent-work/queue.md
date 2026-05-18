@@ -1,57 +1,37 @@
 # Worker Queue — 0.0.2 autonomous loop
 # Generated: 2026-05-18
 
-# ── Priority 1: Small bugs (≤12k tokens) ─────────────────────────────────────
+# ── Priority 1: Small bugs / quick wins (≤12k tokens) ────────────────────────
 
-- issue: 1043
-  status: done
-  title: "Dependency audit + update sweep (langchain/langgraph et al.) — post-0.0.2"
-  files: [fichero-engine/requirements.txt, fichero-engine/pyproject.toml]
-  approach: "Run pip-audit + pip list --outdated; update langchain/langgraph/litellm/lancedb to latest compatible; run unit tests to confirm nothing breaks."
-  est_tokens: 8000
-  blocked_reason: null
-  commit: 579f0101
-  completed_at: 2026-05-18T15:47:31-03:00
-
-- issue: 747
-  status: done
-  title: "Inspector: text selection persists when switching documents"
-  files: [fichero/fichero/Views/]
-  approach: "Clear NSTextView/RTFEditor selection state when detailDocument binding changes so stale selection from previous doc is not carried over."
-  est_tokens: 8000
-  blocked_reason: null
-  commit: a63874b2
-  completed_at: 2026-05-18T15:52:59-03:00
-
-- issue: 746
-  status: done
-  title: "Inspector: bold formatting not persisting to backend"
-  files: [fichero/fichero/Services/, fichero/fichero/Views/]
-  approach: "Trace RTFEditor save path; ensure bold attribute changes trigger a PUT to the document content endpoint instead of being dropped on view refresh."
-  est_tokens: 10000
-  blocked_reason: null
-  commit: 7c14adec
-  completed_at: 2026-05-18T15:57:33-03:00
-
-- issue: 745
-  status: done
-  title: "Launch view: with a folder selected, show the folder-icon grid (not the document-preview-as-grid)"
-  files: [fichero/fichero/Views/]
-  approach: "Detect sidebar selection is a folder in the launch/empty state and render folder-children grid instead of the document-preview grid."
-  est_tokens: 10000
-  blocked_reason: null
-  commit: 71d215cd
-  completed_at: 2026-05-18T16:04:41-03:00
-
-- issue: 1008
-  status: done
-  title: "KG Tools menu items (Embed claims / Embed entities / Generate suggested links) should run automatically, not be user-triggered"
-  files: [fichero/fichero/Views/]
-  approach: "Wire KG tool triggers to WorkflowExecutionObserver.workflowCompletedCount so they fire automatically post-run instead of requiring manual menu selection."
+- issue: 879
+  status: pending
+  title: "401s from running app despite token file in place — investigate auth path"
+  files: [fichero-engine/src/fichero/api/, fichero/fichero/Services/]
+  approach: "Trace the token read path on both client (Swift) and server (FastAPI middleware); confirm token file location matches what the engine startup writes."
   est_tokens: 12000
   blocked_reason: null
-  commit: 6821fd29
-  completed_at: 2026-05-18T16:11:54-03:00
+  commit: null
+  completed_at: null
+
+- issue: 750
+  status: pending
+  title: "Test fixtures: starlette TestClient requests rejected by AuthTokenMiddleware (#742 fallout)"
+  files: [fichero-engine/tests/, fichero-engine/src/fichero/api/]
+  approach: "Add a test-mode bypass or fixture token to AuthTokenMiddleware so starlette TestClient requests are accepted in pytest without a real token file."
+  est_tokens: 8000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 743
+  status: pending
+  title: "Engine: lazy-import heavy ML modules to drop cold-start from 25s to ~3s"
+  files: [fichero-engine/src/fichero/api/main.py, fichero-engine/src/fichero/workflows/nodes/]
+  approach: "Move heavy ML imports (torch, transformers, spacy) inside the functions that use them; use lazy importlib loading at top-level module scope."
+  est_tokens: 12000
+  blocked_reason: null
+  commit: null
+  completed_at: null
 
 # ── Priority 2: Medium bugs (12–20k tokens) ──────────────────────────────────
 
@@ -100,16 +80,6 @@
   title: "Artifacts inspector: structured outputs (NER, classifications) shouldn't be rendered as editable RTF"
   files: [fichero/fichero/Views/]
   approach: "Detect artifact type in the inspector and route structured JSON artifacts to a read-only formatted view instead of the RTF editor."
-  est_tokens: 15000
-  blocked_reason: null
-  commit: null
-  completed_at: null
-
-- issue: 879
-  status: pending
-  title: "401s from running app despite token file in place — investigate auth path"
-  files: [fichero-engine/src/fichero/api/, fichero/fichero/Services/]
-  approach: "Trace the token read path on both client (Swift) and server (FastAPI middleware); confirm token file location matches what the engine startup writes."
   est_tokens: 15000
   blocked_reason: null
   commit: null
@@ -195,6 +165,28 @@
   commit: null
   completed_at: null
 
+- issue: 797
+  status: pending
+  title: "Workflow run context-menu: model picker submenu (Transcribe → Provider → Model)"
+  files: [fichero/fichero/Views/]
+  approach: "Add a nested submenu to the workflow context menu that lets users pick a provider and model per-node before running; wire to the existing LLM config path."
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 768
+  status: pending
+  title: "Workflow editor: migrate provider picker from legacy LLMProvider to OpenAPI-typed ProviderResponse"
+  files: [fichero/fichero/Views/WorkflowEditor/]
+  approach: "Replace legacy LLMProvider enum binding in workflow editor provider picker with the OpenAPI-typed ProviderResponse from the API client; companion to #1059 consolidation."
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+# ── Priority 3: Larger bugs + contained features (18–30k tokens) ──────────────
+
 - issue: 1085
   status: pending
   title: "Maps importer: pair sidecar .iffy.json files with their image/PDF on ingest"
@@ -215,27 +207,15 @@
   commit: null
   completed_at: null
 
-- issue: 743
+- issue: 1061
   status: pending
-  title: "Engine: lazy-import heavy ML modules to drop cold-start from 25s to ~3s"
-  files: [fichero-engine/src/fichero/api/main.py, fichero-engine/src/fichero/workflows/nodes/]
-  approach: "Move heavy ML imports (torch, transformers, spacy) inside the functions that use them; use lazy importlib loading at top-level module scope."
-  est_tokens: 15000
+  title: "Establish a QA review process — review agents (frontend/backend/security) + offload build/lint/test to subagents"
+  files: [docs/agent-workflow/, agent-work/]
+  approach: "Document the QA review gate in docs/agent-workflow/parallel-execution.md; create reviewer constitution snippets for backend-reviewer, silent-failure-hunter, code-reviewer teammates; wire into commit flow."
+  est_tokens: 10000
   blocked_reason: null
   commit: null
   completed_at: null
-
-- issue: 797
-  status: pending
-  title: "Workflow run context-menu: model picker submenu (Transcribe → Provider → Model)"
-  files: [fichero/fichero/Views/]
-  approach: "Add a nested submenu to the workflow context menu that lets users pick a provider and model per-node before running; wire to the existing LLM config path."
-  est_tokens: 15000
-  blocked_reason: null
-  commit: null
-  completed_at: null
-
-# ── Priority 3: Larger bugs + contained features (18–30k tokens) ──────────────
 
 - issue: 1032
   status: pending
@@ -297,16 +277,6 @@
   commit: null
   completed_at: null
 
-- issue: 975
-  status: pending
-  title: "Structured transcript ingest: timecoded segments + speaker diarization as artifacts"
-  files: [fichero-engine/src/fichero/ingest/, fichero-engine/src/fichero/models/]
-  approach: "Parse .srt/.vtt/.sbv as timecoded segment arrays; persist speaker+timestamp metadata per segment as Artifacts."
-  est_tokens: 25000
-  blocked_reason: null
-  commit: null
-  completed_at: null
-
 # ── Blocked (architecture decision needed — do not pick up) ───────────────────
 
 - issue: 873
@@ -341,35 +311,35 @@
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 
-- issue: 759
+- issue: 1046
   status: done
-  title: "Engine startup: log Bundle.main.bundlePath so multi-install users know which Fichero is running"
-  files: [fichero-engine/src/fichero/api/main.py]
-  approach: "Add a startup log line emitting the engine binary path at INFO level on boot."
-  est_tokens: 6000
-  blocked_reason: null
-  commit: c15ced54
-  completed_at: 2026-05-18T14:39:27-03:00
-
-- issue: 758
-  status: done
-  title: "BackendConnectionView: detect engine startup failure, don't cycle 'Almost ready…' forever"
+  title: "Search results icon view shows a generic placeholder, never the page thumbnail"
   files: [fichero/fichero/Views/]
-  approach: "Add a timeout + retry-limit to the health-poll loop; display an actionable error state with a Restart Engine button after N failed polls."
-  est_tokens: 10000
-  blocked_reason: null
-  commit: e06999b8
-  completed_at: 2026-05-18T14:47:52-03:00
-
-- issue: 783
-  status: done
-  title: "Loupe (image viewer magnifier) not working properly"
-  files: [fichero/fichero/Views/]
-  approach: "Debug LoupeView / ImageViewer magnification calculation; fix coordinate mapping from window space to image space."
+  approach: "Wire the search result row to fetch and display the document's page thumbnail instead of the generic document icon."
   est_tokens: 12000
   blocked_reason: null
-  commit: 9264ae5f
-  completed_at: 2026-05-18T14:56:55-03:00
+  commit: 7ad65815
+  completed_at: 2026-05-18T15:28:40-03:00
+
+- issue: 1043
+  status: done
+  title: "Dependency audit + update sweep (langchain/langgraph et al.) — post-0.0.2"
+  files: [fichero-engine/requirements.txt, fichero-engine/pyproject.toml]
+  approach: "Run pip-audit + pip list --outdated; update langchain/langgraph/litellm/lancedb to latest compatible; run unit tests to confirm nothing breaks."
+  est_tokens: 8000
+  blocked_reason: null
+  commit: 579f0101
+  completed_at: 2026-05-18T15:47:31-03:00
+
+- issue: 1008
+  status: done
+  title: "KG Tools menu items should run automatically post-workflow, not be user-triggered"
+  files: [fichero/fichero/Views/]
+  approach: "Wire KG tool triggers to WorkflowExecutionObserver.workflowCompletedCount so they fire automatically post-run."
+  est_tokens: 12000
+  blocked_reason: null
+  commit: 6821fd29
+  completed_at: 2026-05-18T16:11:54-03:00
 
 - issue: 795
   status: done
@@ -381,12 +351,62 @@
   commit: 31183886
   completed_at: 2026-05-18T15:21:05-03:00
 
-- issue: 1046
+- issue: 783
   status: done
-  title: "Search results icon view shows a generic placeholder, never the page thumbnail"
+  title: "Loupe (image viewer magnifier) not working properly"
   files: [fichero/fichero/Views/]
-  approach: "Wire the search result row to fetch and display the document's page thumbnail instead of the generic document icon."
+  approach: "Debug LoupeView / ImageViewer magnification calculation; fix coordinate mapping from window space to image space."
   est_tokens: 12000
   blocked_reason: null
-  commit: 7ad65815
-  completed_at: 2026-05-18T15:28:40-03:00
+  commit: 9264ae5f
+  completed_at: 2026-05-18T14:56:55-03:00
+
+- issue: 758
+  status: done
+  title: "BackendConnectionView: detect engine startup failure, don't cycle 'Almost ready…' forever"
+  files: [fichero/fichero/Views/]
+  approach: "Add a timeout + retry-limit to the health-poll loop; display an actionable error state with a Restart Engine button after N failed polls."
+  est_tokens: 10000
+  blocked_reason: null
+  commit: e06999b8
+  completed_at: 2026-05-18T14:47:52-03:00
+
+- issue: 759
+  status: done
+  title: "Engine startup: log Bundle.main.bundlePath so multi-install users know which Fichero is running"
+  files: [fichero-engine/src/fichero/api/main.py]
+  approach: "Add a startup log line emitting the engine binary path at INFO level on boot."
+  est_tokens: 6000
+  blocked_reason: null
+  commit: c15ced54
+  completed_at: 2026-05-18T14:39:27-03:00
+
+- issue: 747
+  status: done
+  title: "Inspector: text selection persists when switching documents"
+  files: [fichero/fichero/Views/]
+  approach: "Clear NSTextView/RTFEditor selection state when detailDocument binding changes so stale selection from previous doc is not carried over."
+  est_tokens: 8000
+  blocked_reason: null
+  commit: a63874b2
+  completed_at: 2026-05-18T15:52:59-03:00
+
+- issue: 746
+  status: done
+  title: "Inspector: bold formatting not persisting to backend"
+  files: [fichero/fichero/Services/, fichero/fichero/Views/]
+  approach: "Trace RTFEditor save path; ensure bold attribute changes trigger a PUT to the document content endpoint instead of being dropped on view refresh."
+  est_tokens: 10000
+  blocked_reason: null
+  commit: 7c14adec
+  completed_at: 2026-05-18T15:57:33-03:00
+
+- issue: 745
+  status: done
+  title: "Launch view: with a folder selected, show the folder-icon grid (not the document-preview-as-grid)"
+  files: [fichero/fichero/Views/]
+  approach: "Detect sidebar selection is a folder in the launch/empty state and render folder-children grid instead of the document-preview grid."
+  est_tokens: 10000
+  blocked_reason: null
+  commit: 71d215cd
+  completed_at: 2026-05-18T16:04:41-03:00
