@@ -274,12 +274,21 @@ class TrackingImageView: NSImageView {
         NSColor.white.setFill()
         path.fill()
 
-        // Calculate source rect - use target position (what we're looking at)
+        // Calculate source rect - use target position (what we're looking at).
+        // loupePosition is stored in view coordinates (which include the centering
+        // offset added when the scaled image is smaller than the viewport). Convert
+        // to image coordinates before passing to NSImage.draw(in:from:), which
+        // expects coordinates in the image's own space (0,0 = bottom-left of image).
         let sourceSize = loupeSize / loupeMagnification
+        let imageW = image.size.width
+        let imageH = image.size.height
+        let offsetX = max(0, (bounds.width - imageW) / 2)
+        let offsetY = max(0, (bounds.height - imageH) / 2)
+        let imagePos = CGPoint(x: targetPosition.x - offsetX, y: targetPosition.y - offsetY)
 
         let sourceRect = NSRect(
-            x: targetPosition.x - sourceSize / 2,
-            y: targetPosition.y - sourceSize / 2,
+            x: imagePos.x - sourceSize / 2,
+            y: imagePos.y - sourceSize / 2,
             width: sourceSize,
             height: sourceSize
         )
