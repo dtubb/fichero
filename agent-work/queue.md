@@ -4,7 +4,7 @@
 # ── Priority 1: Small bugs / quick wins (≤12k tokens) ────────────────────────
 
 - issue: 879
-  status: pending
+  status: in_progress
   title: "401s from running app despite token file in place — investigate auth path"
   files: [fichero-engine/src/fichero/api/, fichero/fichero/Services/]
   approach: "Trace the token read path on both client (Swift) and server (FastAPI middleware); confirm token file location matches what the engine startup writes."
