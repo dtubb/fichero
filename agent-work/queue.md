@@ -34,14 +34,14 @@
   completed_at: 2026-05-18T13:00:51-03:00
 
 - issue: 1070
-  status: pending
+  status: done
   title: "Pane widths (list view, inspector) jump around between views — width state not persisted"
   files: [fichero/fichero/Views/]
   approach: "Move pane-width @State to shared AppStorage keys so widths survive navigation transitions and app restarts."
   est_tokens: 12000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: e8af2e24
+  completed_at: 2026-05-18T13:07:06-03:00
 
 - issue: 788
   status: pending
