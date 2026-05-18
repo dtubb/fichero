@@ -4,17 +4,17 @@
 # ── Priority 1: Small bugs / quick wins (≤12k tokens) ────────────────────────
 
 - issue: 879
-  status: in_progress
+  status: done
   title: "401s from running app despite token file in place — investigate auth path"
   files: [fichero-engine/src/fichero/api/, fichero/fichero/Services/]
   approach: "Trace the token read path on both client (Swift) and server (FastAPI middleware); confirm token file location matches what the engine startup writes."
   est_tokens: 12000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: cc2d7a24
+  completed_at: 2026-05-18T16:31:21-03:00
 
 - issue: 750
-  status: pending
+  status: in_progress
   title: "Test fixtures: starlette TestClient requests rejected by AuthTokenMiddleware (#742 fallout)"
   files: [fichero-engine/tests/, fichero-engine/src/fichero/api/]
   approach: "Add a test-mode bypass or fixture token to AuthTokenMiddleware so starlette TestClient requests are accepted in pytest without a real token file."
