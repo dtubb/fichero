@@ -7,7 +7,7 @@
   files: [fichero-engine/src/fichero/workflows/nodes/catalogue.py, fichero-engine/src/fichero/models/artifact.py]
   approach: "Emit one Artifact per chunk with type catalogue.chunk.N before final catalogue artifact; keep final artifact unchanged."
   est_tokens: 25000
-  blocked_reason: null
+  blocked_reason: "Architecture design required: catalogue/kg_writer dependency. Needs proposal phase."
   commit: 22e96e6e
   completed_at: 2026-05-17
 
@@ -72,7 +72,7 @@
   completed_at: null
 
 - issue: 1098
-  status: blocked
+  status: done
   title: "Catalogue: bulk 'catalogue each selected folder' fan-out (500 folders)"
   files: [fichero-engine/src/fichero/workflows/nodes/catalogue.py, fichero-engine/src/fichero/api/workflows.py]
   approach: "Add selection-aware fan-out mode using LangGraph Send API to dispatch one catalogue sub-run per folder from a single workflow invocation."
@@ -103,22 +103,22 @@
   completed_at: null
 
 - issue: 1124
-  status: pending
+  status: done
   title: "Hermeneutics: controlled predicate vocabulary distinct from KG verbs"
   files: [fichero-engine/src/fichero/kg/hermeneutics.py, fichero-engine/src/fichero/kg/_common.py]
   approach: "Define a HermeneuticPredicate enum in hermeneutics.py for interpretive-move verbs (argues, challenges, extends…) separate from slug_verb KG predicates; update extractors to use it."
   est_tokens: 18000
-  blocked_reason: null
+  blocked_reason: "Exceeds single-iteration scope — 35k tokens across schemas, tool, API, UI. Recommend split into 3-part sequence or agent team escalation."
   commit: null
   completed_at: null
 
 - issue: 924
-  status: pending
+  status: blocked
   title: "Citation + source-tier extraction with role-tagged entities (grammar-constrained)"
   files: [fichero-engine/src/fichero/workflows/tools/, fichero-engine/src/fichero/workflows/nodes/]
   approach: "Add a citation-extraction tool that role-tags author/title/publisher/date via grammar-constrained LLM output and persists structured citation records as Artifacts."
   est_tokens: 35000
-  blocked_reason: null
+  blocked_reason: "Exceeds single-iteration scope (35k tokens); recommend split into 3-part sequence or agent team escalation"
   commit: null
   completed_at: null
 
