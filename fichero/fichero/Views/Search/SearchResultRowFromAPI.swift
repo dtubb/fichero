@@ -6,15 +6,22 @@ struct SearchResultRowFromAPI: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Icon
+            // Thumbnail — shows page thumbnail when available,
+            // falls back to generic icon (LibraryImageView returns
+            // Color.clear when no image is loaded).
             ZStack {
                 RoundedRectangle(cornerRadius: 4)
                     .fill(Color(.windowBackgroundColor))
-                    .frame(width: 40, height: 40)
 
                 Image(systemName: "doc.text.magnifyingglass")
                     .foregroundColor(.accentColor)
+
+                LibraryImageView(documentId: result.documentId, imageType: .thumbnail)
+                    .aspectRatio(contentMode: .fill)
+                    .clipped()
             }
+            .frame(width: 40, height: 40)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
 
             // Info
             VStack(alignment: .leading, spacing: 4) {
