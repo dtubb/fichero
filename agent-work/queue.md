@@ -24,14 +24,14 @@
   completed_at: 2026-05-18T12:51:36-03:00
 
 - issue: 1034
-  status: pending
+  status: done
   title: "KG entities list pane is too wide and resize isn't persisted — HSplitView ignores @SceneStorage width"
   files: [fichero/fichero/Views/]
   approach: "Store entity-pane width in AppStorage with a narrower default; replace any .inspector() usage with the ResizableDivider + HStack pattern."
   est_tokens: 12000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 427006ae
+  completed_at: 2026-05-18T13:00:51-03:00
 
 - issue: 1070
   status: pending
