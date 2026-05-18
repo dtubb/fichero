@@ -72,7 +72,7 @@
   completed_at: null
 
 - issue: 1098
-  status: pending
+  status: in_progress
   title: "Catalogue: bulk 'catalogue each selected folder' fan-out (500 folders)"
   files: [fichero-engine/src/fichero/workflows/nodes/catalogue.py, fichero-engine/src/fichero/api/workflows.py]
   approach: "Add selection-aware fan-out mode using LangGraph Send API to dispatch one catalogue sub-run per folder from a single workflow invocation."
