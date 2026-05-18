@@ -264,6 +264,106 @@ def canonical_verb(verb: str | None) -> str | None:
     return CANONICAL_VERBS.get(verb.lower().strip())
 
 
+# =============================================================================
+# #1124 — Hermeneutic predicate vocabulary (interpretive moves, not facts)
+# =============================================================================
+# Free-text variants → canonical slug for interpretive predicates. These
+# describe moves an interpretation makes (e.g. "centers women's labor",
+# "exposes silenced voices") not facts about the world. Used by the
+# ``Interpretation`` model to populate ``predicate_canonical`` at write time.
+#
+# Categories: Application, Framework, Inter-interpretation, Recognition,
+# Categorization, Naming, Revelation, Power, Comparison, Critique.
+
+HERMENEUTIC_PREDICATES: dict[str, str] = {
+    # --- application ---
+    "applies to": "applies_to",
+    "applies_to": "applies_to",
+    "interprets": "interprets",
+    "interprets as": "interprets",
+    "glosses": "glosses",
+    "reads as": "reads_as",
+    "reads_as": "reads_as",
+    # --- framework ---
+    "uses framework": "uses_framework",
+    "uses_framework": "uses_framework",
+    "extends framework": "extends_framework",
+    "extends_framework": "extends_framework",
+    "combines frameworks": "combines_frameworks",
+    "combines_frameworks": "combines_frameworks",
+    # --- inter-interpretation ---
+    "contests reading": "contests_reading",
+    "contests_reading": "contests_reading",
+    "extends reading": "extends_reading",
+    "extends_reading": "extends_reading",
+    "complicates reading": "complicates_reading",
+    "complicates_reading": "complicates_reading",
+    "subsumes reading": "subsumes_reading",
+    "subsumes_reading": "subsumes_reading",
+    # --- recognition ---
+    "centers": "centers",
+    "decenters": "decenters",
+    "recovers": "recovers",
+    "silences": "silences",
+    "foregrounds": "foregrounds",
+    "backgrounds": "backgrounds",
+    # --- categorization ---
+    "gendered as": "gendered_as",
+    "gendered_as": "gendered_as",
+    "racialized as": "racialized_as",
+    "racialized_as": "racialized_as",
+    "classed as": "classed_as",
+    "classed_as": "classed_as",
+    "colonized as": "colonized_as",
+    "colonized_as": "colonized_as",
+    "secularized as": "secularized_as",
+    "secularized_as": "secularized_as",
+    # --- naming ---
+    "frames as": "frames_as",
+    "frames_as": "frames_as",
+    "reframes as": "reframes_as",
+    "reframes_as": "reframes_as",
+    "re-frames as": "reframes_as",
+    "relabels as": "relabels_as",
+    "relabels_as": "relabels_as",
+    # --- revelation ---
+    "exposes": "exposes",
+    "obscures": "obscures",
+    "reveals": "reveals",
+    "conceals": "conceals",
+    # --- power ---
+    "legitimates": "legitimates",
+    "delegitimates": "delegitimates",
+    "naturalizes": "naturalizes",
+    "denaturalizes": "denaturalizes",
+    # --- comparison ---
+    "analogous to": "analogous_to",
+    "analogous_to": "analogous_to",
+    "contrasts with": "contrasts_with",
+    "contrasts_with": "contrasts_with",
+    "parallels": "parallels",
+    "inverts": "inverts",
+    # --- critique ---
+    "critiques": "critiques",
+    "defends": "defends",
+    "complicates": "complicates",
+    "troubles": "troubles",
+}
+
+
+def canonical_hermeneutic_predicate(predicate: str | None) -> str | None:
+    """Map a free-text interpretive predicate to a canonical slug.
+
+    Lookup is case-insensitive on the stripped predicate. Returns ``None``
+    for empty input and for predicates not in the controlled vocabulary.
+    Used by ``Interpretation.save()`` to populate ``predicate_canonical``
+    at write time (#1124).
+    """
+    if not predicate:
+        return None
+    return HERMENEUTIC_PREDICATES.get(predicate.lower().strip())
+
+
 def parse_kwarg_repr(text: str) -> dict[str, str] | None:
     """Parse a Python-kwarg-style repr like ``verb='is', object='a mine'``
     into ``{"verb": "is", "object": "a mine"}``.

@@ -90,6 +90,8 @@ class Interpretation(BaseModel):
     passage_text: str | None = None  # The specific text if not a stored claim
     interpretation_text: str  # What this means under the framework
     act: InterpretiveActType
+    predicate: str = ""  # Raw/human-typed interpretive predicate (centers, contests_reading, etc)
+    predicate_canonical: str | None = None  # Normalized form from HERMENEUTIC_PREDICATES
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     key_insights: list[str] = Field(default_factory=list)
     tensions: list[str] = Field(
