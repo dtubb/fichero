@@ -34,14 +34,14 @@
   completed_at: 2026-05-18T14:56:55-03:00
 
 - issue: 795
-  status: pending
+  status: done
   title: "Sidebar folder click doesn't update inspector when a doc is currently previewed"
   files: [fichero/fichero/Views/]
   approach: "Force-clear the previewed document binding when a folder is selected so the inspector refreshes to folder context."
   est_tokens: 12000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 31183886
+  completed_at: 2026-05-18T15:21:05-03:00
 
 - issue: 1046
   status: pending
