@@ -3,61 +3,21 @@
 
 # ── Priority 1: Small bugs (≤15k tokens) ─────────────────────────────────────
 
-- issue: 961
-  status: done
-  title: "Console hygiene: CoreGraphics NaN errors + FocusedValue multi-update warnings"
-  files: [fichero/fichero/Views/ContentView.swift, fichero/fichero/Views/]
-  approach: "Guard geometry values against NaN before CoreGraphics calls; wrap FocusedValue updates in DispatchQueue.main.async to silence multi-update warnings."
-  est_tokens: 10000
-  blocked_reason: null
-  commit: be1f0bcd
-  completed_at: 2026-05-18T12:45:31-03:00
-
-- issue: 1049
-  status: done
-  title: "Workflow editor: nodes are spaced too far apart on the canvas"
-  files: [fichero/fichero/Views/WorkflowEditor/]
-  approach: "Reduce the horizontal spacing constant in the workflow canvas layout algorithm so nodes fit without panning."
+- issue: 998
+  status: pending
+  title: "Graph view crashes (brk #0x1) when clicking Graph in OntologyBrowser"
+  files: [fichero/fichero/Views/OntologyBrowser/]
+  approach: "Guard ForceDirectedGraphView against zero/NaN node count before layout; confirm the click→layout-recompute path has the same isFinite checks already added to drawNodes/drawEdges."
   est_tokens: 12000
   blocked_reason: null
-  commit: 15bff835
-  completed_at: 2026-05-18T12:51:36-03:00
-
-- issue: 1034
-  status: done
-  title: "KG entities list pane is too wide and resize isn't persisted — HSplitView ignores @SceneStorage width"
-  files: [fichero/fichero/Views/]
-  approach: "Store entity-pane width in AppStorage with a narrower default; replace any .inspector() usage with the ResizableDivider + HStack pattern."
-  est_tokens: 12000
-  blocked_reason: null
-  commit: 427006ae
-  completed_at: 2026-05-18T13:00:51-03:00
-
-- issue: 1070
-  status: done
-  title: "Pane widths (list view, inspector) jump around between views — width state not persisted"
-  files: [fichero/fichero/Views/]
-  approach: "Move pane-width @State to shared AppStorage keys so widths survive navigation transitions and app restarts."
-  est_tokens: 12000
-  blocked_reason: null
-  commit: e8af2e24
-  completed_at: 2026-05-18T13:07:06-03:00
-
-- issue: 788
-  status: done
-  title: "First click on icon in grid flashes — looks like a reset"
-  files: [fichero/fichero/Views/]
-  approach: "Identify what causes the flash on first selection (likely a @State reset or List selection binding race) and eliminate the transient re-render."
-  est_tokens: 12000
-  blocked_reason: null
-  commit: 8c4651f3
-  completed_at: 2026-05-18T13:19:13-03:00
+  commit: null
+  completed_at: null
 
 - issue: 783
   status: pending
   title: "Loupe (image viewer magnifier) not working properly"
   files: [fichero/fichero/Views/]
-  approach: "Debug the LoupeView / ImageViewer magnification calculation; fix coordinate mapping from window space to image space."
+  approach: "Debug LoupeView / ImageViewer magnification calculation; fix coordinate mapping from window space to image space."
   est_tokens: 12000
   blocked_reason: null
   commit: null
@@ -97,13 +57,13 @@
   status: pending
   title: "Maps importer: pair sidecar .iffy.json files with their image/PDF on ingest"
   files: [fichero-engine/src/fichero/ingest/]
-  approach: "During ingest, detect sibling <name>.iffy.json and persist its contents as metadata on the Document; no schema migration needed (0.0.x no-migration rule applies)."
+  approach: "During ingest, detect sibling <name>.iffy.json and persist its contents as metadata on the Document; use _ensure_table pattern (0.0.x no-migration rule)."
   est_tokens: 20000
   blocked_reason: null
   commit: null
   completed_at: null
 
-# ── Priority 2: Medium bugs (15–20k tokens) ──────────────────────────────────
+# ── Priority 2: Medium bugs (12–18k tokens) ──────────────────────────────────
 
 - issue: 1042
   status: pending
@@ -125,22 +85,22 @@
   commit: null
   completed_at: null
 
-- issue: 1036
-  status: pending
-  title: "Make claim SVO display easier to read and click — tappable subject / verb / object chips"
-  files: [fichero/fichero/Views/]
-  approach: "Render claim subject/verb/object as three individually-tappable chips with distinct styling instead of a composed sentence string."
-  est_tokens: 15000
-  blocked_reason: null
-  commit: null
-  completed_at: null
-
 - issue: 1046
   status: pending
   title: "Search results icon view shows a generic placeholder, never the page thumbnail"
   files: [fichero/fichero/Views/]
   approach: "Wire the search result row to fetch and display the document's page thumbnail instead of the generic document icon."
   est_tokens: 12000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1036
+  status: pending
+  title: "Make claim SVO display easier to read and click — tappable subject / verb / object chips"
+  files: [fichero/fichero/Views/]
+  approach: "Render claim subject/verb/object as three individually-tappable chips with distinct styling instead of a composed sentence string."
+  est_tokens: 15000
   blocked_reason: null
   commit: null
   completed_at: null
@@ -175,16 +135,6 @@
   commit: null
   completed_at: null
 
-- issue: 879
-  status: pending
-  title: "401s from running app despite token file in place — investigate auth path"
-  files: [fichero-engine/src/fichero/api/, fichero/fichero/Services/]
-  approach: "Trace the token read path on both client (Swift) and server (FastAPI middleware); confirm token file location matches what the engine startup writes."
-  est_tokens: 15000
-  blocked_reason: null
-  commit: null
-  completed_at: null
-
 - issue: 958
   status: pending
   title: "Artifacts inspector: structured outputs (NER, classifications) shouldn't be rendered as editable RTF"
@@ -205,11 +155,31 @@
   commit: null
   completed_at: null
 
+- issue: 1008
+  status: pending
+  title: "KG Tools menu items (Embed claims / Embed entities / Generate suggested links) should run automatically, not be user-triggered"
+  files: [fichero/fichero/Views/]
+  approach: "Wire KG tool triggers to WorkflowExecutionObserver.workflowCompletedCount so they fire automatically post-run instead of requiring manual menu selection."
+  est_tokens: 12000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
 # ── Priority 3: Larger bugs + contained backend features (18–30k tokens) ──────
+
+- issue: 879
+  status: pending
+  title: "401s from running app despite token file in place — investigate auth path"
+  files: [fichero-engine/src/fichero/api/, fichero/fichero/Services/]
+  approach: "Trace the token read path on both client (Swift) and server (FastAPI middleware); confirm token file location matches what the engine startup writes."
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
 
 - issue: 1031
   status: pending
-  title: "KG viewer claim source link does nothing — page-child sourceDocumentId not resolved"
+  title: "KG viewer claim source link does nothing — page-child sourceDocumentId not resolved on navigation"
   files: [fichero/fichero/Views/, fichero-engine/src/fichero/api/documents.py]
   approach: "Resolve page-child sourceDocumentId to parent document ID before navigation; add /documents/{id}/parent endpoint if Swift cannot resolve alone."
   est_tokens: 18000
@@ -237,6 +207,56 @@
   commit: null
   completed_at: null
 
+- issue: 1038
+  status: pending
+  title: "Activity view is too complex — 8 tabs, much of it low-value; simplify to what users actually need"
+  files: [fichero/fichero/Views/]
+  approach: "Audit all 8 Activity tabs for usage; collapse low-value tabs into 3-4 tabs (Overview grid, Progress, Log, Timing)."
+  est_tokens: 18000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1032
+  status: pending
+  title: "Unify search into one always-visible top search bar with consistent scope (documents + vectors + KG)"
+  files: [fichero/fichero/Views/]
+  approach: "Add a single top-level SearchBar visible in all modes; route queries to the unified search endpoint with scope toggle chips."
+  est_tokens: 20000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1059
+  status: pending
+  title: "Consolidate model/provider selection — ~6 separate picker UIs, inconsistent behaviour"
+  files: [fichero/fichero/Views/]
+  approach: "Audit all 6 provider/model picker sites; extract a single ModelProviderPicker component reused everywhere with consistent state."
+  est_tokens: 22000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1052
+  status: pending
+  title: "Color-code KG entities vs. searchable terms in the document/library view"
+  files: [fichero/fichero/Views/]
+  approach: "Assign distinct highlight colors per entity type (person/place/concept) in the document text view; add a legend chip in the toolbar."
+  est_tokens: 16000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1043
+  status: pending
+  title: "Dependency audit + update sweep (langchain/langgraph et al.) — post-0.0.2"
+  files: [fichero-engine/requirements.txt, fichero-engine/pyproject.toml]
+  approach: "Run pip-audit + pip list --outdated; update langchain/langgraph/litellm/lancedb to latest compatible; run unit tests to confirm nothing breaks."
+  est_tokens: 8000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
 - issue: 975
   status: pending
   title: "Structured transcript ingest: timecoded segments + speaker diarization as artifacts"
@@ -251,7 +271,7 @@
   status: pending
   title: "Translation + modernization workflow nodes: archaic → modern, source → user language"
   files: [fichero-engine/src/fichero/workflows/nodes/, fichero-engine/src/fichero/workflows/tools/]
-  approach: "Add translate_node and modernize_node using LLM with configurable source/target language; follow the existing node pattern (catalogue.py or ocr_cleanup.py as template)."
+  approach: "Add translate_node and modernize_node using LLM with configurable source/target language; follow the existing node pattern (catalogue.py as template)."
   est_tokens: 22000
   blocked_reason: null
   commit: null
@@ -267,6 +287,16 @@
   commit: null
   completed_at: null
 
+- issue: 1101
+  status: pending
+  title: "Bibliographic metadata: add canonical BibTeX field + import-time sidecar reader (.bib / .ris / .csl.json / Zotero)"
+  files: [fichero-engine/src/fichero/ingest/, fichero-engine/src/fichero/models/, fichero-engine/src/fichero/db.py]
+  approach: "Add bibtex_raw column to Document via _ensure_table; parse .bib/.ris/.csl.json sidecars at ingest and store normalized BibTeX string."
+  est_tokens: 25000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
 - issue: 1102
   status: pending
   title: "User-extensible epistemic statuses + claim kinds (registry, companion to #874)"
@@ -277,17 +307,7 @@
   commit: null
   completed_at: null
 
-- issue: 1101
-  status: pending
-  title: "Bibliographic metadata: add canonical BibTeX field + import-time sidecar reader"
-  files: [fichero-engine/src/fichero/ingest/, fichero-engine/src/fichero/models/, fichero-engine/src/fichero/db.py]
-  approach: "Add bibtex_raw column to Document via _ensure_table; parse .bib/.ris/.csl.json sidecars at ingest and store normalized BibTeX string."
-  est_tokens: 25000
-  blocked_reason: null
-  commit: null
-  completed_at: null
-
-# ── Blocked (architecture design needed — do not pick up) ─────────────────────
+# ── Blocked (architecture decision needed — do not pick up) ───────────────────
 
 - issue: 873
   status: blocked
