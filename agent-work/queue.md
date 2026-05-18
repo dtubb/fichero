@@ -4,17 +4,17 @@
 # ── Priority 1: Small bugs (≤12k tokens) ─────────────────────────────────────
 
 - issue: 1043
-  status: in_progress
+  status: done
   title: "Dependency audit + update sweep (langchain/langgraph et al.) — post-0.0.2"
   files: [fichero-engine/requirements.txt, fichero-engine/pyproject.toml]
   approach: "Run pip-audit + pip list --outdated; update langchain/langgraph/litellm/lancedb to latest compatible; run unit tests to confirm nothing breaks."
   est_tokens: 8000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 579f0101
+  completed_at: 2026-05-18T15:47:31-03:00
 
 - issue: 747
-  status: pending
+  status: in_progress
   title: "Inspector: text selection persists when switching documents"
   files: [fichero/fichero/Views/]
   approach: "Clear NSTextView/RTFEditor selection state when detailDocument binding changes so stale selection from previous doc is not carried over."
