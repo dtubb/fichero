@@ -72,22 +72,22 @@
   completed_at: null
 
 - issue: 1098
-  status: in_progress
+  status: blocked
   title: "Catalogue: bulk 'catalogue each selected folder' fan-out (500 folders)"
   files: [fichero-engine/src/fichero/workflows/nodes/catalogue.py, fichero-engine/src/fichero/api/workflows.py]
   approach: "Add selection-aware fan-out mode using LangGraph Send API to dispatch one catalogue sub-run per folder from a single workflow invocation."
   est_tokens: 35000
-  blocked_reason: null
+  blocked_reason: "Workflow foundation added; full fan-out dispatch requires builder.py architecture review"
   commit: null
   completed_at: null
 
 - issue: 971
-  status: pending
+  status: blocked
   title: "Cross-page paragraphs / quotes: NER loses context when text spans a page boundary"
   files: [fichero-engine/src/fichero/workflows/tools/extract_all.py, fichero-engine/src/fichero/ocr/]
   approach: "Overlap adjacent page text windows by a configurable token margin before feeding to extract_all so spans crossing page boundaries appear in at least one extraction window."
   est_tokens: 20000
-  blocked_reason: null
+  blocked_reason: "architecture review needed for cross-page dedup strategy; requires planning for result merging logic"
   commit: null
   completed_at: null
 
