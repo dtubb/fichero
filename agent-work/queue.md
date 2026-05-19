@@ -55,7 +55,7 @@
   completed_at: null
 
 - issue: 730
-  status: pending
+  status: done
   title: "KG claims: SVO-style claim text + structured triples in metadata"
   files: [fichero-engine/src/fichero/models/knowledge.py, fichero-engine/src/fichero/kg/_common.py, fichero-engine/src/fichero/db.py]
   approach: "Add svo_subject/svo_verb/svo_object fields to KnowledgeClaim via _ensure_table (0.0.x no-migration rule); populate from extract_all output using slug_verb from _common.py. Gate for #1036."
