@@ -243,6 +243,17 @@ extension WorkflowCanvasView {
                     positions["\(node.id):\(port.id)"] = unifiedOutputPoint
                 }
             }
+
+            // Fallback entries for edges stored with the default "output"/"input" port IDs.
+            // The aggregate tool (and others) use named port IDs like "text" or "records",
+            // but EdgeDef.source_port defaults to "output" when not explicitly set, so the
+            // lookup "nodeId:output" would otherwise miss and the edge silently disappears.
+            if positions["\(node.id):output"] == nil, let first = node.outputPorts.first {
+                positions["\(node.id):output"] = positions["\(node.id):\(first.id)"]
+            }
+            if positions["\(node.id):input"] == nil, let first = node.inputPorts.first {
+                positions["\(node.id):input"] = positions["\(node.id):\(first.id)"]
+            }
         }
 
         return positions
