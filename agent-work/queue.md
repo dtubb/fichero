@@ -24,7 +24,7 @@
   completed_at: 2026-05-18T16:41:15-03:00
 
 - issue: 743
-  status: pending
+  status: in_progress
   title: "Engine: lazy-import heavy ML modules to drop cold-start from 25s to ~3s"
   files: [fichero-engine/src/fichero/api/main.py, fichero-engine/src/fichero/workflows/nodes/]
   approach: "Move heavy ML imports (torch, transformers, spacy) inside the functions that use them; use lazy importlib loading at top-level module scope."
@@ -36,7 +36,7 @@
 # ── Priority 2: Medium bugs (12–20k tokens) ──────────────────────────────────
 
 - issue: 764
-  status: pending
+  status: in_progress
   title: "Workflow run: backend appears frozen until activity finally shows up"
   files: [fichero/fichero/Views/]
   approach: "Show an immediate 'Starting…' progress indicator as soon as the run request is posted, before the first SSE event arrives."
