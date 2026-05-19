@@ -5,12 +5,10 @@ import logging
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import Response
 from pydantic import BaseModel
-from langchain_core.runnables.graph import MermaidDrawMethod
 
 from fichero.db import Database
 from fichero.api.main import get_library_database
 from fichero.workflows.workflow_store import WorkflowStore
-from fichero.workflows.builder import build_graph
 from fichero.workflows.runtime import to_workflow_def
 
 from .runner import _generate_workflow_python_code
@@ -78,6 +76,7 @@ async def get_workflow_visualization(
         workflow_def = to_workflow_def(workflow)
 
         # Build compiled graph
+        from fichero.workflows.builder import build_graph  # noqa: PLC0415
         app = build_graph(workflow_def, enable_parallel=True, checkpointer=None)
 
         # Get Mermaid code
@@ -129,6 +128,8 @@ async def get_workflow_visualization_png(
         workflow_def = to_workflow_def(workflow)
 
         # Build compiled graph
+        from fichero.workflows.builder import build_graph  # noqa: PLC0415
+        from langchain_core.runnables.graph import MermaidDrawMethod  # noqa: PLC0415
         app = build_graph(workflow_def, enable_parallel=True, checkpointer=None)
 
         # Get PNG bytes using local PYPPETEER rendering, not remote mermaid.ink

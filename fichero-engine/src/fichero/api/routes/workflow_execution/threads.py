@@ -7,14 +7,11 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
-from langchain_core.runnables.graph import MermaidDrawMethod
 
 from fichero.db import Database
 from fichero.api.main import get_library_database
-from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
 from fichero.workflows.workflow_store import WorkflowStore
 from fichero.workflows.activity import get_activity_tracker
-from fichero.workflows.builder import build_graph
 from fichero.workflows.types import EdgeDef, NodeDef, WorkflowDef
 
 from .schemas import ThreadListResponse
@@ -139,6 +136,7 @@ async def get_thread_history(
     """
     try:
         # Get checkpointer
+        from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer  # noqa: PLC0415
         checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
 
         # Check if thread exists
@@ -621,6 +619,8 @@ async def get_thread_diagram_png(
         # complex graphs whose URL-encoded mermaid source exceeds the upstream
         # limit (#952, #1025).
         try:
+            from fichero.workflows.builder import build_graph  # noqa: PLC0415
+            from langchain_core.runnables.graph import MermaidDrawMethod  # noqa: PLC0415
             app = build_graph(workflow_def, enable_parallel=True, checkpointer=None)
             png_bytes = app.get_graph().draw_mermaid_png(draw_method=MermaidDrawMethod.PYPPETEER)
         except Exception as render_exc:

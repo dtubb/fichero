@@ -20,12 +20,13 @@ import json
 import logging
 import uuid
 import time
-from typing import Any, Callable, AsyncIterator
+from typing import TYPE_CHECKING, Any, Callable, AsyncIterator
 from dataclasses import dataclass, field
 from enum import Enum
 from collections import defaultdict
 
-from langgraph.graph.state import CompiledStateGraph
+if TYPE_CHECKING:
+    from langgraph.graph.state import CompiledStateGraph
 
 from fichero.workflows.types import (
     State as BaseState,

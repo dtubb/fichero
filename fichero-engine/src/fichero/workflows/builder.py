@@ -18,9 +18,6 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from langgraph.graph import StateGraph, START, END
-from langgraph.types import Send
-
 from fichero.workflows.types import State, WorkflowDef, NodeDef
 from fichero.workflows.registry import get_tool, get_tool_def
 from fichero.workflows.resolver import resolve_inputs, evaluate_condition
@@ -235,7 +232,7 @@ def build_graph(
     event_callback: Any | None = None,
     checkpointer: Any | None = None,
     skip_cache: bool = False,
-) -> StateGraph:
+) -> Any:
     """Build a LangGraph StateGraph from a workflow definition.
 
     Args:
@@ -249,6 +246,8 @@ def build_graph(
     Returns:
         Compiled LangGraph ready for execution
     """
+    from langgraph.graph import StateGraph, START, END  # noqa: PLC0415
+
     # Generate human-readable node names for the graph
     node_names = _generate_node_names(workflow)
 
@@ -615,6 +614,8 @@ def _make_fan_out_function(
         target_node_ids: List of target node UUIDs
         node_names: Mapping from UUID to human-readable name
     """
+
+    from langgraph.types import Send  # noqa: PLC0415
 
     def fan_out(state: State) -> list[Send]:
         """Fan out to parallel file processing."""
