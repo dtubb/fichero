@@ -86,7 +86,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[ActivityResponse]"
+        "response_model": "ActivityListResponse"
       },
       {
         "method": "GET",
@@ -102,7 +102,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[ActivityResponse]"
+        "response_model": "ActivityListResponse"
       },
       {
         "method": "GET",
@@ -167,7 +167,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[ActivityResponse]"
+        "response_model": "ActivityListResponse"
       },
       {
         "method": "GET",
@@ -185,7 +185,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[ActivityResponse]"
+        "response_model": "ActivityListResponse"
       },
       {
         "method": "DELETE",
@@ -368,7 +368,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[Annotation]"
+        "response_model": "AnnotationListResponse"
       },
       {
         "method": "GET",
@@ -481,7 +481,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[Note]"
+        "response_model": "NoteListResponse"
       },
       {
         "method": "GET",
@@ -554,7 +554,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "[Note]"
+        "response_model": "NoteListResponse"
       },
       {
         "method": "GET",
@@ -566,7 +566,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "[Note]"
+        "response_model": "NoteListResponse"
       }
     ],
     "projects": [
@@ -594,7 +594,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[Project]"
+        "response_model": "ProjectListResponse"
       },
       {
         "method": "GET",
@@ -673,7 +673,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[ProjectInclusion]"
+        "response_model": "ProjectInclusionListResponse"
       },
       {
         "method": "GET",
@@ -691,7 +691,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[Project]"
+        "response_model": "ProjectListResponse"
       }
     ],
     "artifacts": [
@@ -916,7 +916,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[BatchResponse]"
+        "response_model": "BatchListResponse"
       },
       {
         "method": "GET",
@@ -1173,7 +1173,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[DocumentCitation]"
+        "response_model": "CitationListResponse"
       },
       {
         "method": "GET",
@@ -1185,7 +1185,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "[DocumentCitation]"
+        "response_model": "CitationListResponse"
       },
       {
         "method": "GET",
@@ -1197,7 +1197,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "[DocumentCitation]"
+        "response_model": "CitationListResponse"
       },
       {
         "method": "PATCH",
@@ -1283,7 +1283,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[ClassificationValue]"
+        "response_model": "ClassificationListResponse"
       },
       {
         "method": "POST",
@@ -1343,7 +1343,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "[KnowledgeClaimLink]"
+        "response_model": "ClaimLinkListResponse"
       },
       {
         "method": "GET",
@@ -1361,7 +1361,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[KnowledgeClaim]"
+        "response_model": "ClaimListResponse"
       },
       {
         "method": "POST",
@@ -1442,7 +1442,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[KnowledgeClaim]"
+        "response_model": "ClaimListResponse"
       },
       {
         "method": "PATCH",
@@ -1825,6 +1825,18 @@
       },
       {
         "method": "GET",
+        "path": "/documents/{doc_id}/parent",
+        "operation_id": "get_document_parent_api_documents__doc_id__parent_get",
+        "summary": "Get Document Parent",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "Document"
+      },
+      {
+        "method": "GET",
         "path": "/documents/{doc_id}/related",
         "operation_id": "related_documents_api_documents__doc_id__related_get",
         "summary": "Related Documents",
@@ -1839,7 +1851,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[RelatedDocumentsResponse]"
+        "response_model": "fichero__models__DocumentListResponse"
       },
       {
         "method": "POST",
@@ -1989,7 +2001,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[KnowledgeEntity]"
+        "response_model": "EntityListResponse"
       },
       {
         "method": "GET",
@@ -2012,6 +2024,27 @@
         "query_params": [],
         "request_model": null,
         "response_model": "EntityResolutionResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/entities/top",
+        "operation_id": "top_entities_api_entities_top_get",
+        "summary": "Top Entities",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "entity_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "EntityListResponse"
       },
       {
         "method": "GET",
@@ -2057,27 +2090,6 @@
       },
       {
         "method": "GET",
-        "path": "/entities/top",
-        "operation_id": "top_entities_api_entities_top_get",
-        "summary": "Top Entities",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "entity_type",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "[TopEntityRow]"
-      },
-      {
-        "method": "GET",
         "path": "/entities/{entity_id}/documents",
         "operation_id": "get_entity_documents_api_entities__entity_id__documents_get",
         "summary": "Get Entity Documents",
@@ -2092,7 +2104,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[EntityDocumentLink]"
+        "response_model": "EntityDocumentListResponse"
       },
       {
         "method": "GET",
@@ -2110,7 +2122,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[EntityCoOccurrence]"
+        "response_model": "EntityCoOccurrenceListResponse"
       },
       {
         "method": "GET",
@@ -2182,6 +2194,16 @@
       },
       {
         "method": "POST",
+        "path": "/kg/reset",
+        "operation_id": "reset_kg_api_kg_reset_post",
+        "summary": "Wipe all KG rows so extraction can run fresh",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "KGResetResponse"
+      },
+      {
+        "method": "POST",
         "path": "/kg/rebuild",
         "operation_id": "rebuild_kg_api_kg_rebuild_post",
         "summary": "Backfill KG derived stores",
@@ -2200,7 +2222,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "[TripleSupportResponse]"
+        "response_model": "MutationListResponse"
       },
       {
         "method": "GET",
@@ -2216,7 +2238,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[TripleSupportResponse]"
+        "response_model": "MutationListResponse"
       },
       {
         "method": "GET",
@@ -2237,7 +2259,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[CentralityRow]"
+        "response_model": "KGGraphListResponse"
       },
       {
         "method": "GET",
@@ -2249,7 +2271,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "[CooccurrenceNeighbour]"
+        "response_model": "KGGraphListResponse"
       },
       {
         "method": "GET",
@@ -2352,7 +2374,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[PageRankRow]"
+        "response_model": "KGGraphListResponse"
       },
       {
         "method": "GET",
@@ -2368,7 +2390,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[CommunityRow]"
+        "response_model": "KGGraphListResponse"
       },
       {
         "method": "GET",
@@ -2391,7 +2413,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[SimilarEntityRow]"
+        "response_model": "KGGraphListResponse"
       },
       {
         "method": "GET",
@@ -2401,7 +2423,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[ComponentRow]"
+        "response_model": "KGGraphListResponse"
       },
       {
         "method": "GET",
@@ -2429,7 +2451,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[ClusteringRow]"
+        "response_model": "KGGraphListResponse"
       },
       {
         "method": "POST",
@@ -2473,7 +2495,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[LinkPredictionRow]"
+        "response_model": "KGGraphListResponse"
       },
       {
         "method": "GET",
@@ -2483,7 +2505,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[TrainingResult]"
+        "response_model": "PykeenListResponse"
       },
       {
         "method": "GET",
@@ -2528,7 +2550,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[StoredPrediction]"
+        "response_model": "PykeenListResponse"
       },
       {
         "method": "GET",
@@ -2583,7 +2605,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[KnowledgePredictionRun]"
+        "response_model": "KGPredictionListResponse"
       },
       {
         "method": "POST",
@@ -2622,7 +2644,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[ReviewPairResponse]"
+        "response_model": "ReviewListResponse"
       },
       {
         "method": "POST",
@@ -2658,7 +2680,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[GraphCandidateResponse]"
+        "response_model": "KGGraphListResponse"
       },
       {
         "method": "POST",
@@ -2692,7 +2714,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[LabelRow]"
+        "response_model": "KGGraphListResponse"
       },
       {
         "method": "GET",
@@ -2708,7 +2730,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[MutationRow]"
+        "response_model": "MutationListResponse"
       },
       {
         "method": "POST",
@@ -2797,7 +2819,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[ContradictionEvidence]"
+        "response_model": "ContradictionListResponse"
       },
       {
         "method": "GET",
@@ -2868,7 +2890,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[EntityAuditResponse]"
+        "response_model": "EntityAuditListResponse"
       },
       {
         "method": "POST",
@@ -2930,7 +2952,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[CandidatePair]"
+        "response_model": "KGGraphListResponse"
       },
       {
         "method": "POST",
@@ -2971,16 +2993,16 @@
           }
         ],
         "request_model": null,
-        "response_model": "[KnowledgeGraphInclusion]"
+        "response_model": "KGInclusionListResponse"
       },
       {
         "method": "POST",
         "path": "/kg/interpretations/frameworks",
         "operation_id": "create_framework_api_kg_interpretations_frameworks_post",
-        "summary": "Create an interpretive framework (e.g. 'Marxist historical materialism')",
+        "summary": "Create Framework",
         "path_params": [],
         "query_params": [],
-        "request_model": "FrameworkRequest",
+        "request_model": "FrameworkCreateRequest",
         "response_model": "InterpretiveFramework"
       },
       {
@@ -2989,9 +3011,20 @@
         "operation_id": "list_frameworks_api_kg_interpretations_frameworks_get",
         "summary": "List Frameworks",
         "path_params": [],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "framework_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "is_active",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
         "request_model": null,
-        "response_model": "[InterpretiveFramework]"
+        "response_model": "HermeneuticsListResponse"
       },
       {
         "method": "GET",
@@ -3008,13 +3041,13 @@
       {
         "method": "PATCH",
         "path": "/kg/interpretations/frameworks/{framework_id}",
-        "operation_id": "patch_framework_api_kg_interpretations_frameworks__framework_id__patch",
-        "summary": "Patch Framework",
+        "operation_id": "update_framework_api_kg_interpretations_frameworks__framework_id__patch",
+        "summary": "Update Framework",
         "path_params": [
           "framework_id"
         ],
         "query_params": [],
-        "request_model": "FrameworkPatchRequest",
+        "request_model": "FrameworkUpdateRequest",
         "response_model": "InterpretiveFramework"
       },
       {
@@ -3027,22 +3060,22 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "FrameworkDeactivatedResponse"
       },
       {
         "method": "POST",
-        "path": "/kg/interpretations",
-        "operation_id": "create_interpretation_api_kg_interpretations_post",
-        "summary": "Create an interpretation \u2014 the result of applying a framework to evidence",
+        "path": "/kg/interpretations/interpretations",
+        "operation_id": "create_interpretation_api_kg_interpretations_interpretations_post",
+        "summary": "Create Interpretation",
         "path_params": [],
         "query_params": [],
-        "request_model": "InterpretationRequest",
+        "request_model": "InterpretationCreateRequest",
         "response_model": "Interpretation"
       },
       {
         "method": "GET",
-        "path": "/kg/interpretations",
-        "operation_id": "list_interpretations_api_kg_interpretations_get",
+        "path": "/kg/interpretations/interpretations",
+        "operation_id": "list_interpretations_api_kg_interpretations_interpretations_get",
         "summary": "List Interpretations",
         "path_params": [],
         "query_params": [
@@ -3060,15 +3093,20 @@
             "name": "document_id",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "act",
+            "required": false,
+            "type": "string"
           }
         ],
         "request_model": null,
-        "response_model": "[Interpretation]"
+        "response_model": "HermeneuticsListResponse"
       },
       {
         "method": "GET",
-        "path": "/kg/interpretations/{interpretation_id}",
-        "operation_id": "get_interpretation_api_kg_interpretations__interpretation_id__get",
+        "path": "/kg/interpretations/interpretations/{interpretation_id}",
+        "operation_id": "get_interpretation_api_kg_interpretations_interpretations__interpretation_id__get",
         "summary": "Get Interpretation",
         "path_params": [
           "interpretation_id"
@@ -3079,27 +3117,160 @@
       },
       {
         "method": "PATCH",
-        "path": "/kg/interpretations/{interpretation_id}",
-        "operation_id": "patch_interpretation_api_kg_interpretations__interpretation_id__patch",
-        "summary": "Patch Interpretation",
+        "path": "/kg/interpretations/interpretations/{interpretation_id}",
+        "operation_id": "update_interpretation_api_kg_interpretations_interpretations__interpretation_id__patch",
+        "summary": "Update Interpretation",
         "path_params": [
           "interpretation_id"
         ],
         "query_params": [],
-        "request_model": "InterpretationPatchRequest",
+        "request_model": "InterpretationUpdateRequest",
         "response_model": "Interpretation"
       },
       {
-        "method": "DELETE",
-        "path": "/kg/interpretations/{interpretation_id}",
-        "operation_id": "delete_interpretation_api_kg_interpretations__interpretation_id__delete",
-        "summary": "Delete Interpretation",
+        "method": "POST",
+        "path": "/kg/interpretations/patterns",
+        "operation_id": "create_pattern_api_kg_interpretations_patterns_post",
+        "summary": "Create Pattern",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "PatternCreateRequest",
+        "response_model": "PatternInstance"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/interpretations/patterns",
+        "operation_id": "list_patterns_api_kg_interpretations_patterns_get",
+        "summary": "List Patterns",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "pattern_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "framework_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "HermeneuticsListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/interpretations/patterns/{pattern_id}",
+        "operation_id": "get_pattern_api_kg_interpretations_patterns__pattern_id__get",
+        "summary": "Get Pattern",
         "path_params": [
-          "interpretation_id"
+          "pattern_id"
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "PatternInstance"
+      },
+      {
+        "method": "PATCH",
+        "path": "/kg/interpretations/patterns/{pattern_id}",
+        "operation_id": "update_pattern_api_kg_interpretations_patterns__pattern_id__patch",
+        "summary": "Update Pattern",
+        "path_params": [
+          "pattern_id"
+        ],
+        "query_params": [],
+        "request_model": "PatternUpdateRequest",
+        "response_model": "PatternInstance"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/interpretations/patterns/{pattern_id}/claims/{claim_id}",
+        "operation_id": "add_claim_to_pattern_api_kg_interpretations_patterns__pattern_id__claims__claim_id__post",
+        "summary": "Add Claim To Pattern",
+        "path_params": [
+          "pattern_id",
+          "claim_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PatternInstance"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/interpretations/circle-state",
+        "operation_id": "create_circle_state_api_kg_interpretations_circle_state_post",
+        "summary": "Create Circle State",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CircleStateCreateRequest",
+        "response_model": "HermeneuticCircleState"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/interpretations/circle-state",
+        "operation_id": "list_circle_states_api_kg_interpretations_circle_state_get",
+        "summary": "List Circle States",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "claim_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "HermeneuticsListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/interpretations/circle-state/{state_id}",
+        "operation_id": "get_circle_state_api_kg_interpretations_circle_state__state_id__get",
+        "summary": "Get Circle State",
+        "path_params": [
+          "state_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HermeneuticCircleState"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/interpretations/circle-state/{state_id}/navigate",
+        "operation_id": "navigate_circle_api_kg_interpretations_circle_state__state_id__navigate_post",
+        "summary": "Navigate Circle",
+        "path_params": [
+          "state_id"
+        ],
+        "query_params": [],
+        "request_model": "CircleStateNavigateRequest",
+        "response_model": "HermeneuticCircleState"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/interpretations/circle-state/{state_id}/backtrack",
+        "operation_id": "backtrack_circle_api_kg_interpretations_circle_state__state_id__backtrack_post",
+        "summary": "Backtrack Circle",
+        "path_params": [
+          "state_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HermeneuticCircleState"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/interpretations/suggestions",
+        "operation_id": "suggest_interpretations_api_kg_interpretations_suggestions_post",
+        "summary": "Suggest Interpretations",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "HermesSuggestionRequest",
+        "response_model": "HermesSuggestionListResponse"
       },
       {
         "method": "GET",
@@ -3241,6 +3412,67 @@
         "query_params": [],
         "request_model": "LibraryCreateRequest",
         "response_model": "LibraryCreateResponse"
+      }
+    ],
+    "registry": [
+      {
+        "method": "GET",
+        "path": "/registry",
+        "operation_id": "list_known_libraries_api_registry_get",
+        "summary": "List Known Libraries",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LibraryRegistryResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/registry/add",
+        "operation_id": "add_known_library_api_registry_add_post",
+        "summary": "Add Known Library",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "KnownLibrary"
+      },
+      {
+        "method": "POST",
+        "path": "/registry/update-access",
+        "operation_id": "update_library_access_api_registry_update_access_post",
+        "summary": "Update Library Access",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "KnownLibrary"
+      },
+      {
+        "method": "DELETE",
+        "path": "/registry/{library_path}",
+        "operation_id": "remove_known_library_api_registry__library_path__delete",
+        "summary": "Remove Known Library",
+        "path_params": [
+          "library_path"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
       }
     ],
     "migrations": [
@@ -4108,6 +4340,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": "StatusOkResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/settings/ai-defaults/repair",
+        "operation_id": "repair_ai_defaults_api_settings_ai_defaults_repair_post",
+        "summary": "Repair Ai Defaults",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "StatusOkResponse"
       }
     ],
     "sources": [
@@ -4129,7 +4371,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[SourceUpsertResponse]"
+        "response_model": "SourceListResponse"
       },
       {
         "method": "GET",
@@ -4682,6 +4924,18 @@
         "response_model": "ThreadDeletedResponse"
       },
       {
+        "method": "POST",
+        "path": "/workflow-execution/threads/{thread_id}/cancel",
+        "operation_id": "cancel_workflow_api_workflow_execution_threads__thread_id__cancel_post",
+        "summary": "Cancel Workflow",
+        "path_params": [
+          "thread_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "CancelResponse"
+      },
+      {
         "method": "GET",
         "path": "/workflow-execution/threads/{thread_id}/run",
         "operation_id": "get_workflow_run_api_workflow_execution_threads__thread_id__run_get",
@@ -5042,7 +5296,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[InterpretiveFramework]"
+        "response_model": "HermeneuticsListResponse"
       },
       {
         "method": "GET",
@@ -5119,7 +5373,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[Interpretation]"
+        "response_model": "HermeneuticsListResponse"
       },
       {
         "method": "GET",
@@ -5179,7 +5433,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[PatternInstance]"
+        "response_model": "HermeneuticsListResponse"
       },
       {
         "method": "GET",
@@ -5242,7 +5496,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[HermeneuticCircleState]"
+        "response_model": "HermeneuticsListResponse"
       },
       {
         "method": "GET",
@@ -5288,7 +5542,17 @@
         "path_params": [],
         "query_params": [],
         "request_model": "HermesSuggestionRequest",
-        "response_model": "[HermesSuggestion]"
+        "response_model": "HermesSuggestionListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/hermeneutics/taxonomy/methods",
+        "operation_id": "get_taxonomy_api_hermeneutics_taxonomy_methods_get",
+        "summary": "Picker values for interpretation editor (acts + framework types)",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "MethodTaxonomyResponse"
       }
     ],
     "mind-palace": [
@@ -5321,7 +5585,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[SpatialRoom]"
+        "response_model": "MindPalaceListResponse"
       },
       {
         "method": "GET",
@@ -5400,7 +5664,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[SpatialNode]"
+        "response_model": "MindPalaceListResponse"
       },
       {
         "method": "GET",
@@ -5467,7 +5731,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[SpatialConnection]"
+        "response_model": "MindPalaceListResponse"
       },
       {
         "method": "DELETE",
@@ -5505,7 +5769,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[SpatialStack]"
+        "response_model": "MindPalaceListResponse"
       },
       {
         "method": "GET",
@@ -5584,7 +5848,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[NativeNote]"
+        "response_model": "MindPalaceListResponse"
       },
       {
         "method": "GET",
@@ -5681,7 +5945,7 @@
         ],
         "query_params": [],
         "request_model": "ArrangeRequest",
-        "response_model": "[SpatialNode]"
+        "response_model": "MindPalaceListResponse"
       },
       {
         "method": "POST",
@@ -5763,7 +6027,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[ResearchProject]"
+        "response_model": "ResearchCrudListResponse"
       },
       {
         "method": "GET",
@@ -5821,7 +6085,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "[ResearchPlan]"
+        "response_model": "ResearchCrudListResponse"
       },
       {
         "method": "GET",
@@ -5867,7 +6131,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "[ResearchTask]"
+        "response_model": "ResearchCrudListResponse"
       },
       {
         "method": "GET",
@@ -5913,7 +6177,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "[ResearchStep]"
+        "response_model": "ResearchCrudListResponse"
       },
       {
         "method": "PATCH",
@@ -5947,7 +6211,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "[SearchSource]"
+        "response_model": "ResearchNotesListResponse"
       },
       {
         "method": "POST",
@@ -5975,7 +6239,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[ResearchNote]"
+        "response_model": "ResearchNotesListResponse"
       },
       {
         "method": "GET",
@@ -6021,7 +6285,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "[ResearchChecklist]"
+        "response_model": "ResearchNotesListResponse"
       },
       {
         "method": "PATCH",
@@ -6141,7 +6405,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[ActionResponse]"
+        "response_model": "ActionListResponse"
       },
       {
         "method": "POST",
@@ -6161,7 +6425,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[ActionResponse]"
+        "response_model": "ActionListResponse"
       },
       {
         "method": "GET",
@@ -6171,7 +6435,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[ActionResponse]"
+        "response_model": "ActionListResponse"
       },
       {
         "method": "GET",
@@ -6187,7 +6451,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[ActionResponse]"
+        "response_model": "ActionListResponse"
       },
       {
         "method": "GET",
@@ -6203,7 +6467,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[ActionResponse]"
+        "response_model": "ActionListResponse"
       },
       {
         "method": "GET",
@@ -6225,7 +6489,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "[ActionResponse]"
+        "response_model": "ActionListResponse"
       },
       {
         "method": "GET",
@@ -6251,7 +6515,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[ActionResponse]"
+        "response_model": "ActionListResponse"
       },
       {
         "method": "GET",
@@ -6458,7 +6722,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[IntegrationInfo]"
+        "response_model": "IntegrationListResponse"
       },
       {
         "method": "GET",
@@ -6468,7 +6732,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[IntegrationInfo]"
+        "response_model": "IntegrationListResponse"
       },
       {
         "method": "GET",
@@ -6530,7 +6794,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[IntegrationItem]"
+        "response_model": "IntegrationListResponse"
       },
       {
         "method": "GET",
@@ -6628,7 +6892,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "DocumentListResponse"
+        "response_model": "fichero__api__routes__integrations__DocumentListResponse"
       },
       {
         "method": "POST",
@@ -6734,7 +6998,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[MCPServerResponse]"
+        "response_model": "MCPServerListResponse"
       },
       {
         "method": "POST",
@@ -7131,7 +7395,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[ScheduleResponse]"
+        "response_model": "ScheduleListResponse"
       },
       {
         "method": "GET",
@@ -7221,7 +7485,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[ScheduleRunResponse]"
+        "response_model": "ScheduleListResponse"
       }
     ],
     "triggers": [
@@ -7264,7 +7528,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[TriggerResponse]"
+        "response_model": "TriggerListResponse"
       },
       {
         "method": "GET",
@@ -7342,7 +7606,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[TriggerExecutionResponse]"
+        "response_model": "TriggerListResponse"
       }
     ]
   }

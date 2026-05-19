@@ -222,11 +222,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ActivityResponse"
-                  },
-                  "title": "Response List Activities Api Activity Get"
+                  "$ref": "#/components/schemas/ActivityListResponse"
                 }
               }
             }
@@ -282,11 +278,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ActivityResponse"
-                  },
-                  "title": "Response Get Recent Activities Api Activity Recent Get"
+                  "$ref": "#/components/schemas/ActivityListResponse"
                 }
               }
             }
@@ -495,11 +487,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ActivityResponse"
-                  },
-                  "title": "Response Get Workflow Activity Api Activity Workflow  Workflow Id  Get"
+                  "$ref": "#/components/schemas/ActivityListResponse"
                 }
               }
             }
@@ -564,11 +552,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ActivityResponse"
-                  },
-                  "title": "Response Get Batch Activity Api Activity Batch  Batch Id  Get"
+                  "$ref": "#/components/schemas/ActivityListResponse"
                 }
               }
             }
@@ -1130,11 +1114,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Annotation"
-                  },
-                  "title": "Response List Annotations Api Annotations Get"
+                  "$ref": "#/components/schemas/AnnotationListResponse"
                 }
               }
             }
@@ -1542,11 +1522,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Note"
-                  },
-                  "title": "Response List Notes Api Notes Get"
+                  "$ref": "#/components/schemas/NoteListResponse"
                 }
               }
             }
@@ -1864,11 +1840,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Note"
-                  },
-                  "title": "Response Backlinks Api Notes  Note Id  Backlinks Get"
+                  "$ref": "#/components/schemas/NoteListResponse"
                 }
               }
             }
@@ -1919,11 +1891,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Note"
-                  },
-                  "title": "Response Forward Links Api Notes  Note Id  Forward Links Get"
+                  "$ref": "#/components/schemas/NoteListResponse"
                 }
               }
             }
@@ -2025,11 +1993,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Project"
-                  },
-                  "title": "Response List Projects Api Projects Get"
+                  "$ref": "#/components/schemas/ProjectListResponse"
                 }
               }
             }
@@ -2356,11 +2320,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ProjectInclusion"
-                  },
-                  "title": "Response List Items Api Projects  Project Id  Items Get"
+                  "$ref": "#/components/schemas/ProjectInclusionListResponse"
                 }
               }
             }
@@ -2421,11 +2381,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Project"
-                  },
-                  "title": "Response Project Membership Api Projects Membership  Target Id  Get"
+                  "$ref": "#/components/schemas/ProjectListResponse"
                 }
               }
             }
@@ -3260,11 +3216,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/BatchResponse"
-                  },
-                  "title": "Response List Batches Api Batches Get"
+                  "$ref": "#/components/schemas/BatchListResponse"
                 }
               }
             }
@@ -4223,11 +4175,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/DocumentCitation"
-                  },
-                  "title": "Response List Citations Api Citations Graph Get"
+                  "$ref": "#/components/schemas/CitationListResponse"
                 }
               }
             }
@@ -4278,11 +4226,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/DocumentCitation"
-                  },
-                  "title": "Response Outbound Api Citations Graph Document  Document Id  Outbound Get"
+                  "$ref": "#/components/schemas/CitationListResponse"
                 }
               }
             }
@@ -4333,11 +4277,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/DocumentCitation"
-                  },
-                  "title": "Response Inbound Api Citations Graph Document  Document Id  Inbound Get"
+                  "$ref": "#/components/schemas/CitationListResponse"
                 }
               }
             }
@@ -4492,11 +4432,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ClassificationValue"
-                  },
-                  "title": "Response List Values Api Classifications Get"
+                  "$ref": "#/components/schemas/ClassificationListResponse"
                 }
               }
             }
@@ -4763,11 +4699,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/KnowledgeClaimLink"
-                  },
-                  "title": "Response List Claim Links Api Claims  Claim Id  Links Get"
+                  "$ref": "#/components/schemas/ClaimLinkListResponse"
                 }
               }
             }
@@ -4995,11 +4927,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/KnowledgeClaim"
-                  },
-                  "title": "Response Get Related Claims Api Claims  Claim Id  Related Get"
+                  "$ref": "#/components/schemas/ClaimListResponse"
                 }
               }
             }
@@ -5218,11 +5146,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/KnowledgeClaim"
-                  },
-                  "title": "Response List Claims Api Claims Get"
+                  "$ref": "#/components/schemas/ClaimListResponse"
                 }
               }
             }
@@ -5944,6 +5868,58 @@
         }
       }
     },
+    "/api/documents/{doc_id}/parent": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Get Document Parent",
+        "description": "Get the immediate parent of a document.",
+        "operationId": "get_document_parent_api_documents__doc_id__parent_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{doc_id}/related": {
       "get": {
         "tags": [
@@ -5988,11 +5964,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/RelatedDocumentsResponse"
-                  },
-                  "title": "Response Related Documents Api Documents  Doc Id  Related Get"
+                  "$ref": "#/components/schemas/fichero__models__DocumentListResponse"
                 }
               }
             }
@@ -6648,11 +6620,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/KnowledgeEntity"
-                  },
-                  "title": "Response List Entities Api Entities Get"
+                  "$ref": "#/components/schemas/EntityListResponse"
                 }
               }
             }
@@ -6750,6 +6718,72 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EntityResolutionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/entities/top": {
+      "get": {
+        "tags": [
+          "entities",
+          "entities"
+        ],
+        "summary": "Top Entities",
+        "description": "Top-N entities by claim count across the whole library.\n\nPowers a 'Who's in this archive?' entry-point \u2014 the catalogue\nworkflow extracts entities per page; this aggregates per-entity\nclaim counts so the user can browse by salience instead of\ntyping a name they already know.\n\nOptional `entity_type` filter (people / places / organizations\n/ dates / events / other) restricts the cloud to one kind.",
+        "operationId": "top_entities_api_entities_top_get",
+        "parameters": [
+          {
+            "name": "entity_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
+              "nullable": true,
+              "title": "Entity Type"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityListResponse"
                 }
               }
             }
@@ -6937,76 +6971,6 @@
         }
       }
     },
-    "/api/entities/top": {
-      "get": {
-        "tags": [
-          "entities",
-          "entities"
-        ],
-        "summary": "Top Entities",
-        "description": "Top-N entities by claim count across the whole library.\n\nPowers a 'Who's in this archive?' entry-point \u2014 the catalogue\nworkflow extracts entities per page; this aggregates per-entity\nclaim counts so the user can browse by salience instead of\ntyping a name they already know.\n\nOptional `entity_type` filter (people / places / organizations\n/ dates / events / other) restricts the cloud to one kind.",
-        "operationId": "top_entities_api_entities_top_get",
-        "parameters": [
-          {
-            "name": "entity_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
-              "nullable": true,
-              "title": "Entity Type"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 200,
-              "minimum": 1,
-              "default": 30,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TopEntityRow"
-                  },
-                  "title": "Response Top Entities Api Entities Top Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/entities/{entity_id}/documents": {
       "get": {
         "tags": [
@@ -7052,11 +7016,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EntityDocumentLink"
-                  },
-                  "title": "Response Get Entity Documents Api Entities  Entity Id  Documents Get"
+                  "$ref": "#/components/schemas/EntityDocumentListResponse"
                 }
               }
             }
@@ -7119,11 +7079,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EntityCoOccurrence"
-                  },
-                  "title": "Response Get Entity Co Occurrence Api Entities  Entity Id  Co Occurrence Get"
+                  "$ref": "#/components/schemas/EntityCoOccurrenceListResponse"
                 }
               }
             }
@@ -7772,6 +7728,217 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LibraryCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/registry": {
+      "get": {
+        "tags": [
+          "library"
+        ],
+        "summary": "List Known Libraries",
+        "description": "List all known libraries in the registry.\n\nReturns libraries sorted by last_accessed descending, with most\nrecently accessed libraries first for CLI \"recent\" list UX.",
+        "operationId": "list_known_libraries_api_registry_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryRegistryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/registry/add": {
+      "post": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Add Known Library",
+        "description": "Add a library path to the known libraries registry.\n\nArgs:\n    path: Absolute path to the .fichero package (must be expanded already)\n    name: Optional display name (defaults to package basename)\n    db: Database instance injected by FastAPI\n\nReturns:\n    The KnownLibrary record that was created or updated.\n\nRaises:\n    400: If path is invalid or not a .fichero package\n    500: If database operation fails",
+        "operationId": "add_known_library_api_registry_add_post",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Path"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Name"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnownLibrary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/registry/update-access": {
+      "post": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Update Library Access",
+        "description": "Mark a library as accessed (update last_accessed timestamp).\n\nUsed by CLI to track which libraries the user works with, enabling\nsorting by recency in list operations.\n\nArgs:\n    path: Absolute path to the .fichero package\n    db: Database instance injected by FastAPI\n\nReturns:\n    The updated KnownLibrary record\n\nRaises:\n    404: If the library is not in the registry\n    500: If database operation fails",
+        "operationId": "update_library_access_api_registry_update_access_post",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnownLibrary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/registry/{library_path}": {
+      "delete": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Remove Known Library",
+        "description": "Remove a library from the known libraries registry.\n\nThe library path is URL-encoded in the route param. Returns empty\nresponse with 204 on success.\n\nArgs:\n    library_path: URL-encoded absolute path to the .fichero package\n    db: Database instance injected by FastAPI\n\nRaises:\n    404: If the library is not in the registry\n    500: If database operation fails",
+        "operationId": "remove_known_library_api_registry__library_path__delete",
+        "parameters": [
+          {
+            "name": "library_path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Library Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Remove Known Library Api Registry  Library Path  Delete"
                 }
               }
             }
@@ -10891,6 +11058,29 @@
         }
       }
     },
+    "/api/settings/ai-defaults/repair": {
+      "post": {
+        "tags": [
+          "settings",
+          "settings"
+        ],
+        "summary": "Repair Ai Defaults",
+        "description": "Re-seed any missing tier-alias defaults to Apple on-device models.\n\nSafe to call on an existing library \u2014 only fills gaps, never overwrites\nvalues the user has already set. Fixes libraries created before the\nfactory-defaults seed was added (#1057).",
+        "operationId": "repair_ai_defaults_api_settings_ai_defaults_repair_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusOkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sources": {
       "post": {
         "tags": [
@@ -10969,11 +11159,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SourceUpsertResponse"
-                  },
-                  "title": "Response List Sources Api Sources Get"
+                  "$ref": "#/components/schemas/SourceListResponse"
                 }
               }
             }
@@ -13605,6 +13791,49 @@
         }
       }
     },
+    "/api/workflow-execution/threads/{thread_id}/cancel": {
+      "post": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Cancel Workflow",
+        "description": "Signal a running workflow to stop at the next astream_events\ntick (#1127).\n\nThe runner's astream_events loop checks ``state[\"cancel_requested\"]``\non every event; setting it here causes the loop to break,\na ``workflow_cancelled`` SSE event to fire, and an activity-log\nentry to record the cancellation. Partial results (artifacts,\nentities, claims already written) are intentionally preserved so\na comparison loop can inspect what got done before the user\ninterrupted.\n\nIdempotent: cancelling a thread that's already cancelled /\ncompleted / failed returns ``status=\"already_terminal\"`` and a\ndescriptive message instead of raising. Cancelling a thread that\nisn't in the running registry at all returns\n``status=\"not_running\"``.",
+        "operationId": "cancel_workflow_api_workflow_execution_threads__thread_id__cancel_post",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workflow-execution/threads/{thread_id}/run": {
       "get": {
         "tags": [
@@ -14899,6 +15128,49 @@
         }
       }
     },
+    "/api/kg/reset": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Wipe all KG rows so extraction can run fresh",
+        "description": "Deletes every KnowledgeEntity, KnowledgeClaim, and KnowledgeClaimLink row in the library. Documents and Artifacts are not touched. Use before re-running Catalogue/Extract workflows to get a clean slate.",
+        "operationId": "reset_kg_api_kg_reset_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KGResetResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kg/rebuild": {
       "post": {
         "tags": [
@@ -14987,11 +15259,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TripleSupportResponse"
-                  },
-                  "title": "Response Entity Triangulation Api Kg Triangulation Entity  Entity Id  Get"
+                  "$ref": "#/components/schemas/MutationListResponse"
                 }
               }
             }
@@ -15047,11 +15315,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TripleSupportResponse"
-                  },
-                  "title": "Response Library Triangulation Api Kg Triangulation Get"
+                  "$ref": "#/components/schemas/MutationListResponse"
                 }
               }
             }
@@ -15118,11 +15382,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CentralityRow"
-                  },
-                  "title": "Response Centrality Api Kg Graph Centrality Get"
+                  "$ref": "#/components/schemas/KGGraphListResponse"
                 }
               }
             }
@@ -15174,11 +15434,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CooccurrenceNeighbour"
-                  },
-                  "title": "Response Cooccurrence Neighbours Api Kg Graph Cooccurrence  Entity Id  Get"
+                  "$ref": "#/components/schemas/KGGraphListResponse"
                 }
               }
             }
@@ -15514,11 +15770,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/PageRankRow"
-                  },
-                  "title": "Response Pagerank Api Kg Graph Pagerank Get"
+                  "$ref": "#/components/schemas/KGGraphListResponse"
                 }
               }
             }
@@ -15572,11 +15824,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CommunityRow"
-                  },
-                  "title": "Response Communities Api Kg Graph Communities Get"
+                  "$ref": "#/components/schemas/KGGraphListResponse"
                 }
               }
             }
@@ -15651,11 +15899,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SimilarEntityRow"
-                  },
-                  "title": "Response Similar Api Kg Graph Similar  Entity Id  Get"
+                  "$ref": "#/components/schemas/KGGraphListResponse"
                 }
               }
             }
@@ -15698,11 +15942,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ComponentRow"
-                  },
-                  "title": "Response Components Api Kg Graph Components Get"
+                  "$ref": "#/components/schemas/KGGraphListResponse"
                 }
               }
             }
@@ -15809,11 +16049,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ClusteringRow"
-                  },
-                  "title": "Response Clustering Api Kg Graph Clustering Get"
+                  "$ref": "#/components/schemas/KGGraphListResponse"
                 }
               }
             }
@@ -15954,11 +16190,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/LinkPredictionRow"
-                  },
-                  "title": "Response Predict Api Kg Pykeen Predict  Entity Id  Get"
+                  "$ref": "#/components/schemas/KGGraphListResponse"
                 }
               }
             }
@@ -15989,11 +16221,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/TrainingResult"
-                  },
-                  "type": "array",
-                  "title": "Response List Training Jobs Api Kg Pykeen Training Jobs Get"
+                  "$ref": "#/components/schemas/PykeenListResponse"
                 }
               }
             }
@@ -16120,11 +16348,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/StoredPrediction"
-                  },
-                  "title": "Response List Stored Predictions Api Kg Pykeen Stored Get"
+                  "$ref": "#/components/schemas/PykeenListResponse"
                 }
               }
             }
@@ -16336,11 +16560,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/KnowledgePredictionRun"
-                  },
-                  "title": "Response List Prediction Runs Api Kg Predictions Get"
+                  "$ref": "#/components/schemas/KGPredictionListResponse"
                 }
               }
             }
@@ -16471,11 +16691,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ReviewPairResponse"
-                  },
-                  "title": "Response List Pairs Api Kg Review Pairs Get"
+                  "$ref": "#/components/schemas/ReviewListResponse"
                 }
               }
             }
@@ -16603,11 +16819,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/GraphCandidateResponse"
-                  },
-                  "title": "Response Graph Candidates Api Kg Review Graph Candidates Get"
+                  "$ref": "#/components/schemas/KGGraphListResponse"
                 }
               }
             }
@@ -16753,11 +16965,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/LabelRow"
-                  },
-                  "title": "Response List Labels Api Kg Review Labels Get"
+                  "$ref": "#/components/schemas/KGGraphListResponse"
                 }
               }
             }
@@ -16812,11 +17020,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/MutationRow"
-                  },
-                  "title": "Response List Mutations Api Kg Mutations Get"
+                  "$ref": "#/components/schemas/MutationListResponse"
                 }
               }
             }
@@ -17322,11 +17526,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ContradictionEvidence"
-                  },
-                  "title": "Response Contradictions Api Kg Claim Analysis  Claim Id  Contradictions Get"
+                  "$ref": "#/components/schemas/ContradictionListResponse"
                 }
               }
             }
@@ -17613,11 +17813,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EntityAuditResponse"
-                  },
-                  "title": "Response List Entity Audits Api Kg Entity Curation Audit Get"
+                  "$ref": "#/components/schemas/EntityAuditListResponse"
                 }
               }
             }
@@ -17829,11 +18025,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CandidatePair"
-                  },
-                  "title": "Response Candidate Pairs Api Kg Entity Curation Candidates Get"
+                  "$ref": "#/components/schemas/KGGraphListResponse"
                 }
               }
             }
@@ -18000,11 +18192,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/KnowledgeGraphInclusion"
-                  },
-                  "title": "Response List Inclusion Api Kg Inclusion Get"
+                  "$ref": "#/components/schemas/KGInclusionListResponse"
                 }
               }
             }
@@ -18116,11 +18304,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/InterpretiveFramework"
-                  },
-                  "title": "Response List Frameworks Api Hermeneutics Frameworks Get"
+                  "$ref": "#/components/schemas/HermeneuticsListResponse"
                 }
               }
             }
@@ -18411,11 +18595,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Interpretation"
-                  },
-                  "title": "Response List Interpretations Api Hermeneutics Interpretations Get"
+                  "$ref": "#/components/schemas/HermeneuticsListResponse"
                 }
               }
             }
@@ -18647,11 +18827,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/PatternInstance"
-                  },
-                  "title": "Response List Patterns Api Hermeneutics Patterns Get"
+                  "$ref": "#/components/schemas/HermeneuticsListResponse"
                 }
               }
             }
@@ -18923,11 +19099,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/HermeneuticCircleState"
-                  },
-                  "title": "Response List Circle States Api Hermeneutics Circle State Get"
+                  "$ref": "#/components/schemas/HermeneuticsListResponse"
                 }
               }
             }
@@ -19143,11 +19315,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/HermesSuggestion"
-                  },
-                  "title": "Response Suggest Interpretations Api Hermeneutics Suggestions Post"
+                  "$ref": "#/components/schemas/HermesSuggestionListResponse"
                 }
               }
             }
@@ -19165,12 +19333,33 @@
         }
       }
     },
+    "/api/hermeneutics/taxonomy/methods": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Picker values for interpretation editor (acts + framework types)",
+        "operationId": "get_taxonomy_api_hermeneutics_taxonomy_methods_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MethodTaxonomyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kg/interpretations/frameworks": {
       "post": {
         "tags": [
           "knowledge-graph"
         ],
-        "summary": "Create an interpretive framework (e.g. 'Marxist historical materialism')",
+        "summary": "Create Framework",
         "operationId": "create_framework_api_kg_interpretations_frameworks_post",
         "parameters": [
           {
@@ -19188,7 +19377,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/FrameworkRequest"
+                "$ref": "#/components/schemas/FrameworkCreateRequest"
               }
             }
           }
@@ -19224,6 +19413,26 @@
         "operationId": "list_frameworks_api_kg_interpretations_frameworks_get",
         "parameters": [
           {
+            "name": "framework_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/FrameworkType",
+              "nullable": true,
+              "title": "Framework Type"
+            }
+          },
+          {
+            "name": "is_active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "nullable": true,
+              "title": "Is Active"
+            }
+          },
+          {
             "name": "X-Fichero-Library-Path",
             "in": "header",
             "required": true,
@@ -19239,11 +19448,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/InterpretiveFramework"
-                  },
-                  "title": "Response List Frameworks Api Kg Interpretations Frameworks Get"
+                  "$ref": "#/components/schemas/HermeneuticsListResponse"
                 }
               }
             }
@@ -19315,8 +19520,8 @@
         "tags": [
           "knowledge-graph"
         ],
-        "summary": "Patch Framework",
-        "operationId": "patch_framework_api_kg_interpretations_frameworks__framework_id__patch",
+        "summary": "Update Framework",
+        "operationId": "update_framework_api_kg_interpretations_frameworks__framework_id__patch",
         "parameters": [
           {
             "name": "framework_id",
@@ -19342,7 +19547,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/FrameworkPatchRequest"
+                "$ref": "#/components/schemas/FrameworkUpdateRequest"
               }
             }
           }
@@ -19397,8 +19602,15 @@
           }
         ],
         "responses": {
-          "204": {
-            "description": "Successful Response"
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FrameworkDeactivatedResponse"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -19413,13 +19625,13 @@
         }
       }
     },
-    "/api/kg/interpretations": {
+    "/api/kg/interpretations/interpretations": {
       "post": {
         "tags": [
           "knowledge-graph"
         ],
-        "summary": "Create an interpretation \u2014 the result of applying a framework to evidence",
-        "operationId": "create_interpretation_api_kg_interpretations_post",
+        "summary": "Create Interpretation",
+        "operationId": "create_interpretation_api_kg_interpretations_interpretations_post",
         "parameters": [
           {
             "name": "X-Fichero-Library-Path",
@@ -19436,7 +19648,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/InterpretationRequest"
+                "$ref": "#/components/schemas/InterpretationCreateRequest"
               }
             }
           }
@@ -19469,7 +19681,7 @@
           "knowledge-graph"
         ],
         "summary": "List Interpretations",
-        "operationId": "list_interpretations_api_kg_interpretations_get",
+        "operationId": "list_interpretations_api_kg_interpretations_interpretations_get",
         "parameters": [
           {
             "name": "framework_id",
@@ -19502,6 +19714,16 @@
             }
           },
           {
+            "name": "act",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/InterpretiveActType",
+              "nullable": true,
+              "title": "Act"
+            }
+          },
+          {
             "name": "X-Fichero-Library-Path",
             "in": "header",
             "required": true,
@@ -19517,11 +19739,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Interpretation"
-                  },
-                  "title": "Response List Interpretations Api Kg Interpretations Get"
+                  "$ref": "#/components/schemas/HermeneuticsListResponse"
                 }
               }
             }
@@ -19539,13 +19757,13 @@
         }
       }
     },
-    "/api/kg/interpretations/{interpretation_id}": {
+    "/api/kg/interpretations/interpretations/{interpretation_id}": {
       "get": {
         "tags": [
           "knowledge-graph"
         ],
         "summary": "Get Interpretation",
-        "operationId": "get_interpretation_api_kg_interpretations__interpretation_id__get",
+        "operationId": "get_interpretation_api_kg_interpretations_interpretations__interpretation_id__get",
         "parameters": [
           {
             "name": "interpretation_id",
@@ -19593,8 +19811,8 @@
         "tags": [
           "knowledge-graph"
         ],
-        "summary": "Patch Interpretation",
-        "operationId": "patch_interpretation_api_kg_interpretations__interpretation_id__patch",
+        "summary": "Update Interpretation",
+        "operationId": "update_interpretation_api_kg_interpretations_interpretations__interpretation_id__patch",
         "parameters": [
           {
             "name": "interpretation_id",
@@ -19620,7 +19838,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/InterpretationPatchRequest"
+                "$ref": "#/components/schemas/InterpretationUpdateRequest"
               }
             }
           }
@@ -19647,21 +19865,94 @@
             }
           }
         }
-      },
-      "delete": {
+      }
+    },
+    "/api/kg/interpretations/patterns": {
+      "post": {
         "tags": [
           "knowledge-graph"
         ],
-        "summary": "Delete Interpretation",
-        "operationId": "delete_interpretation_api_kg_interpretations__interpretation_id__delete",
+        "summary": "Create Pattern",
+        "operationId": "create_pattern_api_kg_interpretations_patterns_post",
         "parameters": [
           {
-            "name": "interpretation_id",
-            "in": "path",
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Interpretation Id"
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatternCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatternInstance"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "List Patterns",
+        "operationId": "list_patterns_api_kg_interpretations_patterns_get",
+        "parameters": [
+          {
+            "name": "pattern_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Pattern Type"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PatternStatus",
+              "nullable": true,
+              "title": "Status"
+            }
+          },
+          {
+            "name": "framework_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Framework Id"
             }
           },
           {
@@ -19675,8 +19966,503 @@
           }
         ],
         "responses": {
-          "204": {
-            "description": "Successful Response"
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HermeneuticsListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/interpretations/patterns/{pattern_id}": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Get Pattern",
+        "operationId": "get_pattern_api_kg_interpretations_patterns__pattern_id__get",
+        "parameters": [
+          {
+            "name": "pattern_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pattern Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatternInstance"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Update Pattern",
+        "operationId": "update_pattern_api_kg_interpretations_patterns__pattern_id__patch",
+        "parameters": [
+          {
+            "name": "pattern_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pattern Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatternUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatternInstance"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/interpretations/patterns/{pattern_id}/claims/{claim_id}": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Add Claim To Pattern",
+        "operationId": "add_claim_to_pattern_api_kg_interpretations_patterns__pattern_id__claims__claim_id__post",
+        "parameters": [
+          {
+            "name": "pattern_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pattern Id"
+            }
+          },
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Claim Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatternInstance"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/interpretations/circle-state": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Create Circle State",
+        "operationId": "create_circle_state_api_kg_interpretations_circle_state_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CircleStateCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HermeneuticCircleState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "List Circle States",
+        "operationId": "list_circle_states_api_kg_interpretations_circle_state_get",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Claim Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HermeneuticsListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/interpretations/circle-state/{state_id}": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Get Circle State",
+        "operationId": "get_circle_state_api_kg_interpretations_circle_state__state_id__get",
+        "parameters": [
+          {
+            "name": "state_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "State Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HermeneuticCircleState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/interpretations/circle-state/{state_id}/navigate": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Navigate Circle",
+        "operationId": "navigate_circle_api_kg_interpretations_circle_state__state_id__navigate_post",
+        "parameters": [
+          {
+            "name": "state_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "State Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CircleStateNavigateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HermeneuticCircleState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/interpretations/circle-state/{state_id}/backtrack": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Backtrack Circle",
+        "operationId": "backtrack_circle_api_kg_interpretations_circle_state__state_id__backtrack_post",
+        "parameters": [
+          {
+            "name": "state_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "State Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HermeneuticCircleState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/interpretations/suggestions": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Suggest Interpretations",
+        "description": "Generate AI interpretation suggestions for claims.\n\nUses available LiteLLM providers to suggest how frameworks might\nbe applied to the given claims. Returns ranked suggestions.",
+        "operationId": "suggest_interpretations_api_kg_interpretations_suggestions_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HermesSuggestionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HermesSuggestionListResponse"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -19697,7 +20483,6 @@
           "knowledge-graph"
         ],
         "summary": "Picker values for interpretation editor (acts + framework types)",
-        "description": "Returns the enum values for InterpretiveActType + FrameworkType formatted as label/value pairs the Swift inspector can drop straight into a Picker. Consolidated from the older /api/interpretations/taxonomy/methods endpoint per #919.",
         "operationId": "get_taxonomy_api_kg_interpretations_taxonomy_methods_get",
         "responses": {
           "200": {
@@ -20011,11 +20796,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SpatialRoom"
-                  },
-                  "title": "Response List Rooms Api Mind Palace Rooms Get"
+                  "$ref": "#/components/schemas/MindPalaceListResponse"
                 }
               }
             }
@@ -20336,11 +21117,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SpatialNode"
-                  },
-                  "title": "Response List Nodes Api Mind Palace Nodes Get"
+                  "$ref": "#/components/schemas/MindPalaceListResponse"
                 }
               }
             }
@@ -20610,11 +21387,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SpatialConnection"
-                  },
-                  "title": "Response List Connections Api Mind Palace Connections Get"
+                  "$ref": "#/components/schemas/MindPalaceListResponse"
                 }
               }
             }
@@ -20766,11 +21539,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SpatialStack"
-                  },
-                  "title": "Response List Stacks Api Mind Palace Stacks Get"
+                  "$ref": "#/components/schemas/MindPalaceListResponse"
                 }
               }
             }
@@ -21071,11 +21840,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/NativeNote"
-                  },
-                  "title": "Response List Notes Api Mind Palace Notes Get"
+                  "$ref": "#/components/schemas/MindPalaceListResponse"
                 }
               }
             }
@@ -21496,11 +22261,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SpatialNode"
-                  },
-                  "title": "Response Suggest Arrangement Api Mind Palace Rooms  Room Id  Suggest Arrangement Post"
+                  "$ref": "#/components/schemas/MindPalaceListResponse"
                 }
               }
             }
@@ -21792,11 +22553,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ResearchProject"
-                  },
-                  "title": "Response List Projects Api Research Projects Get"
+                  "$ref": "#/components/schemas/ResearchCrudListResponse"
                 }
               }
             }
@@ -22058,11 +22815,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ResearchPlan"
-                  },
-                  "title": "Response List Plans Api Research Projects  Project Id  Plans Get"
+                  "$ref": "#/components/schemas/ResearchCrudListResponse"
                 }
               }
             }
@@ -22275,11 +23028,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ResearchTask"
-                  },
-                  "title": "Response List Tasks Api Research Plans  Plan Id  Tasks Get"
+                  "$ref": "#/components/schemas/ResearchCrudListResponse"
                 }
               }
             }
@@ -22492,11 +23241,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ResearchStep"
-                  },
-                  "title": "Response List Steps Api Research Tasks  Task Id  Steps Get"
+                  "$ref": "#/components/schemas/ResearchCrudListResponse"
                 }
               }
             }
@@ -22660,11 +23405,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SearchSource"
-                  },
-                  "title": "Response List Search Sources Api Research Projects  Project Id  Sources Get"
+                  "$ref": "#/components/schemas/ResearchNotesListResponse"
                 }
               }
             }
@@ -22777,11 +23518,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ResearchNote"
-                  },
-                  "title": "Response List Notes Api Research Projects  Project Id  Notes Get"
+                  "$ref": "#/components/schemas/ResearchNotesListResponse"
                 }
               }
             }
@@ -22994,11 +23731,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ResearchChecklist"
-                  },
-                  "title": "Response List Checklists Api Research Projects  Project Id  Checklists Get"
+                  "$ref": "#/components/schemas/ResearchNotesListResponse"
                 }
               }
             }
@@ -23526,11 +24259,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ActionResponse"
-                  },
-                  "title": "Response List Actions Api Actions Get"
+                  "$ref": "#/components/schemas/ActionListResponse"
                 }
               }
             }
@@ -23626,11 +24355,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ActionResponse"
-                  },
-                  "title": "Response List Builtin Actions Api Actions Builtin Get"
+                  "$ref": "#/components/schemas/ActionListResponse"
                 }
               }
             }
@@ -23674,11 +24399,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ActionResponse"
-                  },
-                  "title": "Response List Custom Actions Api Actions Custom Get"
+                  "$ref": "#/components/schemas/ActionListResponse"
                 }
               }
             }
@@ -23734,11 +24455,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ActionResponse"
-                  },
-                  "title": "Response List Recent Actions Api Actions Recent Get"
+                  "$ref": "#/components/schemas/ActionListResponse"
                 }
               }
             }
@@ -23794,11 +24511,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ActionResponse"
-                  },
-                  "title": "Response List Popular Actions Api Actions Popular Get"
+                  "$ref": "#/components/schemas/ActionListResponse"
                 }
               }
             }
@@ -23895,11 +24608,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ActionResponse"
-                  },
-                  "title": "Response List Actions By Category Api Actions Category  Category  Get"
+                  "$ref": "#/components/schemas/ActionListResponse"
                 }
               }
             }
@@ -23975,11 +24684,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ActionResponse"
-                  },
-                  "title": "Response Search Actions Api Actions Search Get"
+                  "$ref": "#/components/schemas/ActionListResponse"
                 }
               }
             }
@@ -24828,11 +25533,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/IntegrationInfo"
-                  },
-                  "type": "array",
-                  "title": "Response List Integrations Api Integrations Get"
+                  "$ref": "#/components/schemas/IntegrationListResponse"
                 }
               }
             }
@@ -24855,11 +25556,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/IntegrationInfo"
-                  },
-                  "type": "array",
-                  "title": "Response List Available Integrations Api Integrations Available Get"
+                  "$ref": "#/components/schemas/IntegrationListResponse"
                 }
               }
             }
@@ -25033,11 +25730,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/IntegrationItem"
-                  },
-                  "title": "Response List Items Api Integrations  App Name  Items Get"
+                  "$ref": "#/components/schemas/IntegrationListResponse"
                 }
               }
             }
@@ -25384,7 +26077,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DocumentListResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__integrations__DocumentListResponse"
                 }
               }
             }
@@ -25726,11 +26419,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/MCPServerResponse"
-                  },
-                  "type": "array",
-                  "title": "Response List Mcp Servers Api Mcp Servers Get"
+                  "$ref": "#/components/schemas/MCPServerListResponse"
                 }
               }
             }
@@ -27002,11 +27691,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ScheduleResponse"
-                  },
-                  "title": "Response List Schedules Api Schedules Get"
+                  "$ref": "#/components/schemas/ScheduleListResponse"
                 }
               }
             }
@@ -27393,11 +28078,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ScheduleRunResponse"
-                  },
-                  "title": "Response Get Schedule Runs Api Schedules  Schedule Id  Runs Get"
+                  "$ref": "#/components/schemas/ScheduleListResponse"
                 }
               }
             }
@@ -27533,11 +28214,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TriggerResponse"
-                  },
-                  "title": "Response List Triggers Api Triggers Get"
+                  "$ref": "#/components/schemas/TriggerListResponse"
                 }
               }
             }
@@ -27871,11 +28548,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TriggerExecutionResponse"
-                  },
-                  "title": "Response Get Trigger Executions Api Triggers  Trigger Id  Executions Get"
+                  "$ref": "#/components/schemas/TriggerListResponse"
                 }
               }
             }
@@ -28097,6 +28770,26 @@
         ],
         "title": "ActionJsonResponse"
       },
+      "ActionListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ActionListResponse",
+        "description": "Standardized envelope for GET /api/actions list endpoints."
+      },
       "ActionResponse": {
         "properties": {
           "id": {
@@ -28290,6 +28983,26 @@
         ],
         "title": "ActivityFeedResponse",
         "description": "Response for activity feed with grouping."
+      },
+      "ActivityListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ActivityListResponse",
+        "description": "Standardized envelope for GET /api/activity list endpoints."
       },
       "ActivityMetricsSummary": {
         "properties": {
@@ -28989,6 +29702,26 @@
         "title": "AnnotationKind",
         "description": "User annotation kinds (#914).\n\nEach kind has slightly different rendering + payload conventions:\n- highlight: coloured tint over a span; ``color`` + ``rating`` carry weight\n- note: margin/sticky note; ``text`` is the body\n- rating: 1-5 importance flag; ``rating`` carries weight\n- bookmark: navigation marker; ``text`` optional label\n- comment: threaded discussion (future); ``text`` is the body"
       },
+      "AnnotationListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "AnnotationListResponse",
+        "description": "Standardized envelope for GET /api/annotations list endpoints."
+      },
       "AnnotationPatchRequest": {
         "properties": {
           "text": {
@@ -29548,6 +30281,26 @@
         "title": "BatchItemResponse",
         "description": "Response model for a batch item."
       },
+      "BatchListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "BatchListResponse",
+        "description": "Standardized envelope for GET /api/batch list endpoints."
+      },
       "BatchProgressResponse": {
         "properties": {
           "batch_id": {
@@ -29817,51 +30570,34 @@
         "title": "CacheStatsResponse",
         "description": "Response with cache statistics."
       },
-      "CandidatePair": {
+      "CancelResponse": {
         "properties": {
-          "entity_a_id": {
+          "thread_id": {
             "type": "string",
-            "title": "Entity A Id"
+            "title": "Thread Id"
           },
-          "entity_a_name": {
+          "status": {
             "type": "string",
-            "title": "Entity A Name"
+            "title": "Status"
           },
-          "entity_b_id": {
+          "partial_results_preserved": {
+            "type": "boolean",
+            "title": "Partial Results Preserved",
+            "default": true
+          },
+          "message": {
             "type": "string",
-            "title": "Entity B Id"
-          },
-          "entity_b_name": {
-            "type": "string",
-            "title": "Entity B Name"
-          },
-          "jaccard": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Jaccard"
-          },
-          "shared_neighbors": {
-            "type": "integer",
-            "title": "Shared Neighbors"
-          },
-          "entity_type": {
-            "type": "string",
-            "nullable": true,
-            "title": "Entity Type"
+            "title": "Message",
+            "default": ""
           }
         },
         "type": "object",
         "required": [
-          "entity_a_id",
-          "entity_a_name",
-          "entity_b_id",
-          "entity_b_name",
-          "jaccard",
-          "shared_neighbors"
+          "thread_id",
+          "status"
         ],
-        "title": "CandidatePair",
-        "description": "One candidate merge pair surfaced by graph-context similarity."
+        "title": "CancelResponse",
+        "description": "Response from POST /threads/{thread_id}/cancel (#1127).\n\n``partial_results_preserved`` is always True for now \u2014 the issue's\ninvariant is that artifacts and entities written before the cancel\nstay in place. Future work could add a soft-rollback option that\ndeletes per-thread writes; for now we surface the contract clearly\nin the response shape."
       },
       "CaptureRegion": {
         "type": "string",
@@ -29960,40 +30696,6 @@
         ],
         "title": "CategoryToolsResponse",
         "description": "Tools grouped by category."
-      },
-      "CentralityRow": {
-        "properties": {
-          "entity_id": {
-            "type": "string",
-            "title": "Entity Id"
-          },
-          "canonical_name": {
-            "type": "string",
-            "title": "Canonical Name"
-          },
-          "degree": {
-            "type": "integer",
-            "title": "Degree"
-          },
-          "betweenness": {
-            "type": "number",
-            "title": "Betweenness"
-          },
-          "eigenvector": {
-            "type": "number",
-            "title": "Eigenvector"
-          }
-        },
-        "type": "object",
-        "required": [
-          "entity_id",
-          "canonical_name",
-          "degree",
-          "betweenness",
-          "eigenvector"
-        ],
-        "title": "CentralityRow",
-        "description": "One entity in the centrality ranking."
       },
       "ChainCancelResponse": {
         "properties": {
@@ -30756,6 +31458,26 @@
         ],
         "title": "CitationCreateRequest"
       },
+      "CitationListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "CitationListResponse",
+        "description": "Standardized envelope for GET /api/citations list endpoints."
+      },
       "CitationPatchRequest": {
         "properties": {
           "target_document_id": {
@@ -30800,6 +31522,7 @@
           },
           "source_document_id": {
             "type": "string",
+            "nullable": true,
             "title": "Source Document Id"
           },
           "source_segment_id": {
@@ -31007,8 +31730,7 @@
         },
         "type": "object",
         "required": [
-          "text",
-          "source_document_id"
+          "text"
         ],
         "title": "ClaimCreateRequest",
         "description": "Request to create a knowledge claim."
@@ -31081,6 +31803,26 @@
         ],
         "title": "ClaimLinkDeletedResponse"
       },
+      "ClaimLinkListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ClaimLinkListResponse",
+        "description": "Standardized envelope for claim links list endpoints."
+      },
       "ClaimLinkUpdateRequest": {
         "properties": {
           "relation_type": {
@@ -31109,6 +31851,26 @@
         "type": "object",
         "title": "ClaimLinkUpdateRequest",
         "description": "Request to update a claim link."
+      },
+      "ClaimListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ClaimListResponse",
+        "description": "Standardized envelope for GET /api/claims list endpoints."
       },
       "ClaimPatchRequest": {
         "properties": {
@@ -31452,6 +32214,26 @@
         "title": "ClassificationDimension",
         "description": "Which classification axis a registry value belongs to (#915)."
       },
+      "ClassificationListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ClassificationListResponse",
+        "description": "Standardized envelope for GET /api/classifications list endpoints."
+      },
       "ClassificationPatchRequest": {
         "properties": {
           "label": {
@@ -31584,57 +32366,6 @@
           "older_than"
         ],
         "title": "CleanupResponse"
-      },
-      "ClusteringRow": {
-        "properties": {
-          "entity_id": {
-            "type": "string",
-            "title": "Entity Id"
-          },
-          "canonical_name": {
-            "type": "string",
-            "title": "Canonical Name"
-          },
-          "clustering_coefficient": {
-            "type": "number",
-            "title": "Clustering Coefficient"
-          }
-        },
-        "type": "object",
-        "required": [
-          "entity_id",
-          "canonical_name",
-          "clustering_coefficient"
-        ],
-        "title": "ClusteringRow"
-      },
-      "CommunityRow": {
-        "properties": {
-          "entity_id": {
-            "type": "string",
-            "title": "Entity Id"
-          },
-          "canonical_name": {
-            "type": "string",
-            "title": "Canonical Name"
-          },
-          "entity_type": {
-            "type": "string",
-            "nullable": true,
-            "title": "Entity Type"
-          },
-          "community_id": {
-            "type": "integer",
-            "title": "Community Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "entity_id",
-          "canonical_name",
-          "community_id"
-        ],
-        "title": "CommunityRow"
       },
       "CompareRequest": {
         "properties": {
@@ -31822,32 +32553,6 @@
         ],
         "title": "ComparisonToolInfo"
       },
-      "ComponentRow": {
-        "properties": {
-          "component_id": {
-            "type": "integer",
-            "title": "Component Id"
-          },
-          "size": {
-            "type": "integer",
-            "title": "Size"
-          },
-          "entity_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Entity Ids"
-          }
-        },
-        "type": "object",
-        "required": [
-          "component_id",
-          "size",
-          "entity_ids"
-        ],
-        "title": "ComponentRow"
-      },
       "ConnectionCreateRequest": {
         "properties": {
           "room_id": {
@@ -31935,58 +32640,25 @@
         ],
         "title": "ConnectionType"
       },
-      "ContradictionEvidence": {
+      "ContradictionListResponse": {
         "properties": {
-          "claim_id": {
-            "type": "string",
-            "title": "Claim Id"
-          },
-          "contradicting_claim_id": {
-            "type": "string",
-            "title": "Contradicting Claim Id"
-          },
-          "relation_type": {
-            "type": "string",
-            "title": "Relation Type"
-          },
-          "evidence": {
-            "type": "string",
-            "nullable": true,
-            "title": "Evidence"
-          },
-          "link_quality": {
-            "type": "number",
-            "title": "Link Quality"
-          },
-          "source_documents": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
+          "items": {
+            "items": {},
             "type": "array",
-            "title": "Source Documents"
+            "title": "Items"
           },
-          "claim_text": {
-            "type": "string",
-            "title": "Claim Text"
-          },
-          "contradicting_text": {
-            "type": "string",
-            "title": "Contradicting Text"
+          "count": {
+            "type": "integer",
+            "title": "Count"
           }
         },
         "type": "object",
         "required": [
-          "claim_id",
-          "contradicting_claim_id",
-          "relation_type",
-          "evidence",
-          "link_quality",
-          "source_documents",
-          "claim_text",
-          "contradicting_text"
+          "items",
+          "count"
         ],
-        "title": "ContradictionEvidence"
+        "title": "ContradictionListResponse",
+        "description": "Standardized envelope for GET /api/kg-claim-analysis/{claim_id}/contradictions."
       },
       "ConversationDeletedResponse": {
         "properties": {
@@ -32131,35 +32803,6 @@
         "type": "object",
         "title": "ConversationUpdate",
         "description": "Request to update conversation properties."
-      },
-      "CooccurrenceNeighbour": {
-        "properties": {
-          "entity_id": {
-            "type": "string",
-            "title": "Entity Id"
-          },
-          "canonical_name": {
-            "type": "string",
-            "title": "Canonical Name"
-          },
-          "entity_type": {
-            "type": "string",
-            "title": "Entity Type"
-          },
-          "weight": {
-            "type": "integer",
-            "title": "Weight"
-          }
-        },
-        "type": "object",
-        "required": [
-          "entity_id",
-          "canonical_name",
-          "entity_type",
-          "weight"
-        ],
-        "title": "CooccurrenceNeighbour",
-        "description": "One entity adjacent to the query entity in the co-occurrence graph."
       },
       "CostEstimateItem": {
         "properties": {
@@ -33088,6 +33731,11 @@
             "title": "Sort Order",
             "default": 0
           },
+          "case_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Case Id"
+          },
           "expected_thumbnail_path": {
             "type": "string",
             "title": "Expected Thumbnail Path",
@@ -33515,20 +34163,6 @@
         ],
         "title": "DocumentKnowledgeGraphResponse"
       },
-      "DocumentListResponse": {
-        "properties": {
-          "documents": {
-            "items": {},
-            "type": "array",
-            "title": "Documents"
-          }
-        },
-        "type": "object",
-        "required": [
-          "documents"
-        ],
-        "title": "DocumentListResponse"
-      },
       "DocumentSource": {
         "properties": {
           "document_id": {
@@ -33831,6 +34465,26 @@
         "title": "EntityAliasRequest",
         "description": "Request to add aliases to an entity."
       },
+      "EntityAuditListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "EntityAuditListResponse",
+        "description": "Standardized envelope for GET /api/kg-entity-curation/audit."
+      },
       "EntityAuditResponse": {
         "properties": {
           "id": {
@@ -33921,6 +34575,26 @@
         "title": "EntityCoOccurrence",
         "description": "One row of /entities/{id}/co-occurrence \u2014 another entity that\nappears in at least one claim alongside this one, with the count\nof shared claims."
       },
+      "EntityCoOccurrenceListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "EntityCoOccurrenceListResponse",
+        "description": "Standardized envelope for GET /api/entities/{entity_id}/co-occurrence."
+      },
       "EntityDocumentLink": {
         "properties": {
           "document_id": {
@@ -33959,6 +34633,26 @@
         ],
         "title": "EntityDocumentLink",
         "description": "One row of /entities/{id}/documents \u2014 document that mentions\nthis entity at least once via a knowledge claim, with the smallest\nrelevant excerpt and the count of claims linking them."
+      },
+      "EntityDocumentListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "EntityDocumentListResponse",
+        "description": "Standardized envelope for GET /api/entities/{entity_id}/documents."
       },
       "EntityDrillDownResponse": {
         "properties": {
@@ -34080,6 +34774,26 @@
         ],
         "title": "EntityInspectorResponse",
         "description": "Everything the entity-detail view needs in one shot."
+      },
+      "EntityListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "EntityListResponse",
+        "description": "Standardized envelope for GET /api/entities list endpoints."
       },
       "EntityMergeOperationType": {
         "type": "string",
@@ -34852,128 +35566,6 @@
         ],
         "title": "FrameworkDeactivatedResponse"
       },
-      "FrameworkPatchRequest": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "nullable": true,
-            "title": "Name"
-          },
-          "description": {
-            "type": "string",
-            "nullable": true,
-            "title": "Description"
-          },
-          "core_questions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Core Questions"
-          },
-          "key_concepts": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Key Concepts"
-          },
-          "typical_applications": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Typical Applications"
-          },
-          "origin": {
-            "type": "string",
-            "nullable": true,
-            "title": "Origin"
-          },
-          "creator": {
-            "type": "string",
-            "nullable": true,
-            "title": "Creator"
-          },
-          "is_active": {
-            "type": "boolean",
-            "nullable": true,
-            "title": "Is Active"
-          }
-        },
-        "type": "object",
-        "title": "FrameworkPatchRequest"
-      },
-      "FrameworkRequest": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "framework_type": {
-            "$ref": "#/components/schemas/FrameworkType"
-          },
-          "description": {
-            "type": "string",
-            "title": "Description"
-          },
-          "core_questions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Core Questions",
-            "default": []
-          },
-          "key_concepts": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Key Concepts",
-            "default": []
-          },
-          "typical_applications": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Typical Applications",
-            "default": []
-          },
-          "origin": {
-            "type": "string",
-            "nullable": true,
-            "title": "Origin"
-          },
-          "creator": {
-            "type": "string",
-            "nullable": true,
-            "title": "Creator"
-          },
-          "language": {
-            "type": "string",
-            "nullable": true,
-            "title": "Language"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata",
-            "default": {}
-          }
-        },
-        "type": "object",
-        "required": [
-          "name",
-          "framework_type",
-          "description"
-        ],
-        "title": "FrameworkRequest"
-      },
       "FrameworkType": {
         "type": "string",
         "enum": [
@@ -35091,50 +35683,6 @@
         ],
         "title": "GeoPoint",
         "description": "Lat/lon for the spatial scope a claim refers to.\n\nDistinct from entity locations (a claim about Pedro travelling from\nPopay\u00e1n to Quito has a different geo scope than Pedro's birthplace).\nOptional precision_m lets the renderer draw a confidence radius\ninstead of a point pin when locations are imprecise."
-      },
-      "GraphCandidateResponse": {
-        "properties": {
-          "entity_a_id": {
-            "type": "string",
-            "title": "Entity A Id"
-          },
-          "entity_b_id": {
-            "type": "string",
-            "title": "Entity B Id"
-          },
-          "name_a": {
-            "type": "string",
-            "title": "Name A"
-          },
-          "name_b": {
-            "type": "string",
-            "title": "Name B"
-          },
-          "shared_neighbours": {
-            "type": "integer",
-            "title": "Shared Neighbours"
-          },
-          "jaccard": {
-            "type": "number",
-            "title": "Jaccard"
-          },
-          "already_queued": {
-            "type": "boolean",
-            "title": "Already Queued"
-          }
-        },
-        "type": "object",
-        "required": [
-          "entity_a_id",
-          "entity_b_id",
-          "name_a",
-          "name_b",
-          "shared_neighbours",
-          "jaccard",
-          "already_queued"
-        ],
-        "title": "GraphCandidateResponse",
-        "description": "One graph-context merge proposal \u2014 surfaced, not yet queued.\n\nComes from co-occurrence neighbourhood overlap (#988): the two\nentities are never directly co-mentioned but share neighbours, so\nthey may be the same entity under different surface forms. A human\npromotes a proposal into the review queue via POST /pairs."
       },
       "GraphMetricsResponse": {
         "properties": {
@@ -35408,50 +35956,45 @@
         "title": "HermeneuticCircleState",
         "description": "Tracks navigation between parts and wholes in interpretive analysis.\n\nThe hermeneutic circle describes the iterative process of understanding:\nunderstanding parts through wholes, and wholes through parts.\nThis model tracks where the analyst is in that navigation."
       },
-      "HermesSuggestion": {
+      "HermeneuticsListResponse": {
         "properties": {
-          "framework_id": {
-            "type": "string",
-            "title": "Framework Id"
-          },
-          "framework_name": {
-            "type": "string",
-            "title": "Framework Name"
-          },
-          "interpretation_text": {
-            "type": "string",
-            "title": "Interpretation Text"
-          },
-          "confidence": {
-            "type": "number",
-            "title": "Confidence"
-          },
-          "reasoning": {
-            "type": "string",
-            "title": "Reasoning"
-          },
-          "act": {
-            "$ref": "#/components/schemas/InterpretiveActType"
-          },
-          "key_insights": {
-            "items": {
-              "type": "string"
-            },
+          "items": {
+            "items": {},
             "type": "array",
-            "title": "Key Insights"
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
           }
         },
         "type": "object",
         "required": [
-          "framework_id",
-          "framework_name",
-          "interpretation_text",
-          "confidence",
-          "reasoning",
-          "act"
+          "items",
+          "count"
         ],
-        "title": "HermesSuggestion",
-        "description": "A single AI-generated interpretation suggestion."
+        "title": "HermeneuticsListResponse",
+        "description": "Standardized envelope for hermeneutics list endpoints."
+      },
+      "HermesSuggestionListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "HermesSuggestionListResponse",
+        "description": "Standardized envelope for hermeneutics suggestion endpoints."
       },
       "HermesSuggestionRequest": {
         "properties": {
@@ -36016,6 +36559,26 @@
         "title": "IntegrationItem",
         "description": "An item from an integrated app."
       },
+      "IntegrationListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "IntegrationListResponse",
+        "description": "Standardized envelope for GET /api/integrations list endpoints."
+      },
       "Interpretation": {
         "properties": {
           "id": {
@@ -36047,6 +36610,16 @@
           },
           "act": {
             "$ref": "#/components/schemas/InterpretiveActType"
+          },
+          "predicate": {
+            "type": "string",
+            "title": "Predicate",
+            "default": ""
+          },
+          "predicate_canonical": {
+            "type": "string",
+            "nullable": true,
+            "title": "Predicate Canonical"
           },
           "confidence": {
             "type": "number",
@@ -36181,122 +36754,6 @@
           "act"
         ],
         "title": "InterpretationCreateRequest"
-      },
-      "InterpretationPatchRequest": {
-        "properties": {
-          "interpretation_text": {
-            "type": "string",
-            "nullable": true,
-            "title": "Interpretation Text"
-          },
-          "act": {
-            "$ref": "#/components/schemas/InterpretiveActType",
-            "nullable": true
-          },
-          "confidence": {
-            "type": "number",
-            "nullable": true,
-            "title": "Confidence"
-          },
-          "key_insights": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Key Insights"
-          },
-          "tensions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Tensions"
-          },
-          "connections": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Connections"
-          }
-        },
-        "type": "object",
-        "title": "InterpretationPatchRequest"
-      },
-      "InterpretationRequest": {
-        "properties": {
-          "framework_id": {
-            "type": "string",
-            "title": "Framework Id"
-          },
-          "interpretation_text": {
-            "type": "string",
-            "title": "Interpretation Text"
-          },
-          "act": {
-            "$ref": "#/components/schemas/InterpretiveActType"
-          },
-          "claim_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Claim Id"
-          },
-          "document_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Document Id"
-          },
-          "passage_text": {
-            "type": "string",
-            "nullable": true,
-            "title": "Passage Text"
-          },
-          "confidence": {
-            "type": "number",
-            "title": "Confidence",
-            "default": 0.5
-          },
-          "key_insights": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Key Insights",
-            "default": []
-          },
-          "tensions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Tensions",
-            "default": []
-          },
-          "connections": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Connections",
-            "default": []
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata",
-            "default": {}
-          }
-        },
-        "type": "object",
-        "required": [
-          "framework_id",
-          "interpretation_text",
-          "act"
-        ],
-        "title": "InterpretationRequest"
       },
       "InterpretationUpdateRequest": {
         "properties": {
@@ -36538,6 +36995,46 @@
         "title": "KGEntityItem",
         "description": "One deduped row in a kind group.\n\nFor entity-bearing claims this is a canonical KnowledgeEntity.\nFor date-style claims (no entity) it is the claim itself, keyed\non claim text. ``claim_ids`` collects every claim that collapsed\ninto this row so callers can still reach the provenance."
       },
+      "KGGraphListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "KGGraphListResponse",
+        "description": "Standardized envelope for KG graph analytics endpoints."
+      },
+      "KGInclusionListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "KGInclusionListResponse",
+        "description": "Standardized envelope for GET /api/kg-inclusion list endpoints."
+      },
       "KGMetricsResponse": {
         "properties": {
           "entity_count": {
@@ -36606,6 +37103,50 @@
         ],
         "title": "KGMetricsResponse",
         "description": "Response for knowledge graph metrics."
+      },
+      "KGPredictionListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "KGPredictionListResponse",
+        "description": "Standardized envelope for GET /api/kg-predictions list endpoints."
+      },
+      "KGResetResponse": {
+        "properties": {
+          "entities_deleted": {
+            "type": "integer",
+            "title": "Entities Deleted"
+          },
+          "claims_deleted": {
+            "type": "integer",
+            "title": "Claims Deleted"
+          },
+          "links_deleted": {
+            "type": "integer",
+            "title": "Links Deleted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entities_deleted",
+          "claims_deleted",
+          "links_deleted"
+        ],
+        "title": "KGResetResponse",
+        "description": "Counts of rows deleted by a KG reset."
       },
       "KGSearchHit": {
         "properties": {
@@ -36862,6 +37403,24 @@
             "nullable": true,
             "title": "Object Phrase",
             "description": "Object phrase of the SVO triple \u2014 the rest of the predicate after the verb. Example: 'the alcalde of Popay\u00e1n'."
+          },
+          "svo_subject": {
+            "type": "string",
+            "nullable": true,
+            "title": "Svo Subject",
+            "description": "Subject of the SVO triple. Alias for subject_canonical with consistent naming. Populated from extract_all output using normalized entity names."
+          },
+          "svo_verb": {
+            "type": "string",
+            "nullable": true,
+            "title": "Svo Verb",
+            "description": "Verb of the SVO triple. Uses slug_verb from kg/_common.py for canonical normalization. Populated from extract_all output with fallback to synthesized values."
+          },
+          "svo_object": {
+            "type": "string",
+            "nullable": true,
+            "title": "Svo Object",
+            "description": "Object of the SVO triple. Complements svo_subject and svo_verb to form complete structured triples. Populated from extract_all output."
           },
           "entity_ids": {
             "items": {
@@ -37419,134 +37978,38 @@
         ],
         "title": "KnowledgeGraphInclusion"
       },
-      "KnowledgePredictionRun": {
+      "KnownLibrary": {
         "properties": {
           "id": {
             "type": "string",
             "title": "Id"
           },
-          "model_type": {
-            "$ref": "#/components/schemas/PredictionModelType"
+          "path": {
+            "type": "string",
+            "title": "Path"
           },
-          "pykeen_config": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Pykeen Config"
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name"
           },
-          "trained_at": {
+          "added_at": {
             "type": "string",
             "format": "date-time",
-            "title": "Trained At"
+            "title": "Added At"
           },
-          "num_entities": {
-            "type": "integer",
-            "title": "Num Entities",
-            "default": 0
-          },
-          "num_claims": {
-            "type": "integer",
-            "title": "Num Claims",
-            "default": 0
-          },
-          "num_relation_types": {
-            "type": "integer",
-            "title": "Num Relation Types",
-            "default": 0
-          },
-          "mrr": {
-            "type": "number",
-            "nullable": true,
-            "title": "Mrr"
-          },
-          "hits_at_10": {
-            "type": "number",
-            "nullable": true,
-            "title": "Hits At 10"
-          },
-          "hits_at_5": {
-            "type": "number",
-            "nullable": true,
-            "title": "Hits At 5"
-          },
-          "hits_at_1": {
-            "type": "number",
-            "nullable": true,
-            "title": "Hits At 1"
-          },
-          "model_path": {
-            "type": "string",
-            "nullable": true,
-            "title": "Model Path"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status",
-            "default": "trained"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata"
-          }
-        },
-        "additionalProperties": true,
-        "type": "object",
-        "required": [
-          "model_type"
-        ],
-        "title": "KnowledgePredictionRun",
-        "description": "Stores a PyKEEN model training run and its output predictions.\n\nSeparate from individual claim predictions (which are stored in claim.prediction).\nThis tracks which model was trained, on what data, and the resulting predictions."
-      },
-      "LabelRow": {
-        "properties": {
-          "pair_id": {
-            "type": "string",
-            "title": "Pair Id"
-          },
-          "survivor_entity_id": {
-            "type": "string",
-            "title": "Survivor Entity Id"
-          },
-          "candidate_entity_id": {
-            "type": "string",
-            "title": "Candidate Entity Id"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "score": {
-            "type": "number",
-            "title": "Score"
-          },
-          "method": {
-            "type": "string",
-            "title": "Method"
-          },
-          "decided_at": {
+          "last_accessed": {
             "type": "string",
             "format": "date-time",
-            "title": "Decided At"
-          },
-          "decided_by": {
-            "type": "string",
-            "nullable": true,
-            "title": "Decided By"
+            "title": "Last Accessed"
           }
         },
         "type": "object",
         "required": [
-          "pair_id",
-          "survivor_entity_id",
-          "candidate_entity_id",
-          "label",
-          "score",
-          "method",
-          "decided_at",
-          "decided_by"
+          "path"
         ],
-        "title": "LabelRow",
-        "description": "One accumulated decision \u2014 accepted (positive) or rejected (negative).\n\nFeeds splink probabilistic linkage and PyKEEN retraining: the\nunion of accepted-merge pairs and rejected pairs is the training\nset for future automation."
+        "title": "KnownLibrary",
+        "description": "Persistent registry of known libraries.\n\nStored in the backend database to support CLI operations like\nlisting available libraries and switching between them (#1131).\nWhen a library is created via POST /api/library, it's auto-registered."
       },
       "LibraryCreateRequest": {
         "properties": {
@@ -37599,6 +38062,28 @@
           "libraries"
         ],
         "title": "LibraryListResponse"
+      },
+      "LibraryRegistryResponse": {
+        "properties": {
+          "libraries": {
+            "items": {
+              "$ref": "#/components/schemas/KnownLibrary"
+            },
+            "type": "array",
+            "title": "Libraries"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "libraries",
+          "count"
+        ],
+        "title": "LibraryRegistryResponse",
+        "description": "Response from GET /api/registry \u2014 list all known libraries."
       },
       "LibrarySnapshot": {
         "properties": {
@@ -37694,34 +38179,6 @@
         ],
         "title": "LibrarySnapshot",
         "description": "A point-in-time snapshot of a library database and its vectors.\n\nSnapshots are stored as Parquet exports of DuckDB tables plus a copy\nof the LanceDB vector directory. They are named with a timestamp and\nan optional reason, and can be restored to recover from bad AI runs\nor schema changes.\n\nStored in:\n    ~/Library/Application Support/com.fichero.fichero/snapshots/{library_name}/"
-      },
-      "LinkPredictionRow": {
-        "properties": {
-          "subject_id": {
-            "type": "string",
-            "title": "Subject Id"
-          },
-          "predicate": {
-            "type": "string",
-            "title": "Predicate"
-          },
-          "object_id": {
-            "type": "string",
-            "title": "Object Id"
-          },
-          "score": {
-            "type": "number",
-            "title": "Score"
-          }
-        },
-        "type": "object",
-        "required": [
-          "subject_id",
-          "predicate",
-          "object_id",
-          "score"
-        ],
-        "title": "LinkPredictionRow"
       },
       "LocalModelInfoResponse": {
         "properties": {
@@ -37927,6 +38384,26 @@
         ],
         "title": "MCPServerDeletedResponse",
         "description": "Confirmation that an MCP server was deleted."
+      },
+      "MCPServerListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "MCPServerListResponse",
+        "description": "Standardized envelope for GET /api/mcp-servers list endpoints."
       },
       "MCPServerResponse": {
         "properties": {
@@ -38267,7 +38744,7 @@
           "frameworks"
         ],
         "title": "MethodTaxonomyResponse",
-        "description": "Pickers for the interpretation editor \u2014 acts + framework types."
+        "description": "Picker values for the interpretation editor (acts + framework types)."
       },
       "MetricsResponse": {
         "properties": {
@@ -38540,6 +39017,26 @@
           "status"
         ],
         "title": "MindPalaceDeletedResponse"
+      },
+      "MindPalaceListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "MindPalaceListResponse",
+        "description": "Standardized envelope for mind palace spatial list endpoints."
       },
       "ModelCreate": {
         "properties": {
@@ -38886,59 +39383,25 @@
         "title": "MoveItemsRequest",
         "description": "Request to move items to a folder."
       },
-      "MutationRow": {
+      "MutationListResponse": {
         "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "entity_type": {
-            "type": "string",
-            "title": "Entity Type"
-          },
-          "entity_id": {
-            "type": "string",
-            "title": "Entity Id"
-          },
-          "operation": {
-            "type": "string",
-            "title": "Operation"
-          },
-          "changed_fields": {
-            "items": {
-              "type": "string"
-            },
+          "items": {
+            "items": {},
             "type": "array",
-            "nullable": true,
-            "title": "Changed Fields"
+            "title": "Items"
           },
-          "created_by": {
-            "type": "string",
-            "title": "Created By"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "reversal_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Reversal Id"
+          "count": {
+            "type": "integer",
+            "title": "Count"
           }
         },
         "type": "object",
         "required": [
-          "id",
-          "entity_type",
-          "entity_id",
-          "operation",
-          "changed_fields",
-          "created_by",
-          "created_at",
-          "reversal_id"
+          "items",
+          "count"
         ],
-        "title": "MutationRow"
+        "title": "MutationListResponse",
+        "description": "Standardized envelope for mutation/triangulation list endpoints."
       },
       "NativeNote": {
         "properties": {
@@ -39797,6 +40260,26 @@
         ],
         "title": "NoteLinkCreateRequest"
       },
+      "NoteListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "NoteListResponse",
+        "description": "Standardized envelope for GET /api/notes list endpoints."
+      },
       "NotePatchRequest": {
         "properties": {
           "title": {
@@ -39969,34 +40452,6 @@
         ],
         "title": "OutputSchema",
         "description": "JSON Schema for structured output from LLM nodes.\n\nWhen specified, the LLM will be instructed to return\ndata matching this schema exactly (using structured output mode).\n\nExample for named entity extraction:\n{\n    \"type\": \"object\",\n    \"properties\": {\n        \"people\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"organizations\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"dates\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}\n    },\n    \"required\": [\"people\", \"organizations\", \"dates\"]\n}"
-      },
-      "PageRankRow": {
-        "properties": {
-          "entity_id": {
-            "type": "string",
-            "title": "Entity Id"
-          },
-          "canonical_name": {
-            "type": "string",
-            "title": "Canonical Name"
-          },
-          "entity_type": {
-            "type": "string",
-            "nullable": true,
-            "title": "Entity Type"
-          },
-          "pagerank": {
-            "type": "number",
-            "title": "Pagerank"
-          }
-        },
-        "type": "object",
-        "required": [
-          "entity_id",
-          "canonical_name",
-          "pagerank"
-        ],
-        "title": "PageRankRow"
       },
       "PathResponse": {
         "properties": {
@@ -40766,16 +41221,6 @@
         ],
         "title": "PredictionMetadata"
       },
-      "PredictionModelType": {
-        "type": "string",
-        "enum": [
-          "transe",
-          "rotate",
-          "complex",
-          "hermite"
-        ],
-        "title": "PredictionModelType"
-      },
       "PredictionResult": {
         "properties": {
           "rank": {
@@ -40992,6 +41437,46 @@
         ],
         "title": "ProjectInclusion",
         "description": "One KG row's membership in a project (#918)."
+      },
+      "ProjectInclusionListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ProjectInclusionListResponse",
+        "description": "Standardized envelope for project inclusion list endpoints."
+      },
+      "ProjectListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ProjectListResponse",
+        "description": "Standardized envelope for GET /api/projects list endpoints."
       },
       "ProjectPatchRequest": {
         "properties": {
@@ -41469,6 +41954,26 @@
         "title": "ProviderUpdate",
         "description": "Update provider settings."
       },
+      "PykeenListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "PykeenListResponse",
+        "description": "Standardized envelope for PyKEEN prediction endpoints."
+      },
       "QueueClaimItem": {
         "properties": {
           "claim_id": {
@@ -41792,48 +42297,6 @@
         ],
         "title": "RejectResponse"
       },
-      "RelatedDocumentsResponse": {
-        "properties": {
-          "document_id": {
-            "type": "string",
-            "title": "Document Id"
-          },
-          "name": {
-            "type": "string",
-            "nullable": true,
-            "title": "Name"
-          },
-          "doc_type": {
-            "type": "string",
-            "nullable": true,
-            "title": "Doc Type"
-          },
-          "file_type": {
-            "type": "string",
-            "nullable": true,
-            "title": "File Type"
-          },
-          "shared_entities": {
-            "type": "integer",
-            "title": "Shared Entities"
-          },
-          "sample_entity_names": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Sample Entity Names",
-            "default": []
-          }
-        },
-        "type": "object",
-        "required": [
-          "document_id",
-          "shared_entities"
-        ],
-        "title": "RelatedDocumentsResponse",
-        "description": "One row of /documents/{id}/related \u2014 another document that shares\nentities with this one via knowledge claims, with the count of\nshared entities and a small excerpt for context."
-      },
       "RenameFolderRequest": {
         "properties": {
           "old_path": {
@@ -41932,6 +42395,26 @@
         "title": "ResearchChecklist",
         "description": "Verification checklist linked to a task or step."
       },
+      "ResearchCrudListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ResearchCrudListResponse",
+        "description": "Standardized envelope for research CRUD list endpoints."
+      },
       "ResearchNote": {
         "properties": {
           "id": {
@@ -42021,6 +42504,26 @@
           "synthesis"
         ],
         "title": "ResearchNoteType"
+      },
+      "ResearchNotesListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ResearchNotesListResponse",
+        "description": "Standardized envelope for research notes/sources/checklists list endpoints."
       },
       "ResearchPlan": {
         "properties": {
@@ -42288,6 +42791,26 @@
         "type": "object",
         "title": "ResumeWorkflowRequest",
         "description": "Request to resume a paused workflow."
+      },
+      "ReviewListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ReviewListResponse",
+        "description": "Standardized envelope for KG review list endpoints."
       },
       "ReviewPairResponse": {
         "properties": {
@@ -42757,6 +43280,26 @@
         ],
         "title": "ScheduleDeletedResponse"
       },
+      "ScheduleListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ScheduleListResponse",
+        "description": "Standardized envelope for GET /api/schedules list endpoints."
+      },
       "ScheduleResponse": {
         "properties": {
           "schedule_id": {
@@ -43143,7 +43686,7 @@
           "min_score": {
             "type": "number",
             "title": "Min Score",
-            "default": 0.3
+            "default": 0.45
           },
           "search_type": {
             "type": "string",
@@ -43567,34 +44110,6 @@
         ],
         "title": "SimilarEntity"
       },
-      "SimilarEntityRow": {
-        "properties": {
-          "entity_id": {
-            "type": "string",
-            "title": "Entity Id"
-          },
-          "canonical_name": {
-            "type": "string",
-            "title": "Canonical Name"
-          },
-          "entity_type": {
-            "type": "string",
-            "nullable": true,
-            "title": "Entity Type"
-          },
-          "score": {
-            "type": "number",
-            "title": "Score"
-          }
-        },
-        "type": "object",
-        "required": [
-          "entity_id",
-          "canonical_name",
-          "score"
-        ],
-        "title": "SimilarEntityRow"
-      },
       "SnapshotDeleteResponse": {
         "properties": {
           "deleted": {
@@ -43754,6 +44269,26 @@
         ],
         "title": "SourceGenre",
         "description": "Genre of the source passage that produced this claim.\n\nPer-passage, not per-document \u2014 a 19th-century compiled collection may\nreprint an 18th-century royal decree alongside private letters; each\nexcerpt carries its own genre. Classified per-doc at ingest, stamped\nonto every claim from that doc as a default; overridable per-claim."
+      },
+      "SourceListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "SourceListResponse",
+        "description": "Standardized envelope for GET /api/sources list endpoints."
       },
       "SourceMetadata": {
         "properties": {
@@ -45302,43 +45837,6 @@
         "title": "TopEntity",
         "description": "Entity with activity metrics."
       },
-      "TopEntityRow": {
-        "properties": {
-          "entity_id": {
-            "type": "string",
-            "title": "Entity Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "kind": {
-            "type": "string",
-            "nullable": true,
-            "title": "Kind"
-          },
-          "aliases": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Aliases",
-            "default": []
-          },
-          "claim_count": {
-            "type": "integer",
-            "title": "Claim Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "entity_id",
-          "name",
-          "claim_count"
-        ],
-        "title": "TopEntityRow",
-        "description": "One row of /entities/top \u2014 most-claimed entity in the library\nwith name, kind, alias list, and claim count."
-      },
       "TrainResponse": {
         "properties": {
           "triples": {
@@ -45791,62 +46289,25 @@
         ],
         "title": "TriggerDeletedResponse"
       },
-      "TriggerExecutionResponse": {
+      "TriggerListResponse": {
         "properties": {
-          "execution_id": {
-            "type": "string",
-            "title": "Execution Id"
-          },
-          "trigger_id": {
-            "type": "string",
-            "title": "Trigger Id"
-          },
-          "triggered_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Triggered At"
-          },
-          "file_paths": {
-            "items": {
-              "type": "string"
-            },
+          "items": {
+            "items": {},
             "type": "array",
-            "title": "File Paths"
+            "title": "Items"
           },
-          "batch_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Batch Id"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
-          },
-          "error": {
-            "type": "string",
-            "nullable": true,
-            "title": "Error"
-          },
-          "completed_at": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true,
-            "title": "Completed At"
+          "count": {
+            "type": "integer",
+            "title": "Count"
           }
         },
         "type": "object",
         "required": [
-          "execution_id",
-          "trigger_id",
-          "triggered_at",
-          "file_paths",
-          "batch_id",
-          "status",
-          "error",
-          "completed_at"
+          "items",
+          "count"
         ],
-        "title": "TriggerExecutionResponse",
-        "description": "Trigger execution response."
+        "title": "TriggerListResponse",
+        "description": "Standardized envelope for GET /api/triggers list endpoints."
       },
       "TriggerResponse": {
         "properties": {
@@ -45977,61 +46438,6 @@
         ],
         "title": "TriggerResponse",
         "description": "Trigger response."
-      },
-      "TripleSupportResponse": {
-        "properties": {
-          "subject_id": {
-            "type": "string",
-            "title": "Subject Id"
-          },
-          "predicate": {
-            "type": "string",
-            "title": "Predicate"
-          },
-          "object_text": {
-            "type": "string",
-            "title": "Object Text"
-          },
-          "support_count": {
-            "type": "integer",
-            "title": "Support Count"
-          },
-          "weighted_support": {
-            "type": "number",
-            "title": "Weighted Support"
-          },
-          "corroboration": {
-            "type": "string",
-            "title": "Corroboration"
-          },
-          "source_document_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Source Document Ids"
-          },
-          "claim_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Claim Ids"
-          }
-        },
-        "type": "object",
-        "required": [
-          "subject_id",
-          "predicate",
-          "object_text",
-          "support_count",
-          "weighted_support",
-          "corroboration",
-          "source_document_ids",
-          "claim_ids"
-        ],
-        "title": "TripleSupportResponse",
-        "description": "One triangulated triple \u2014 the SVO + the supporting source list."
       },
       "UndoResponse": {
         "properties": {
@@ -47225,6 +47631,20 @@
         ],
         "title": "CitationResponse"
       },
+      "fichero__api__routes__integrations__DocumentListResponse": {
+        "properties": {
+          "documents": {
+            "items": {},
+            "type": "array",
+            "title": "Documents"
+          }
+        },
+        "type": "object",
+        "required": [
+          "documents"
+        ],
+        "title": "DocumentListResponse"
+      },
       "fichero__api__routes__integrations__ExportRequest": {
         "properties": {
           "file_path": {
@@ -47745,6 +48165,26 @@
         ],
         "title": "ProjectStatus",
         "description": "Lifecycle of a research workspace (#918)."
+      },
+      "fichero__models__DocumentListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "DocumentListResponse",
+        "description": "Standardized envelope for document-related list endpoints."
       },
       "fichero__research_models__ProjectStatus": {
         "type": "string",

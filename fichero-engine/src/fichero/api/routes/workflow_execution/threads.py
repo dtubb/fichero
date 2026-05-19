@@ -344,7 +344,9 @@ async def list_threads(
         List of threads with their current status
     """
     try:
-        # Get checkpointer
+        # Lazy import — see commit 4168 (May 18) for the circular-dep rationale.
+        from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
+
         checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
 
         thread_ids = await checkpointer.alist_threads(limit=limit)
@@ -386,7 +388,9 @@ async def delete_thread(
         404: Thread not found
     """
     try:
-        # Get checkpointer
+        # Lazy import — see commit 4168 (May 18) for the circular-dep rationale.
+        from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
+
         checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
 
         # Check if thread exists
