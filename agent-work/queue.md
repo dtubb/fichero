@@ -35,12 +35,12 @@
   completed_at: null
 
 - issue: 1045
-  status: pending
+  status: blocked
   title: "Activity Overview: show the document × step grid (like workflow Output Log), not a flat file list"
   files: [fichero/fichero/Views/Activity/]
   approach: "Replace the flat file list in Activity Overview with a 2D grid where rows are documents and columns are workflow nodes. #1038 done — do now."
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "Free worker iter 5 implemented grid UI but stubbed workflow fetch with hardcoded extract/classify/files nodes — couldnt wire to backend WorkflowServiceGenerated. Needs Sonnet-tier or scope split (backend prerequisite first)."
   commit: null
   completed_at: null
 
