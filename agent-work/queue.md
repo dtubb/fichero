@@ -15,7 +15,7 @@
   completed_at: 2026-05-18T23:27:36-03:00
 
 - issue: 1040
-  status: pending
+  status: in_progress
   title: "Activity Progress tab shows wrong node as running — says Transcribe while Extract runs"
   files: [fichero/fichero/Views/Activity/]
   approach: "Clear a node's running indicator when its completed event arrives before marking the next node running; fix ordering in SSE event handler."
