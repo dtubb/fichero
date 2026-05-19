@@ -6,7 +6,7 @@ import Foundation
 struct WorkflowExecution: Identifiable {
     let id: String  // workflow ID
     let name: String
-    let threadId: String
+    var threadId: String
     let startTime: Date
     var status: WorkflowStatus
     var nodeStates: [String: NodeExecutionState]  // keyed by node ID

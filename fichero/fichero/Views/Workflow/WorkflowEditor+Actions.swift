@@ -22,6 +22,13 @@ extension WorkflowEditor {
             documentProgress: []
         )
 
+        // Register immediately so Activity tab shows "Starting…" before first SSE event
+        executionObserver.startExecution(
+            workflowId: editingWorkflow.id,
+            name: editingWorkflow.name,
+            threadId: "starting"
+        )
+
         actionsLogger.info("Run workflow: \(editingWorkflow.name)")
 
         Task { @MainActor in
@@ -103,17 +110,16 @@ extension WorkflowEditor {
 
                 actionsLogger.info("[SSE] Workflow started with thread: \(response.threadId)")
 
-                // Register with global observer for app-wide visibility (with real thread ID)
+                // Update the execution record with real threadId + cancel handler
                 let threadId = response.threadId
-                executionObserver.startExecution(
-                    workflowId: workflowId,
-                    name: editingWorkflow.name,
-                    threadId: threadId,
+                executionObserver.updateThreadId(
+                    threadId,
                     onCancel: { [weak workflowStreamService] in
                         Task { @MainActor in
                             try? await workflowStreamService?.stopWorkflow(threadId: threadId)
                         }
-                    }
+                    },
+                    for: workflowId
                 )
 
                 // Wait for stream to complete (poll observer state)

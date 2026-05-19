@@ -14,19 +14,19 @@
   completed_at: 2026-05-18T22:25:39-03:00
 
 - issue: 1061
-  status: in_progress
+  status: done
   title: "Establish a QA review process — review agents (frontend/backend/security) + offload build/lint/test to subagents"
   files: [docs/agent-workflow/, agent-work/]
   approach: "Document the QA review gate in docs/agent-workflow/parallel-execution.md; write constitution snippets for backend-reviewer, silent-failure-hunter, code-reviewer teammates; wire into commit flow."
   est_tokens: 10000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: b0d78e77
+  completed_at: 2026-05-18T22:31:21-03:00
 
 # ── Priority 2: Medium bugs (12–20k tokens) ──────────────────────────────────
 
 - issue: 764
-  status: pending
+  status: in_progress
   title: "Workflow run: backend appears frozen until activity finally shows up"
   files: [fichero/fichero/Views/Activity/, fichero/fichero/Views/WorkflowEditor/]
   approach: "Show an immediate 'Starting…' progress indicator as soon as the run request is posted, before the first SSE event arrives."

@@ -94,6 +94,18 @@ class WorkflowExecutionObserver {
         }
     }
 
+    /// Update the threadId and cancel handler on an already-registered execution.
+    /// Call this after the backend POST returns with the real thread ID.
+    func updateThreadId(_ threadId: String, onCancel: (() -> Void)? = nil, for workflowId: String) {
+        if var execution = activeExecutions[workflowId] {
+            execution.threadId = threadId
+            activeExecutions[workflowId] = execution
+        }
+        if let onCancel = onCancel {
+            cancelHandlers[workflowId] = onCancel
+        }
+    }
+
     /// Cancel a running workflow
     func cancelExecution(workflowId: String) {
         workflowExecutionLogger.info("Cancelling workflow: \(workflowId)")
