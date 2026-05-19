@@ -1,5 +1,5 @@
 # Worker Digest — 0.0.2 autonomous loop
-# Generated: 2026-05-18
+# Generated: 2026-05-18 (Round 2 curator pass)
 
 ## Branch + Milestone Context
 
@@ -7,30 +7,32 @@ Branch: `0.0.2` (worktree at `~/code/fichero-0.0.2`). Daniel is actively testing
 Commit all work directly to `0.0.2` — no per-task branches.
 Push → create PR → merge it yourself (AUTONOMOUS_PRS: true).
 
-**Done this session**: #879, #750, #759, #758, #783, #795, #745, #1046, #1043, #1008, #746, #747
+**Done this round**: #743 #1061 #764 #1038
 **Blocked**: #873 (arch decision), #1097 (depends #873), #971 (arch review)
 
 ## Top 5 Architectural Invariants for These Issues
 
-1. **0.0.x no-migration rule**: New DB columns go into `_ensure_table` via the Pydantic model field only. Never add `ALTER TABLE ADD COLUMN` migrations for columns already in the model. Only historical structural migrations (table renames, data backfills) belong in `db_migrations.py`. Applies to: #1085, #1101, #1102, #916.
+1. **0.0.x no-migration rule**: New DB columns go into `_ensure_table` via the Pydantic model field only. Never add `ALTER TABLE ADD COLUMN` for columns already in the model. Historical structural migrations only go in `db_migrations.py`. Applies to: #730, #1085, #1101, #1102, #874.
 
-2. **Pydantic `extra="allow"` silently drops undeclared fields from `model_dump()`**: Always declare new fields on the model AND in `_ensure_table` together. Dumping declared fields into `additionalProperties` loses data. Applies to: #1102, #916, #1101, #1085.
+2. **Pydantic `extra="allow"` silently drops undeclared fields from `model_dump()`**: Always declare new fields on the model AND in `_ensure_table` together. Never dump declared fields into `additionalProperties`. Applies to: #730, #1102, #916, #1101, #1085.
 
-3. **Use OpenAPI-typed fields, not `additionalProperties`**: When building Swift request bodies, use `Components.Schemas.*` typed fields — not `additionalProperties` — for any field declared in `openapi.json`. Applies to: #768, #797, #735, #1059.
+3. **Use OpenAPI-typed fields, not `additionalProperties`**: When building Swift request bodies, use `Components.Schemas.*` typed fields for any field declared in `openapi.json`. Applies to: #768, #797, #735, #1059, #732.
 
-4. **SidebarItem.id has type prefix `"doc:UUID"`**: Always extract `doc.id` from `.itemType` before calling backend APIs. Never pass the raw SidebarItem.id as a document UUID. Applies to: #1031, #1071, #1052, #1036, #916.
+4. **SidebarItem.id has type prefix `"doc:UUID"`**: Always extract `doc.id` from `.itemType` before calling backend APIs. Never pass the raw `SidebarItem.id` as a document UUID. Applies to: #1031, #1071, #1052, #1036, #916.
 
-5. **slug_verb is the shared canonical verb normalizer**: New KG modules must reuse `slug_verb` from `fichero/kg/_common.py` to keep SPARQL ↔ aggregation parity. Applies to: #1111, #1036, #916.
+5. **slug_verb is the shared canonical verb normalizer**: New KG modules must reuse `slug_verb` from `fichero/kg/_common.py` to keep SPARQL ↔ aggregation parity. Applies to: #730, #1111, #1036, #916.
 
 ## Pitfalls Filtered to Relevant Issues
 
-- **`confirmationDialog` beats `alert(isPresented:presenting:)`** on macOS inside `List(selection:)` — the alert can race on same-tick `@Published` updates and silently skip presentation. Use `confirmationDialog` for any destructive action modals. (#916, #1036)
-- **`@State` parent properties are invisible to child views** — pass `browserSelection`, `detailDocument`, etc. explicitly as `let`/`Binding` params; child views cannot see parent `@State` directly. (#1032, #1038, #1045)
-- **`WorkflowExecutionObserver.workflowCompletedCount`** is the canonical "data may be stale" tick for KG/inspector views — subscribe via `.onChange` instead of adding manual refresh buttons. (#1052, #1071, #916)
-- **Empty list is not None** — `inputs["files"] = []` passes `is not None` and short-circuits fallback chain; always use `if raw_files:` not `if raw_files is not None:` in nodes with Priority 1/2/3 fallback. (#926, #1111)
-- **PDFZoomController bridge**: `fitToWindow` uses `scaleFactorForSizeToFit`, NOT re-enabling `autoScales` (avoids #588 re-fit regression). (#1024, #928)
-- **LangGraph internal node name filtering**: Hide UUID slots, `__dunder__`, `fan_out`; show user nodes as snake_case→Title Case via `activityHumanNodeName()`. Backend drops `Runnable*` LCEL nodes at SSE source via `_is_internal_langchain_node()`. (#1040, #1045, #1048)
-- **`cancelExecution` must mirror `endExecution` archive logic**: Any path that removes from `activeExecutions` must also archive to `completedExecutions`. (#764, #1044)
+- **Activity view is now 4-tab** (#1038 shipped): Overview / Progress / Log / Timing. Issues #1040/#1045/#1048 add content to this simplified structure — don't recreate removed tabs.
+- **LangGraph internal node name filtering**: Hide UUID slots, `__dunder__`, `fan_out`; show user nodes as snake_case→Title Case via `activityHumanNodeName()`. Backend drops `Runnable*` LCEL nodes via `_is_internal_langchain_node()` in runner.py. Applies to: #1040, #1045, #1048.
+- **PDFZoomController bridge**: `fitToWindow` uses `scaleFactorForSizeToFit`, NOT re-enabling `autoScales` (avoids #588 re-fit regression). Applies to: #1024, #928.
+- **`confirmationDialog` beats `alert(isPresented:presenting:)`** on macOS inside `List(selection:)` — alert races on same-tick `@Published` updates and silently skips. Use `confirmationDialog` for destructive actions. Applies to: #916, #1036.
+- **`@State` parent properties invisible to child views** — pass `browserSelection`, `detailDocument` explicitly as `let`/`Binding`; child views cannot see parent `@State` directly. Applies to: #1032, #1045.
+- **`WorkflowExecutionObserver.workflowCompletedCount`** is the canonical "data may be stale" tick — subscribe via `.onChange` instead of adding manual refresh buttons. Applies to: #1052, #1071, #916.
+- **Empty list is not None**: `inputs["files"] = []` passes `is not None` and short-circuits fallback chain; use `if raw_files:` not `if raw_files is not None:` in nodes with Priority 1/2/3 fallback. Applies to: #926, #1111.
+- **`cancelExecution` must mirror `endExecution` archive logic**: Any path removing from `activeExecutions` must also archive to `completedExecutions`. Applies to: #1044.
+- **Top blast-radius nodes** — run `get_blast_radius` before touching: `Database`, `KnowledgeClaim`, `KnowledgeEntity`, `Document`, `LLMConfig`.
 
 ## Build / Test / Lint Commands (verbatim)
 
@@ -69,12 +71,12 @@ swiftlint lint fichero/fichero/
 
 **Read is allowed ONLY** immediately before `Edit`/`Write` on a file you already located via jCodemunch.
 
-## Issue-Specific Notes
+## Dependency Order Notes
 
-- **#743**: `langgraph` imports already done (commit `aa7a3be2`). Verify `torch`/`spacy`/`transformers` sites remain and move them.
-- **#1038 → #1045 → #1048**: Do in order — #1038 restructures Activity tabs, #1045 and #1048 add content to the simplified structure.
-- **#768 → #797 → #1059**: Do in order — #768 migrates the provider type, #797 adds the submenu, #1059 consolidates all picker sites.
-- **#1031 + #1071**: Companion issues — #1031 fixes navigation from the KG viewer, #1071 adds document-scoped filtering in the inspector.
-- **#1102 → #916**: #1102 adds epistemic status + claim kind registries; #916 (user CRUD) can reuse those registries.
-- **#1111**: Reuse `slug_verb` + `enum_value` from `fichero/kg/_common.py`; expose new endpoint, don't inline rendering in existing endpoints.
-- **Top blast-radius nodes** — run `get_blast_radius` before touching: `Database`, `KnowledgeClaim`, `KnowledgeEntity`, `Document`, `LLMConfig`.
+- **#730 → #1036**: Backend SVO fields (#730) must exist before frontend SVO chips (#1036).
+- **#1038 done → #1040, #1045, #1048**: All three Activity tab issues can now proceed; #1038 simplified the tab structure.
+- **#768 → #797 → #1059**: Migrate provider type (#768), add submenu (#797), then consolidate all pickers (#1059).
+- **#868 → #1059**: LLMProvider abstraction layer (#868) is a structural gate for the consolidated picker (#1059).
+- **#1024 → #928**: PDF zoom toolbar (#1024) provides the infrastructure before adding loupe/magnifier (#928).
+- **#874 → #1102 → #916**: Entity type registry (#874) and epistemic status registry (#1102) both gate user CRUD (#916).
+- **#1031 + #1071**: Companion — #1031 fixes KG viewer navigation, #1071 adds document-scoped inspector filtering.
