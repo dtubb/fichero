@@ -65,12 +65,12 @@
   completed_at: null
 
 - issue: 1036
-  status: pending
+  status: blocked
   title: "Make claim SVO display easier to read and click — tappable subject / verb / object chips"
   files: [fichero/fichero/Views/KG/]
   approach: "Render claim subject/verb/object as three individually-tappable chips with distinct styling; do after #730 ensures backend SVO fields exist."
   est_tokens: 13000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['shipped']"
   commit: null
   completed_at: null
 
