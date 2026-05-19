@@ -617,8 +617,14 @@ def _make_fan_out_function(
 
     from langgraph.types import Send  # noqa: PLC0415
 
-    def fan_out(state: State) -> list[Send]:
-        """Fan out to parallel file processing."""
+    # NOTE: no `-> list[Send]` return annotation. langgraph's
+    # add_conditional_edges calls get_type_hints() on this function, which
+    # evaluates annotations in the module namespace — where `Send` is NOT
+    # defined (it's a function-local import to keep langgraph out of module
+    # import time, per the May-18 lazy-import refactor). Annotating the return
+    # re-introduced `NameError: name 'Send' is not defined` at graph-build.
+    def fan_out(state: State):
+        """Fan out to parallel file processing. Returns list[Send]."""
         # Get files from source node output (still uses UUID as key in outputs)
         source_output = state.get("outputs", {}).get(source_node_id, {})
         files = source_output.get("files", [])

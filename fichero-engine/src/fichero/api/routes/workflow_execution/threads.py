@@ -14,6 +14,11 @@ from fichero.workflows.workflow_store import WorkflowStore
 from fichero.workflows.activity import get_activity_tracker
 from fichero.workflows.types import EdgeDef, NodeDef, WorkflowDef
 
+# Module-level (no circular dep — checkpointer.py imports nothing from this
+# package). Must be a module attribute so tests can patch
+# `threads.AsyncDuckDBCheckpointer.from_db_path`.
+from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
+
 from .schemas import ThreadListResponse
 from .core import get_thread_status
 
@@ -344,9 +349,6 @@ async def list_threads(
         List of threads with their current status
     """
     try:
-        # Lazy import — see commit 4168 (May 18) for the circular-dep rationale.
-        from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
-
         checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
 
         thread_ids = await checkpointer.alist_threads(limit=limit)
@@ -388,9 +390,6 @@ async def delete_thread(
         404: Thread not found
     """
     try:
-        # Lazy import — see commit 4168 (May 18) for the circular-dep rationale.
-        from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
-
         checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
 
         # Check if thread exists
@@ -530,21 +529,28 @@ async def get_workflow_run(
                 detail=f"Workflow run not found for thread: {thread_id}",
             )
 
+        # get_workflow_run now returns a typed WorkflowRun dataclass (not a
+        # dict), so use attribute access. started_at/completed_at are datetime
+        # on the dataclass but the response wants ISO strings — _iso handles
+        # both datetime and already-stringified values defensively.
+        def _iso(v: Any) -> str | None:
+            return v.isoformat() if hasattr(v, "isoformat") else v
+
         return WorkflowRunResponse(
-            thread_id=run["thread_id"],
-            workflow_id=run["workflow_id"],
-            workflow_name=run["workflow_name"],
-            python_code=run.get("python_code"),
-            execution_log=run.get("execution_log"),
-            status=run.get("status", "unknown"),
-            started_at=run.get("started_at"),  # Already ISO string from activity.py
-            completed_at=run.get("completed_at"),  # Already ISO string from activity.py
-            duration_ms=run.get("duration_ms"),
-            error=run.get("error"),
-            workflow_snapshot=run.get("workflow_snapshot"),
-            node_name_map=run.get("node_name_map"),
-            progress_timeline=run.get("progress_timeline"),
-            diagram_mermaid=run.get("diagram_mermaid"),
+            thread_id=run.thread_id,
+            workflow_id=run.workflow_id,
+            workflow_name=run.workflow_name,
+            python_code=run.python_code,
+            execution_log=run.execution_log,
+            status=run.status or "unknown",
+            started_at=_iso(run.started_at),
+            completed_at=_iso(run.completed_at),
+            duration_ms=run.duration_ms,
+            error=run.error,
+            workflow_snapshot=run.workflow_snapshot,
+            node_name_map=run.node_name_map,
+            progress_timeline=run.progress_timeline,
+            diagram_mermaid=run.diagram_mermaid,
         )
 
     except HTTPException:

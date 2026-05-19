@@ -1187,6 +1187,29 @@ class Database(DatabaseEmbeddingMixin):
             )
         """)
 
+        # Reconcile columns for tables that already existed from an earlier
+        # schema. The 0.0.x no-migration rule says "add the field to the model
+        # and fresh DBs pick it up" — but a pre-existing library (created before
+        # the field was added) keeps its old table and CREATE TABLE IF NOT
+        # EXISTS is a no-op for it. Without this, `save()` of a model with a new
+        # field hits "Table X does not have a column named Y" (e.g.
+        # provenance_chain on a Document table from before that field landed).
+        # ADD COLUMN is non-destructive and idempotent, so this is the generic
+        # mechanism that makes the no-migration rule hold for existing DBs too.
+        existing = {
+            row[0]
+            for row in self.conn.execute(
+                f"SELECT column_name FROM information_schema.columns "
+                f"WHERE table_name = '{table}'"
+            ).fetchall()
+        }
+        for name, field_info in model.model_fields.items():
+            if name not in existing:
+                col_type = self._python_to_duckdb_type(field_info.annotation)
+                self.conn.execute(
+                    f"ALTER TABLE {table} ADD COLUMN {name} {col_type}"
+                )
+
         self._tables_created.add(table)
 
         # Apply knowledge-table indices once both knowledgeclaims AND
