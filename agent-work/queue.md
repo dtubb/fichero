@@ -87,7 +87,7 @@
 # ── Priority 2: Medium bugs / contained features (15–20k tokens) ─────────────
 
 - issue: 1031
-  status: pending
+  status: in_progress
   title: "KG viewer claim source link does nothing — page-child sourceDocumentId not resolved on navigation"
   files: [fichero/fichero/Views/KG/, fichero-engine/src/fichero/api/routes/documents.py]
   approach: "Resolve page-child sourceDocumentId to parent document ID before navigation; add /documents/{id}/parent endpoint if Swift cannot resolve alone."

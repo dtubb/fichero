@@ -302,3 +302,40 @@ class TestDeleteDocument:
         # Claim B and the shared entity both survive.
         assert db.get(KnowledgeClaim, claim_b.id) is not None
         assert db.get(KnowledgeEntity, shared.id) is not None
+
+
+# ---------------------------------------------------------------------------
+# GET /api/documents/{id}/parent
+# ---------------------------------------------------------------------------
+
+
+class TestGetDocumentParent:
+    def test_get_parent_of_child_document(self, client, db):
+        """Test getting the parent of a child document."""
+        parent = _make_doc(db, "Parent Doc")
+        child = _make_doc(db, "Child Doc", parent_id=parent.id)
+        
+        r = client.get(f"/api/documents/{child.id}/parent")
+        assert r.status_code == 200
+        result = r.json()
+        assert result["id"] == parent.id
+        assert result["name"] == "Parent Doc"
+    
+    def test_get_parent_of_root_document_returns_404(self, client, db):
+        """Test getting parent of root document returns 404."""
+        root = _make_doc(db, "Root Doc")
+        
+        r = client.get(f"/api/documents/{root.id}/parent")
+        assert r.status_code == 404
+    
+    def test_get_parent_of_missing_document_returns_404(self, client, db):
+        """Test getting parent of missing document returns 404."""
+        r = client.get("/api/documents/missing-id/parent")
+        assert r.status_code == 404
+    
+    def test_get_parent_when_parent_is_missing_returns_404(self, client, db):
+        """Test getting parent when parent document is missing returns 404."""
+        child = _make_doc(db, "Child Doc", parent_id="missing-parent-id")
+        
+        r = client.get(f"/api/documents/{child.id}/parent")
+        assert r.status_code == 404

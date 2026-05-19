@@ -57,63 +57,67 @@ struct DocumentInspector: View {
 
     private func documentDetail(_ doc: Document) -> some View {
         VStack(spacing: 0) {
-            // Xcode-style icon-only tab bar — wrapped in a fixed-height
-            // frame so it matches the list-view mode strip and the preview
-            // pane toolbar across the window (MiniToolbar.standardHeight).
-            HStack(spacing: 2) {
-                ForEach(InspectorTab.allCases) { tab in
-                    Button {
-                        selectedTab = tab
-                    } label: {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: 16, weight: .regular))
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(selectedTab == tab
-                                  ? Color.accentColor.opacity(0.15)
-                                  : Color.clear)
-                    )
-                    .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
-                    .help(tab.rawValue)
-                }
-            }
-            .padding(.horizontal, 8)
-            .frame(height: MiniToolbar<EmptyView>.standardHeight)
-
+            tabBar
             Divider()
+            tabContent(for: doc)
+        }
+    }
 
-            // Tab content.
-            // Content tab renders directly without ScrollView — NSTextView manages its own scrolling.
-            // Knowledge Graph + Info wrap in ScrollView since they're static SwiftUI views.
-            switch selectedTab {
-            case .content:
-                DocumentInspectorContentV2(document: doc, mode: .pageContentOnly)
-            case .knowledgeGraph:
-                ScrollView {
-                    KnowledgeGraphInspectorSection(
-                        documentId: doc.id,
-                        entityService: entityService,
-                        onNavigateToSource: onNavigateToSource
-                    )
-                    .padding()
+    /// Xcode-style icon-only tab bar
+    @ViewBuilder
+    private var tabBar: some View {
+        HStack(spacing: 2) {
+            ForEach(InspectorTab.allCases) { tab in
+                Button {
+                    selectedTab = tab
+                } label: {
+                    Image(systemName: tab.icon)
+                        .font(.system(size: 16, weight: .regular))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Rectangle())
                 }
-            case .artifacts:
-                DocumentInspectorContentV2(document: doc, mode: .artifactsOnly)
-            case .info:
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        DocumentInspectorInfoTab(document: doc)
-                        if !doc.metadata.isEmpty || doc.path != nil {
-                            DocumentInspectorMetadataTab(document: doc)
-                        }
-                        Spacer()
+                .buttonStyle(.plain)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(selectedTab == tab
+                              ? Color.accentColor.opacity(0.15)
+                              : Color.clear)
+                )
+                .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
+                .help(tab.rawValue)
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(height: MiniToolbar<EmptyView>.standardHeight)
+    }
+
+    /// Tab content for the selected tab
+    @ViewBuilder
+    private func tabContent(for doc: Document) -> some View {
+        switch selectedTab {
+        case .content:
+            DocumentInspectorContentV2(document: doc, mode: .pageContentOnly)
+        case .knowledgeGraph:
+            ScrollView {
+                KnowledgeGraphInspectorSection(
+                    documentId: doc.id,
+                    entityService: entityService,
+                    onNavigateToSource: onNavigateToSource
+                )
+                .padding()
+            }
+        case .artifacts:
+            DocumentInspectorContentV2(document: doc, mode: .artifactsOnly)
+        case .info:
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    DocumentInspectorInfoTab(document: doc)
+                    if !doc.metadata.isEmpty || doc.path != nil {
+                        DocumentInspectorMetadataTab(document: doc)
                     }
-                    .padding()
+                    Spacer()
                 }
+                .padding()
             }
         }
     }
@@ -484,38 +488,46 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
     @ViewBuilder
     private var contentBody: some View {
         VStack(alignment: .leading, spacing: 4) {
-            // Format controls live in the AppKit ruler view (Styles / alignment /
-            // Spacing / Lists strip that AppKit draws above its numeric ruler)
-            // and in the Format menu (bold/italic/underline shortcuts). No
-            // separate SwiftUI format bar.
-            AttributedTextEditor(
-                text: $draftAttributedText,
-                isEditable: onSave != nil,
-                rulersVisible: rulersVisible,
-                fontName: fontName,
-                fontSize: fontSize,
-                lineSpacing: lineSpacing,
-                marginH: marginH,
-                marginV: marginV,
-                contentRevision: editorRevision,
-                onTextChanged: { scheduleAutoSave() },
-                onEditingChanged: { editing in
-                    if !editing { Task { await flushAutoSave() } }
-                },
-                onRulerVisibilityChanged: { visible in
-                    if rulersVisible != visible { rulersVisible = visible }
-                },
-                marginLeading: marginH,
-                marginTrailing: 0,
-                controller: richTextController
-            )
-            // Width stretches; height comes from AttributedTextEditor's
-            // sizeThatFits (its layoutManager.usedRect). No maxHeight here:
-            // letting it claim .infinity inside the outer ScrollView made
-            // every expanded panel fill the viewport (#960).
-            .frame(maxWidth: .infinity)
-            .background(Color(.textBackgroundColor))
-            .cornerRadius(4)
+            // Check if this is a structured output that should be read-only
+            if isStructuredOutput {
+                structuredOutputView
+                    .frame(maxWidth: .infinity)
+                    .background(Color(.textBackgroundColor))
+                    .cornerRadius(4)
+            } else {
+                // Format controls live in the AppKit ruler view (Styles / alignment /
+                // Spacing / Lists strip that AppKit draws above its numeric ruler)
+                // and in the Format menu (bold/italic/underline shortcuts). No
+                // separate SwiftUI format bar.
+                AttributedTextEditor(
+                    text: $draftAttributedText,
+                    isEditable: onSave != nil,
+                    rulersVisible: rulersVisible,
+                    fontName: fontName,
+                    fontSize: fontSize,
+                    lineSpacing: lineSpacing,
+                    marginH: marginH,
+                    marginV: marginV,
+                    contentRevision: editorRevision,
+                    onTextChanged: { scheduleAutoSave() },
+                    onEditingChanged: { editing in
+                        if !editing { Task { await flushAutoSave() } }
+                    },
+                    onRulerVisibilityChanged: { visible in
+                        if rulersVisible != visible { rulersVisible = visible }
+                    },
+                    marginLeading: marginH,
+                    marginTrailing: 0,
+                    controller: richTextController
+                )
+                // Width stretches; height comes from AttributedTextEditor's
+                // sizeThatFits (its layoutManager.usedRect). No maxHeight here:
+                // letting it claim .infinity inside the outer ScrollView made
+                // every expanded panel fill the viewport (#960).
+                .frame(maxWidth: .infinity)
+                .background(Color(.textBackgroundColor))
+                .cornerRadius(4)
+            }
             if let saveError {
                 Text(saveError)
                     .font(.caption)
@@ -719,6 +731,72 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
             }
             return content
         }
+    }
+
+    /// Check if this artifact type should be read-only (structured outputs)
+    private var isStructuredOutput: Bool {
+        switch kind {
+        case .pageContent:
+            return false
+        case .artifact(let artifact):
+            // Structured outputs that shouldn't be edited as RTF
+            let structuredTypes: Set<String> = ["entities", "classification", "embedding", "grouping", "segmentation"]
+            return structuredTypes.contains(artifact.artifactType)
+        }
+    }
+
+    /// Formatted view for structured outputs (JSON formatted)
+    @ViewBuilder
+    private var structuredOutputView: some View {
+        switch kind {
+        case .pageContent:
+            // Shouldn't happen since isStructuredOutput is false for pageContent
+            Text("Unsupported content type")
+                .foregroundColor(.red)
+        case .artifact(let artifact):
+            if let content = artifact.content, !content.isEmpty {
+                // Try to parse as JSON first for structured data
+                if let jsonData = content.data(using: .utf8),
+                   let jsonObject = try? JSONSerialization.jsonObject(with: jsonData, options: []),
+                   let formattedJSON = try? JSONSerialization.data(withJSONObject: jsonObject, options: [.prettyPrinted]) {
+                    if let formattedString = String(data: formattedJSON, encoding: .utf8) {
+                        ScrollView {
+                            Text(formattedString)
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundColor(.primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding()
+                                .cornerRadius(4)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 200)
+                    } else {
+                        fallbackStructuredView(content: content)
+                    }
+                } else {
+                    fallbackStructuredView(content: content)
+                }
+            } else {
+                Text("(no content)")
+                    .foregroundColor(.secondary)
+                    .italic()
+            }
+        }
+    }
+
+    /// Fallback view for structured content that isn't valid JSON
+    @ViewBuilder
+    private func fallbackStructuredView(content: String) -> some View {
+        ScrollView {
+            Text(content)
+                .font(.system(.body, design: .monospaced))
+                .foregroundColor(.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+                .cornerRadius(4)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 200)
     }
 }
 

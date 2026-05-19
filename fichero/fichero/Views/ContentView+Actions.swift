@@ -169,12 +169,28 @@ extension ContentView {
         // bubble up to their parent file; everything else is its own target.
         let target: Document
         let sourceIsPageChild = source.path?.isEmpty ?? true
-        if sourceIsPageChild, let parentId = source.parentId, !parentId.isEmpty {
-            do {
-                target = try await documentStore.api.get("/documents/\(parentId)")
-            } catch {
-                logger.warning("navigateToSourcePage: couldn't fetch parent \(parentId): \(error.localizedDescription)")
-                return
+        if sourceIsPageChild {
+            // First try: use the parentId field if available
+            if let parentId = source.parentId, !parentId.isEmpty {
+                do {
+                    target = try await documentStore.api.get("/documents/\(parentId)")
+                } catch {
+                    // Fallback: use the new /documents/{id}/parent endpoint
+                    do {
+                        target = try await documentStore.api.get("/documents/\(sourceDocId)/parent")
+                    } catch {
+                        logger.warning("navigateToSourcePage: couldn't resolve parent for \(sourceDocId): \(error.localizedDescription)")
+                        return
+                    }
+                }
+            } else {
+                // No parentId available, use the new endpoint directly
+                do {
+                    target = try await documentStore.api.get("/documents/\(sourceDocId)/parent")
+                } catch {
+                    logger.warning("navigateToSourcePage: couldn't fetch parent for \(sourceDocId): \(error.localizedDescription)")
+                    return
+                }
             }
         } else {
             target = source
