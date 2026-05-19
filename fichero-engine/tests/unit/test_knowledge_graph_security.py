@@ -82,11 +82,10 @@ class TestPyKEENSecurity:
         # Check if safe loading is implemented
         try:
             import pykeen
-            # Importing kg_predictions installs the load_directory compat
-            # shim for older PyKEEN versions that ship trained_model.pkl
-            # without a directory-loader. The shim is what makes the
-            # vulnerability surface uniformly across versions.
-            from fichero.api.routes import kg_predictions  # noqa: F401
+            from fichero.api.routes.kg_predictions import _ensure_pykeen_compat
+            # The shim is now installed lazily (on first route use) rather than
+            # at module import time. Call the helper explicitly to verify it works.
+            _ensure_pykeen_compat()
             assert hasattr(pykeen.models.Model, 'load_directory')
             pytest.skip("PyKEEN uses torch.load - vulnerability exists but is upstream")
         except ImportError:

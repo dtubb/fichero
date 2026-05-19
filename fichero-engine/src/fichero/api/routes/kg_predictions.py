@@ -14,26 +14,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import pykeen
-import pykeen.models
-import torch
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-
-# PyKEEN compat shim for versions without Model.load_directory. Older
-# distributions of PyKEEN write trained_model.pkl directly and expect
-# callers to torch.load it themselves; this shim adds load_directory
-# so apply_prediction_run below can use the modern API uniformly.
-if not hasattr(pykeen.models.Model, "load_directory"):
-
-    @classmethod  # type: ignore[misc]
-    def _load_directory_compat(cls, directory: str):
-        model_file = Path(directory) / "trained_model.pkl"
-        if not model_file.exists():
-            raise FileNotFoundError(f"trained_model.pkl not found in {directory}")
-        return torch.load(model_file, map_location="cpu")
-
-    pykeen.models.Model.load_directory = _load_directory_compat
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -48,6 +30,28 @@ from fichero.models import KGPredictionListResponse
 router = APIRouter(prefix="/kg/predictions")
 
 KG_CLAIM_EMBEDDINGS_TABLE = "kg_claim_embeddings"
+
+
+def _ensure_pykeen_compat() -> None:
+    """Install the load_directory compat shim if this PyKEEN version lacks it.
+
+    Older PyKEEN distributions write trained_model.pkl directly without a
+    directory-loader class method. This shim is installed lazily (on first
+    route use) so the heavy torch/pykeen deps don't load at server start.
+    """
+    import pykeen.models  # noqa: PLC0415
+    import torch  # noqa: PLC0415
+
+    if not hasattr(pykeen.models.Model, "load_directory"):
+
+        @classmethod  # type: ignore[misc]
+        def _load_directory_compat(cls, directory: str):
+            model_file = Path(directory) / "trained_model.pkl"
+            if not model_file.exists():
+                raise FileNotFoundError(f"trained_model.pkl not found in {directory}")
+            return torch.load(model_file, map_location="cpu")
+
+        pykeen.models.Model.load_directory = _load_directory_compat
 
 
 def _prediction_artifacts_dir(db: Database) -> Path:
@@ -192,7 +196,10 @@ async def apply_prediction_run(
     db: Database = Depends(get_library_database),
 ) -> ApplyPredictionsResponse:
     """Apply a prediction run's top-scoring predictions as claim links."""
-    from pykeen.predict import predict_target
+    import pykeen.models  # noqa: PLC0415
+    from pykeen.predict import predict_target  # noqa: PLC0415
+
+    _ensure_pykeen_compat()
 
     run = db.get(KnowledgePredictionRun, run_id)
     if not run:

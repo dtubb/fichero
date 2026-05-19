@@ -12,14 +12,7 @@ import time
 from enum import Enum
 from typing import Any
 
-import torch
 from pydantic import BaseModel, Field
-from pykeen.evaluation import RankBasedEvaluator
-from pykeen.stoppers import EarlyStopper
-from pykeen.training import SLCWATrainingLoop
-from pykeen.triples import TriplesFactory
-import pykeen.models
-import pykeen.optimizers
 
 from fichero.knowledge_models import (
     KnowledgeClaim,
@@ -195,6 +188,13 @@ class PyKEENInference:
         config: TrainingConfig,
     ) -> TrainingResult:
         """Train a PyKEEN model on the knowledge graph."""
+        import pykeen.models  # noqa: PLC0415
+        import pykeen.optimizers  # noqa: PLC0415
+        from pykeen.evaluation import RankBasedEvaluator  # noqa: PLC0415
+        from pykeen.stoppers import EarlyStopper  # noqa: PLC0415
+        from pykeen.training import SLCWATrainingLoop  # noqa: PLC0415
+        from pykeen.triples import TriplesFactory  # noqa: PLC0415
+
         start_time = time.time()
 
         try:
@@ -400,6 +400,7 @@ class PyKEENInference:
         entity_map: dict[str, str] | None,
     ) -> list[PredictionResult]:
         """Rank entity predictions from scores."""
+        import torch  # noqa: PLC0415
         if isinstance(scores, torch.Tensor):
             scores = scores.cpu().numpy()
 
@@ -433,6 +434,7 @@ class PyKEENInference:
         top_k: int,
     ) -> list[PredictionResult]:
         """Rank relation predictions from scores."""
+        import torch  # noqa: PLC0415
         if isinstance(scores, torch.Tensor):
             scores = scores.cpu().numpy()
 
