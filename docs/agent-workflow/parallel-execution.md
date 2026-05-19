@@ -64,13 +64,13 @@ self-certifying. This is the safest place to use agent teams and the fix for the
 "no review gate" gap.
 
 1. Finish the fixes in a single session. Stage but **do not commit**.
-2. Spawn a 3-teammate review team, review-only, each with a distinct lens:
+2. Spawn a 3-teammate review team, review-only, each with a distinct lens
+   (copy-paste spawn prompts in `docs/agent-workflow/templates/qa-reviewers.md`):
    - `backend-reviewer` — correctness, the recurring bug patterns in `MEMORY.md`
      (fixed-one-surface-missed-sibling, view-caches-stale-snapshot,
      invalid-config-saved-or-silent-failure), Pydantic field-declaration rule.
-   - `silent-failure-hunter` (`pr-review-toolkit:silent-failure-hunter`) — catch
-     blocks, fallbacks, "success" returned on systemic failure (the #1060/#1029
-     class of bug).
+   - `silent-failure-hunter` — catch blocks, fallbacks, "success" returned on
+     systemic failure (the #1060/#1029 class of bug).
    - `code-reviewer` — style, conventions, `docs/architecture/` standards.
 3. Each teammate reviews the staged diff and reports findings with severity.
 4. The lead synthesizes, applies fixes, then commits.

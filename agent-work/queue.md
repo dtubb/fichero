@@ -14,7 +14,7 @@
   completed_at: 2026-05-18T22:25:39-03:00
 
 - issue: 1061
-  status: pending
+  status: in_progress
   title: "Establish a QA review process — review agents (frontend/backend/security) + offload build/lint/test to subagents"
   files: [docs/agent-workflow/, agent-work/]
   approach: "Document the QA review gate in docs/agent-workflow/parallel-execution.md; write constitution snippets for backend-reviewer, silent-failure-hunter, code-reviewer teammates; wire into commit flow."
