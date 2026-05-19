@@ -168,14 +168,13 @@
 		A13E7C3A2F27F36000EC9EE1 /* ActivityServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */; };
 		A13E7C3C2F27F36000EC9EE1 /* ActivityTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3B2F27F36000EC9EE1 /* ActivityTypes.swift */; };
 		A13E7C462F280BE900EC9EE1 /* ActivityProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C432F280BE900EC9EE1 /* ActivityProgressView.swift */; };
-		A13E7C472F280BE900EC9EE1 /* ActivityDiagramView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3E2F280BE900EC9EE1 /* ActivityDiagramView.swift */; };
-		A13E7C482F280BE900EC9EE1 /* ActivityErrorsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3F2F280BE900EC9EE1 /* ActivityErrorsView.swift */; };
+
 		A13E7C492F280BE900EC9EE1 /* ActivityConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3C2F280BE900EC9EE1 /* ActivityConsoleView.swift */; };
 		A13E7C4B2F280BE900EC9EE1 /* ActivityOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C422F280BE900EC9EE1 /* ActivityOverviewView.swift */; };
 		A13E7C4C2F280BE900EC9EE1 /* ActivityLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C412F280BE900EC9EE1 /* ActivityLogView.swift */; };
-		A13E7C4D2F280BE900EC9EE1 /* ActivityCodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3B2F280BE900EC9EE1 /* ActivityCodeView.swift */; };
+
 		A13E7C4E2F280BE900EC9EE1 /* ActivityViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C442F280BE900EC9EE1 /* ActivityViewHelpers.swift */; };
-		A13E7C4F2F280BE900EC9EE1 /* ActivityGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C402F280BE900EC9EE1 /* ActivityGraphView.swift */; };
+
 		A13E7C642F27F36000EC9EE1 /* ArtifactServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C632F27F36000EC9EE1 /* ArtifactServiceGenerated.swift */; };
 		A13E7C652F27F36000EC9EE1 /* StorageServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C662F27F36000EC9EE1 /* StorageServiceGenerated.swift */; };
 		A13E80A22F2AD75100EC9EE1 /* ModelComparisonService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E80A12F2AD75100EC9EE1 /* ModelComparisonService.swift */; };
@@ -538,11 +537,7 @@
 		A13E7C372F27F33C00EC9EE1 /* WorkflowExecutionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExecutionRow.swift; sourceTree = "<group>"; };
 		A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityServiceGenerated.swift; sourceTree = "<group>"; };
 		A13E7C3B2F27F36000EC9EE1 /* ActivityTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityTypes.swift; sourceTree = "<group>"; };
-		A13E7C3B2F280BE900EC9EE1 /* ActivityCodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityCodeView.swift; sourceTree = "<group>"; };
 		A13E7C3C2F280BE900EC9EE1 /* ActivityConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityConsoleView.swift; sourceTree = "<group>"; };
-		A13E7C3E2F280BE900EC9EE1 /* ActivityDiagramView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityDiagramView.swift; sourceTree = "<group>"; };
-		A13E7C3F2F280BE900EC9EE1 /* ActivityErrorsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityErrorsView.swift; sourceTree = "<group>"; };
-		A13E7C402F280BE900EC9EE1 /* ActivityGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityGraphView.swift; sourceTree = "<group>"; };
 		A13E7C412F280BE900EC9EE1 /* ActivityLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLogView.swift; sourceTree = "<group>"; };
 		A13E7C422F280BE900EC9EE1 /* ActivityOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityOverviewView.swift; sourceTree = "<group>"; };
 		A13E7C432F280BE900EC9EE1 /* ActivityProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityProgressView.swift; sourceTree = "<group>"; };
@@ -1163,12 +1158,8 @@
 		A1A3AA252F1115F90021909D /* Activity */ = {
 			isa = PBXGroup;
 			children = (
-				A13E7C3B2F280BE900EC9EE1 /* ActivityCodeView.swift */,
 				A13E7C3C2F280BE900EC9EE1 /* ActivityConsoleView.swift */,
 				A13E7C292F27E04300EC9EE1 /* ActivityDetailView.swift */,
-				A13E7C3E2F280BE900EC9EE1 /* ActivityDiagramView.swift */,
-				A13E7C3F2F280BE900EC9EE1 /* ActivityErrorsView.swift */,
-				A13E7C402F280BE900EC9EE1 /* ActivityGraphView.swift */,
 				A13E7C412F280BE900EC9EE1 /* ActivityLogView.swift */,
 				A13E7C422F280BE900EC9EE1 /* ActivityOverviewView.swift */,
 				A13E7C432F280BE900EC9EE1 /* ActivityProgressView.swift */,
@@ -1748,15 +1739,11 @@
 				202674D82F48964E008EAB5D /* SearchMapComponents.swift in Sources */,
 				A1A3A9C22F1028480021909D /* MCPServerDetailView.swift in Sources */,
 				A13E7C462F280BE900EC9EE1 /* ActivityProgressView.swift in Sources */,
-				A13E7C472F280BE900EC9EE1 /* ActivityDiagramView.swift in Sources */,
-				A13E7C482F280BE900EC9EE1 /* ActivityErrorsView.swift in Sources */,
 				202674B22F478206008EAB5D /* ImageWithCursorTracking.swift in Sources */,
 				A13E7C492F280BE900EC9EE1 /* ActivityConsoleView.swift in Sources */,
 				A13E7C4B2F280BE900EC9EE1 /* ActivityOverviewView.swift in Sources */,
 				A13E7C4C2F280BE900EC9EE1 /* ActivityLogView.swift in Sources */,
-				A13E7C4D2F280BE900EC9EE1 /* ActivityCodeView.swift in Sources */,
 				A13E7C4E2F280BE900EC9EE1 /* ActivityViewHelpers.swift in Sources */,
-				A13E7C4F2F280BE900EC9EE1 /* ActivityGraphView.swift in Sources */,
 				A1A3A9C32F1028480021909D /* MCPServersSheet.swift in Sources */,
 				A1A3A9C42F1028480021909D /* MCPServersView.swift in Sources */,
 				A1A3AB242F11CCC70021909D /* Artifact.swift in Sources */,

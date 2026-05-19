@@ -196,26 +196,6 @@ struct ActivityDetailView: View {
                 selectedRun: selectedRun,
                 liveExecution: liveExecution
             )
-        case .errors:
-            ActivityErrorsView(
-                selectedRun: selectedRun,
-                activityItems: activityItems.filter {
-                    $0.level == "error" || $0.level == "critical" || $0.error != nil
-                },
-                liveExecution: liveExecution
-            )
-        case .graph:
-            ActivityGraphView(
-                selectedRun: selectedRun
-            )
-        case .code:
-            ActivityCodeView(
-                selectedRun: selectedRun
-            )
-        case .diagram:
-            ActivityDiagramView(
-                selectedRun: selectedRun
-            )
         case .log:
             ActivityLogView(
                 selectedRun: selectedRun

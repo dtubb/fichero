@@ -118,22 +118,16 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     func testActivityChildTypeRawValuesStable() {
         XCTAssertEqual(ActivityChildType.console.rawValue, "console")
         XCTAssertEqual(ActivityChildType.progress.rawValue, "progress")
-        XCTAssertEqual(ActivityChildType.errors.rawValue, "errors")
-        XCTAssertEqual(ActivityChildType.graph.rawValue, "graph")
-        XCTAssertEqual(ActivityChildType.code.rawValue, "code")
-        XCTAssertEqual(ActivityChildType.diagram.rawValue, "diagram")
         XCTAssertEqual(ActivityChildType.log.rawValue, "log")
     }
 
     func testActivityChildTypeAllCasesCount() {
-        XCTAssertEqual(ActivityChildType.allCases.count, 7)
+        XCTAssertEqual(ActivityChildType.allCases.count, 3)
     }
 
     func testActivityChildTypeLabels() {
         let pairs: [(ActivityChildType, String)] = [
             (.console, "Console"), (.progress, "Progress"),
-            (.errors, "Errors"), (.graph, "Graph"),
-            (.code, "Code"), (.diagram, "Diagram"),
             (.log, "Log")
         ]
         for (kind, label) in pairs {
@@ -146,10 +140,6 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         let pairs: [(ActivityChildType, String)] = [
             (.console, "text.alignleft"),
             (.progress, "chart.bar.fill"),
-            (.errors, "exclamationmark.triangle.fill"),
-            (.graph, "point.3.connected.trianglepath.dotted"),
-            (.code, "chevron.left.forwardslash.chevron.right"),
-            (.diagram, "flowchart"),
             (.log, "doc.text")
         ]
         for (kind, icon) in pairs {
@@ -181,7 +171,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         let original = SelectedActivityRun(
             id: "r-1", name: "Run", workflowId: nil,
             threadId: nil, timestamp: Date(timeIntervalSince1970: 0),
-            status: .completed, isLive: false, childType: .errors
+            status: .completed, isLive: false, childType: .log
         )
         let cleared = original.with(childType: nil)
         XCTAssertNil(cleared.childType)

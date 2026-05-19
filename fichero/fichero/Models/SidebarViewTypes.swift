@@ -37,20 +37,12 @@ enum AppViewMode: Equatable {
 enum ActivityChildType: String, Equatable, CaseIterable {
     case console
     case progress
-    case errors
-    case graph    // Checkpoint history
-    case code     // Python code
-    case diagram  // Workflow diagram
     case log      // Execution log
 
     var label: String {
         switch self {
         case .console: return "Console"
         case .progress: return "Progress"
-        case .errors: return "Errors"
-        case .graph: return "Graph"
-        case .code: return "Code"
-        case .diagram: return "Diagram"
         case .log: return "Log"
         }
     }
@@ -59,10 +51,6 @@ enum ActivityChildType: String, Equatable, CaseIterable {
         switch self {
         case .console: return "text.alignleft"
         case .progress: return "chart.bar.fill"
-        case .errors: return "exclamationmark.triangle.fill"
-        case .graph: return "point.3.connected.trianglepath.dotted"
-        case .code: return "chevron.left.forwardslash.chevron.right"
-        case .diagram: return "flowchart"
         case .log: return "doc.text"
         }
     }
