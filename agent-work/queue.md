@@ -5,14 +5,14 @@
 # ── Priority 1: Small bugs / quick wins (≤15k tokens) ────────────────────────
 
 - issue: 1042
-  status: pending
+  status: done
   title: "Workflow editor doesn't draw the merge→catalogue edge and shows '0 connections'"
   files: [fichero/fichero/Views/WorkflowEditor/WorkflowCanvasView.swift, fichero/fichero/Views/WorkflowEditor/]
   approach: "Fix port-position lookup so merge-node output port key resolves correctly; edge should render and connection count should reflect actual edge list."
   est_tokens: 15000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 19246138
+  completed_at: 2026-05-18T23:27:36-03:00
 
 - issue: 1040
   status: pending
