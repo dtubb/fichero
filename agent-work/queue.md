@@ -87,14 +87,14 @@
 # ── Priority 2: Medium bugs / contained features (15–20k tokens) ─────────────
 
 - issue: 1031
-  status: in_progress
+  status: needs_review
   title: "KG viewer claim source link does nothing — page-child sourceDocumentId not resolved on navigation"
   files: [fichero/fichero/Views/KG/, fichero-engine/src/fichero/api/routes/documents.py]
   approach: "Resolve page-child sourceDocumentId to parent document ID before navigation; add /documents/{id}/parent endpoint if Swift cannot resolve alone."
   est_tokens: 18000
-  blocked_reason: null
-  commit: null
-  completed_at: null
+  blocked_reason: "verify_diff mismatch: empty response"
+  commit: "b78f72d7"
+  completed_at: "2026-05-19T12:28:00Z"
 
 - issue: 1071
   status: pending
