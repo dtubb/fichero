@@ -172,75 +172,20 @@ struct ClaimSummaryCard: View {
     }
 
     /// The headline of the card. When SVO metadata is present, render
-    /// it as three individually-tappable chips with distinct styling for
-    /// subject, verb, and object. When absent, surface a "KG not generated" hint instead
+    /// it as `subject **verb** object` so the predicate is visible at a
+    /// glance. When absent, surface a "KG not generated" hint instead
     /// of falling back to `claim.text` — per Daniel's directive, we
     /// want to show the KG, not the loose extractor text. (#978/#986)
     @ViewBuilder
     private var claimSentence: some View {
         if let svo {
-            HStack(spacing: 6) {
-                // Subject chip — tappable to search for subject entity
-                Button(action: {
-                    NotificationCenter.default.post(
-                        name: .ficheroEntitySearchRequested,
-                        object: nil,
-                        userInfo: ["name": svo.subject]
-                    )
-                }) {
-                    Text(svo.subject)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color(NSColor.systemGray))
-                        .foregroundColor(.primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-                .buttonStyle(.plain)
-                .help("Search for '\(svo.subject)' in library")
-                
-                // Verb chip — tappable to search for predicate/verb
-                Button(action: {
-                    NotificationCenter.default.post(
-                        name: .ficheroEntitySearchRequested,
-                        object: nil,
-                        userInfo: ["name": svo.verb]
-                    )
-                }) {
-                    Text(svo.verb)
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.accentColor)
-                        .foregroundColor(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-                .buttonStyle(.plain)
-                .help("Search for '\(svo.verb)' predicates in library")
-                
-                // Object chip — tappable to search for object entity
-                Button(action: {
-                    NotificationCenter.default.post(
-                        name: .ficheroEntitySearchRequested,
-                        object: nil,
-                        userInfo: ["name": svo.object]
-                    )
-                }) {
-                    Text(svo.object)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color(NSColor.systemGray))
-                        .foregroundColor(.primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-                .buttonStyle(.plain)
-                .help("Search for '\(svo.object)' in library")
-            }
-            .padding(.vertical, 4)
+            (
+                Text(svo.subject)
+                + Text(" \(svo.verb) ").italic().foregroundColor(.accentColor)
+                + Text(svo.object)
+            )
+            .font(.caption)
+            .lineLimit(isExpanded ? nil : 3)
         } else if let excerpt = claim.sourceExcerpt?
                     .trimmingCharacters(in: .whitespacesAndNewlines),
                   !excerpt.isEmpty {
