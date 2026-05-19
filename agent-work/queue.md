@@ -45,14 +45,14 @@
   completed_at: null
 
 - issue: 1024
-  status: in_progress
+  status: done
   title: "PDF viewer needs its own zoom toolbar mirroring the image viewer's ImageZoomToolbar"
   files: [fichero/fichero/Views/Document/]
   approach: "Add PDFZoomToolbar wired to the existing PDFZoomController bridge; expose fit-to-page / fit-to-width / zoom-in / zoom-out. Gate for #928."
   est_tokens: 14000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 00dde49f
+  completed_at: 2026-05-19
 
 - issue: 730
   status: done
@@ -75,7 +75,7 @@
   completed_at: null
 
 - issue: 958
-  status: pending
+  status: in_progress
   title: "Artifacts inspector: structured outputs (NER, classifications) shouldn't be rendered as editable RTF"
   files: [fichero/fichero/Views/Inspector/]
   approach: "Detect artifact type in the inspector; route structured JSON artifacts to a read-only formatted view instead of the RTF editor."
