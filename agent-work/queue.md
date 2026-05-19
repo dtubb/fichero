@@ -65,7 +65,7 @@
   completed_at: null
 
 - issue: 1036
-  status: blocked
+  status: done
   title: "Make claim SVO display easier to read and click — tappable subject / verb / object chips"
   files: [fichero/fichero/Views/KG/]
   approach: "Render claim subject/verb/object as three individually-tappable chips with distinct styling; do after #730 ensures backend SVO fields exist."
