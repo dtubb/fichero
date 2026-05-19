@@ -3,84 +3,78 @@
 
 ## Branch + Milestone Context
 
-Branch: `0.0.2` (worktree at `~/code/fichero-0.0.2/`).
-Daniel is actively testing this build. All bug fixes go directly to this branch — no per-issue branches.
-Architecture: SwiftUI frontend (`fichero/fichero/`) + Python FastAPI backend (`fichero-engine/src/fichero/`).
-Queue: 27 pending, 3 blocked. Done this session: #759, #758, #783, #795, #1046, #1043, #747, #746, #745, #1008.
-Next up: #879 (auth 401s), #750 (test fixture auth), #743 (lazy ML imports), then #764 (workflow frozen UX).
+Branch: `0.0.2` (worktree at `~/code/fichero-0.0.2`). Daniel is actively testing this milestone.
+Commit all work directly to `0.0.2` — no per-task branches.
+Push → create PR → merge it yourself (AUTONOMOUS_PRS: true).
+
+**Done this session**: #879, #750, #759, #758, #783, #795, #745, #1046, #1043, #1008, #746, #747
+**Blocked**: #873 (arch decision), #1097 (depends #873), #971 (arch review)
 
 ## Top 5 Architectural Invariants for These Issues
 
-1. **0.0.x no-migration rule.**
-   Schema changes go in `_ensure_table` via the Pydantic model field. Never add `ALTER TABLE ADD COLUMN`. Fresh databases pick up columns automatically. Only historical structural migrations belong in `db_migrations.py`. Applies to #1085, #1101, #1102.
+1. **0.0.x no-migration rule**: New DB columns go into `_ensure_table` via the Pydantic model field only. Never add `ALTER TABLE ADD COLUMN` migrations for columns already in the model. Only historical structural migrations (table renames, data backfills) belong in `db_migrations.py`. Applies to: #1085, #1101, #1102, #916.
 
-2. **WorkflowExecutionObserver.workflowCompletedCount is the canonical "data may be stale" tick.**
-   Subscribe via `.onChange(of: observer.workflowCompletedCount)` to refresh KG/inspector views post-run. Use for #1052 (color-code refresh). Do not add manual refresh buttons.
+2. **Pydantic `extra="allow"` silently drops undeclared fields from `model_dump()`**: Always declare new fields on the model AND in `_ensure_table` together. Dumping declared fields into `additionalProperties` loses data. Applies to: #1102, #916, #1101, #1085.
 
-3. **KG / entity logic belongs in the backend — frontend only renders.**
-   Aggregation, dedup, scoping, summary generation are backend endpoints. For #1071 inspector entity lists, add `?document_id` filter to the endpoint rather than filtering client-side.
+3. **Use OpenAPI-typed fields, not `additionalProperties`**: When building Swift request bodies, use `Components.Schemas.*` typed fields — not `additionalProperties` — for any field declared in `openapi.json`. Applies to: #768, #797, #735, #1059.
 
-4. **@State parent properties invisible to child views.**
-   `ContentView` `@State` (browserSelection, detailDocument) must be passed explicitly as `let`/`Binding` params to child views. Applies to any SwiftUI fix touching inspector or sidebar state (#1031, #1036, #1071).
+4. **SidebarItem.id has type prefix `"doc:UUID"`**: Always extract `doc.id` from `.itemType` before calling backend APIs. Never pass the raw SidebarItem.id as a document UUID. Applies to: #1031, #1071, #1052, #1036, #916.
 
-5. **NSViewRepresentable Coordinator must be `@MainActor`.**
-   Annotate entire Coordinator when all PDFKit/AppKit notification callbacks fire on main thread. Applies to #1024 (PDFZoomToolbar) and #928 (PDF loupe overlay). PDFZoomController uses `scaleFactorForSizeToFit`; never re-enable `autoScales` (causes #588 re-fit regression).
+5. **slug_verb is the shared canonical verb normalizer**: New KG modules must reuse `slug_verb` from `fichero/kg/_common.py` to keep SPARQL ↔ aggregation parity. Applies to: #1111, #1036, #916.
 
-## Pitfalls Relevant to This Queue
+## Pitfalls Filtered to Relevant Issues
 
-- **Auth token path** — `#879` and `#750`: token file location written at engine startup must match the path the middleware reads. For tests, AuthTokenMiddleware needs a fixture bypass — don't hardcode a real token path in test fixtures.
-- **SidebarItem.id has a type prefix** — `"doc:UUID"`. Always extract `doc.id` from `.itemType` before calling backend APIs (#1031, #1071).
-- **Pydantic field must be declared** — `extra="allow"` lets runtime writes succeed silently but `model_dump()` only serializes declared fields. Add `_ensure_table` column AND the model field together (#1101, #1102, #1085).
-- **Empty list is not None** — `inputs["files"] = []` passes `is not None`; use `if raw_files:` not `if raw_files is not None:` in tools with fallback chains (#743, backend nodes).
-- **LangGraph internal node name filtering** — hide UUID slots, `__dunder__`, `fan_out`; show user nodes as `snake_case → Title Case`. Backend also drops `Runnable*` LCEL nodes at SSE source via `_is_internal_langchain_node()` in runner.py. Applies to #1040.
-- **TimelineView snapshot count** — never re-read live `@State.count` inside helpers consuming a snapshot; bound by `snapshot.count` to avoid brk #0x1 (#998 pattern). Applies to #1045/#1048 activity grid work.
-- **confirmationDialog beats alert(presenting:)** — on macOS inside `List(selection:)`, `.alert(title:isPresented:presenting:)` can race on same-tick `@Published` updates. Use `.confirmationDialog` instead.
-- **focusable() swallows first click** — never put `.focusable()` on pane wrappers; use `simultaneousGesture(TapGesture())` to track focus without consuming taps.
-- **Verify an issue isn't already fixed** — open status ≠ unfinished work; check the code + tests before implementing. Fichero has a strong fixed-but-not-closed pattern.
+- **`confirmationDialog` beats `alert(isPresented:presenting:)`** on macOS inside `List(selection:)` — the alert can race on same-tick `@Published` updates and silently skip presentation. Use `confirmationDialog` for any destructive action modals. (#916, #1036)
+- **`@State` parent properties are invisible to child views** — pass `browserSelection`, `detailDocument`, etc. explicitly as `let`/`Binding` params; child views cannot see parent `@State` directly. (#1032, #1038, #1045)
+- **`WorkflowExecutionObserver.workflowCompletedCount`** is the canonical "data may be stale" tick for KG/inspector views — subscribe via `.onChange` instead of adding manual refresh buttons. (#1052, #1071, #916)
+- **Empty list is not None** — `inputs["files"] = []` passes `is not None` and short-circuits fallback chain; always use `if raw_files:` not `if raw_files is not None:` in nodes with Priority 1/2/3 fallback. (#926, #1111)
+- **PDFZoomController bridge**: `fitToWindow` uses `scaleFactorForSizeToFit`, NOT re-enabling `autoScales` (avoids #588 re-fit regression). (#1024, #928)
+- **LangGraph internal node name filtering**: Hide UUID slots, `__dunder__`, `fan_out`; show user nodes as snake_case→Title Case via `activityHumanNodeName()`. Backend drops `Runnable*` LCEL nodes at SSE source via `_is_internal_langchain_node()`. (#1040, #1045, #1048)
+- **`cancelExecution` must mirror `endExecution` archive logic**: Any path that removes from `activeExecutions` must also archive to `completedExecutions`. (#764, #1044)
 
-## Build / Test / Lint Commands
+## Build / Test / Lint Commands (verbatim)
 
 ```bash
-# Swift lint (run after every SwiftUI change)
-swiftlint lint fichero/fichero/
-
-# Xcode build (prefer Xcode MCP; fallback CLI)
-xcodebuild -workspace fichero/fichero.xcodeproj/project.xcworkspace \
-  -scheme Fichero -configuration Debug \
-  -skipPackagePluginValidation \
-  CODE_SIGNING_ALLOWED=NO build
-
-# Python backend
+# Backend server
 PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 
-# Python unit tests
-PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ \
-  --ignore=fichero-engine/tests/unit/_archived
+# Python tests
+PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
 
 # Python lint
 ruff check fichero-engine/src/
+
+# Swift lint
+swiftlint lint fichero/fichero/
 ```
 
-Three-leg check is MANDATORY before marking any SwiftUI issue done: swiftlint + xcodebuild + RunAllTests.
+**Three-leg Swift check is mandatory** before marking any Swift issue complete:
+1. `swiftlint lint fichero/fichero/`
+2. Xcode MCP `BuildProject` (use `XcodeListWindows` for `tabIdentifier`)
+3. Xcode MCP `RunAllTests`
 
-## jCodemunch Usage Reminder
+## Code Navigation — jCodemunch First, ALWAYS
 
-Worker MUST use jcodemunch tools for ALL code navigation. Never use Read/Grep/Glob/Bash(find/ls) on source files.
+**Never use Read/Grep/Glob/Bash(find/ls) to explore source.** Use jCodemunch tools:
 
-Opening move for every issue:
-```
-plan_turn { "repo": "danieltubb/fichero", "query": "<issue description>", "model": "claude-haiku-4-5" }
-```
+| Task | Tool |
+|---|---|
+| Opening move for any issue | `plan_turn { repo: "dtubb/fichero", query: "...", model: "claude-sonnet-4-6" }` |
+| Find symbol by name | `search_symbols { query: "...", language: "swift" }` |
+| File structure before edit | `get_file_outline { path: "..." }` |
+| Symbol source | `get_symbol_source { symbol_id: "..." }` |
+| Impact of changing X | `get_blast_radius { symbol_id: "..." }` |
+| Who imports a file | `find_importers { path: "..." }` |
+| Where is name used | `find_references { name: "..." }` |
 
-Use full repo identifier `danieltubb/fichero` — relative paths (`.`) do not work with jcodemunch.
-If index is missing: `index_folder { "path": "/Users/danieltubb/code/fichero-0.0.2" }` then retry.
+**Read is allowed ONLY** immediately before `Edit`/`Write` on a file you already located via jCodemunch.
 
-Key tools:
-- `search_symbols` — find symbol by name/kind
-- `get_file_outline` — file structure before editing
-- `get_symbol_source` — read just the symbol, not the whole file
-- `get_blast_radius` — verify impact before touching high-churn symbols
-- `find_references` — gauge how many call sites need updating
-- `register_edit` — call after editing to keep the index fresh
+## Issue-Specific Notes
 
-Read/Grep is ONLY allowed for non-code files (.md, .json, .yaml, .toml) or as the mandatory Read immediately before Edit/Write on a file you just located via jcodemunch.
+- **#743**: `langgraph` imports already done (commit `aa7a3be2`). Verify `torch`/`spacy`/`transformers` sites remain and move them.
+- **#1038 → #1045 → #1048**: Do in order — #1038 restructures Activity tabs, #1045 and #1048 add content to the simplified structure.
+- **#768 → #797 → #1059**: Do in order — #768 migrates the provider type, #797 adds the submenu, #1059 consolidates all picker sites.
+- **#1031 + #1071**: Companion issues — #1031 fixes navigation from the KG viewer, #1071 adds document-scoped filtering in the inspector.
+- **#1102 → #916**: #1102 adds epistemic status + claim kind registries; #916 (user CRUD) can reuse those registries.
+- **#1111**: Reuse `slug_verb` + `enum_value` from `fichero/kg/_common.py`; expose new endpoint, don't inline rendering in existing endpoints.
+- **Top blast-radius nodes** — run `get_blast_radius` before touching: `Database`, `KnowledgeClaim`, `KnowledgeEntity`, `Document`, `LLMConfig`.
