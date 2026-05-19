@@ -1187,10 +1187,29 @@ class KGPredictionListResponse(BaseModel):
     count: int
 
 
+class ContradictionEvidence(BaseModel):
+    """Evidence of a contradiction between two claims.
+
+    Lives here (not in routes/kg_claim_analysis.py) so ContradictionListResponse
+    can declare `list[ContradictionEvidence]` instead of `list[Any]`. The
+    untyped form caused OpenAPI to drop the schema entirely, breaking the
+    Swift API client which references `Components.Schemas.ContradictionEvidence`.
+    """
+
+    claim_id: str
+    contradicting_claim_id: str
+    relation_type: str  # "outgoing" or "incoming"
+    evidence: str | None
+    link_quality: float
+    source_documents: list[dict[str, Any]]
+    claim_text: str
+    contradicting_text: str
+
+
 class ContradictionListResponse(BaseModel):
     """Standardized envelope for GET /api/kg-claim-analysis/{claim_id}/contradictions."""
 
-    items: list[Any]  # Typically ContradictionEvidence
+    items: list[ContradictionEvidence]
     count: int
 
 
@@ -1370,6 +1389,7 @@ __all__ = [
     "IntegrationListResponse",
     "KGInclusionListResponse",
     "KGPredictionListResponse",
+    "ContradictionEvidence",
     "ContradictionListResponse",
     "MCPServerListResponse",
     "MindPalaceListResponse",

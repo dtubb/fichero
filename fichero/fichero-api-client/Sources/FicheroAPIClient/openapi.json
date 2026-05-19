@@ -32640,10 +32640,66 @@
         ],
         "title": "ConnectionType"
       },
+      "ContradictionEvidence": {
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          },
+          "contradicting_claim_id": {
+            "type": "string",
+            "title": "Contradicting Claim Id"
+          },
+          "relation_type": {
+            "type": "string",
+            "title": "Relation Type"
+          },
+          "evidence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Evidence"
+          },
+          "link_quality": {
+            "type": "number",
+            "title": "Link Quality"
+          },
+          "source_documents": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Source Documents"
+          },
+          "claim_text": {
+            "type": "string",
+            "title": "Claim Text"
+          },
+          "contradicting_text": {
+            "type": "string",
+            "title": "Contradicting Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim_id",
+          "contradicting_claim_id",
+          "relation_type",
+          "evidence",
+          "link_quality",
+          "source_documents",
+          "claim_text",
+          "contradicting_text"
+        ],
+        "title": "ContradictionEvidence",
+        "description": "Evidence of a contradiction between two claims.\n\nLives here (not in routes/kg_claim_analysis.py) so ContradictionListResponse\ncan declare `list[ContradictionEvidence]` instead of `list[Any]`. The\nuntyped form caused OpenAPI to drop the schema entirely, breaking the\nSwift API client which references `Components.Schemas.ContradictionEvidence`."
+      },
       "ContradictionListResponse": {
         "properties": {
           "items": {
-            "items": {},
+            "items": {
+              "$ref": "#/components/schemas/ContradictionEvidence"
+            },
             "type": "array",
             "title": "Items"
           },

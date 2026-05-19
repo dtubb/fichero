@@ -18,21 +18,9 @@ from fichero.knowledge_models import (
     KnowledgeClaim,
     KnowledgeClaimLink,
 )
-from fichero.models import Document
-from fichero.models import ContradictionListResponse
+from fichero.models import ContradictionEvidence, ContradictionListResponse, Document
 
 router = APIRouter(prefix="/kg/claim-analysis")
-
-
-class ContradictionEvidence(BaseModel):
-    claim_id: str
-    contradicting_claim_id: str
-    relation_type: str  # "outgoing" or "incoming"
-    evidence: str | None
-    link_quality: float
-    source_documents: list[dict[str, Any]]
-    claim_text: str
-    contradicting_text: str
 
 
 class EvidenceChainItem(BaseModel):

@@ -34,8 +34,8 @@ class ActivityServiceGenerated {
 
         switch response {
         case .ok(let okResponse):
-            let activities = try okResponse.body.json
-            return activities.map { convertToActivityItem($0) }
+            let envelope = try okResponse.body.json
+            return envelope.items.map { convertToActivityItem($0) }
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
@@ -75,8 +75,8 @@ class ActivityServiceGenerated {
 
         switch response {
         case .ok(let okResponse):
-            let activities = try okResponse.body.json
-            return activities.map { convertToActivityItem($0) }
+            let envelope = try okResponse.body.json
+            return envelope.items.map { convertToActivityItem($0) }
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
@@ -119,8 +119,8 @@ class ActivityServiceGenerated {
 
         switch response {
         case .ok(let okResponse):
-            let activities = try okResponse.body.json
-            return activities.map { convertToActivityItem($0) }
+            let envelope = try okResponse.body.json
+            return envelope.items.map { convertToActivityItem($0) }
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
@@ -139,8 +139,8 @@ class ActivityServiceGenerated {
 
         switch response {
         case .ok(let okResponse):
-            let activities = try okResponse.body.json
-            return activities.map { convertToActivityItem($0) }
+            let envelope = try okResponse.body.json
+            return envelope.items.map { convertToActivityItem($0) }
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
