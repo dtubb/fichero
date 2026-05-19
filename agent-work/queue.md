@@ -4,14 +4,14 @@
 # ── Priority 1: Small bugs / quick wins (≤12k tokens) ────────────────────────
 
 - issue: 743
-  status: in_progress
+  status: done
   title: "Engine: lazy-import heavy ML modules to drop cold-start from 25s to ~3s"
   files: [fichero-engine/src/fichero/api/main.py, fichero-engine/src/fichero/workflows/nodes/]
   approach: "langgraph imports already moved (aa7a3be2); verify + move any remaining torch/spacy/transformers imports inside the functions that use them."
   est_tokens: 10000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: a3ee484d
+  completed_at: 2026-05-18T22:25:39-03:00
 
 - issue: 1061
   status: pending
