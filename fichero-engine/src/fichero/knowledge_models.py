@@ -1030,6 +1030,30 @@ class KnowledgeClaim(BaseModel):
             "after the verb. Example: 'the alcalde of Popayán'."
         ),
     )
+    # --- SVO-style claim text fields (#730) ---
+    # Additional SVO fields alongside the existing subject_canonical/predicate_verb/object_phrase
+    # to provide consistent field names for metadata extraction and API consumers
+    svo_subject: str | None = Field(
+        default=None,
+        description=(
+            "Subject of the SVO triple. Alias for subject_canonical with consistent naming. "
+            "Populated from extract_all output using normalized entity names."
+        ),
+    )
+    svo_verb: str | None = Field(
+        default=None,
+        description=(
+            "Verb of the SVO triple. Uses slug_verb from kg/_common.py for canonical normalization. "
+            "Populated from extract_all output with fallback to synthesized values."
+        ),
+    )
+    svo_object: str | None = Field(
+        default=None,
+        description=(
+            "Object of the SVO triple. Complements svo_subject and svo_verb to form "
+            "complete structured triples. Populated from extract_all output."
+        ),
+    )
     # --- provenance & confidence ---
     entity_ids: list[str] = Field(default_factory=list)
     curation_state: ClaimCurationState = ClaimCurationState.unreviewed

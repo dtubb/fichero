@@ -1640,6 +1640,7 @@ def _write_kg_rows(
     """
     from fichero.knowledge_models import ClaimType, EpistemicStatus, EntityType
     from fichero.workflows.tools._entity_writer import upsert_entity, save_claim
+    from fichero.kg._common import slug_verb
 
     entity_type = section.get("entity_type")
     page_excerpt = source_excerpt  # rename for clarity below
@@ -2066,6 +2067,10 @@ def _write_kg_rows(
                 subject_canonical=stem,
                 predicate_verb=verb or None,
                 object_phrase=obj or None,
+                # New SVO-style fields (#730): structured triples metadata
+                svo_subject=stem,
+                svo_verb=slug_verb(verb) if verb else None,
+                svo_object=obj or None,
                 # Provider attribution + confidence + language (#1113).
                 provider=base_provider_label,
                 model=claim_model_label,
@@ -2117,6 +2122,10 @@ def _write_kg_rows(
                     subject_canonical=None,
                     predicate_verb=verb or None,
                     object_phrase=obj or None,
+                    # New SVO-style fields (#730): structured triples metadata
+                    svo_subject=None,
+                    svo_verb=slug_verb(verb) if verb else None,
+                    svo_object=obj or None,
                     provider=base_provider_label,
                     model=claim_model_label,
                     language=detected_language,
@@ -2195,6 +2204,10 @@ def _write_kg_rows(
             subject_entity_id=entity_id,
             predicate_verb=verb or None,
             object_phrase=obj or None,
+            # New SVO-style fields (#730): structured triples metadata
+            svo_subject=canonical,
+            svo_verb=slug_verb(verb) if verb else None,
+            svo_object=obj or None,
             # Provider attribution + confidence + language (#1113).
             provider=base_provider_label,
             model=claim_model_label,
