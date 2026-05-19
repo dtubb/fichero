@@ -26,14 +26,14 @@
 # ── Priority 2: Medium bugs (12–20k tokens) ──────────────────────────────────
 
 - issue: 764
-  status: in_progress
+  status: done
   title: "Workflow run: backend appears frozen until activity finally shows up"
   files: [fichero/fichero/Views/Activity/, fichero/fichero/Views/WorkflowEditor/]
   approach: "Show an immediate 'Starting…' progress indicator as soon as the run request is posted, before the first SSE event arrives."
   est_tokens: 15000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 1b56d84d
+  completed_at: 2026-05-18T22:42:16-03:00
 
 - issue: 1038
   status: pending
