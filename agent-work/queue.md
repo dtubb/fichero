@@ -25,12 +25,12 @@
   completed_at: null
 
 - issue: 1048
-  status: pending
+  status: blocked
   title: "Activity: add a per-node timing summary so runs can be optimized"
   files: [fichero/fichero/Views/Activity/]
   approach: "Compute elapsed time per workflow node from SSE start/end events and display a timing breakdown in the simplified Activity view (#1038 is done — 4-tab layout now in place)."
   est_tokens: 14000
-  blocked_reason: null
+  blocked_reason: "Free OpenRouter worker hallucinated on this twice — cross-cutting backend timing + UI card scope exceeds single-iteration capacity. Needs splitting or Sonnet/Opus."
   commit: null
   completed_at: null
 
