@@ -2044,7 +2044,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "EntityListResponse"
+        "response_model": "[TopEntityRow]"
       },
       {
         "method": "GET",

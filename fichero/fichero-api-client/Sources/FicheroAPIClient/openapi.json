@@ -6783,7 +6783,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EntityListResponse"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TopEntityRow"
+                  },
+                  "title": "Response Top Entities Api Entities Top Get"
                 }
               }
             }
@@ -45904,6 +45908,43 @@
         ],
         "title": "TopEntity",
         "description": "Entity with activity metrics."
+      },
+      "TopEntityRow": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kind"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases",
+            "default": []
+          },
+          "claim_count": {
+            "type": "integer",
+            "title": "Claim Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "name",
+          "claim_count"
+        ],
+        "title": "TopEntityRow",
+        "description": "One row of /entities/top \u2014 most-claimed entity in the library\nwith name, kind, alias list, and claim count."
       },
       "TrainResponse": {
         "properties": {

@@ -184,7 +184,7 @@ async def list_entities(
     entity_type: Annotated[EntityType | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 50,
     db: Database = Depends(get_library_database),
-) -> list[KnowledgeEntity]:
+) -> EntityListResponse:
     """List knowledge entities with optional filtering."""
     entities = (
         db.query(KnowledgeEntity, entity_type=entity_type)
@@ -200,7 +200,8 @@ async def list_entities(
             or any(needle in _normalize_text(alias) for alias in entity.aliases)
         ]
     entities.sort(key=lambda entity: entity.canonical_name.lower())
-    return entities[:limit]
+    items = entities[:limit]
+    return EntityListResponse(items=items, count=len(items))
 
 
 # =============================================================================
@@ -290,7 +291,7 @@ class TopEntityRow(BaseModel):
     claim_count: int
 
 
-@router.get("/top", response_model=EntityListResponse)
+@router.get("/top", response_model=list[TopEntityRow])
 async def top_entities(
     entity_type: Annotated[EntityType | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 30,
@@ -569,7 +570,7 @@ async def get_entity_documents(
     entity_id: str,
     limit: int = 100,
     db: Database = Depends(get_library_database),
-) -> list[EntityDocumentLink]:
+) -> EntityDocumentListResponse:
     """Documents that mention `entity_id` via a knowledge claim.
 
     Powers the cross-document entity drill-down (#729): clicking
@@ -607,9 +608,9 @@ async def get_entity_documents(
         ).fetchall()
     except Exception as exc:  # noqa: BLE001
         logger.warning("entity-documents lookup failed: %s", exc)
-        return []
+        return EntityDocumentListResponse(items=[], count=0)
 
-    return [
+    items = [
         EntityDocumentLink(
             document_id=row[0],
             document_name=row[1],
@@ -621,6 +622,7 @@ async def get_entity_documents(
         for row in rows
         if row[0]
     ]
+    return EntityDocumentListResponse(items=items, count=len(items))
 
 
 @router.get("/{entity_id}/co-occurrence", response_model=EntityCoOccurrenceListResponse)
@@ -628,7 +630,7 @@ async def get_entity_co_occurrence(
     entity_id: str,
     limit: int = 50,
     db: Database = Depends(get_library_database),
-) -> list[EntityCoOccurrence]:
+) -> EntityCoOccurrenceListResponse:
     """Entities that share at least one claim with `entity_id`.
 
     Powers a 'related entities' rail in the entity drill-down — see
@@ -650,7 +652,7 @@ async def get_entity_co_occurrence(
         ).fetchall()
     except Exception as exc:  # noqa: BLE001
         logger.warning("co-occurrence lookup failed: %s", exc)
-        return []
+        return EntityCoOccurrenceListResponse(items=[], count=0)
 
     import json as _json
     from collections import Counter
@@ -670,7 +672,7 @@ async def get_entity_co_occurrence(
                 counter[other] += 1
 
     if not counter:
-        return []
+        return EntityCoOccurrenceListResponse(items=[], count=0)
 
     top_ids = [eid for eid, _count in counter.most_common(limit)]
     out: list[EntityCoOccurrence] = []
@@ -691,7 +693,7 @@ async def get_entity_co_occurrence(
                 shared_claims=counter[other_id],
             )
         )
-    return out
+    return EntityCoOccurrenceListResponse(items=out, count=len(out))
 
 
 class EntityDrillDownResponse(BaseModel):
