@@ -39,7 +39,9 @@ class TestMutationLogList:
         )
         db.save(new)
 
-        rows = asyncio.run(kg_mutations.list_mutations(limit=10, db=db))
+        response = asyncio.run(kg_mutations.list_mutations(limit=10, db=db))
+        rows = response.items
+        assert response.count == 2
         assert len(rows) == 2
         assert rows[0].id == new.id  # newest first
         assert rows[0].operation == "delete"

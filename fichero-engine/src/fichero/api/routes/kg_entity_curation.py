@@ -436,3 +436,10 @@ async def candidate_pairs(
         ))
     rows.sort(key=lambda r: r.jaccard, reverse=True)
     return rows[:top_k]
+
+
+# Resolve forward refs in EntityAuditListResponse (declared in models.py with
+# items: list["EntityAuditResponse"]). See #1144.
+from fichero.models import EntityAuditListResponse  # noqa: E402
+
+EntityAuditListResponse.model_rebuild(_types_namespace={"EntityAuditResponse": EntityAuditResponse})

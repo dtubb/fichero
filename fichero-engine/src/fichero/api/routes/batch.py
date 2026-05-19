@@ -404,3 +404,9 @@ async def delete_batch(batch_id: str) -> BatchDeletedResponse:
 
     await manager.delete_batch(batch_id)
     return BatchDeletedResponse(status="deleted", batch_id=batch_id)
+
+
+# Resolve forward refs in BatchListResponse (see #1144).
+from fichero.models import BatchListResponse  # noqa: E402
+
+BatchListResponse.model_rebuild(_types_namespace={"BatchResponse": BatchResponse})

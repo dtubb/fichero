@@ -28987,7 +28987,9 @@
       "ActivityListResponse": {
         "properties": {
           "items": {
-            "items": {},
+            "items": {
+              "$ref": "#/components/schemas/ActivityResponse"
+            },
             "type": "array",
             "title": "Items"
           },
@@ -30284,7 +30286,9 @@
       "BatchListResponse": {
         "properties": {
           "items": {
-            "items": {},
+            "items": {
+              "$ref": "#/components/schemas/BatchResponse"
+            },
             "type": "array",
             "title": "Items"
           },
@@ -31461,7 +31465,9 @@
       "CitationListResponse": {
         "properties": {
           "items": {
-            "items": {},
+            "items": {
+              "$ref": "#/components/schemas/DocumentCitation"
+            },
             "type": "array",
             "title": "Items"
           },
@@ -31855,7 +31861,9 @@
       "ClaimListResponse": {
         "properties": {
           "items": {
-            "items": {},
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeClaim"
+            },
             "type": "array",
             "title": "Items"
           },
@@ -34524,7 +34532,9 @@
       "EntityAuditListResponse": {
         "properties": {
           "items": {
-            "items": {},
+            "items": {
+              "$ref": "#/components/schemas/EntityAuditResponse"
+            },
             "type": "array",
             "title": "Items"
           },
@@ -34834,7 +34844,9 @@
       "EntityListResponse": {
         "properties": {
           "items": {
-            "items": {},
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeEntity"
+            },
             "type": "array",
             "title": "Items"
           },

@@ -776,3 +776,4 @@ async def add_entity_aliases(
     entity.updated_at = datetime.now()
     db.save(entity)
     return entity
+

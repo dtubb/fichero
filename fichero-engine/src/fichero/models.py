@@ -31,12 +31,26 @@ Usage:
 from pydantic import BaseModel, Field, ConfigDict, computed_field
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 import base64
 
 # Import ProviderType from providers module (single source of truth)
 from fichero.providers import ProviderType
+
+# Direct imports — knowledge_models has no dependency on this file.
+from fichero.knowledge_models import (
+    DocumentCitation,
+    KnowledgeClaim,
+    KnowledgeEntity,
+)
+
+# Forward refs — routes import from this file, so we can't import back. The
+# route modules call model_rebuild() on their owning envelope at module end.
+if TYPE_CHECKING:
+    from fichero.api.routes.activity import ActivityResponse
+    from fichero.api.routes.batch import BatchResponse
+    from fichero.api.routes.kg_entity_curation import EntityAuditResponse
 
 
 def _new_id() -> str:
@@ -1099,21 +1113,21 @@ class ActionListResponse(BaseModel):
 class ActivityListResponse(BaseModel):
     """Standardized envelope for GET /api/activity list endpoints."""
 
-    items: list[Any]  # Typically ActivityResponse
+    items: list["ActivityResponse"]
     count: int
 
 
 class BatchListResponse(BaseModel):
     """Standardized envelope for GET /api/batch list endpoints."""
 
-    items: list[Any]  # Typically BatchResponse
+    items: list["BatchResponse"]
     count: int
 
 
 class ClaimListResponse(BaseModel):
     """Standardized envelope for GET /api/claims list endpoints."""
 
-    items: list[Any]  # Typically KnowledgeClaim
+    items: list[KnowledgeClaim]
     count: int
 
 
@@ -1134,7 +1148,7 @@ class DocumentListResponse(BaseModel):
 class EntityListResponse(BaseModel):
     """Standardized envelope for GET /api/entities list endpoints."""
 
-    items: list[Any]  # Typically KnowledgeEntity
+    items: list[KnowledgeEntity]
     count: int
 
 
@@ -1155,7 +1169,7 @@ class EntityDocumentListResponse(BaseModel):
 class EntityAuditListResponse(BaseModel):
     """Standardized envelope for GET /api/kg-entity-curation/audit."""
 
-    items: list[Any]  # Typically EntityAuditResponse
+    items: list["EntityAuditResponse"]
     count: int
 
 
@@ -1286,7 +1300,7 @@ class AnnotationListResponse(BaseModel):
 class CitationListResponse(BaseModel):
     """Standardized envelope for GET /api/citations list endpoints."""
 
-    items: list[Any]  # Typically DocumentCitation
+    items: list[DocumentCitation]
     count: int
 
 

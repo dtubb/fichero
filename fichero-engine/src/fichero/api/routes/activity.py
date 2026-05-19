@@ -904,3 +904,11 @@ async def get_activity_metrics_summary(
         period_start=stats.period_start.isoformat(),
         period_end=stats.period_end.isoformat(),
     )
+
+
+# Resolve forward refs in ActivityListResponse (declared in models.py with
+# items: list["ActivityResponse"]). Pydantic v2 needs this after both modules
+# are loaded — see #1144.
+from fichero.models import ActivityListResponse  # noqa: E402
+
+ActivityListResponse.model_rebuild(_types_namespace={"ActivityResponse": ActivityResponse})
