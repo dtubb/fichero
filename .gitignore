@@ -78,3 +78,4 @@ default.profraw
 .session-end-complete
 .claude/scheduled_tasks.lock
 CONTINUE.md
+agent-work/.cascade.lock
