@@ -45,7 +45,7 @@
   completed_at: null
 
 - issue: 1024
-  status: pending
+  status: in_progress
   title: "PDF viewer needs its own zoom toolbar mirroring the image viewer's ImageZoomToolbar"
   files: [fichero/fichero/Views/Document/]
   approach: "Add PDFZoomToolbar wired to the existing PDFZoomController bridge; expose fit-to-page / fit-to-width / zoom-in / zoom-out. Gate for #928."
