@@ -67,15 +67,22 @@ def cli_against_seed(tmp_path_factory):
         "FICHERO_BASE_PATH": str(workdir / "base"),
         "FICHERO_PARENT_PID": str(os.getpid()),
     }
+    # Capture the engine's stderr so a failed boot is diagnosable (not silent).
+    engine_log = workdir / "engine.log"
+    log_handle = open(engine_log, "w")
     proc = subprocess.Popen(
-        [str(VENV_UVICORN), "fichero.api.main:app", "--port", str(port)],
+        [str(VENV_UVICORN), "fichero.api.main:app", "--host", "127.0.0.1", "--port", str(port)],
         env=env,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=log_handle,
     )
     try:
         if not _wait_healthy(base_url):
-            pytest.skip("spawned engine never became healthy")
+            tail = engine_log.read_text(errors="replace")[-4000:]
+            pytest.fail(
+                "spawned engine never became healthy in 30s.\n"
+                f"--- engine stderr (tail) ---\n{tail}"
+            )
         client = FicheroClient(base_url=base_url, library_path=str(library), token=None)
         try:
             yield client, summary
@@ -87,6 +94,7 @@ def cli_against_seed(tmp_path_factory):
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             proc.kill()
+        log_handle.close()
 
 
 def _expected(summary, key):
