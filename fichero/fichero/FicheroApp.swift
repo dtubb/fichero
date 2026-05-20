@@ -44,8 +44,9 @@ struct FicheroApp: App {
         // mock data.
         let env = ProcessInfo.processInfo.environment
         if env["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
-            || env["XCODE_RUNNING_FOR_PLAYGROUNDS"] == "1" {
-            logger.info("FicheroApp.init: preview/playground host — skipping installer + library restore")
+            || env["XCODE_RUNNING_FOR_PLAYGROUNDS"] == "1"
+            || isRunningXCTests() {
+            logger.info("FicheroApp.init: preview/playground/XCTest host — skipping installer + library restore")
             return
         }
 

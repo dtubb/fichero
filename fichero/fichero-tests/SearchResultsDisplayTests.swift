@@ -5,6 +5,7 @@ import XCTest
 /// Tests for the keyword-cloud font-size scaling used in the search
 /// empty-state pill cloud. Frequency-proportional sizing so the
 /// most-used tag pops visually.
+@MainActor
 final class SearchResultsDisplayTests: XCTestCase {
 
     // MARK: - fontSize: scaling

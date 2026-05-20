@@ -6,6 +6,7 @@ import XCTest
 /// Tests for the pure filter helpers on OntologyBrowser (#498). Locks
 /// the @AppStorage CSV parser and the kind-filter rule so the chip-row
 /// UI never silently drops or keeps the wrong entities.
+@MainActor
 final class OntologyBrowserFilterTests: XCTestCase {
 
     // MARK: - parseHiddenKinds (CSV parser)

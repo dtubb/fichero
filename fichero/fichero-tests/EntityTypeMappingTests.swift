@@ -8,6 +8,7 @@ import XCTest
 /// 'people' artifact_type so the scoped query `people:<name>` works.
 ///
 /// Lives in `LibraryView+ColumnConfig.swift` as `ArtifactEntitiesView.entityTypeId(for:)`.
+@MainActor
 final class EntityTypeMappingTests: XCTestCase {
 
     // MARK: - Standard six types

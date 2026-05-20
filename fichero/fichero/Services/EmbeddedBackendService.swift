@@ -4,6 +4,21 @@ import OSLog
 
 private let logger = Logger(subsystem: "com.fichero.fichero", category: "EmbeddedBackend")
 
+/// True when this process is hosting an XCTest bundle. Detected via the XCTest
+/// runtime class, which is loaded into the host the moment the test bundle is
+/// injected (before `main`), so it's reliable regardless of how the host was
+/// launched — unlike the `XCTest*` env vars, which don't always propagate.
+///
+/// Used to neutralize app-boot side effects during tests: the host must not
+/// launch a backend (it would race / fatally terminate via showBackendError)
+/// or open the user's real libraries. The integration harness (EngineHarness)
+/// owns engine lifecycle and seeds its own disposable library.
+func isRunningXCTests() -> Bool {
+    if NSClassFromString("XCTestCase") != nil { return true }
+    let env = ProcessInfo.processInfo.environment
+    return env["XCTestConfigurationFilePath"] != nil || env["XCTestBundlePath"] != nil
+}
+
 /// Manages the embedded Python backend lifecycle
 @MainActor
 final class EmbeddedBackendService: ObservableObject {
@@ -36,15 +51,22 @@ final class EmbeddedBackendService: ObservableObject {
         let env = ProcessInfo.processInfo.environment
         let isPreview = env["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
             || env["XCODE_RUNNING_FOR_PLAYGROUNDS"] == "1"
-        if isPreview {
-            logger.info("Preview / playground host — connecting to external if up, else no-op")
+        // XCTest host: a test run launches the full app as its host, so this
+        // boot path runs *before* any test code. The integration harness
+        // (EngineHarness) manages its own disposable engine and drives the
+        // services with its own client, so the host app must NEITHER launch
+        // the (often unbuilt) bundled engine NOR fatally terminate when it's
+        // missing — `showBackendError` calls NSApplication.terminate, which
+        // kills the test runner before a single test executes.
+        if isPreview || isRunningXCTests() {
+            logger.info("Preview / playground / XCTest host — connecting to external if up, else no-op")
             do {
                 try await waitForBackend(timeout: 1.5)
                 status = .running
                 isExternalBackend = true
-                logger.info("✅ Preview connected to external backend")
+                logger.info("✅ Connected to external backend")
             } catch {
-                logger.info("No external backend; preview canvas runs without backend")
+                logger.info("No external backend; host runs without managing one")
                 status = .running
                 isExternalBackend = true
             }

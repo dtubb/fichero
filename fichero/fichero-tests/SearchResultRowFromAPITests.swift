@@ -5,6 +5,7 @@ import XCTest
 /// Tests for the search result row's static helpers — match-source
 /// label inference and `**term**` markdown-style bolding of highlight
 /// snippets returned by the backend.
+@MainActor
 final class SearchResultRowFromAPITests: XCTestCase {
 
     // MARK: - attributedHighlight

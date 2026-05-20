@@ -27,6 +27,8 @@ fichero-engine/.briefcase/
 fichero-engine/.briefcase-venv/
 fichero-engine/.pytest_cache/
 fichero-engine/.mypy_cache/
+# Disposable base path for the Swift integration-test harness (EngineHarness)
+fichero-engine/.itest-base/
 
 # Build / generated
 .build/
