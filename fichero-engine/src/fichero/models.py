@@ -1166,6 +1166,13 @@ class EntityDocumentListResponse(BaseModel):
     count: int
 
 
+class TopEntityListResponse(BaseModel):
+    """Standardized envelope for GET /api/entities/top."""
+
+    items: list[Any]  # Typically TopEntityRow
+    count: int
+
+
 class EntityAuditListResponse(BaseModel):
     """Standardized envelope for GET /api/kg-entity-curation/audit."""
 

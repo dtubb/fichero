@@ -80,10 +80,10 @@ async def predict(
 
     predictions = predict_for_subject(db, entity_id, top_k=top_k)
     if not predictions:
-        # 200 with empty body — caller distinguishes "no model" from
-        # "model has no predictions" via the explicit empty array.
-        return []
-    return [
+        # 200 with empty envelope — caller distinguishes "no model" from
+        # "model has no predictions" via the explicit empty items list.
+        return KGGraphListResponse(items=[], count=0)
+    rows = [
         LinkPredictionRow(
             subject_id=p.subject_id,
             predicate=p.predicate,
@@ -92,6 +92,7 @@ async def predict(
         )
         for p in predictions
     ]
+    return KGGraphListResponse(items=rows, count=len(rows))
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +124,8 @@ class VerifyPredictionRequest(BaseModel):
 )
 async def list_training_jobs() -> PykeenListResponse:
     inference = get_inference()
-    return inference.get_training_jobs()
+    jobs = inference.get_training_jobs()
+    return PykeenListResponse(items=jobs, count=len(jobs))
 
 
 @router.get(
@@ -162,7 +164,8 @@ async def list_stored_predictions(
     verified: bool | None = None,
 ) -> PykeenListResponse:
     inference = get_inference()
-    return inference.list_predictions(model_id=model_id, verified=verified)
+    predictions = inference.list_predictions(model_id=model_id, verified=verified)
+    return PykeenListResponse(items=predictions, count=len(predictions))
 
 
 @router.get(

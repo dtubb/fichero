@@ -56,7 +56,7 @@ async def contradictions(
     claim_id: str,
     min_link_quality: float = Query(default=0.0, ge=0.0, le=1.0),
     db: Database = Depends(get_library_database),
-) -> list[ContradictionEvidence]:
+) -> ContradictionListResponse:
     """Return all contradicting claims with evidence."""
     claim = db.get(KnowledgeClaim, claim_id)
     if claim is None:
@@ -100,7 +100,7 @@ async def contradictions(
             contradicting_text=other.text[:200],
         ))
     out.sort(key=lambda x: x.link_quality, reverse=True)
-    return out
+    return ContradictionListResponse(items=out, count=len(out))
 
 
 @router.get("/{claim_id}/evidence-chain", response_model=EvidenceChain)

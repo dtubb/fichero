@@ -919,7 +919,7 @@ final class EntityServiceGenerated: ObservableObject {
         )
         switch response {
         case .ok(let okResponse):
-            return try okResponse.body.json.compactMap(Self.decodeSimilar(payload:))
+            return try okResponse.body.json.items.compactMap(Self.decodeSimilar(payload:))
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
@@ -1005,11 +1005,10 @@ final class EntityServiceGenerated: ObservableObject {
     }
 
     private static func decodeSimilar(
-        payload: Operations.FindSimilarClaimsApiKgClaimSearchClaimIdSimilarGet
-            .Output.Ok.Body.JsonPayloadPayload
+        payload: OpenAPIRuntime.OpenAPIValueContainer
     ) -> SimilarClaim? {
-        let dict = payload.additionalProperties.value
-        guard let id = dict["id"] as? String,
+        guard let dict = payload.value as? [String: Any],
+              let id = dict["id"] as? String,
               let text = dict["text"] as? String
         else { return nil }
         let score: Double

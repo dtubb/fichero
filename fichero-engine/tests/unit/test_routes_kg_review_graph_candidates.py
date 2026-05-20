@@ -65,14 +65,14 @@ class TestGraphCandidates:
     def test_empty_library_returns_empty_list(self, client):
         r = client.get("/api/kg/review/graph-candidates")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json()["items"] == []
 
     def test_surfaces_overlapping_pair(self, client, db):
         _seed_overlapping_pair(db)
 
         r = client.get("/api/kg/review/graph-candidates")
         assert r.status_code == 200
-        rows = r.json()
+        rows = r.json()["items"]
         assert len(rows) == 1
         row = rows[0]
         assert {row["entity_a_id"], row["entity_b_id"]} == {"ent-a", "ent-b"}
@@ -86,7 +86,7 @@ class TestGraphCandidates:
         # A-B Jaccard is 2/3 ≈ 0.667 — a threshold above that drops it.
         r = client.get("/api/kg/review/graph-candidates?threshold=0.7")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json()["items"] == []
 
     def test_soft_deleted_entity_excluded(self, client, db):
         _seed_overlapping_pair(db)
@@ -96,7 +96,7 @@ class TestGraphCandidates:
 
         r = client.get("/api/kg/review/graph-candidates")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json()["items"] == []
 
     def test_already_queued_pair_is_marked(self, client, db):
         _seed_overlapping_pair(db)
@@ -109,6 +109,6 @@ class TestGraphCandidates:
 
         r = client.get("/api/kg/review/graph-candidates")
         assert r.status_code == 200
-        rows = r.json()
+        rows = r.json()["items"]
         assert len(rows) == 1
         assert rows[0]["already_queued"] is True

@@ -133,7 +133,7 @@ async def list_pairs(
             reason=cand.reason,
             created_at=cand.created_at,
         ))
-    return out
+    return ReviewListResponse(items=out, count=len(out))
 
 
 class GraphCandidateResponse(BaseModel):
@@ -182,9 +182,7 @@ async def graph_candidates(
         g, threshold=threshold, min_shared=min_shared, top_k=limit,
     )
     if not candidates:
-        items = []
-
-        return ReviewListResponse(items=items, count=len(items))
+        return KGGraphListResponse(items=[], count=0)
 
     # Soft-deleted entities still appear as graph nodes — drop any
     # candidate touching one (it was already merged away).
@@ -213,7 +211,7 @@ async def graph_candidates(
                 (cand.entity_a_id, cand.entity_b_id)
             ) in queued,
         ))
-    return out
+    return KGGraphListResponse(items=out, count=len(out))
 
 
 class AcceptResponse(BaseModel):
@@ -421,7 +419,7 @@ async def list_labels(
             decided_at=r.decided_at or r.created_at,
             decided_by=r.decided_by,
         ))
-    return out
+    return KGGraphListResponse(items=out, count=len(out))
 
 
 # Manual queueing — lets the inspector "Suggest merge" button create

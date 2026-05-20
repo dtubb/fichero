@@ -57,7 +57,7 @@ async def centrality(
 
     g = build_full_cooccurrence(db)
     scores = compute_centrality(g, top_k=top_k, only_type=entity_type)
-    return [
+    rows = [
         CentralityRow(
             entity_id=s.entity_id,
             canonical_name=s.canonical_name,
@@ -67,6 +67,7 @@ async def centrality(
         )
         for s in scores
     ]
+    return KGGraphListResponse(items=rows, count=len(rows))
 
 
 class CooccurrenceNeighbour(BaseModel):
@@ -108,7 +109,7 @@ async def cooccurrence_neighbours(
             weight=g[entity_id][other]["weight"],
         ))
     rows.sort(key=lambda r: -r.weight)
-    return rows
+    return KGGraphListResponse(items=rows, count=len(rows))
 
 
 class PathResponse(BaseModel):
@@ -653,7 +654,7 @@ async def pagerank(
 
     g = build_full_graph(db)
     if g.number_of_nodes() == 0:
-        return []
+        return KGGraphListResponse(items=[], count=0)
     scores = nx.pagerank(g)
     entities_by_id: dict[str, KnowledgeEntity] = {
         ent.id: ent for ent in db.query(KnowledgeEntity)
@@ -677,7 +678,8 @@ async def pagerank(
             pagerank=float(score),
         ))
     rows.sort(key=lambda r: r.pagerank, reverse=True)
-    return rows[:top_k]
+    rows = rows[:top_k]
+    return KGGraphListResponse(items=rows, count=len(rows))
 
 
 class CommunityRow(BaseModel):
@@ -712,7 +714,7 @@ async def communities(
     # need conversion anyway.
     g = build_full_cooccurrence(db)
     if g.number_of_nodes() == 0:
-        return []
+        return KGGraphListResponse(items=[], count=0)
 
     if method == "louvain":
         partition = nx.community.louvain_communities(g, seed=42)
@@ -725,7 +727,7 @@ async def communities(
             entity_to_cid[node_id] = cid
 
     entities = db.query(KnowledgeEntity)
-    return [
+    rows = [
         CommunityRow(
             entity_id=ent.id,
             canonical_name=ent.canonical_name,
@@ -738,6 +740,7 @@ async def communities(
         for ent in entities
         if ent.id in entity_to_cid
     ]
+    return KGGraphListResponse(items=rows, count=len(rows))
 
 
 class SimilarEntityRow(BaseModel):
@@ -778,7 +781,7 @@ async def similar(
         raise HTTPException(404, f"Entity not found: {entity_id}")
     g = build_full_cooccurrence(db)
     if entity_id not in g:
-        return []
+        return KGGraphListResponse(items=[], count=0)
 
     candidate_pairs = [(entity_id, other) for other in g.nodes() if other != entity_id]
     if method == "jaccard":
@@ -808,7 +811,8 @@ async def similar(
             score=float(score),
         ))
     rows.sort(key=lambda r: r.score, reverse=True)
-    return rows[:top_k]
+    rows = rows[:top_k]
+    return KGGraphListResponse(items=rows, count=len(rows))
 
 
 class ComponentRow(BaseModel):
@@ -835,9 +839,9 @@ async def components(
 
     g = build_full_cooccurrence(db)
     if g.number_of_nodes() == 0:
-        return []
+        return KGGraphListResponse(items=[], count=0)
     comps = sorted(nx.connected_components(g), key=len, reverse=True)
-    return [
+    rows = [
         ComponentRow(
             component_id=cid,
             size=len(members),
@@ -845,6 +849,7 @@ async def components(
         )
         for cid, members in enumerate(comps)
     ]
+    return KGGraphListResponse(items=rows, count=len(rows))
 
 
 class TriangleRow(BaseModel):
@@ -916,7 +921,7 @@ async def clustering(
 
     g = build_full_cooccurrence(db)
     if g.number_of_nodes() == 0:
-        return []
+        return KGGraphListResponse(items=[], count=0)
     cc = nx.clustering(g)
     entities_by_id: dict[str, KnowledgeEntity] = {
         ent.id: ent for ent in db.query(KnowledgeEntity)
@@ -931,7 +936,8 @@ async def clustering(
         if (ent := entities_by_id.get(node_id)) is not None
     ]
     rows.sort(key=lambda r: r.clustering_coefficient, reverse=True)
-    return rows[:top_k]
+    rows = rows[:top_k]
+    return KGGraphListResponse(items=rows, count=len(rows))
 
 
 def _make_edge(

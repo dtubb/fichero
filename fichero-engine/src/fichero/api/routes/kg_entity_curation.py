@@ -317,13 +317,13 @@ async def embed_entities(
     return EmbedEntitiesResponse(embedded=embedded, table=KG_ENTITY_EMBEDDINGS_TABLE)
 
 
-@router.get("/semantic")
+@router.get("/semantic", response_model=KGGraphListResponse)
 async def search_entities_semantic(
     q: str = Query(..., description="Natural language query"),
     entity_type: EntityType | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
     db: Database = Depends(get_library_database),
-) -> list[dict[str, Any]]:
+) -> KGGraphListResponse:
     """Semantic entity search via LanceDB."""
     if KG_ENTITY_EMBEDDINGS_TABLE not in db._lance_tables():
         raise HTTPException(
@@ -337,14 +337,15 @@ async def search_entities_semantic(
     results = db.search_vectors(KG_ENTITY_EMBEDDINGS_TABLE, query_vector, limit=limit)
     entity_ids = [r["id"] for r in results]
     if not entity_ids:
-        return []
+        return KGGraphListResponse(items=[], count=0)
     entities = {e.id: e for e in db.all(KnowledgeEntity) if e.id in entity_ids}
     score_map = {r["id"]: r.get("_score", 0.0) for r in results}
-    return [
+    items = [
         {**entities[eid].model_dump(), "similarity_score": score_map.get(eid, 0.0)}
         for eid in entity_ids
         if eid in entities and (entity_type is None or entities[eid].entity_type == entity_type)
     ]
+    return KGGraphListResponse(items=items, count=len(items))
 
 
 # ---------------------------------------------------------------------------
@@ -397,7 +398,7 @@ async def candidate_pairs(
 
     graph = build_full_cooccurrence(db)
     if graph.number_of_nodes() < 2:
-        return []
+        return KGGraphListResponse(items=[], count=0)
     by_id: dict[str, KnowledgeEntity] = {e.id: e for e in db.query(KnowledgeEntity)}
     nodes = [n for n in graph.nodes() if n in by_id]
     candidate_node_pairs = [
@@ -408,7 +409,7 @@ async def candidate_pairs(
         or (by_id[a].entity_type == by_id[b].entity_type)
     ]
     if not candidate_node_pairs:
-        return []
+        return KGGraphListResponse(items=[], count=0)
     scored = nx.jaccard_coefficient(graph, candidate_node_pairs)
     rows: list[CandidatePair] = []
     for u, v, coef in scored:
@@ -435,7 +436,8 @@ async def candidate_pairs(
             ),
         ))
     rows.sort(key=lambda r: r.jaccard, reverse=True)
-    return rows[:top_k]
+    rows = rows[:top_k]
+    return KGGraphListResponse(items=rows, count=len(rows))
 
 
 # Resolve forward refs in EntityAuditListResponse (declared in models.py with

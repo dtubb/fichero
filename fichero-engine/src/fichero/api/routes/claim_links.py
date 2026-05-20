@@ -207,4 +207,5 @@ async def get_related_claims(
 
     # Fetch related claims
     related_claims = [db.get(KnowledgeClaim, rid) for rid in related_ids]
-    return [c for c in related_claims if c is not None]
+    items = [c for c in related_claims if c is not None]
+    return ClaimListResponse(items=items, count=len(items))

@@ -77,7 +77,7 @@ async def list_annotations(
     if min_rating is not None:
         rows = [r for r in rows if r.rating is not None and r.rating >= min_rating]
     rows.sort(key=lambda r: r.created_at, reverse=True)
-    return rows
+    return AnnotationListResponse(items=rows, count=len(rows))
 
 
 @router.get("/{annotation_id}", response_model=Annotation)

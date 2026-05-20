@@ -105,17 +105,23 @@ def _clean(params: dict[str, Any] | None) -> dict[str, Any] | None:
 
 
 def _expect_list(raw: Any, path: str) -> list[Any]:
-    """Assert a typed-list method's response really is a list.
+    """Unwrap a list endpoint's ``{items, count}`` envelope to its items.
 
-    The whole point of typing at the boundary is to make a wrong-shape
-    response loud, not silent. Without this guard, ``raw or []`` would swallow
-    ``None`` (204 / empty body) as "zero results" and treat ``{"error": ...}``
-    as a dict to iterate (yielding string keys that then fail Pydantic
-    validation with a confusing message). This raises a clear error instead.
+    Every list endpoint returns the standardized envelope (#1075/#1149), so
+    the single uniform rule for the CLI is "take ``.items``". A bare list is
+    still accepted for any endpoint not yet migrated, so this stays correct
+    mid-sweep.
+
+    The guard keeps wrong-shape responses loud rather than silent: without it,
+    ``raw or []`` would swallow ``None`` (204 / empty body) as "zero results"
+    and treat ``{"error": ...}`` as a dict to iterate.
     """
+    if isinstance(raw, dict) and isinstance(raw.get("items"), list):
+        return raw["items"]
     if not isinstance(raw, list):
         raise FicheroError(
-            f"GET {path} returned {type(raw).__name__}, expected a list"
+            f"GET {path} returned {type(raw).__name__}, expected a "
+            "{items, count} envelope or a list"
         )
     return raw
 

@@ -81,7 +81,7 @@ async def list_citations(
     if min_confidence is not None:
         rows = [r for r in rows if r.confidence >= min_confidence]
     rows.sort(key=lambda r: r.created_at, reverse=True)
-    return rows
+    return CitationListResponse(items=rows, count=len(rows))
 
 
 @router.get(

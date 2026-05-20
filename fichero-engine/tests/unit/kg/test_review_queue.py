@@ -187,7 +187,7 @@ class TestAcceptRejectInProcess:
         asyncio.run(kg_review.reject_pair(p_reject.id, BackgroundTasks(), db=db))
 
         labels = asyncio.run(kg_review.list_labels(db=db))
-        labels_by_id = {row.pair_id: row.label for row in labels}
+        labels_by_id = {row.pair_id: row.label for row in labels.items}
         assert labels_by_id.get(p_accept.id) == "match"
         assert labels_by_id.get(p_reject.id) == "no_match"
         assert p_pending.id not in labels_by_id

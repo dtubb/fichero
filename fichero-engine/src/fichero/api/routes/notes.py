@@ -60,7 +60,7 @@ async def list_notes(
     linked_document_id: str | None = Query(default=None),
     q: str | None = Query(default=None, description="full-text body search"),
     db: Database = Depends(get_library_database),
-) -> list[Note]:
+) -> NoteListResponse:
     rows = db.query(Note)
     if kind is not None:
         rows = [r for r in rows if r.kind == kind]
@@ -80,7 +80,7 @@ async def list_notes(
             or needle in (r.title or "").lower()
         ]
     rows.sort(key=lambda r: r.updated_at, reverse=True)
-    return rows
+    return NoteListResponse(items=rows, count=len(rows))
 
 
 @router.get("/{note_id}", response_model=Note)

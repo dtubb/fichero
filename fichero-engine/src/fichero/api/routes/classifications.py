@@ -77,7 +77,7 @@ async def list_values(
     if dimension is not None:
         rows = [r for r in rows if r.dimension == dimension]
     rows.sort(key=lambda r: (r.dimension.value, r.sort_order, r.label))
-    return rows
+    return ClassificationListResponse(items=rows, count=len(rows))
 
 
 class ClassificationCreateRequest(BaseModel):

@@ -6783,11 +6783,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TopEntityRow"
-                  },
-                  "title": "Response Top Entities Api Entities Top Get"
+                  "$ref": "#/components/schemas/TopEntityListResponse"
                 }
               }
             }
@@ -17392,12 +17388,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "additionalProperties": true
-                  },
-                  "title": "Response Search Claims Semantic Api Kg Claim Search Get"
+                  "$ref": "#/components/schemas/KGGraphListResponse"
                 }
               }
             }
@@ -17461,12 +17452,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "additionalProperties": true
-                  },
-                  "title": "Response Find Similar Claims Api Kg Claim Search  Claim Id  Similar Get"
+                  "$ref": "#/components/schemas/KGGraphListResponse"
                 }
               }
             }
@@ -17947,12 +17933,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "additionalProperties": true
-                  },
-                  "title": "Response Search Entities Semantic Api Kg Entity Curation Semantic Get"
+                  "$ref": "#/components/schemas/KGGraphListResponse"
                 }
               }
             }
@@ -45909,42 +45890,25 @@
         "title": "TopEntity",
         "description": "Entity with activity metrics."
       },
-      "TopEntityRow": {
+      "TopEntityListResponse": {
         "properties": {
-          "entity_id": {
-            "type": "string",
-            "title": "Entity Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "kind": {
-            "type": "string",
-            "nullable": true,
-            "title": "Kind"
-          },
-          "aliases": {
-            "items": {
-              "type": "string"
-            },
+          "items": {
+            "items": {},
             "type": "array",
-            "title": "Aliases",
-            "default": []
+            "title": "Items"
           },
-          "claim_count": {
+          "count": {
             "type": "integer",
-            "title": "Claim Count"
+            "title": "Count"
           }
         },
         "type": "object",
         "required": [
-          "entity_id",
-          "name",
-          "claim_count"
+          "items",
+          "count"
         ],
-        "title": "TopEntityRow",
-        "description": "One row of /entities/top \u2014 most-claimed entity in the library\nwith name, kind, alias list, and claim count."
+        "title": "TopEntityListResponse",
+        "description": "Standardized envelope for GET /api/entities/top."
       },
       "TrainResponse": {
         "properties": {

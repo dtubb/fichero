@@ -20,7 +20,7 @@ from fichero.knowledge_models import (
     EntityType,
     KnowledgeEntity,
 )
-from fichero.models import EntityListResponse, EntityCoOccurrenceListResponse, EntityDocumentListResponse
+from fichero.models import EntityListResponse, EntityCoOccurrenceListResponse, EntityDocumentListResponse, TopEntityListResponse
 
 logger = logging.getLogger(__name__)
 
@@ -291,12 +291,12 @@ class TopEntityRow(BaseModel):
     claim_count: int
 
 
-@router.get("/top", response_model=list[TopEntityRow])
+@router.get("/top", response_model=TopEntityListResponse)
 async def top_entities(
     entity_type: Annotated[EntityType | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 30,
     db: Database = Depends(get_library_database),
-) -> list[TopEntityRow]:
+) -> TopEntityListResponse:
     """Top-N entities by claim count across the whole library.
 
     Powers a 'Who's in this archive?' entry-point — the catalogue
@@ -313,7 +313,7 @@ async def top_entities(
         ).fetchall()
     except Exception as exc:  # noqa: BLE001
         logger.warning("top-entities lookup failed: %s", exc)
-        return []
+        return TopEntityListResponse(items=[], count=0)
 
     import json as _json
     from collections import Counter
@@ -332,7 +332,7 @@ async def top_entities(
                     counter[eid] += 1
 
     if not counter:
-        return []
+        return TopEntityListResponse(items=[], count=0)
 
     type_filter = entity_type.value if entity_type else None
     out: list[TopEntityRow] = []
@@ -357,7 +357,7 @@ async def top_entities(
         )
         if len(out) >= limit:
             break
-    return out
+    return TopEntityListResponse(items=out, count=len(out))
 
 
 @router.get("/{entity_id}", response_model=KnowledgeEntity)

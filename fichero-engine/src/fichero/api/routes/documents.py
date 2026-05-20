@@ -435,7 +435,7 @@ async def related_documents(
     doc_id: str,
     limit: int = 20,
     db: Database = Depends(get_library_database),
-) -> list[RelatedDocumentsResponse]:
+) -> DocumentListResponse:
     """Documents that share knowledge-graph entities with this one.
 
     Aggregates entities across this doc's claims, then asks: which
@@ -461,7 +461,7 @@ async def related_documents(
         ).fetchall()
     except Exception as exc:  # noqa: BLE001
         logger.warning("related-documents claim lookup failed: %s", exc)
-        return []
+        return DocumentListResponse(items=[], count=0)
 
     seed_entity_ids: set[str] = set()
     for (raw,) in rows:
@@ -477,7 +477,7 @@ async def related_documents(
                     seed_entity_ids.add(eid)
 
     if not seed_entity_ids:
-        return []
+        return DocumentListResponse(items=[], count=0)
 
     # Step 2: find docs whose claims reference ANY of those entities.
     # JSON-LIKE per-id is fine at this scale; for large entity sets we
@@ -502,7 +502,7 @@ async def related_documents(
             sample_per_doc.setdefault(other_doc_id, set()).add(entity_id)
 
     if not counter:
-        return []
+        return DocumentListResponse(items=[], count=0)
 
     top = counter.most_common(limit)
     out: list[RelatedDocumentsResponse] = []
@@ -538,7 +538,7 @@ async def related_documents(
                 sample_entity_names=sample_names,
             )
         )
-    return out
+    return DocumentListResponse(items=out, count=len(out))
 
 
 @router.post("/pdfs/backfill-pages")
