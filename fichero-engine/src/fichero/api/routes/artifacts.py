@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
-from fichero.models import Artifact, Document
+from fichero.models import Artifact, ArtifactTypeListResponse, Document
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -36,10 +36,10 @@ class ArtifactResponse(BaseModel):
 
 
 class ArtifactListResponse(BaseModel):
-    """Response for listing artifacts."""
+    """Standardized {items, count} envelope for listing artifacts."""
 
-    artifacts: list[ArtifactResponse]
-    total: int
+    items: list[ArtifactResponse]
+    count: int
 
 
 # Routes
@@ -84,20 +84,21 @@ async def list_all_artifacts(
         )
         for a in artifacts
     ]
-    return ArtifactListResponse(artifacts=response_artifacts, total=total)
+    return ArtifactListResponse(items=response_artifacts, count=total)
 
 
-@router.get("/types")
+@router.get("/types", response_model=ArtifactTypeListResponse)
 async def list_artifact_types(
     db: Database = Depends(get_library_database),
-) -> list[str]:
+) -> ArtifactTypeListResponse:
     """List all artifact types in the library.
 
     Useful for filtering UI.
     """
     artifacts = db.query(Artifact)
     types = set(a.artifact_type for a in artifacts if a.artifact_type)
-    return sorted(types)
+    items = sorted(types)
+    return ArtifactTypeListResponse(items=items, count=len(items))
 
 
 @router.get("/document/{doc_id}")
@@ -175,7 +176,7 @@ async def list_document_artifacts(
         for a in artifacts
     ]
 
-    return ArtifactListResponse(artifacts=response_artifacts, total=total)
+    return ArtifactListResponse(items=response_artifacts, count=total)
 
 
 @router.get("/{artifact_id}")

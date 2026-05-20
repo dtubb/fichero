@@ -72,7 +72,7 @@ class TestDocumentRoutes:
 
         response = client.get("/api/documents")
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["items"]
         assert isinstance(data, list)
         assert len(data) == 1
 
@@ -82,7 +82,7 @@ class TestDocumentRoutes:
 
         response = client.get("/api/documents?doc_type=file")
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["items"]
         assert len(data) == 1
 
     def test_list_collections(self, client, db, sample_collection):
@@ -91,7 +91,7 @@ class TestDocumentRoutes:
 
         response = client.get("/api/documents/collections")
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["items"]
         assert isinstance(data, list)
         # Should have at least our saved collection
         assert len(data) == 1
@@ -120,7 +120,7 @@ class TestDocumentRoutes:
 
         response = client.get(f"/api/documents/{sample_collection.id}/children")
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["items"]
         assert isinstance(data, list)
         assert len(data) == 1
 
@@ -662,7 +662,7 @@ class TestDocumentHierarchy:
 
         response = client.get("/api/documents/child1/ancestors")
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["items"]
         assert isinstance(data, list)
 
     def test_get_ancestors_not_found(self, client, mock_db):

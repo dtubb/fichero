@@ -63,7 +63,7 @@ class ArtifactServiceGenerated: ObservableObject {
         switch response {
         case .ok(let okResponse):
             let artifactList = try okResponse.body.json
-            let artifacts = artifactList.artifacts.map { convertToArtifact($0) }
+            let artifacts = artifactList.items.map { convertToArtifact($0) }
 
             artifactsByDocument[cacheKey] = artifacts
 
@@ -104,7 +104,7 @@ class ArtifactServiceGenerated: ObservableObject {
 
         switch response {
         case .ok(let okResponse):
-            return try okResponse.body.json
+            return try okResponse.body.json.items
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ArtifactServiceError.serverError(detail?.detail?.description ?? "Validation error")
@@ -141,8 +141,8 @@ class ArtifactServiceGenerated: ObservableObject {
         let decoder = JSONDecoder()
         let artifactList = try decoder.decode(AllArtifactsResponse.self, from: data)
 
-        logger.info("Fetched \(artifactList.artifacts.count) total artifacts")
-        return artifactList.artifacts.map { convertToArtifactFromJSON($0) }
+        logger.info("Fetched \(artifactList.items.count) total artifacts")
+        return artifactList.items.map { convertToArtifactFromJSON($0) }
     }
 
     // MARK: - JSON Conversion for direct HTTP calls
@@ -317,8 +317,8 @@ enum ArtifactServiceError: Error, LocalizedError {
 
 /// Response for list all artifacts endpoint
 private struct AllArtifactsResponse: Codable {
-    let artifacts: [ArtifactJSON]
-    let total: Int
+    let items: [ArtifactJSON]
+    let count: Int
 }
 
 /// JSON artifact representation for direct HTTP decoding

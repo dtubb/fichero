@@ -172,13 +172,38 @@ def test_connect_failure_raises_friendly_error():
 
 
 def test_list_documents_loud_on_wrong_shape():
-    """Typed methods must fail loudly when the backend returns a non-list —
-    the whole point of the typing is to surface shape drift at the boundary,
-    not let it slip through as "zero results" via a falsy-coercion shortcut.
+    """Typed methods must fail loudly when the backend returns a genuinely
+    wrong shape — the whole point of the typing is to surface shape drift at
+    the boundary, not let it slip through as "zero results" via a
+    falsy-coercion shortcut.
+
+    A dict WITHOUT an ``items`` list is not the standardized
+    ``{items, count}`` envelope, so the CLI must raise rather than treat the
+    error payload as iterable.
     """
     handler, _ = _capture(response={"error": "library not found"})
-    with pytest.raises(FicheroError, match="expected a list"):
+    with pytest.raises(FicheroError, match="envelope or a list"):
         _client(handler).list_documents()
+
+
+def test_list_documents_unwraps_envelope():
+    """The standardized ``{items, count}`` envelope is unwrapped to its
+    items — callers see a list of typed Documents, not the envelope dict."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={
+            "items": [
+                {"id": "doc-1", "name": "Test PDF", "doc_type": "file"},
+                {"id": "doc-2", "name": "Page 1", "doc_type": "page",
+                 "parent_id": "doc-1"},
+            ],
+            "count": 2,
+        })
+
+    docs = _client(handler).list_documents()
+    assert len(docs) == 2
+    assert docs[0].id == "doc-1"
+    assert docs[1].parent_id == "doc-1"
 
 
 def test_list_documents_returns_typed_documents():

@@ -729,7 +729,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "ArtifactTypeListResponse"
       },
       {
         "method": "GET",
@@ -1725,7 +1725,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[Document]"
+        "response_model": "fichero__models__DocumentListResponse"
       },
       {
         "method": "POST",
@@ -1745,7 +1745,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[Document]"
+        "response_model": "fichero__models__DocumentListResponse"
       },
       {
         "method": "GET",
@@ -1755,7 +1755,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[Document]"
+        "response_model": "fichero__models__DocumentListResponse"
       },
       {
         "method": "GET",
@@ -1809,7 +1809,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[Document]"
+        "response_model": "fichero__models__DocumentListResponse"
       },
       {
         "method": "GET",
@@ -1821,7 +1821,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "[Document]"
+        "response_model": "fichero__models__DocumentListResponse"
       },
       {
         "method": "GET",
@@ -1851,7 +1851,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "fichero__models__DocumentListResponse"
+        "response_model": "RelatedDocumentListResponse"
       },
       {
         "method": "POST",
@@ -3300,7 +3300,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[FolderInfo]"
+        "response_model": "FolderListResponse"
       },
       {
         "method": "POST",
@@ -5061,7 +5061,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[ToolResponse]"
+        "response_model": "WorkflowToolListResponse"
       },
       {
         "method": "GET",
@@ -5144,7 +5144,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[WorkflowResponse]"
+        "response_model": "WorkflowListResponse"
       },
       {
         "method": "POST",

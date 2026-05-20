@@ -159,8 +159,8 @@ def test_workflow_status_builds_path(monkeypatch):
 
 
 def test_artifacts_builds_path_and_params(monkeypatch):
-    # /api/artifacts/document/{id} returns a paginated envelope, not a bare list.
-    with _mock_client(monkeypatch, body={"artifacts": [], "total": 0}) as seen:
+    # /api/artifacts/document/{id} returns the standard {items, count} envelope.
+    with _mock_client(monkeypatch, body={"items": [], "count": 0}) as seen:
         mcp_server.fichero_artifacts("doc-3", artifact_type="catalogue", limit=10)
     assert seen[0].url.path == "/api/artifacts/document/doc-3"
     assert dict(seen[0].url.params)["artifact_type"] == "catalogue"

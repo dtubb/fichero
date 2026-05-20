@@ -56,6 +56,13 @@ class FolderInfo(BaseModel):
     parent_path: str
 
 
+class FolderListResponse(BaseModel):
+    """Standardized {items, count} envelope for GET /api/folders/{entity_type}/folders."""
+
+    items: list[FolderInfo]
+    count: int
+
+
 class MoveItemsRequest(BaseModel):
     """Request to move items to a folder."""
 
@@ -92,12 +99,12 @@ class RenameFolderRequest(BaseModel):
 # =============================================================================
 
 
-@router.get("/{entity_type}/folders")
+@router.get("/{entity_type}/folders", response_model=FolderListResponse)
 async def list_folders(
     entity_type: EntityType,
     parent_path: str = "/",
     db: Database = Depends(get_library_database),
-) -> list[FolderInfo]:
+) -> FolderListResponse:
     """List unique folder paths under parent.
 
     Args:
@@ -134,7 +141,7 @@ async def list_folders(
 
         result.append(FolderInfo(path=folder, item_count=count, parent_path=parent))
 
-    return result
+    return FolderListResponse(items=result, count=len(result))
 
 
 @router.post("/{entity_type}/folders")

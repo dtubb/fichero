@@ -42,19 +42,19 @@ class TestListFolders:
     def test_empty_library_returns_no_folders(self, client):
         r = client.get("/api/folders/workflow/folders?parent_path=/")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json()["items"] == []
 
     def test_root_items_not_returned_as_folders(self, client, db):
         _make_workflow(db, "root-wf", folder_path="/")
         r = client.get("/api/folders/workflow/folders?parent_path=/")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json()["items"] == []
 
     def test_child_folder_appears_in_listing(self, client, db):
         _make_workflow(db, "archived", folder_path="/archive")
         r = client.get("/api/folders/workflow/folders?parent_path=/")
         assert r.status_code == 200
-        paths = [e["path"] for e in r.json()]
+        paths = [e["path"] for e in r.json()["items"]]
         assert "/archive" in paths
 
     def test_item_count_is_correct(self, client, db):
@@ -63,7 +63,7 @@ class TestListFolders:
         _make_workflow(db, "w3", folder_path="/other")
         r = client.get("/api/folders/workflow/folders?parent_path=/")
         assert r.status_code == 200
-        by_path = {e["path"]: e["item_count"] for e in r.json()}
+        by_path = {e["path"]: e["item_count"] for e in r.json()["items"]}
         assert by_path["/archive"] == 2
         assert by_path["/other"] == 1
 
@@ -72,7 +72,7 @@ class TestListFolders:
         r = client.get("/api/folders/workflow/folders?parent_path=/")
         assert r.status_code == 200
         # Should show /archive, not /archive/letters
-        paths = [e["path"] for e in r.json()]
+        paths = [e["path"] for e in r.json()["items"]]
         assert "/archive" in paths
         assert "/archive/letters" not in paths
 
@@ -80,28 +80,28 @@ class TestListFolders:
         _make_workflow(db, "deep", folder_path="/archive/letters")
         r = client.get("/api/folders/workflow/folders?parent_path=/archive")
         assert r.status_code == 200
-        paths = [e["path"] for e in r.json()]
+        paths = [e["path"] for e in r.json()["items"]]
         assert "/archive/letters" in paths
 
     def test_search_entity_type(self, client, db):
         _make_search(db, "query1", folder_path="/saved")
         r = client.get("/api/folders/search/folders?parent_path=/")
         assert r.status_code == 200
-        paths = [e["path"] for e in r.json()]
+        paths = [e["path"] for e in r.json()["items"]]
         assert "/saved" in paths
 
     def test_conversation_entity_type(self, client, db):
         _make_conversation(db, "Chat 1", folder_path="/ai-chats")
         r = client.get("/api/folders/conversation/folders?parent_path=/")
         assert r.status_code == 200
-        paths = [e["path"] for e in r.json()]
+        paths = [e["path"] for e in r.json()["items"]]
         assert "/ai-chats" in paths
 
     def test_parent_path_in_response(self, client, db):
         _make_workflow(db, "wf", folder_path="/archive")
         r = client.get("/api/folders/workflow/folders?parent_path=/")
         assert r.status_code == 200
-        entry = r.json()[0]
+        entry = r.json()["items"][0]
         assert entry["parent_path"] == "/"
 
 

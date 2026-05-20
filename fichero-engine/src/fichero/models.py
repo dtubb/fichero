@@ -1139,9 +1139,20 @@ class ClaimLinkListResponse(BaseModel):
 
 
 class DocumentListResponse(BaseModel):
-    """Standardized envelope for document-related list endpoints."""
+    """Standardized envelope for document list endpoints (GET /api/documents,
+    /collections, /roots, /{id}/children, /{id}/ancestors)."""
 
-    items: list[Any]  # Typically Document or RelatedDocumentsResponse
+    items: list[Document]
+    count: int
+
+
+class RelatedDocumentListResponse(BaseModel):
+    """Standardized envelope for GET /api/documents/{doc_id}/related.
+
+    Items are RelatedDocumentsResponse rows (route-local type), so typed as
+    Any here to avoid a models <- routes import cycle."""
+
+    items: list[Any]
     count: int
 
 
@@ -1170,6 +1181,13 @@ class TopEntityListResponse(BaseModel):
     """Standardized envelope for GET /api/entities/top."""
 
     items: list[Any]  # Typically TopEntityRow
+    count: int
+
+
+class ArtifactTypeListResponse(BaseModel):
+    """Standardized envelope for GET /api/artifacts/types."""
+
+    items: list[str]
     count: int
 
 

@@ -2506,11 +2506,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "title": "Response List Artifact Types Api Artifacts Types Get"
+                  "$ref": "#/components/schemas/ArtifactTypeListResponse"
                 }
               }
             }
@@ -5421,11 +5417,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Document"
-                  },
-                  "title": "Response List Documents Api Documents Get"
+                  "$ref": "#/components/schemas/fichero__models__DocumentListResponse"
                 }
               }
             }
@@ -5519,11 +5511,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Document"
-                  },
-                  "title": "Response List Collections Api Documents Collections Get"
+                  "$ref": "#/components/schemas/fichero__models__DocumentListResponse"
                 }
               }
             }
@@ -5566,11 +5554,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Document"
-                  },
-                  "title": "Response List Roots Api Documents Roots Get"
+                  "$ref": "#/components/schemas/fichero__models__DocumentListResponse"
                 }
               }
             }
@@ -5790,11 +5774,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Document"
-                  },
-                  "title": "Response Get Children Api Documents  Doc Id  Children Get"
+                  "$ref": "#/components/schemas/fichero__models__DocumentListResponse"
                 }
               }
             }
@@ -5846,11 +5826,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Document"
-                  },
-                  "title": "Response Get Ancestors Api Documents  Doc Id  Ancestors Get"
+                  "$ref": "#/components/schemas/fichero__models__DocumentListResponse"
                 }
               }
             }
@@ -5964,7 +5940,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__models__DocumentListResponse"
+                  "$ref": "#/components/schemas/RelatedDocumentListResponse"
                 }
               }
             }
@@ -7286,11 +7262,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/FolderInfo"
-                  },
-                  "title": "Response List Folders Api Folders  Entity Type  Folders Get"
+                  "$ref": "#/components/schemas/FolderListResponse"
                 }
               }
             }
@@ -14314,11 +14286,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ToolResponse"
-                  },
-                  "type": "array",
-                  "title": "Response List Workflow Tools Api Workflows Tools Get"
+                  "$ref": "#/components/schemas/WorkflowToolListResponse"
                 }
               }
             }
@@ -14593,11 +14561,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WorkflowResponse"
-                  },
-                  "title": "Response List Workflows Api Workflows Get"
+                  "$ref": "#/components/schemas/WorkflowListResponse"
                 }
               }
             }
@@ -30011,25 +29975,25 @@
       },
       "ArtifactListResponse": {
         "properties": {
-          "artifacts": {
+          "items": {
             "items": {
               "$ref": "#/components/schemas/ArtifactResponse"
             },
             "type": "array",
-            "title": "Artifacts"
+            "title": "Items"
           },
-          "total": {
+          "count": {
             "type": "integer",
-            "title": "Total"
+            "title": "Count"
           }
         },
         "type": "object",
         "required": [
-          "artifacts",
-          "total"
+          "items",
+          "count"
         ],
         "title": "ArtifactListResponse",
-        "description": "Response for listing artifacts."
+        "description": "Standardized {items, count} envelope for listing artifacts."
       },
       "ArtifactResponse": {
         "properties": {
@@ -30095,6 +30059,28 @@
         ],
         "title": "ArtifactResponse",
         "description": "Artifact response with formatted data."
+      },
+      "ArtifactTypeListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ArtifactTypeListResponse",
+        "description": "Standardized envelope for GET /api/artifacts/types."
       },
       "ArtifactUpdate": {
         "properties": {
@@ -35501,6 +35487,28 @@
         ],
         "title": "FolderInfo",
         "description": "Folder information."
+      },
+      "FolderListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FolderInfo"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "FolderListResponse",
+        "description": "Standardized {items, count} envelope for GET /api/folders/{entity_type}/folders."
       },
       "FolderMoveResponse": {
         "properties": {
@@ -42350,6 +42358,26 @@
         ],
         "title": "RejectResponse"
       },
+      "RelatedDocumentListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "RelatedDocumentListResponse",
+        "description": "Standardized envelope for GET /api/documents/{doc_id}/related.\n\nItems are RelatedDocumentsResponse rows (route-local type), so typed as\nAny here to avoid a models <- routes import cycle."
+      },
       "RenameFolderRequest": {
         "properties": {
           "old_path": {
@@ -47339,6 +47367,28 @@
         ],
         "title": "WorkflowExportResponse"
       },
+      "WorkflowListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "WorkflowListResponse",
+        "description": "Standardized {items, count} envelope for GET /api/workflows."
+      },
       "WorkflowPatchRequest": {
         "properties": {
           "name": {
@@ -47528,6 +47578,28 @@
         ],
         "title": "WorkflowRunResponse",
         "description": "Response with workflow run data (code, logs, etc.)."
+      },
+      "WorkflowToolListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ToolResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "WorkflowToolListResponse",
+        "description": "Standardized {items, count} envelope for GET /api/workflows/tools."
       },
       "WorkflowVisualizationResponse": {
         "properties": {
@@ -48202,20 +48274,25 @@
       },
       "fichero__api__routes__workflows__ToolListResponse": {
         "properties": {
-          "categories": {
+          "items": {
             "items": {
               "$ref": "#/components/schemas/CategoryToolsResponse"
             },
             "type": "array",
-            "title": "Categories"
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
           }
         },
         "type": "object",
         "required": [
-          "categories"
+          "items",
+          "count"
         ],
         "title": "ToolListResponse",
-        "description": "All tools by category."
+        "description": "All tools by category (standardized {items, count} envelope; items\nare per-category groups)."
       },
       "fichero__knowledge_models__EntityType": {
         "type": "string",
@@ -48242,7 +48319,9 @@
       "fichero__models__DocumentListResponse": {
         "properties": {
           "items": {
-            "items": {},
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            },
             "type": "array",
             "title": "Items"
           },
@@ -48257,7 +48336,7 @@
           "count"
         ],
         "title": "DocumentListResponse",
-        "description": "Standardized envelope for document-related list endpoints."
+        "description": "Standardized envelope for document list endpoints (GET /api/documents,\n/collections, /roots, /{id}/children, /{id}/ancestors)."
       },
       "fichero__research_models__ProjectStatus": {
         "type": "string",

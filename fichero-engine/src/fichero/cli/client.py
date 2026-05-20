@@ -355,18 +355,9 @@ class FicheroClient:
                 "include_descendants": include_descendants,
             },
         )
-        # This endpoint returns a paginated envelope `{"artifacts": [...],
-        # "total": N}`, unlike /api/documents and /api/workflows which return
-        # bare lists. Surfaced by the typed-CLI first real run — the backend
-        # is inconsistent across list endpoints, see #1072 audit.
-        if not isinstance(raw, dict) or "artifacts" not in raw:
-            raise FicheroError(
-                f"GET {path} expected envelope {{'artifacts': [...]}}, "
-                f"got {type(raw).__name__}"
-            )
         return [
             Artifact.model_validate(a)
-            for a in _expect_list(raw["artifacts"], f"{path} (envelope.artifacts)")
+            for a in _expect_list(raw, path)
         ]
 
     # -- knowledge graph ---------------------------------------------------

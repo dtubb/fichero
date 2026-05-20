@@ -54,7 +54,7 @@ class WorkflowServiceGenerated: ObservableObject {
         switch response {
         case .ok(let okResponse):
             let generatedTools = try okResponse.body.json
-            let tools = generatedTools.map { convertToToolInfo($0) }
+            let tools = generatedTools.items.map { convertToToolInfo($0) }
             // Populate cache
             for tool in tools {
                 toolsByName[tool.name] = tool
@@ -87,7 +87,7 @@ class WorkflowServiceGenerated: ObservableObject {
         switch response {
         case .ok(let okResponse):
             let grouped = try okResponse.body.json
-            let categories = grouped.categories.map { category in
+            let categories = grouped.items.map { category in
                 let tools = category.tools.map { convertToToolInfo($0) }
                 // Populate cache
                 for tool in tools {
@@ -160,7 +160,7 @@ class WorkflowServiceGenerated: ObservableObject {
         case .ok(let okResponse):
             let workflows = try okResponse.body.json
             logger.info("listWorkflows: got \(workflows.count) workflows")
-            return workflows.map { convertToWorkflowResponse($0) }
+            return workflows.items.map { convertToWorkflowResponse($0) }
         case .unprocessableContent(let error):
             logger.error("listWorkflows: unprocessableContent: \(String(describing: error))")
             throw WorkflowServiceError.validationError("Validation error")

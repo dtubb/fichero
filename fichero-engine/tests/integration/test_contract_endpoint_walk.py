@@ -197,16 +197,6 @@ def test_no_envelope_get_endpoint_returns_500(walk_client):
 # NO NEW bare-array endpoint appears. Remove an entry the moment its endpoint
 # is converted so a regression that re-introduces a bare list is caught.
 _BARE_ARRAY_BACKLOG = {
-    # commit 2 — documents + workflows core
-    "/api/documents",
-    "/api/documents/collections",
-    "/api/documents/roots",
-    "/api/documents/{doc_id}/ancestors",
-    "/api/documents/{doc_id}/children",
-    "/api/workflows",
-    "/api/workflows/tools",
-    "/api/folders/{entity_type}/folders",
-    "/api/artifacts/types",
     # commit 3 — providers / search / chat / models
     "/api/providers",
     "/api/providers/catalog",

@@ -51,8 +51,8 @@ class TestListDocumentArtifacts:
         r = client.get(f"/api/artifacts/document/{doc.id}")
         assert r.status_code == 200
         data = r.json()
-        assert data["total"] == 0
-        assert data["artifacts"] == []
+        assert data["count"] == 0
+        assert data["items"] == []
 
     def test_returns_artifact_for_document(self, client, db):
         doc = _make_doc(db)
@@ -60,8 +60,8 @@ class TestListDocumentArtifacts:
         r = client.get(f"/api/artifacts/document/{doc.id}")
         assert r.status_code == 200
         data = r.json()
-        assert data["total"] == 1
-        assert data["artifacts"][0]["artifact_type"] == "transcription"
+        assert data["count"] == 1
+        assert data["items"][0]["artifact_type"] == "transcription"
 
     def test_404_for_missing_document(self, client):
         r = client.get("/api/artifacts/document/nonexistent-id")
@@ -82,8 +82,8 @@ class TestListDocumentArtifacts:
         r = client.get(f"/api/artifacts/document/{page.id}")
         assert r.status_code == 200
         data = r.json()
-        assert data["total"] == 1
-        assert data["artifacts"][0]["artifact_type"] == "transcription"
+        assert data["count"] == 1
+        assert data["items"][0]["artifact_type"] == "transcription"
 
     def test_strict_scope_excludes_parent_and_sibling_artifacts(self, client, db):
         """V2 strict per-document scope (#721): with
@@ -133,12 +133,12 @@ class TestListDocumentArtifacts:
         )
         assert r.status_code == 200
         data = r.json()
-        artifact_types = sorted(a["artifact_type"] for a in data["artifacts"])
+        artifact_types = sorted(a["artifact_type"] for a in data["items"])
         assert artifact_types == ["transcription"], (
             f"strict scope leaked artifacts: {artifact_types}"
         )
         assert all(
-            a["document_id"] == page_a.id for a in data["artifacts"]
+            a["document_id"] == page_a.id for a in data["items"]
         ), "strict scope returned an artifact whose document_id != requested doc"
 
     def test_legacy_scope_still_aggregates_for_v1_callers(self, client, db):
@@ -171,7 +171,7 @@ class TestListDocumentArtifacts:
         )
         assert r.status_code == 200
         data = r.json()
-        artifact_types = sorted(a["artifact_type"] for a in data["artifacts"])
+        artifact_types = sorted(a["artifact_type"] for a in data["items"])
         assert artifact_types == ["catalogue", "transcription"], (
             f"legacy mode broke aggregation: {artifact_types}"
         )
@@ -183,8 +183,8 @@ class TestListDocumentArtifacts:
         r = client.get(f"/api/artifacts/document/{doc.id}?artifact_type=summary")
         assert r.status_code == 200
         data = r.json()
-        assert data["total"] == 1
-        assert data["artifacts"][0]["artifact_type"] == "summary"
+        assert data["count"] == 1
+        assert data["items"][0]["artifact_type"] == "summary"
 
     def test_pagination_limit(self, client, db):
         doc = _make_doc(db)
@@ -193,8 +193,8 @@ class TestListDocumentArtifacts:
         r = client.get(f"/api/artifacts/document/{doc.id}?limit=2")
         assert r.status_code == 200
         data = r.json()
-        assert data["total"] == 5
-        assert len(data["artifacts"]) == 2
+        assert data["count"] == 5
+        assert len(data["items"]) == 2
 
     def test_pagination_offset(self, client, db):
         doc = _make_doc(db)
@@ -203,14 +203,14 @@ class TestListDocumentArtifacts:
         r = client.get(f"/api/artifacts/document/{doc.id}?offset=2")
         assert r.status_code == 200
         data = r.json()
-        assert len(data["artifacts"]) == 1
+        assert len(data["items"]) == 1
 
     def test_response_fields_present(self, client, db):
         doc = _make_doc(db)
         a = _make_artifact(db, doc.id, "transcription", "content here")
         r = client.get(f"/api/artifacts/document/{doc.id}")
         assert r.status_code == 200
-        artifact = r.json()["artifacts"][0]
+        artifact = r.json()["items"][0]
         assert artifact["id"] == a.id
         assert artifact["document_id"] == doc.id
         assert artifact["content"] == "content here"
@@ -244,7 +244,7 @@ class TestListAllArtifacts:
     def test_empty_library_returns_empty(self, client):
         r = client.get("/api/artifacts/")
         assert r.status_code == 200
-        assert r.json()["total"] == 0
+        assert r.json()["count"] == 0
 
     def test_returns_all_artifacts(self, client, db):
         doc = _make_doc(db)
@@ -252,7 +252,7 @@ class TestListAllArtifacts:
         _make_artifact(db, doc.id, "summary")
         r = client.get("/api/artifacts/")
         assert r.status_code == 200
-        assert r.json()["total"] == 2
+        assert r.json()["count"] == 2
 
     def test_filter_by_type(self, client, db):
         doc = _make_doc(db)
@@ -261,8 +261,8 @@ class TestListAllArtifacts:
         r = client.get("/api/artifacts/?artifact_type=entities")
         assert r.status_code == 200
         data = r.json()
-        assert data["total"] == 1
-        assert data["artifacts"][0]["artifact_type"] == "entities"
+        assert data["count"] == 1
+        assert data["items"][0]["artifact_type"] == "entities"
 
     def test_pagination(self, client, db):
         doc = _make_doc(db)
@@ -271,8 +271,8 @@ class TestListAllArtifacts:
         r = client.get("/api/artifacts/?limit=3&offset=7")
         assert r.status_code == 200
         data = r.json()
-        assert data["total"] == 10
-        assert len(data["artifacts"]) == 3
+        assert data["count"] == 10
+        assert len(data["items"]) == 3
 
 
 # ---------------------------------------------------------------------------
@@ -284,7 +284,7 @@ class TestListArtifactTypes:
     def test_empty_returns_empty_list(self, client):
         r = client.get("/api/artifacts/types")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json()["items"] == []
 
     def test_returns_unique_types_sorted(self, client, db):
         doc = _make_doc(db)
@@ -293,7 +293,7 @@ class TestListArtifactTypes:
         _make_artifact(db, doc.id, "transcription")  # duplicate type
         r = client.get("/api/artifacts/types")
         assert r.status_code == 200
-        types = r.json()
+        types = r.json()["items"]
         assert types == sorted(set(types))
         assert "transcription" in types
         assert "summary" in types
@@ -317,7 +317,7 @@ class TestDeleteArtifact:
         a = _make_artifact(db, doc.id)
         client.delete(f"/api/artifacts/{a.id}")
         r = client.get("/api/artifacts/")
-        assert r.json()["total"] == 0
+        assert r.json()["count"] == 0
 
     def test_delete_nonexistent_returns_404(self, client):
         r = client.delete("/api/artifacts/no-such-id")
@@ -351,7 +351,7 @@ class TestIncludeDescendantsScope:
         # Default behavior (V1): aggregate parent + children.
         r = client.get(f"/api/artifacts/document/{page.id}")
         assert r.status_code == 200
-        contents = [a["content"] for a in r.json()["artifacts"]]
+        contents = [a["content"] for a in r.json()["items"]]
         assert "from-parent" in contents
 
     def test_strict_scope_excludes_parent_artifacts(self, client, db):
@@ -371,7 +371,7 @@ class TestIncludeDescendantsScope:
             params={"include_descendants": "false"},
         )
         assert r.status_code == 200
-        assert r.json()["total"] == 0
+        assert r.json()["count"] == 0
 
     def test_strict_scope_returns_own_artifact(self, client, db):
         doc = _make_doc(db)
@@ -382,8 +382,8 @@ class TestIncludeDescendantsScope:
             params={"include_descendants": "false"},
         )
         assert r.status_code == 200
-        assert r.json()["total"] == 1
-        assert r.json()["artifacts"][0]["content"] == "own"
+        assert r.json()["count"] == 1
+        assert r.json()["items"][0]["content"] == "own"
 
 
 # ---------------------------------------------------------------------------

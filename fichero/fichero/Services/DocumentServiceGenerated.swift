@@ -150,7 +150,7 @@ class DocumentServiceGenerated: ObservableObject {
         case .ok(let ok):
             let docs = try ok.body.json
             logger.info("Found \(docs.count) children")
-            return try docs.map { try convertToDocument($0) }
+            return try docs.items.map { try convertToDocument($0) }
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
@@ -174,7 +174,7 @@ class DocumentServiceGenerated: ObservableObject {
         case .ok(let ok):
             let docs = try ok.body.json
             logger.info("Found \(docs.count) ancestors")
-            return try docs.map { try convertToDocument($0) }
+            return try docs.items.map { try convertToDocument($0) }
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
@@ -196,7 +196,7 @@ class DocumentServiceGenerated: ObservableObject {
         case .ok(let ok):
             let docs = try ok.body.json
             logger.info("Found \(docs.count) root documents")
-            return try docs.map { try convertToDocument($0) }
+            return try docs.items.map { try convertToDocument($0) }
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
@@ -218,7 +218,7 @@ class DocumentServiceGenerated: ObservableObject {
         case .ok(let ok):
             let docs = try ok.body.json
             logger.info("Found \(docs.count) collections")
-            return try docs.map { try convertToDocument($0) }
+            return try docs.items.map { try convertToDocument($0) }
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")

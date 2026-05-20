@@ -85,9 +85,11 @@ class CategoryToolsResponse(BaseModel):
 
 
 class ToolListResponse(BaseModel):
-    """All tools by category."""
+    """All tools by category (standardized {items, count} envelope; items
+    are per-category groups)."""
 
-    categories: list[CategoryToolsResponse]
+    items: list[CategoryToolsResponse]
+    count: int
 
 
 class NodeResponse(BaseModel):
@@ -115,6 +117,20 @@ class WorkflowResponse(BaseModel):
     edges: list[EdgeDef]
     folder_path: str
     sort_order: int
+
+
+class WorkflowListResponse(BaseModel):
+    """Standardized {items, count} envelope for GET /api/workflows."""
+
+    items: list[WorkflowResponse]
+    count: int
+
+
+class WorkflowToolListResponse(BaseModel):
+    """Standardized {items, count} envelope for GET /api/workflows/tools."""
+
+    items: list[ToolResponse]
+    count: int
 
 
 # =============================================================================
@@ -242,11 +258,12 @@ def _category_display_name(category: str) -> str:
 # =============================================================================
 
 
-@router.get("/tools")
-async def list_workflow_tools() -> list[ToolResponse]:
+@router.get("/tools", response_model=WorkflowToolListResponse)
+async def list_workflow_tools() -> WorkflowToolListResponse:
     """List all available workflow tools with port definitions."""
     tools = list_tools()
-    return [_tool_to_response(t) for t in tools]
+    items = [_tool_to_response(t) for t in tools]
+    return WorkflowToolListResponse(items=items, count=len(items))
 
 
 @router.get("/tools/grouped")
@@ -266,7 +283,7 @@ async def list_tools_grouped() -> ToolListResponse:
                 )
             )
 
-    return ToolListResponse(categories=result)
+    return ToolListResponse(items=result, count=len(result))
 
 
 @router.get("/tools/{tool_name}")
@@ -506,11 +523,11 @@ async def reinstall_default_workflows(
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@router.get("")
+@router.get("", response_model=WorkflowListResponse)
 async def list_workflows(
     folder_path: str | None = None,
     db: Database = Depends(get_library_database),
-) -> list[WorkflowResponse]:
+) -> WorkflowListResponse:
     """List saved workflows, optionally filtered by folder.
 
     When ``folder_path`` is omitted, all workflows are returned regardless
@@ -524,7 +541,7 @@ async def list_workflows(
         else:
             workflows = db.query(Workflow, folder_path=folder_path)
 
-        return [
+        items = [
             WorkflowResponse(
                 id=workflow.id,
                 name=workflow.name,
@@ -538,6 +555,7 @@ async def list_workflows(
             )
             for workflow in sorted(workflows, key=lambda w: w.sort_order)
         ]
+        return WorkflowListResponse(items=items, count=len(items))
     except Exception as e:
         logger.exception("Failed to list workflows")
         raise HTTPException(status_code=500, detail=str(e))

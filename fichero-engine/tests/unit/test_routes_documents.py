@@ -28,28 +28,28 @@ class TestListDocuments:
     def test_empty_list(self, client):
         r = client.get("/api/documents")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json()["items"] == []
 
     def test_returns_saved_documents(self, client, db):
         _make_doc(db, "Doc A")
         _make_doc(db, "Doc B")
         r = client.get("/api/documents")
         assert r.status_code == 200
-        assert len(r.json()) == 2
+        assert len(r.json()["items"]) == 2
 
     def test_pagination_limit(self, client, db):
         for i in range(5):
             _make_doc(db, f"Doc {i}")
         r = client.get("/api/documents?limit=3")
         assert r.status_code == 200
-        assert len(r.json()) == 3
+        assert len(r.json()["items"]) == 3
 
     def test_pagination_offset(self, client, db):
         for i in range(5):
             _make_doc(db, f"Doc {i}")
         r = client.get("/api/documents?offset=3")
         assert r.status_code == 200
-        assert len(r.json()) == 2
+        assert len(r.json()["items"]) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -63,7 +63,7 @@ class TestListCollections:
         _make_doc(db, "Child", parent_id=root.id)
         r = client.get("/api/documents/collections")
         assert r.status_code == 200
-        ids = [d["id"] for d in r.json()]
+        ids = [d["id"] for d in r.json()["items"]]
         assert root.id in ids
         assert len(ids) == 1  # child excluded
 
@@ -97,7 +97,7 @@ class TestGetChildren:
         child2 = _make_doc(db, "Child 2", parent_id=parent.id)
         r = client.get(f"/api/documents/{parent.id}/children")
         assert r.status_code == 200
-        ids = [d["id"] for d in r.json()]
+        ids = [d["id"] for d in r.json()["items"]]
         assert child1.id in ids
         assert child2.id in ids
 
@@ -105,7 +105,7 @@ class TestGetChildren:
         doc = _make_doc(db)
         r = client.get(f"/api/documents/{doc.id}/children")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json()["items"] == []
 
     def test_missing_parent_returns_404(self, client):
         r = client.get("/api/documents/no-such-parent/children")
@@ -124,7 +124,7 @@ class TestGetAncestors:
         child = _make_doc(db, "Child", parent_id=parent.id)
         r = client.get(f"/api/documents/{child.id}/ancestors")
         assert r.status_code == 200
-        ids = [d["id"] for d in r.json()]
+        ids = [d["id"] for d in r.json()["items"]]
         assert parent.id in ids
         assert grandparent.id in ids
 
@@ -132,7 +132,7 @@ class TestGetAncestors:
         doc = _make_doc(db)
         r = client.get(f"/api/documents/{doc.id}/ancestors")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json()["items"] == []
 
     def test_missing_returns_404(self, client):
         r = client.get("/api/documents/no-such-id/ancestors")

@@ -44,14 +44,14 @@ class TestListWorkflows:
     def test_empty_list(self, client):
         r = client.get("/api/workflows")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json()["items"] == []
 
     def test_returns_saved_workflows(self, client, db):
         _make_workflow(db, "Workflow A")
         _make_workflow(db, "Workflow B")
         r = client.get("/api/workflows")
         assert r.status_code == 200
-        assert len(r.json()) == 2
+        assert len(r.json()["items"]) == 2
 
     def test_unfiltered_list_includes_non_root_folder_paths(self, client, db):
         # Regression for #723: list endpoint must return workflows in any
@@ -66,7 +66,7 @@ class TestListWorkflows:
         db.save(catalogue)
         r = client.get("/api/workflows")
         assert r.status_code == 200
-        names = {w["name"] for w in r.json()}
+        names = {w["name"] for w in r.json()["items"]}
         assert {"Root", "Catalogue"} <= names
 
     def test_explicit_folder_path_still_filters(self, client, db):
@@ -76,7 +76,7 @@ class TestListWorkflows:
         )
         r = client.get("/api/workflows", params={"folder_path": "/Catalogue"})
         assert r.status_code == 200
-        names = {w["name"] for w in r.json()}
+        names = {w["name"] for w in r.json()["items"]}
         assert names == {"Cat"}
 
 
@@ -206,11 +206,11 @@ class TestListWorkflowTools:
     def test_returns_tools_list(self, client):
         r = client.get("/api/workflows/tools")
         assert r.status_code == 200
-        assert isinstance(r.json(), list)
+        assert isinstance(r.json()["items"], list)
 
     def test_tools_grouped(self, client):
         r = client.get("/api/workflows/tools/grouped")
         assert r.status_code == 200
         data = r.json()
-        assert "categories" in data
-        assert isinstance(data["categories"], list)
+        assert "items" in data
+        assert isinstance(data["items"], list)

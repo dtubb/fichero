@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.models import Artifact, DocType, Document, FileType, Status
-from fichero.models import DocumentListResponse
+from fichero.models import DocumentListResponse, RelatedDocumentListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -102,7 +102,7 @@ async def list_documents(
     ),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     db: Database = Depends(get_library_database),
-) -> list[Document]:
+) -> DocumentListResponse:
     """List documents with optional filters from the current library."""
     # Build filter kwargs
     filters = {}
@@ -123,23 +123,26 @@ async def list_documents(
 
     # Apply pagination (if limit is specified)
     if limit is not None:
-        return docs[offset : offset + limit]
+        items = docs[offset : offset + limit]
     else:
-        return docs[offset:]
+        items = docs[offset:]
+    return DocumentListResponse(items=items, count=len(items))
 
 
 @router.get("/collections")
 async def list_collections(
     db: Database = Depends(get_library_database),
-) -> list[Document]:
+) -> DocumentListResponse:
     """List all root-level items (documents without parents)."""
-    return list(db.query(Document, parent_id=None))
+    items = list(db.query(Document, parent_id=None))
+    return DocumentListResponse(items=items, count=len(items))
 
 
 @router.get("/roots")
-async def list_roots(db: Database = Depends(get_library_database)) -> list[Document]:
+async def list_roots(db: Database = Depends(get_library_database)) -> DocumentListResponse:
     """List root documents (no parent)."""
-    return list(db.query(Document, parent_id=None))
+    items = list(db.query(Document, parent_id=None))
+    return DocumentListResponse(items=items, count=len(items))
 
 
 @router.get("/{doc_id}")
@@ -160,7 +163,7 @@ async def get_children(
         None, ge=1, description="Max results (no limit if not specified)"
     ),
     db: Database = Depends(get_library_database),
-) -> list[Document]:
+) -> DocumentListResponse:
     """Get child documents."""
     # Verify parent exists
     parent = db.get(Document, doc_id)
@@ -169,15 +172,14 @@ async def get_children(
 
     children = list(db.query(Document, parent_id=doc_id))
     if limit is not None:
-        return children[:limit]
-    else:
-        return children
+        children = children[:limit]
+    return DocumentListResponse(items=children, count=len(children))
 
 
 @router.get("/{doc_id}/ancestors")
 async def get_ancestors(
     doc_id: str, db: Database = Depends(get_library_database)
-) -> list[Document]:
+) -> DocumentListResponse:
     """Get all ancestors (parent chain) of a document."""
     ancestors = []
     current = db.get(Document, doc_id)
@@ -193,7 +195,7 @@ async def get_ancestors(
         else:
             break
 
-    return ancestors
+    return DocumentListResponse(items=ancestors, count=len(ancestors))
 
 
 @router.get("/{doc_id}/parent")
@@ -430,12 +432,12 @@ async def delete_document(doc_id: str, db: Database = Depends(get_library_databa
     )
 
 
-@router.get("/{doc_id}/related", response_model=DocumentListResponse)
+@router.get("/{doc_id}/related", response_model=RelatedDocumentListResponse)
 async def related_documents(
     doc_id: str,
     limit: int = 20,
     db: Database = Depends(get_library_database),
-) -> DocumentListResponse:
+) -> RelatedDocumentListResponse:
     """Documents that share knowledge-graph entities with this one.
 
     Aggregates entities across this doc's claims, then asks: which
@@ -461,7 +463,7 @@ async def related_documents(
         ).fetchall()
     except Exception as exc:  # noqa: BLE001
         logger.warning("related-documents claim lookup failed: %s", exc)
-        return DocumentListResponse(items=[], count=0)
+        return RelatedDocumentListResponse(items=[], count=0)
 
     seed_entity_ids: set[str] = set()
     for (raw,) in rows:
@@ -477,7 +479,7 @@ async def related_documents(
                     seed_entity_ids.add(eid)
 
     if not seed_entity_ids:
-        return DocumentListResponse(items=[], count=0)
+        return RelatedDocumentListResponse(items=[], count=0)
 
     # Step 2: find docs whose claims reference ANY of those entities.
     # JSON-LIKE per-id is fine at this scale; for large entity sets we
@@ -502,7 +504,7 @@ async def related_documents(
             sample_per_doc.setdefault(other_doc_id, set()).add(entity_id)
 
     if not counter:
-        return DocumentListResponse(items=[], count=0)
+        return RelatedDocumentListResponse(items=[], count=0)
 
     top = counter.most_common(limit)
     out: list[RelatedDocumentsResponse] = []
@@ -538,7 +540,7 @@ async def related_documents(
                 sample_entity_names=sample_names,
             )
         )
-    return DocumentListResponse(items=out, count=len(out))
+    return RelatedDocumentListResponse(items=out, count=len(out))
 
 
 @router.post("/pdfs/backfill-pages")
